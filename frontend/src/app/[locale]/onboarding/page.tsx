@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 
-import { OnboardingPlaceholder } from "@/components/onboarding/onboarding-placeholder";
+import { OnboardingSetup } from "@/components/onboarding/onboarding-setup";
 import type { Locale } from "@/i18n";
 import { readBranding } from "@/lib/branding-server";
 import { pageMetadata } from "@/lib/seo";
@@ -25,5 +25,5 @@ export async function generateMetadata({
 }
 
 export default function OnboardingPage() {
-  return <OnboardingPlaceholder />;
+  return <OnboardingSetup />;
 }

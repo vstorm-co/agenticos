@@ -109,6 +109,7 @@ describe("CodingAgentResult", () => {
   });
 
   it("shows a refusal as the sentence it is, with the task open above it", () => {
+    // Text stored before failures became reports: it still reads as one.
     render(
       <CodingAgentResult
         toolCall={call()}
@@ -117,6 +118,25 @@ describe("CodingAgentResult", () => {
     );
     expect(screen.getByText("Fix the failing test")).toBeInTheDocument();
     expect(screen.getByText(/is not installed/)).toBeInTheDocument();
+  });
+
+  it("shows a refusal that arrived as a failed report with the failure marked", async () => {
+    // A run that could not start is a report with outcome failed, not a
+    // sentence the model answers from - so the badge says Failed.
+    render(
+      <CodingAgentResult
+        toolCall={call()}
+        resultText={JSON.stringify({
+          kind: "coding_agent",
+          harness: "claude_code",
+          access: "edit",
+          outcome: "failed",
+          answer: "Claude Code is not installed in this sandbox's runtime.",
+        })}
+      />,
+    );
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+    expect(await screen.findByText(/is not installed/)).toBeInTheDocument();
   });
 
   it("shows nothing but the task while it runs, and nothing at all without one", () => {
@@ -138,6 +158,15 @@ describe("parseCodingReport", () => {
     expect(parseCodingReport("null")).toBeNull();
     expect(parseCodingReport("not json")).toBeNull();
     expect(parseCodingReport(JSON.stringify({ answer: "no harness" }))).toBeNull();
+  });
+
+  it("reads a harness prompt's report, the same shape under its own kind", () => {
+    const harness = { ...REPORT, kind: "harness" };
+    expect(parseCodingReport(JSON.stringify(harness))).toMatchObject({
+      kind: "harness",
+      harness: "claude_code",
+      answer: "Fixed **the off-by-one**.",
+    });
   });
 
   it("reads a report stored before its kind reached the wire", () => {

@@ -1,10 +1,15 @@
-Subject: Your [[app_name]] plan has been updated
+Subject: Subscription updated
 
-Hi [[name]],
+Subscription updated
 
-Your subscription has been updated from [[old_plan]] to [[new_plan]].
+Hi [[name]], your [[app_name]] subscription has been updated.
 
-Manage your subscription:
+Previous plan: [[old_plan]]
+New plan: [[new_plan]]
+
+Manage subscription:
 [[portal_url]]
 
-- The [[app_name]] Team
+Review your subscription details in the billing portal.
+
+[[app_name]]

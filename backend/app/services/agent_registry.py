@@ -80,6 +80,7 @@ from app.agents.system_agents import (
 )
 from app.agents.tool_names import PLATFORM_TOOL_NAMES, taken_tool_names
 from app.core.audit import current_impersonator, record_audit
+from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_PROVIDER
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -232,6 +233,7 @@ DEFAULT_GRANTED_SCOPES = frozenset(
         "code:execute",
         "sandbox:execute",
         "agents:delegate",
+        "agents:message",
         "tables:read",
         "tables:write",
         "workflows:run",
@@ -573,6 +575,60 @@ def _computer_use_problems(config: BaseModel | None) -> list[str]:
     except ValueError as exc:
         return [f"Computer use's desktop cannot be used: {exc}."]
     return []
+
+
+def _hosted_browser(binding: CapabilityBindingSpec) -> bool:
+    """Recognize configured remote browsers without probing a host or reading a secret."""
+    try:
+        config = WebBrowserConfig.model_validate(binding.config)
+        if config.connection == "local":
+            return False
+        if config.connection == "hosted" and binding.secret_id is None:
+            return False
+        if connection_problems(config, has_secret=binding.secret_id is not None):
+            return False
+        validate_cdp_url(config)
+    except ValueError:
+        # Invalid configuration is not evidence of a usable hosted target. Publish
+        # and run validation still own its explanation; the listing exposes no URL.
+        return False
+    return True
+
+
+def _hosted_computer(binding: CapabilityBindingSpec, sandbox: CapabilityBindingSpec | None) -> bool:
+    """Only explicit E2B or a service desktop; auto can choose a person's computer.
+
+    A service may name a connection or use the organization's default. Resolving
+    that connection and its credential remains the run's job, not the listing's.
+    """
+    try:
+        config = ComputerUseConfig.model_validate(binding.config)
+        if config.desktop == "e2b":
+            return binding.secret_id is not None
+        if config.desktop != "sandbox" or sandbox is None:
+            return False
+        workspace = SandboxConfig.model_validate(sandbox.config)
+    except ValueError:
+        return False
+    return workspace.backend == "service" and workspace.runtime == "desktop"
+
+
+def _published_hosted_capabilities(bindings: Sequence[CapabilityBindingSpec]) -> list[str]:
+    """Safe routing hints from published bindings, never defaults or a new permission.
+
+    The consumer must also honor local choices for the current chat. Neither this
+    projection nor the listing opens a browser, provisions a desktop, or changes
+    an agent's bindings, including an explicit disabled binding.
+    """
+    enabled = {binding.id: binding for binding in bindings if binding.enabled}
+    hosted: list[str] = []
+    browser = enabled.get("browser_use")
+    if browser is not None and _hosted_browser(browser):
+        hosted.append("browser_use")
+    computer = enabled.get(COMPUTER_USE_ID)
+    if computer is not None and _hosted_computer(computer, enabled.get("sandbox")):
+        hosted.append(COMPUTER_USE_ID)
+    return hosted
 
 
 def _variable_problems(spec: AgentSpec) -> _SpecProblems:
@@ -1145,8 +1201,9 @@ def _window_of(profile: ModelProfile | None) -> int | None:
 
     The profile's recorded number first: it is what the provider's own listing
     published when somebody added the model, and it beats the pricing registry -
-    which records 1,000,000 for `anthropic:claude-sonnet-4-5` against a real
-    200,000, wrong in the direction that lets a run reach the ceiling.
+    a third-party bundle that has recorded a window too high before
+    (`anthropic:claude-sonnet-4-5`, #773), wrong in the direction that lets a
+    run reach the ceiling.
 
     The registry is the fallback for a profile older than that column. Nothing is
     invented past it: a conservative default here would be drawn as a percentage,
@@ -1365,6 +1422,18 @@ class AgentRegistryService:
             self.db, ctx, agent, Perm.AGENTS_PUBLISH, resource_type=AGENT
         )
 
+    async def configuration_access(self, ctx: AuthContext, agent: Agent) -> tuple[bool, bool]:
+        """The same caller-specific resource authority returned by the listing.
+
+        Lifecycle and workflow ownership decide which configuration controls a
+        particular view offers. They must not erase these permission hints: the
+        full editor and gallery also use edit authority to offer Restore for an
+        archived agent. The settings pane must combine them with lifecycle state
+        and hide draft controls for archived or workflow-owned agents. Every write
+        still checks its own resource and state rules.
+        """
+        return await self.may_edit(ctx, agent), await self.may_publish(ctx, agent)
+
     async def _visible_scope(
         self, ctx: AuthContext, *, shared_with_me: bool
     ) -> tuple[bool, list[UUID]]:
@@ -1526,7 +1595,7 @@ class AgentRegistryService:
         starters = await agent_repo.published_starters(self.db, version_ids=version_ids)
         starter_icons = await agent_repo.published_starter_icons(self.db, version_ids=version_ids)
         starter_titles = await agent_repo.published_starter_titles(self.db, version_ids=version_ids)
-        published_capabilities = await agent_repo.published_capabilities(
+        published_bindings = await agent_repo.published_capability_bindings(
             self.db, version_ids=version_ids
         )
         coding_agents = await agent_repo.published_coding_agents(self.db, version_ids=version_ids)
@@ -1614,7 +1683,16 @@ class AgentRegistryService:
                 context_window_tokens=(
                     windows.get(agent.current_version_id) if agent.current_version_id else None
                 ),
-                published_capabilities=published_capabilities.get(agent.current_version_id, [])
+                published_capabilities=[
+                    binding.id
+                    for binding in published_bindings.get(agent.current_version_id, [])
+                    if binding.enabled
+                ]
+                if agent.current_version_id
+                else [],
+                published_hosted_capabilities=_published_hosted_capabilities(
+                    published_bindings.get(agent.current_version_id, [])
+                )
                 if agent.current_version_id
                 else [],
                 local_coding_agent=_local_coding_agent(
@@ -2302,7 +2380,7 @@ class AgentRegistryService:
                     )
 
         for binding in spec.capabilities:
-            problems.merge(await self._binding_problems(ctx, binding))
+            problems.merge(await self._binding_problems(ctx, binding, agent_id=agent_id))
         problems.add(_rename_clash_problems(spec))
 
         # A model, named. There is no organization-wide default to fall back
@@ -2322,6 +2400,7 @@ class AgentRegistryService:
                     personal=spec.model_credential_mode == "personal",
                 )
             )
+            problems.merge(await self._native_only_problems(ctx, spec, spec.model_profile_id))
         # And each reviewer's, refused here rather than when a run first reaches
         # its cadence and finds nothing to review with.
         for reviewer in spec.reviewers:
@@ -2438,8 +2517,40 @@ class AgentRegistryService:
             return await self._mcp_problems(ctx, spec.mcp_servers, taken=taken_tool_names(spec))
         return []
 
+    async def _native_only_problems(
+        self, ctx: AuthContext, spec: AgentSpec, profile_id: UUID
+    ) -> _SpecProblems:
+        """Bindings set to a provider-native tool on a model that supports none (#166).
+
+        A Claude subscription model runs application tools only. A binding with a
+        local tool behind the native one uses it there; one configured to the native
+        tool alone would fail on the first turn, so it is refused here, on the input.
+        """
+        problems = _SpecProblems()
+        profile = await credential_repo.get_profile(
+            self.db, profile_id, organization_id=ctx.organization_id
+        )
+        if profile is None or profile.provider != CLAUDE_SUBSCRIPTION_PROVIDER:
+            return problems
+        for binding in spec.capabilities:
+            try:
+                definition = get_capability(binding.id)
+                config = definition.validate_config(binding.config)
+            except BadRequestError:
+                continue  # `_binding_problems` reports an unknown id or a bad config.
+            if definition.native_only is None or not definition.native_only.is_met(config):
+                continue
+            field = definition.native_only.field
+            problems.refuse(
+                f"capabilities.{binding.id}.{field}",
+                f"Capability '{binding.id}': {field} "
+                f"'{getattr(config, field)}' needs a provider-native tool, and Claude "
+                "subscription models support none. Choose another option.",
+            )
+        return problems
+
     async def _binding_problems(
-        self, ctx: AuthContext, binding: CapabilityBindingSpec
+        self, ctx: AuthContext, binding: CapabilityBindingSpec, *, agent_id: UUID | None = None
     ) -> _SpecProblems:
         """Everything wrong with one capability binding.
 
@@ -2480,6 +2591,28 @@ class AgentRegistryService:
             problems.merge(_config_problems(binding.id, exc))
         else:
             problems.add(await _browser_problems(config, has_secret=binding.secret_id is not None))
+            if isinstance(config, WebBrowserConfig) and config.browser_credential_ids:
+                from app.services.browser_credentials._bindings import binding_problem
+
+                browser_problem = await binding_problem(
+                    self.db,
+                    ctx,
+                    config.browser_credential_ids,
+                    agent_id=agent_id,
+                    provisioned=(
+                        config.connection == "built_in"
+                        and bool(settings.BROWSER_SIGN_IN_CDP_URL)
+                        and config.cdp_url.rstrip("/")
+                        == settings.BROWSER_SIGN_IN_CDP_URL.rstrip("/")
+                    ),
+                )
+                if browser_problem is not None:
+                    problems.merge(
+                        _SpecProblems.at(
+                            "capabilities.browser_use.config.browser_credential_ids",
+                            browser_problem,
+                        )
+                    )
             problems.add(_computer_use_problems(config))
             if isinstance(config, WebBrowserConfig) and config.step_model_profile_id is not None:
                 problems.add(await self.model_profile_problems(ctx, config.step_model_profile_id))
@@ -2593,6 +2726,12 @@ class AgentRegistryService:
         )
         if profile is None:
             return ["The selected model profile no longer exists"]
+        if (
+            profile.usage_scope == "personal" or profile.provider == CLAUDE_SUBSCRIPTION_PROVIDER
+        ) and (
+            ctx.personal_user_id is None or profile.personal_owner_user_id != ctx.personal_user_id
+        ):
+            return ["Choose one of your own personal model connections"]
         if personal:
             problem = personal_profile_problem(profile)
             return [] if problem is None else [problem]
@@ -2624,10 +2763,21 @@ class AgentRegistryService:
         # In the chain's order. One that no longer exists is skipped at run
         # time, not refused here.
         for fallback in (fallbacks[pid] for pid in fallback_ids if pid in fallbacks):
-            if is_decision_api(fallback.provider, fallback.api):
+            personal_fallback_unavailable = (
+                fallback.usage_scope == "personal"
+                or fallback.provider == CLAUDE_SUBSCRIPTION_PROVIDER
+            ) and (
+                ctx.personal_user_id is None
+                or fallback.personal_owner_user_id != ctx.personal_user_id
+            )
+            decision_fallback = is_decision_api(fallback.provider, fallback.api)
+            if personal_fallback_unavailable:
+                problems.append("Remove the personal fallback that this signed-in user cannot use")
+            if decision_fallback:
                 problems.append(
                     f"Fallback model '{fallback.label}' serves decisions, not conversation"
                 )
+            if personal_fallback_unavailable or decision_fallback:
                 continue
             found = model_outputs(fallback.provider, fallback.model, base_url=fallback.base_url)
             if not found.chat:
@@ -2708,7 +2858,19 @@ class AgentRegistryService:
             )
         }
         problems = _SpecProblems()
-        if not out_of_reach:
+        personal_out_of_reach = {
+            profile.id
+            for profile in profiles.values()
+            if (
+                profile.usage_scope == "personal"
+                or profile.provider == CLAUDE_SUBSCRIPTION_PROVIDER
+            )
+            and (
+                ctx.personal_user_id is None
+                or profile.personal_owner_user_id != ctx.personal_user_id
+            )
+        }
+        if not out_of_reach and not personal_out_of_reach:
             return problems
         who = "you" if person is not None else "an API key"
         ask = ", or ask its owner to share the sign-in with you" if person is not None else ""
@@ -2717,6 +2879,11 @@ class AgentRegistryService:
             profile = profiles.get(ref.profile_id)
             if profile is None:
                 continue
+            if profile.id in personal_out_of_reach:
+                problems.refuse(
+                    ref.field,
+                    f"{ref.says}This personal model connection can only be chosen by its signed-in owner",
+                )
             if profile.secret_id in out_of_reach:
                 instead = "pin another delegate or version" if ref.pinned else "pick another model"
                 problems.refuse(
@@ -2726,6 +2893,11 @@ class AgentRegistryService:
                 )
             for fallback_id in chains[profile.id]:
                 fallback = profiles.get(fallback_id)
+                if fallback_id in personal_out_of_reach:
+                    problems.refuse(
+                        ref.field,
+                        f"{ref.says}Remove the personal fallback that this signed-in user cannot use",
+                    )
                 if fallback is not None and fallback.secret_id in out_of_reach:
                     instead = (
                         "pin another delegate or version"
@@ -3086,7 +3258,7 @@ class AgentRegistryService:
                 connection is not None
                 and connection.visibility != Visibility.ORG.value
                 and not await resolve_access(
-                    self.db, ctx, connection, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+                    self.db, ctx, connection, Perm.MCP_USE, resource_type=MCP_CONNECTION
                 )
             ):
                 # Narrowed to groups the publisher is not in (#2072): binding it
@@ -4618,21 +4790,60 @@ class AgentRegistryService:
             )
         return agent, AgentSpec.model_validate(version.spec), version.id
 
-    async def with_assistant_guidance(self, agent: Agent, spec: AgentSpec) -> AgentSpec:
-        """Add current Projects guidance only to the registered Architect's runtime copy.
+    async def with_assistant_guidance(
+        self,
+        agent: Agent,
+        spec: AgentSpec,
+        *,
+        sender_user_id: UUID | None = None,
+        allow_personal_apps: bool = True,
+    ) -> AgentSpec:
+        """Add runtime guidance and the sender's active apps without changing the stored spec.
 
-        Existing installations keep their customized stored specs. Other agents
-        and external MCP clients keep their own workflow, even with platform tools.
+        The registered assistant keeps its configured-app placeholders. Every
+        other agent gets only apps in the sender's verified active managed rows.
+        Personal bindings can be removed for shared audiences, where replies are
+        visible to other people.
         """
         platform = next(
             (ref for ref in spec.mcp_servers if isinstance(ref, PlatformMcpServerRef)), None
         )
-        if platform is None:
-            return spec
+        assistant = (
+            await organization_assistant_repo.for_agent(self.db, agent.id)
+            if platform is not None
+            else None
+        )
+        is_assistant = assistant is not None and assistant.organization_id == agent.organization_id
+        from app.services.app_connections.runtime import (
+            managed_composio_catalog_keys,
+            with_app_connection_bindings,
+        )
+
+        connected_catalog_keys: set[str] = set()
+        if sender_user_id is None or not allow_personal_apps:
+            if not is_assistant or platform is None:
+                return with_app_connection_bindings(
+                    spec,
+                    include_configured_apps=False,
+                    allow_personal_apps=allow_personal_apps,
+                )
+        else:
+            connections = await mcp_connection_repo.list_composio_for_user(
+                self.db, user_id=sender_user_id
+            )
+            connected_catalog_keys = managed_composio_catalog_keys(
+                connections, user_id=sender_user_id
+            )
+
+        if not is_assistant or platform is None:
+            return with_app_connection_bindings(
+                spec,
+                connected_catalog_keys=sorted(connected_catalog_keys),
+                include_configured_apps=False,
+                allow_personal_apps=allow_personal_apps,
+            )
+
         required = {"list_projects", "get_project", "create_project"}
-        assistant = await organization_assistant_repo.for_agent(self.db, agent.id)
-        if assistant is None or assistant.organization_id != agent.organization_id:
-            return spec
         guidance = (
             (agent_templates.TEMPLATES_ROOT / "general/platform-assistant/PROJECTS.md")
             .read_text()
@@ -4660,9 +4871,18 @@ class AgentRegistryService:
                 "",
                 instructions,
             )
-        if not additions and instructions == spec.instructions:
-            return spec
-        return spec.model_copy(update={"instructions": "\n\n".join([instructions, *additions])})
+        guided = (
+            spec
+            if not additions and instructions == spec.instructions
+            else spec.model_copy(update={"instructions": "\n\n".join([instructions, *additions])})
+        )
+        return with_app_connection_bindings(
+            guided,
+            connected_catalog_keys=sorted(connected_catalog_keys),
+            dynamic_catalog_keys=sorted(connected_catalog_keys),
+            include_configured_apps=True,
+            allow_personal_apps=allow_personal_apps,
+        )
 
     async def refuse_a_switched_off_assistant(self, agent_id: UUID) -> None:
         """Refuse running - or continuing a run of - an assistant somebody switched off (#2063).

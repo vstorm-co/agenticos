@@ -45,6 +45,7 @@ import { UsedBy } from "@/components/agents/used-by";
 import { DiffView } from "@/components/authoring/diff-view";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { SkillCheckDialog } from "./skill-check-dialog";
+import { BrowserProcedureSummary } from "./browser-procedure-summary";
 import { useTranslations } from "next-intl";
 
 interface ProposedChangesProps {
@@ -155,6 +156,9 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
     selectedFile === null ? (current.data?.content ?? "") : (originalFile.data?.content ?? "");
   const comparing = selectedFile === null ? current : originalFile;
   const skillId = change.skill_id;
+  // A taught browser procedure editing a skill agents already use is applied only
+  // through the agent check, never straight from the review.
+  const teachingEdit = change.source === "browser_teaching" && skillId !== null;
 
   return (
     <div className="grid gap-3 px-5 py-4 @3xl:grid-cols-[minmax(0,1fr)_auto] @3xl:items-center">
@@ -166,6 +170,9 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
               <Badge variant="secondary">{t("newSkill2")}</Badge>
             ) : (
               <Badge variant="outline">{t("edit")}</Badge>
+            )}
+            {(change.browser_teaching_id != null || change.browser_procedure != null) && (
+              <Badge variant="outline">{t("fromBrowserDemonstration")}</Badge>
             )}
           </div>
           <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">
@@ -236,6 +243,9 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
                 {change.description || t("noDescriptionWorthAdding")}
               </DialogDescription>
             </DialogHeader>
+            {change.source === "browser_teaching" && change.browser_procedure && (
+              <BrowserProcedureSummary procedure={change.browser_procedure} />
+            )}
             <div className="bg-muted/30 rounded-lg border px-3 py-2 text-xs">
               {!(change.reaches.length === 0 && change.reaches_hidden > 0) && (
                 <UsedBy
@@ -365,32 +375,44 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
                 <Button
                   variant="outline"
                   className="max-sm:min-w-0 max-sm:flex-1 max-sm:px-2 max-sm:text-xs"
-                  aria-label={t("reviewUpdates.testOptional")}
+                  aria-label={
+                    teachingEdit
+                      ? t("checkChangeTo", { name: change.name })
+                      : t("reviewUpdates.testOptional")
+                  }
                   disabled={disabled}
                   onClick={() => {
                     setOpen(false);
                     setChecking(true);
                   }}
                 >
-                  <span className="max-sm:hidden">{t("reviewUpdates.testOptional")}</span>
-                  <span className="sm:hidden">{t("reviewUpdates.testOptionalShort")}</span>
+                  {teachingEdit ? (
+                    t("checkOnAgents")
+                  ) : (
+                    <>
+                      <span className="max-sm:hidden">{t("reviewUpdates.testOptional")}</span>
+                      <span className="sm:hidden">{t("reviewUpdates.testOptionalShort")}</span>
+                    </>
+                  )}
                 </Button>
               )}
-              <Button
-                className="max-sm:min-w-0 max-sm:flex-1 max-sm:px-2 max-sm:text-xs"
-                disabled={disabled}
-                onClick={async () => {
-                  try {
-                    await onApply();
-                    setOpen(false);
-                  } catch {
-                    // The mutation reports the refusal; keep the review available.
-                  }
-                }}
-              >
-                <Check className="size-4" aria-hidden />
-                {t("reviewUpdates.apply")}
-              </Button>
+              {!teachingEdit && (
+                <Button
+                  className="max-sm:min-w-0 max-sm:flex-1 max-sm:px-2 max-sm:text-xs"
+                  disabled={disabled}
+                  onClick={async () => {
+                    try {
+                      await onApply();
+                      setOpen(false);
+                    } catch {
+                      // The mutation reports the refusal; keep the review available.
+                    }
+                  }}
+                >
+                  <Check className="size-4" aria-hidden />
+                  {t("reviewUpdates.apply")}
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>

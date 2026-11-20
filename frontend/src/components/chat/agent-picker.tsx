@@ -20,11 +20,13 @@ import { Perm } from "@/types/permissions";
 /**
  * Whether an agent can be chatted with at all.
  *
+ * Publication and permission are separate: a visible published agent is not
+ * necessarily one this member may run. The server re-checks both on submission.
  * Published agents can run. The trusted, never-published starter can instead
  * explain model setup; selecting it never executes its draft.
  */
 const isRunnable = (agent: Agent): boolean =>
-  agent.status === "published" || (agent.setup_required === true && agent.can_run === true);
+  agent.can_run === true && (agent.status === "published" || agent.setup_required === true);
 
 /**
  * A workflow the chat can hand a message to: one whose live version starts from
@@ -36,6 +38,19 @@ export const isChattable = (workflow: WorkflowRead): boolean =>
   (workflow.live_triggers?.length ? workflow.live_triggers : [workflow.live_trigger]).includes(
     CHAT_TRIGGER,
   );
+
+interface AgentPickerProps {
+  /** The main chat adopts `?agent=`; a floating chat owns none of the page's URL. */
+  followUrl?: boolean;
+  /** Some surfaces choose an agent only, even when the member can run workflows. */
+  includeWorkflows?: boolean;
+  /** Offer the standing preference controls only where that preference is used. */
+  allowDefault?: boolean;
+  /** A caller with an explicit choice must not silently substitute another agent. */
+  autoSelect?: boolean;
+  /** A localized display name for the selected agent, such as the AI Architect. */
+  selectedLabel?: string;
+}
 
 /**
  * Who answers, as its own control beside the composer.
@@ -58,7 +73,13 @@ export const isChattable = (workflow: WorkflowRead): boolean =>
  * agent and version per turn, so a thread that changed hands says so rather
  * than relabelling everything above it.
  */
-export function AgentPicker() {
+export function AgentPicker({
+  followUrl = true,
+  includeWorkflows = true,
+  allowDefault = true,
+  autoSelect = true,
+  selectedLabel,
+}: AgentPickerProps = {}) {
   const t = useTranslations("chat.agentPicker");
   // Archived agents included so a conversation that was had with one still
   // resolves its name; `isRunnable` is what decides who can be picked.
@@ -71,22 +92,23 @@ export function AgentPicker() {
   const selectedWorkflowId = useAgentSelectionStore((state) => state.selectedWorkflowId);
   const selectWorkflow = useAgentSelectionStore((state) => state.selectWorkflow);
   const { can } = usePermissions();
-  const { workflows } = useWorkflows({ enabled: can(Perm.workflowsRun) });
+  const { workflows } = useWorkflows({ enabled: includeWorkflows && can(Perm.workflowsRun) });
 
   const options = useRef<HTMLDivElement>(null);
   const runnable = agents.filter(isRunnable);
   const selected =
     agents.find((agent) => agent.id === selectedAgentId && isRunnable(agent)) ?? null;
-  const chattable = workflows.filter(isChattable);
+  const chattable = includeWorkflows ? workflows.filter(isChattable) : [];
   const selectedWorkflow = chattable.find((workflow) => workflow.id === selectedWorkflowId) ?? null;
-  const answererName = selectedWorkflow?.name ?? selected?.name;
+  const answererName =
+    selectedWorkflow?.name ?? (selected ? (selectedLabel ?? selected.name) : null);
 
   // No selection, or one pointing at an agent that has since been unpublished,
   // resolves to the explicit default, starter, then a published agent. The store is
   // read at send time, so this is also what keeps a frame from going out
   // without an agent.
   useEffect(() => {
-    if (isLoading || selected !== null) return;
+    if (!autoSelect || isLoading || selected !== null) return;
     // Not while the list is being refetched, and that is the whole of this
     // guard. React Query serves the previous answer until the new one lands, so
     // an agent published a second ago is missing from the list this render sees
@@ -96,11 +118,21 @@ export function AgentPicker() {
     // else, having been told exactly who was wanted.
     if (isFetching && selectedAgentId !== null) return;
     const fallback =
-      runnable.find((agent) => agent.id === defaultAgentId) ??
+      runnable.find((agent) => allowDefault && agent.id === defaultAgentId) ??
       runnable.find((agent) => agent.is_starter) ??
       runnable[0];
     if (fallback) selectAgent(fallback.id);
-  }, [isLoading, isFetching, selected, selectedAgentId, runnable, defaultAgentId, selectAgent]);
+  }, [
+    autoSelect,
+    allowDefault,
+    isLoading,
+    isFetching,
+    selected,
+    selectedAgentId,
+    runnable,
+    defaultAgentId,
+    selectAgent,
+  ]);
 
   // `?agent=` - a handle or an id - is a link asking for one agent: a
   // notification opening the starter agent's empty chat, where its suggestions
@@ -108,12 +140,12 @@ export function AgentPicker() {
   const wanted = useSearchParams().get("agent");
   const handedOver = useRef<string | null>(null);
   useEffect(() => {
-    if (!wanted || handedOver.current === wanted) return;
+    if (!followUrl || !wanted || handedOver.current === wanted) return;
     const named = runnable.find((agent) => agent.id === wanted || agent.slug === wanted);
     if (!named) return;
     handedOver.current = wanted;
     selectAgent(named.id);
-  }, [wanted, runnable, selectAgent]);
+  }, [followUrl, wanted, runnable, selectAgent]);
 
   return (
     <Popover>
@@ -153,7 +185,7 @@ export function AgentPicker() {
               <Bot className="h-3 w-3" />
             </span>
           )}
-          <span className="max-w-[160px] truncate text-sm font-medium">
+          <span className="max-w-[160px] min-w-0 flex-1 truncate text-sm font-medium">
             {isLoading && !selected && !selectedWorkflow ? (
               <Skeleton data-testid="agent-picker-loading-name" className="h-3.5 w-20 rounded" />
             ) : (
@@ -162,7 +194,7 @@ export function AgentPicker() {
           </span>
           <ChevronDown
             aria-hidden
-            className="text-muted-foreground h-3 w-3 transition-transform group-data-[state=open]/agent:rotate-180 motion-reduce:transition-none"
+            className="text-muted-foreground h-3 w-3 shrink-0 transition-transform group-data-[state=open]/agent:rotate-180 motion-reduce:transition-none"
           />
         </button>
       </PopoverTrigger>
@@ -174,7 +206,7 @@ export function AgentPicker() {
           options.current?.focus();
         }}
         sideOffset={8}
-        className="border-border bg-popover w-[300px] rounded-xl border p-1.5 shadow-md"
+        className="border-border bg-popover max-h-[var(--radix-popover-content-available-height)] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border p-2 shadow-md"
       >
         {/* One line, and the smallest type in the menu. It is a footnote about when the
             change takes effect; at twelve pixels over two lines it was the loudest
@@ -218,9 +250,13 @@ export function AgentPicker() {
               key={agent.id}
               agent={agent}
               selected={selectedWorkflow === null && selectedAgentId === agent.id}
-              isDefault={defaultAgentId === agent.id}
+              isDefault={allowDefault && defaultAgentId === agent.id}
               onSelect={() => selectAgent(agent.id)}
-              onToggleDefault={() => setDefaultAgent(defaultAgentId === agent.id ? null : agent.id)}
+              onToggleDefault={
+                allowDefault
+                  ? () => setDefaultAgent(defaultAgentId === agent.id ? null : agent.id)
+                  : undefined
+              }
             />
           ))}
         </div>
@@ -268,7 +304,7 @@ function AgentOption({
   selected: boolean;
   isDefault: boolean;
   onSelect: () => void;
-  onToggleDefault: () => void;
+  onToggleDefault?: () => void;
 }) {
   const t = useTranslations("chat.agentPicker");
   // Two buttons that read as one row: a button cannot contain a button, and starring an
@@ -314,27 +350,29 @@ function AgentOption({
         </span>
         {selected && <Check className="text-foreground h-3.5 w-3.5 shrink-0" aria-hidden />}
       </button>
-      <button
-        type="button"
-        aria-pressed={isDefault}
-        aria-label={
-          isDefault
-            ? t("unsetDefault", { name: agent.name })
-            : t("setDefault", { name: agent.name })
-        }
-        title={isDefault ? t("defaultForNewChats") : t("makeDefaultForNewChats")}
-        onClick={onToggleDefault}
-        className={cn(
-          "shrink-0 rounded-md p-1.5 transition-colors",
-          // Off-state stars on every row are four grey outlines competing with the
-          // names; the one that is set is the only one worth showing unasked.
-          isDefault
-            ? "text-foreground"
-            : "text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
-        )}
-      >
-        <Star className={cn("h-3.5 w-3.5", isDefault && "fill-current")} />
-      </button>
+      {onToggleDefault && (
+        <button
+          type="button"
+          aria-pressed={isDefault}
+          aria-label={
+            isDefault
+              ? t("unsetDefault", { name: agent.name })
+              : t("setDefault", { name: agent.name })
+          }
+          title={isDefault ? t("defaultForNewChats") : t("makeDefaultForNewChats")}
+          onClick={onToggleDefault}
+          className={cn(
+            "shrink-0 rounded-md p-1.5 transition-colors",
+            // Off-state stars on every row are four grey outlines competing with the
+            // names; the one that is set is the only one worth showing unasked.
+            isDefault
+              ? "text-foreground"
+              : "text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+          )}
+        >
+          <Star className={cn("h-3.5 w-3.5", isDefault && "fill-current")} />
+        </button>
+      )}
     </div>
   );
 }

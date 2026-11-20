@@ -5,8 +5,21 @@ import { retainNextSteps } from "@/lib/next-step-events";
 import { create, createStore, type StateCreator } from "zustand";
 
 import { scopedStore } from "./chat-scope-context";
+import type { TranscriptIdentity } from "./conversation-store";
 import { clientId } from "@/lib/ids";
 import type { ChatMessage, MessagePart, MessageReply, ToolCall } from "@/types";
+import type { RoomDraft } from "@/types/room";
+import type { RoomDecisionAttempt } from "@/types/room-routing";
+
+export const EMPTY_ROOM_DRAFT: RoomDraft = {
+  content: "",
+  agentId: null,
+  intent: "message",
+  reply: null,
+  attempt: null,
+  sending: false,
+  error: null,
+};
 
 /** A tab's correlation id is meaningful only for its author in this conversation. */
 function promptKey(message: ChatMessage): string | undefined {
@@ -74,8 +87,35 @@ function persistedAliases(local: ChatMessage[], history: ChatMessage[]): Map<str
   return aliases;
 }
 
+/** Keep recovery without a save acknowledgement limited to plain text.
+ * Rich outcomes and paused controls may still address the local message ID. */
+function plainTextAnswer(message: ChatMessage): boolean {
+  if (
+    message.isLocalContinuation ||
+    message.runWaitingFor ||
+    message.runFailed ||
+    message.runError ||
+    message.wasStopped ||
+    message.interrupted ||
+    message.thinking ||
+    message.toolCalls?.length ||
+    message.files?.length ||
+    message.fileIds?.length ||
+    message.mentions?.length ||
+    message.replyTo
+  )
+    return false;
+  const parts = message.parts ?? [];
+  return (
+    parts.length === 0 ||
+    (parts.length === 1 && parts[0]!.type === "text" && parts[0]!.content === message.content)
+  );
+}
+
 export interface ChatState {
   messages: ChatMessage[];
+  /** Set atomically with the converted transcript, before its socket may attach. */
+  loadedTranscript: TranscriptIdentity | null;
   isStreaming: boolean;
 
   addMessage: (message: ChatMessage) => void;
@@ -101,16 +141,111 @@ export interface ChatState {
   setStreaming: (streaming: boolean) => void;
   clearMessages: () => void;
   /** Reconcile stored rows while retaining later turns and unsaved local outcomes. */
-  rereadMessages: (history?: ChatMessage[]) => void;
+  rereadMessages: (history?: ChatMessage[], identity?: TranscriptIdentity | null) => void;
   /** The message the next turn replies to, chosen with Reply; null for none. */
   replyTo: MessageReply | null;
   setReplyTo: (reply: MessageReply | null) => void;
+  roomDrafts: Record<string, RoomDraft>;
+  roomDecisionAttempts: Record<string, RoomDecisionAttempt>;
+  setRoomDecisionAttempt: (key: string, attempt: RoomDecisionAttempt | null) => void;
+  roomDraftGeneration: number;
+  updateRoomDraft: (key: string, update: (draft: RoomDraft) => RoomDraft) => void;
+  clearRoomDrafts: () => void;
+  rereadRoomThread: (history: ChatMessage[], root: string, identity: TranscriptIdentity) => void;
+}
+
+function reconcileTranscript(
+  state: Pick<ChatState, "messages" | "loadedTranscript">,
+  history: ChatMessage[],
+  identity: TranscriptIdentity | null,
+) {
+  const previous = state.loadedTranscript;
+  const sameTranscript =
+    identity !== null &&
+    previous !== null &&
+    previous.conversationId === identity.conversationId &&
+    previous.selectionVersion === identity.selectionVersion &&
+    previous.accountId === identity.accountId &&
+    (previous.tenantId === identity.tenantId ||
+      // Only a successful history commit may give an unresolved live
+      // transcript its concrete tenant. The stored identity changes now;
+      // null never acts as a wildcard for a later tenant or socket attach.
+      (previous.tenantId === null && identity.tenantId !== null));
+  const local = identity !== null && !sameTranscript ? [] : state.messages;
+  // An empty refresh can have started before a live message arrived. Keep
+  // those newer messages only within this exact loaded selection/session.
+  if (history.length === 0)
+    return { messages: identity === null ? [] : local, loadedTranscript: identity };
+  const incoming = new Map(history.map((message) => [message.id, message]));
+  const aliases = persistedAliases(local, history);
+  const savedId = (message: ChatMessage): string =>
+    aliases.get(message.id) ?? message.persistedId ?? message.id;
+  const anchor = local.findLastIndex((message) => incoming.has(savedId(message)));
+  const before = new Map<string | undefined, ChatMessage[]>();
+  let nextPersisted: string | undefined;
+  // The server's ordinal order is authoritative, including tied timestamps.
+  // Local-only outcomes keep their place beside the nearest persisted row.
+  for (let index = local.length - 1; index >= 0; index--) {
+    const message = local[index]!;
+    const id = savedId(message);
+    const persisted = incoming.get(id);
+    if (persisted) {
+      nextPersisted = id;
+      const previous = local[index - 1];
+      // An exact plain-text snapshot can recover a missed save acknowledgement.
+      // Rich and parked outcomes retain their local details and control pointers.
+      const awaitingSave =
+        message.role === "assistant" &&
+        message.isTemporaryId &&
+        aliases.has(message.id) &&
+        previous?.role === "user" &&
+        !previous.isTemporaryId &&
+        incoming.has(previous.id) &&
+        (message.content !== persisted.content ||
+          message.usage !== undefined ||
+          !plainTextAnswer(message) ||
+          !plainTextAnswer(persisted));
+      incoming.set(
+        id,
+        message.isStreaming || awaitingSave
+          ? { ...message, persistedId: id }
+          : {
+              ...retainNextSteps(
+                persisted.isPinned === undefined && message.isPinned !== undefined
+                  ? { ...persisted, isPinned: message.isPinned }
+                  : persisted,
+                message,
+              ),
+              renderKey: message.renderKey ?? message.id,
+            },
+      );
+    } else if (
+      message.threadRootMessageId !== undefined ||
+      message.isStreaming ||
+      (message.role === "assistant" && message.isTemporaryId) ||
+      index > anchor
+    ) {
+      const group = before.get(nextPersisted) ?? [];
+      group.push(message);
+      before.set(nextPersisted, group);
+    }
+  }
+  const messages = [...incoming.entries()].flatMap(([id, message]) => [
+    ...(before.get(id) ?? []).reverse(),
+    message,
+  ]);
+  messages.push(...(before.get(undefined) ?? []).reverse());
+  return { messages, loadedTranscript: identity };
 }
 
 const chatState: StateCreator<ChatState> = (set) => ({
   messages: [],
+  loadedTranscript: null,
   isStreaming: false,
   replyTo: null,
+  roomDrafts: {},
+  roomDecisionAttempts: {},
+  roomDraftGeneration: 0,
 
   addMessage: (message) =>
     set((state) => {
@@ -125,7 +260,9 @@ const chatState: StateCreator<ChatState> = (set) => ({
 
   updateMessage: (id, updater) =>
     set((state) => {
-      const index = state.messages.findIndex((message) => message.id === id);
+      const index = state.messages.findIndex(
+        (message) => message.id === id || message.persistedId === id,
+      );
       if (index < 0) return state;
       const updated = updater(state.messages[index]!);
       // History may arrive before message_saved renames the live bubble. Keep
@@ -233,62 +370,56 @@ const chatState: StateCreator<ChatState> = (set) => ({
   setStreaming: (streaming) => set({ isStreaming: streaming }),
 
   // Another conversation opened: a reply chosen in this one goes with it.
-  clearMessages: () => set({ messages: [], replyTo: null }),
-  rereadMessages: (history = []) =>
+  clearMessages: () => set({ messages: [], replyTo: null, loadedTranscript: null }),
+  rereadMessages: (history = [], identity = null) =>
+    set((state) => reconcileTranscript(state, history, identity)),
+  rereadRoomThread: (history, root, identity) =>
     set((state) => {
-      if (history.length === 0) return { messages: [] };
-      const incoming = new Map(history.map((message) => [message.id, message]));
-      const aliases = persistedAliases(state.messages, history);
-      const savedId = (message: ChatMessage): string =>
-        aliases.get(message.id) ?? message.persistedId ?? message.id;
-      const anchor = state.messages.findLastIndex((message) => incoming.has(savedId(message)));
-      const before = new Map<string | undefined, ChatMessage[]>();
-      let nextPersisted: string | undefined;
-      // The server's ordinal order is authoritative, including tied timestamps.
-      // Local-only outcomes keep their place beside the nearest persisted row.
-      for (let index = state.messages.length - 1; index >= 0; index--) {
-        const message = state.messages[index]!;
-        const id = savedId(message);
-        const persisted = incoming.get(id);
-        if (persisted) {
-          nextPersisted = id;
-          const previous = state.messages[index - 1];
-          // An acknowledged question still has a live answer until message_saved
-          // renames it. A recovered, unacknowledged question instead uses history.
-          const awaitingSave =
-            message.role === "assistant" &&
-            message.isTemporaryId &&
-            aliases.has(message.id) &&
-            previous?.role === "user" &&
-            !previous.isTemporaryId &&
-            incoming.has(previous.id);
-          incoming.set(
-            id,
-            message.isStreaming || awaitingSave
-              ? { ...message, persistedId: id }
-              : {
-                  ...retainNextSteps(persisted, message),
-                  renderKey: message.renderKey ?? message.id,
-                },
-          );
-        } else if (
-          message.isStreaming ||
-          (message.role === "assistant" && message.isTemporaryId) ||
-          index > anchor
-        ) {
-          const group = before.get(nextPersisted) ?? [];
-          group.push(message);
-          before.set(nextPersisted, group);
-        }
-      }
-      const messages = [...incoming.entries()].flatMap(([id, message]) => [
-        ...(before.get(id) ?? []).reverse(),
-        message,
-      ]);
-      messages.push(...(before.get(undefined) ?? []).reverse());
-      return { messages };
+      const loaded = state.loadedTranscript;
+      if (
+        loaded === null ||
+        loaded.conversationId !== identity.conversationId ||
+        loaded.selectionVersion !== identity.selectionVersion ||
+        loaded.accountId !== identity.accountId ||
+        loaded.tenantId !== identity.tenantId ||
+        history.some(
+          (message) =>
+            message.conversationId !== identity.conversationId ||
+            message.threadRootMessageId !== root,
+        )
+      )
+        return state;
+      const selected = state.messages.filter((message) => message.threadRootMessageId === root);
+      const result = reconcileTranscript(
+        { messages: selected, loadedTranscript: loaded },
+        history,
+        identity,
+      );
+      return {
+        messages: [
+          ...state.messages.filter((message) => message.threadRootMessageId !== root),
+          ...result.messages,
+        ],
+      };
     }),
   setReplyTo: (replyTo) => set({ replyTo }),
+  updateRoomDraft: (key, update) =>
+    set((state) => ({
+      roomDrafts: { ...state.roomDrafts, [key]: update(state.roomDrafts[key] ?? EMPTY_ROOM_DRAFT) },
+    })),
+  setRoomDecisionAttempt: (key, attempt) =>
+    set((state) => {
+      const roomDecisionAttempts = { ...state.roomDecisionAttempts };
+      if (attempt === null) delete roomDecisionAttempts[key];
+      else roomDecisionAttempts[key] = attempt;
+      return { roomDecisionAttempts };
+    }),
+  clearRoomDrafts: () =>
+    set((state) => ({
+      roomDrafts: {},
+      roomDecisionAttempts: {},
+      roomDraftGeneration: state.roomDraftGeneration + 1,
+    })),
 });
 
 /** A copy of its own, for a conversation in a scope - see `ChatScope`. */

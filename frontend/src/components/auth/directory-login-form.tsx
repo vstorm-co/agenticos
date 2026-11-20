@@ -6,8 +6,9 @@ import { toast } from "sonner";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
+import { MfaCodeForm } from "@/components/auth/mfa-code-form";
 import { Button, Input, Label } from "@/components/ui";
-import { useAuth } from "@/hooks";
+import { useAuth, type MfaChallenge } from "@/hooks/use-auth";
 import { ApiError } from "@/lib/api-client";
 import { getErrorMessage, isTimeout } from "@/lib/api-error";
 import { invitationFlowFrom } from "@/lib/invitation-links";
@@ -32,6 +33,9 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  // The password step passed and the sign-in is waiting on the second
+  // factor: the form swaps to the code step instead of signing in.
+  const [mfa, setMfa] = useState<MfaChallenge | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +44,16 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
     try {
       // Read off the URL at submit time, as the password form does.
       const returnTo = new URLSearchParams(window.location.search).get("returnTo");
-      await loginWithDirectory({ username, password }, returnTo, invitationFlowFrom(returnTo));
+      const result = await loginWithDirectory(
+        { username, password },
+        returnTo,
+        invitationFlowFrom(returnTo),
+      );
+      if ("mfa_required" in result) {
+        setMfa(result);
+        setIsLoading(false);
+        return;
+      }
       toast.success(t("loginSuccess"));
     } catch (err) {
       const message =
@@ -54,6 +67,10 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
       setIsLoading(false);
     }
   };
+
+  if (mfa) {
+    return <MfaCodeForm challenge={mfa} onBack={() => setMfa(null)} />;
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">

@@ -40,22 +40,37 @@ function share(value: unknown, key = ACCOUNT_LOCALE_STORAGE_KEY) {
 
 describe("AccountLocale", () => {
   it("moves the page to the language the account chose", () => {
-    useAuthStore.setState({ user: { ...ADA, locale: "de" } });
+    route.locale = "pl";
+    useAuthStore.setState({ user: { ...ADA, locale: "en" } });
 
     render(<AccountLocale />);
 
-    expect(replace).toHaveBeenCalledWith("/agents", { locale: "de" });
+    expect(replace).toHaveBeenCalledWith("/agents", { locale: "en" });
   });
 
   it("keeps the page's own state - the conversation, the open test panel", () => {
     window.history.replaceState({}, "", "/agents/a-1?test=open");
-    useAuthStore.setState({ user: { ...ADA, locale: "pl" } });
+    route.locale = "pl";
+    useAuthStore.setState({ user: { ...ADA, locale: "en" } });
 
     render(<AccountLocale />);
 
-    expect(replace).toHaveBeenCalledWith("/agents?test=open", { locale: "pl" });
+    expect(replace).toHaveBeenCalledWith("/agents?test=open", { locale: "en" });
     window.history.replaceState({}, "", "/");
   });
+
+  it.each(["pl", "de", "tr"])(
+    "does not follow an account choice of %s, which this deployment no longer serves",
+    (retired) => {
+      // Saved before the fork went English-only. Following it would send the
+      // page to a retired prefix, which the middleware sends straight back.
+      useAuthStore.setState({ user: { ...ADA, locale: retired as User["locale"] } });
+
+      render(<AccountLocale />);
+
+      expect(replace).not.toHaveBeenCalled();
+    },
+  );
 
   it("stays put when the page is already in it", () => {
     useAuthStore.setState({ user: { ...ADA, locale: "en" } });
@@ -89,27 +104,29 @@ describe("AccountLocale", () => {
   );
 
   it("follows a language change from another window without adopting its identity or token", () => {
-    useAuthStore.setState({ user: { ...ADA, locale: "en" }, accessToken: "this-window-token" });
+    route.locale = "pl";
+    useAuthStore.setState({ user: ADA, accessToken: "this-window-token" });
     render(<AccountLocale />);
     share({
       userId: ADA.id,
-      locale: "de",
+      locale: "en",
       access_token: "another-token",
       email: "other@example.com",
     });
-    expect(replace).toHaveBeenCalledWith("/agents", { locale: "de" });
-    expect(useAuthStore.getState().user).toEqual({ ...ADA, locale: "de" });
+    expect(replace).toHaveBeenCalledWith("/agents", { locale: "en" });
+    expect(useAuthStore.getState().user).toEqual({ ...ADA, locale: "en" });
     expect(useAuthStore.getState().accessToken).toBe("this-window-token");
   });
 
-  it("ignores another account, an unsupported locale and unrelated storage", () => {
-    useAuthStore.setState({ user: { ...ADA, locale: "en" } });
+  it("ignores another account, an unsupported or retired locale and unrelated storage", () => {
+    useAuthStore.setState({ user: ADA });
     render(<AccountLocale />);
-    share({ userId: "other", locale: "de" });
+    share({ userId: "other", locale: "en" });
     share({ userId: ADA.id, locale: "es" });
-    share({ userId: ADA.id, locale: "pl" }, "auth-storage");
+    share({ userId: ADA.id, locale: "de" });
+    share({ userId: ADA.id, locale: "en" }, "auth-storage");
     expect(replace).not.toHaveBeenCalled();
-    expect(useAuthStore.getState().user?.locale).toBe("en");
+    expect(useAuthStore.getState().user?.locale).toBeUndefined();
   });
 
   it("does not turn a cached identity into an authenticated session", () => {
@@ -119,24 +136,24 @@ describe("AccountLocale", () => {
       isLoading: true,
     });
     render(<AccountLocale />);
-    share({ userId: ADA.id, locale: "de" });
+    share({ userId: ADA.id, locale: "en" });
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     expect(useAuthStore.getState().isLoading).toBe(true);
   });
 
   it("stops listening when the window unmounts", () => {
-    useAuthStore.setState({ user: { ...ADA, locale: "en" } });
+    useAuthStore.setState({ user: ADA });
     const view = render(<AccountLocale />);
     view.unmount();
-    share({ userId: ADA.id, locale: "de" });
-    expect(useAuthStore.getState().user?.locale).toBe("en");
+    share({ userId: ADA.id, locale: "en" });
+    expect(useAuthStore.getState().user?.locale).toBeUndefined();
   });
 });
 
 it("ignores a language event when this window is signed out", () => {
   useAuthStore.setState({ user: null });
   render(<AccountLocale />);
-  share({ userId: ADA.id, locale: "de" });
+  share({ userId: ADA.id, locale: "en" });
   expect(useAuthStore.getState().user).toBeNull();
   expect(replace).not.toHaveBeenCalled();
 });

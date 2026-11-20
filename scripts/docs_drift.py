@@ -69,6 +69,11 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/services/access.py", "docs/permissions.md"),
     ("backend/app/services/virtual_tables/", "docs/virtual-tables.md"),
     ("backend/app/services/retention.py", "docs/governance.md"),
+    # The failure-learning loop: the mining queries, the service, its rows
+    # and its routes all describe the one page.
+    ("backend/app/services/failure_learning.py", "docs/failure-learning.md"),
+    ("backend/app/repositories/failure_learning.py", "docs/failure-learning.md"),
+    ("backend/app/api/routes/v1/failure_learning.py", "docs/failure-learning.md"),
     ("backend/app/services/rate_limit.py", "docs/configuration.md"),
     ("backend/app/repositories/virtual_table.py", "docs/virtual-tables.md"),
     ("backend/app/schemas/virtual_table.py", "docs/virtual-tables.md"),

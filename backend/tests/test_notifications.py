@@ -1851,7 +1851,7 @@ class TestEveryLinkNamesItsOrganization:
 
         _, html, _ = render_email("usage_report", call["render_context"])
         assert escape(call["render_context"]["dashboard_url"], quote=True) in html
-        assert "Open console" in html
+        assert "Open usage dashboard" in html
         assert "Open agents" not in html
 
     @pytest.mark.anyio
@@ -1875,7 +1875,8 @@ class TestEveryLinkNamesItsOrganization:
         assert call["context_url"] == f"/agents/{agent.id}?org={agent.organization_id}"
         assert call["render_context"]["dashboard_url"] == f"{FRONTEND}{call['context_url']}"
         _, html, _ = render_email("usage_report", call["render_context"])
-        assert "Open console" in html
+        assert "Open usage dashboard" in html
+        assert escape(call["render_context"]["dashboard_url"], quote=True) in html
 
     def test_the_parameter_name_is_decided_in_one_place(self):
         """Four call sites inventing one is what the issue is about, one level up."""

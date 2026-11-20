@@ -47,6 +47,8 @@ async def key_problem(
         and not await resolve_access(db, ctx, row, Perm.SECRETS_VIEW, resource_type=SECRET)
     ):
         return "That key is not in this organization's vault"
+    if row.usage_scope == "personal":
+        return "A personal model connection can only power its owner's interactive agent models"
     if ctx is None and row.visibility != Visibility.ORG.value:
         return (
             f"'{row.name}' is not visible to the whole organization. A key used here "

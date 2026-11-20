@@ -233,7 +233,7 @@ function ConnectionForm({
   // A client registered at the provider by hand: optional for most servers, so
   // folded with the rest - and unfolded when the probe says this one needs it.
   const ownClient = auth === "oauth" && draft.existing === null;
-  const googleClient = ownClient && needsGoogleOAuthClient(url);
+  const googleClient = ownClient && draft.googleAppMissing === true && needsGoogleOAuthClient(url);
   const needsClient =
     googleClient ||
     (signIn !== null && signIn !== "checking" && signIn.sign_in && !signIn.registers_clients);

@@ -25,14 +25,15 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core.exceptions import BadRequestError, NotFoundError
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.repositories import organization_secret_repo
 from app.schemas.sync_source import (
     SyncSourceClone,
     SyncSourceCreate,
     SyncSourceUpdate,
 )
+from app.services import mcp_connection as mcp_connection_module
 from app.services import sync_source as sync_source_module
 from app.services.rag.connectors.s3 import S3Connector
 from app.services.sync_source import SyncSourceService
@@ -84,6 +85,7 @@ def _service(
                 knowledge_base_id=kwargs["knowledge_base_id"],
                 config=kwargs["config"],
                 secret_id=kwargs["secret_id"],
+                connected_account_id=kwargs["connected_account_id"],
                 organizational_unit=kwargs["organizational_unit"],
                 sync_mode=kwargs["sync_mode"],
                 schedule_minutes=kwargs["schedule_minutes"],
@@ -105,7 +107,7 @@ def _service(
 
 
 def _vault_row(*, kind: str, hint: str = "a1b2") -> SimpleNamespace:
-    return SimpleNamespace(id=uuid.uuid4(), kind=kind, hint=hint)
+    return SimpleNamespace(id=uuid.uuid4(), kind=kind, hint=hint, usage_scope="organization")
 
 
 def _drive(**overrides) -> SyncSourceCreate:
@@ -118,6 +120,102 @@ def _drive(**overrides) -> SyncSourceCreate:
 
 
 class TestTheCredentialIsReferencedNotCarried:
+    @pytest.mark.parametrize(
+        "scope",
+        [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.readonly",
+        ],
+    )
+    async def test_a_source_can_name_an_organization_google_account(self, monkeypatch, scope):
+        account_id = uuid.uuid4()
+        account = SimpleNamespace(
+            id=account_id,
+            scope="org",
+            organization_id=_ORG,
+            catalog_key="google",
+            oauth_payload={"connected": True},
+        )
+        monkeypatch.setattr(
+            mcp_connection_module.mcp_connection_repo,
+            "get_account",
+            AsyncMock(return_value=account),
+        )
+        monkeypatch.setattr(
+            mcp_connection_module.McpConnectionService,
+            "account_grant",
+            AsyncMock(return_value=SimpleNamespace(scopes={scope})),
+        )
+        service = _service(monkeypatch)
+
+        read = await service.create_source(_drive(connected_account_id=account_id), ctx=_ctx(_ORG))
+
+        assert read.connected_account_id == str(account_id)
+        assert read.secret_id is None
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("operation", ["create", "update", "clone"])
+    async def test_google_account_binding_requires_connections_view(self, monkeypatch, operation):
+        service = _service(monkeypatch)
+        account_id = uuid.uuid4()
+        ctx = AuthContext(
+            user_id=_CALLER,
+            organization_id=_ORG,
+            role=OrgRoleName.MEMBER.value,
+        )
+        assert ctx.has(Perm.COLLECTIONS_EDIT)
+        assert not ctx.has(Perm.CONNECTIONS_VIEW)
+
+        if operation == "create":
+            call = service.create_source(
+                _drive(connected_account_id=account_id, collection_name="legal"),
+                ctx=ctx,
+                knowledge_base=MagicMock(
+                    id=uuid.uuid4(), collection_name="legal", scope="org", organization_id=_ORG
+                ),
+            )
+        elif operation == "update":
+            existing = SimpleNamespace(
+                connector_type="gdrive",
+                collection_name="legal",
+                secret_id=None,
+                connected_account_id=account_id,
+            )
+            monkeypatch.setattr(service, "get_source", AsyncMock(return_value=existing))
+            call = service.update_source(
+                str(uuid.uuid4()), SyncSourceUpdate(name="Renamed"), ctx=ctx
+            )
+        else:
+            source = SimpleNamespace(
+                id=uuid.uuid4(),
+                name="Shared drive",
+                connector_type="gdrive",
+                config={"folder_id": "1AbC_-def"},
+                secret_id=None,
+                connected_account_id=account_id,
+                organizational_unit=None,
+                sync_mode="new_only",
+                schedule_minutes=None,
+            )
+            monkeypatch.setattr(
+                sync_source_module.sync_source_repo,
+                "get_by_id",
+                AsyncMock(return_value=source),
+            )
+            call = service.clone_source(
+                str(source.id),
+                SyncSourceClone(collection_name="mine"),
+                ctx=ctx,
+                knowledge_base=MagicMock(
+                    id=uuid.uuid4(), collection_name="mine", scope="org", organization_id=_ORG
+                ),
+            )
+
+        with pytest.raises(
+            AuthorizationError, match="Viewing organization connections is required"
+        ):
+            await call
+
     async def test_a_source_naming_a_credential_of_the_right_kind_is_created(self, monkeypatch):
         row = _vault_row(kind="gcp_service_account", hint="9f3c")
         service = _service(monkeypatch, secret=row)
@@ -225,6 +323,9 @@ class TestACredentialInTheConfigIsRefused:
         ("connector_type", "field", "value"),
         [
             ("gdrive", "service_account_json", '{"type": "service_account"}'),
+            ("gdrive", "refresh_token", "refresh-secret"),
+            ("gdrive", "access_token", "access-secret"),
+            ("gdrive", "client_secret", "client-secret"),
             ("s3", "access_key_id", "AKIAEXAMPLE"),
             ("s3", "secret_access_key", "very-secret"),
         ],
@@ -251,6 +352,36 @@ class TestACredentialInTheConfigIsRefused:
         assert field in exc.value.details["fields"]
         assert "does not go in a source's configuration" in exc.value.message
 
+    async def test_a_clone_with_a_credential_in_its_config_is_refused(self, monkeypatch):
+        service = _service(monkeypatch)
+        source = SimpleNamespace(
+            id=uuid.uuid4(),
+            name="Legacy drive",
+            connector_type="gdrive",
+            config={"folder_id": "1AbC", "refresh_token": "must-not-be-copied"},
+            secret_id=None,
+            connected_account_id=None,
+            organizational_unit=None,
+            sync_mode="new_only",
+            schedule_minutes=None,
+        )
+        monkeypatch.setattr(
+            sync_source_module.sync_source_repo, "get_by_id", AsyncMock(return_value=source)
+        )
+
+        with pytest.raises(BadRequestError) as exc:
+            await service.clone_source(
+                str(source.id),
+                SyncSourceClone(collection_name="copy"),
+                ctx=_ctx(_ORG),
+                knowledge_base=MagicMock(
+                    id=uuid.uuid4(), collection_name="copy", scope="org", organization_id=_ORG
+                ),
+            )
+
+        assert exc.value.details["fields"] == ["refresh_token"]
+        sync_source_module.sync_source_repo.create.assert_not_awaited()
+
     async def test_a_config_of_only_real_fields_passes(self, monkeypatch):
         service = _service(monkeypatch)
 
@@ -276,6 +407,7 @@ class TestACredentialInTheConfigIsRefused:
             ctx=_ctx(_ORG),
             config={"folder_id": "1AbC"},
             secret_id=None,
+            connected_account_id=None,
         )
         monkeypatch.setattr(service, "get_source", AsyncMock(return_value=existing))
 
@@ -297,6 +429,7 @@ class TestACredentialInTheConfigIsRefused:
             ctx=_ctx(_ORG),
             config={"bucket": "docs", "prefix": "marketing/"},
             secret_id=None,
+            connected_account_id=None,
             collection_name="handbook",
         )
         monkeypatch.setattr(service, "get_source", AsyncMock(return_value=existing))

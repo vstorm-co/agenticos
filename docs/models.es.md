@@ -1,5 +1,5 @@
 ---
-source_sha: "7b83980dd889"
+source_sha: "543b61f10ddd"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -251,21 +251,40 @@ Un perfil puede listar perfiles de fallback, probados en orden. La caída de un
 provider no debería tumbar los agents de una organización cuando esta tiene una
 segunda clave o un segundo provider configurados.
 
-!!! warning "Un fallback es invisible en el registro del run"
+Un fallback ya no es invisible en el registro del run. Cuando un modelo de
+fallback atiende alguna petición del run, la fila del run registra
+`fallback_used` y el id de modelo que respondió a la última petición correcta
+como `serving_model`, y la vista de detalle del run muestra «Servido por …
+(fallback)» bajo los datos. La fila se sigue escribiendo antes de la primera
+petición, así que nombra el perfil primario hasta que el run termina; un run
+aparcado lleva lo que sus segmentos terminados han registrado hasta ahora.
 
-    La fila del run se escribe antes de la primera petición, y lleva la etiqueta,
-    el provider y el id de secreto del perfil **primario**. Si un fallback
-    atendió el turno, el run sigue nombrando al primario.
+Quedan dos puntos ciegos que conviene conocer antes de fiarte de esos números
+durante una caída:
 
-    Así que «cuánto gastamos en OpenAI» y «qué clave está costando más» responden
-    con el perfil al que se *preguntó* primero, no con el que respondió. Conviene
-    saberlo antes de fiarte de esos números durante una caída.
+- «Cuánto gastamos en OpenAI» y «qué clave está costando más» se siguen
+  respondiendo con el perfil primario al que se *preguntó* primero, no con el
+  que respondió: el coste se atribuye al perfil primario. Las nuevas columnas
+  dicen qué modelo respondió, no qué perfil pagó.
+- Un fallo **después** del primer evento en streaming nunca activa el
+  fallback. Pydantic AI entrega el stream al llamador en el primer evento, así
+  que un fallo a mitad de stream termina el run en lugar de probar el siguiente
+  modelo de la cadena.
 
 ### Ajustes del modelo { #model-settings }
 
 Por perfil, y sobrescribibles por agent a través de `model_settings` del spec:
-`temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. Ver
+`temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`,
+`request_timeout`, `first_event_timeout`. Ver
 [la referencia del spec](reference/spec.md#model-settings).
+
+Una petición también tiene plazos por defecto: 300 segundos para una petición
+al modelo (`request_timeout`, y `timeout` por intento) y 120 segundos para el
+primer evento en streaming (`first_event_timeout`). Un perfil o el spec de un
+agente pueden subirlos o bajarlos. Cuando vence el plazo, el run termina como
+`timed_out` — con el plazo en su error guardado — en lugar de mostrar
+«Working» para siempre; donde haya una cadena de fallback configurada, se
+prueba primero.
 
 **El caché de prompts está activado por defecto**, mediante el ajuste `cache` de
 Pydantic AI, neutral respecto al proveedor. Cada petición de un run vuelve a enviar
@@ -372,7 +391,7 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 | OpenAI | `openai` | clave de API, o ninguna | ✓ |
 | Anthropic | `anthropic` | clave de API | ✓ |
 | Google Gemini | `google` | clave de API | ✓ |
-| TypeSafe (Jev) | `typesafe` | API key | ✓ |
+| TypeSafe (Jev) | `typesafe` | clave de API | ✓ |
 | OpenRouter | `openrouter` | clave de API |  ✓ |
 | Otari | `otari` | clave de API | ✓ |
 | Alibaba Cloud | `alibaba` | clave de API | ✓ |
@@ -399,7 +418,7 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 
 | Provider | id | Credencial | Custom URL |
 |---|---|---|---|
-| System One API | `system-one` | API key, or none | ✓ |
+| System One API | `system-one` | clave de API o ninguna | ✓ |
 | Ollama | `ollama` | ninguna | ✓ |
 | LiteLLM proxy | `litellm` | ninguna | ✓ (`api_base`) |
 
@@ -435,6 +454,7 @@ autenticarse.
 | AWS Bedrock | `bedrock` | id de clave de acceso, clave secreta, región, token de sesión opcional |
 | Google Vertex AI | `google_cloud` | JSON de la cuenta de servicio |
 | ChatGPT (suscripción de Codex) | `openai_codex` | un inicio de sesión de ChatGPT, guardado iniciando sesión en vez de tecleado |
+| [Suscripción de Claude](https://github.com/t3grp/agenticos/blob/t3/integrations/claude-subscription/README.md) | `claude-subscription` | cuenta personal de Claude conectada mediante el cliente oficial; alias `sonnet`, `opus`, `haiku` |
 
 Los tres primeros son la razón de que un secreto tenga un *kind*. Un formulario que
 recogiera un único token opaco para Azure recogería algo que se puede rellenar
@@ -681,14 +701,15 @@ correcto cuando un agent se muda a otro modelo.
 !!! danger "Por qué se guarda en vez de resolverse por run"
 
     El camino de la petición no debe llamar a un provider, y lo único que podría
-    consultar si no es el snapshot de precios incluido — que aquí se equivoca en
-    la dirección que rompe un run.
-
-    Ese snapshot registra 1.000.000 para `anthropic:claude-sonnet-4-5` frente a
-    unos 200.000 reales, así que un disparo al 90 % cae por encima del techo real
-    y la compactación nunca se activa antes de que el provider rechace la
-    petición. Un perfil con fallbacks es peor: construye un `FallbackModel` cuyo
-    id compuesto no resuelve a nada en absoluto.
+    consultar si no es el snapshot de precios incluido — un bundle de terceros
+    cuyos números no son autoritativos: un snapshot anterior registraba
+    1.000.000 para `anthropic:claude-sonnet-4-5` frente a unos 200.000 reales,
+    así que un disparo al 90 % caía por encima del techo real y la compactación
+    nunca se activaba antes de que el provider rechazara la petición (#773).
+    El snapshot fijado registra hoy los 200.000 correctos, pero una subida del
+    bundle puede mover un número sin que este repo lo note. Un perfil con
+    fallbacks es peor: construye un `FallbackModel` cuyo id compuesto no
+    resuelve a nada en absoluto.
 
 Nulo significa **no anotado**, no cero: un perfil más antiguo que la columna, un
 provider que no publica longitud, una lista curada, o un listado al que no se
@@ -827,13 +848,13 @@ Para otro endpoint con el mismo proveedor y modelo, elija **Añadir modelo separ
 
 ## Modelos de decisión { #decision-models }
 
-Los perfiles de decisión usan la API nativa `decisions` en lugar de generar texto. Elige proveedor, modelo y clave del almacén en el formulario del modelo. OpenAI, Google y OpenRouter ofrecen APIs de chat y decisiones; TypeSafe y un endpoint System One propio sirven decisiones. Un perfil de decisión no puede ser el modelo conversacional de un agente ni recurrir a un modelo de chat como alternativa.
+Los perfiles de decisión usan la API nativa `decisions` en lugar de generar texto. Elige provider, modelo y la clave del vault en el formulario del modelo. OpenAI, Google y OpenRouter ofrecen APIs de chat y decisiones; TypeSafe y un endpoint propio de System One sirven decisiones. Un perfil de decisión no puede ser el modelo conversacional de un agente ni servir de alternativa a un modelo de chat.
 
 Los adaptadores proceden de Pydantic AI. Las sugerencias actuales incluyen OpenAI `gpt-6-luna`, Google `gemini-decision-1` y TypeSafe `jev-1.14.0` / `jev-latest`. OpenRouter consulta el catálogo de decisiones por separado del catálogo de texto. System One propio requiere URL e identificador de modelo. La disponibilidad depende del proveedor y de la cuenta; una sugerencia no garantiza acceso.
 
 Los pasos **Decision models** de los workflows eligen un perfil nativo. Los identificadores `decide.*` y las configuraciones existentes con clave TypeSafe siguen siendo válidos. Por debajo del umbral de confianza se utiliza el puerto `unsure`. Cada ejecución comprueba de nuevo permisos y claves; el coste cuenta para los presupuestos del workflow y la organización.
 
-La participación automática en canales admite un modelo nativo o un LLM habitual con salida estructurada. La decisión nativa sí/no devuelve la probabilidad de intervenir; un campo numérico acotado conserva ese valor. Un LLM devuelve una valoración de utilidad de 0 a 100, no una probabilidad calibrada. Ambos se comparan con el control deslizante del umbral, incluyendo la igualdad. El clasificador no tiene herramientas. La función requiere activación y respeta los intervalos; el agente principal puede usar cuentas MCP de la organización, nunca credenciales privadas de un participante.
+La opción de canal **Join conversations automatically** puede usar un perfil nativo de decisiones o un LLM habitual con salida estructurada. La decisión nativa sí/no devuelve la probabilidad de intervenir; un campo numérico acotado conserva ese valor. Un LLM devuelve una valoración de utilidad de 0 a 100, no una probabilidad calibrada. Ambos se comparan con el umbral indicado en **Run the agent from (%)**; la igualdad con el umbral también cuenta. El clasificador no tiene herramientas. La función requiere activación y respeta los intervalos; el agente principal puede usar cuentas MCP de la organización, nunca credenciales privadas de un participante.
 
 Referencias: [Pydantic AI](https://pydantic.dev/docs/ai/models/decision/), [OpenAI](https://developers.openai.com/api/docs/guides/decisions), [Google](https://ai.google.dev/gemini-api/docs/decisions-api), [TypeSafe](https://docs.typesafe.ai/models), [OpenRouter](https://github.com/OpenRouterTeam/skills/tree/main/skills/openrouter-decisions).
 

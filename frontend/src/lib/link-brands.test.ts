@@ -14,7 +14,7 @@ describe("the console page behind a link", () => {
   it("draws the section's icon for a relative link, its query and anchor aside", () => {
     expect(consolePageIcon("/routines?highlight=routines-create", ORIGIN)).toBe(TimerReset);
     expect(consolePageIcon("/workflows", ORIGIN)).toBe(Workflow);
-    expect(consolePageIcon("/mcp-servers?highlight=mcp-add", ORIGIN)).toBe(Plug);
+    expect(consolePageIcon("/connectors?highlight=mcp-add", ORIGIN)).toBe(Plug);
   });
 
   it("draws nothing for another site, a protocol-relative address or a page outside every section", () => {

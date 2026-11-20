@@ -3,8 +3,11 @@
 import { clearApprovalNotice } from "@/lib/approval-cache";
 
 import { toolLookupName } from "@/lib/tool-identity";
+import { announceRoomChange } from "@/lib/room-events";
 
 import type { Mentionable } from "@/types/mention";
+import type { AssistantPageContext } from "@/lib/assistant-page-context";
+import type { ChatSubmissionContext } from "@/types/chat";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import type { ApprovalMode } from "@/components/chat/chat-controls";
 
@@ -35,6 +38,7 @@ import type {
   AskUserAnswer,
   AskUserQuestion,
   BrowserFrame,
+  ChatCompactionStatus,
   ChatMessageFile,
   ChatPerson,
   Compaction,
@@ -56,6 +60,7 @@ import type {
 import type {
   ParkedCall,
   ParkedQuestion,
+  ParkedSecretRequest,
   ResumedRun,
   RunAnswerResult,
   ToolApproval,
@@ -68,7 +73,13 @@ import {
   resolveAwaitingOnResume,
   resumeFailureStatus,
 } from "@/lib/delegations";
-import { latestBrowserTabs, applyBrowserFrame, type Browse } from "@/lib/browse";
+import {
+  latestBrowserTabs,
+  applyBrowserFrame,
+  applyBrowserProtection,
+  type Browse,
+  type BrowserProtection,
+} from "@/lib/browse";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { buildAssistantParts, replyFromWire, type WireReply } from "@/lib/conversation-to-chat";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
@@ -93,7 +104,14 @@ interface ConversationRef {
   id: string | null;
 }
 
+interface PendingCompactionRequest {
+  requestId: string;
+  scopeKey: string;
+}
+
 interface UseChatOptions {
+  /** Read only at submission; queued turns retain their own detached snapshot. */
+  pageContext?: () => AssistantPageContext | null;
   conversationId?: string | null;
   onConversationCreated?: (conversationId: string) => void;
   /**
@@ -178,8 +196,18 @@ class RunAnswerInterrupted extends Error {}
 export function useChat(options: UseChatOptions = {}) {
   const tErrors = useTranslations("errors");
 
-  const { conversationId, onConversationCreated, onTurnSaved, onTurnInterrupted, testing } =
-    options;
+  const {
+    conversationId,
+    onConversationCreated,
+    onTurnSaved,
+    onTurnInterrupted,
+    testing,
+    pageContext,
+  } = options;
+  const pageContextRef = useRef(pageContext);
+  useLayoutEffect(() => {
+    pageContextRef.current = pageContext;
+  }, [pageContext]);
   // Read at send time, like the model and the approval mode below.
   const testingRef = useRef<ChatTesting | undefined>(testing);
   useEffect(() => {
@@ -194,15 +222,28 @@ export function useChat(options: UseChatOptions = {}) {
   const chatApi = useChatStore.useApi();
   const conversationApi = useConversationStore.useApi();
   const selectionApi = useAgentSelectionStore.useApi();
+  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   const scoped = useInChatScope();
+  const tenantId = useTenantId();
+  const captureSubmission = useCallback((): ChatSubmissionContext | undefined => {
+    const read = pageContextRef.current;
+    if (!read) return undefined;
+    const page = read();
+    return {
+      agentId: selectionApi.getState().selectedAgentId,
+      pageContext: page === null ? null : structuredClone(page),
+    };
+  }, [selectionApi]);
   const {
     adoptCreatedConversation,
     setCurrentConversationId,
     setCurrentCost,
     currentConversationId: currentConversationIdFromStore,
+    selectionVersion,
   } = useConversationStore();
   const {
     messages,
+    loadedTranscript,
     addMessage,
     updateMessage,
     appendTextDelta,
@@ -232,6 +273,42 @@ export function useChat(options: UseChatOptions = {}) {
   // without waiting for React's batched re-render. The handler never causes a
   // re-render based on this id, so state isn't needed.
   const currentMessageIdRef = useRef<string | null>(null);
+  // One room connection follows every root. Tag rows before their first delta,
+  // and keep action scopes separate from whichever turn starts next.
+  const turnThreadRootRef = useRef<string | null>(null);
+  const runThreadRootsRef = useRef(new Map<string, string | null>());
+  const [turnThreadScope, setTurnThreadScope] = useState<{
+    conversationId: string | null;
+    root: string | null;
+  } | null>(null);
+  const [actionThreadRoots, setActionThreadRoots] = useState({
+    approval: null as string | null,
+    questions: null as string | null,
+    secrets: null as string | null,
+    connection: null as string | null,
+    computer: null as string | null,
+  });
+  const rememberActionScope = useCallback(
+    (kind: keyof typeof actionThreadRoots, messageId?: string | null, runId?: string) => {
+      const rows = chatApi.getState().messages;
+      const exact = rows.find((row) => row.id === messageId);
+      const sameRun = runId === undefined ? undefined : rows.find((row) => row.runId === runId);
+      const root = exact
+        ? (exact.threadRootMessageId ?? null)
+        : runId !== undefined && runThreadRootsRef.current.has(runId)
+          ? runThreadRootsRef.current.get(runId)!
+          : sameRun
+            ? (sameRun.threadRootMessageId ?? null)
+            : runId === undefined
+              ? turnThreadRootRef.current
+              : null;
+      if (runId) runThreadRootsRef.current.set(runId, root);
+      setActionThreadRoots((current) =>
+        current[kind] === root ? current : { ...current, [kind]: root },
+      );
+    },
+    [chatApi],
+  );
   const attachedRef = useRef<string | null>(null);
   // Stop ends streaming immediately, but its partial reply is saved afterwards.
   // Keep a target for that write's failure until session_ready ends cleanup.
@@ -354,6 +431,21 @@ export function useChat(options: UseChatOptions = {}) {
   const parkedQuestionRunRef = useRef<string | null>(null);
   const answeringQuestionRef = useRef<object | null>(null);
   const liveQuestionRef = useRef(false);
+  // A run parked on a secret it asked for (#13): the requests the card
+  // shows, and the run and message they belong to. The value is typed into
+  // the card and posted straight to the fulfil endpoint - it never enters
+  // this hook's state, the socket, or the transcript.
+  const [pendingSecretRequests, setPendingSecretRequests] = useState<ParkedSecretRequest[] | null>(
+    null,
+  );
+  const [parkedSecretRequest, setParkedSecretRequest] = useState<{
+    runId: string;
+    messageId: string;
+    context: number;
+  } | null>(null);
+  const secretOfferedForRef = useRef<Set<string>>(new Set());
+  const secretContextRef = useRef(0);
+  const answeringSecretRef = useRef<{ kind: "fulfil" | "decline" } | null>(null);
   const pendingRunAnswerRef = useRef<{
     requestId: string;
     runId: string;
@@ -370,6 +462,8 @@ export function useChat(options: UseChatOptions = {}) {
   useEffect(
     () => () => {
       answeringQuestionRef.current = null;
+      answeringSecretRef.current = null;
+      secretContextRef.current += 1;
       abandonRunAnswer();
     },
     [abandonRunAnswer],
@@ -403,6 +497,9 @@ export function useChat(options: UseChatOptions = {}) {
   // after `complete`, and anything hung off the streaming message would lose the
   // outcome - which for a browse is the whole answer.
   const [browses, setBrowses] = useState<Browse[]>([]);
+  const protectBrowser = useCallback((protection: BrowserProtection) => {
+    setBrowses((current) => applyBrowserProtection(current, protection));
+  }, []);
   // Selected rather than destructured, so a frame arriving does not re-render
   // this hook's whole tree every time the panel's own open state changes.
   //
@@ -419,6 +516,14 @@ export function useChat(options: UseChatOptions = {}) {
   // it outlives a turn: it describes what is configured, and clearing it when the
   // turn ends would flash the one message that explains why nothing happened.
   const [compactionImpossible, setCompactionImpossible] = useState<Compaction | null>(null);
+  const [compactionAvailability, setCompactionAvailability] = useState<{
+    scopeKey: string;
+    available: boolean;
+  } | null>(null);
+  const [compactionStatus, setCompactionStatus] = useState<ChatCompactionStatus>("idle");
+  const [compactionProgress, setCompactionProgress] = useState<Compaction | null>(null);
+  const compactionRequestRef = useRef<PendingCompactionRequest | null>(null);
+  const compactionScopeKeyRef = useRef<string | null>(null);
   // Whether the run's sandbox is still being opened. The first session after an
   // update builds the runtime's image on the host, which is minutes during which no
   // token and no tool step arrives (#2222). Cleared by the next tool result and by
@@ -571,6 +676,7 @@ export function useChat(options: UseChatOptions = {}) {
   /** Put an agent's unanswered question back in front of its person (#2064). */
   const offerParkedQuestion = useCallback(
     (asked: ParkedQuestion[], runId: string, messageId: string) => {
+      rememberActionScope("questions", messageId, runId);
       questionOfferedForRef.current.add(runId);
       parkedQuestionRunRef.current = runId;
       liveQuestionRef.current = false;
@@ -587,7 +693,18 @@ export function useChat(options: UseChatOptions = {}) {
         messageId,
       });
     },
-    [],
+    [rememberActionScope],
+  );
+
+  /** Put an agent's unanswered secret requests back in front of its person (#13). */
+  const offerParkedSecretRequests = useCallback(
+    (requests: ParkedSecretRequest[], runId: string, messageId: string) => {
+      rememberActionScope("secrets", messageId, runId);
+      secretOfferedForRef.current.add(runId);
+      setPendingSecretRequests(requests.filter((request) => request.status === "pending"));
+      setParkedSecretRequest({ runId, messageId, context: secretContextRef.current });
+    },
+    [rememberActionScope],
   );
 
   // A turn that ended is running nothing, so every call still out ends with it.
@@ -613,6 +730,28 @@ export function useChat(options: UseChatOptions = {}) {
   const handleWebSocketMessage = useCallback(
     (event: MessageEvent) => {
       const wsEvent: WSEvent = JSON.parse(event.data);
+      // Protection may arrive after Stop or after this tab declined a turn.
+      // It may erase an existing matching view here, but never reconstruct one.
+      const browserFrame = wsEvent.data as BrowserFrame | undefined;
+      if (
+        wsEvent.type.startsWith("browser_") &&
+        browserFrame &&
+        (wsEvent.type === "browser_protected" || browserFrame.output_protected === true)
+      ) {
+        setBrowses((current) =>
+          current.some(
+            (browse) =>
+              browse.callId === browserFrame.call_id &&
+              (!browse.runId || !browserFrame.run_id || browse.runId === browserFrame.run_id),
+          )
+            ? applyBrowserFrame(current, {
+                ...browserFrame,
+                kind: "browser_protected",
+                output_protected: true,
+              })
+            : current,
+        );
+      }
       // The frames of a turn this tab declined to follow: a teammate's, in a room
       // the tab has just left - another chat opened before the server heard.
       // Drawn, they would land in the chat on screen.
@@ -635,6 +774,43 @@ export function useChat(options: UseChatOptions = {}) {
       )
         return;
 
+      const frame = (wsEvent.data ?? {}) as {
+        conversation_id?: string;
+        thread_root_message_id?: string | null;
+        run_id?: string;
+        resumed_run_id?: string;
+      };
+      const frameConversation =
+        frame.conversation_id ??
+        conversationApi.getState().currentConversationId ??
+        activeConversationId;
+      if (
+        Object.prototype.hasOwnProperty.call(frame, "thread_root_message_id") &&
+        frame.conversation_id != null &&
+        frame.conversation_id !==
+          (conversationApi.getState().currentConversationId ?? activeConversationId)
+      )
+        return;
+      // Room invalidations may describe a queued turn; only execution frames
+      // establish the currently followed turn. Explicit null restores main room.
+      if (
+        wsEvent.type !== "room_message" &&
+        wsEvent.type !== "room_request" &&
+        Object.prototype.hasOwnProperty.call(frame, "thread_root_message_id") &&
+        frameConversation ===
+          (conversationApi.getState().currentConversationId ?? activeConversationId)
+      ) {
+        const root = frame.thread_root_message_id ?? null;
+        turnThreadRootRef.current = root;
+        const runId = frame.run_id ?? frame.resumed_run_id;
+        if (runId) runThreadRootsRef.current.set(runId, root);
+        setTurnThreadScope((current) =>
+          current?.conversationId === frameConversation && current.root === root
+            ? current
+            : { conversationId: frameConversation, root },
+        );
+      }
+
       // Opens the turn's message. It used to close a previous one first, which is
       // no longer reachable and would be the wrong place for it if it were: every
       // caller now opens a message only when the turn has none, and what ends the
@@ -654,6 +830,7 @@ export function useChat(options: UseChatOptions = {}) {
           parts: content === "" ? [] : undefined,
           groupId: currentGroupIdRef.current || undefined,
           conversationId: effectiveConversationId,
+          threadRootMessageId: turnThreadRootRef.current ?? undefined,
           isTemporaryId: true,
           agentId: turnAgentIdRef.current ?? undefined,
           runId: resumedRunIdRef.current,
@@ -686,6 +863,7 @@ export function useChat(options: UseChatOptions = {}) {
               id: message_id,
               isTemporaryId: false,
               renderKey: message.renderKey ?? id,
+              threadRootMessageId: turnThreadRootRef.current ?? undefined,
             }));
             currentUserMessageIdRef.current = null;
           }
@@ -815,6 +993,7 @@ export function useChat(options: UseChatOptions = {}) {
               id: data.message_id ?? message.id,
               isTemporaryId: data.message_id === null,
               renderKey: message.renderKey ?? message.id,
+              threadRootMessageId: turnThreadRootRef.current ?? undefined,
             }));
             break;
           }
@@ -828,12 +1007,26 @@ export function useChat(options: UseChatOptions = {}) {
             conversationId: data.conversation_id,
             sender: data.sender,
             replyTo: replyFromWire(data.reply_to),
+            threadRootMessageId: turnThreadRootRef.current ?? undefined,
           });
           break;
         }
 
         // Who has this conversation open now: its room says so whenever somebody
         // comes or goes.
+        case "room_message":
+        case "room_request": {
+          const data = wsEvent.data as { conversation_id: string };
+          if (conversationApi.getState().currentConversationId === data.conversation_id) {
+            announceRoomChange({
+              conversationId: data.conversation_id,
+              accountId: useAuthStore.getState().user?.id,
+              organizationId: useOrgStore.getState().activeOrgId,
+            });
+          }
+          break;
+        }
+
         case "presence": {
           const data = wsEvent.data as { conversation_id: string; people: ChatPerson[] };
           setPresent({ conversationId: data.conversation_id, people: data.people });
@@ -891,11 +1084,19 @@ export function useChat(options: UseChatOptions = {}) {
           }
           // Reflect the new ID in the URL so the page is refreshable + shareable.
           if (!scoped) setUrlParam("id", conversation_id);
-          const { updateMessagesWhere } = chatApi.getState();
-          updateMessagesWhere(
-            (msg) => !msg.conversationId,
-            (msg) => ({ ...msg, conversationId: conversation_id }),
-          );
+          // A first turn has no HTTP history to load. Its live transcript is
+          // already here, and must be able to reattach after a later reconnect.
+          chatApi.setState((state) => ({
+            messages: state.messages.map((msg) =>
+              msg.conversationId ? msg : { ...msg, conversationId: conversation_id },
+            ),
+            loadedTranscript: {
+              conversationId: conversation_id,
+              selectionVersion: conversationApi.getState().selectionVersion,
+              accountId: useAuthStore.getState().user?.id ?? null,
+              tenantId,
+            },
+          }));
           onConversationCreated?.(conversation_id);
           break;
         }
@@ -947,7 +1148,9 @@ export function useChat(options: UseChatOptions = {}) {
               ...msg,
               id: message_id,
               isTemporaryId: false,
+              guardrailRefused: run_status === "guardrail_blocked" || msg.guardrailRefused,
               renderKey: msg.renderKey ?? msg.id,
+              threadRootMessageId: turnThreadRootRef.current ?? undefined,
             }));
             // And point the ref at it. Everything after this - `complete` writing
             // what the turn cost, an `error` marking the message failed - addresses
@@ -961,13 +1164,20 @@ export function useChat(options: UseChatOptions = {}) {
             const messages = chatApi.getState().messages;
             const lastTemp = [...messages]
               .reverse()
-              .find((msg) => msg.role === "assistant" && !!msg.isTemporaryId);
+              .find(
+                (msg) =>
+                  msg.role === "assistant" &&
+                  !!msg.isTemporaryId &&
+                  (msg.threadRootMessageId ?? null) === turnThreadRootRef.current,
+              );
             if (lastTemp) {
               updateMessage(lastTemp.id, (msg) => ({
                 ...msg,
                 id: message_id,
                 isTemporaryId: false,
+                guardrailRefused: run_status === "guardrail_blocked" || msg.guardrailRefused,
                 renderKey: msg.renderKey ?? msg.id,
+                threadRootMessageId: turnThreadRootRef.current ?? undefined,
               }));
             }
           }
@@ -1171,6 +1381,14 @@ export function useChat(options: UseChatOptions = {}) {
             if (chosen) adoptAccountLocale(chosen);
             const saved = name ? contextSavedBy(name, content) : null;
             if (saved) adoptAccountContext(saved);
+            if (
+              name === "agenticos_set_my_appearance" ||
+              name === "agenticos_reset_my_appearance"
+            ) {
+              // Re-read the authenticated account; a tool result never supplies CSS
+              // or chooses which account's cache to update.
+              window.dispatchEvent(new Event("account-appearance-changed"));
+            }
           }
           break;
         }
@@ -1221,6 +1439,8 @@ export function useChat(options: UseChatOptions = {}) {
         case "browser_held":
         case "browser_released":
         case "browser_needs_person":
+        case "browser_protected":
+        case "browser_procedure_teaching":
         case "browser_control_error":
         case "browser_pointer": {
           // One branch for every frame: the envelope's `type` is the frame's own
@@ -1231,26 +1451,79 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "compaction_impossible": {
+          const progress = wsEvent.data as Compaction;
+          if (typeof progress.request_id === "string") {
+            const pending = compactionRequestRef.current;
+            if (
+              pending === null ||
+              pending.requestId !== progress.request_id ||
+              pending.scopeKey !== compactionScopeKeyRef.current
+            )
+              break;
+            setCompactionProgress(progress);
+            break;
+          }
           // Not a state - a setting. The fixed overhead is already past the
           // trigger, so no summary can get under it and the platform refuses to
           // buy one on every request for ever. It does nothing, which on screen
           // is indistinguishable from a setting that works, so it says so.
-          setCompactionImpossible(wsEvent.data as Compaction);
+          setCompactionImpossible(progress);
           break;
         }
 
         case "compaction_started":
         case "compaction_finished": {
+          const progress = wsEvent.data as Compaction;
+          if (typeof progress.request_id === "string") {
+            const pending = compactionRequestRef.current;
+            if (
+              pending === null ||
+              pending.requestId !== progress.request_id ||
+              pending.scopeKey !== compactionScopeKeyRef.current
+            )
+              break;
+            setCompactionProgress(progress);
+            break;
+          }
           // Between two of the turn's own model requests, where nothing else
           // streams: summarising a long history is a whole request of its own, and
           // without this the chat stops dead for the length of it. Only the
           // summarising strategy sends these - the ones that edit a list and
           // return would be a spinner that appeared and vanished within a frame.
-          setCompacting(
-            wsEvent.type === "compaction_started" ? (wsEvent.data as Compaction) : null,
-          );
+          setCompacting(wsEvent.type === "compaction_started" ? progress : null);
           // A summary that ran is the answer to the warning above it.
           setCompactionImpossible(null);
+          break;
+        }
+
+        case "compact_now_result": {
+          const result = wsEvent.data as {
+            request_id?: string;
+            conversation_id?: string;
+            status?: string;
+          };
+          const pending = compactionRequestRef.current;
+          if (
+            pending === null ||
+            result.request_id !== pending.requestId ||
+            result.conversation_id !== activeConversationId ||
+            pending.scopeKey !== compactionScopeKeyRef.current
+          )
+            break;
+          const terminal = result.status;
+          const accepted: readonly ChatCompactionStatus[] = [
+            "compacted",
+            "unchanged",
+            "busy",
+            "unavailable",
+            "failed",
+          ];
+          setCompactionStatus(
+            accepted.includes(terminal as ChatCompactionStatus)
+              ? (terminal as ChatCompactionStatus)
+              : "failed",
+          );
+          compactionRequestRef.current = null;
           break;
         }
 
@@ -1347,6 +1620,7 @@ export function useChat(options: UseChatOptions = {}) {
           offeredApprovalBatchesRef.current.add(
             JSON.stringify([run_id, actionable.map((request) => request.tool_call_id).sort()]),
           );
+          rememberActionScope("approval", currentMessageIdRef.current, run_id);
           setPendingApproval({
             actionRequests: actionable,
             reviewConfigs: review_configs.filter((config) =>
@@ -1380,6 +1654,7 @@ export function useChat(options: UseChatOptions = {}) {
           const wire = wsEvent.data as ComputerAccessRequest;
           const request = { ...wire, agent_id: wire.agent_id ?? turnAgentIdRef.current };
           computerRequestRef.current = request;
+          rememberActionScope("computer", currentMessageIdRef.current);
           setPendingComputerAccess(request);
           awaitingComputerRef.current = true;
           break;
@@ -1388,6 +1663,7 @@ export function useChat(options: UseChatOptions = {}) {
         case "connect_account": {
           // The agent reached for a service this person has not connected, and
           // the run is waiting on them - the only moment the card is worth its space.
+          rememberActionScope("connection", currentMessageIdRef.current);
           setPendingConnection(wsEvent.data as ConnectionRequest);
           awaitingConnectionRef.current = true;
           break;
@@ -1486,6 +1762,7 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "ask_user": {
           liveQuestionRef.current = true;
+          rememberActionScope("questions", currentMessageIdRef.current);
           const { questions } = wsEvent.data as { questions: WireQuestion[] };
           setPendingQuestions(toAskUserQuestions(questions ?? []));
           const messageId = currentMessageIdRef.current;
@@ -1617,6 +1894,7 @@ export function useChat(options: UseChatOptions = {}) {
       chatApi,
       conversationApi,
       scoped,
+      tenantId,
       // currentMessageId is read via currentMessageIdRef inside the handler,
       // so we deliberately omit it here - that's the whole point of the ref.
       addMessage,
@@ -1627,6 +1905,7 @@ export function useChat(options: UseChatOptions = {}) {
       updateToolCallPart,
       abandonOpenCalls,
       offerParkedQuestion,
+      rememberActionScope,
       adoptCreatedConversation,
       setCurrentConversationId,
       setCurrentMessageId,
@@ -1665,8 +1944,45 @@ export function useChat(options: UseChatOptions = {}) {
   // socket otherwise. Switching orgs changes the URL, which reconnects the
   // socket, so a conversation never continues under the wrong organization.
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
-  const tenantId = useTenantId();
   const queueAccountId = useAuthStore((state) => state.user?.id);
+  const previousSecretContext = useRef({
+    conversationId: activeConversationId,
+    selectionVersion,
+    accountId: queueAccountId,
+    tenantId,
+    organizationId: activeOrgId,
+  });
+  // Secret cards and their HTTP completions belong to one selected transcript.
+  // A generation also fences A -> B -> A and a retry of the same selection;
+  // comparing only the conversation id would accept the older request again.
+  useLayoutEffect(() => {
+    const previous = previousSecretContext.current;
+    secretContextRef.current += 1;
+    secretOfferedForRef.current = new Set();
+    if (
+      previous.conversationId === activeConversationId &&
+      previous.selectionVersion === selectionVersion &&
+      previous.accountId === queueAccountId &&
+      previous.tenantId === tenantId &&
+      previous.organizationId === activeOrgId
+    )
+      return;
+    previousSecretContext.current = {
+      conversationId: activeConversationId,
+      selectionVersion,
+      accountId: queueAccountId,
+      tenantId,
+      organizationId: activeOrgId,
+    };
+    const wasFulfilling = answeringSecretRef.current?.kind === "fulfil";
+    answeringSecretRef.current = null;
+    setPendingSecretRequests(null);
+    setParkedSecretRequest(null);
+    if (wasFulfilling) {
+      processingRef.current = false;
+      setIsProcessing(false);
+    }
+  }, [activeConversationId, selectionVersion, queueAccountId, tenantId, activeOrgId]);
   useLayoutEffect(() => {
     pendingNextSteps.current.clear();
     stoppedMessageIdRef.current = null;
@@ -1747,14 +2063,70 @@ export function useChat(options: UseChatOptions = {}) {
   }, [hasAccessToken, connect, disconnect]);
 
   /** Send one message as a turn; answers the id of its bubble on the transcript. */
+  // Capture local grants only after the access gate has completed. A contextual
+  // question can wait while the selected agent or Work on controls change.
+  const readLocalContext = useCallback((): NonNullable<ChatSubmissionContext["local"]> => {
+    const projectId = conversationApi.getState().pendingProjectId;
+    if (!conversationId && projectId && isDesktopShell(readShellInfo())) {
+      const key = projectFolderKey(useAuthStore.getState().user?.id ?? null, tenantId, projectId);
+      if (key !== null) {
+        useWorkOnStore
+          .getState()
+          .applyProject(key, useProjectFoldersStore.getState().byProject[key] ?? null);
+      }
+    }
+    const local = useWorkOnStore.getState().targetFor(conversationId || null);
+    const localBrowser = useWorkOnStore.getState().browserFor(conversationId || null);
+    const localComputer = useWorkOnStore.getState().computerFor(conversationId || null);
+    const localCoding = useWorkOnStore.getState().codingFor(conversationId || null);
+    const codingPreferences = useWorkOnStore
+      .getState()
+      .codingPreferencesFor(conversationId || null);
+    // Chosen per chat and never inherited, so it is read here and not from the target.
+    const localSkills = useWorkOnStore.getState().skillsFor(conversationId || null);
+    const target: Record<string, unknown> | null = local
+      ? {
+          ...local,
+          ...(localComputer || local.computer !== undefined ? { computer: localComputer } : {}),
+          ...(localBrowser || local.browser !== undefined ? { browser: localBrowser } : {}),
+        }
+      : localBrowser || localComputer || localCoding || localSkills.length > 0
+        ? {
+            ...(localBrowser ? { browser: true } : {}),
+            ...(localComputer ? { computer: true } : {}),
+          }
+        : null;
+    const payload = target
+      ? {
+          ...target,
+          ...(localSkills.length > 0 ? { skills: localSkills } : {}),
+          ...(localCoding
+            ? {
+                coding_agent: localCoding,
+                coding_model: codingPreferences.model,
+                coding_effort: codingPreferences.effort,
+              }
+            : {}),
+        }
+      : null;
+    return structuredClone({
+      payload,
+      fileRoot: local && !local.computer_grant ? local.folder : null,
+      projectId,
+    });
+  }, [conversationApi, conversationId, tenantId]);
+
   const doSend = useCallback(
     (
       content: string,
       fileIds?: string[],
       files?: ChatMessageFile[],
       mentions?: Mentionable[],
+      submission?: ChatSubmissionContext,
       agentOverride?: string | null,
     ): string => {
+      setCompactionStatus("idle");
+      setCompactionProgress(null);
       stoppedMessageIdRef.current = null;
       resumedRunIdRef.current = undefined;
       stopRequestedRef.current = false;
@@ -1835,11 +2207,16 @@ export function useChat(options: UseChatOptions = {}) {
         client_message_id: userMessageId,
         conversation_id: conversationId || null,
       };
+      if (submission?.pageContext) payload.page_context = submission.pageContext;
       if (fileIds?.length) payload.file_ids = fileIds;
-      if (replyTo) payload.reply_to = replyTo.messageId;
+      if (replyTo) {
+        payload.reply_to = replyTo.messageId;
+        if (replyTo.selectedText) payload.reply_to_excerpt = replyTo.selectedText;
+      }
       // Only on the turn that starts the conversation: the server files a new
       // chat into the project and ignores the field on every turn after.
-      const projectId = conversationApi.getState().pendingProjectId;
+      const localContext = submission?.local ?? readLocalContext();
+      const projectId = localContext.projectId;
       if (!conversationId && projectId) payload.project_id = projectId;
       // Resolved again on the server as the person, against what the agent reaches.
       if (mentions?.length) {
@@ -1855,69 +2232,28 @@ export function useChat(options: UseChatOptions = {}) {
       if (approvalModeRef.current !== "follow_agent") {
         payload.approval_mode = approvalModeRef.current;
       }
-      // "Work on: This computer" (#2305): the folder and mode, read at send
-      // time like the agent. The desktop app checks both against what the person
-      // granted on that computer, whatever this frame says.
-      // Resolve before the first frame as well: sending may beat the project
-      // chip's metadata fetch. applyProject preserves an explicit draft override.
-      if (!conversationId && projectId && isDesktopShell(readShellInfo())) {
-        const key = projectFolderKey(useAuthStore.getState().user?.id ?? null, tenantId, projectId);
-        if (key !== null) {
-          useWorkOnStore
-            .getState()
-            .applyProject(key, useProjectFoldersStore.getState().byProject[key] ?? null);
-        }
-      }
-      const local = useWorkOnStore.getState().targetFor(conversationId || null);
-      const localBrowser = useWorkOnStore.getState().browserFor(conversationId || null);
-      const localComputer = useWorkOnStore.getState().computerFor(conversationId || null);
-      const localCoding = useWorkOnStore.getState().codingFor(conversationId || null);
-      const codingPreferences = useWorkOnStore
-        .getState()
-        .codingPreferencesFor(conversationId || null);
-      // Chosen per chat and never inherited, so it is read here and not from the target.
-      const localSkills = useWorkOnStore.getState().skillsFor(conversationId || null);
-      const target: Record<string, unknown> | null = local
-        ? {
-            ...local,
-            ...(localComputer || local.computer !== undefined ? { computer: localComputer } : {}),
-            ...(localBrowser || local.browser !== undefined ? { browser: localBrowser } : {}),
-          }
-        : localBrowser || localComputer || localCoding || localSkills.length > 0
-          ? {
-              ...(localBrowser ? { browser: true } : {}),
-              ...(localComputer ? { computer: true } : {}),
-            }
-          : null;
-      if (target)
-        payload.local = {
-          ...target,
-          ...(localSkills.length > 0 ? { skills: localSkills } : {}),
-          ...(localCoding
-            ? {
-                coding_agent: localCoding,
-                coding_model: codingPreferences.model,
-                coding_effort: codingPreferences.effort,
-              }
-            : {}),
-        };
+      if (localContext.payload) payload.local = localContext.payload;
       const test = testingRef.current;
       if (test) {
         payload.test = true;
         if (test.draft) payload.draft = true;
         else if (test.environmentId) payload.environment_id = test.environmentId;
       }
-      // Ordinary queued messages follow the picker at send time, including the
-      // trusted setup-only starter. Computer access continuations stay with the
-      // agent that requested access; the server checks execution or setup access.
-      const agentId =
-        agentOverride === undefined ? selectionApi.getState().selectedAgentId : agentOverride;
+      // The floating assistant keeps the target chosen at submission with its
+      // page snapshot. Other chat surfaces retain their selection-at-dispatch
+      // behavior. A missing frozen target must not fall back to another agent.
+      // A computer access continuation instead stays with the agent that requested it.
+      const agentId = submission
+        ? submission.agentId
+        : agentOverride === undefined
+          ? selectionApi.getState().selectedAgentId
+          : agentOverride;
       if (agentId) payload.agent_id = agentId;
       turnAgentIdRef.current = agentId;
       pendingFileRootRef.current =
-        local && !local.computer_grant
+        localContext.fileRoot !== null
           ? {
-              root: local.folder,
+              root: localContext.fileRoot,
               account: useAuthStore.getState().user?.id ?? null,
               organization: useOrgStore.getState().activeOrgId,
             }
@@ -1927,21 +2263,28 @@ export function useChat(options: UseChatOptions = {}) {
     },
     [
       selectionApi,
-      conversationApi,
       chatApi,
       addMessage,
       updateMessage,
       setCurrentMessageId,
       sendMessage,
       conversationId,
-      // The store action that shuts the browse panel when this turn ends the
-      // previous one's browse. Stable, and listed rather than omitted.
-      tenantId,
+      readLocalContext,
     ],
   );
 
   const sendChatMessage = useCallback(
-    (content: string, fileIds?: string[], files?: ChatMessageFile[], mentions?: Mentionable[]) => {
+    (
+      content: string,
+      fileIds?: string[],
+      files?: ChatMessageFile[],
+      mentions?: Mentionable[],
+      submitted?: ChatSubmissionContext,
+    ) => {
+      const captured = submitted ?? captureSubmission();
+      const submission = captured
+        ? { ...captured, local: captured.local ?? readLocalContext() }
+        : undefined;
       // While the agent works a message waits for its answer, as in any chat;
       // "Send now" on the queued message is how it joins the running task
       // instead (#2087) - see `sendQueuedNow`.
@@ -1953,17 +2296,34 @@ export function useChat(options: UseChatOptions = {}) {
         decidingApprovalRef.current !== null ||
         answeringQuestionRef.current !== null ||
         parkedQuestionRunRef.current !== null ||
+        compactionStatus === "running" ||
         !sessionReadyRef.current ||
         !isConnected ||
         (messageQueueRef.current.length > 0 && interruptedForRef.current === null)
       ) {
         const id = clientId();
-        setQueue([...messageQueueRef.current, { id, content, fileIds, files, mentions }]);
+        setQueue([
+          ...messageQueueRef.current,
+          { id, content, fileIds, files, mentions, ...(submission ? { submission } : {}) },
+        ]);
         return;
       }
-      setSentTurnId(doSend(content, fileIds, files, mentions));
+      setSentTurnId(doSend(content, fileIds, files, mentions, submission));
     },
-    [isConnected, doSend, setQueue],
+    [isConnected, doSend, setQueue, captureSubmission, readLocalContext, compactionStatus],
+  );
+
+  /** Send plain text into the active run; a closed socket leaves no pending steer behind. */
+  const sendSteerMessage = useCallback(
+    (content: string): boolean => {
+      const text = content.trim();
+      if (!text || !isProcessing || !processingRef.current || !isConnected) return false;
+      const id = clientId();
+      if (!sendMessage({ type: "steer", text })) return false;
+      setSteers((waiting) => [...waiting, { id, text }]);
+      return true;
+    },
+    [isProcessing, isConnected, sendMessage],
   );
 
   /**
@@ -1977,19 +2337,21 @@ export function useChat(options: UseChatOptions = {}) {
       const queued = messageQueueRef.current.find((q) => q.id === id);
       // Mentions travel with a message, never with a correction: the steer frame
       // carries text alone, so one sent now would lose what it pointed at.
+      // A frozen page/agent submission must also remain a full turn.
       if (
         !queued ||
         !isProcessing ||
         !isConnected ||
         queued.fileIds?.length ||
-        queued.mentions?.length
+        queued.files?.length ||
+        queued.mentions?.length ||
+        queued.submission !== undefined
       )
         return;
+      if (!sendSteerMessage(queued.content)) return;
       setQueue(messageQueueRef.current.filter((q) => q.id !== id));
-      setSteers((waiting) => [...waiting, { id: clientId(), text: queued.content }]);
-      sendMessage({ type: "steer", text: queued.content });
     },
-    [isProcessing, isConnected, sendMessage, setQueue],
+    [isProcessing, isConnected, sendSteerMessage, setQueue],
   );
 
   /** Move one queued message to another place in the queue, which is the order it is sent in. */
@@ -2073,9 +2435,25 @@ export function useChat(options: UseChatOptions = {}) {
   const queueAccount = useRef(queueAccountId);
   useLayoutEffect(() => {
     if (queueBelongsTo.current === tenantId && queueAccount.current === queueAccountId) return;
+    if (queueAccount.current !== queueAccountId || queueBelongsTo.current !== null) {
+      // Global session resets do not reach a floating ChatScope. Invalidate its
+      // load too, so returning to an account or tenant cannot revive old readiness.
+      conversationApi.getState().invalidateTranscript();
+      chatApi.setState({ loadedTranscript: null });
+    }
     queueBelongsTo.current = tenantId;
     queueAccount.current = queueAccountId;
     decidedApprovalIdsRef.current = new Set();
+    runThreadRootsRef.current.clear();
+    turnThreadRootRef.current = null;
+    setTurnThreadScope(null);
+    setActionThreadRoots({
+      approval: null,
+      questions: null,
+      secrets: null,
+      connection: null,
+      computer: null,
+    });
     terminalRunIdsRef.current = new Set();
     stoppingRef.current = null;
     setIsStopping(false);
@@ -2105,7 +2483,15 @@ export function useChat(options: UseChatOptions = {}) {
     // picture of somebody else's data.
     setBrowses([]);
     closeBrowserPanel();
-  }, [tenantId, queueAccountId, clearQueued, closeBrowserPanel, abandonRunAnswer]);
+  }, [
+    tenantId,
+    queueAccountId,
+    clearQueued,
+    closeBrowserPanel,
+    abandonRunAnswer,
+    conversationApi,
+    chatApi,
+  ]);
 
   const queuedConversation = useRef(activeConversationId);
   useLayoutEffect(() => {
@@ -2158,6 +2544,16 @@ export function useChat(options: UseChatOptions = {}) {
     // away the panels of the turn still streaming, and a first turn that parks on an
     // approval is exactly that turn.
     if (previous === activeConversationId || previous === null) return;
+    turnThreadRootRef.current = null;
+    runThreadRootsRef.current.clear();
+    setTurnThreadScope(null);
+    setActionThreadRoots({
+      approval: null,
+      questions: null,
+      secrets: null,
+      connection: null,
+      computer: null,
+    });
     stoppedMessageIdRef.current = null;
     stopRequestedRef.current = false;
     stoppingRef.current = null;
@@ -2214,6 +2610,160 @@ export function useChat(options: UseChatOptions = {}) {
     approvalModeRef.current = savedControls.approvalMode;
   }, [savedControls.modelProfileId, savedControls.approvalMode]);
 
+  const compactionScopeKey = JSON.stringify([
+    queueAccountId ?? null,
+    tenantId ?? null,
+    activeOrgId ?? null,
+    activeConversationId,
+    selectedAgentId ?? null,
+    savedControls.modelProfileId,
+  ]);
+  const compactionAvailable =
+    compactionAvailability !== null &&
+    compactionAvailability.scopeKey === compactionScopeKey &&
+    compactionAvailability.available;
+  useLayoutEffect(() => {
+    const previous = compactionScopeKeyRef.current;
+    compactionScopeKeyRef.current = compactionScopeKey;
+    if (previous === compactionScopeKey) return;
+    compactionRequestRef.current = null;
+    setCompactionStatus("idle");
+    setCompactionProgress(null);
+  }, [compactionScopeKey]);
+
+  useEffect(() => {
+    if (
+      !queueAccountId ||
+      !activeOrgId ||
+      !activeConversationId ||
+      !selectedAgentId ||
+      testingRef.current
+    )
+      return;
+
+    const controller = new AbortController();
+    let current = true;
+    void apiClient
+      .get<{ available?: boolean }>(
+        `/conversations/${activeConversationId}/compaction-availability?agent_id=${encodeURIComponent(selectedAgentId)}`,
+        { signal: controller.signal },
+      )
+      .then((result) => {
+        if (current && compactionScopeKeyRef.current === compactionScopeKey) {
+          setCompactionAvailability({
+            scopeKey: compactionScopeKey,
+            available: result.available === true,
+          });
+        }
+      })
+      .catch(() => {
+        if (current && compactionScopeKeyRef.current === compactionScopeKey) {
+          setCompactionAvailability({ scopeKey: compactionScopeKey, available: false });
+        }
+      });
+
+    return () => {
+      current = false;
+      controller.abort();
+    };
+  }, [compactionScopeKey, queueAccountId, activeOrgId, activeConversationId, selectedAgentId]);
+
+  const compactConversation = useCallback((): boolean => {
+    const loadedHere =
+      activeConversationId !== null &&
+      loadedTranscript?.conversationId === activeConversationId &&
+      loadedTranscript.selectionVersion === selectionVersion &&
+      loadedTranscript.accountId === (queueAccountId ?? null) &&
+      loadedTranscript.tenantId === tenantId;
+    if (
+      !compactionAvailable ||
+      compactionRequestRef.current !== null ||
+      !isConnected ||
+      !sessionReadyRef.current ||
+      !loadedHere ||
+      !queueAccountId ||
+      !activeOrgId ||
+      !activeConversationId ||
+      !selectedAgentId ||
+      testingRef.current ||
+      compactionStatus === "running" ||
+      processingRef.current ||
+      followingRef.current !== null ||
+      interruptedForRef.current !== null ||
+      interrupted ||
+      leftTurnPending ||
+      detachedTurnPending ||
+      chatApi.getState().messages.length === 0 ||
+      turnThreadRootRef.current !== null ||
+      currentMessageIdRef.current !== null ||
+      messageQueueRef.current.length > 0 ||
+      queuedMessages.length > 0 ||
+      pendingApproval !== null ||
+      pendingQuestions !== null ||
+      pendingSecretRequests !== null ||
+      pendingConnection !== null ||
+      pendingComputerAccess !== null ||
+      chatApi
+        .getState()
+        .messages.some(
+          (message) =>
+            (message.conversationId ?? activeConversationId) === activeConversationId &&
+            message.toolCalls?.some((call) =>
+              ["pending", "running", "awaiting_approval", "awaiting_answer"].includes(call.status),
+            ),
+        )
+    )
+      return false;
+
+    const requestId = clientId();
+    compactionRequestRef.current = { requestId, scopeKey: compactionScopeKey };
+    setCompactionStatus("running");
+    setCompactionProgress(null);
+    sessionReadyRef.current = false;
+    setSessionReady(false);
+    const payload: Record<string, unknown> = {
+      type: "compact_now",
+      request_id: requestId,
+      conversation_id: activeConversationId,
+      agent_id: selectedAgentId,
+    };
+    if (savedControls.modelProfileId) {
+      payload.model_profile_id = savedControls.modelProfileId;
+    }
+    if (!sendMessage(payload)) {
+      compactionRequestRef.current = null;
+      setCompactionStatus("failed");
+      sessionReadyRef.current = true;
+      setSessionReady(true);
+      return false;
+    }
+    return true;
+  }, [
+    compactionAvailable,
+    compactionStatus,
+    isConnected,
+    loadedTranscript,
+    activeConversationId,
+    selectionVersion,
+    queueAccountId,
+    tenantId,
+    activeOrgId,
+    selectedAgentId,
+    queuedMessages.length,
+    pendingApproval,
+    pendingQuestions,
+    pendingSecretRequests,
+    pendingConnection,
+    pendingComputerAccess,
+    interrupted,
+    leftTurnPending,
+    detachedTurnPending,
+    chatApi,
+    compactionScopeKey,
+    savedControls.modelProfileId,
+    sendMessage,
+  ]);
+
   const canDecide = can(Perm.approvalsDecide);
 
   // The other direction of `tool_approval_required`: that frame exists only for
@@ -2264,6 +2814,7 @@ export function useChat(options: UseChatOptions = {}) {
           if (terminalRunIdsRef.current.has(runId)) continue;
           const actionable = parked.filter((call) => !decidedApprovalIdsRef.current.has(call.id));
           if (actionable.length === 0) continue;
+          rememberActionScope("approval", message.id, runId);
           setPendingApproval({
             actionRequests: actionable.map((call) => ({
               id: call.id,
@@ -2294,7 +2845,7 @@ export function useChat(options: UseChatOptions = {}) {
     return () => {
       disposed = true;
     };
-  }, [messages, pendingApproval, canDecide, activeConversationId]);
+  }, [messages, pendingApproval, canDecide, activeConversationId, rememberActionScope]);
 
   const queryClient = useQueryClient();
 
@@ -2442,6 +2993,9 @@ export function useChat(options: UseChatOptions = {}) {
           parts: buildAssistantParts(steps, resumed.output, continuation),
           timestamp: new Date(),
           conversationId: conversationId || undefined,
+          // Each resumable action records its run's scope before it is offered.
+          // A recorded null keeps a main-room continuation out of other threads.
+          threadRootMessageId: runThreadRootsRef.current.get(runId) ?? undefined,
           // The same run as the turn that parked, which is what draws the two as
           // one turn instead of as two agents answering the same question.
           runId,
@@ -2458,6 +3012,7 @@ export function useChat(options: UseChatOptions = {}) {
         });
       }
       if (parkedAgain.length > 0) {
+        rememberActionScope("approval", continuation, runId);
         offeredApprovalBatchesRef.current.add(
           JSON.stringify([runId, parkedAgain.map((call) => call.tool_call_id ?? "").sort()]),
         );
@@ -2503,6 +3058,7 @@ export function useChat(options: UseChatOptions = {}) {
       conversationId,
       activeConversationId,
       offerParkedQuestion,
+      rememberActionScope,
       refreshConversationCost,
       onTurnInterrupted,
     ],
@@ -2554,6 +3110,85 @@ export function useChat(options: UseChatOptions = {}) {
     isConnected,
     activeConversationId,
     offerParkedQuestion,
+  ]);
+
+  // Read the stores as well as the generation: an old event handler can run in
+  // the same tick as a scope change, before its layout effect clears the card.
+  const secretContextCurrent = useCallback(
+    (context: number) =>
+      context === secretContextRef.current &&
+      useAuthStore.getState().user?.id === queueAccountId &&
+      useOrgStore.getState().activeOrgId === activeOrgId &&
+      queueBelongsTo.current === tenantId &&
+      conversationApi.getState().selectionVersion === selectionVersion &&
+      (conversationApi.getState().currentConversationId ?? conversationId ?? null) ===
+        activeConversationId,
+    [
+      queueAccountId,
+      activeOrgId,
+      tenantId,
+      selectionVersion,
+      conversationApi,
+      conversationId,
+      activeConversationId,
+    ],
+  );
+
+  // The same for a secret: an agent asked for one and its person left before
+  // providing it, so the run parked on it (#13). Reopening the conversation
+  // is where the card comes back - and only for the person asked, which the
+  // endpoint decides by answering everybody else with nothing.
+  useEffect(() => {
+    if (
+      !isConnected ||
+      pendingSecretRequests !== null ||
+      isProcessing ||
+      answeringSecretRef.current !== null
+    )
+      return;
+    const askedMessage = [...messages]
+      .reverse()
+      .find(
+        (message) =>
+          message.role === "assistant" &&
+          (message.conversationId === undefined ||
+            message.conversationId === activeConversationId) &&
+          (message.runWaitingFor === "answer" ||
+            (message.toolCalls ?? []).some((call) => call.status === "awaiting_answer")),
+      );
+    if (askedMessage === undefined || askedMessage.runId === undefined) return;
+    const runId = askedMessage.runId;
+    if (secretOfferedForRef.current.has(runId) || terminalRunIdsRef.current.has(runId)) return;
+    secretOfferedForRef.current.add(runId);
+    const conversation = activeConversationId;
+    const context = secretContextRef.current;
+    void (async () => {
+      try {
+        const requests = await apiClient.get<ParkedSecretRequest[]>(
+          `/runs/${runId}/secret-requests`,
+        );
+        if (
+          requests.length === 0 ||
+          panelsBelongTo.current !== conversation ||
+          !secretContextCurrent(context)
+        )
+          return;
+        offerParkedSecretRequests(requests, runId, askedMessage.id);
+      } catch {
+        // Quiet, like the question restore above: the transcript still says
+        // the step is waiting, and a toast over it buys nothing. Unmarked so
+        // the next render - or reopening the conversation - tries again.
+        if (secretContextCurrent(context)) secretOfferedForRef.current.delete(runId);
+      }
+    })();
+  }, [
+    messages,
+    pendingSecretRequests,
+    isProcessing,
+    isConnected,
+    activeConversationId,
+    offerParkedSecretRequests,
+    secretContextCurrent,
   ]);
 
   // Stop belongs to the run's owner independently of the decision panel.
@@ -2944,6 +3579,133 @@ export function useChat(options: UseChatOptions = {}) {
     [parkedQuestion, answerParkedQuestion, isConnected, sendMessage, chatApi, updateToolCallPart],
   );
 
+  /** Provide a secret a parked run asked for, and continue it (#13).
+   *
+   * The value goes to the fulfil endpoint over HTTP and nowhere else: this
+   * hook never stores it, never sends it on the socket, and never writes it
+   * into the transcript. The fulfil seals it and resumes the run inline, so
+   * the continuation is in the response, like `resumeRun`.
+   */
+  const submitSecretRequest = useCallback(
+    async (requestId: string, value: string) => {
+      const parked = parkedSecretRequest;
+      if (
+        parked === null ||
+        !secretContextCurrent(parked.context) ||
+        answeringSecretRef.current !== null
+      )
+        return;
+      const request = (pendingSecretRequests ?? []).find((item) => item.id === requestId);
+      if (request === undefined) return;
+      const ticket = { kind: "fulfil" as const };
+      answeringSecretRef.current = ticket;
+      updateToolCallPart(parked.messageId, request.tool_call_id, { status: "running" });
+      try {
+        processingRef.current = true;
+        setIsProcessing(true);
+        const resumed = await apiClient.post<ResumedRun>(
+          `/runs/${parked.runId}/secret-requests/${requestId}/fulfil`,
+          { value },
+        );
+        if (answeringSecretRef.current !== ticket || !secretContextCurrent(parked.context)) return;
+        setPendingSecretRequests((current) =>
+          (current ?? []).filter((item) => item.id !== requestId),
+        );
+        if ((pendingSecretRequests ?? []).length <= 1) {
+          setParkedSecretRequest(null);
+        }
+        updateMessage(parked.messageId, (message) => ({ ...message, runWaitingFor: undefined }));
+        const settled = (resumed.settled ?? []).find(
+          (settledCall) => settledCall.tool_call_id === request.tool_call_id,
+        );
+        updateToolCallPart(parked.messageId, request.tool_call_id, {
+          status: "completed",
+          result: settled?.result,
+        });
+        if (resumed.status === "awaiting_answer") {
+          // Parked again - on another secret, or a question: the restore
+          // effect must be allowed to offer it anew.
+          secretOfferedForRef.current.delete(parked.runId);
+          setPendingSecretRequests(null);
+        }
+        showContinuation(resumed, parked.runId, new Set([request.tool_call_id]));
+        if (resumed.continues_in_chat) toast.info(t("answerAlsoInTheChat"));
+      } catch (error) {
+        if (answeringSecretRef.current !== ticket || !secretContextCurrent(parked.context)) return;
+        toast.error(getErrorMessage(error, tErrors));
+        updateToolCallPart(parked.messageId, request.tool_call_id, {
+          status: "awaiting_answer",
+        });
+      } finally {
+        if (answeringSecretRef.current === ticket && secretContextCurrent(parked.context)) {
+          answeringSecretRef.current = null;
+          processingRef.current = false;
+          setIsProcessing(false);
+        }
+      }
+    },
+    [
+      parkedSecretRequest,
+      pendingSecretRequests,
+      updateToolCallPart,
+      updateMessage,
+      showContinuation,
+      secretContextCurrent,
+      tErrors,
+      t,
+    ],
+  );
+
+  /** Decline a secret a parked run asked for: the run ends failed (#13). */
+  const declineSecretRequest = useCallback(
+    async (requestId: string) => {
+      const parked = parkedSecretRequest;
+      if (
+        parked === null ||
+        !secretContextCurrent(parked.context) ||
+        answeringSecretRef.current !== null
+      )
+        return;
+      const request = (pendingSecretRequests ?? []).find((item) => item.id === requestId);
+      if (request === undefined) return;
+      const ticket = { kind: "decline" as const };
+      answeringSecretRef.current = ticket;
+      try {
+        await apiClient.post(`/runs/${parked.runId}/secret-requests/${requestId}/decline`, {});
+        if (answeringSecretRef.current !== ticket || !secretContextCurrent(parked.context)) return;
+        setPendingSecretRequests((current) =>
+          (current ?? []).filter((item) => item.id !== requestId),
+        );
+        if ((pendingSecretRequests ?? []).length <= 1) {
+          setParkedSecretRequest(null);
+        }
+        terminalRunIdsRef.current.add(parked.runId);
+        updateMessage(parked.messageId, (message) => ({ ...message, runWaitingFor: undefined }));
+        updateToolCallPart(parked.messageId, request.tool_call_id, {
+          status: "completed",
+          result: t("secretRequest.declined"),
+        });
+        abandonOpenCalls(parked.messageId);
+      } catch (error) {
+        if (answeringSecretRef.current !== ticket || !secretContextCurrent(parked.context)) return;
+        toast.error(getErrorMessage(error, tErrors));
+      } finally {
+        if (answeringSecretRef.current === ticket && secretContextCurrent(parked.context))
+          answeringSecretRef.current = null;
+      }
+    },
+    [
+      parkedSecretRequest,
+      pendingSecretRequests,
+      updateToolCallPart,
+      updateMessage,
+      abandonOpenCalls,
+      secretContextCurrent,
+      tErrors,
+      t,
+    ],
+  );
+
   /** Release a run paused on `connect_account`: `true` once connected, `false` to go on without. */
   const sendConnectionResponse = useCallback(
     (connected: boolean) => {
@@ -3245,6 +4007,13 @@ export function useChat(options: UseChatOptions = {}) {
     const dropped = wasConnected.current && !isConnected;
     const returned = !wasConnected.current && isConnected;
     wasConnected.current = isConnected;
+    if (dropped && compactionRequestRef.current !== null) {
+      compactionRequestRef.current = null;
+      setCompactionStatus("failed");
+      setCompactionProgress(null);
+      sessionReadyRef.current = true;
+      setSessionReady(true);
+    }
     if (returned) {
       stoppedMessageIdRef.current = null;
       stopRequestedRef.current = false;
@@ -3310,7 +4079,11 @@ export function useChat(options: UseChatOptions = {}) {
   // room it was in, which otherwise went on counting this person there and sending
   // them its turns.
   const transcriptHere =
-    activeConversationId !== null && messages.at(-1)?.conversationId === activeConversationId;
+    activeConversationId !== null &&
+    loadedTranscript?.conversationId === activeConversationId &&
+    loadedTranscript.selectionVersion === selectionVersion &&
+    loadedTranscript.accountId === (queueAccountId ?? null) &&
+    loadedTranscript.tenantId === tenantId;
   useEffect(() => {
     if (!isConnected || processingRef.current) return;
     if (activeConversationId === null ? attachedRef.current === null : !transcriptHere) return;
@@ -3363,6 +4136,7 @@ export function useChat(options: UseChatOptions = {}) {
     if (
       !isConnected ||
       isProcessing ||
+      compactionStatus === "running" ||
       !sessionReady ||
       decidingApprovalRef.current ||
       answeringQuestionRef.current !== null ||
@@ -3385,11 +4159,19 @@ export function useChat(options: UseChatOptions = {}) {
         decidingApprovalRef.current !== null ||
         answeringQuestionRef.current !== null ||
         parkedQuestionRunRef.current !== null ||
+        compactionRequestRef.current !== null ||
         !sessionReadyRef.current
       )
         return;
       setQueue(messageQueueRef.current.slice(1));
-      const bubbleId = doSend(next.content, next.fileIds, next.files, next.mentions, next.agentId);
+      const bubbleId = doSend(
+        next.content,
+        next.fileIds,
+        next.files,
+        next.mentions,
+        next.submission,
+        next.agentId,
+      );
       unconfirmedRef.current = { message: next, bubbleId };
     }, 100);
     queuedSendTimer.current = timer;
@@ -3399,6 +4181,7 @@ export function useChat(options: UseChatOptions = {}) {
     };
   }, [
     isProcessing,
+    compactionStatus,
     isConnected,
     sessionReady,
     interruptedFor,
@@ -3479,6 +4262,9 @@ export function useChat(options: UseChatOptions = {}) {
 
   return {
     messages,
+    activeThreadRootId:
+      turnThreadScope?.conversationId === activeConversationId ? turnThreadScope.root : null,
+    actionThreadRoots,
     /** Who has this conversation open, the reader included; empty until the room says. */
     present:
       present !== undefined && present.conversationId === activeConversationId
@@ -3496,6 +4282,11 @@ export function useChat(options: UseChatOptions = {}) {
     canStopParked: cancellableParked !== null,
     compacting,
     compactionImpossible,
+    compactionAvailable,
+    compactionStatus,
+    compactionProgress,
+    compactConversation,
+    compactionReady: compactionAvailable && isConnected && sessionReady,
     /** Whether the run's sandbox is still being opened - see `SandboxPreparingNotice`. */
     sandboxPreparing,
     /** A turn whose socket went away. The answer is still being written; see `onTurnInterrupted`. */
@@ -3518,9 +4309,12 @@ export function useChat(options: UseChatOptions = {}) {
     delegations: displayedDelegations,
     /** The turn's browses, in the order they started. See `BrowserPanel`. */
     browses,
+    protectBrowser,
     connect,
     disconnect,
     sendMessage: sendChatMessage,
+    sendSteerMessage,
+    captureSubmission,
     /** Tell the running turn how one of its drawings rendered. */
     reportVisual,
     stopGeneration,
@@ -3537,6 +4331,7 @@ export function useChat(options: UseChatOptions = {}) {
     /** Questions asked beside the running turn, with their answers as they come. */
     setModelProfile: (profileId: string | null) => {
       modelProfileRef.current = profileId;
+      savedControls.update({ modelProfileId: profileId });
     },
     setApprovalMode: (mode: ApprovalMode) => {
       approvalModeRef.current = mode;
@@ -3549,6 +4344,10 @@ export function useChat(options: UseChatOptions = {}) {
     sendResumeDecisions,
     pendingQuestions,
     sendAskUserResponses,
+    /** The secrets a parked run asked its person for. See `SecretRequestCard`. */
+    pendingSecretRequests,
+    submitSecretRequest,
+    declineSecretRequest,
     /** The service a paused run is waiting for the person to connect. See `ConnectAccountPrompt`. */
     pendingConnection,
     sendConnectionResponse,

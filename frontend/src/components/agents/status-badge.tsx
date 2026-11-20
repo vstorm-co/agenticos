@@ -62,6 +62,7 @@ const RUN_DOT: Record<RunStatus, string> = {
   budget_exceeded: "bg-warning",
   guardrail_blocked: "bg-warning",
   loop_stopped: "bg-warning",
+  timed_out: "bg-warning",
   cancelled: "bg-muted-foreground/50",
   failed: "bg-destructive",
 };
@@ -76,6 +77,7 @@ export const RUN_LABEL: Record<RunStatus, string> = {
   budget_exceeded: "runBudgetExceeded",
   guardrail_blocked: "runGuardrailBlocked",
   loop_stopped: "runLoopStopped",
+  timed_out: "runTimedOut",
   cancelled: "runCancelled",
   failed: "runFailed",
 };

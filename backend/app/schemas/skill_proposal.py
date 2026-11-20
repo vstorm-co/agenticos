@@ -11,6 +11,7 @@ from uuid import UUID
 
 from pydantic import Field
 
+from app.core.browser_procedure_teaching import BrowserProcedureTeachingProcedure
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.resource_usage import ReachedAgent
 
@@ -49,12 +50,17 @@ class SkillProposalRead(BaseSchema, TimestampSchema):
         default=None,
         description="What wrote it - `workspace`, `improve` or `library`; null when not recorded",
     )
+    browser_procedure: BrowserProcedureTeachingProcedure | None = None
     authoring_request_id: UUID | None = Field(
         default=None,
         description=(
             "The authoring assistant's request that proposed it; null for a change an "
             "agent's workspace wrote"
         ),
+    )
+    browser_teaching_id: UUID | None = Field(
+        default=None,
+        description="The reviewed browser demonstration it was built from; null for any other source",
     )
     rationale: str = ""
     evidence: list[dict[str, str | int | None]] = Field(

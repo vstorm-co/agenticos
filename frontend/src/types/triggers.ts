@@ -29,6 +29,13 @@ export interface TriggerDispatch extends Trigger {
   activation_id: string;
   job_id: string | null;
 }
+/**
+ * Which conversation a fire's run goes in. Mirrors the backend's
+ * `TriggerConversationMode` (#14): `continue` appends every fire to the
+ * trigger's one run-log conversation; `fresh` opens a new conversation per
+ * fire and stores none of them on the trigger.
+ */
+export type TriggerConversationMode = "continue" | "fresh";
 
 /** Where an event trigger's fire comes from. Mirrors the backend's `EventSource`. */
 export type EventSource =
@@ -108,6 +115,8 @@ export interface Trigger {
   time_zone: string | null;
   /** A schedule's overlap policy; an event trigger carries `skip` and ignores it. */
   overlap: TriggerOverlap;
+  /** Which conversation a fire's run goes in; `fresh` leaves `conversation_id` null. Optional so a partial fixture need not carry it - the live `TriggerRead` always does. */
+  conversation_mode?: TriggerConversationMode;
   event_source: EventSource | null;
   /** The per-source filter (which actions, which sender); `{}` on a schedule. */
   event_config: Record<string, unknown>;
@@ -119,7 +128,7 @@ export interface Trigger {
   last_delivery_status?:
     "delivered" | "unavailable" | "run_log" | "no_answer" | "not_completed" | null;
   last_run_id: string | null;
-  /** The one run-log conversation every fire appends to, opened eagerly on create. */
+  /** The one run-log conversation every fire appends to, opened eagerly on create. Null on a `fresh` trigger, whose fires open one conversation each instead. */
   conversation_id: string | null;
   /**
    * Where a provider must deliver, under the deployment's origin; null for a
@@ -186,6 +195,8 @@ export interface TriggerCreate {
   time_zone?: string | null;
   /** Schedules only; the server stores `skip` when omitted. */
   overlap?: TriggerOverlap;
+  /** Which conversation a fire's run goes in; the server stores `continue` when omitted. */
+  conversation_mode?: TriggerConversationMode;
   event_source?: EventSource | null;
   event_config?: Record<string, unknown> | null;
   event_secret?: string | null;
@@ -235,6 +246,7 @@ export interface TriggerUpdate {
   cron_expression?: string | null;
   time_zone?: string | null;
   overlap?: TriggerOverlap;
+  conversation_mode?: TriggerConversationMode;
   is_active?: boolean;
   environment_id?: string | null;
   pinned_version_id?: string | null;

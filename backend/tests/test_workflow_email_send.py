@@ -160,7 +160,7 @@ def test_the_template_carries_the_workflows_subject_and_text():
     )
 
     assert subject == "Hello"
-    assert "Line" in html and "Sent by Acme" in html
+    assert "Line" in html and "Sent by a workflow in Acme" in html
     assert text.startswith("Line")
 
 

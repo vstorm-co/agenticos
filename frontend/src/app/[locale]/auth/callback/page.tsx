@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Spinner } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { invokeShell, readShellInfo, ShellError } from "@/lib/desktop/shell";
 import { useAdoptSession } from "@/hooks/use-auth";
+import { MfaCodeForm } from "@/components/auth/mfa-code-form";
 import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
 import { takeReturnTo } from "@/lib/oauth-return";
 import type { User } from "@/types";
 import { useTranslations } from "next-intl";
+import { createMfaChallengeStore } from "./mfa-challenge-store";
 
 type Adopted = { user: User; access_token: string };
 
@@ -44,11 +46,17 @@ export default function AuthCallbackPage() {
   const t = useTranslations("pages.root");
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [mfaChallengeStore] = useState(createMfaChallengeStore);
   // Two sources, one derived value. What the provider sent is already in the
   // URL and needs no state at all; the exchange failing later does, but only as
   // a flag - keeping the message here means neither is written from an effect
   // synchronously, and the URL case is shown a render earlier than it was.
   const [exchangeFailed, setExchangeFailed] = useState(false);
+  const mfaChallenge = useSyncExternalStore(
+    mfaChallengeStore.subscribe,
+    mfaChallengeStore.getSnapshot,
+    mfaChallengeStore.getServerSnapshot,
+  );
   // i18n-exempt: a sentinel nothing renders - what the branch below shows is
   // `t("signInFailedRedirecting")`, and the provider's own code is discarded the same way.
   const error = searchParams.get("error") ?? (exchangeFailed ? "Sign-in failed" : null);
@@ -56,6 +64,10 @@ export default function AuthCallbackPage() {
   const adoptSession = useAdoptSession();
 
   useEffect(() => {
+    // Read/strip the challenge synchronously through the external store before
+    // its form can render, including when hydration starts from the server snapshot.
+    if (mfaChallenge) return;
+
     const code = searchParams.get("code");
     const errParam = searchParams.get("error");
 
@@ -96,11 +108,15 @@ export default function AuthCallbackPage() {
     return () => {
       cancelled = true;
     };
-  }, [router, searchParams, adoptSession]);
+  }, [router, searchParams, adoptSession, mfaChallenge]);
 
   return (
     <div className="flex min-h-[50vh] items-center justify-center">
-      {error ? (
+      {mfaChallenge ? (
+        <div className="w-full max-w-sm px-4">
+          <MfaCodeForm challenge={mfaChallenge} onBack={() => router.replace("/login")} />
+        </div>
+      ) : error ? (
         <p className="text-foreground/65 text-sm">{t("signInFailedRedirecting")}</p>
       ) : (
         // A token exchange and a redirect. There is no layout to promise here,

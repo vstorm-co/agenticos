@@ -4,6 +4,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -169,6 +170,15 @@ class InvitationService:
             role=role,
             invited_by_user_id=requester_id,
         )
+        await record_audit(
+            self.db,
+            actor_user_id=requester_id,
+            organization_id=organization_id,
+            action="invitation.created",
+            target_type="invitation",
+            target_id=str(invite.id),
+            details={"email": normalized_email, "role": role},
+        )
         logger.info(
             "Invitation created for %s to org %s (role=%s) by user %s",
             normalized_email,
@@ -247,6 +257,15 @@ class InvitationService:
             invited_by_user_id=requester_id,
             max_uses=max_uses,
             email_domain=(email_domain or "").lstrip("@").lower() or None,
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=requester_id,
+            organization_id=organization_id,
+            action="invitation.link_created",
+            target_type="invitation",
+            target_id=str(invite.id),
+            details={"role": role, "max_uses": max_uses, "email_domain": email_domain},
         )
         logger.info(
             "Invite link created for org %s (role=%s, max_uses=%s, domain=%s) by user %s",
@@ -381,6 +400,15 @@ class InvitationService:
             await invitation_repo.record_use(self.db, invite, email=accepting_user.email)
         else:
             await invitation_repo.accept(self.db, invite, accepted_by_user_id=accepting_user_id)
+        await record_audit(
+            self.db,
+            actor_user_id=accepting_user_id,
+            organization_id=invite.organization_id,
+            action="invitation.accepted",
+            target_type="invitation",
+            target_id=str(invite.id),
+            details={"role": invite.role, "invited_by": str(invite.invited_by_user_id)},
+        )
         logger.info(
             "Invitation %s accepted by user %s (org %s)",
             invite.id,
@@ -436,6 +464,15 @@ class InvitationService:
             )
 
         await invitation_repo.revoke(self.db, invite)
+        await record_audit(
+            self.db,
+            actor_user_id=requester_id,
+            organization_id=organization_id,
+            action="invitation.revoked",
+            target_type="invitation",
+            target_id=str(invite.id),
+            details={"email": invite.email, "role": invite.role},
+        )
         logger.info(
             "Invitation %s revoked by user %s (org %s)", invite.id, requester_id, organization_id
         )
@@ -470,4 +507,13 @@ class InvitationService:
             raise AuthorizationError(message="Only Owner or Admin can revoke invitations")
 
         await invitation_repo.revoke(self.db, invite)
+        await record_audit(
+            self.db,
+            actor_user_id=requester_id,
+            organization_id=invite.organization_id,
+            action="invitation.revoked",
+            target_type="invitation",
+            target_id=str(invite.id),
+            details={"email": invite.email, "role": invite.role},
+        )
         return invite

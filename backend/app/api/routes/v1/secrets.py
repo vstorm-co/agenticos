@@ -75,6 +75,7 @@ async def list_secret_purposes() -> Any:
             label=entry.label,
             category=entry.category.value,
             kind=entry.kind,
+            personal_supported=entry.id in {"anthropic", "openai"},
             help_url=entry.help_url,
             description=entry.description,
             icon=entry.icon,
@@ -106,7 +107,7 @@ async def list_secrets(
     dependencies=[Depends(require(Perm.SECRETS_EDIT))],
 )
 async def create_secret(data: SecretCreate, service: SecretSvc, ctx: Auth) -> Any:
-    """Store a secret, sealed for this organization."""
+    """Store a secret; personal browser records bind both this organization and their owner."""
     return await service.create(
         ctx,
         name=data.name,
@@ -114,6 +115,7 @@ async def create_secret(data: SecretCreate, service: SecretSvc, ctx: Auth) -> An
         description=data.description,
         purpose=data.purpose,
         visibility=Visibility(data.visibility),
+        usage_scope=data.usage_scope,
     )
 
 
@@ -144,6 +146,7 @@ async def create_openai_codex_secret(
         name=data.name,
         description=data.description,
         visibility=Visibility(data.visibility),
+        usage_scope=data.usage_scope,
     )
 
 

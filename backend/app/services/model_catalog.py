@@ -38,6 +38,7 @@ from pydantic import TypeAdapter
 
 from app.agents.model_resolver import PROVIDERS, ModelApi, is_decision_api, otari_price_identity
 from app.core import catalog
+from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_MODELS, CLAUDE_SUBSCRIPTION_PROVIDER
 
 logger = logging.getLogger(__name__)
 
@@ -211,6 +212,13 @@ _PRICE_PROVIDER_ALIASES = {
 
 def curated_models(provider: str) -> tuple[CatalogModel, ...]:
     """The fallback list for one provider, with the windows filled in."""
+    if provider == CLAUDE_SUBSCRIPTION_PROVIDER:
+        return tuple(
+            CatalogModel(
+                id=model, name=f"Claude {model.title()} (subscription)", output_modalities=("text",)
+            )
+            for model in CLAUDE_SUBSCRIPTION_MODELS
+        )
     return tuple(
         CatalogModel(
             id=entry.id, name=entry.name, context_length=context_window(provider, entry.id)

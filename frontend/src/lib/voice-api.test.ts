@@ -33,11 +33,11 @@ describe("voice api", () => {
     vi.mocked(apiClient.raw).mockResolvedValue({ blob: async () => wav } as Response);
     const voice = { provider: "openai", model: "gpt-realtime" } as never;
 
-    const audio = await previewVoice("a1", voice, "pl");
+    const audio = await previewVoice("a1", voice, "en");
 
     expect(apiClient.raw).toHaveBeenCalledWith("/agents/a1/voice/preview", {
       method: "POST",
-      body: { voice, locale: "pl" },
+      body: { voice, locale: "en" },
     });
     expect(audio).toBe(wav);
   });

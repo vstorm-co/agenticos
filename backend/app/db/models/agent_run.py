@@ -28,6 +28,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     event,
     text,
 )
@@ -62,6 +63,15 @@ class RunStatus(enum.StrEnum):
     GUARDRAIL_BLOCKED = "guardrail_blocked"
     LOOP_STOPPED = "loop_stopped"
     """Stopped for looping on its tool calls after it was warned (#2086)."""
+    TIMED_OUT = "timed_out"
+    """A model request went past its deadline without answering.
+
+    Not a malfunction in the platform's own code: the deadline is the
+    platform working, like a budget cap. A run that hung forever showed
+    "Working" indefinitely; a timed-out one ends here, visibly, with the
+    deadline in its stored error. It is a plain string column, not a DB
+    enum, so this member needs no alembic migration.
+    """
 
     @classmethod
     def parse_csv(cls, raw: str | None) -> list[str] | None:
@@ -371,6 +381,14 @@ class AgentRun(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    # A retry is a new top-level run, so its cost belongs to its own ledger.
+    # Keep its origin without making it look like a delegation.
+    retry_of_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     # The task id the delegation library handed the parent's model, so a row
     # joins to the handle the parent saw - `check_task('4f2a1b8c')` in a
     # transcript and this row are then the same delegation rather than two
@@ -406,6 +424,21 @@ class AgentRun(Base, TimestampMixin):
     # a profile can be repointed at a different provider or key and the run's
     # own history must not change when it is. SET NULL on the key: deleting a
     # credential must not delete the record of what it spent.
+    #
+    # Whether a fallback model served any request of this run, and which model
+    # answered last. Until this change a fallback was invisible in the run
+    # record: the row named the primary profile however the turn was answered,
+    # so a bad answer could not be traced to the model that gave it. These are
+    # the run's own answer to that, derived from the per-request models in its
+    # manifest - never from `model_label`, which is a display name, not a model
+    # id. `fallback_used` is False on rows written before this was tracked;
+    # the console only renders the fallback line when it is True, so those rows
+    # read as they always did. `serving_model` is the serving model's bare id
+    # as the provider reported it, or null when no request succeeded.
+    fallback_used: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    serving_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
     provider: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     secret_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -490,7 +523,19 @@ class AgentRun(Base, TimestampMixin):
         DateTime(timezone=True), nullable=True
     )
 
+    # Set when the hourly sweep reminded the chat once that an `ask_user`
+    # question is still unanswered, so the reminder is sent once and not on
+    # every sweep until the question expires. A column rather than a
+    # `paused_state` key for the same reason as `chat_notice_sent_at` above:
+    # `PausedRunState` is `extra="forbid"`, so a key there would make the run
+    # unreadable to an older process on a rollback or a rolling deploy.
+    # Cleared when the run leaves the queue, like the chat notice.
+    question_nudged_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_agent_runs_org_id"),
         CheckConstraint(
             "routine_kind IN ('trigger', 'watch') AND "
             "(routine_kind != 'watch' OR (routine_origin_id IS NOT NULL AND routine_policy IS NOT NULL))",
@@ -512,6 +557,18 @@ class AgentRun(Base, TimestampMixin):
             "organization_id",
             "started_at",
             "provider",
+        ),
+        # Failure-learning mining: the live aggregation over real runs groups
+        # by agent and status inside an org window, over top-level runs only
+        # (test runs are the loop's own tries, delegations are already counted
+        # inside their parent). Partial, so it stays small.
+        Index(
+            "ix_agent_runs_mining",
+            "organization_id",
+            "agent_id",
+            "status",
+            "started_at",
+            postgresql_where=text("is_test = false AND parent_run_id IS NULL"),
         ),
         CheckConstraint("modality IN ('text', 'voice')", name="ck_agent_runs_modality"),
     )

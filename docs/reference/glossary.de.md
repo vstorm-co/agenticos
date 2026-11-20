@@ -1,5 +1,5 @@
 ---
-source_sha: "38183986d0d8"
+source_sha: "242dfeb03788"
 ---
 
 # Glossar { #glossary }
@@ -117,13 +117,14 @@ nicht bricht.
 
 ## Capabilities { #capabilities }
 
-Der Name, den der Builder zeigt, und die ID, die der Spec eines Agents bindet.
+Der im Builder angezeigte Name und die ID, auf die sich der Spec eines Agents bezieht.
 Jede ist unter [Capabilities](capabilities.md) beschrieben.
 
 | In der Konsole | Im Spec |
 |---|---|
 | Apps | `artifacts` |
 | Rückfragen | `ask_user` |
+| Geheimnis anfragen | `secret_request` |
 | Entwürfe | `drafts` |
 | Webbrowser | `browser_use` |
 | Infos zum Chat-Kanal | `channel_tools` |
@@ -135,10 +136,12 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Coding Agent | `coding_agent` |
 | Lange Gespräche | `compaction` |
 | Computer-Bedienung | `computer_use` |
+| Rat | `council` |
 | Kontext | `context` |
 | Frühere Gespräche | `conversation_search` |
 | Nächste Schritte | `follow_ups` |
 | Schutzregeln | `guardrails` |
+| Harness | `harness` |
 | Bilderzeugung | `image_generation` |
 | Wissenssuche | `knowledge` |
 | Bilder auslagern | `media` |
@@ -147,9 +150,15 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Planung | `planning` |
 | Weiterarbeiten, während Tools laufen | `background_tools` |
 | Hintergrundthemen | `background_tasks` |
+| Agentennachrichten | `agent_messages` |
 | Einen Befehl beobachten | `monitor` |
+| Babysit PR | `babysit_pr` |
+| Nachweis-Szenario | `proof_scenario` |
 | Sandbox | `sandbox` |
 | Skills | `skills` |
+| Sol-loop | `sol_loop` |
+| Eval-Tool-Tuning | `eval_tool_tuning` |
+| Burst | `burst` |
 | Subagents | `subagents` |
 | Erinnerung an Anweisungen | `system_reminders` |
 | Sprachausgabe | `text_to_speech` |
@@ -162,3 +171,5 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Websuche | `web_research` |
 | Tabellen | AgenticOS MCP: `list_virtual_tables`, `query_virtual_table` |
 | Workflows | `workflows` |
+
+Die englische Konsolenbezeichnung für **Verbundene Chat-Apps** lautet **Connected chat apps**.

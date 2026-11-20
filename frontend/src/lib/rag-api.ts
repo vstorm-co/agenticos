@@ -118,6 +118,8 @@ export interface SyncSourceCreate {
    * field names this replaced (#937).
    */
   secret_id?: string | null;
+  /** Organization-owned connected Google account used for Drive OAuth. */
+  connected_account_id?: string | null;
   /**
    * Which part of the organization this source's documents belong to.
    *
@@ -140,7 +142,13 @@ export interface SyncSourceCreate {
 export type SyncSourceUpdate = Partial<
   Pick<
     SyncSourceCreate,
-    "name" | "config" | "secret_id" | "organizational_unit" | "sync_mode" | "schedule_minutes"
+    | "name"
+    | "config"
+    | "secret_id"
+    | "connected_account_id"
+    | "organizational_unit"
+    | "sync_mode"
+    | "schedule_minutes"
   >
 >;
 
@@ -155,6 +163,7 @@ export interface SyncSourceRead {
   /** Unmasked, because the credential is not in here - it is `secret_id` (#937). */
   config: Record<string, unknown>;
   secret_id: string | null;
+  connected_account_id?: string | null;
   /** The vault's four-character hint, so a reader can tell which credential. */
   secret_hint?: string | null;
   /** The per-source default stamped on every chunk this source ingests (#1777). */
@@ -183,6 +192,29 @@ export interface SyncSourceList {
 export async function listSyncSources(collectionName?: string): Promise<SyncSourceList> {
   const params = collectionName ? `?collection_name=${encodeURIComponent(collectionName)}` : "";
   return apiClient.get<SyncSourceList>(`/rag/sync/sources${params}`);
+}
+
+/** A shared drive or a folder. `id` is what `folder_id` takes once it is selected. */
+export interface DriveFolderItem {
+  id: string;
+  name: string;
+}
+
+export interface DriveFolderList {
+  drives: DriveFolderItem[];
+  folders: DriveFolderItem[];
+}
+
+/**
+ * One level of Google Drive, read through a connected account.
+ *
+ * `parent` is `root` (My Drive's top level, with the shared drives beside it),
+ * `drive:<driveId>` (a shared drive's top level), or a folder id.
+ */
+export async function listDriveFolders(account: string, parent: string): Promise<DriveFolderList> {
+  return apiClient.get<DriveFolderList>("/sync-sources/gdrive/folders", {
+    params: { account, parent },
+  });
 }
 
 export interface ConnectorInfo {

@@ -38,6 +38,7 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
   platform: "app_admin",
   health: "app_admin",
   "background-tasks": "everyone",
+  "agent-messages": Perm.agentsRun,
   "background-jobs": "app_admin",
   "top-orgs": "app_admin",
   "platform-ratings": "app_admin",
@@ -88,8 +89,8 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
 };
 
 describe("the widget catalog", () => {
-  it("holds all fifty-nine widgets", () => {
-    expect(WIDGET_IDS).toHaveLength(59);
+  it("holds all sixty widgets", () => {
+    expect(WIDGET_IDS).toHaveLength(60);
   });
 
   it.each(WIDGET_IDS)("%s has a title and a description under its own id", (id) => {

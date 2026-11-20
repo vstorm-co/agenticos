@@ -20,9 +20,10 @@ organization's to edit, and an edit may change how the agent judges but must not
 change whether its answer can be read.
 """
 
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from decimal import Decimal
+from typing import Any, TypedDict
 from uuid import UUID
 
 from pydantic import TypeAdapter
@@ -51,6 +52,11 @@ from app.services.agent_registry import PublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.model_profile import ModelProfileService
 from app.services.system_agents import SystemAgentService
+
+
+class _RunConstraints(TypedDict, total=False):
+    run_limit_usd: Decimal
+    check_model_request: Callable[[AsyncSession], Awaitable[None]]
 
 
 @dataclass(frozen=True)
@@ -134,6 +140,8 @@ class SystemAgentRunner:
         improvement_run_id: UUID | None = None,
         knowledge_base_ids: Sequence[UUID] = (),
         schema: dict[str, Any] | None = None,
+        run_limit_usd: Decimal | None = None,
+        check_model_request: Callable[[AsyncSession], Awaitable[None]] | None = None,
     ) -> SystemAgentResult[T]:
         """Run system agent `key` on `prompt` as the caller, and validate its answer.
 
@@ -182,6 +190,11 @@ class SystemAgentRunner:
         assert selected_version is not None
         knowledge = RunKnowledge(tuple(knowledge_base_ids))
         structured: list[dict[str, Any]] = []
+        constraints: _RunConstraints = {}
+        if run_limit_usd is not None:
+            constraints["run_limit_usd"] = run_limit_usd
+        if check_model_request is not None:
+            constraints["check_model_request"] = check_model_request
         try:
             text, run = await AgentRunnerService(self.db).execute(
                 ctx,
@@ -201,6 +214,7 @@ class SystemAgentRunner:
                     else None
                 ),
                 reports_failure=True,
+                **constraints,
             )
         except RunFailedError as failure:
             cause = failure.__cause__

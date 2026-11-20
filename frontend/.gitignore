@@ -13,6 +13,7 @@ coverage
 /blob-report/
 /playwright/.cache/
 .playwright/
+/.qa/
 
 # Next.js
 .next/

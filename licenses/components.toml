@@ -145,6 +145,36 @@ fulfilled_by = "NOTICE at the repository root and frontend/NOTICE name the proje
 # Data files the backend bundles
 
 [[component]]
+name = "Anthropic financial-services agent templates and supporting skills"
+version = "60565064557ca77b12f62aa7877f365d111c129d"
+kind = "adapted content, backend image, opt-in finance catalog"
+license = "Apache-2.0"
+source = "https://github.com/anthropics/financial-services"
+status = "accepted"
+obligations = "Keep the license and applicable notices, retain attribution, and identify modified files."
+fulfilled_by = "The finance/anthropic-* agent templates and finance/anthropic-fs-* gallery skills carry LICENSE or LICENSE.txt and SOURCE.md with pinned upstream paths and a description of the t3OS adaptations. NOTICE identifies the source. integrations/accounting-firm/ records the source inventory and runtime requirements. Only the first-party agent plugins are included."
+
+[[component]]
+name = "Anthropic knowledge-work finance and small-business accounting skills"
+version = "e605d8ddbfb688da57dfaaceebd93f12a64ef1d3"
+kind = "adapted content, backend image, opt-in finance catalog"
+license = "Apache-2.0"
+source = "https://github.com/anthropics/knowledge-work-plugins"
+status = "accepted"
+obligations = "Keep the license and applicable notices, retain attribution, and identify modified files."
+fulfilled_by = "The finance/anthropic-finance-* and finance/anthropic-smb-* gallery skills carry LICENSE or LICENSE.txt, SOURCE.md, and their required text resources. The source notices record pinned upstream paths and changes to invocation, connector assumptions, and accounting scope. NOTICE identifies the source, and integrations/accounting-firm/ records the inventory."
+
+[[component]]
+name = "Agency Agents accounting and financial-advisory templates"
+version = "8ae6164602c95ca78828b148b9052460ee426885"
+kind = "adapted content, backend image, opt-in finance catalog"
+license = "MIT"
+source = "https://github.com/msitarzewski/agency-agents"
+status = "accepted"
+obligations = "Keep the copyright notice and permission notice with copies or substantial portions."
+fulfilled_by = "The finance/agency-* templates carry the complete upstream MIT license and SOURCE.md identifying the pinned source and changes. NOTICE names Agency Agents and Copyright (c) 2025 AgentLand Contributors. integrations/accounting-firm/ distinguishes these community templates from Anthropic's releases."
+
+[[component]]
 name = "backend/app/core/catalog/mcp_registry.json"
 version = "a snapshot refreshed by `agenticos cmd mcp-registry-sync`"
 kind = "data, backend image"

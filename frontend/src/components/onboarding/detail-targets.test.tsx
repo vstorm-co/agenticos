@@ -180,7 +180,7 @@ describe("useDetailTargets", () => {
   });
 
   it("reads the organization from a locale-prefixed route too", () => {
-    nav.pathname = "/pl/orgs/other-org/roles";
+    nav.pathname = "/en/orgs/other-org/roles";
     const wrapper = wrapperWith(() => {});
 
     const { result } = renderHook(() => useDetailTargets(true), { wrapper });

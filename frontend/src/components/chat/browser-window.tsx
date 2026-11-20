@@ -11,6 +11,7 @@ import {
   MessageSquarePlus,
   Minimize2,
   MoreHorizontal,
+  Monitor,
   Undo2,
   X,
 } from "lucide-react";
@@ -27,11 +28,14 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import { useAuthStore } from "@/stores";
+import type { BrowseSurface } from "@/stores/browser-panel-store";
 import { BrowserNavigation } from "./browser-navigation";
 import { BrowserCommentLayer, type PageComment } from "./browser-comment";
 import type { BrowseOutcome } from "@/types/chat";
 import { OUTCOME_TONE, StepTimeline } from "./browser-view";
 import { LiveViewport } from "./live-viewport";
+import { BrowserCredentialReview } from "@/components/browser/browser-credential-review";
+import { BrowserTeachingControls } from "@/components/browser/browser-teaching-controls";
 
 /** What a person may do with the browser, as the window offers it. */
 export interface BrowseControl {
@@ -277,7 +281,99 @@ function useFitted(image: string | null, asked: number | null, waiting: boolean)
  * `control` is null where nobody can drive this browse from here: a finished
  * one, or one whose run is not known yet.
  */
-export function BrowserWindow({
+interface BrowserWindowProps {
+  browse: Browse;
+  control: BrowseControl | null;
+  onClose?: () => void;
+  maximized?: boolean;
+  onMaximize?: () => void;
+  maximizeLabel?: string;
+  newTabHref?: string;
+  waitForFit?: boolean;
+  onComment?: (comment: PageComment) => void;
+  surface?: BrowseSurface;
+  onProtected?: () => void;
+  /** The page heading already names a protected browse, so the window bar leaves the name out. */
+  titledByPage?: boolean;
+}
+
+export function BrowserWindow(props: BrowserWindowProps) {
+  return props.browse.outputProtected ? (
+    <ProtectedBrowserWindow {...props} />
+  ) : (
+    <UnprotectedBrowserWindow {...props} />
+  );
+}
+
+function ProtectedBrowserWindow({
+  browse,
+  onClose,
+  onMaximize,
+  maximizeLabel,
+  maximized,
+  newTabHref,
+  onProtected,
+  titledByPage,
+}: BrowserWindowProps) {
+  const t = useTranslations("browserCredentials");
+  const chat = useTranslations("chat");
+  return (
+    <section
+      aria-label={t("protectedTitle")}
+      className="bg-background flex h-full min-h-0 min-w-0 flex-col"
+    >
+      <div className="border-border flex shrink-0 items-center gap-2 border-b p-2">
+        <Lock className="size-4 shrink-0" aria-hidden />
+        {!titledByPage && (
+          <h2 className="min-w-0 flex-1 text-sm font-medium">{t("protectedTitle")}</h2>
+        )}
+        {newTabHref && (
+          <a
+            href={newTabHref}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={chat("browserOpenNewTab")}
+            className="hover:bg-muted rounded p-2"
+          >
+            <ExternalLink className="size-4" aria-hidden />
+          </a>
+        )}
+        {onMaximize && (
+          <ChromeButton
+            onClick={onMaximize}
+            label={maximizeLabel ?? chat(maximized ? "browserRestore" : "browserMaximize")}
+          >
+            {maximized ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+          </ChromeButton>
+        )}
+        {onClose && (
+          <ChromeButton label={t("closeView")} onClick={onClose}>
+            <X className="size-4" />
+          </ChromeButton>
+        )}
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <p className="text-muted-foreground px-4 pt-4 text-sm">{t("protectedSummary")}</p>
+        {browse.runId && browse.credentialPlanId ? (
+          <BrowserCredentialReview
+            runId={browse.runId}
+            planId={browse.credentialPlanId}
+            callId={browse.callId}
+            tabId={browse.tabId ?? undefined}
+            onProtected={onProtected}
+          />
+        ) : (
+          <div className="text-muted-foreground space-y-3 p-4 text-sm">
+            <p>{t("protectedNoReceipt")}</p>
+            <p>{t("stopOriginatingRun")}</p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function UnprotectedBrowserWindow({
   browse,
   control,
   onClose,
@@ -287,22 +383,13 @@ export function BrowserWindow({
   newTabHref,
   waitForFit = false,
   onComment,
-}: {
-  browse: Browse;
-  control: BrowseControl | null;
-  onClose?: () => void;
-  maximized?: boolean;
-  onMaximize?: () => void;
-  maximizeLabel?: string;
-  /** Where the same browse opens on a page of its own, where that is somewhere else. */
-  newTabHref?: string;
-  /** Hold the picture back until a frame of this window's size arrives - see `useFitted`. */
-  waitForFit?: boolean;
-  /** Where a comment on a spot of the page goes - the chat's composer; none, no button. */
-  onComment?: (comment: PageComment) => void;
-}) {
+  surface = "browser",
+  onProtected,
+}: BrowserWindowProps) {
   const t = useTranslations("chat");
   const tb = useTranslations("browse");
+  const workspace = useTranslations("chat.workspace");
+  const computer = surface === "computer";
   const [showSteps, setShowSteps] = useState(false);
   const [remember, setRemember] = useState(false);
   const [commenting, setCommenting] = useState(false);
@@ -311,15 +398,15 @@ export function BrowserWindow({
   const host = hostOf(browse.url);
   const secure = browse.url?.startsWith("https:") ?? false;
   const canDrive = running && control !== null && control.canControl;
-  const { ref: pageRef, asked } = useFitPage(canDrive ? control : null);
-  const fitted = useFitted(browse.image, asked, waitForFit && canDrive);
+  const { ref: pageRef, asked } = useFitPage(canDrive && !computer ? control : null);
+  const fitted = useFitted(browse.image, asked, waitForFit && canDrive && !computer);
   // Pointing at the page and driving it are two gestures on one picture; while
   // somebody holds the tab, a click is theirs to send to it.
   const canComment = onComment !== undefined && browse.image !== null && fitted && !hold.holding;
 
   return (
     <section
-      aria-label={t("browserHeading")}
+      aria-label={computer ? workspace("computer") : t("browserHeading")}
       className="bg-background @container/browser-window flex h-full min-h-0 min-w-0 flex-col"
     >
       <div className="bg-muted/25 border-border flex shrink-0 flex-wrap items-center gap-1.5 border-b p-1.5 @min-[640px]/browser-window:flex-nowrap">
@@ -329,7 +416,12 @@ export function BrowserWindow({
             browse.navigable && canDrive && "basis-full @min-[420px]/browser-window:basis-auto",
           )}
         >
-          {browse.navigable && canDrive ? (
+          {computer ? (
+            <div className="flex h-9 min-w-0 flex-1 items-center gap-2 px-2 text-sm">
+              <Monitor className="text-muted-foreground size-4" aria-hidden />
+              <h2 className="flex-1 font-medium">{workspace("computer")}</h2>
+            </div>
+          ) : browse.navigable && canDrive ? (
             <BrowserNavigation url={browse.url} holding={hold.holding} send={control.send} />
           ) : (
             <div
@@ -363,6 +455,9 @@ export function BrowserWindow({
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-0.5">
           {browse.outcome && <OutcomeBadge outcome={browse.outcome} />}
+          {!computer && browse.runId && (running || browse.teachingSessionId) && (
+            <BrowserTeachingControls browse={browse} canControl={canDrive} />
+          )}
           {canDrive &&
             (hold.holding ? (
               <button
@@ -404,8 +499,8 @@ export function BrowserWindow({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                aria-label={t("browserMenu")}
-                title={t("browserMenu")}
+                aria-label={computer ? workspace("computerMenu") : t("browserMenu")}
+                title={computer ? workspace("computerMenu") : t("browserMenu")}
                 className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 shrink-0 items-center justify-center rounded-full"
               >
                 <MoreHorizontal className="size-4" aria-hidden />
@@ -437,7 +532,7 @@ export function BrowserWindow({
               {onClose && (
                 <DropdownMenuItem onSelect={onClose}>
                   <X className="size-4" aria-hidden />
-                  {t("browserClose")}
+                  {computer ? workspace("close") : t("browserClose")}
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -445,7 +540,7 @@ export function BrowserWindow({
         </div>
       </div>
 
-      {browse.navigable && canDrive && (
+      {!computer && browse.navigable && canDrive && (
         <h2 className="sr-only">{browse.title || host || t("browserHeading")}</h2>
       )}
       {browse.controlError && (
@@ -455,7 +550,7 @@ export function BrowserWindow({
       )}
       {/* While holding: keep the sign-in made here for later browses, offered
           only to the person the run acts for - the server says who that is. */}
-      {hold.holding && control?.canRemember && host && (
+      {!computer && hold.holding && control?.canRemember && host && (
         <label className="border-border flex cursor-pointer items-center gap-2 border-b px-3 py-2 text-sm">
           <input
             type="checkbox"
@@ -466,7 +561,7 @@ export function BrowserWindow({
           <span>{tb("rememberSignIn", { site: host })}</span>
         </label>
       )}
-      {browse.kept && !hold.holding && (
+      {!computer && browse.kept && !hold.holding && (
         <p className="text-muted-foreground border-border border-b px-3 py-1.5 text-xs">
           {tb("signInKept", { site: browse.kept })}
         </p>
@@ -484,6 +579,18 @@ export function BrowserWindow({
         </p>
       )}
 
+      {!computer && browse.runId && browse.credentialPlanId && (
+        <div className="border-border max-h-[65%] shrink-0 overflow-y-auto border-b">
+          <BrowserCredentialReview
+            runId={browse.runId}
+            planId={browse.credentialPlanId}
+            callId={browse.callId}
+            tabId={browse.tabId ?? undefined}
+            onProtected={onProtected}
+          />
+        </div>
+      )}
+
       {/* The page, edge to edge, the way a browser draws one: the window has
           asked for the page to be laid out at its own size (see `useFitPage`),
           so the picture fills it 1:1 rather than being a laptop screen shrunk
@@ -498,6 +605,12 @@ export function BrowserWindow({
               <LiveViewport
                 browse={browse}
                 holding={hold.holding}
+                label={
+                  computer
+                    ? workspace(hold.holding ? "computerControlling" : "computerWatching")
+                    : undefined
+                }
+                imageAlt={computer ? workspace("computerImage") : undefined}
                 onCommand={(command) => control?.send(command)}
                 flush
                 overlay={
@@ -521,10 +634,18 @@ export function BrowserWindow({
               className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3 p-5 text-center text-xs"
             >
               <span className="bg-muted/50 border-border/60 flex size-10 items-center justify-center rounded-xl border">
-                <Globe className="size-5 opacity-50" aria-hidden />
+                {computer ? (
+                  <Monitor className="size-5 opacity-50" aria-hidden />
+                ) : (
+                  <Globe className="size-5 opacity-50" aria-hidden />
+                )}
               </span>
               <span className="max-w-64 leading-relaxed">
-                {running ? t("browserWaitingForFrame") : t("browserNoPreview")}
+                {running
+                  ? computer
+                    ? workspace("computerWaiting")
+                    : t("browserWaitingForFrame")
+                  : t("browserNoPreview")}
               </span>
             </div>
           )}

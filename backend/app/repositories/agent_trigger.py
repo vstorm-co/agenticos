@@ -346,6 +346,7 @@ async def create(
     one_shot: bool = False,
     is_active: bool = True,
     project_id: UUID | None = None,
+    conversation_mode: str = "continue",
 ) -> AgentTrigger:
     trigger = AgentTrigger(
         project_id=project_id,
@@ -384,6 +385,7 @@ async def create(
         if notification_channels is None
         else list(notification_channels),
         monthly_budget_usd=monthly_budget_usd,
+        conversation_mode=conversation_mode,
     )
     db.add(trigger)
     await db.flush()

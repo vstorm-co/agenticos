@@ -3,6 +3,7 @@ import {
   AGENT_BUILDER,
   DATASET_DETAIL,
   SKILL_DETAIL,
+  BROWSER_TEACHING_DETAIL,
   EVAL_RUN,
   IMPROVEMENT,
   IMPROVEMENT_START,
@@ -40,6 +41,7 @@ export type FlowId =
   | "create-skill"
   | "create-kb"
   | "create-mcp"
+  | "connect-app"
   | "create-org"
   | "create-group"
   | "create-project-tracker"
@@ -47,12 +49,15 @@ export type FlowId =
   | "create-dataset"
   | "create-table"
   | "create-workflow"
+  | "create-agent-message"
+  | "connect-personal-model"
   | "explore-chat"
   | "test-change"
   | "first-improvement"
   | "improvement-session"
   | "first-skill-improvement"
-  | "skill-improvement-session";
+  | "skill-improvement-session"
+  | "review-browser-teaching";
 
 /**
  * A resource whose *appearance* ends a step. It is the react-query list the coach
@@ -259,6 +264,8 @@ export interface FlowStep {
 export interface CreationFlow {
   id: FlowId;
   permission?: Permission;
+  /** Additional permissions when a flow creates more than one kind of resource. */
+  requiresPermissions?: readonly Permission[];
   steps: readonly FlowStep[];
 }
 
@@ -810,6 +817,29 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       ...skillDialogSteps(ROUTES.SKILLS),
     ],
   },
+  "review-browser-teaching": {
+    id: "review-browser-teaching",
+    steps: [
+      {
+        id: "flow-teaching-review",
+        page: BROWSER_TEACHING_DETAIL,
+        target: "teaching-review",
+        optional: true,
+      },
+      {
+        id: "flow-teaching-draft",
+        page: BROWSER_TEACHING_DETAIL,
+        target: "teaching-draft",
+        optional: true,
+      },
+      {
+        id: "flow-teaching-proposal",
+        page: BROWSER_TEACHING_DETAIL,
+        target: "teaching-proposal",
+        optional: true,
+      },
+    ],
+  },
   "create-kb": {
     id: "create-kb",
     permission: Perm.collectionsEdit,
@@ -822,6 +852,55 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         signal: { kind: "opened" },
       },
       ...kbDialogSteps(ROUTES.RAG),
+    ],
+  },
+  // Send a first message between two agents: open the dialog, then the
+  // fields in turn, then send. The last step carries no signal — there is
+  // no `agent-message` FlowResource for the coach to count (it counts
+  // lists, and no list here is the message count) — so it advances on Next
+  // after the reader sends.
+  "create-agent-message": {
+    id: "create-agent-message",
+    permission: Perm.agentsRun,
+    steps: [
+      {
+        id: "flow-agent-message-create",
+        page: ROUTES.AGENT_MESSAGES,
+        target: "agent-messages-new",
+        permission: Perm.agentsRun,
+        signal: { kind: "opened" },
+      },
+      {
+        id: "flow-agent-message-sender",
+        page: ROUTES.AGENT_MESSAGES,
+        target: "agent-message-dialog-sender",
+        permission: Perm.agentsRun,
+        inOverlay: true,
+        blockSubmit: "agent-message-dialog-send",
+      },
+      {
+        id: "flow-agent-message-recipient",
+        page: ROUTES.AGENT_MESSAGES,
+        target: "agent-message-dialog-recipient",
+        permission: Perm.agentsRun,
+        inOverlay: true,
+        blockSubmit: "agent-message-dialog-send",
+      },
+      {
+        id: "flow-agent-message-body",
+        page: ROUTES.AGENT_MESSAGES,
+        target: "agent-message-dialog-body",
+        permission: Perm.agentsRun,
+        inOverlay: true,
+        blockSubmit: "agent-message-dialog-send",
+      },
+      {
+        id: "flow-agent-message-send",
+        page: ROUTES.AGENT_MESSAGES,
+        target: "agent-message-dialog-send",
+        permission: Perm.agentsRun,
+        inOverlay: true,
+      },
     ],
   },
   "create-table": {
@@ -838,6 +917,20 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       ...tableDialogSteps(ROUTES.TABLES),
     ],
   },
+  "connect-app": {
+    id: "connect-app",
+    // The inline journey owns its transitions and verified authorization state.
+    // A saved pending MCP row must never complete this guide as a successful connection.
+    steps: [
+      { id: "flow-app-goal", page: ROUTES.CONNECTORS, activate: "connectors-apps", roam: true },
+      {
+        id: "flow-app-authorize",
+        page: ROUTES.CONNECTORS,
+        activate: "connectors-apps",
+        roam: true,
+      },
+    ],
+  },
   "create-mcp": {
     id: "create-mcp",
     permission: Perm.connectionsManage,
@@ -847,6 +940,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-mcp-field-pick",
         page: ROUTES.MCP_SERVERS,
+        activate: "connectors-advanced",
         permission: Perm.connectionsManage,
         // The catalog is the whole page here; the reader picks any server, and its
         // Connect opens the form. No spotlight — a hole over one card would lock
@@ -1041,6 +1135,19 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
   // agent, so a reader with none is asked to build one first and yes hands off to
   // `create-agent`. That fork aside, anyone signed in can chat, so no step past it
   // carries a permission.
+  "connect-personal-model": {
+    id: "connect-personal-model",
+    permission: Perm.connectionsManage,
+    requiresPermissions: [Perm.agentsView],
+    steps: [
+      {
+        id: "flow-personal-model-connect",
+        page: ROUTES.SETTINGS_AI_CONNECTIONS,
+        target: "personal-model-setup",
+        signal: { kind: "created", resource: "model" },
+      },
+    ],
+  },
   // Offered at the end of the builder's own walk, where the reader is already in
   // an agent - so testing a change, not creating another agent, is what it ends on.
   "first-improvement": {
@@ -1316,6 +1423,8 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
  */
 export function flowForPage(pageId: string, systemAgent = false): FlowId | null {
   switch (pageId) {
+    case BROWSER_TEACHING_DETAIL:
+      return "review-browser-teaching";
     case IMPROVEMENT_START:
       return "first-improvement";
     case IMPROVEMENT:
@@ -1326,6 +1435,8 @@ export function flowForPage(pageId: string, systemAgent = false): FlowId | null 
       return "skill-improvement-session";
     case ROUTES.CHAT:
       return "explore-chat";
+    case ROUTES.SETTINGS_AI_CONNECTIONS:
+      return "connect-personal-model";
     case ROUTES.AGENTS:
       return "create-agent";
     case AGENT_BUILDER:
@@ -1340,7 +1451,7 @@ export function flowForPage(pageId: string, systemAgent = false): FlowId | null 
     case TABLE_DETAIL:
       return "create-table";
     case ROUTES.MCP_SERVERS:
-      return "create-mcp";
+      return "connect-app";
     case PROJECT_DETAIL:
       return "create-project-tracker";
     case ROUTES.ROUTINES:
@@ -1350,6 +1461,8 @@ export function flowForPage(pageId: string, systemAgent = false): FlowId | null 
       return "create-dataset";
     case ROUTES.WORKFLOWS:
       return "create-workflow";
+    case ROUTES.AGENT_MESSAGES:
+      return "create-agent-message";
     case ROUTES.ORGS:
     case ORG_MEMBERS:
     case ORG_ROLES:
@@ -1401,5 +1514,7 @@ export function canOfferFlow(
   flow: CreationFlow,
   can: (permission: Permission) => boolean,
 ): boolean {
-  return !flow.permission || can(flow.permission);
+  return (
+    (!flow.permission || can(flow.permission)) && (flow.requiresPermissions?.every(can) ?? true)
+  );
 }

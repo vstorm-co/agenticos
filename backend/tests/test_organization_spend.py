@@ -24,11 +24,17 @@ pytestmark = pytest.mark.anyio
 
 @pytest.fixture(autouse=True)
 def direct_workflow_fees():
-    with patch(
-        "app.services.spend.workflow_run_repo.node_spend_since",
-        new=AsyncMock(return_value=Decimal("0")),
+    with (
+        patch(
+            "app.services.spend.workflow_run_repo.node_spend_since",
+            new=AsyncMock(return_value=Decimal("0")),
+        ),
+        patch(
+            "app.services.spend.media_repo.outstanding_usd",
+            new=AsyncMock(return_value=Decimal("0")),
+        ) as media,
     ):
-        yield
+        yield media
 
 
 def _org(monthly_budget_usd: Decimal | None) -> MagicMock:
@@ -112,6 +118,20 @@ class TestTheRefusal:
         org, runs, ingestion, purged = self._repos(_org(Decimal("40")), Decimal("39.99"))
         with org, runs, ingestion, purged:
             await assert_organization_within_budget(MagicMock(), uuid.uuid4())
+
+    @pytest.mark.security
+    async def test_unresolved_media_reserves_budget_without_becoming_reported_spend(
+        self, direct_workflow_fees
+    ):
+        direct_workflow_fees.return_value = Decimal("1")
+        organization_id = uuid.uuid4()
+        org, runs, ingestion, purged = self._repos(_org(Decimal("40")), Decimal("39"))
+        with org, runs, ingestion, purged:
+            assert await organization_monthly_spend(MagicMock(), organization_id) == Decimal("39")
+            with pytest.raises(BudgetExceeded) as exc:
+                await assert_organization_within_budget(MagicMock(), organization_id)
+        assert exc.value.spent_usd == Decimal("40")
+        assert direct_workflow_fees.await_count == 1
 
     async def test_no_cap_means_no_check_and_no_spend_query(self):
         """An organization that never opened the setting costs nothing here."""

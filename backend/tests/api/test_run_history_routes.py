@@ -14,6 +14,7 @@ empty page is what "nothing went wrong this week" looks like.
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -241,6 +242,7 @@ class TestTheDownRatedMarkerReachesTheRow:
             cost_is_partial=False,
             modality="text",
             is_test=False,
+            fallback_used=False,
             provider="openrouter",
             conversation_id=_CONVERSATION_ID,
         )
@@ -267,6 +269,21 @@ class TestTheDownRatedMarkerReachesTheRow:
             str(_CONVERSATION_ID)
         }
 
+    @pytest.mark.parametrize("questions", ["malformed", {"unexpected": "shape"}])
+    async def test_malformed_parked_questions_do_not_break_run_listing(self, questions):
+        run = self._run()
+        run.status = "awaiting_answer"
+        run.ended_at = datetime.now(UTC)
+        run.paused_state = {"messages": [], "questions": questions}
+        service = _service()
+        service.list_runs = AsyncMock(return_value=([run], 1))
+        service.down_rated_run_ids = AsyncMock(return_value=set())
+        async with _client(service) as client:
+            response = await client.get("/api/v1/runs")
+
+        assert response.status_code == 200, response.text
+        assert response.json()["items"][0]["waiting_questions"] == []
+
     async def test_an_eval_run_in_the_list_names_its_case(self):
         run = AgentRun(
             id=uuid4(),
@@ -283,6 +300,7 @@ class TestTheDownRatedMarkerReachesTheRow:
             cost_is_partial=False,
             is_test=False,
             modality="text",
+            fallback_used=False,
         )
         web = AgentRun(
             id=uuid4(),
@@ -299,6 +317,7 @@ class TestTheDownRatedMarkerReachesTheRow:
             cost_is_partial=False,
             is_test=False,
             modality="text",
+            fallback_used=False,
         )
         link = EvalCaseLinkRead(
             eval_run_id=uuid4(),
@@ -323,6 +342,7 @@ class TestTheDownRatedMarkerReachesTheRow:
         async with _client(service) as client:
             response = await client.get("/api/v1/runs")
 
+        assert response.status_code == 200, response.text
         rows = response.json()["items"]
         assert rows[0]["eval_case"]["case_input"] == "Can I return it?"
         assert rows[1]["eval_case"] is None
@@ -367,6 +387,7 @@ class TestTheDetailReadCarriesItsNeighbours:
             cost_is_partial=False,
             modality="text",
             is_test=False,
+            fallback_used=False,
         )
         prev_id, next_id = uuid4(), uuid4()
         service = _service()
@@ -400,6 +421,7 @@ class TestTheDetailReadCarriesItsNeighbours:
             cost_is_partial=False,
             is_test=False,
             modality="text",
+            fallback_used=False,
         )
         link = EvalCaseLinkRead(
             eval_run_id=uuid4(),
@@ -448,6 +470,7 @@ class TestARunSaysWhereItsContinuationGoes:
                 cost_is_partial=False,
                 modality="text",
                 is_test=False,
+                fallback_used=False,
             )
             service = _service()
             service.get_run = AsyncMock(return_value=run)

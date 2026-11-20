@@ -172,6 +172,15 @@ class TestHowATurnEnds:
 
         assert unanswered is not None and "kept repeating" in unanswered
 
+    async def test_a_model_timeout_tells_the_visitor_why_without_linking_the_console(self) -> None:
+        session = _session()
+        run = MagicMock(status=RunStatus.TIMED_OUT.value, awaiting_approval_run_id=None)
+        with patch.object(EmbedSession, "_answer", AsyncMock(return_value=("", run))):
+            unanswered = await session._turn_frames("hello", ())
+        assert unanswered == (
+            "The model took too long to answer, so I stopped waiting. Please try again."
+        )
+
 
 class TestTheRestOfTheSession:
     async def test_fail_reaches_the_visitor_as_an_error_frame(self):

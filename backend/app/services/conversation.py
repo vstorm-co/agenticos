@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 
+from markdown_it import MarkdownIt
 from pydantic import JsonValue, TypeAdapter, ValidationError
 from pydantic_ai.messages import (
     CapabilityLoadDeltaPart,
@@ -35,7 +36,12 @@ from app.agents.failures import stored_failure_summary
 from app.agents.model_context import ModelContextCheck
 from app.agents.steering import STEER_PREFIX
 from app.core.background import spawn_after_commit
-from app.core.exceptions import BadRequestError, ConcurrentChangeError, NotFoundError
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    ConcurrentChangeError,
+    NotFoundError,
+)
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LOCK_NOT_AVAILABLE, lock_wait_within
@@ -55,6 +61,9 @@ from app.repositories import (
     personal_data_repo,
     project_repo,
 )
+from app.repositories import (
+    conversation_message_pin as conversation_message_pin_repo,
+)
 from app.schemas.conversation import (
     ChatPerson,
     ChatReader,
@@ -62,6 +71,7 @@ from app.schemas.conversation import (
     ConversationCost,
     ConversationCreate,
     ConversationForkOrigin,
+    ConversationForkRead,
     ConversationUpdate,
     HistoryCheckpoint,
     HistoryCheckpointFrontier,
@@ -199,12 +209,12 @@ def _as_history(
     person's turn reads as `spoken` says where it says anything - who said it
     and what it answers - see `ConversationService._spoken`. A prompt of a turn
     a guardrail stopped reads as `REFUSED_TURN`, with nothing its files added
-    (#2578).
+    (#2578). A refused assistant's text and parts are omitted entirely.
     """
     spoken = spoken or {}
     history: list[HistoryMessage] = []
     for row in rows:
-        if row.id == exclude_message_id:
+        if row.id == exclude_message_id or (row.role == "assistant" and row.guardrail_refused):
             continue
         # Rebuild the assistant's spoken sequence around human answers, instead
         # of moving every answer before the text that originally asked for it.
@@ -274,6 +284,12 @@ async def check_history_snapshot(
         revision = await conversation_repo.get_guardrail_revision(db, conversation_id)
         expected = history.revision if history.revision is not None else 0
         current_history = revision is not None and revision == expected
+        if current_history and history.ordinal is not None:
+            current_history = await conversation_repo.last_ordinal(
+                db, conversation_id
+            ) == history.ordinal and not await conversation_repo.has_room_submissions(
+                db, conversation_id
+            )
     if not current_history:
         raise GuardrailBlocked(
             edge="input",
@@ -324,6 +340,10 @@ class ConversationService:
         limit: int,
         exclude_message_id: UUID | None = None,
         public_transcript_only: bool = False,
+        before_message_id: UUID | None = None,
+        room_request_message_id: UUID | None = None,
+        thread_root_message_id: UUID | None = None,
+        snapshot: bool = False,
     ) -> ModelHistory:
         """The thread as the model should read it, summary included.
 
@@ -338,29 +358,125 @@ class ConversationService:
         `exclude_message_id` is the turn being answered. The prompt is written
         before the run so a refusal cannot lose it, so it is a row by the time
         this reads - and left in, the model is asked the same question twice.
+
+        `before_message_id` is the turn the history stops before: that message
+        and everything written after it are left out. A retry re-issues an
+        earlier turn as the prompt, so the history must read as the thread did
+        when that turn was asked - the failed attempt's half-written answer,
+        and any tool call of it whose result never arrived, cannot be replayed
+        as history. A checkpoint taken at or after that turn covers it, so the
+        checkpoint is dropped and the transcript window before it is read instead.
+
+        `room_request_message_id` reads earlier messages plus completed answers
+        to preceding queued requests, even when those answers landed after this
+        question. Later questions are excluded. A shared checkpoint cannot describe
+        that filtered window, so room histories always rebuild the bounded
+        transcript and retain its refusal revision.
+
+        `snapshot` captures a top-level history through its current last ordinal.
+        It is for idle maintenance only: the caller can fence every model request
+        and the eventual summary write against any later transcript change.
         """
+        if (
+            sum(
+                value is not None
+                for value in (room_request_message_id, before_message_id, thread_root_message_id)
+            )
+            > 1
+        ):
+            raise BadRequestError(message="Choose one conversation history boundary")
+        if snapshot and any(
+            value is not None
+            for value in (room_request_message_id, before_message_id, thread_root_message_id)
+        ):
+            raise BadRequestError(message="A bounded snapshot cannot use a filtered history")
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, conversation_id, include_summary=True, fresh=True
         )
+        through_ordinal = (
+            await conversation_repo.last_ordinal(self.db, conversation_id) if snapshot else None
+        )
         revision = None if conversation is None else conversation.guardrail_revision
+        if room_request_message_id is not None or thread_root_message_id is not None:
+            if room_request_message_id is not None:
+                rows = await conversation_repo.get_room_history_messages(
+                    self.db,
+                    conversation_id,
+                    request_message_id=room_request_message_id,
+                    limit=limit,
+                )
+            else:
+                assert thread_root_message_id is not None, "one explicit thread was selected"
+                rows = await conversation_repo.get_thread_history_messages(
+                    self.db,
+                    conversation_id,
+                    root_message_id=thread_root_message_id,
+                    limit=limit,
+                )
+            if rows is None:
+                raise NotFoundError(
+                    message="Room message not found",
+                    details={"message_id": room_request_message_id or thread_root_message_id},
+                )
+            spoken = await self._spoken(rows, conversation)
+            history = build_message_history(_as_history(rows, exclude_message_id, spoken))
+            return ModelHistory(
+                bounded_model_history(
+                    await self._restore_capability_loads(history, rows, exclude_message_id)
+                ),
+                revision=revision,
+                ordinal=through_ordinal,
+            )
         summary = None if conversation is None else conversation.summary_messages
+        summary_ordinal = None if conversation is None else conversation.summary_ordinal
+        if through_ordinal is not None and (
+            summary_ordinal is None or summary_ordinal > through_ordinal
+        ):
+            summary = None
+        before_ordinal: int | None = None
+        if before_message_id is not None:
+            boundary = await conversation_repo.messages_by_id(self.db, {before_message_id})
+            message = boundary.get(before_message_id)
+            if message is None or message.conversation_id != conversation_id:
+                raise NotFoundError(
+                    message="Message not found",
+                    details={"message_id": str(before_message_id)},
+                )
+            before_ordinal = message.ordinal
         if (
             conversation is None
             or summary is None
             or isinstance(summary, list)
             or conversation.summary_ordinal is None
             or public_transcript_only
+            or (before_ordinal is not None and conversation.summary_ordinal >= before_ordinal)
             or await self._has_shared_history(conversation)
         ):
             return await self._from_transcript(
-                conversation_id, limit, exclude_message_id, conversation
+                conversation_id,
+                limit,
+                exclude_message_id,
+                conversation,
+                before_message_id,
+                through_ordinal=through_ordinal,
             )
         try:
             checkpoint = HistoryCheckpoint.model_validate(summary)
             summary = checkpoint.messages
             since = await conversation_repo.get_messages_after(
-                self.db, conversation_id, ordinal=conversation.summary_ordinal, limit=limit
+                self.db,
+                conversation_id,
+                ordinal=conversation.summary_ordinal,
+                limit=limit,
+                top_level_only=True,
+                through_ordinal=through_ordinal,
             )
+            if before_ordinal is not None:
+                # The checkpoint is older than the turn being retried, so only the
+                # rows between the two belong in this history. The window's loss
+                # profile is a normal turn's: `get_messages_after` already kept
+                # the most recent `limit`, and dropping the tail keeps its prefix.
+                since = [row for row in since if row.ordinal < before_ordinal]
             spoken = await self._spoken(since, conversation)
             tail = await self._restore_capability_loads(
                 build_message_history(_as_history(since, exclude_message_id, spoken)),
@@ -392,14 +508,23 @@ class ConversationService:
                 "conversation_summary_unreadable", extra={"conversation_id": str(conversation_id)}
             )
             return await self._from_transcript(
-                conversation_id, limit, exclude_message_id, conversation
+                conversation_id,
+                limit,
+                exclude_message_id,
+                conversation,
+                before_message_id,
+                through_ordinal=through_ordinal,
             )
         return ModelHistory(
             replayed,
             revision=revision,
             provenance=checkpoint.provenance,
             source=HistorySource(
-                conversation_id=conversation_id, limit=limit, exclude_message_id=exclude_message_id
+                conversation_id=conversation_id,
+                limit=limit,
+                exclude_message_id=exclude_message_id,
+                before_message_id=before_message_id,
+                snapshot=snapshot,
             ),
             frontier=HistoryCheckpointFrontier(
                 summary_ordinal=conversation.summary_ordinal,
@@ -407,6 +532,7 @@ class ConversationService:
                     (row.ordinal for row in since), default=conversation.summary_ordinal
                 ),
             ),
+            ordinal=through_ordinal,
         )
 
     async def history_for_provenance[History: Sequence[ModelMessage] | None](
@@ -426,6 +552,8 @@ class ConversationService:
             limit=history.source.limit,
             exclude_message_id=history.source.exclude_message_id,
             public_transcript_only=True,
+            before_message_id=history.source.before_message_id,
+            snapshot=history.source.snapshot,
         )
         visible.extend_public_context(history.public_context)
         return visible
@@ -450,9 +578,34 @@ class ConversationService:
         limit: int,
         exclude_message_id: UUID | None,
         conversation: Conversation | None,
+        before_message_id: UUID | None = None,
+        *,
+        through_ordinal: int | None = None,
     ) -> ModelHistory:
-        """The recent window, which is what every surface read before #49."""
-        rows = await conversation_repo.get_recent_messages(self.db, conversation_id, limit=limit)
+        """The recent window, which is what every surface read before #49.
+
+        With `before_message_id` it is the recent window *before that turn*:
+        the newest `limit` messages older than it, still oldest first - the
+        thread as it stood when that turn was asked.
+        """
+        if before_message_id is not None:
+            rows = await conversation_repo.get_messages_by_conversation(
+                self.db,
+                conversation_id,
+                before=before_message_id,
+                latest=True,
+                limit=limit,
+                fresh=True,
+                top_level_only=True,
+            )
+        else:
+            rows = await conversation_repo.get_recent_messages(
+                self.db,
+                conversation_id,
+                limit=limit,
+                top_level_only=True,
+                through_ordinal=through_ordinal,
+            )
         spoken = await self._spoken(rows, conversation)
         history = build_message_history(_as_history(rows, exclude_message_id, spoken))
         return ModelHistory(
@@ -466,6 +619,7 @@ class ConversationService:
                 summary_ordinal=conversation.summary_ordinal,
                 message_ordinal=max((row.ordinal for row in rows), default=0),
             ),
+            ordinal=through_ordinal,
         )
 
     async def _restore_capability_loads(
@@ -569,10 +723,12 @@ class ConversationService:
                 quoted.get(row.reply_to_message_id) if row.reply_to_message_id is not None else None
             )
             if answered is not None:
-                text = (
-                    f'(In reply to {_whose(answered, people)}: "{_excerpt(_said(answered))}")'
-                    f"\n\n{text}"
+                excerpt = (
+                    getattr(row, "reply_to_excerpt", None)
+                    if getattr(row, "reply_to_excerpt", None) and not answered.guardrail_refused
+                    else _excerpt(_said(answered))
                 )
+                text = f'(In reply to {_whose(answered, people)}: "{excerpt}")\n\n{text}'
             author = people.get(row.author_user_id) if in_project and row.author_user_id else None
             if author is not None:
                 text = f"{ChatPerson.of(author).name}: {text}"
@@ -694,6 +850,53 @@ class ConversationService:
             logger.info(
                 "conversation_summary_superseded", extra={"conversation_id": str(conversation_id)}
             )
+
+    async def keep_summary_snapshot(
+        self,
+        conversation_id: UUID,
+        messages: list[dict[str, Any]],
+        *,
+        expected_revision: int | None,
+        expected_ordinal: int,
+        provenance: HistoryProvenance | None,
+    ) -> bool:
+        """Persist an idle maintenance summary only while its exact snapshot holds.
+
+        Unlike `keep_summary`, this caller wrote no transcript rows of its own.
+        The summary therefore covers exactly `expected_ordinal`; either a guardrail
+        revision change, a later message, or a room queue makes it stale. It is
+        stored as the same versioned checkpoint a completed turn writes, so the
+        next turn replays it only for the agent and destinations that produced it.
+        """
+        if provenance is None:
+            return False
+        if expected_revision is None:
+            logger.info(
+                "conversation_summary_unversioned", extra={"conversation_id": str(conversation_id)}
+            )
+            return False
+        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        if conversation is None:
+            return False
+        checkpoint = HistoryCheckpoint(version=1, provenance=provenance, messages=[])
+        overhead = len(json.dumps(checkpoint.model_dump(mode="json"), ensure_ascii=False).encode())
+        checkpoint.messages = bounded_stored_history(
+            _STORED_MESSAGES.validate_python(messages), overhead_bytes=overhead
+        )
+        stored = await conversation_repo.set_summary(
+            self.db,
+            db_conversation=conversation,
+            messages=checkpoint.model_dump(mode="json"),
+            ordinal=expected_ordinal,
+            expected_revision=expected_revision,
+            expected_ordinal=expected_ordinal,
+        )
+        if not stored:
+            logger.info(
+                "conversation_summary_snapshot_superseded",
+                extra={"conversation_id": str(conversation_id)},
+            )
+        return stored
 
     async def readable(self, ctx: AuthContext, conversation_ids: Iterable[UUID]) -> set[UUID]:
         """Which of these conversations the caller may read the text of.
@@ -1179,10 +1382,15 @@ class ConversationService:
             if answered is None:
                 continue
             author = people.get(answered.author_user_id) if answered.author_user_id else None
+            excerpt = (
+                _excerpt(_said(answered))
+                if answered.guardrail_refused
+                else getattr(msg, "reply_to_excerpt", None) or _excerpt(answered.content)
+            )
             msg.reply_to = MessageReplyRef(  # ty: ignore[missing-attribute]
                 message_id=answered.id,
                 role=answered.role,
-                excerpt=_excerpt(answered.content),
+                excerpt=excerpt,
                 sender=ChatPerson.of(author) if author is not None else None,
                 agent_id=answered.agent_id,
             )
@@ -1216,6 +1424,7 @@ class ConversationService:
         )
         await self.attach_agents(items)
         await self._attach_running(items)
+        await self._attach_waiting(items)
         await self._attach_unread(items, user_id=user_id)
         await self._attach_people(items)
         return items, total
@@ -1343,19 +1552,21 @@ class ConversationService:
         await self._attach_favourites(items, user_id=user_id)
         await self._attach_fork_origins(items, user_id=user_id)
         await self._attach_running(items)
+        await self._attach_waiting(items)
         await self._attach_unread(items, user_id=user_id)
         return items, total
 
     async def attach_listing_state(
         self, conversations: Sequence[Conversation], *, user_id: UUID
     ) -> None:
-        """What a sidebar row shows beyond the row: its agents, a run at work, an unseen answer.
+        """What a sidebar row shows beyond the row: its agents, a run at work, a run waiting on its person, an unseen answer.
 
         For a listing assembled elsewhere - the conversations shared with the
         reader - so its rows read the way the reader's own list does.
         """
         await self.attach_agents(conversations)
         await self._attach_running(conversations)
+        await self._attach_waiting(conversations)
         await self._attach_unread(conversations, user_id=user_id)
 
     async def _attach_unread(
@@ -1413,6 +1624,26 @@ class ConversationService:
             current = activity.get(conversation.id)
             conversation.running_since = current.since if current else None  # ty: ignore[missing-attribute]
             conversation.running_run_ids = current.run_ids if current else []  # ty: ignore[missing-attribute]
+            conversation.running_heartbeat_at = (  # ty: ignore[missing-attribute]
+                current.heartbeat_at if current else None
+            )
+
+    async def _attach_waiting(self, conversations: Sequence[Conversation]) -> None:
+        """Say, per row, what a parked run is waiting on, so a list can show the
+        thread is waiting on its person - from any tab or device, not only the
+        one the turn ran in. Set on the ORM object for the reason
+        `_attach_running` is, and one query for the page."""
+        if not conversations:
+            return
+        activity = await conversation_repo.waiting_activity(
+            self.db, [conversation.id for conversation in conversations]
+        )
+        for conversation in conversations:
+            current = activity.get(conversation.id)
+            conversation.waiting_since = current.since if current else None  # ty: ignore[missing-attribute]
+            conversation.waiting_status = current.status if current else None  # ty: ignore[missing-attribute]
+            conversation.waiting_question = current.question if current else None  # ty: ignore[missing-attribute]
+            conversation.waiting_run_ids = current.run_ids if current else []  # ty: ignore[missing-attribute]
 
     async def attach_agents(self, conversations: Sequence[Conversation]) -> None:
         """Name the agents that answered, on each row of a page.
@@ -1869,6 +2100,66 @@ class ConversationService:
                 )
             )
 
+    async def list_forks(
+        self,
+        conversation_id: UUID,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        ctx: AuthContext,
+        message_id: UUID | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> tuple[list[ConversationForkRead], int]:
+        """List this owner's personal forks, including archived children.
+
+        A project conversation may be visible to its members, but its forks use
+        project context and are not personal side threads. Treat that case, and
+        any source the caller does not own, as absent.
+        """
+        source = await self.get_conversation(
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            include_messages=False,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        if source.user_id != user_id or source.project_id is not None:
+            raise NotFoundError(
+                message="Conversation not found",
+                details={"conversation_id": conversation_id},
+            )
+        forks, total = await conversation_repo.list_conversation_forks(
+            self.db,
+            organization_id=organization_id,
+            owner_id=user_id,
+            source_id=source.id,
+            message_id=message_id,
+            skip=skip,
+            limit=limit,
+        )
+        # The source has just been authorized as this reader's personal chat, so
+        # it is the trusted origin for every row in this source-scoped query. Use
+        # it directly instead of a second title lookup that could race a delete
+        # and leave a response without the required origin object.
+        items = [
+            ConversationForkRead(
+                id=fork.id,
+                title=fork.title,
+                created_at=fork.created_at,
+                updated_at=fork.updated_at,
+                is_archived=fork.is_archived,
+                forked_from=ConversationForkOrigin(
+                    conversation_id=source.id,
+                    message_id=fork.forked_from_message_id,
+                    title=source.title,
+                ),
+            )
+            for fork in forks
+        ]
+        return items, total
+
     async def update_conversation(
         self,
         conversation_id: UUID,
@@ -1876,6 +2167,7 @@ class ConversationService:
         *,
         organization_id: UUID,
         user_id: UUID | None = None,
+        ctx: AuthContext | None = None,
     ) -> Conversation:
         conversation = await self.get_conversation(
             conversation_id,
@@ -1883,6 +2175,12 @@ class ConversationService:
             user_id=user_id,
             for_write=True,
         )
+        if "project_id" in getattr(data, "model_fields_set", set()) and data.project_id is not None:
+            if ctx is None:
+                raise AuthorizationError(message="A project access context is required")
+            from app.services.project import ProjectService
+
+            await ProjectService(self.db).check_can_start(ctx, data.project_id)
         update_data = writable(data, over=Conversation)
         return await conversation_repo.update_conversation(
             self.db, db_conversation=conversation, update_data=update_data
@@ -2038,6 +2336,8 @@ class ConversationService:
         user_id: UUID | None = None,
         ctx: AuthContext | None = None,
         for_model: bool = False,
+        top_level_only: bool = False,
+        thread_root_message_id: UUID | None = None,
     ) -> tuple[list[Message | MessageRead], int, ConversationCost | None]:
         """One conversation's messages and its cost, for a reader allowed to see them.
 
@@ -2068,6 +2368,17 @@ class ConversationService:
             include_favourite=False,
             ctx=ctx,
         )
+        root = None
+        if thread_root_message_id is not None:
+            if top_level_only:
+                raise BadRequestError(message="Choose main-room history or one subthread")
+            root = await conversation_repo.get_thread_root(
+                self.db,
+                conversation_id=conversation_id,
+                root_message_id=thread_root_message_id,
+            )
+            if root is None:
+                raise NotFoundError(message="Room thread not found")
         items = await conversation_repo.get_messages_by_conversation(
             self.db,
             conversation_id,
@@ -2078,10 +2389,40 @@ class ConversationService:
             before=before,
             for_model=for_model,
             fresh=for_model,
+            top_level_only=top_level_only,
+            thread_root_message_id=thread_root_message_id,
         )
         total = await conversation_repo.count_messages(
-            self.db, conversation_id, for_model=for_model
+            self.db,
+            conversation_id,
+            for_model=for_model,
+            top_level_only=top_level_only,
+            thread_root_message_id=thread_root_message_id,
         )
+        if root is not None:
+            items.insert(0, root)
+            total += 1
+        pinned_message_ids = (
+            await conversation_message_pin_repo.message_pin_ids(
+                self.db,
+                user_id=user_id,
+                conversation_id=conversation_id,
+                message_ids=[item.id for item in items],
+            )
+            if user_id is not None and items and not for_model
+            else set()
+        )
+        if top_level_only or thread_root_message_id is not None:
+            summaries = await conversation_repo.thread_summaries(
+                self.db,
+                conversation_id=conversation_id,
+                root_ids={item.id for item in items if item.thread_root_message_id is None},
+            )
+            for item in items:
+                summary = summaries.get(item.id)
+                # Transient read enrichment, like sender and reply_to below.
+                item.thread_reply_count = summary.reply_count if summary else 0  # ty: ignore[missing-attribute]
+                item.thread_last_activity_at = summary.last_activity_at if summary else None  # ty: ignore[missing-attribute]
         await self._attach_senders(items, conversation)
         if for_model:
             return (
@@ -2111,6 +2452,8 @@ class ConversationService:
                 msg_schema = MessageRead.model_validate(msg)
                 msg_schema.user_rating = user_ratings.get(msg.id)
                 msg_schema.rating_count = rating_counts.get(msg.id)
+                if user_id is not None:
+                    msg_schema.is_pinned = msg.id in pinned_message_ids
                 # So a turn a run was stopped mid-way through can say so. Without
                 # it a cancelled run's half-written answer reads exactly like a
                 # complete one, and the reader believes the agent finished.
@@ -2148,6 +2491,7 @@ class ConversationService:
         organization_id: UUID,
         user_id: UUID | None = None,
         run_id: UUID | None = None,
+        thread_root_message_id: UUID | None = None,
     ) -> Message:
         """Append one message into a conversation in `organization_id`.
 
@@ -2204,11 +2548,45 @@ class ConversationService:
             and any(part.file_source is not None for part in data.parts)
         ):
             raise refused_field("parts.file_source", "File origins are recorded by the runner")
+        if thread_root_message_id is not None:
+            root = (
+                await conversation_repo.get_thread_root(
+                    self.db,
+                    conversation_id=conversation_id,
+                    root_message_id=thread_root_message_id,
+                )
+                if conversation.project_id is not None
+                else None
+            )
+            if root is None:
+                raise refused_field(
+                    "thread_root_message_id", "Choose a top-level message in this project room"
+                )
+        reply_to_excerpt: str | None = None
         if data.reply_to_message_id is not None:
             answered = await conversation_repo.get_message_by_id(self.db, data.reply_to_message_id)
             if answered is None or answered.conversation_id != conversation.id:
                 raise refused_field(
                     "reply_to_message_id", "Reply to a message in this conversation"
+                )
+            if data.reply_to_excerpt is not None:
+                normalized_excerpt = _normalize_quote(data.reply_to_excerpt)
+                if (
+                    answered.guardrail_refused
+                    or not normalized_excerpt
+                    or normalized_excerpt not in _rendered_quote_text(answered.content)
+                ):
+                    raise refused_field(
+                        "reply_to_excerpt",
+                        "reply_to_excerpt must select visible text from the linked message",
+                    )
+                reply_to_excerpt = normalized_excerpt
+            if thread_root_message_id is not None and (
+                answered.id != thread_root_message_id
+                and answered.thread_root_message_id != thread_root_message_id
+            ):
+                raise refused_field(
+                    "reply_to_message_id", "Quote the root or a reply in this subthread"
                 )
         message = await conversation_repo.create_message(
             self.db,
@@ -2248,6 +2626,8 @@ class ConversationService:
             # Whose words these are: in a project's chat, not always the owner's.
             author_user_id=user_id if data.role == "user" else None,
             reply_to_message_id=data.reply_to_message_id,
+            reply_to_excerpt=reply_to_excerpt,
+            thread_root_message_id=thread_root_message_id,
         )
 
         from app.services.change_feed import announce_conversation
@@ -2443,17 +2823,41 @@ def _a_persons_turn(message: Message) -> bool:
 _EXCERPT_CHARS = 280
 """How much of a replied-to message is quoted to the model and above the reply."""
 
+_QUOTE_MARKDOWN = MarkdownIt("commonmark")
+
+
+def _normalize_quote(text: str) -> str:
+    """Fold the whitespace the browser folds when it reads a rendered selection."""
+    return " ".join(text.replace("\u00a0", " ").split())
+
+
+def _rendered_quote_text(markdown: str) -> str:
+    """Markdown's visible text, without formatting tokens, for validating a selection."""
+    chunks: list[str] = []
+    for token in _QUOTE_MARKDOWN.parse(markdown):
+        if token.type == "inline":
+            for child in token.children or []:
+                if child.type in {"text", "code_inline"}:
+                    chunks.append(child.content)
+                elif child.type in {"softbreak", "hardbreak"}:
+                    chunks.append(" ")
+        elif token.type in {"fence", "code_block"}:
+            chunks.extend((" ", token.content, " "))
+        elif token.type != "html_block":
+            chunks.append(" ")
+    return _normalize_quote("".join(chunks))
+
 
 def _excerpt(text: str) -> str:
     """A message as one short line: its whitespace folded, its tail cut."""
-    flat = " ".join(text.split())
+    flat = _normalize_quote(text)
     return flat if len(flat) <= _EXCERPT_CHARS else f"{flat[:_EXCERPT_CHARS]}…"
 
 
 def _said(message: Message) -> str:
     """What a quoted message says, as the model may be told it: a quote is the
-    other way a refused prompt's words would reach it (#2578)."""
-    if message.role == "user" and message.guardrail_refused:
+    other way a refused turn's words would reach it (#2578)."""
+    if message.guardrail_refused:
         return REFUSED_TURN
     return message.model_content if message.model_content is not None else message.content
 

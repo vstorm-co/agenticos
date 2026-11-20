@@ -604,6 +604,7 @@ class ArtifactRead(BaseSchema):
         default_factory=list,
         description="The groups this is shared with, by name - only the listing carries it.",
     )
+    is_favourite: bool = Field(default=False, description="Whether the caller favourited this app")
 
 
 class ArtifactPublicLinkRead(BaseSchema):

@@ -39,7 +39,7 @@ settings, the sliders beside the microphone.
 
 Resource lists, including Inbox and Routines, fill the remaining page height even when empty. Routines keeps its templates in the creation form rather than a separate ideas panel.
 
-Chat uses larger agent portraits without rings. Its Files toggle stays in the composer while the panel opens or closes, with reduced motion respected. Chat settings show the current model first. Expand **Change model** to edit the prefilled provider and model; the choice applies only after **Run on this model**. Attachment cards sit above the composer without an extra shadowed panel.
+Chat uses larger agent portraits without rings. In full desktop chats, the Files toggle stays in the workspace controls while the panel opens or closes, with reduced motion respected. Chat settings show the current model first. Expand **Change model** to edit the prefilled provider and model; the choice applies only after **Run on this model**. Attachment cards sit above the composer without an extra shadowed panel.
 
 On phones, skill and context editors keep descriptions, categories and file management folded away while writing. One button switches between source and preview. Apps use floating back and options buttons; opening options reveals the title, version, theme and sharing controls.
 
@@ -77,6 +77,10 @@ Markdown fields and file editors also offer an expand button without discarding 
 Page headers use the surrounding layout’s spacing once. Cards, sidebar rows, tabs and empty states use compact spacing on desktop while interactive controls keep larger touch targets.
 
 Secondary buttons and toolbar filters share a more visible filled surface, full-contrast labels and distinct hover, pressed and open states. The chat model picker follows the same secondary-action styling.
+
+An agent chat's header shows its current model with the provider's icon. Open the model pill to search saved models, switch provider or account, or choose **Use agent's model**. The selection applies to the next message and is remembered for your account in the current organization; it does not edit the agent. A running turn keeps its model. Disconnected connections and models that cannot chat remain visible but cannot be selected. An unreadable model list offers **Retry**. **Controls** beside the message box retains the full model and connection setup.
+
+Changing the header selection requires `connections:manage`, as the existing model controls do. Read-only conversations and people without that permission still see the current model.
 
 Personal settings use horizontal, scrollable tabs on desktop and phones. Explanatory copy opens from information buttons; requirements, validation errors and destructive-action warnings stay visible. Account holds password changes and active sessions.
 
@@ -351,9 +355,20 @@ On a phone there is no bubble - it would cover the page it talks about - and the
 button carries the dot instead. Approvals it has raised stay raised for the rest
 of the browser tab, even when a link reloads the console.
 
-Its window is the console's own chat, not a page inside the page, and opens on
-four tiles, so a first message is a click; it keeps its own conversation
-history. On a phone it fills the screen.
+Its window uses the console's chat and starts with the main assistant selected.
+Use the agent selector in the header to choose a published agent you are allowed
+to run. Switching agents keeps the current conversation; the header and
+conversation history follow the selection. The Architect's welcome tiles appear
+only when the main assistant is selected. On a phone the window fills the screen.
+
+Each new question includes fresh structured context about the current console
+page while page context is enabled. The window shows which page will be shared and
+lets you switch sharing off.
+
+A queued question or a retry of a refused submission keeps the page context and
+agent selected when you submitted it. A new question or regenerated answer uses
+the current page and current agent. Changing account or organization resets the
+window's conversation, agent selection and page context setting.
 
 When it names a page, the link opens in the console behind the window and
 points at the control it means — the button that creates an agent, the tab with
@@ -361,7 +376,7 @@ the approvals. The camera in its header shows it the page you are on: your
 browser asks which tab to share, and one picture is attached to your next
 message.
 
-It plans longer jobs as a checklist you can watch, keeps notes about
+The Architect plans longer jobs as a checklist you can watch, keeps notes about
 you between conversations, can tell you what your agents cost, and deletes
 nothing but an agent draft it made by mistake and a routine you ask it to
 remove. Besides approvals and an
@@ -627,10 +642,45 @@ send or paste elsewhere - an e-mail, a reply, a post - as a card in its answer. 
 part has its own copy icon, which copies plain text; several variants of one draft
 are tabs in the same card. A message's own **Copy** includes its drafts.
 
+**Browser, Computer and Files.** In full desktop chats, the controls sit on the
+right and open a Browser, Computer or Files panel. This rail is hidden on phones
+and in compact chats.
+
+Browser and Computer can be opened before the
+agent has used them; opening an empty panel starts no run or hosted session.
+
+Enter the website address in Browser before starting it. If
+the selected agent has the corresponding hosted capability and you may run it,
+an explicit start action asks it to open the browser or take a desktop screenshot.
+Otherwise the panel explains what is unavailable. The agent's published settings
+and access controls still apply. In team rooms, choose a responder in the room
+composer and ask them to open the browser or computer. The panels remain available
+for viewing.
+
+Browser and Computer views stay separate. Panels start closed; closing one keeps
+it closed as new tool results arrive. On narrow screens the selected panel fills
+the screen. After a run, a completed image is labelled **Last view**; it is not a
+live desktop. Request a new screenshot to update a Computer view.
+
+**Agent settings.** In full desktop chats, the settings control on the right opens
+the selected agent's draft beside the conversation. The rail is hidden on phones
+and in compact chats; use the full agent editor there. Edit its name, short
+description, instructions, default model and existing capability switches, then
+choose **Save draft**.
+**Review and publish** validates the saved draft and opens the existing publication
+confirmation. Changing the default here does not clear a model override in Chat
+controls, and a running turn keeps its frozen configuration.
+
+Editing and publishing follow the server's access decision for this agent,
+including explicit resource grants. Read-only chats show settings without edit
+controls; workflow-owned agents remain configured in their workflow. Collapsing
+the pane or opening Browser, Computer or Files preserves unsaved edits for the
+selected agent. Save before switching agents or leaving the chat. Changes made
+elsewhere pause saving until you reload or choose to keep your edits.
+
 **Watching a browse.** The [web browser](reference/capabilities.md#browser-automation)
-opens automatically in a full-height side panel while the transcript scrolls.
-On narrow screens it opens full screen. Closing the panel leaves a compact link
-in the conversation to reopen it. Visited-page cards show the site icon, domain
+appears in its own panel beside the transcript. Visited-page cards reopen the
+Browser panel and show the site icon, domain
 and page title, including when the conversation is reopened. Each answer keeps
 one card per browser tab; clicks, rereads and going back update that card.
 The panel's tab strip switches between pages. After the run, the last image remains. **Resume session** asks the
@@ -709,7 +759,7 @@ in the box. A recording that failed to transcribe is kept until you press
 
 The glow around a hosted page's box while you speak follows **Voice glow** under
 **Settings → Profile → Appearance**, beside the theme and **Motion**: **Vivid**,
-**Subtle** (the default) or **Off**. It is remembered per browser. **Motion**
+**Subtle** (the default) or **Off**. Apply saves it to your account. **Motion**
 decides how much the whole console moves: **System** (the default) follows the
 operating system's reduced-motion setting, **Reduce** turns motion down without
 it, and **Full** keeps it whatever the operating system says. While motion is
@@ -718,7 +768,7 @@ is a five-step indicator.
 
 **Workflow steps** in the same card chooses how the workflow canvas draws a step:
 **In colour** (the default) draws each step in its family, **Simple** keeps the tiles
-neutral and the minimap grey. It is remembered per browser; the canvas toolbar has
+neutral and the minimap grey. It is saved on your account; the canvas toolbar has
 the same switch. See [How a step is drawn](workflows.md#how-a-step-is-drawn).
 
 ### The Voice card
@@ -863,7 +913,49 @@ An eligible summary's externalized text and media are restored into the copy, so
 
 A conversation with a saved checklist can be forked only at its latest message, which must be an assistant answer. The fork keeps that checklist, including task IDs and dependencies. Earlier checklist snapshots are not stored, so an earlier fork is refused rather than copying later tasks into an older history.
 
+### Side threads { #chat-side-threads }
+
+On a completed assistant answer in a personal conversation you own, **Side threads** lets you start a separate conversation from that point or reopen an existing branch from the same answer. The child opens beside the parent with its own composer and subsequent messages. The parent's transcript, draft and queued messages stay in place; messages sent in the child belong to the child.
+
+**Back to parent conversation** closes the side panel and opens the exact source answer, loading older history if necessary. Closing the panel keeps the child saved. Switching the source conversation, account or organization removes the old panel. Archived children open read-only. The list can load more branches from this answer, and a failed read or creation offers another attempt without switching the main conversation.
+
+### Compacting conversation context { #chat-compact-now }
+
+In an idle personal conversation you own, **Compact now** in the header asks the published agent to summarize earlier context. The action appears when the agent has a supported summarizing compaction strategy. Saved messages and your composer draft remain available. It is unavailable in room discussions, archived or read-only chats, workflows and draft test panels.
+
+A notice above the composer reports progress and the result: context compacted, no further reduction, busy, unavailable or failed. Sending and starting a voice call pause while compaction runs; **Stop** cancels the request. Switching conversations does not repeat it. The action uses the chat's selected model when applicable and follows the normal usage budgets. The context gauge keeps the last measured turn until a later model request updates it.
+
+### Replying to selected text { #chat-selected-quote }
+
+Select a passage in a saved message, then choose **Reply**. The composer keeps that excerpt, up to 280 characters, with the source message. Sending the reply preserves the selected passage when the conversation is reopened and when the agent reads the reply. This works in personal chats and writable room discussions. With no text selected, **Reply** keeps its existing whole-message behavior.
+
+Selections spanning separate messages or interactive controls are not used as excerpts. A passage in a combined assistant turn remains linked to the saved segment it came from; a segment that has not been saved cannot become a quoted reply.
+
+### Pinned messages { #chat-message-pins }
+
+Choose **Pin message** on a saved message to keep a personal bookmark. **Pinned messages** in the conversation header opens your list; choose an excerpt to return to its exact message, including an older page or a room reply. You can remove a pin from either the message or the list, load more pins, and retry a failed read.
+
+Pins belong to you. Other readers of a shared conversation do not see your pins, and a read-only recipient can keep their own bookmarks. Opening a pin still requires access to its conversation. A pin uses the current message excerpt and does not create another copy of its content.
+
+### Finding a message { #chat-message-search }
+
+Use **Search conversations** in the chat sidebar. **Message text** searches conversations you can read in the active organization and shows the best matching message in each result, with an excerpt and its time. Narrow the query if the first twenty conversations do not include the one you need. Choose **Conversation title** to search titles, including archived conversations.
+
+Selecting a message opens that exact place, including a reply inside a room thread. Older history loads one page at a time; **Cancel jump** stops the navigation. A failed read offers **Retry**, while a message no longer available is reported separately. The selected message keeps keyboard focus and folded work opens so a matching saved segment is visible. Following a link still requires access to the conversation.
+
+### Finding activity within a turn { #chat-trace-search }
+
+Open a turn's work history, then choose **Search and filter activity**. Search text, tool arguments and results within that turn, or show only **Tools**, **Reasoning**, **Errors** or **Messages**. Entries keep their original order and the final answer remains in place. Approvals, unanswered questions and model setup that need your attention stay visible even when they do not match. **Clear filters** or Escape restores the full activity; closing the filter controls also clears them.
+
+### Controls during a turn { #chat-live-controls }
+
+While an agent is working, **Queue** sends your next message after the current turn. **Steer** sends plain-text guidance to the running turn, which uses it when it next continues. The choice is remembered for your account, organization and selected agent, including the general assistant. Files, mentions, replies, page context and workflow inputs keep the ordinary queued path. If steering cannot be sent, the draft stays in the composer.
+
+Choosing a model while a turn is running shows **After this turn**: the preference applies to a later message. **Edit reasoning in agent settings** opens the agent draft's Thinking control for members who can edit it. Save the draft, then use the existing review and publish flow to apply that agent configuration to future runs.
+
 ### Background topics { #background-topics }
+
+In full desktop chat, **Tasks** on the right opens background work beside the conversation. Choose **This chat** or **All my tasks**, search titles, and open a task from **Needs you**, **Working**, **Waiting** or **Finished**. A new chat starts with your tasks across agents in the active organization. You can resize or expand the panel. Opening it starts no work; read-only chats keep links and hide **Stop**. A failed read offers **Retry**.
 
 Enable **Background topics** on a published agent to ask, for example: “Investigate the export bug in a new topic while we continue the release plan”, or “Have the finance agent check these figures while we discuss the proposal”. It can use its own pinned version or a published delegate pinned in its spec. Start from a conversation you own; the fresh topic belongs to the same project and carries the agent's brief and a link back, without copying the original transcript.
 
@@ -953,6 +1045,28 @@ The inbox requires mailbox proof in the current session: a fresh verified OAuth 
 Amber setup dots mark organization tabs and the matching Voice, nightly-suggestion, memory-maintenance and Architect cards when configuration is incomplete or suggestions are off. Hover or focus the dot for a specific explanation; click or tap it to keep the explanation open. Indicators use saved configuration, disappear when completed and respect the permissions needed to edit it. Disabled suggestions are described as optional setup, not an error. The iPhone push configuration card also marks a missing Apple key. Reduced-motion preferences disable the pulsing animation.
 
 Saved browser sign-ins use a compact, full-width settings panel instead of stretching a single entry to fill the page. Known services use their bundled brand marks; other sites use their own favicon without a referrer, with a globe if the image is unavailable.
+
+## Account appearance
+
+Choose **Settings → Profile → Appearance** to adjust your theme, style, accent
+colour, corners, text size, motion, voice glow and workflow steps. The sample
+updates as you choose. **Apply** saves your changes to your account; **Discard
+preview** leaves the saved choices alone. **Reset to defaults** immediately
+restores the system theme and standard appearance for your account.
+
+Your choices follow you across devices and organizations. The account menu's
+theme and style choices save immediately. Signing out clears the previous
+account's appearance; a different member does not inherit it. Existing browser
+preferences are not automatically copied to an account: select your choices once
+and apply them.
+
+You can ask an agent to change or reset your appearance in your own unshared
+private chat. The platform tools `get_my_appearance`, `set_my_appearance` and
+`reset_my_appearance` use the authenticated account and need `agents:run`;
+writes keep their normal approval policy. Shared chats, projects, channels,
+impersonation and unattended runs are refused. Tools accept only the listed
+tokens, never arbitrary CSS, URLs or another person's id. Open consoles refresh
+after an in-app tool completes, on focus, and within 30 seconds for other devices.
 
 ## Languages
 

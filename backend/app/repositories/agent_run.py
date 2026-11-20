@@ -79,6 +79,7 @@ async def create_run(
     provider: str | None = None,
     secret_id: UUID | None = None,
     parent_run_id: UUID | None = None,
+    retry_of_run_id: UUID | None = None,
     subagent_task_id: str | None = None,
     channel_identity_id: UUID | None = None,
     initiated_by_publisher_fallback: bool = False,
@@ -123,6 +124,7 @@ async def create_run(
         provider=provider,
         secret_id=secret_id,
         parent_run_id=parent_run_id,
+        retry_of_run_id=retry_of_run_id,
         subagent_task_id=subagent_task_id,
         status=RunStatus.RUNNING.value,
         started_at=started_at,
@@ -211,6 +213,8 @@ async def finish_run(
     error: str | None = None,
     logfire_trace_id: str | None = None,
     paused_state: dict[str, Any] | None = None,
+    fallback_used: bool | None = None,
+    serving_model: str | None = None,
     tool_args_repaired: int | None = None,
     cache_read_tokens: int | None = None,
     cache_write_tokens: int | None = None,
@@ -234,6 +238,13 @@ async def finish_run(
     if tool_args_repaired is not None:
         run.tool_args_repaired = tool_args_repaired
     run.ended_at = ended_at
+    # Left alone by a caller that passes none - an approval that expired, a
+    # parked run being closed - so it does not wipe what the run's earlier
+    # segments recorded. A caller that ran the model passes both.
+    if fallback_used is not None:
+        run.fallback_used = fallback_used
+    if serving_model is not None:
+        run.serving_model = serving_model
     run.error = error
     # Written even when unchanged in memory: another writer may have set it since
     # the run was loaded - the voice sweep's error on a call whose teardown was
@@ -492,6 +503,7 @@ async def mark_running(db: AsyncSession, *, run: AgentRun) -> AgentRun:
     run.ended_at = None
     # The next park starts unannounced.
     run.chat_notice_sent_at = None
+    run.question_nudged_at = None
     db.add(run)
     await db.flush()
     await db.refresh(run)
@@ -512,6 +524,45 @@ async def keep_paused_state(
 async def record_chat_notice(db: AsyncSession, *, run: AgentRun, at: datetime) -> AgentRun:
     """Remember that the run's chat was told this park could not continue."""
     run.chat_notice_sent_at = at
+    db.add(run)
+    await db.flush()
+    await db.refresh(run)
+    return run
+
+
+async def list_unnudged_runs(
+    db: AsyncSession, *, older_than: datetime, younger_than: datetime, limit: int = 500
+) -> list[AgentRun]:
+    """Every run parked on a question that is due its one reminder (#2064).
+
+    Parked longer than `older_than` (half the question window) but not yet
+    past `younger_than` (the expiry itself - those are the expiry sweep's,
+    not a reminder's), never reminded, and with no answer recorded since.
+    Not scoped to an organization, for the reason :func:`list_stale_approvals`
+    gives: its caller is the hourly sweep, which settles each run in its own
+    organization. Do not copy this shape into anything a route can reach.
+    """
+    result = await db.execute(
+        select(AgentRun)
+        .where(
+            AgentRun.status == RunStatus.AWAITING_ANSWER.value,
+            AgentRun.ended_at <= older_than,
+            AgentRun.ended_at > younger_than,
+            AgentRun.question_nudged_at.is_(None),
+            or_(
+                AgentRun.paused_state["question_results"].is_(None),
+                AgentRun.paused_state["question_results"] == {},
+            ),
+        )
+        .order_by(AgentRun.ended_at.asc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def record_question_nudge(db: AsyncSession, *, run: AgentRun, at: datetime) -> AgentRun:
+    """Remember that the run's chat was reminded once about its question."""
+    run.question_nudged_at = at
     db.add(run)
     await db.flush()
     await db.refresh(run)
@@ -3240,6 +3291,7 @@ async def latest_terminal_for_trigger(
                     RunStatus.LOOP_STOPPED.value,
                     RunStatus.BUDGET_EXCEEDED.value,
                     RunStatus.GUARDRAIL_BLOCKED.value,
+                    RunStatus.TIMED_OUT.value,
                 ]
             ),
         )
@@ -3372,3 +3424,187 @@ async def run_id_for_routine_activation(
         )
         .limit(1)
     )
+
+
+@dataclass(frozen=True)
+class FailureGroupRow:
+    """One (agent, model, status, stored error sentence) group of real runs.
+
+    The error class is parsed in Python - the stored sentence has no code -
+    so the grouping stops at the sentence and the service merges sentences
+    into classes.
+    """
+
+    agent_id: UUID
+    model_label: str | None
+    status: str
+    error: str | None
+    count: int
+    first_seen: datetime | None
+    last_seen: datetime | None
+
+
+# The statuses mining counts. `guardrail_blocked` is the platform working,
+# not a malfunction, so it is not a failure to learn from.
+MINED_STATUSES = ("failed", "cancelled", "loop_stopped", "budget_exceeded")
+
+
+async def failure_groups(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID | None = None,
+    since: datetime,
+    until: datetime | None = None,
+) -> list[FailureGroupRow]:
+    """Real top-level runs in the window, grouped by agent, model, status, error.
+
+    Test runs are the loop's own tries and delegations are already counted
+    inside their parent, so both are left out.
+    """
+    query = (
+        select(
+            AgentRun.agent_id,
+            AgentRun.model_label,
+            AgentRun.status,
+            AgentRun.error,
+            func.count(AgentRun.id),
+            func.min(AgentRun.started_at),
+            func.max(AgentRun.started_at),
+        )
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.started_at >= since,
+            AgentRun.is_test.is_(False),
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.status.in_(MINED_STATUSES),
+        )
+        .group_by(AgentRun.agent_id, AgentRun.model_label, AgentRun.status, AgentRun.error)
+    )
+    if agent_id is not None:
+        query = query.where(AgentRun.agent_id == agent_id)
+    if until is not None:
+        query = query.where(AgentRun.started_at < until)
+    rows = await db.execute(query)
+    return [FailureGroupRow(*row) for row in rows.all()]
+
+
+async def failure_group_samples(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    model_label: str | None,
+    status: str,
+    error: str | None,
+    limit: int = 5,
+) -> list[UUID]:
+    """The newest run ids of one failure group, for a pattern's evidence."""
+    error_clause = AgentRun.error.is_(None) if error is None else AgentRun.error == error
+    model_clause = (
+        AgentRun.model_label.is_(None)
+        if model_label is None
+        else AgentRun.model_label == model_label
+    )
+    result = await db.execute(
+        select(AgentRun.id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.agent_id == agent_id,
+            AgentRun.status == status,
+            AgentRun.is_test.is_(False),
+            AgentRun.parent_run_id.is_(None),
+            error_clause,
+            model_clause,
+        )
+        .order_by(AgentRun.started_at.desc(), AgentRun.id.desc())
+        .limit(limit)
+    )
+    return list(result.scalars())
+
+
+async def stalled_runs(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID | None = None,
+    stale_before: datetime,
+) -> list[AgentRun]:
+    """Runs still `running` whose heartbeat went stale before `stale_before`.
+
+    Only heartbeat-stale runs: a run stuck in a model call keeps beating its
+    heartbeat, so a fresh-heartbeat running run may still be hung - and
+    mining must not claim to catch it.
+    """
+    query = select(AgentRun).where(
+        AgentRun.organization_id == organization_id,
+        AgentRun.status == RunStatus.RUNNING.value,
+        AgentRun.heartbeat_at < stale_before,
+        AgentRun.is_test.is_(False),
+        AgentRun.parent_run_id.is_(None),
+    )
+    if agent_id is not None:
+        query = query.where(AgentRun.agent_id == agent_id)
+    result = await db.execute(query.order_by(AgentRun.started_at))
+    return list(result.scalars())
+
+
+@dataclass(frozen=True)
+class DownRatedRow:
+    """A down-rated answer, attributed to the nearest run before it.
+
+    Ratings attach to messages, not runs, so the attribution is approximate:
+    the run in the same conversation that started most recently before the
+    message. A message in a conversation with no earlier run has no run to
+    attribute to, and is left out rather than guessed.
+    """
+
+    run_id: UUID
+    agent_id: UUID
+    model_label: str | None
+    message_id: UUID
+    rated_at: datetime | None
+
+
+async def down_rated_messages(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID | None = None,
+    since: datetime,
+    until: datetime | None = None,
+) -> list[DownRatedRow]:
+    """Down-rated assistant messages in the window, with their nearest run."""
+    nearest_run_id = (
+        select(AgentRun.id)
+        .where(
+            AgentRun.conversation_id == Message.conversation_id,
+            AgentRun.started_at <= Message.created_at,
+            AgentRun.organization_id == organization_id,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.is_test.is_(False),
+        )
+        .order_by(AgentRun.started_at.desc(), AgentRun.id.desc())
+        .limit(1)
+        .correlate(Message)
+        .scalar_subquery()
+    )
+    query = (
+        select(
+            nearest_run_id,
+            AgentRun.agent_id,
+            AgentRun.model_label,
+            Message.id,
+            Message.created_at,
+        )
+        .select_from(MessageRating)
+        .join(Message, Message.id == MessageRating.message_id)
+        .join(AgentRun, AgentRun.id == nearest_run_id)
+        .where(MessageRating.rating < 0, Message.created_at >= since)
+    )
+    if agent_id is not None:
+        query = query.where(AgentRun.agent_id == agent_id)
+    if until is not None:
+        query = query.where(Message.created_at < until)
+    rows = await db.execute(query)
+    return [DownRatedRow(*row) for row in rows.all()]

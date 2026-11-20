@@ -127,6 +127,21 @@ class TriggerOverlap(enum.StrEnum):
     ALLOW = "allow"
 
 
+class TriggerConversationMode(enum.StrEnum):
+    """Which conversation a fire's run goes in (#14).
+
+    `CONTINUE` appends every fire to the trigger's one run-log conversation,
+    opened when the trigger is created - today's behaviour, and the default: a
+    trigger on the interval floor would otherwise mint ~1440 conversations a
+    day. `FRESH` opens a new conversation per fire and stores none of them on
+    the trigger, so each fire reads and writes only its own turn. There is no
+    third mode naming one conversation to keep appending to.
+    """
+
+    CONTINUE = "continue"
+    FRESH = "fresh"
+
+
 class EventSource(enum.StrEnum):
     """Where an *event* trigger's fire comes from.
 
@@ -369,11 +384,22 @@ class AgentTrigger(Base, TimestampMixin):
     # trigger is created (a per-fire conversation would be ~1440 rows a day on
     # the interval floor) and reused after. SET NULL so deleting the
     # conversation reopens a fresh log on the next fire rather than losing the
-    # schedule.
+    # schedule. Only `conversation_mode = 'continue'` uses it: a `fresh` trigger
+    # leaves it null and opens one conversation per fire instead (#14).
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="SET NULL"),
         nullable=True,
+    )
+
+    # Which conversation a fire's run goes in (#14): `continue` appends every
+    # fire to `conversation_id` above; `fresh` opens a new conversation per fire
+    # and stores none of them on the trigger.
+    conversation_mode: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default=TriggerConversationMode.CONTINUE.value,
+        server_default="continue",
     )
 
     # Where a fire's answer is also posted (#1985): a Teams conversation one of
@@ -492,6 +518,9 @@ class AgentTrigger(Base, TimestampMixin):
         ),
         CheckConstraint(
             "answer_to IN ('run_log', 'primary', 'conversation')", name="ck_trigger_answer_to"
+        ),
+        CheckConstraint(
+            "conversation_mode IN ('continue', 'fresh')", name="ck_trigger_conversation_mode"
         ),
         CheckConstraint(
             "event_source IS NULL OR event_source IN "

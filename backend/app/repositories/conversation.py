@@ -35,6 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, defer, load_only, raiseload, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
+from app.agents.ask_user import parked_question_texts
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
@@ -45,6 +46,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.conversation_last_read import ConversationLastRead
+from app.db.models.room_submission import RoomSubmission
 from app.db.models.user import User
 from app.repositories._search import contains_ci
 from app.schemas.conversation import HistoryCheckpointFrontier
@@ -565,6 +567,13 @@ RUNNING_HORIZON = timedelta(hours=2)
 class RunningActivity(NamedTuple):
     since: datetime
     run_ids: list[UUID]
+    # The freshest heartbeat among the conversation's running runs. A live
+    # run stamps it every 15 seconds; a dead process leaves it behind, and
+    # the chat shows the run as stalled once it is old enough - the sweep
+    # that ends such a run only fires at 120 seconds, and meanwhile the
+    # person watching deserves to know the run is not at work. Defaulted so
+    # existing constructions of the tuple keep working.
+    heartbeat_at: datetime | None = None
 
 
 async def running_activity(
@@ -574,7 +583,12 @@ async def running_activity(
     if not conversation_ids:
         return {}
     result = await db.execute(
-        select(AgentRun.conversation_id, func.min(AgentRun.started_at), func.array_agg(AgentRun.id))
+        select(
+            AgentRun.conversation_id,
+            func.min(AgentRun.started_at),
+            func.array_agg(AgentRun.id),
+            func.max(AgentRun.heartbeat_at),
+        )
         .where(
             AgentRun.conversation_id.in_(list(conversation_ids)),
             AgentRun.parent_run_id.is_(None),
@@ -586,8 +600,8 @@ async def running_activity(
         .group_by(AgentRun.conversation_id)
     )
     return {
-        identifier: RunningActivity(since, list(run_ids))
-        for identifier, since, run_ids in result.all()
+        identifier: RunningActivity(since, list(run_ids), heartbeat_at)
+        for identifier, since, run_ids, heartbeat_at in result.all()
         if identifier is not None and since is not None
     }
 
@@ -600,6 +614,71 @@ async def running_since(
         identifier: activity.since
         for identifier, activity in (await running_activity(db, conversation_ids)).items()
     }
+
+
+class WaitingActivity(NamedTuple):
+    since: datetime
+    status: str
+    question: str | None
+    run_ids: list[UUID]
+
+
+async def waiting_activity(
+    db: AsyncSession, conversation_ids: Collection[UUID]
+) -> dict[UUID, WaitingActivity]:
+    """Parked top-level runs and what they are waiting on, in one page query.
+
+    A run parked on an unanswered question or an undecided approval is not at
+    work, so `running_activity` never sees it - and from another tab or device
+    the thread then looks done, which is exactly the lie Theo's rule forbids:
+    a question the agent cannot answer must surface as a visible waiting state.
+    The park time is `ended_at`, the same clock the expiry sweep reads; a run
+    the sweep ends leaves this set with it, so no horizon is needed here.
+
+    One row per parked run, grouped in Python: the question is the first of
+    the run's unanswered `ask_user` questions, read out of `paused_state`,
+    and the earliest park is what the row reports.
+    """
+    if not conversation_ids:
+        return {}
+    result = await db.execute(
+        select(
+            AgentRun.conversation_id,
+            AgentRun.status,
+            AgentRun.ended_at,
+            AgentRun.paused_state,
+            AgentRun.id,
+        )
+        .where(
+            AgentRun.conversation_id.in_(list(conversation_ids)),
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.status.in_([RunStatus.AWAITING_ANSWER, RunStatus.AWAITING_APPROVAL]),
+            AgentRun.ended_at.is_not(None),
+        )
+        .order_by(AgentRun.ended_at)
+    )
+    activity: dict[UUID, WaitingActivity] = {}
+    for conversation_id, status, ended_at, paused_state, run_id in result.all():
+        if conversation_id is None or ended_at is None:
+            continue
+        state = paused_state or {}
+        question_ids = state.get("questions") or []
+        questions = parked_question_texts(
+            state.get("messages") or [],
+            [question_id for question_id in question_ids if isinstance(question_id, str)],
+        )
+        question = next(iter(questions), None)
+        current = activity.get(conversation_id)
+        if current is None:
+            activity[conversation_id] = WaitingActivity(
+                since=ended_at,
+                status=status.value if isinstance(status, RunStatus) else str(status),
+                question=question,
+                run_ids=[run_id],
+            )
+        else:
+            current.run_ids.append(run_id)
+    return activity
 
 
 async def running_users(db: AsyncSession, conversation_ids: Collection[UUID]) -> dict[UUID, UUID]:
@@ -1094,6 +1173,18 @@ async def fork_payload_bytes(db: AsyncSession, *, source_id: UUID, ordinal: int)
                     + func.octet_length(func.coalesce(Message.attachment_context, ""))
                     + func.octet_length(func.coalesce(Message.model_content, ""))
                     + func.octet_length(func.coalesce(cast(Message.parts, Text), ""))
+                    + func.octet_length(
+                        func.coalesce(
+                            case(
+                                (
+                                    Message.reply_to_message_id.in_(message_ids),
+                                    Message.reply_to_excerpt,
+                                ),
+                                else_="",
+                            ),
+                            "",
+                        )
+                    )
                 ),
                 0,
             )
@@ -1459,6 +1550,11 @@ async def fork_conversation(
         agent_id, version_id = attribution.get(
             original.id, (original.agent_id, original.agent_version_id)
         )
+        copied_reply_id = (
+            copied.get(original.reply_to_message_id)
+            if original.reply_to_message_id is not None
+            else None
+        )
         copy = Message(
             conversation_id=fork.id,
             role=original.role,
@@ -1472,8 +1568,10 @@ async def fork_conversation(
             agent_version_id=version_id,
             channel_identity_id=original.channel_identity_id,
             author_user_id=original.author_user_id,
-            reply_to_message_id=copied.get(original.reply_to_message_id)
-            if original.reply_to_message_id is not None
+            reply_to_message_id=copied_reply_id,
+            reply_to_excerpt=(original.reply_to_excerpt if copied_reply_id is not None else None),
+            thread_root_message_id=copied[original.thread_root_message_id]
+            if original.thread_root_message_id is not None
             else None,
             interrupted=original.interrupted,
             guardrail_refused=original.guardrail_refused,
@@ -1572,6 +1670,45 @@ async def owned_titles(
         )
     )
     return dict(result.tuples().all())
+
+
+async def list_conversation_forks(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    owner_id: UUID,
+    source_id: UUID,
+    message_id: UUID | None = None,
+    skip: int = 0,
+    limit: int = 100,
+) -> tuple[list[Conversation], int]:
+    """Personal, same-tenant child conversations of one owned source.
+
+    Archived children stay in the result so their owner can reopen them read-only.
+    Owner, tenant, source and personal scope all remain in SQL; a caller-supplied
+    source id cannot widen the set beyond the parent the service authorized.
+    """
+    filters = (
+        Conversation.organization_id == organization_id,
+        Conversation.user_id == owner_id,
+        Conversation.forked_from_conversation_id == source_id,
+        Conversation.project_id.is_(None),
+        *([Conversation.forked_from_message_id == message_id] if message_id is not None else []),
+    )
+    total = await db.scalar(select(func.count()).select_from(Conversation).where(*filters)) or 0
+    rows = (
+        await db.scalars(
+            select(Conversation)
+            .where(*filters)
+            .order_by(
+                func.coalesce(Conversation.updated_at, Conversation.created_at).desc(),
+                Conversation.id.desc(),
+            )
+            .offset(skip)
+            .limit(limit)
+        )
+    ).all()
+    return list(rows), total
 
 
 async def ensure_workflow_conversation(
@@ -1965,6 +2102,241 @@ async def get_message_by_id(db: AsyncSession, message_id: UUID) -> Message | Non
     return await db.get(Message, message_id)
 
 
+async def get_thread_root(
+    db: AsyncSession, *, conversation_id: UUID, root_message_id: UUID
+) -> Message | None:
+    """Load an eligible root only inside the conversation already authorized by the caller."""
+    return await db.scalar(
+        select(Message)
+        .where(
+            Message.id == root_message_id,
+            Message.conversation_id == conversation_id,
+            Message.thread_root_message_id.is_(None),
+            Message.role.in_(("user", "assistant")),
+        )
+        .options(
+            selectinload(Message.tool_calls),
+            selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
+        )
+        .execution_options(populate_existing=True)
+    )
+
+
+class ThreadSummary(NamedTuple):
+    reply_count: int
+    last_activity_at: datetime
+
+
+async def thread_summaries(
+    db: AsyncSession, *, conversation_id: UUID, root_ids: Collection[UUID]
+) -> dict[UUID, ThreadSummary]:
+    """Summarize the displayed roots in one query, including replies outside the page."""
+    if not root_ids:
+        return {}
+    rows = await db.execute(
+        select(Message.thread_root_message_id, func.count(), func.max(Message.created_at))
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.thread_root_message_id.in_(root_ids),
+        )
+        .group_by(Message.thread_root_message_id)
+    )
+    summaries: dict[UUID, ThreadSummary] = {}
+    for root, count, latest in rows.all():
+        assert root is not None, "the aggregate is restricted to named thread roots"
+        summaries[root] = ThreadSummary(count, latest)
+    return summaries
+
+
+async def room_thread_for_run(
+    db: AsyncSession, *, run_id: UUID, conversation_id: UUID, organization_id: UUID
+) -> UUID | None:
+    """The persisted request owns the answer's scope, including resumed segments."""
+    return await db.scalar(
+        select(Message.thread_root_message_id)
+        .join(RoomSubmission, RoomSubmission.message_id == Message.id)
+        .where(
+            RoomSubmission.run_id == run_id,
+            RoomSubmission.organization_id == organization_id,
+            RoomSubmission.conversation_id == conversation_id,
+            Message.conversation_id == conversation_id,
+        )
+    )
+
+
+class RunMessageScope(NamedTuple):
+    thread_root_message_id: UUID | None
+
+
+async def message_scope_for_run(
+    db: AsyncSession, *, run_id: UUID, conversation_id: UUID, organization_id: UUID
+) -> RunMessageScope | None:
+    """One source run's surviving scope, never main merely because its post vanished.
+
+    A background result waits until its source run is terminal, when its prompt
+    or answer is committed. Missing or inconsistently scoped rows cannot identify
+    a destination; in particular deleting a thread removes its source turns.
+    """
+    roots = list(
+        (
+            await db.scalars(
+                select(Message.thread_root_message_id)
+                .join(AgentRun, AgentRun.id == Message.run_id)
+                .where(
+                    AgentRun.id == run_id,
+                    AgentRun.organization_id == organization_id,
+                    AgentRun.conversation_id == conversation_id,
+                    Message.conversation_id == conversation_id,
+                )
+                .distinct()
+                .limit(2)
+            )
+        ).all()
+    )
+    return RunMessageScope(roots[0]) if len(roots) == 1 else None
+
+
+async def _thread_with_parent_context(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    root: Message,
+    replies: list[Message],
+    limit: int,
+) -> list[Message]:
+    remaining = limit - len(replies) - 1
+    earlier = (
+        await get_messages_by_conversation(
+            db,
+            conversation_id,
+            limit=remaining,
+            latest=True,
+            before=root.id,
+            include_tool_calls=True,
+            top_level_only=True,
+            fresh=True,
+        )
+        if remaining
+        else []
+    )
+    return [*earlier, root, *replies]
+
+
+async def get_thread_history_messages(
+    db: AsyncSession, conversation_id: UUID, *, root_message_id: UUID, limit: int
+) -> list[Message] | None:
+    """Current selected-thread context for an admitted background result."""
+    root = await get_thread_root(
+        db, conversation_id=conversation_id, root_message_id=root_message_id
+    )
+    if root is None:
+        return None
+    if limit < 1:
+        return []
+    replies = await get_messages_by_conversation(
+        db,
+        conversation_id,
+        limit=limit - 1,
+        latest=True,
+        fresh=True,
+        thread_root_message_id=root.id,
+    )
+    return await _thread_with_parent_context(
+        db,
+        conversation_id=conversation_id,
+        root=root,
+        replies=replies,
+        limit=limit,
+    )
+
+
+async def get_room_history_messages(
+    db: AsyncSession,
+    conversation_id: UUID,
+    *,
+    request_message_id: UUID,
+    limit: int,
+) -> list[Message] | None:
+    """A queued request's bounded context, isolated from other subthreads.
+
+    A question can be saved while the previous agent is still answering. Its
+    history must include that completed answer, even though the answer's ordinal
+    is newer, without admitting questions submitted after this request. The
+    request ledger, rather than message adjacency, identifies those late answers.
+    A subthread prioritizes its own replies and retains the root. Any remaining
+    budget is filled by main-room context strictly before that root. Sibling
+    threads and later main-room turns cannot enter its model history.
+    None means the requested boundary or root is unavailable in this conversation.
+    """
+    boundary = (
+        await db.execute(
+            select(
+                Message.ordinal,
+                RoomSubmission.ordinal,
+                RoomSubmission.organization_id,
+                Message.thread_root_message_id,
+            )
+            .join(RoomSubmission, RoomSubmission.message_id == Message.id)
+            .where(
+                Message.id == request_message_id,
+                Message.conversation_id == conversation_id,
+                RoomSubmission.conversation_id == conversation_id,
+            )
+        )
+    ).one_or_none()
+    if boundary is None:
+        return None
+    message_ordinal, submission_ordinal, organization_id, root_id = boundary
+    requested = aliased(Message)
+    preceding_runs = (
+        select(RoomSubmission.run_id)
+        .join(requested, requested.id == RoomSubmission.message_id)
+        .where(
+            RoomSubmission.organization_id == organization_id,
+            RoomSubmission.conversation_id == conversation_id,
+            RoomSubmission.ordinal < submission_ordinal,
+            RoomSubmission.run_id.is_not(None),
+            RoomSubmission.status.in_(("completed", "failed", "cancelled", "interrupted")),
+            requested.thread_root_message_id.is_not_distinct_from(root_id),
+        )
+    )
+    root = None
+    if root_id is not None:
+        root = await get_thread_root(db, conversation_id=conversation_id, root_message_id=root_id)
+        if root is None:
+            return None
+    if limit < 1:
+        return []
+    result = await db.execute(
+        select(Message)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.thread_root_message_id.is_not_distinct_from(root_id),
+            or_(
+                Message.ordinal < message_ordinal,
+                and_(Message.role == "assistant", Message.run_id.in_(preceding_runs)),
+            ),
+        )
+        .options(
+            selectinload(Message.tool_calls),
+            selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
+        )
+        .order_by(Message.ordinal.desc())
+        .limit(limit if root is None else limit - 1)
+        .execution_options(populate_existing=True)
+    )
+    replies = list(reversed(result.scalars().all()))
+    if root is None:
+        return replies
+    return await _thread_with_parent_context(
+        db,
+        conversation_id=conversation_id,
+        root=root,
+        replies=replies,
+        limit=limit,
+    )
+
+
 async def get_messages_by_conversation(
     db: AsyncSession,
     conversation_id: UUID,
@@ -1976,6 +2348,9 @@ async def get_messages_by_conversation(
     before: UUID | None = None,
     for_model: bool = False,
     fresh: bool = False,
+    top_level_only: bool = False,
+    thread_root_message_id: UUID | None = None,
+    through_ordinal: int | None = None,
 ) -> list[Message]:
     """Get messages for a conversation, in the order they were written.
 
@@ -1990,6 +2365,12 @@ async def get_messages_by_conversation(
     planner felt like it. See `Message.ordinal`.
     """
     query = select(Message).where(Message.conversation_id == conversation_id)
+    if through_ordinal is not None:
+        query = query.where(Message.ordinal <= through_ordinal)
+    if top_level_only:
+        query = query.where(Message.thread_root_message_id.is_(None))
+    if thread_root_message_id is not None:
+        query = query.where(Message.thread_root_message_id == thread_root_message_id)
     if for_model:
         query = query.where(Message.guardrail_refused.is_(False))
     if include_tool_calls or fresh:
@@ -1998,12 +2379,12 @@ async def get_messages_by_conversation(
         selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True)
     )
     if before is not None:
-        boundary = (
-            select(Message.ordinal)
-            .where(Message.id == before, Message.conversation_id == conversation_id)
-            .scalar_subquery()
+        boundary = select(Message.ordinal).where(
+            Message.id == before, Message.conversation_id == conversation_id
         )
-        query = query.where(Message.ordinal < boundary)
+        if thread_root_message_id is not None:
+            boundary = boundary.where(Message.thread_root_message_id == thread_root_message_id)
+        query = query.where(Message.ordinal < boundary.scalar_subquery())
     order = Message.ordinal.desc() if latest else Message.ordinal.asc()
     query = query.order_by(order).offset(skip).limit(limit)
     result = await db.execute(query.execution_options(populate_existing=fresh))
@@ -2012,10 +2393,22 @@ async def get_messages_by_conversation(
 
 
 async def count_messages(
-    db: AsyncSession, conversation_id: UUID, *, for_model: bool = False
+    db: AsyncSession,
+    conversation_id: UUID,
+    *,
+    for_model: bool = False,
+    top_level_only: bool = False,
+    thread_root_message_id: UUID | None = None,
+    through_ordinal: int | None = None,
 ) -> int:
     """Count messages in a conversation."""
     query = select(func.count(Message.id)).where(Message.conversation_id == conversation_id)
+    if through_ordinal is not None:
+        query = query.where(Message.ordinal <= through_ordinal)
+    if top_level_only:
+        query = query.where(Message.thread_root_message_id.is_(None))
+    if thread_root_message_id is not None:
+        query = query.where(Message.thread_root_message_id == thread_root_message_id)
     if for_model:
         query = query.where(Message.guardrail_refused.is_(False))
     result = await db.execute(query)
@@ -2157,7 +2550,12 @@ def _refused(run_id: UUID) -> ColumnElement[bool]:
 
 
 async def get_recent_messages(
-    db: AsyncSession, conversation_id: UUID, *, limit: int
+    db: AsyncSession,
+    conversation_id: UUID,
+    *,
+    limit: int,
+    top_level_only: bool = False,
+    through_ordinal: int | None = None,
 ) -> list[Message]:
     """The last `limit` messages of a conversation, still oldest first.
 
@@ -2171,24 +2569,43 @@ async def get_recent_messages(
 
     One `COUNT(*)` on an indexed column is what the right offset costs.
     """
-    total = await count_messages(db, conversation_id)
+    total = await count_messages(
+        db,
+        conversation_id,
+        top_level_only=top_level_only,
+        through_ordinal=through_ordinal,
+    )
     return await get_messages_by_conversation(
-        db, conversation_id, skip=max(0, total - limit), limit=limit, fresh=True
+        db,
+        conversation_id,
+        skip=max(0, total - limit),
+        limit=limit,
+        fresh=True,
+        top_level_only=top_level_only,
+        through_ordinal=through_ordinal,
     )
 
 
 async def get_messages_before(
-    db: AsyncSession, conversation_id: UUID, *, organization_id: UUID, ordinal: int, limit: int
+    db: AsyncSession,
+    conversation_id: UUID,
+    *,
+    organization_id: UUID,
+    ordinal: int,
+    limit: int,
+    thread_root_message_id: UUID | None = None,
 ) -> list[Message]:
     """The last `limit` messages written before `ordinal`, still oldest first.
 
     The conversation so far at one turn - what a test case taken from that turn
     replays as its prefix. Bounded for the same reason `get_messages_after` is,
-    and without the attachments for the same reason too.
+    and without the attachments for the same reason too. A null root selects
+    main-room turns; a named root selects only its replies, never the root.
     """
     in_conversation = (
         Message.conversation_id == conversation_id,
         Message.ordinal < ordinal,
+        Message.thread_root_message_id.is_not_distinct_from(thread_root_message_id),
         Message.conversation_id.in_(
             select(Conversation.id).where(Conversation.organization_id == organization_id)
         ),
@@ -2206,18 +2623,27 @@ async def get_messages_before(
 
 
 async def get_messages_following(
-    db: AsyncSession, conversation_id: UUID, *, organization_id: UUID, ordinal: int, limit: int
+    db: AsyncSession,
+    conversation_id: UUID,
+    *,
+    organization_id: UUID,
+    ordinal: int,
+    limit: int,
+    thread_root_message_id: UUID | None = None,
 ) -> list[Message]:
     """The first `limit` messages written after `ordinal`, oldest first.
 
     The rest of one turn: the steps an agent wrote after one of its own, up to
-    the next question. Without the attachments, as `get_messages_before`.
+    the next question in the selected discussion. A null root selects main-room
+    turns; a named root selects only its replies. Without the attachments, as
+    `get_messages_before`.
     """
     query = (
         select(Message)
         .where(
             Message.conversation_id == conversation_id,
             Message.ordinal > ordinal,
+            Message.thread_root_message_id.is_not_distinct_from(thread_root_message_id),
             Message.conversation_id.in_(
                 select(Conversation.id).where(Conversation.organization_id == organization_id)
             ),
@@ -2242,7 +2668,13 @@ async def tool_calls_of_messages(db: AsyncSession, message_ids: list[UUID]) -> l
 
 
 async def get_messages_after(
-    db: AsyncSession, conversation_id: UUID, *, ordinal: int, limit: int
+    db: AsyncSession,
+    conversation_id: UUID,
+    *,
+    ordinal: int,
+    limit: int,
+    top_level_only: bool = False,
+    through_ordinal: int | None = None,
 ) -> list[Message]:
     """The last `limit` messages written after `ordinal`, still oldest first.
 
@@ -2254,14 +2686,15 @@ async def get_messages_after(
     Refresh the refusal flag while keeping serializable relationships loaded:
     the same identity-map rows can still be returned by the turn that wrote them.
     """
-    total = await db.scalar(
-        select(func.count(Message.id)).where(
-            Message.conversation_id == conversation_id, Message.ordinal > ordinal
-        )
-    )
+    conditions = [Message.conversation_id == conversation_id, Message.ordinal > ordinal]
+    if through_ordinal is not None:
+        conditions.append(Message.ordinal <= through_ordinal)
+    if top_level_only:
+        conditions.append(Message.thread_root_message_id.is_(None))
+    total = await db.scalar(select(func.count(Message.id)).where(*conditions))
     query = (
         select(Message)
-        .where(Message.conversation_id == conversation_id, Message.ordinal > ordinal)
+        .where(*conditions)
         .options(
             selectinload(Message.tool_calls),
             selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
@@ -2297,6 +2730,34 @@ async def capability_loads_in_messages(
     return list(result.all())
 
 
+async def has_room_submissions(db: AsyncSession, conversation_id: UUID) -> bool:
+    """Whether a room queue means this history is not a shared transcript prefix."""
+    return bool(
+        await db.scalar(select(exists().where(RoomSubmission.conversation_id == conversation_id)))
+    )
+
+
+async def has_unfinished_runs(db: AsyncSession, conversation_id: UUID) -> bool:
+    """Whether a top-level run is active or parked on a resumable human action."""
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    AgentRun.conversation_id == conversation_id,
+                    AgentRun.parent_run_id.is_(None),
+                    AgentRun.status.in_(
+                        [
+                            RunStatus.RUNNING,
+                            RunStatus.AWAITING_APPROVAL,
+                            RunStatus.AWAITING_ANSWER,
+                        ]
+                    ),
+                )
+            )
+        )
+    )
+
+
 async def set_summary(
     db: AsyncSession,
     *,
@@ -2304,36 +2765,60 @@ async def set_summary(
     messages: dict[str, Any],
     ordinal: int,
     expected_revision: int,
-    expected_frontier: HistoryCheckpointFrontier,
+    expected_frontier: HistoryCheckpointFrontier | None = None,
     through_message: Message | None = None,
+    expected_ordinal: int | None = None,
 ) -> bool:
     """Replace only the checkpoint and transcript frontier this turn actually read.
 
     A concurrent turn cannot replace a checkpoint it did not build on or cover
     intervening rows it never saw. The turn's own run may persist its prompt
     after reading history; those rows are already in its model result.
+
+    A room request reads a filtered history, not a contiguous transcript prefix.
+    Its compaction cannot replace this shared cache or claim to cover later queued
+    questions. Check this in the update itself so a concurrent first room message
+    cannot slip between a service-level check and the cache write. An idle
+    maintenance summary passes `expected_ordinal` instead of a frontier; it writes
+    no transcript rows of its own, so any later row invalidates its snapshot.
     """
-    unseen = select(Message.id).where(
-        Message.conversation_id == db_conversation.id,
-        Message.ordinal > expected_frontier.message_ordinal,
-        Message.ordinal <= ordinal,
-        Message.guardrail_refused.is_(False),
-    )
-    if through_message is not None:
-        unseen = unseen.where(
-            Message.run_id.is_distinct_from(through_message.run_id)
-            if through_message.run_id is not None
-            else Message.id != through_message.id
+    conditions = [
+        Conversation.id == db_conversation.id,
+        Conversation.guardrail_revision == expected_revision,
+        ~exists().where(RoomSubmission.conversation_id == Conversation.id),
+    ]
+    if expected_ordinal is not None:
+        conditions.append(
+            ~exists().where(
+                Message.conversation_id == Conversation.id,
+                Message.ordinal > expected_ordinal,
+            )
+        )
+    if expected_frontier is not None:
+        unseen = select(Message.id).where(
+            Message.conversation_id == db_conversation.id,
+            Message.ordinal > expected_frontier.message_ordinal,
+            Message.ordinal <= ordinal,
+            Message.guardrail_refused.is_(False),
+        )
+        if through_message is not None:
+            unseen = unseen.where(
+                Message.run_id.is_distinct_from(through_message.run_id)
+                if through_message.run_id is not None
+                else Message.id != through_message.id
+            )
+        conditions.extend(
+            [
+                Conversation.summary_ordinal.is_not_distinct_from(
+                    expected_frontier.summary_ordinal
+                ),
+                literal(ordinal) >= expected_frontier.message_ordinal,
+                ~exists(unseen),
+            ]
         )
     updated = await db.scalar(
         sql_update(Conversation)
-        .where(
-            Conversation.id == db_conversation.id,
-            Conversation.guardrail_revision == expected_revision,
-            Conversation.summary_ordinal.is_not_distinct_from(expected_frontier.summary_ordinal),
-            literal(ordinal) >= expected_frontier.message_ordinal,
-            ~exists(unseen),
-        )
+        .where(*conditions)
         .values(summary_messages=messages, summary_ordinal=ordinal)
         .returning(Conversation.id)
     )
@@ -2509,6 +2994,8 @@ async def create_message(
     channel_identity_id: UUID | None = None,
     author_user_id: UUID | None = None,
     reply_to_message_id: UUID | None = None,
+    reply_to_excerpt: str | None = None,
+    thread_root_message_id: UUID | None = None,
     attachment_context: str | None = None,
 ) -> Message:
     """Create a new message."""
@@ -2523,6 +3010,8 @@ async def create_message(
         channel_identity_id=channel_identity_id,
         author_user_id=author_user_id,
         reply_to_message_id=reply_to_message_id,
+        reply_to_excerpt=reply_to_excerpt,
+        thread_root_message_id=thread_root_message_id,
         thinking=thinking,
         parts=parts,
         model_name=model_name,

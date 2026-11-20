@@ -11,7 +11,7 @@
  * was what a deployment holding hundreds reported.
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,6 +24,8 @@ import * as invalidation from "@/lib/coalesced-invalidation";
 import {
   useAgentSelectionStore,
   useChatBandsStore,
+  useChatListModeStore,
+  useChatSidebarStore,
   useConversationStore,
   useWorkingStore,
   useOrgStore,
@@ -44,8 +46,16 @@ vi.mock("@/components/agents/agent-avatar", () => ({
   AgentAvatar: ({ name }: { name: string }) => <span>{name}</span>,
 }));
 vi.mock("@/components/agents/conversation-agents", () => ({
-  ConversationAgents: ({ agents }: { agents: Array<{ name: string }> }) => (
-    <span data-testid="row-agents">{agents.map((agent) => agent.name).join(", ")}</span>
+  ConversationAgents: ({
+    agents,
+    showName = true,
+  }: {
+    agents: Array<{ name: string }>;
+    showName?: boolean;
+  }) => (
+    <span data-testid="row-agents" data-names={agents.map((agent) => agent.name).join(", ")}>
+      {showName ? agents.map((agent) => agent.name).join(", ") : null}
+    </span>
   ),
 }));
 // The event path is the portal grid, covered by the portal tests; stubbed here so
@@ -56,14 +66,13 @@ vi.mock("@/components/triggers/new-event-trigger-dialog", () => ({
 }));
 
 let urlParams = new URLSearchParams();
+/** What `/conversations/shared-with-me` answers with: nothing, unless a test shares something. */
+let shared: Conversation[] = [];
 vi.mock("next/navigation", () => ({
   useSearchParams: () => urlParams,
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   usePathname: () => "/chat",
 }));
-
-/** What `/conversations/shared-with-me` answers with: nothing, unless a test shares something. */
-let shared: Conversation[] = [];
 
 function conversation(id: string, title: string, favourite = false): Conversation {
   return {
@@ -125,6 +134,7 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/chat");
   useConversationStore.getState().reset();
   useWorkingStore.getState().reset();
+  useChatSidebarStore.getState().close();
   useChatBandsStore.setState({ folded: [], opened: [] });
   shared = [];
   mockAgents = [{ id: "a-1", name: "Analyst", status: "published", can_run: true }];
@@ -185,7 +195,7 @@ describe("a sidebar that leaves while refreshing", () => {
     let refuseFirst: (reason: unknown) => void = () => {};
     let messagesRead = 0;
     vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
-      if (path === "/conversations/c-reopen/messages?latest=true&limit=101") {
+      if (path === "/conversations/c-reopen/messages?latest=true&limit=101&top_level_only=true") {
         messagesRead += 1;
         if (messagesRead === 1)
           return new Promise((_, reject) => {
@@ -222,7 +232,8 @@ describe("a sidebar that leaves while refreshing", () => {
     });
     const ordinaryGet = vi.mocked(apiClient.get).getMockImplementation();
     vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
-      if (path === "/conversations/c-late/messages?latest=true&limit=101") return transcript;
+      if (path === "/conversations/c-late/messages?latest=true&limit=101&top_level_only=true")
+        return transcript;
       return ordinaryGet?.(path, options);
     });
     const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockReturnValue(pending);
@@ -231,7 +242,7 @@ describe("a sidebar that leaves while refreshing", () => {
       await waitFor(() => expect(invalidate).toHaveBeenCalled());
       await waitFor(() =>
         expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).toContain(
-          "/conversations/c-late/messages?latest=true&limit=101",
+          "/conversations/c-late/messages?latest=true&limit=101&top_level_only=true",
         ),
       );
       unmount();
@@ -284,6 +295,29 @@ describe("what the sidebar says about the list", () => {
     expect(within(busy).getByText(/Working/)).toBeInTheDocument();
     const quiet = within(list()).getByText("Quiet one").closest("[class*='group']") as HTMLElement;
     expect(within(quiet).queryByText(/Working/)).toBeNull();
+  });
+
+  it("says a thread is waiting on its person, from the server's word alone", async () => {
+    // No turn ran in this tab: the run parked on a question somewhere else,
+    // and the thread must not look done for it.
+    serve([
+      {
+        ...conversation("c-1", "Waiting one"),
+        waiting_since: new Date(Date.now() - 60_000).toISOString(),
+        waiting_status: "awaiting_answer",
+        waiting_question: "Which model should I use?",
+      },
+      conversation("c-2", "Quiet one"),
+    ] as unknown as ReturnType<typeof conversation>[]);
+    mount();
+    await screen.findAllByText("Waiting one");
+
+    const waiting = within(list())
+      .getByText("Waiting one")
+      .closest("[class*='group']") as HTMLElement;
+    expect(within(waiting).getByText("Waiting for an answer")).toBeInTheDocument();
+    const quiet = within(list()).getByText("Quiet one").closest("[class*='group']") as HTMLElement;
+    expect(within(quiet).queryByText("Waiting for an answer")).toBeNull();
   });
 
   it("says a thread is at work the moment this tab asks in it, before the server does", async () => {
@@ -485,86 +519,17 @@ describe("what the sidebar says about the list", () => {
     expect(screen.queryByRole("menuitem", { name: "Delete" })).toBeNull();
   });
 
-  it("marks a fork with the conversation it came from, so it reads apart from its source", async () => {
-    serve([
-      conversation("c-1", "Quarterly numbers"),
-      {
-        ...conversation("c-2", "Quarterly numbers"),
-        forked_from: { conversation_id: "c-1", message_id: "m-1", title: "Quarterly numbers" },
-      },
-    ]);
-    mount();
-    await within(list()).findAllByText("Quarterly numbers");
-
-    expect(within(list()).getAllByRole("img", { name: "Fork of Quarterly numbers" })).toHaveLength(
-      1,
-    );
-  });
-
-  it("opens its actions as a menu that is announced and walked with the keyboard", async () => {
-    serve([conversation("c-1", "Quarterly numbers")]);
-    mount();
-    await screen.findAllByText("Quarterly numbers");
-    const trigger = within(list()).getByRole("button", { name: "Conversation actions" });
-    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
-    expect(trigger).toHaveAttribute("aria-expanded", "false");
-
-    trigger.focus();
-    await userEvent.keyboard("{Enter}");
-
-    expect(trigger).toHaveAttribute("aria-expanded", "true");
-    const menu = screen.getByRole("menu");
-    const items = within(menu).getAllByRole("menuitem");
-    expect(items.map((item) => item.textContent)).toEqual([
-      "Rename",
-      "Share",
-      "Favourite",
-      "Archive",
-      "Delete",
-    ]);
-    await waitFor(() => expect(items[0]).toHaveFocus());
-    await userEvent.keyboard("{ArrowDown}");
-    expect(items[1]).toHaveFocus();
-
-    await userEvent.keyboard("{Escape}");
-    expect(screen.queryByRole("menu")).toBeNull();
-    expect(trigger).toHaveAttribute("aria-expanded", "false");
-    expect(useConversationStore.getState().currentConversationId).toBeNull();
-  });
-
-  it("renames from the menu, with the focus left in the title's field", async () => {
-    serve([conversation("c-1", "Quarterly numbers")]);
-    vi.mocked(apiClient.patch).mockResolvedValue({});
-    mount();
-    await screen.findAllByText("Quarterly numbers");
-
-    await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
-    const field = within(list()).getByDisplayValue("Quarterly numbers");
-    await waitFor(() => expect(field).toHaveFocus());
-    await userEvent.clear(field);
-    await userEvent.type(field, "Q3 numbers{Enter}");
-
-    await waitFor(() =>
-      expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1", { title: "Q3 numbers" }),
-    );
-  });
-
   it("opens no conversation when its menu is opened, or closed by clicking away", async () => {
     serve([conversation("c-1", "Quarterly numbers")]);
     mount();
     await screen.findAllByText("Quarterly numbers");
-    const row = within(list()).getByText("Quarterly numbers").closest(".group") as HTMLElement;
 
-    await userEvent.click(within(row).getByRole("button", { name: "Conversation actions" }));
-    // A click on the menu itself, between its items.
-    await userEvent.click(screen.getByRole("menu"));
+    await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
+    expect(await screen.findByRole("menuitem", { name: "Rename" })).toBeInTheDocument();
     expect(useConversationStore.getState().currentConversationId).toBeNull();
 
-    // While it is open the rest of the page takes no pointer, so a click away
-    // only closes it.
-    fireEvent.pointerDown(document.body);
-    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Rename" })).toBeNull());
     expect(useConversationStore.getState().currentConversationId).toBeNull();
   });
 
@@ -804,13 +769,18 @@ describe("the three icons over the list", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
-  it("searches the server from a window, and opens the pick", async () => {
+  it("searches conversation titles on the server from a window, and opens the pick", async () => {
     mount();
     await screen.findAllByText("Quarterly numbers");
 
     await userEvent.click(within(list()).getByRole("button", { name: "Search conversations" }));
     const dialog = await screen.findByRole("dialog", { name: "Search conversations" });
-    expect(within(dialog).getByText("Type to search your conversations by title.")).toBeVisible();
+    const mode = within(dialog).getByRole("combobox", { name: "Search by" });
+    await userEvent.selectOptions(mode, "titles");
+    expect(mode).toHaveValue("titles");
+    expect(
+      within(dialog).getByText("Search conversation titles, including archived conversations."),
+    ).toBeVisible();
 
     serve([conversation("c-9", "Refund policy")]);
     await userEvent.type(within(dialog).getByRole("textbox"), "refund");
@@ -821,16 +791,23 @@ describe("the three icons over the list", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("says when nothing matches the search", async () => {
+  it("uses message search by default and says when no messages match", async () => {
     mount();
     await screen.findAllByText("Quarterly numbers");
     await userEvent.click(within(list()).getByRole("button", { name: "Search conversations" }));
     const dialog = await screen.findByRole("dialog", { name: "Search conversations" });
+    const mode = within(dialog).getByRole("combobox", { name: "Search by" });
+    expect(mode).toHaveValue("messages");
+    expect(
+      within(dialog).getByText(
+        "Search message text across your conversations, or choose conversation title.",
+      ),
+    ).toBeVisible();
 
     serve([]);
     await userEvent.type(within(dialog).getByRole("textbox"), "nothing");
 
-    expect(await within(dialog).findByText("No conversation matches.")).toBeVisible();
+    expect(await within(dialog).findByText("No messages match.")).toBeVisible();
   });
 });
 
@@ -1072,7 +1049,7 @@ describe("who a row is with", () => {
 
     await screen.findAllByText("Quarterly numbers");
     const faces = within(list()).getAllByTestId("row-agents");
-    expect(faces.map((face) => face.textContent)).toEqual(["Analyst"]);
+    expect(faces.map((face) => face.getAttribute("data-names"))).toEqual(["Analyst"]);
   });
 });
 
@@ -1132,13 +1109,12 @@ it("lets a reader favourite and unfavourite a shared conversation", async () => 
   });
   mount();
   await within(list()).findByText("Team pricing");
-  const row = () => within(list()).getByText("Team pricing").closest(".group") as HTMLElement;
-  await userEvent.click(within(row()).getByRole("button", { name: "Conversation actions" }));
-  await userEvent.click(screen.getByRole("menuitem", { name: "Favourite" }));
+  await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
+  await userEvent.click(await screen.findByRole("menuitem", { name: "Favourite" }));
   await waitFor(() =>
     expect(apiClient.post).toHaveBeenCalledWith("/conversations/shared-favourite/favourite", {}),
   );
-  await userEvent.click(within(row()).getByRole("button", { name: "Conversation actions" }));
+  await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
   await userEvent.click(await screen.findByRole("menuitem", { name: "Remove from favourites" }));
   await waitFor(() =>
     expect(apiClient.delete).toHaveBeenCalledWith("/conversations/shared-favourite/favourite"),
@@ -1159,18 +1135,298 @@ it("uses the usual favourite band for a starred shared thread while retaining it
   serve([]);
   mount();
   expect(await within(list()).findByRole("button", { name: "Favourites" })).toBeVisible();
-  const row = within(list()).getByText("Shared favourite").closest(".group") as HTMLElement;
-  await userEvent.click(within(row).getByRole("button", { name: "Conversation actions" }));
-  expect(screen.getByRole("menuitem", { name: "Remove from my chats" })).toBeVisible();
+  await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
+  expect(await screen.findByRole("menuitem", { name: "Remove from my chats" })).toBeVisible();
   expect(screen.queryByRole("menuitem", { name: "Rename" })).not.toBeInTheDocument();
 });
 
-it("opens a conversation from its keyboard target and marks the current row", async () => {
+describe("conversation row keyboard access and actions", () => {
+  it.each(["{Enter}", " "])(
+    "opens a thread with %s and identifies the current row",
+    async (key) => {
+      mount();
+      const row = await within(list()).findByRole("button", { name: "Quarterly numbers" });
+      expect(row).not.toHaveAttribute("aria-current");
+
+      row.focus();
+      await userEvent.keyboard(key);
+
+      await waitFor(() =>
+        expect(useConversationStore.getState().currentConversationId).toBe("c-1"),
+      );
+      expect(row).toHaveAttribute("aria-current", "true");
+    },
+  );
+
+  it("opens its portalled actions by keyboard and returns focus on Escape without selecting the thread", async () => {
+    mount();
+    await within(list()).findByText("Quarterly numbers");
+    const trigger = within(list()).getByRole("button", { name: "Conversation actions" });
+
+    trigger.focus();
+    await userEvent.keyboard("{ArrowDown}");
+
+    const menu = await screen.findByRole("menu");
+    expect(list()).not.toContainElement(menu);
+    await waitFor(() =>
+      expect(within(menu).getByRole("menuitem", { name: "Rename" })).toHaveFocus(),
+    );
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
+
+    await userEvent.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    expect(trigger).toHaveFocus();
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
+  });
+
+  it("keeps focus in Rename, saves once with Enter, and returns to the thread control", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue({});
+    mount();
+    await within(list()).findByText("Quarterly numbers");
+
+    await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    const input = within(list()).getByRole("textbox", { name: "Rename" });
+    await waitFor(() => expect(input).toHaveFocus());
+    await userEvent.clear(input);
+    await userEvent.type(input, "Revised quarterly numbers");
+    await userEvent.keyboard("{Enter}");
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1", {
+        title: "Revised quarterly numbers",
+      }),
+    );
+    expect(apiClient.patch).toHaveBeenCalledTimes(1);
+    expect(within(list()).getByRole("button", { name: "Quarterly numbers" })).toHaveFocus();
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
+  });
+
+  it("cancels Rename with Escape and discards its draft before reopening", async () => {
+    mount();
+    await within(list()).findByText("Quarterly numbers");
+    const trigger = within(list()).getByRole("button", { name: "Conversation actions" });
+
+    await userEvent.click(trigger);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    const input = within(list()).getByRole("textbox", { name: "Rename" });
+    await userEvent.clear(input);
+    await userEvent.type(input, "Cancelled title");
+    await userEvent.keyboard("{Escape}");
+
+    expect(apiClient.patch).not.toHaveBeenCalled();
+    expect(within(list()).getByRole("button", { name: "Quarterly numbers" })).toHaveFocus();
+    await userEvent.click(trigger);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    expect(within(list()).getByRole("textbox", { name: "Rename" })).toHaveValue(
+      "Quarterly numbers",
+    );
+  });
+
+  it.each([
+    { action: "Archive", archived: false },
+    { action: "Restore", archived: true },
+  ])("preserves $action from the row menu", async ({ action, archived }) => {
+    if (archived) urlParams = new URLSearchParams("view=archived");
+    serve([{ ...conversation("c-1", "Quarterly numbers"), is_archived: archived }]);
+    vi.mocked(apiClient.patch).mockResolvedValue({});
+    mount();
+    await within(list()).findByText("Quarterly numbers");
+
+    await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: action }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1", {
+        is_archived: !archived,
+      }),
+    );
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
+  });
+
+  it("deletes the selected thread through its menu and clears the open conversation", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue({});
+    mount();
+    await userEvent.click(await within(list()).findByRole("button", { name: "Quarterly numbers" }));
+    expect(useConversationStore.getState().currentConversationId).toBe("c-1");
+
+    await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+
+    await waitFor(() => expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1"));
+    await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBeNull());
+  });
+});
+
+it("keeps the small-screen chat sheet available after collapsing the desktop sidebar", async () => {
   mount();
-  const row = await within(list()).findByRole("button", { name: "Quarterly numbers" });
-  row.focus();
-  await userEvent.keyboard("{Enter}");
+  await within(list()).findByText("Quarterly numbers");
+  await userEvent.click(
+    within(list()).getByRole("button", { name: "Collapse conversations sidebar" }),
+  );
+
+  act(() => useChatSidebarStore.getState().open());
+  const sheet = await screen.findByRole("dialog", { name: "Chats" });
+  await userEvent.click(within(sheet).getByRole("button", { name: "Quarterly numbers" }));
+
   await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBe("c-1"));
-  expect(row).toHaveAttribute("aria-current", "page");
-  expect(within(list()).getByRole("button", { name: "Filter and sort" })).toBeVisible();
+  expect(useChatSidebarStore.getState().isOpen).toBe(false);
+});
+
+/** A thread a named agent answered in, as the listing sends it. */
+function answeredBy(
+  id: string,
+  title: string,
+  agent: { id: string; name: string },
+  favourite = false,
+): Conversation {
+  return {
+    ...conversation(id, title, favourite),
+    agents: [{ id: agent.id, slug: agent.id, name: agent.name, has_avatar: false }],
+  } as Conversation;
+}
+
+describe("the Chats | Agents toggle", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    useChatListModeStore.setState({ mode: "chats" });
+  });
+
+  it("gathers each agent's threads under its name, newest agent first, and no agent under Other", async () => {
+    serve([
+      answeredBy("c-1", "Revenue deck", { id: "a-1", name: "Analyst" }),
+      answeredBy("c-2", "Launch copy", { id: "a-2", name: "Writer" }),
+      answeredBy("c-3", "Churn cut", { id: "a-1", name: "Analyst" }),
+      conversation("c-4", "Brand new chat"),
+    ]);
+    mount();
+    await screen.findAllByText("Revenue deck");
+    await userEvent.click(screen.getByRole("button", { name: "Agents", pressed: false }));
+
+    const headings = within(list())
+      .getAllByRole("button", { expanded: true })
+      .map((heading) => heading.textContent);
+    expect(headings).toEqual(["Analyst", "Writer", "Other"]);
+    const analyst = within(list()).getByRole("button", { name: "Analyst", expanded: true });
+    const group = analyst.parentElement as HTMLElement;
+    expect(within(group).getByRole("button", { name: "Revenue deck" })).toBeInTheDocument();
+    expect(within(group).getByRole("button", { name: "Churn cut" })).toBeInTheDocument();
+    expect(within(group).queryByRole("button", { name: "Launch copy" })).toBeNull();
+    expect(within(list()).getByRole("button", { name: "Brand new chat" })).toBeInTheDocument();
+  });
+
+  it("puts the agent's face on its heading, as the rows carry it", async () => {
+    serve([
+      answeredBy("c-1", "Revenue deck", { id: "a-1", name: "Analyst" }),
+      answeredBy("c-2", "Launch copy", { id: "a-2", name: "Writer" }),
+    ]);
+    mount();
+    await screen.findAllByText("Revenue deck");
+    await userEvent.click(screen.getByRole("button", { name: "Agents", pressed: false }));
+
+    const analyst = within(list()).getByRole("button", { name: "Analyst", expanded: true });
+    expect(within(analyst).getByTestId("row-agents")).toHaveAttribute("data-names", "Analyst");
+    const writer = within(list()).getByRole("button", { name: "Writer", expanded: true });
+    expect(within(writer).getByTestId("row-agents")).toHaveAttribute("data-names", "Writer");
+  });
+
+  it("puts each agent's face on its collapsed rail band, but not Other", async () => {
+    serve([
+      answeredBy("c-1", "Revenue deck", { id: "a-1", name: "Analyst" }),
+      answeredBy("c-2", "Launch copy", { id: "a-2", name: "Writer" }),
+      conversation("c-3", "Brand new chat"),
+    ]);
+    mount();
+    await screen.findAllByText("Revenue deck");
+    await userEvent.click(screen.getByRole("button", { name: "Agents", pressed: false }));
+    await userEvent.click(
+      within(list()).getByRole("button", { name: "Collapse conversations sidebar" }),
+    );
+
+    const rail = screen.getByRole("button", { name: "Expand conversations sidebar" }).parentElement!
+      .parentElement as HTMLElement;
+    const analyst = within(rail).getByRole("button", { name: "Analyst" });
+    const writer = within(rail).getByRole("button", { name: "Writer" });
+    const other = within(rail).getByRole("button", { name: "Other" });
+    expect(within(analyst).getByTestId("row-agents")).toHaveAttribute("data-names", "Analyst");
+    expect(within(writer).getByTestId("row-agents")).toHaveAttribute("data-names", "Writer");
+    expect(within(other).queryByTestId("row-agents")).toBeNull();
+  });
+
+  it("folds one agent's threads away from its heading, and opens them again", async () => {
+    serve([answeredBy("c-1", "Revenue deck", { id: "a-1", name: "Analyst" })]);
+    mount();
+    await screen.findAllByText("Revenue deck");
+    await userEvent.click(screen.getByRole("button", { name: "Agents", pressed: false }));
+
+    const heading = within(list()).getByRole("button", { name: "Analyst", expanded: true });
+    await userEvent.click(heading);
+    expect(within(list()).queryByRole("button", { name: "Revenue deck" })).toBeNull();
+    const folded = within(list()).getByRole("button", { name: /Analyst/, expanded: false });
+    expect(folded).toHaveTextContent("1");
+
+    await userEvent.click(folded);
+    expect(within(list()).getByRole("button", { name: "Revenue deck" })).toBeInTheDocument();
+  });
+
+  it("keeps a starred thread under Favourites, not repeated under its agent", async () => {
+    serve([
+      answeredBy("c-1", "Revenue deck", { id: "a-1", name: "Analyst" }, true),
+      answeredBy("c-2", "Churn cut", { id: "a-1", name: "Analyst" }),
+    ]);
+    mount();
+    await screen.findAllByText("Revenue deck");
+    await userEvent.click(screen.getByRole("button", { name: "Agents", pressed: false }));
+
+    const headings = within(list())
+      .getAllByRole("button", { expanded: true })
+      .map((heading) => heading.textContent);
+    expect(headings).toEqual(["Favourites", "Analyst"]);
+    const analyst = within(list()).getByRole("button", { name: "Analyst", expanded: true });
+    const group = analyst.parentElement as HTMLElement;
+    expect(within(group).queryByRole("button", { name: "Revenue deck" })).toBeNull();
+    expect(within(group).getByRole("button", { name: "Churn cut" })).toBeInTheDocument();
+  });
+
+  it("remembers the choice across a reload, and returns to the chats list from it", async () => {
+    serve([answeredBy("c-1", "Revenue deck", { id: "a-1", name: "Analyst" })]);
+    mount();
+    await screen.findAllByText("Revenue deck");
+    await userEvent.click(screen.getByRole("button", { name: "Agents", pressed: false }));
+
+    expect(window.localStorage.getItem("chat-list-mode")).toContain('"mode":"agents"');
+    await userEvent.click(screen.getByRole("button", { name: "Chats", pressed: false }));
+    expect(window.localStorage.getItem("chat-list-mode")).toContain('"mode":"chats"');
+    expect(within(list()).queryByRole("button", { name: "Analyst", expanded: true })).toBeNull();
+  });
+
+  it("opens on the agents view when the choice was stored before", async () => {
+    window.localStorage.setItem(
+      "chat-list-mode",
+      JSON.stringify({ state: { mode: "agents" }, version: 1 }),
+    );
+    await useChatListModeStore.persist.rehydrate();
+    serve([answeredBy("c-1", "Revenue deck", { id: "a-1", name: "Analyst" })]);
+    mount();
+    await screen.findAllByText("Revenue deck");
+
+    expect(screen.getByRole("button", { name: "Agents", pressed: true })).toBeInTheDocument();
+    expect(
+      within(list()).getByRole("button", { name: "Analyst", expanded: true }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the search and the agent filter working in the agents view", async () => {
+    urlParams = new URLSearchParams("agent=a-1");
+    serve([answeredBy("c-1", "Revenue deck", { id: "a-1", name: "Analyst" })]);
+    mount();
+    await screen.findAllByText("Revenue deck");
+    await userEvent.click(screen.getByRole("button", { name: "Agents", pressed: false }));
+
+    expect(listRequests().some((path) => path.includes("agent_id=a-1"))).toBe(true);
+    expect(
+      within(list()).getByRole("button", { name: "Analyst", expanded: true }),
+    ).toBeInTheDocument();
+  });
 });

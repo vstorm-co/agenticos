@@ -19,6 +19,7 @@ _JUDGED = frozenset(
         RunStatus.FAILED.value,
         RunStatus.LOOP_STOPPED.value,
         RunStatus.GUARDRAIL_BLOCKED.value,
+        RunStatus.TIMED_OUT.value,
     }
 )
 

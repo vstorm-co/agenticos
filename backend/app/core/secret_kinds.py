@@ -62,12 +62,14 @@ The kinds are the shapes that actually exist, and no more:
     runtime writes it again each time the tokens rotate, because a refresh token
     is spent by the refresh that replaces it.
 
-Two unions, deliberately. :data:`StorableSecret` is what a person can save;
-:data:`SecretValue` adds `none`, which the runtime can hold but nobody can
-store. That difference is what keeps "a secret with no value" out of the API
-schema.
+Browser logins and contact profiles are also storable, but never injected into
+generic capabilities or model providers. :data:`TechnicalSecret` excludes those
+values; :data:`SecretValue` adds `none` to that technical boundary. The browser
+writer opens only a specifically authorized browser kind. Nobody can store a
+"secret with no value" through the API.
 """
 
+import base64
 import json
 from dataclasses import replace
 from enum import StrEnum
@@ -88,6 +90,8 @@ from pydantic import (
     model_validator,
 )
 
+from app.core.browser_origins import browser_origin
+from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 
@@ -109,6 +113,11 @@ class SecretKind(StrEnum):
     SMTP_ACCOUNT = "smtp_account"
     MICROSOFT_OAUTH_APP = "microsoft_oauth_app"
     OPENAI_CODEX = "openai_codex"
+    BROWSER_LOGIN = "browser_login"
+    BROWSER_PROFILE = "browser_profile"
+
+
+BROWSER_SECRET_KINDS = frozenset({SecretKind.BROWSER_LOGIN, SecretKind.BROWSER_PROFILE})
 
 
 def _reveal(value: SecretStr) -> str:
@@ -169,6 +178,77 @@ class _SecretBase(BaseModel):
         showing four of the secret access key.
         """
         raise NotImplementedError
+
+
+class BrowserTotp(BaseModel):
+    """An explicitly stored TOTP seed; codes are generated only during a confirmed fill."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
+
+    seed: SealedStr = Field(min_length=16, max_length=208, title="TOTP Base32 seed")
+    algorithm: Literal["SHA1", "SHA256", "SHA512"] = "SHA1"
+    digits: Literal[6, 8] = 6
+    period_seconds: Literal[30, 60] = 30
+
+    @field_validator("seed")
+    @classmethod
+    def _base32_seed(cls, value: SecretStr) -> SecretStr:
+        encoded = value.get_secret_value().strip().upper().rstrip("=")
+        try:
+            decoded = base64.b32decode(encoded + "=" * (-len(encoded) % 8))
+        except ValueError:
+            raise ValueError("Use a valid Base32 TOTP seed") from None
+        if not 10 <= len(decoded) <= 128:
+            raise ValueError("Use a Base32 TOTP seed containing 10 to 128 bytes")
+        return SecretStr(base64.b32encode(decoded).decode("ascii").rstrip("="))
+
+
+class _BrowserSecret(_SecretBase):
+    model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
+
+    allowed_origins: tuple[str, ...] = Field(min_length=1, max_length=20)
+
+    @field_validator("allowed_origins")
+    @classmethod
+    def _exact_origins(cls, origins: tuple[str, ...]) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(browser_origin(origin) for origin in origins))
+
+    @property
+    def hint(self) -> str:
+        return ""
+
+
+class BrowserLoginSecret(_BrowserSecret):
+    """A browser login kept outside technical-key injection and model arguments."""
+
+    kind: Literal[SecretKind.BROWSER_LOGIN] = SecretKind.BROWSER_LOGIN
+    username: SealedStr = Field(min_length=1, max_length=1024)
+    password: SealedStr = Field(min_length=1, max_length=4096)
+    totp: BrowserTotp | None = None
+
+
+BrowserProfileField = Literal[
+    "name",
+    "email",
+    "phone",
+    "address_line1",
+    "address_line2",
+    "city",
+    "region",
+    "postal_code",
+    "country",
+]
+BrowserProfileValue = Annotated[SealedStr, Field(min_length=1, max_length=1024)]
+
+
+class BrowserProfileSecret(_BrowserSecret):
+    """Only selected contact/address fields may be written to a confirmed destination."""
+
+    kind: Literal[SecretKind.BROWSER_PROFILE] = SecretKind.BROWSER_PROFILE
+    fields: dict[BrowserProfileField, BrowserProfileValue] = Field(min_length=1, max_length=9)
+
+
+BrowserSecret = BrowserLoginSecret | BrowserProfileSecret
 
 
 class NoSecret(_SecretBase):
@@ -652,7 +732,9 @@ StorableSecret = Annotated[
     | SmtpAccountSecret
     | HttpCredentialSecret
     | MicrosoftOAuthAppSecret
-    | OpenAICodexSecret,
+    | OpenAICodexSecret
+    | BrowserLoginSecret
+    | BrowserProfileSecret,
     Field(discriminator="kind"),
 ]
 """Every shape a person can actually save."""
@@ -668,7 +750,9 @@ TypedSecret = Annotated[
     | GitTokenSecret
     | EntraAppSecret
     | SmtpAccountSecret
-    | HttpCredentialSecret,
+    | HttpCredentialSecret
+    | BrowserLoginSecret
+    | BrowserProfileSecret,
     Field(discriminator="kind"),
 ]
 """What a person may type into the vault: :data:`StorableSecret` but a ChatGPT sign-in.
@@ -679,9 +763,8 @@ grant among them, whose single-use refresh token then signs the CLI and the plat
 out of each other.
 """
 
-SecretValue = Annotated[
-    NoSecret
-    | ApiKeySecret
+TechnicalSecret = Annotated[
+    ApiKeySecret
     | AzureOpenAISecret
     | AwsCredentialsSecret
     | GcpServiceAccountSecret
@@ -696,11 +779,52 @@ SecretValue = Annotated[
     | OpenAICodexSecret,
     Field(discriminator="kind"),
 ]
-"""What the runtime holds - :data:`StorableSecret` plus "there is no credential"."""
+"""Credentials generic capability readers may inject; browser values stay in their writer."""
+
+SecretValue = Annotated[NoSecret | TechnicalSecret, Field(discriminator="kind")]
+"""A technical credential, or the explicit absence of one."""
 
 STORABLE_KINDS: frozenset[SecretKind] = frozenset(SecretKind) - {SecretKind.NONE}
 
 _STORABLE_ADAPTER: TypeAdapter[StorableSecret] = TypeAdapter(StorableSecret)
+_TECHNICAL_ADAPTER: TypeAdapter[TechnicalSecret] = TypeAdapter(TechnicalSecret)
+
+
+def parse_storable_secret(kind: str, value: str) -> StorableSecret:
+    """Parse a submitted vault value as its requested kind without leaking it on failure.
+
+    API keys keep their plain-text card input. Structured kinds are submitted as
+    their JSON object, which is validated against the same discriminator used by
+    the vault when it unseals a stored value.
+    """
+    try:
+        secret_kind = SecretKind(kind)
+    except ValueError:
+        raise BadRequestError(
+            message="Secret value is not valid for the requested kind",
+            details={"kind": kind},
+        ) from None
+    if secret_kind is SecretKind.NONE:
+        raise BadRequestError(
+            message="Secret value is not valid for the requested kind",
+            details={"kind": kind},
+        )
+    try:
+        if secret_kind is SecretKind.API_KEY:
+            secret = ApiKeySecret(api_key=value)
+        else:
+            secret = _STORABLE_ADAPTER.validate_json(value)
+    except ValueError, ValidationError:
+        raise BadRequestError(
+            message="Secret value is not valid for the requested kind",
+            details={"kind": kind},
+        ) from None
+    if secret.kind is not secret_kind:
+        raise BadRequestError(
+            message="Secret value does not match the requested kind",
+            details={"kind": secret_kind.value},
+        )
+    return secret
 
 
 def seal_secret(
@@ -722,7 +846,7 @@ def seal_secret(
 
 def unseal_secret(
     ciphertext: str, *, kind: SecretKind, scope: VaultScope, key_version: int = 1
-) -> StorableSecret:
+) -> TechnicalSecret:
     """Open an envelope and check it holds the kind the row claims.
 
     Raises:
@@ -730,8 +854,10 @@ def unseal_secret(
             is not a secret payload, or holds a different kind than the column
             says - which would mean a row was edited underneath the schema.
     """
+    if kind in BROWSER_SECRET_KINDS:
+        raise BadRequestError(message="Browser credentials require the confirmed browser writer")
     try:
-        value = _STORABLE_ADAPTER.validate_json(
+        value = _TECHNICAL_ADAPTER.validate_json(
             unseal(ciphertext, scope=scope, key_version=key_version)
         )
     except ValidationError:
@@ -800,9 +926,19 @@ _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
     SecretKind.SMTP_ACCOUNT: SmtpAccountSecret,
     SecretKind.MICROSOFT_OAUTH_APP: MicrosoftOAuthAppSecret,
     SecretKind.OPENAI_CODEX: OpenAICodexSecret,
+    SecretKind.BROWSER_LOGIN: BrowserLoginSecret,
+    SecretKind.BROWSER_PROFILE: BrowserProfileSecret,
 }
 
 _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
+    SecretKind.BROWSER_LOGIN: (
+        "Browser login",
+        "A private site login, with optional TOTP, for destination-confirmed hosted browser filling.",
+    ),
+    SecretKind.BROWSER_PROFILE: (
+        "Browser contact profile",
+        "Private contact and address fields for a destination-confirmed hosted browser fill.",
+    ),
     SecretKind.SMTP_ACCOUNT: (
         "SMTP account",
         "Send workflow emails through your own mail server. Server, sender and credentials are stored together.",
@@ -870,13 +1006,28 @@ def describe_kind(kind: SecretKind) -> str:
     return _KIND_LABELS[kind][0]
 
 
+def _description(kind: SecretKind) -> str:
+    """A kind's description, plus what the deployment needs the provider to hold.
+
+    A Google client is registered by the organization in its own console, and Google
+    refuses the consent unless the exact redirect URL is listed there - so the setup
+    screen names it, read off this deployment's own address rather than left for an
+    administrator to construct.
+    """
+    description = _KIND_LABELS[kind][1]
+    if kind is SecretKind.GOOGLE_OAUTH_APP:
+        redirect = f"{settings.FRONTEND_URL.rstrip('/')}/api/me/mcp-connections/oauth/callback"
+        description += f" Add this redirect URL to the client in Google Cloud: {redirect}"
+    return description
+
+
 def describe_kinds() -> list[SecretKindInfo]:
     """Every storable kind with the schema its form is generated from."""
     return [
         SecretKindInfo(
             kind=kind,
             name=_KIND_LABELS[kind][0],
-            description=_KIND_LABELS[kind][1],
+            description=_description(kind),
             json_schema=model.model_json_schema(),
         )
         for kind, model in _KIND_MODELS.items()
@@ -1025,4 +1176,8 @@ class SecretRequirement(BaseModel):
     def _a_requirement_is_for_a_real_secret(self) -> SecretRequirement:
         if self.kind is SecretKind.NONE:
             raise ValueError("A capability cannot require the 'none' kind - that is no secret")
+        if self.kind in BROWSER_SECRET_KINDS or any(
+            kind in BROWSER_SECRET_KINDS for kind in self.also_accepts
+        ):
+            raise ValueError("Browser credentials require an explicit browser binding")
         return self

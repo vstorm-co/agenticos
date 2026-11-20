@@ -54,6 +54,8 @@ export interface Artifact {
   live: boolean;
   /** The groups it is shared with, by name (#2124). Only the listing carries it. */
   shared_groups?: string[];
+  /** Whether the caller has starred it; the sidebar lists only these. Absent until the server sends it. */
+  is_favourite?: boolean;
   published_at: string;
   current_version: ArtifactVersion | null;
   /**

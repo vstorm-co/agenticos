@@ -13,11 +13,13 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai_harness.ask_user import TIMED_OUT
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import CHANNEL_SURFACES, ApprovalStatus, RunStatus
+from app.db.models.secret_request import SecretRequestStatus
 from app.services.approvals import ApprovalService
 from app.services.channels.handback import EXPIRED_NOTICE, STRANDED_NOTICE
 from app.worker.tasks.approval_tasks import expire_approvals
@@ -439,6 +441,7 @@ class TestTheScheduledSweep:
     def _service(unanswered: int = 0) -> MagicMock:
         return MagicMock(
             expire_stale=AsyncMock(return_value=3),
+            nudge_unanswered=AsyncMock(return_value=0),
             expire_unanswered=AsyncMock(return_value=unanswered),
             end_stranded=AsyncMock(return_value=0),
         )
@@ -460,11 +463,13 @@ class TestTheScheduledSweep:
 
             assert await expire_approvals() == 3
 
-        # The unanswered questions are swept in the same pass (#2064), and the
-        # three sweeps each get a transaction of their own.
+        # The unanswered questions are swept in the same pass (#2064), reminded
+        # once halfway to expiry first, and the four sweeps each get a
+        # transaction of their own.
+        service.nudge_unanswered.assert_awaited_once()
         service.expire_unanswered.assert_awaited_once()
         service.end_stranded.assert_awaited_once()
-        assert db_context.call_count == 3
+        assert db_context.call_count == 4
 
     async def test_the_worker_registers_its_chat_adapters_before_sweeping(self):
         service = self._service()
@@ -641,6 +646,45 @@ class TestUnansweredQuestions:
 
         assert ended == 1
         assert _spawned_names(started["spawn"]) == ["workflow-question-expiry-wake"]
+
+    async def test_expiring_a_secret_wait_settles_only_pending_requests_and_keeps_spend(
+        self,
+    ) -> None:
+        run = _chat_run(status=RunStatus.AWAITING_ANSWER.value)
+        run.paused_state["questions"] = []
+        run.paused_state["secret_requests"] = ["secret-1"]
+        pending = MagicMock(status=SecretRequestStatus.PENDING)
+        fulfilled = MagicMock(status=SecretRequestStatus.FULFILLED)
+        with (
+            patch(
+                "app.services.approvals.secret_request_repo.list_for_run",
+                new=AsyncMock(return_value=[pending, fulfilled]),
+            ) as listed,
+            patch(
+                "app.services.approvals.secret_request_repo.mark_expired", new=AsyncMock()
+            ) as expired,
+        ):
+            ended, started, _ = await self._sweep([run])
+        assert ended == 1 and run.paused_state is None
+        assert listed.await_args is not None
+        assert listed.await_args.kwargs == {
+            "run_id": run.id,
+            "organization_id": run.organization_id,
+        }
+        assert expired.await_args is not None
+        assert expired.await_count == 1
+        assert expired.await_args.kwargs["request"] is pending
+        assert fulfilled.status == SecretRequestStatus.FULFILLED
+        transcript = started["transcript"].return_value.record
+        assert transcript.await_args is not None
+        assert transcript.await_args.kwargs["settled"] == {"secret-1": TIMED_OUT}
+        finish = started["finish"].call_args
+        assert finish is not None
+        assert finish.kwargs["status"] == RunStatus.CANCELLED.value
+        assert finish.kwargs["cost_usd"] == run.cost_usd
+        assert finish.kwargs["input_tokens"] == run.input_tokens
+        assert finish.kwargs["output_tokens"] == run.output_tokens
+        assert finish.kwargs["error"].endswith("the secret request expired")
 
 
 class TestStrandedRuns:

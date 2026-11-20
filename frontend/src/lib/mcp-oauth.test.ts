@@ -183,6 +183,8 @@ describe("Google hosted MCP setup", () => {
       "https://mcp.linear.app/sse",
       "https://calendarmcp.googleapis.com.evil.test/mcp/v1",
       "https://www.googleapis.com/calendar/v3",
+      "https://storage.googleapis.com/attacker-bucket/mcp/v1",
+      "https://attacker-bucket.storage.googleapis.com/mcp/v1",
       "invalid",
     ]) {
       expect(needsGoogleOAuthClient(url)).toBe(false);

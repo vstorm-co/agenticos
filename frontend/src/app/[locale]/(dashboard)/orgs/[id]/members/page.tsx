@@ -87,6 +87,7 @@ import { OrganizationProfileSettings } from "@/components/teams/organization-pro
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { useTenantId } from "@/hooks/use-organizations";
+import { BrowserTeachingPolicy } from "@/components/browser/browser-teaching-policy";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -631,6 +632,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           {org && <OrgApprovalWaiver org={org} />}
           {org && <OrgPublicAttribution org={org} />}
           {org && <OrgPublicLiveData org={org} />}
+          {org && <BrowserTeachingPolicy />}
         </TabsContent>
         <TabsContent
           value="assistant"

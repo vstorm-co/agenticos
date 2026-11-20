@@ -17,17 +17,21 @@ import pytest
 from httpx import AsyncClient
 from starlette.responses import Response
 
+from app.api import deps
 from app.api.deps import get_redis, get_session_service
+from app.api.routes.v1 import oauth as oauth_routes
 from app.core.config import settings
 from app.core.oauth import oauth
-from app.core.security import verify_token
+from app.core.security import verify_special_token, verify_token
 from app.main import app
 from app.services.oauth_exchange import OAuthExchangeService
+from app.services.session import SessionService
 from app.services.user import UserService
 
 pytestmark = pytest.mark.anyio
 
 _CALLBACK = f"{settings.API_V1_STR}/oauth/google/callback"
+_OIDC_CALLBACK = f"{settings.API_V1_STR}/oauth/oidc/callback"
 _EXCHANGE = f"{settings.API_V1_STR}/oauth/exchange"
 
 
@@ -38,6 +42,8 @@ class _FakeRedis:
         self._store: dict[str, str] = {}
 
     async def set(self, key: str, value: str, ttl: int | None = None, nx: bool = False) -> bool:
+        if nx and key in self._store:
+            return False
         self._store[key] = value
         return True
 
@@ -86,6 +92,85 @@ async def test_the_callback_redirect_carries_a_code_not_the_tokens(
     assert "code=" in location
     assert "access_token" not in location
     assert "refresh_token" not in location
+
+
+async def test_oidc_signin_for_totp_user_redirects_to_mfa_without_issuing_tokens(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The provider identity is only the first factor for an MFA-enabled user."""
+    user_id = uuid4()
+    monkeypatch.setattr(settings, "OIDC_GROUPS_CLAIM", "groups")
+    directory_sync = MagicMock()
+    directory_sync.admits = AsyncMock(return_value=True)
+    directory_sync.apply = AsyncMock()
+    app.dependency_overrides[deps.get_directory_sync_service] = lambda: directory_sync
+    fake = _FakeRedis()
+    app.dependency_overrides[get_redis] = lambda: fake
+    session_service = SessionService(MagicMock())
+    session_service.create_session = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
+    app.dependency_overrides[get_session_service] = lambda: session_service
+    make_access = MagicMock(return_value="must-not-be-created")
+    make_refresh = MagicMock(return_value="must-not-be-created")
+    issue_code = AsyncMock()
+    monkeypatch.setattr(oauth_routes, "create_access_token", make_access)
+    monkeypatch.setattr(oauth_routes, "create_refresh_token", make_refresh)
+    monkeypatch.setattr(OAuthExchangeService, "issue", issue_code)
+    oidc_client = MagicMock()
+    oidc_client.authorize_access_token = AsyncMock(
+        return_value={
+            "userinfo": {
+                "sub": "s",
+                "email": "u@e.com",
+                "name": "U",
+                "email_verified": True,
+                "groups": ["admins"],
+            }
+        }
+    )
+    monkeypatch.setattr(oauth_routes, "sign_in_client", lambda provider: oidc_client)
+    oidc_user = SimpleNamespace(
+        id=user_id,
+        is_active=True,
+        totp_enabled=True,
+        credential_version=3,
+        created_at=None,
+        updated_at=None,
+    )
+    monkeypatch.setattr(UserService, "get_or_create_oauth_user", AsyncMock(return_value=oidc_user))
+
+    response = await client.get(_OIDC_CALLBACK)
+
+    assert response.status_code == 307
+    location = urlparse(response.headers["location"])
+    assert location.path == "/auth/callback"
+    assert location.query == ""
+    mfa_token = parse_qs(location.fragment)["mfa_token"][0]
+    payload = verify_special_token(mfa_token, expected_type="mfa")
+    assert payload is not None
+    assert payload["sub"] == str(user_id)
+    assert payload["cv"] == 3
+    assert payload["jti"]
+    directory_sync.apply.assert_not_awaited()
+    make_access.assert_not_called()
+    make_refresh.assert_not_called()
+    issue_code.assert_not_awaited()
+    session_service.create_session.assert_not_awaited()
+
+    auth_user_service = MagicMock()
+    auth_user_service.get_by_id = AsyncMock(return_value=oidc_user)
+    auth_mfa_service = MagicMock()
+    auth_mfa_service.verify_challenge = AsyncMock(return_value=True)
+    app.dependency_overrides[deps.get_user_service] = lambda: auth_user_service
+    app.dependency_overrides[deps.get_mfa_service] = lambda: auth_mfa_service
+
+    verified = await client.post(
+        f"{settings.API_V1_STR}/auth/mfa/verify",
+        json={"mfa_token": mfa_token, "code": "123456"},
+    )
+
+    assert verified.status_code == 200
+    directory_sync.apply.assert_awaited_once_with(user_id, frozenset({"admins"}), provider="oidc")
+    assert not any(key.startswith("auth:mfa:oauth:") for key in fake._store)
 
 
 async def test_exchange_returns_the_pair_for_a_valid_code(client: AsyncClient) -> None:

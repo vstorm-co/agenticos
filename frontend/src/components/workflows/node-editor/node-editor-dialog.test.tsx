@@ -102,7 +102,7 @@ describe("NodeEditorDialog", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open the connection" })).toHaveAttribute(
       "href",
-      "/mcp-servers?server=google-workspace",
+      "/connectors?server=google-workspace",
     );
     unmount();
 

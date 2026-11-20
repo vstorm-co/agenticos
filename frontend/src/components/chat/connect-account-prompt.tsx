@@ -5,6 +5,8 @@ import { ExternalLink } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { ConnectOwnButton } from "@/components/agents/connect-server-dialog";
+import { ManagedAppConnectButton } from "@/components/connections/managed-app-connect-button";
+import { managedAppToolkit } from "@/hooks/use-managed-app-connect";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { Button } from "@/components/ui";
 import { useMcpConnections } from "@/hooks/use-mcp-connections";
@@ -88,12 +90,22 @@ export function ConnectAccountPrompt({
         >
           {t("continue")}
         </Button>
-        {request.gap === "not_connected" && entry !== null ? (
+        {managedAppToolkit(request.catalog_key) ? (
+          <ManagedAppConnectButton
+            catalogKey={request.catalog_key}
+            label={t(request.gap === "not_connected" ? "connect" : "openServers")}
+            disabled={disabled}
+            keepThisTab
+          />
+        ) : request.gap === "not_connected" && entry !== null ? (
           <ConnectOwnButton entry={entry} label={t("connect")} disabled={disabled} keepThisTab />
         ) : (
           <Button size="sm" asChild>
             <a
-              href={getPathname({ href: ROUTES.MCP_SERVERS, locale })}
+              href={getPathname({
+                href: { pathname: ROUTES.MCP_SERVERS, query: { tab: "advanced" } },
+                locale,
+              })}
               target="_blank"
               rel="noopener noreferrer"
             >

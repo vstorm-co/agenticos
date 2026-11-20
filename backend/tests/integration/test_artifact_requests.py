@@ -738,6 +738,7 @@ class TestApprovingAnAudienceRequest:
             resource_type=ARTIFACT.key,
             resource_id=page.id,
             level=GrantLevel.EDIT,
+            expires_at=datetime.now(UTC) + timedelta(days=30),
         )
         page.visibility = "org"
         await db.flush()

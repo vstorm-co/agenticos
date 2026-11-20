@@ -33,6 +33,9 @@ from app.repositories import (
     organization_secret_repo,
     rag_document_repo,
 )
+from app.repositories import (
+    mcp_connection as mcp_connection_repo,
+)
 from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
 from app.repositories.rag_document import CollectionScope
@@ -46,10 +49,13 @@ from app.services.ingestion_config import (
     IngestionConfigService,
     deployment_defaults,
 )
+from app.services.mcp_connection import McpConnectionService
 from app.services.notifications import NotificationService
+from app.services.portals.google_oauth import DRIVE_GRANT_SCOPES as GOOGLE_DRIVE_SCOPES
 from app.services.rag.config import DocumentExtensions
 from app.services.rag.connectors import CONNECTOR_REGISTRY, RemoteListing, WithdrawnFile
 from app.services.rag.documents import DocumentProcessor
+from app.services.rag.drive_api import GoogleDriveOAuthGrant
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.filters import Source
@@ -884,8 +890,11 @@ async def _update_sync_log(sync_log_id: str, status: str, error_message: str | N
 
 
 async def _connector_credential(
-    db: AsyncSession, secret_id: UUID | None, organization_id: UUID
-) -> StorableSecret | None:
+    db: AsyncSession,
+    secret_id: UUID | None,
+    organization_id: UUID,
+    connected_account_id: UUID | None = None,
+) -> StorableSecret | GoogleDriveOAuthGrant | None:
     """The unsealed credential a sync source names, or `None`.
 
     Both ids arrive as `uuid.UUID` - `get_source` answers with the model, whose
@@ -906,9 +915,30 @@ async def _connector_credential(
     layer has a database session, and because a connector that could reach the
     vault could reach another organization's row in it.
     """
+    if connected_account_id is not None:
+        account = await mcp_connection_repo.get_account(db, connected_account_id)
+        if (
+            account is None
+            or account.scope != "org"
+            or account.organization_id != organization_id
+            or account.catalog_key != "google"
+        ):
+            return None
+        grant = await McpConnectionService(db).account_grant(
+            account, organization_id=organization_id
+        )
+        if grant is None or not GOOGLE_DRIVE_SCOPES.intersection(grant.scopes):
+            return None
+        return GoogleDriveOAuthGrant(
+            client_id=grant.client_id,
+            client_secret=grant.client_secret,
+            refresh_token=grant.refresh_token,
+        )
     if secret_id is None:
         return None
     row = await organization_secret_repo.get(db, secret_id, organization_id=organization_id)
+    if row is not None and row.usage_scope == "personal":
+        return None
     if row is None:
         logger.warning("sync_source_secret_missing", extra={"organization": str(organization_id)})
         return None
@@ -1455,7 +1485,9 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
         # be kept (#937). `None` here is a source with no credential, or one
         # whose secret was deleted - the connector refuses rather than reaching
         # for a deployment-wide fallback, because there is not one.
-        credential = await _connector_credential(db, source.secret_id, organization_id)
+        credential = await _connector_credential(
+            db, source.secret_id, organization_id, source.connected_account_id
+        )
 
         # The log the job was queued with - a manual trigger and the schedule both
         # open one - or, for a source that had no collection when it was

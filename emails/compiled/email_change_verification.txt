@@ -1,15 +1,14 @@
-Subject: Confirm your new [[app_name]] email address
+Subject: Confirm your new email
 
-Hi [[name]],
+Confirm your new email
 
-Somebody asked to move a [[app_name]] account to this address. Confirm it to
-finish the change:
+Hi [[name]], confirm this email address to complete the change on your [[app_name]] account.
 
+Link expires in: [[expires_in]]
+
+Confirm email address:
 [[confirm_url]]
 
-This link expires in [[expires_in]]. Until then the account keeps using its
-previous address, and nothing is sent here.
+If you did not request this change, do not use this link.
 
-If this was not you, ignore this email. Nothing changes without this link.
-
-- The [[app_name]] Team
+[[app_name]]

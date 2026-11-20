@@ -1,5 +1,5 @@
 ---
-source_sha: "7b83980dd889"
+source_sha: "543b61f10ddd"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -243,21 +243,38 @@ Profil może wymienić profile zapasowe, wypróbowywane po kolei. Awaria jednego
 providera nie powinna kłaść agentów organizacji, gdy ma ona drugi klucz albo
 skonfigurowanego drugiego providera.
 
-!!! warning "Fallback jest niewidoczny w zapisie runa"
+Fallback nie jest już niewidoczny w zapisie runa. Gdy model zapasowy obsłuży
+któreś żądanie runa, wiersz runa zapisuje `fallback_used` oraz czyste id modelu,
+który odpowiedział na ostatnie udane żądanie, jako `serving_model`, a widok
+szczegółów runa pokazuje pod faktami „Odpowiedział … (model zapasowy)". Wiersz
+jest nadal zapisywany przed pierwszym żądaniem, więc do zakończenia runa nazywa
+profil podstawowy; zaparkowany run niesie to, co dotychczas zapisały jego
+ukończone segmenty.
 
-    Wiersz runa zapisywany jest przed pierwszym żądaniem i niesie etykietę,
-    providera oraz id sekretu profilu **podstawowego**. Jeśli turę obsłużył
-    fallback, run i tak nazywa podstawowy.
+Zanim oprzesz się na tych liczbach w czasie awarii, warto znać dwa martwe pola:
 
-    Więc „ile wydaliśmy w OpenAI” i „który klucz kosztuje najwięcej” odpowiadają
-    profilem, którego *zapytano* jako pierwszego, a nie tym, który odpowiedział.
-    Warto to wiedzieć, zanim oprzesz się na tych liczbach w czasie awarii.
+- „Ile wydaliśmy w OpenAI” i „który klucz kosztuje najwięcej” nadal odpowiadają
+  profilem podstawowym, którego *zapytano* jako pierwszego, a nie tym, który
+  odpowiedział — koszt przypisywany jest profilowi podstawowemu. Nowe kolumny
+  mówią, który model odpowiedział, a nie który profil zapłacił.
+- Błąd **po** pierwszym zdarzeniu strumieniowym nigdy nie uruchamia fallbacku.
+  Pydantic AI przekazuje strumień wywołującemu przy pierwszym zdarzeniu, więc
+  błąd w środku strumienia kończy runa zamiast próbować kolejnego modelu
+  z łańcucha.
 
 ### Ustawienia modelu { #model-settings }
 
 Per profil, nadpisywalne per agent przez `model_settings` w specu:
-`temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. Zobacz
+`temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`,
+`request_timeout`, `first_event_timeout`. Zobacz
 [referencję speca](reference/spec.md#model-settings).
+
+Żądanie ma też domyślne terminy: 300 sekund na jedno żądanie do modelu
+(`request_timeout` oraz `timeout` na próbę) i 120 sekund na pierwsze
+zdarzenie w streamie (`first_event_timeout`). Profil lub spec agenta mogą je
+podnieść lub obniżyć. Po upływie terminu run kończy się jako `timed_out` — z
+terminem w zapisanym błędzie — zamiast wyświetlać „Working" bez końca; tam,
+gdzie skonfigurowano łańcuch fallback, jest on najpierw próbowany.
 
 **Cache'owanie promptu jest domyślnie włączone**, przez neutralne wobec dostawcy
 ustawienie `cache` z Pydantic AI. Każde żądanie runu wysyła ponownie instrukcje,
@@ -363,7 +380,7 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | OpenAI | `openai` | klucz API albo brak | ✓ |
 | Anthropic | `anthropic` | klucz API | ✓ |
 | Google Gemini | `google` | klucz API | ✓ |
-| TypeSafe (Jev) | `typesafe` | API key | ✓ |
+| TypeSafe (Jev) | `typesafe` | klucz API | ✓ |
 | OpenRouter | `openrouter` | klucz API |  ✓ |
 | Otari | `otari` | klucz API | ✓ |
 | Alibaba Cloud | `alibaba` | klucz API | ✓ |
@@ -390,7 +407,7 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 
 | Provider | id | Poświadczenie | Custom URL |
 |---|---|---|---|
-| System One API | `system-one` | API key, or none | ✓ |
+| System One API | `system-one` | klucz API albo brak | ✓ |
 | Ollama | `ollama` | brak | ✓ |
 | proxy LiteLLM | `litellm` | brak | ✓ (`api_base`) |
 
@@ -426,6 +443,7 @@ ani nic, czym się uwierzytelnić.
 | AWS Bedrock | `bedrock` | access key id, klucz tajny, region, opcjonalny token sesji |
 | Google Vertex AI | `google_cloud` | JSON konta serwisowego |
 | ChatGPT (Codex subscription) | `openai_codex` | logowanie do ChatGPT, zapisywane przez zalogowanie się, a nie wpisywane |
+| [Subskrypcja Claude](https://github.com/t3grp/agenticos/blob/t3/integrations/claude-subscription/README.md) | `claude-subscription` | osobiste konto Claude połączone przez oficjalnego klienta; aliasy `sonnet`, `opus`, `haiku` |
 
 Pierwsze trzy są powodem, dla którego sekret w ogóle ma *rodzaj*. Formularz, który
 zbierałby dla Azure jeden nieprzejrzysty token, zbierałby coś, co da się wypełnić
@@ -663,14 +681,14 @@ przenosi się na inny model.
 !!! danger "Dlaczego jest zapisywana, a nie rozwiązywana per run"
 
     Ścieżka żądania nie może wołać providera, a jedyne, co mogłaby poza tym
-    sprawdzić, to dołączona migawka cen — która jest tu błędna w kierunku
-    psującym run.
-
-    Ta migawka zapisuje 1 000 000 dla `anthropic:claude-sonnet-4-5` wobec
-    rzeczywistych 200 000, więc wyzwalacz przy 90% ląduje powyżej prawdziwego
-    sufitu i kompaktowanie nigdy nie odpala, zanim provider odrzuci żądanie.
-    Profil z fallbackami jest gorszy: buduje `FallbackModel`, którego złożone id
-    nie rozwiązuje się do niczego w ogóle.
+    sprawdzić, to dołączona migawka cen — bundle zewnętrzny, którego liczby nie
+    są autorytatywne: wcześniejsza migawka zapisywała 1 000 000 dla
+    `anthropic:claude-sonnet-4-5` wobec rzeczywistych 200 000, więc wyzwalacz
+    przy 90% lądował powyżej prawdziwego sufitu i kompaktowanie nigdy nie
+    odpalało, zanim provider odrzucił żądanie (#773). Przypięta migawka zapisuje
+    dziś poprawne 200 000, lecz aktualizacja bundla może przesunąć liczbę, a to
+    repo tego nie zauważy. Profil z fallbackami jest gorszy: buduje
+    `FallbackModel`, którego złożone id nie rozwiązuje się do niczego w ogóle.
 
 Null znaczy **niezapisane**, a nie zero: profil starszy niż ta kolumna, provider,
 który nie publikuje długości, lista kuratorowana albo listing, którego nie dało się
@@ -806,13 +824,13 @@ Aby użyć innego endpointu z tym samym dostawcą i modelem, wybierz w Builderze
 
 ## Modele decyzyjne { #decision-models }
 
-Profile decyzyjne używają natywnego API `decisions` zamiast generowania tekstu. Wybierz dostawcę, model i klucz z sejfu w formularzu modelu. OpenAI, Google i OpenRouter oferują API czatu i decyzji; TypeSafe i własny endpoint System One służą do decyzji. Profil decyzyjny nie może być modelem rozmowy agenta ani przełączać się awaryjnie na model czatowy.
+Profile decyzyjne używają natywnego API `decisions` zamiast generowania tekstu. Wybierz providera, model i klucz z vault w formularzu modelu. OpenAI, Google i OpenRouter oferują API czatu i decyzji; TypeSafe i własny endpoint System One obsługują decyzje. Profil decyzyjny nie może być modelem rozmowy agenta ani modelem zapasowym dla modelu czatowego.
 
 Adaptery pochodzą z Pydantic AI. Obecne sugestie obejmują OpenAI `gpt-6-luna`, Google `gemini-decision-1` oraz TypeSafe `jev-1.14.0` / `jev-latest`. OpenRouter pobiera katalog modeli decyzyjnych osobno od tekstowych. Własny System One wymaga adresu i identyfikatora modelu. Dostępność zależy od dostawcy i konta; sugestia nie gwarantuje dostępu.
 
-Kroki **Decision models** w workflow wybierają profil natywny. Istniejące identyfikatory `decide.*` i konfiguracje z kluczem TypeSafe nadal działają. Odpowiedź poniżej progu pewności kieruje do portu `unsure`. Każde wykonanie ponownie sprawdza uprawnienia i klucz; koszt wchodzi do budżetu workflow i organizacji.
+Kroki workflow **Modele decyzyjne** (Decision models) wybierają natywny profil. Istniejące identyfikatory `decide.*` i konfiguracje z kluczem TypeSafe nadal działają. Odpowiedź poniżej progu pewności kieruje do portu `unsure`. Każde wykonanie ponownie sprawdza uprawnienia i klucz; koszt wchodzi do budżetu workflow i organizacji.
 
-Automatyczne dołączanie do rozmów na kanałach może korzystać z modelu natywnego lub zwykłego LLM ze structured output. Natywna decyzja tak/nie zwraca prawdopodobieństwo dołączenia; ograniczone pole liczbowe zachowuje tę wartość. LLM zwraca ocenę przydatności 0–100, a nie skalibrowane prawdopodobieństwo. Obie wartości porównujemy z suwakiem progu, włącznie z samą granicą. Klasyfikator nie ma narzędzi. Funkcja wymaga włączenia i respektuje ustawione interwały; główny agent może używać organizacyjnych kont MCP, nigdy prywatnych danych uczestnika.
+Opcja kanałowa **Dołączaj automatycznie do rozmów** (Join conversations automatically) może korzystać z natywnego profilu decyzyjnego albo zwykłego LLM z ustrukturyzowanym wyjściem. Natywna decyzja tak/nie zwraca prawdopodobieństwo dołączenia; ograniczone pole liczbowe zachowuje tę wartość. LLM zwraca ocenę przydatności od 0 do 100, a nie skalibrowane prawdopodobieństwo. Obie wartości porównuje się z progiem ustawionym w **Uruchom agenta od (%)** (Run the agent from (%)); równość z progiem też się liczy. Klasyfikator nie ma narzędzi. Funkcja wymaga włączenia i respektuje ustawione interwały; główny agent może używać organizacyjnych kont MCP, nigdy prywatnych danych uczestnika.
 
 Źródła dostawców: [Pydantic AI](https://pydantic.dev/docs/ai/models/decision/), [OpenAI](https://developers.openai.com/api/docs/guides/decisions), [Google](https://ai.google.dev/gemini-api/docs/decisions-api), [TypeSafe](https://docs.typesafe.ai/models), [OpenRouter](https://github.com/OpenRouterTeam/skills/tree/main/skills/openrouter-decisions).
 

@@ -33,7 +33,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { useArtifactRequestActions, useArtifactRequests } from "@/hooks/use-artifact-requests";
-import { useArtifact } from "@/hooks/use-artifacts";
+import { useArtifact, useToggleArtifactFavourite } from "@/hooks/use-artifacts";
 import { ApiError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
@@ -109,6 +109,7 @@ export function ArtifactViewer({
     setAutoConsent,
     changeOwner,
   } = useArtifact(artifactId);
+  const favourites = useToggleArtifactFavourite();
   // Whoever may decide requests is told what waits on them, in the strip and under it.
   const decider = artifact !== null && (artifact.can_edit || artifact.may_change_owner);
   const { requests } = useArtifactRequests(
@@ -294,6 +295,12 @@ export function ArtifactViewer({
         onChangeOwner={() => setChangingOwner(true)}
         waitingRequests={waiting.length}
         onRequests={() => setSharing(true)}
+        favourite={{
+          on: artifact.is_favourite === true,
+          busy: favourites.isPending,
+          onToggle: () =>
+            favourites.mutate({ id: artifact.id, favourite: artifact.is_favourite !== true }),
+        }}
       >
         <ArtifactThemeToggle theme={theme} onChange={setTheme} />
         {live && bridge !== null && (

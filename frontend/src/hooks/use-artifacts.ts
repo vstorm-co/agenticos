@@ -38,6 +38,15 @@ export interface ArtifactQuery {
   groupId?: string | null;
   /** Only the pages made in this project's chats; null for every project. */
   projectId?: string | null;
+  /**
+   * Only what the caller owns or was shared with, even for a role that reaches
+   * the whole organization - the sidebar's list. Off for the management page.
+   */
+  mineOrShared?: boolean;
+  /** Only the apps the caller starred; the sidebar's favourites list. */
+  favourites?: boolean;
+  /** Off when the caller may not list apps, so no request is made. Defaults to on. */
+  enabled?: boolean;
 }
 
 /**
@@ -55,6 +64,9 @@ export function useArtifacts({
   limit = PAGE_SIZE,
   groupId = null,
   projectId = null,
+  mineOrShared = false,
+  favourites = false,
+  enabled = true,
 }: ArtifactQuery = {}) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.artifacts.list({
@@ -65,7 +77,10 @@ export function useArtifacts({
       limit,
       groupId: groupId ?? "",
       ...(projectId ? { projectId } : {}),
+      ...(mineOrShared ? { mineOrShared } : {}),
+      ...(favourites ? { favourites } : {}),
     }),
+    enabled,
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
@@ -75,6 +90,8 @@ export function useArtifacts({
       params.set("limit", String(limit));
       if (groupId) params.set("group_id", groupId);
       if (projectId) params.set("project_id", projectId);
+      if (mineOrShared) params.set("mine_or_shared", "true");
+      if (favourites) params.set("favourites", "true");
       return apiClient.get<ArtifactList>(`/apps?${params}`);
     },
     placeholderData: (previous) => previous,
@@ -134,6 +151,66 @@ export function useArtifactListActions() {
   });
 
   return { archive, unarchive, remove };
+}
+
+/** The list entries a star change lands in: lists, and the detail held under the id. */
+function isListKey(key: readonly unknown[]): boolean {
+  return key[1] === "list";
+}
+
+/**
+ * Star or unstar an app. The change shows at once in every list and in the
+ * app's own detail; a refused change is put back and says why. Each list is then
+ * refetched, so a favourites list drops an app that was unstarred and the total
+ * is right again.
+ */
+export function useToggleArtifactFavourite() {
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    // 204 with no body; idempotent on the server. The cache is corrected by the
+    // optimistic write above and by the invalidation in onSettled.
+    mutationFn: ({ id, favourite }: { id: string; favourite: boolean }) =>
+      favourite
+        ? apiClient.post<void>(`/apps/${id}/favourite`)
+        : apiClient.delete<void>(`/apps/${id}/favourite`),
+    onMutate: async ({ id, favourite }) => {
+      await queryClient.cancelQueries({ queryKey: qk.artifacts.all() });
+      const snapshot = queryClient.getQueriesData<ArtifactList | ArtifactDetail>({
+        queryKey: qk.artifacts.all(),
+      });
+      for (const [key, data] of snapshot) {
+        if (!data) continue;
+        if (isListKey(key) && "items" in data) {
+          // The favourites list drops an app once it is unstarred; the others flip its mark.
+          const onlyFavourites =
+            (key[2] as { favourites?: boolean } | undefined)?.favourites === true;
+          const removed = onlyFavourites && !favourite;
+          const items = removed
+            ? data.items.filter((item) => item.id !== id)
+            : data.items.map((item) =>
+                item.id === id ? { ...item, is_favourite: favourite } : item,
+              );
+          queryClient.setQueryData<ArtifactList>(key, {
+            ...data,
+            items,
+            total: removed ? Math.max(0, data.total - 1) : data.total,
+          });
+        } else if (key.length === 2 && key[1] === id && !("items" in data)) {
+          queryClient.setQueryData<ArtifactDetail>(key, { ...data, is_favourite: favourite });
+        }
+      }
+      return { snapshot };
+    },
+    onError: (error, _variables, context) => {
+      for (const [key, data] of context?.snapshot ?? []) {
+        queryClient.setQueryData(key, data);
+      }
+      toast.error(getErrorMessage(error, tErrors));
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: qk.artifacts.all() }),
+  });
 }
 
 /**

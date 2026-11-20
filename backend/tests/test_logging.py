@@ -463,8 +463,13 @@ class TestSecretQueries:
                 "/auth/callback?code={s}&desktop_nonce=n1",
                 "/auth/callback?code=[REDACTED]&desktop_nonce=n1",
             ),
+            (
+                "https://app.example/connectors?session_uri=https%3A%2F%2Fbackend.composio.dev%2Fverify%2F{s}&intent=day",
+                "https://app.example/connectors?session_uri=[REDACTED]&intent=day",
+            ),
             # A span's `url.query` has no `?` in front of it.
             ("visitor={s}&token={s}", "visitor=[REDACTED]&token=[REDACTED]"),
+            ("session_uri={s}&status=success", "session_uri=[REDACTED]&status=success"),
             # A value that opens with a percent-encoded byte is not a `%d` placeholder.
             (
                 "/api/v1/oauth/google/callback?code=%d3{s}&state=%DF{s}",
@@ -599,6 +604,22 @@ def test_uvicorn_s_access_log_does_not_write_a_sign_in_s_code(uvicorn_access):
         '"GET /api/v1/oauth/google/callback?code=[REDACTED]&state=[REDACTED] HTTP/1.1" 200'
         in emitted
     )
+
+
+@pytest.mark.security
+def test_uvicorn_s_access_log_does_not_write_a_composio_verifier(
+    uvicorn_access: io.StringIO,
+) -> None:
+    verifier = secrets.token_urlsafe(32)
+    setup_logging()
+
+    _log_a_request(
+        f"/connectors?session_uri=https%3A%2F%2Fbackend.composio.dev%2Fverify%2F{verifier}&intent=day"
+    )
+
+    emitted = uvicorn_access.getvalue()
+    assert verifier not in emitted
+    assert '"GET /connectors?session_uri=[REDACTED]&intent=day HTTP/1.1" 200' in emitted
 
 
 def test_one_line_writes_a_line_break_out_and_leaves_none_alone():

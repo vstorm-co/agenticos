@@ -286,7 +286,7 @@ export interface DelegateRef {
   name: string;
   has_avatar?: boolean;
   avatar_color?: number | null;
-  /** Set for Claude Code or Codex, which wear their own mark rather than an agent's face. */
+  /** Set for a coding harness, which wears its own mark rather than an agent's face. */
   harness?: CodingHarness;
 }
 
@@ -301,8 +301,8 @@ export interface DelegateRef {
 /**
  * Who did the work: the coding harness when the delegation is one, else the agent.
  *
- * Claude Code and Codex are not agents anybody published, so no agent in the
- * list answers for them; the delegation names its harness instead.
+ * A coding harness is not an agent anybody published, so no agent in the
+ * list answers for it; the delegation names its harness instead.
  */
 export function delegateOf(delegation: Delegation, agents: readonly DelegateRef[]): DelegateRef {
   if (delegation.harness === null) return delegateNamed(delegation.subagent, agents);

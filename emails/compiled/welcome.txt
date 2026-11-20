@@ -1,12 +1,16 @@
-Subject: Welcome to [[app_name]], [[name]]!
+Subject: Your [[app_name]] workspace
 
-Hi [[name]],
+Your [[app_name]] workspace
 
-Welcome to [[app_name]]! Your account is ready.
+Hi [[name]], welcome to [[app_name]]. Bring your people, knowledge and agents together in one workspace.
 
-Get started here:
+Knowledge: Add the context your agents need
+Agents: Set a task and instructions
+Results: Review what the agent produces
+
+Open your workspace:
 [[login_url]]
 
-If you have any questions, reply to this email - we're happy to help.
+Start with one task and review the result.
 
-- The [[app_name]] Team
+[[app_name]]

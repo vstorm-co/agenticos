@@ -43,6 +43,7 @@ from pydantic_ai.messages import (
 )
 
 from app.agents.deps import AgentDeps
+from app.agents.failures import NO_OUTPUT_MESSAGE
 from app.agents.tool_call_ids import fresh_call_id, used_call_ids
 from app.core.tool_identity import ToolIdentity
 from app.services.agent_chat import display_output
@@ -87,6 +88,12 @@ class RunFrames:
         self.prompt = prompt
         self.draft_tools = draft_tools
         self._resolved_draft_tools: frozenset[str] = frozenset()
+        # Model events forwarded by `request()` this turn: part starts and
+        # deltas, and the final-result start. A turn whose model stream
+        # closes with none of these produced nothing at all - no text, no
+        # thinking, no tool call - and `drive` fails it loudly rather than
+        # letting it complete as an empty answer (see below).
+        self.model_events: int = 0
 
     def identity(self, name: str, call_id: str) -> ToolIdentity:
         if self._deps is None:
@@ -109,6 +116,9 @@ class RunFrames:
         if isinstance(deps, AgentDeps):
             self._deps = deps
             self._resolved_draft_tools = deps.draft_tool_names
+        # A fresh turn: a reused instance must not carry the last turn's
+        # events into this turn's zero-event check below.
+        self.model_events = 0
         async for node in agent_run:
             if Agent.is_user_prompt_node(node):
                 said = node.user_prompt if isinstance(node.user_prompt, str) else self.prompt
@@ -137,6 +147,16 @@ class RunFrames:
                 # answer without saying anything. Whatever made it false now
                 # raises instead, and reaches the client as `error`.
                 await self.emit("final_result", {"output": display_output(agent_run.result.output)})
+        if self.model_events == 0:
+            # The stream closed without a single model event: the provider
+            # ended the turn without producing anything, and nothing in the
+            # graph raised. Without this, `_outcome` would only catch the
+            # case where the result is missing - a turn that "completes"
+            # with an empty result would be persisted as an empty answer
+            # and the question would look answered. A cancellation raises
+            # before this point, and a parked turn always has model events
+            # (the tool calls it parked on), so neither can trip it.
+            raise RuntimeError(NO_OUTPUT_MESSAGE)
 
     async def request(self, request_stream: Any, used: set[str]) -> None:
         """Forward model-request events: text, reasoning, tool deltas, final-result start.
@@ -151,6 +171,7 @@ class RunFrames:
         and a turn that does finish reloads in the order it was watched in.
         """
         async for event in request_stream:
+            self.model_events += 1
             if isinstance(event, PartStartEvent):
                 start: dict[str, Any] = {
                     "index": event.index,

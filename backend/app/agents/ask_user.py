@@ -16,7 +16,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 from pydantic_ai.exceptions import CallDeferred
-from pydantic_ai.messages import ToolCallPart
+from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelResponse, ToolCallPart
 from pydantic_ai_harness.ask_user import TOOL_NAME as ASK_USER_TOOL
 from pydantic_ai_harness.ask_user import AskUserAnswer, AskUserRequest, AskUserResponse
 from subagents_pydantic_ai import current_subagent_state
@@ -166,6 +166,24 @@ def question_request(call: ToolCallPart) -> AskUserRequest:
     have identified this call; unrelated calls must not use this parser.
     """
     return AskUserRequest.from_tool_call(replace(call, tool_name=ASK_USER_TOOL))
+
+
+def parked_question_texts(messages: list[dict[str, Any]], tool_call_ids: list[str]) -> list[str]:
+    """The displayed question text for the parked calls, in call order."""
+    wanted = set(tool_call_ids)
+    calls: dict[str, ToolCallPart] = {}
+    for message in ModelMessagesTypeAdapter.validate_python(messages):
+        if isinstance(message, ModelResponse):
+            for part in message.parts:
+                if isinstance(part, ToolCallPart) and part.tool_call_id in wanted:
+                    calls[part.tool_call_id] = part
+
+    return [
+        question.question
+        for tool_call_id in tool_call_ids
+        if tool_call_id in calls
+        for question in question_request(calls[tool_call_id]).questions
+    ]
 
 
 def parked_status(tool_name: str, *, awaiting_answer: bool = False) -> str:

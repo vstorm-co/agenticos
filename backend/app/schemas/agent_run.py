@@ -105,6 +105,25 @@ class AgentRunRead(BaseSchema):
     )
     status: str
     model_label: str | None = None
+    fallback_used: bool = Field(
+        default=False,
+        description=(
+            "True when a fallback model served any request of this run. False "
+            "on runs recorded before this was tracked, as well as on runs the "
+            "primary answered throughout - the console renders the fallback "
+            "line only when this is true"
+        ),
+    )
+    serving_model: str | None = Field(
+        default=None,
+        description=(
+            "The bare model id the provider reported for the last successful "
+            "request of this run - the model that actually answered, which is "
+            "a fallback's id when `fallback_used` is true. Null when no "
+            "request succeeded. A model id, not a display label: compare it "
+            "against the profile's model, never against `model_label`"
+        ),
+    )
     provider: str | None = Field(
         default=None,
         description=(
@@ -222,6 +241,31 @@ class AgentRunRead(BaseSchema):
             "and a client should not resume it itself. Never true for an API key"
         ),
     )
+    waiting_questions: list[str] = Field(
+        default_factory=list,
+        description=(
+            "The run's unanswered `ask_user` questions, in the order they were asked. "
+            "Empty unless the run is parked on an answer: a finished thread has "
+            "nothing to answer, and a run parked on an approval alone asked nothing. "
+            "What the Runs view shows instead of a bare 'waiting' badge."
+        ),
+    )
+    waiting_secret_requests: list[str] = Field(
+        default_factory=list,
+        description=(
+            "The names of the secrets the run's `request_secret` calls are waiting "
+            "on, in the order they were asked (#13). Empty unless the run is parked "
+            "on an answer. The values are never carried here, only the names."
+        ),
+    )
+    waiting_expires_at: datetime | None = Field(
+        default=None,
+        description=(
+            "When the parked question expires unanswered and the run ends cancelled, "
+            "the park time plus `QUESTION_EXPIRY_HOURS`. Null unless the run is "
+            "parked on an answer."
+        ),
+    )
     error: str | None = None
     conversation_id: UUID | None = Field(
         default=None,
@@ -255,6 +299,15 @@ class AgentRunRead(BaseSchema):
     )
     started_at: datetime | None = None
     ended_at: datetime | None = None
+    heartbeat_at: datetime | None = Field(
+        default=None,
+        description=(
+            "When the process executing this run last stamped it alive - "
+            "every 15 seconds while it runs. A `running` run whose beat is "
+            "minutes old has a dead process behind it; the stale-run sweep "
+            "ends such a run, and the chat shows it as stalled meanwhile."
+        ),
+    )
     parent_run_id: UUID | None = Field(
         default=None,
         description=(
@@ -264,6 +317,10 @@ class AgentRunRead(BaseSchema):
             "read the same way: a parent's cost already contains its children's, "
             "so a surface that sums a page of rows double-counts every delegation."
         ),
+    )
+    retry_of_run_id: UUID | None = Field(
+        default=None,
+        description="The earlier run this top-level run retries, or null when it is not a retry.",
     )
     subagent_task_id: str | None = Field(
         default=None,

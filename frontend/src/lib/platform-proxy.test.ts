@@ -77,6 +77,19 @@ describe("platformProxy", () => {
     expect(backend.forwarded().url).toBe(`${BACKEND}/api/v1/agents/abc/versions?limit=5`);
   });
 
+  it("forwards the Drive folder listing to the backend's sync-sources route", async () => {
+    // The picker calls /api/sync-sources/...; FastAPI mounts it under /api/v1.
+    const backend = backendReplies('{"drives":[],"folders":[]}');
+
+    await platformProxy().GET(
+      request("/api/sync-sources/gdrive/folders?account=acct-1&parent=root"),
+    );
+
+    expect(backend.forwarded().url).toBe(
+      `${BACKEND}/api/v1/sync-sources/gdrive/folders?account=acct-1&parent=root`,
+    );
+  });
+
   it("sends the access token from the cookie, never from the client", async () => {
     const backend = backendReplies("{}");
 

@@ -37,7 +37,7 @@ it.each(["loading", "signed out", "another page"])(
   },
 );
 it("keeps setup available on a locale-prefixed chat route", () => {
-  env.path = "/pl/chat";
+  env.path = "/en/chat";
   render(<AccountNotices />);
   expect(screen.getByText("Start offer")).toBeVisible();
 });

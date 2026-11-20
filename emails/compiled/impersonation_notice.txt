@@ -1,9 +1,12 @@
-Subject: An administrator accessed your [[app_name]] account
+Subject: Administrator access started
 
-Hi [[name]],
+Administrator access started
 
-An administrator of this [[app_name]] deployment ([[admin_email]]) has started acting as your account. This access ends when they end it or within one hour, whichever comes first, and administrative actions taken during it are recorded in the deployment's audit trail as theirs.
+Hi [[name]], an administrator started an impersonation session for your [[app_name]] account.
 
-If you weren't expecting this, contact your administrator.
+Administrator: [[admin_email]]
+Session type: Impersonation
 
-- The [[app_name]] Team
+If this access was unexpected, contact your administrator.
+
+[[app_name]]

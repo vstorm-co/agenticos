@@ -2,6 +2,7 @@
 
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { Check, ChevronRight, KeyRound, Trash2 } from "lucide-react";
+import Link from "next/link";
 
 import { AddModel } from "@/components/agents/add-model";
 import { ProviderIcon } from "@/components/vault/provider-icon";
@@ -19,6 +20,7 @@ import { useChanged } from "@/hooks/use-changed";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
 import { hasKey, modelDetail, runsAgents } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
+import { ROUTES } from "@/lib/constants";
 import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
@@ -129,6 +131,8 @@ export function ModelProfilePicker({
 }: ModelProfilePickerProps) {
   const t = useTranslations("agents");
   const tc = useTranslations("common");
+  const tPersonal = useTranslations("personalModels");
+  const tSubscription = useTranslations("claudeSubscription");
   const { deleteProfile, refetchProfiles } = useModelProviders();
   const [selectionVersion, setSelectionVersion] = useState(0);
   const currentSelection = useRef(0);
@@ -182,6 +186,7 @@ export function ModelProfilePicker({
           // and reading the column marked every Ollama profile "no key" (#2478).
           noKey={requireOrganizationKey && !hasKey(profile)}
           notChat={purpose === "chat" && !runsAgents(profile)}
+          personal={profile.usage_scope === "personal"}
           selectable={usable(profile) || profile.id === value}
           disabled={disabled}
           onRemove={allowRemove ? () => deleteProfile.mutate(profile.id) : undefined}
@@ -213,10 +218,18 @@ export function ModelProfilePicker({
       {/* The badge that decides whether the agent can run at all. In a list of a
           dozen saved models the chosen one's badge is a badge among twelve. */}
       {requireOrganizationKey && !hasKey(selected) && (
-        <Badge variant="destructive">{t("noKey")}</Badge>
+        <Badge variant="destructive">
+          {selected.provider === "claude-subscription" ? tSubscription("disconnected") : t("noKey")}
+        </Badge>
       )}
       {purpose === "chat" && !runsAgents(selected) && (
         <Badge variant="destructive">{t("notAChatModel")}</Badge>
+      )}
+      {selected.usage_scope === "personal" && (
+        <Badge variant="secondary">{tPersonal("personal")}</Badge>
+      )}
+      {selected.usage_scope === "personal" && (
+        <p className="text-muted-foreground basis-full text-xs">{tPersonal("personalUse")}</p>
       )}
       {purpose === "chat" && !runsAgents(selected) && (
         <p role="alert" className="text-destructive basis-full text-xs">
@@ -225,7 +238,16 @@ export function ModelProfilePicker({
       )}
       {requireOrganizationKey && runsAgents(selected) && !hasKey(selected) && (
         <p role="alert" className="text-destructive basis-full text-xs">
-          {t("modelHasNoKeyHint")}
+          {selected.provider === "claude-subscription" ? (
+            <>
+              {tSubscription("reconnectModels")}{" "}
+              <Link href={ROUTES.SETTINGS_AI_CONNECTIONS} className="underline underline-offset-4">
+                {tSubscription("manageConnection")}
+              </Link>
+            </>
+          ) : (
+            t("modelHasNoKeyHint")
+          )}
         </p>
       )}
     </div>
@@ -378,6 +400,7 @@ function ProfileRow({
   provider,
   noKey,
   notChat,
+  personal,
   selectable = true,
   disabled,
   onRemove,
@@ -390,6 +413,7 @@ function ProfileRow({
   provider: string;
   noKey?: boolean;
   notChat?: boolean;
+  personal?: boolean;
   /** False for a non-chat model listed only so it can be removed. */
   selectable?: boolean;
   disabled?: boolean;
@@ -398,6 +422,8 @@ function ProfileRow({
 }) {
   const t = useTranslations("agents");
   const tc = useTranslations("common");
+  const tPersonal = useTranslations("personalModels");
+  const tSubscription = useTranslations("claudeSubscription");
   return (
     // The radio and the delete are siblings, not nested: a button inside a
     // button is invalid, and the browser resolves it by dropping one of them.
@@ -419,8 +445,13 @@ function ProfileRow({
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-1.5">
             <span className="truncate text-sm font-medium">{title}</span>
-            {noKey && <Badge variant="destructive">{t("noKey2")}</Badge>}
+            {noKey && (
+              <Badge variant="destructive">
+                {provider === "claude-subscription" ? tSubscription("disconnected") : t("noKey2")}
+              </Badge>
+            )}
             {notChat && <Badge variant="destructive">{t("notAChatModel")}</Badge>}
+            {personal && <Badge variant="secondary">{tPersonal("personal")}</Badge>}
           </span>
           {subtitle !== null && (
             <span className="text-muted-foreground mt-0.5 block truncate font-mono text-xs">

@@ -1,11 +1,14 @@
-Subject: Your [[app_name]] magic link
+Subject: Sign in to [[app_name]]
 
-Hi [[name]],
+Sign in to [[app_name]]
 
-Click the link below to sign in. It expires in [[expires_in]].
+Hi [[name]], use this link to sign in to your [[app_name]] account.
 
+Link expires in: [[expires_in]]
+
+Sign in to [[app_name]]:
 [[magic_url]]
 
-If you didn't request this, ignore this email.
+If you did not request this link, you can ignore this email.
 
-- The [[app_name]] Team
+[[app_name]]

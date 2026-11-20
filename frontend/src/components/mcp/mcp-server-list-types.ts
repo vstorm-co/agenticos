@@ -35,6 +35,8 @@ export interface DraftState {
   row: McpServerRow;
   /** The connection being edited, or null when connecting for the first time. */
   existing: McpConnectionRecord | null;
+  /** Set when the organization has no Google app: the form asks for one, to an admin. */
+  googleAppMissing?: boolean;
   /**
    * What to seed the name with, where the entry's own key is taken.
    *

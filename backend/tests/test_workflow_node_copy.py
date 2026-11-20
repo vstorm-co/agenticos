@@ -1,9 +1,9 @@
-"""The console names every workflow step in the reader's language, from the registry's words.
+"""The console names every workflow step from the registry's words.
 
 The registry writes a step's name, description and port labels in English, and the
-console's `workflowNodes` catalog holds the same copy per locale. A step added here
-with no entry there reads in English in a Polish palette; one renamed here keeps its
-old name on the canvas while the API, the Architect and the docs use the new one.
+console's `workflowNodes` catalog holds the same copy. The T3 fork ships English only
+(#161). A step renamed here keeps its old name on the canvas while the API, the
+Architect and the docs use the new one.
 """
 
 import json
@@ -11,12 +11,9 @@ import re
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 from app.workflows._registry import all_node_definitions
 
 MESSAGES_PATH = Path(__file__).resolve().parents[2] / "frontend" / "messages"
-LOCALES = ("en", "pl", "de", "tr")
 
 
 def _key(text: str) -> str:
@@ -121,11 +118,10 @@ def _strings(tree: object) -> list[str]:
     return [tree] if isinstance(tree, str) else []
 
 
-@pytest.mark.parametrize("locale", LOCALES)
-def test_no_copy_holds_what_a_message_would_parse(locale: str):
+def test_no_copy_holds_what_a_message_would_parse():
     """A brace is an ICU argument and `<` opens a tag: copy holding either renders
     broken, or throws, though the English still equals the registry's."""
-    unquoted = [text.replace("'{'", "").replace("'}'", "") for text in _strings(_copy(locale))]
+    unquoted = [text.replace("'{'", "").replace("'}'", "") for text in _strings(_copy("en"))]
     assert [text for text in unquoted if re.search(r"[{}<]", text)] == []
 
 
@@ -139,30 +135,5 @@ def test_the_english_copy_is_the_registry_s():
     assert copy["port"] == {_key(label): label for label in labels}
 
 
-@pytest.mark.parametrize("locale", LOCALES[1:])
-def test_every_locale_names_every_step_and_port_and_nothing_else(locale: str):
-    english, translated = _copy("en"), _copy(locale)
-
-    assert set(translated) == {"node", "port", "field"}
-    assert translated["node"].keys() == english["node"].keys()
-    for key, entry in translated["node"].items():
-        assert isinstance(entry, dict) and entry.keys() == {"name", "description"}, key
-        assert all(isinstance(text, str) and text.strip() for text in entry.values()), key
-    assert translated["port"].keys() == english["port"].keys()
-
-
 def test_the_english_field_copy_is_the_registry_s():
     assert _copy("en")["field"] == _registry_fields()
-
-
-@pytest.mark.parametrize("locale", LOCALES[1:])
-def test_every_locale_words_every_field_it_is_given(locale: str):
-    english, translated = _copy("en")["field"], _copy(locale)["field"]
-
-    def shape(tree: object) -> object:
-        if isinstance(tree, dict):
-            return {key: shape(value) for key, value in tree.items()}
-        assert isinstance(tree, str) and tree.strip(), tree
-        return None
-
-    assert shape(translated) == shape(english)

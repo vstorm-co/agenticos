@@ -854,6 +854,41 @@ one line for each problem found. The page is published either way. The checks:
 - a bound page whose script never calls `agenticos.onData` or reads
   `agenticos.data`, so it shows no records.
 
+### Sharing context with the assistant
+
+`agenticos.setAssistantContext` lets a static app or an app with data bindings
+describe its current view to the floating assistant. It is available in the
+signed-in console's primary `/apps/{artifactId}` viewer. Call it whenever the
+view, filters or selected records change:
+
+```javascript
+agenticos.setAssistantContext({
+  view: "Orders",
+  filters: { status: "waiting", region: "west" },
+  selected_ids: ["order-42"],
+  summary: "Three orders are waiting for review.",
+  selected_text: "Order 42: awaiting approval."
+});
+```
+
+All fields are optional. Call `agenticos.setAssistantContext(null)` to clear the
+app-supplied details. Text is truncated at these limits, and extra entries are
+omitted:
+
+| Field | Limit |
+|---|---|
+| `view` | 120 characters |
+| `filters` | 20 entries; keys of 80 characters; string values of 240 characters |
+| `selected_ids` | 20 string IDs, 128 characters each |
+| `summary` | 6,000 characters |
+| `selected_text` | 2,000 characters |
+
+The console supplies the app ID, title, version and current path. The iframe
+cannot replace that identity or grant extra permissions. The API uses the
+existing sandbox bridge; it does not scrape the DOM or automatically capture
+form fields or URL query parameters. The viewer controls sharing in the
+[assistant window](console.md#the-assistant).
+
 ### Seeing the page: preview
 
 `preview_artifact` draws the current version of a page as somebody opening it

@@ -1,5 +1,5 @@
 ---
-source_sha: "0a32b884bf8a"
+source_sha: "d0d1887fb0cb"
 ---
 
 # Architektur { #architecture }
@@ -40,50 +40,51 @@ von Sortierreihenfolgen, als Typ importiert und nicht als Datenzugriff.
 
 ## Verzeichnisstruktur (`backend/app/`) { #directory-structure-backendapp }
 
-| Verzeichnis / Datei   | Zweck                                                         |
-| --------------------- | ------------------------------------------------------------- |
-| `api/routes/v1/`      | HTTP-Endpunkte, Validierung der Anfrage, Auth                 |
-| `api/deps.py`         | Dependency Injection (DB-Session, aktueller Nutzer)           |
-| **`services/`**       | **Geschäftslogik, Orchestrierung**                            |
-| ↳ `user.py`           | Nutzer-CRUD, Profilaktualisierungen                           |
-| ↳ `conversation.py`   | Verwaltung von Unterhaltungen und Nachrichten                 |
-| ↳ `message_rating.py` | CRUD für Nachrichtenbewertungen, Statistiken, Export          |
-| ↳ `file_upload.py`    | Verarbeitung von Datei-Uploads im Chat                        |
-| ↳ `file_storage.py`   | Abstraktion der Dateiablage (lokal / S3)                      |
-| ↳ `rag_document.py`   | Lebenszyklus eines RAG-Dokuments                              |
-| ↳ `rag_sync.py`       | Orchestrierung der Synchronisation entfernter Quellen         |
-| ↳ `sync_source.py`    | CRUD für Sync-Quellen, und die Laufhistorie einer Quelle      |
-| ↳ `audit.py`          | Lesen des Audit-Trails der eigenen Organisation des Aufrufers |
-| **`repositories/`**   | **Datenzugriffsschicht, Datenbankabfragen**                   |
-| ↳ `user.py`           | Nutzerabfragen                                                |
-| ↳ `conversation.py`   | Abfragen zu Unterhaltungen                                    |
-| ↳ `chat_file.py`      | Abfragen zu Chat-Dateien                                      |
-| ↳ `message_rating.py` | Abfragen zu Nachrichtenbewertungen                            |
-| ↳ `rag_document.py`   | Abfragen zu RAG-Dokumenten                                    |
-| ↳ `sync_log.py`       | Abfragen zu Sync-Logs                                         |
-| ↳ `sync_source.py`    | Abfragen zu Sync-Quellen                                      |
-| **`schemas/`**        | **Pydantic-Modelle für Anfrage und Antwort**                  |
-| ↳ `user.py`           | Nutzer-Schemas                                                |
-| ↳ `conversation.py`   | Schemas für Unterhaltungen und Nachrichten                    |
-| ↳ `file.py`           | Schemas für Datei-Uploads                                     |
-| ↳ `message_rating.py` | Schemas für Nachrichtenbewertungen                            |
-| ↳ `rag.py`            | Schemas für RAG-Abfrage und -Antwort                          |
-| ↳ `sync_source.py`    | Schemas für Sync-Quellen                                      |
-| **`db/models/`**      | **SQLAlchemy-2.1-Modelle**                                    |
-| ↳ `user.py`           | Nutzer-Modell                                                 |
-| ↳ `conversation.py`   | Modelle für Unterhaltung und Nachricht                        |
-| ↳ `chat_file.py`      | Modell für Chat-Dateien                                       |
-| ↳ `message_rating.py` | Modell für Nachrichtenbewertungen                             |
-| ↳ `webhook.py`        | Webhook-Modell                                                |
-| ↳ `rag_document.py`   | Modell für RAG-Dokumente                                      |
-| ↳ `sync_log.py`       | Modell für Sync-Logs                                          |
-| ↳ `sync_source.py`    | Modell für Sync-Quellen                                       |
-| `core/config.py`      | Einstellungen über pydantic-settings                          |
-| `core/security.py`    | Hilfsfunktionen für JWT / API-Key                             |
-| `agents/`             | KI-Agents und Tools                                           |
-| `rag/`                | RAG-Modul (Embeddings, Vector Store, Retrieval)               |
-| `rag/connectors/`     | Sync-Connectors (Google Drive, S3, Websites)                  |
-| `commands/`           | CLI-Kommandos im Django-Stil                                  |
+| Verzeichnis / Datei | Zweck |
+|-----------|---------|
+| `api/routes/v1/` | HTTP-Endpunkte, Validierung der Anfrage, Auth |
+| `api/deps.py` | Dependency Injection (DB-Session, aktueller Nutzer) |
+| **`services/`** | **Geschäftslogik, Orchestrierung** |
+| ↳ `user.py` | Nutzer-CRUD, Profilaktualisierungen |
+| ↳ `conversation.py` | Verwaltung von Unterhaltungen und Nachrichten |
+| ↳ `message_rating.py` | CRUD für Nachrichtenbewertungen, Statistiken, Export |
+| ↳ `file_upload.py` | Verarbeitung von Datei-Uploads im Chat |
+| ↳ `file_storage.py` | Abstraktion der Dateiablage (lokal / S3) |
+| ↳ `rag_document.py` | Lebenszyklus eines RAG-Dokuments |
+| ↳ `rag_sync.py` | Orchestrierung der Synchronisation entfernter Quellen |
+| ↳ `sync_source.py` | CRUD für Sync-Quellen, und die Laufhistorie einer Quelle |
+| ↳ `gdrive_picker.py` | Autorisierung von Google-Konten der Organisation und seitenweises Durchsuchen von Drive-Ordnern |
+| ↳ `audit.py` | Lesen des Audit-Trails der eigenen Organisation des Aufrufers |
+| **`repositories/`** | **Datenzugriffsschicht, Datenbankabfragen** |
+| ↳ `user.py` | Nutzerabfragen |
+| ↳ `conversation.py` | Abfragen zu Unterhaltungen |
+| ↳ `chat_file.py` | Abfragen zu Chat-Dateien |
+| ↳ `message_rating.py` | Abfragen zu Nachrichtenbewertungen |
+| ↳ `rag_document.py` | Abfragen zu RAG-Dokumenten |
+| ↳ `sync_log.py` | Abfragen zu Sync-Logs |
+| ↳ `sync_source.py` | Abfragen zu Sync-Quellen |
+| **`schemas/`** | **Pydantic-Modelle für Anfrage und Antwort** |
+| ↳ `user.py` | Nutzer-Schemas |
+| ↳ `conversation.py` | Schemas für Unterhaltungen und Nachrichten |
+| ↳ `file.py` | Schemas für Datei-Uploads |
+| ↳ `message_rating.py` | Schemas für Nachrichtenbewertungen |
+| ↳ `rag.py` | Schemas für RAG-Abfrage und -Antwort |
+| ↳ `sync_source.py` | Schemas für Sync-Quellen |
+| **`db/models/`** | **SQLAlchemy-2.1-Modelle** |
+| ↳ `user.py` | Nutzer-Modell |
+| ↳ `conversation.py` | Modelle für Unterhaltung und Nachricht |
+| ↳ `chat_file.py` | Modell für Chat-Dateien |
+| ↳ `message_rating.py` | Modell für Nachrichtenbewertungen |
+| ↳ `webhook.py` | Webhook-Modell |
+| ↳ `rag_document.py` | Modell für RAG-Dokumente |
+| ↳ `sync_log.py` | Modell für Sync-Logs |
+| ↳ `sync_source.py` | Modell für Sync-Quellen |
+| `core/config.py` | Einstellungen über pydantic-settings |
+| `core/security.py` | Hilfsfunktionen für JWT / API-Key |
+| `agents/` | KI-Agents und Tools |
+| `rag/` | RAG-Modul (Embeddings, Vector Store, Retrieval) |
+| `rag/connectors/` | Sync-Connectors (Google Drive, S3, Websites) |
+| `commands/` | CLI-Kommandos im Django-Stil |
 
 ## Verantwortlichkeiten der Schichten { #layer-responsibilities }
 

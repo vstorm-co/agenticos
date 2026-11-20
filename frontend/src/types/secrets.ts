@@ -23,7 +23,9 @@ export type SecretKind =
   | "http_credential"
   | "smtp_account"
   | "microsoft_oauth_app"
-  | "openai_codex";
+  | "openai_codex"
+  | "browser_login"
+  | "browser_profile";
 
 /**
  * Every kind a person can save. `none` is not one of them: it says "there is no
@@ -31,6 +33,10 @@ export type SecretKind =
  * may not - `POST /secrets` refuses it with a 422.
  */
 export type StorableSecretKind = Exclude<SecretKind, "none">;
+
+export function isBrowserSecretKind(kind: unknown): kind is "browser_login" | "browser_profile" {
+  return kind === "browser_login" || kind === "browser_profile";
+}
 
 /**
  * A secret a capability declares it cannot work without. Mirrors
@@ -177,6 +183,8 @@ export interface SecretPurpose {
   kind: StorableSecretKind;
   help_url: string | null;
   description: string;
+  /** Explicit server capability: an older backend must not accept a personal key by accident. */
+  personal_supported?: boolean;
   /**
    * The brand mark to draw, as the console's glyph table names them. Empty for a
    * model provider - whose id already is a key - and for a service whose brand
@@ -193,6 +201,16 @@ export interface SecretPurposeList {
 /** How far a secret reaches. The same scale every shared resource here uses. */
 export type SecretVisibility = "private" | "team" | "org";
 
+/** Who may spend a model credential, independently of who may view its metadata. */
+export type SecretUsageScope = "organization" | "personal";
+
+/** Browser selection metadata never contains a login or contact field value. */
+export interface BrowserSecretMetadata {
+  allowed_origins: string[];
+  available_fields: string[];
+  has_totp: boolean;
+}
+
 export interface Secret {
   /** Effective edit access in listings; absent on older deployments or write responses. */
   can_edit?: boolean;
@@ -206,9 +224,13 @@ export interface Secret {
    * is not confidential and its secret access key is.
    */
   hint: string;
+  /** Present only for saved browser logins and contact profiles; their hint is empty. */
+  browser?: BrowserSecretMetadata | null;
   /** What the key is for - a provider id, a service id, or `custom`. */
   purpose?: string;
   visibility?: SecretVisibility;
+  /** Personal model connections may be used only by their signed-in owner. */
+  usage_scope?: SecretUsageScope;
   owner_user_id?: string | null;
   /** Whose key it is, when it belongs to one person rather than the team. */
   owner_email?: string | null;
@@ -251,6 +273,7 @@ export interface NewSecret {
   /** What it is for. Drives which providers the model picker can offer. */
   purpose?: string;
   visibility?: SecretVisibility;
+  usage_scope?: SecretUsageScope;
 }
 
 /**

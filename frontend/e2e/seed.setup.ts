@@ -322,8 +322,9 @@ setup("the organization has connected an MCP server", async ({ page }) => {
     return;
   }
 
-  await page.goto("/mcp-servers");
-  await expect(pageHeading(page, "MCP servers")).toBeVisible();
+  await page.goto("/connectors");
+  await expect(pageHeading(page, "Connections")).toBeVisible();
+  await page.getByRole("tab", { name: "MCP servers", exact: true }).click();
 
   // The page is a catalog now, so a server that is not in it is reached through
   // the custom entry rather than through one "add" button.

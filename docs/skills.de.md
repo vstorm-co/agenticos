@@ -1,5 +1,5 @@
 ---
-source_sha: "54b551bbe389"
+source_sha: "facf3e422251"
 ---
 
 # Skills { #skills }
@@ -252,6 +252,30 @@ Skills: 1–64 Zeichen für den Namen und höchstens 500 für die Beschreibung.
 Änderungen außerhalb dieser Grenzen werden mit einer Warnung übersprungen;
 die ursprünglichen Dateien bleiben erhalten. Ein Savepoint schützt den Lauf:
 ein abgelehnter Vorschlag verhindert weder Status- noch Kostenaufzeichnung.
+
+### Gelernte Skills — ein genehmigter Vorschlag aktualisiert den genannten Skill { #learned-skills-an-approved-proposal-becomes-a-skill-on-its-own }
+
+Einen Vorschlag anzuwenden bearbeitet den Skill, den er nennt. Das automatische
+Skill-Lernen schreibt danach den genehmigten Text über
+`POST /v1/agents/{agent_id}/learned-skills` in diesen Skill. Der gespeicherte
+Vorschlag liefert den Ziel-Skill, den Text und die Herkunft. Die Anfrage sendet
+weiterhin `content`, und dieser Wert muss mit dem Text des Vorschlags
+übereinstimmen. `name` und `description` des Aufrufers sind veraltet und werden
+ignoriert.
+
+Das Lernen aktualisiert nur einen vorhandenen Skill, daher meldet die Antwort
+`created` immer als `false`. Ein Vorschlag ohne Ziel-Skill oder einer, der nicht
+angewendet oder zurückgenommen wurde, liefert 404. Ein Feld der Anfrage, das dem
+gespeicherten Vorschlag widerspricht, liefert 409, ebenso ein Skill, der sich
+seit dem Vorschlag geändert hat. Ein solcher Skill wird abgelehnt statt
+überschrieben.
+
+Jeder Schreibvorgang wird als `skill.learned` auditiert, mit dem Vorschlag, dem
+Ledger-Eintrag und dem Pattern-Key, die ihn motiviert haben. Denselben Vorschlag
+zweimal zu lernen schreibt beim zweiten Mal nichts. Eine gelernte Änderung ist
+danach eine gewöhnliche Bearbeitung: versioniert durch denselben Versionssprung
+wie jede Bearbeitung und rückgängig gemacht durch eine neue Bearbeitung statt
+durch eine Wiederherstellung.
 
 Eine Änderung hält fest, für welche Version des Skills sie geschrieben wurde:
 bei einem Run die Version, die dieser Run bekommen hat, und ein späterer Turn,
@@ -1085,6 +1109,6 @@ Die Beispiele enthalten einen Belegfilter, veränderbare Entscheidungskriterien,
 
 Apps exportiert veröffentlichte HTML-/Markdown-Seiten oder Browserpräsentationen über `export_artifact`. Der Betreiber konfiguriert `ARTIFACT_RENDER_CDP_URL` und installiert das Extra `browser`; der Agent benötigt einen Workspace für die echte PDF-Datei. Es gelten die Zugriffs- und Zielgruppenregeln der App-Vorschau; nicht verfügbare gebundene Daten verhindern den Export. Dateien sind auf 50 Seiten und 20 MB begrenzt und erhalten eindeutige Namen. PDF, Seitenumbrüche und vollständige Folien prüfen. Ein PowerPoint-Format wird nicht eingeführt.
 
-Chat kann interaktive Inhalte einbetten. Mattermost und andere Textkanäle erhalten einen berechtigten App-Link, ein gerendertes Bild soweit unterstützt oder eine angeforderte PDF-Datei; HTML läuft nicht in diesen Nachrichten. Ein Link gewährt keinen öffentlichen Zugriff. Bestehende Installationen nutzen die normale Bibliotheksaktualisierung: unveränderte Kopien werden aktualisiert, verwendete Skills warten auf ihre Prüfung, eigene Anpassungen bleiben geschützt.
+Chat kann interaktive Inhalte einbetten. Mattermost und andere Textkanäle erhalten einen berechtigten App-Link, ein gerendertes Bild soweit unterstützt oder eine angeforderte PDF-Datei; HTML läuft nicht in diesen Nachrichten. Ein Link gewährt keinen öffentlichen Zugriff. Bestehende Installationen nutzen die normale Bibliotheksaktualisierung: unveränderte Kopien werden aktualisiert, Skills, denen Agents folgen, warten auf ihre Prüfung, eigene Anpassungen bleiben geschützt.
 
 Mitgelieferte Plattform-Skills und die Skills des AI Architect können nach den normalen Ressourcenrechten gelesen und verwendet werden. Änderungen an Inhalt, Dateien, Versionen oder Forks, das Löschen und das Belegen eines reservierten Namens erfordern jedoch organisationsweite Agenten-Bearbeitungsrechte (Owner/Admin bei den eingebauten Rollen). Eine Bearbeitungsfreigabe für den Skill umgeht diesen Schutz nicht. Gewöhnliche Organisations-Skills behalten ihre bisherigen Eigentums- und Freigaberegeln.

@@ -1,5 +1,5 @@
 ---
-source_sha: "775173862ab0"
+source_sha: "3da9f2a96156"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -11,8 +11,9 @@ Una organización apunta a un servidor, sus herramientas aparecen en el Builder,
 no cambia ni una línea de código de nuestro lado.
 
 Todo lo que hay en el [catálogo de capabilities](reference/capabilities.md) es
-código que escribimos nosotros y que mantenemos al 100% de cobertura. Todo lo que
-hay aquí es una URL que alguien pegó.
+código que escribimos nosotros y que mantenemos con una cobertura del 100%. Las
+conexiones MCP acceden a las herramientas mediante una URL de servidor o una
+conexión de app gestionada.
 
 !!! info "Las dos cosas no son alternativas"
 
@@ -23,6 +24,39 @@ hay aquí es una URL que alguien pegó.
     **MCP** es la forma correcta para las decenas de productos SaaS que una empresa
     usa por casualidad, donde la única garantía que importa es «las herramientas son
     las que publicó el proveedor».
+
+## Conectar una app mediante Composio { #connect-an-app-through-composio }
+
+En T3OS, **Connections → Apps** permite buscar y explorar el catálogo de apps de
+Composio. El objetivo que elijas destaca sugerencias sin ocultar otras apps. La
+autenticación gestionada está disponible cuando el proveedor la admite; las apps
+que necesitan una configuración de autenticación del operador muestran **Setup
+required**. Das tu consentimiento por separado para cada cuenta, y el backend
+verifica que la cuenta devuelta te pertenece.
+
+Tus cuentas siguen al remitente de cada mensaje. Las siete integraciones
+originales conservan sus acciones de lectura revisadas. Para las demás apps
+compatibles se guarda una lista explícita de herramientas al conectarlas, y cada
+acción requiere tu aprobación. Una actualización posterior del catálogo no puede
+ampliar silenciosamente el acceso de esa cuenta.
+
+**Connections → MCP servers** gestiona los servidores MCP personales, de
+organización y personalizados existentes. Ambos tipos de conexión usan la misma
+infraestructura de propiedad de cuentas, límites de herramientas y aprobaciones.
+Los canales de chat, agentes remotos, el vault y las sandboxes están en **More**.
+Los enlaces `?tab=advanced` existentes siguen abriendo MCP servers.
+
+Composio aloja las credenciales de los proveedores y retransmite solicitudes y
+resultados. Conectar una app no la sincroniza automáticamente con una base de
+conocimiento. La configuración opcional sigue disponible en `/onboarding` y en el
+menú de la cuenta.
+
+El operador configura una clave de proyecto de ejecución, otra clave para los
+metadatos del catálogo, las configuraciones de autenticación de toolkits
+personalizados y la verificación de identidad de callbacks. La [guía de
+configuración de Composio del fork](https://github.com/t3grp/agenticos/blob/t3/integrations/composio/README.md)
+describe la configuración, el tratamiento de datos y las comprobaciones de
+aceptación en vivo requeridas.
 
 ## Una conexión { #a-connection }
 
@@ -1439,8 +1473,9 @@ El servidor MCP explica las mismas distinciones que los agentes: Desktop puede u
 
 - Un servidor MCP es **una URL que alguien pegó**, y sus herramientas aparecen sin
   un despliegue de código.
-- Las conexiones **personales** llegan al asistente de un miembro; solo las
-  conexiones de **organización** puede nombrarlas un spec publicado.
+- En una ejecución privada, las conexiones **personales** se vinculan en tiempo
+  de ejecución al remitente para cualquier agent; se omiten en salas compartidas.
+  Solo las conexiones de **organización** puede nombrarlas un spec publicado.
 - Cada dirección de un flujo OAuth se **comprueba y se fija**, incluidas las que
   eligió el servidor remoto.
 - Un token nunca sigue a una URL que se movió, una conexión deshabilitada no

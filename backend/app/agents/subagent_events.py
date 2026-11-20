@@ -117,7 +117,11 @@ class SubagentStarted(_SubagentFrame):
             "moment both it and the enclosing one exist."
         ),
     )
-    harness: Literal["claude_code", "codex"] | None = Field(
+    # The same five values as `Harness` in coding_agent/_harness.py, spelled
+    # out here: importing that module would run the coding agent package's
+    # `__init__`, which reaches back into `app.agents.deps` through the
+    # personal executor. `test_harness_more.py` asserts the two agree.
+    harness: Literal["claude_code", "codex", "opencode", "gemini", "pi"] | None = Field(
         default=None,
         description=(
             "Set when the worker is a coding harness the `coding_agent` capability "

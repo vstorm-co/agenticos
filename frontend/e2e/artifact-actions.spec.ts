@@ -63,7 +63,7 @@ const CANNOT_ACT = /^rejected:unavailable$/;
 /** Statuses of a run that has not ended; the rest are terminal. */
 const LIVE = ["queued", "running", "waiting_approval", "waiting_retry", "needs_attention"];
 
-/** The workflow worker is running (`make dev` starts one; CI's e2e job has none). */
+/** Enable the completion assertions when a workflow worker is running, including CI. */
 const WORKER = process.env.E2E_WORKER === "1";
 
 /** The page. It runs `agenticos.run` only on a click, never on load. */

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BROWSER_TEACHING_DETAIL,
   SKILL_DETAIL,
   SKILL_IMPROVEMENT,
   SKILL_IMPROVEMENT_START,
@@ -42,8 +43,37 @@ const UNGATED_LAUNCH = [
   "dashboard-filters",
   "chat-start",
   "chat-agent-picker",
+  "app-connections",
   "finish",
 ];
+
+describe("browser teaching route help", () => {
+  it("keeps owner capture help distinct from a skill and explains each available review phase", () => {
+    expect(pageKey(ROUTES.SKILLS_TEACHING)).toBe(ROUTES.SKILLS_TEACHING);
+    expect(pageKey(ROUTES.SKILL_TEACHING("capture-1"))).toBe(BROWSER_TEACHING_DETAIL);
+    expect(
+      stepsForPage(ROUTES.SKILL_TEACHING("capture-1"), () => false).map((step) => step.id),
+    ).toEqual(["teaching-summary", "teaching-review", "teaching-draft", "teaching-proposal"]);
+    expect(stepsForPage(ROUTES.SKILLS_TEACHING, () => false).map((step) => step.id)).toEqual([
+      "teaching-list",
+    ]);
+  });
+
+  it("opens governance for the teaching policy only when the viewer may change organization settings", () => {
+    const teaching = stepsForPage("/orgs/org-1/members", () => true).find(
+      (step) => step.id === "org-browser-teaching",
+    );
+    expect(teaching).toMatchObject({
+      activate: "org-tab-governance",
+      permission: Perm.orgSettings,
+    });
+    expect(
+      stepsForPage("/orgs/org-1/members", (permission) => permission !== Perm.orgSettings).some(
+        (step) => step.id === "org-browser-teaching",
+      ),
+    ).toBe(false);
+  });
+});
 
 // Every builder stop, in the order the "?" walks them. The launch pass takes a
 // subset of these (instructions, tools, publish).
@@ -65,6 +95,7 @@ const BUILDER_STEPS = [
   "agent-eval-suites",
   "agent-gaps",
   "agent-history",
+  "agent-failure-learning",
   "agent-improvement-history",
   "agent-test-connections",
   "agent-environment-guards",
@@ -92,6 +123,7 @@ const KB_STEPS = [
 const ORG_STEPS = [
   "org-profile",
   "org-governance",
+  "org-browser-teaching",
   "org-proactivity",
   "org-proactivity-model",
   "org-public-attribution",
@@ -100,6 +132,7 @@ const ORG_STEPS = [
   "org-assistant",
   "org-system-agents",
   "org-members",
+  "org-role-navigation",
   "org-roles",
 ];
 
@@ -153,8 +186,28 @@ describe("pageKey", () => {
   it("collapses each settings tab and each workspace onto one identity", () => {
     expect(pageKey(ROUTES.SETTINGS_PROFILE)).toBe(SETTINGS_DETAIL);
     expect(pageKey(ROUTES.SETTINGS_SLASH_COMMANDS)).toBe(SETTINGS_DETAIL);
+    expect(pageKey(ROUTES.SETTINGS_AI_CONNECTIONS)).toBe(ROUTES.SETTINGS_AI_CONNECTIONS);
+    expect(stepsForPage(ROUTES.SETTINGS_AI_CONNECTIONS, () => true).map((step) => step.id)).toEqual(
+      ["personal-model-connections", "claude-subscription-connect"],
+    );
     expect(pageKey("/documents/abc-123")).toBe(WORKSPACE_DETAIL);
     expect(pageKey("/projects/abc-123")).toBe(PROJECT_DETAIL);
+  });
+
+  it("offers a table's own help stops without adding them to the catalog walkthrough", () => {
+    expect(
+      stepsForPage(ROUTES.TABLE_DETAIL("table-123"), () => true).map((step) => step.id),
+    ).toEqual([
+      "table-columns",
+      "table-triggers",
+      "table-view-tabs",
+      "table-row-access",
+      "record-access",
+    ]);
+    expect(stepsForPage(ROUTES.TABLES, () => true).map((step) => step.id)).toEqual([
+      "tables-catalog",
+      "tables-new",
+    ]);
   });
 
   it("collapses one workflow's runs, but not every workflow's runs, onto its identity", () => {
@@ -228,6 +281,7 @@ describe("visibleTourSteps", () => {
       "agent-limits",
       "agent-availability",
       "agent-history",
+      "agent-failure-learning",
       "agent-publish",
     ]) {
       expect(launch).toContain(id);
@@ -255,8 +309,9 @@ describe("visibleTourSteps", () => {
       "agent-limits",
       "agent-availability",
       "agent-history",
+      "agent-failure-learning",
       "kb-documents",
-      "mcp-catalog",
+      "app-connections",
       "finish",
     ]);
   });
@@ -277,8 +332,23 @@ describe("stepsForPage", () => {
   it("returns every highlight on a standalone page — launch and '?'-only — never an interstitial", () => {
     expect(stepsForPage(ROUTES.CHAT, () => true).map((step) => step.id)).toEqual([
       "chat-start",
+      "chat-message-search",
+      "chat-side-threads",
+      "chat-message-pins",
+      "chat-selected-quote",
+      "chat-compact-now",
       "chat-agent-picker",
       "chat-composer",
+      "chat-send-mode",
+      "chat-workspace",
+      "browser-protected-continuation",
+      "chat-workspace-tasks",
+      "chat-agent-settings",
+      "chat-agent-reasoning",
+      "chat-team-room",
+      "chat-team-composer",
+      "chat-room-thread",
+      "chat-room-thread-panel",
       "chat-local-skills",
       "chat-coding-accounts",
       "chat-local-coding",
@@ -287,11 +357,25 @@ describe("stepsForPage", () => {
       "chat-background-tasks",
       "chat-plan",
       "chat-visual",
+      "chat-trace-filter",
+      "chat-model-selector",
       "chat-model-picker",
       "chat-voice-call",
       "chat-approval-mode",
       "chat-your-connections",
+      "chat-subscription-model",
     ]);
+  });
+
+  it("only offers the model selector stop to someone who can choose a model", () => {
+    expect(stepsForPage(ROUTES.CHAT, () => false).map((step) => step.id)).not.toContain(
+      "chat-model-selector",
+    );
+    expect(
+      stepsForPage(ROUTES.CHAT, (permission) => permission === Perm.connectionsManage).find(
+        (step) => step.id === "chat-model-selector",
+      ),
+    ).toMatchObject({ optional: true });
   });
 
   it("walks the list and then the whole builder when asked from the Agents list", () => {
@@ -526,6 +610,7 @@ describe("stepsForPage", () => {
       "org-proactivity-model",
       "org-system-agents",
       "org-members",
+      "org-role-navigation",
       "org-roles",
     ]);
   });
@@ -557,18 +642,21 @@ describe("stepsForPage", () => {
     expect(step?.target).toBe("org-proactivity-model");
   });
 
-  it("walks only the roles matrix from a roles route — the last page of the flow", () => {
+  it("walks sidebar visibility and the permission matrix from a roles route", () => {
     expect(stepsForPage("/orgs/some-id/roles", () => true).map((step) => step.id)).toEqual([
+      "org-role-navigation",
       "org-roles",
     ]);
   });
 
   it("deepens the MCP page component by component", () => {
     expect(stepsForPage(ROUTES.MCP_SERVERS, () => true).map((step) => step.id)).toEqual([
+      "app-connections",
       "mcp-catalog",
       "mcp-filter",
       "mcp-add",
       "mcp-connect",
+      "connections-more",
     ]);
   });
 

@@ -8,7 +8,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from app.agents.capabilities._overrides import ToolOverrides
 from app.agents.capabilities.browser_use import WebBrowser
 from app.agents.deps import AgentDeps
-from tests.test_browser_use import BROWSER_TOOLS, _Opener
+from tests.test_browser_use import BROWSER_TOOLS, CREDENTIAL_TOOLS, _Opener
 
 pytestmark = pytest.mark.anyio
 
@@ -43,7 +43,9 @@ async def test_opening_and_closing_a_tab_changes_the_offered_actions(renamed: bo
     result = await agent.run("Open and close the page.", deps=AgentDeps())
     assert result.output == "done"
     assert offered[0] == ENTRY_TOOLS
-    assert offered[1] == (set(BROWSER_TOOLS) - {"browser_close_tab"}) | {close_name}
+    assert offered[1] == (set(BROWSER_TOOLS) - {"browser_close_tab"} - CREDENTIAL_TOOLS) | {
+        close_name
+    }
     assert offered[2] == ENTRY_TOOLS
     assert opener.closed == 1
 

@@ -54,6 +54,14 @@ describe("isAddableInScope", () => {
     expect(isAddableInScope(action, ["fe-1"])).toBe(true);
   });
 
+  it("keeps a disabled definition readable without offering a new media step", () => {
+    const media = def({ id: "asset.input", available: false });
+    expect(media.id).toBe("asset.input");
+    expect(isAddableInScope(media, [])).toBe(false);
+    expect(isAddableInScope(media, ["fe-1"])).toBe(false);
+    expect(isAddableInScope({ ...media, available: true }, [])).toBe(true);
+  });
+
   it("offers a trigger only at the top level, where a run begins", () => {
     const webhook = def({ id: "trigger.webhook", kind: "action", category: "triggers" });
     expect(isAddableInScope(webhook, [])).toBe(true);

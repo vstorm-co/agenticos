@@ -75,6 +75,7 @@ export type ToolRenderer =
   | "context-list"
   | "plan"
   | "asked"
+  | "secret-request"
   | "delegation"
   | "workspace"
   | "memory"
@@ -187,6 +188,15 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "askingYou",
     displayNameKey: "askedYou",
   },
+  // secret_request - the agent needs a credential it does not have (#13).
+  // The step draws the request - name and what it is for - and never the
+  // value, which only the card the run is parked on ever carries.
+  request_secret: {
+    kind: "read",
+    render: "secret-request",
+    captionKey: "requestingSecret",
+    displayNameKey: "requestedSecret",
+  },
   // artifacts - the published page is the answer, so its card sits under the
   // answer (`publishedApps` in `message-item.tsx`) and the step stays one line,
   // which lets the work fold away like any other turn's.
@@ -295,6 +305,24 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     render: "generic",
     captionKey: "readingPage",
     displayNameKey: "readPage",
+  },
+  browser_procedures: {
+    kind: "web",
+    render: "generic",
+    captionKey: "readingPage",
+    displayNameKey: "readPage",
+  },
+  browser_credential_options: {
+    kind: "web",
+    render: "generic",
+    captionKey: "readingPage",
+    displayNameKey: "readPage",
+  },
+  browser_fill_credential: {
+    kind: "web",
+    render: "generic",
+    captionKey: "typingOnPage",
+    displayNameKey: "typeOnPage",
   },
   browser_read: {
     kind: "web",
@@ -532,6 +560,37 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     opensWhenDone: true,
   },
 
+  // harness - a Claude Code or Codex session kept open across turns. A prompt
+  // streams into the same coding-agent panel while it works; what it read, ran
+  // and changed opens under the step afterwards. Stopping a session and listing
+  // the open ones are bookkeeping on the session files, and read as plain text.
+  harness_start: {
+    kind: "code",
+    render: "coding-agent",
+    captionKey: "runningHarness",
+    displayNameKey: "harnessStarted",
+    opensWhenDone: true,
+  },
+  harness_prompt: {
+    kind: "code",
+    render: "coding-agent",
+    captionKey: "runningHarness",
+    displayNameKey: "harnessPrompted",
+    opensWhenDone: true,
+  },
+  harness_stop: {
+    kind: "shell",
+    render: "generic",
+    captionKey: "harnessStopping",
+    displayNameKey: "harnessStopped",
+  },
+  harness_sessions: {
+    kind: "list",
+    render: "generic",
+    captionKey: "harnessListing",
+    displayNameKey: "harnessListed",
+  },
+
   // monitor - a long-running command watched while the agent works. Starting one is a
   // shell step; what it matched so far and its state read as plain text.
   start_monitor: {
@@ -551,6 +610,43 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     render: "generic",
     captionKey: "stoppingMonitor",
     displayNameKey: "stopMonitor",
+  },
+
+  // babysit-pr - one PR watched through CI: snapshots are classified, only
+  // changes are reported, and the watch stops when the bots are green.
+  babysit_pr_check: {
+    kind: "read",
+    render: "generic",
+    captionKey: "checkingBabysitPr",
+    displayNameKey: "babysitPrCheck",
+  },
+  babysit_pr_rate_limit: {
+    kind: "read",
+    render: "generic",
+    captionKey: "checkingBabysitRateLimit",
+    displayNameKey: "babysitPrRateLimit",
+  },
+  babysit_pr_stop: {
+    kind: "read",
+    render: "generic",
+    captionKey: "stoppingBabysitPr",
+    displayNameKey: "babysitPrStop",
+  },
+
+  // proof-scenario - observed evidence for a change: record one attempt, then
+  // ask for the coverage verdict. Both results are plain text, so the steps
+  // render generic, like any other read-only text tool.
+  proof_scenario_record: {
+    kind: "read",
+    render: "generic",
+    captionKey: "recordingProofScenario",
+    displayNameKey: "proofScenarioRecord",
+  },
+  proof_scenario_verdict: {
+    kind: "read",
+    render: "generic",
+    captionKey: "checkingProofCoverage",
+    displayNameKey: "proofScenarioVerdict",
   },
 
   // code_execution
@@ -729,6 +825,31 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "stoppingBackgroundTask",
     displayNameKey: "backgroundTaskStopped",
   },
+  // agent_messages - one agent writing to another, in a thread the console shows.
+  agent_send_message: {
+    kind: "delegate",
+    render: "generic",
+    captionKey: "sendingAgentMessage",
+    displayNameKey: "sendAgentMessage",
+  },
+  agent_read_messages: {
+    kind: "delegate",
+    render: "generic",
+    captionKey: "readingAgentMessages",
+    displayNameKey: "readAgentMessages",
+  },
+  agent_list_threads: {
+    kind: "delegate",
+    render: "generic",
+    captionKey: "listingAgentThreads",
+    displayNameKey: "agentThreads",
+  },
+  agent_react: {
+    kind: "delegate",
+    render: "generic",
+    captionKey: "reactingToAgentMessage",
+    displayNameKey: "reactToAgentMessage",
+  },
   task: { kind: "delegate", render: "delegation", captionKey: "handingWork" },
   check_task: { kind: "delegate", render: "generic", captionKey: "checkingDelegate" },
   wait_tasks: { kind: "delegate", render: "generic", captionKey: "waitingDelegates" },
@@ -761,6 +882,46 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     render: "generic",
     captionKey: "cancellingDelegate",
     displayNameKey: "cancelTask",
+  },
+
+  // council - one review round: three delegates score the work in parallel.
+  // The result is plain text - a JSON round with the scores and the table -
+  // so the step renders generic, like any other read-only text tool.
+  run_council_review: {
+    kind: "read",
+    render: "generic",
+    captionKey: "reviewingWithCouncil",
+    displayNameKey: "councilReview",
+  },
+  // sol-loop - one review round: one reviewer judges the work. The result is
+  // plain text - a JSON round with the verdict, the findings and the ledger -
+  // so the step renders generic, like any other read-only text tool.
+  run_sol_loop_review: {
+    kind: "read",
+    render: "generic",
+    captionKey: "reviewingWithSolLoop",
+    displayNameKey: "solLoopReview",
+  },
+
+  // eval tool tuning - one tuning run: a tool scored against judged cases,
+  // with draft proposals. The result is plain text - a JSON score with the
+  // per-case classifications and the drafts - so the step renders generic,
+  // like any other read-only text tool.
+  record_eval_tool_tuning: {
+    kind: "read",
+    render: "generic",
+    captionKey: "recordingEvalToolTuning",
+    displayNameKey: "evalToolTuning",
+  },
+
+  // burst - one task split into parallel subtasks, merged into one outcome.
+  // The result is plain text - a JSON burst with the merge and each part's
+  // status - so the step renders generic, like any other read-only text tool.
+  run_burst: {
+    kind: "read",
+    render: "generic",
+    captionKey: "burstingSubtasks",
+    displayNameKey: "burstRun",
   },
   create_agent: {
     kind: "delegate",

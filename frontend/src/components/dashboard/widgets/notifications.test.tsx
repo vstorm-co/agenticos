@@ -4,7 +4,6 @@ import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import messages from "../../../../messages/en.json";
-import polish from "../../../../messages/pl.json";
 import { TooltipProvider } from "@/components/ui";
 import { NotificationsWidget } from "./notifications";
 import type { Notification } from "@/lib/notifications-api";
@@ -32,10 +31,7 @@ function notification(overrides: Partial<Notification> = {}): Notification {
   };
 }
 
-function renderWidget(
-  overrides: Partial<ReturnType<typeof useNotificationInboxMock>> = {},
-  locale = "en",
-) {
+function renderWidget(overrides: Partial<ReturnType<typeof useNotificationInboxMock>> = {}) {
   useNotificationInboxMock.mockReturnValue({
     notifications: [],
     isLoading: false,
@@ -49,7 +45,7 @@ function renderWidget(
     ...overrides,
   });
   render(
-    <NextIntlClientProvider locale={locale} messages={locale === "pl" ? polish : messages}>
+    <NextIntlClientProvider locale="en" messages={messages}>
       <TooltipProvider>
         <NotificationsWidget title="Notifications" hint="" period={PERIOD} />
       </TooltipProvider>
@@ -197,18 +193,4 @@ it("uses the notification formatter for versioned wording on dashboard cards", (
   });
   expect(screen.getByText("Clerk finished a run.")).toBeInTheDocument();
   expect(screen.queryByText("jarvis's run finished.")).toBeNull();
-});
-
-it("words dashboard notifications in the reader's language", () => {
-  renderWidget(
-    {
-      notifications: [
-        notification({
-          wording_params: { wording: "run_failed", agent_name: "Clerk", error: "Timeout" },
-        }),
-      ],
-    },
-    "pl",
-  );
-  expect(screen.getByText("Run agenta Clerk nie powiódł się: Timeout")).toBeInTheDocument();
 });

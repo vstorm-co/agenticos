@@ -181,6 +181,9 @@ describe("useOnboardingTour", () => {
       "dashboard-customize",
       "notification-bell",
       "assistant-widget",
+      "assistant-agent-picker",
+      "assistant-page-context",
+      "nav-pinned",
     ]);
   });
 

@@ -4,7 +4,7 @@ const chat = "/chat?id=4ce1d419-24c9-4c34-a559-c5b187ecf0de";
 describe("App return destinations", () => {
   it("retains the exact conversation and locale, excluding unrelated query parameters", () => {
     expect(appReturnTo(`${chat}&returnTo=https://elsewhere.invalid#section`)).toBe(chat);
-    expect(appReturnTo(`/pl${chat}`)).toBe(`/pl${chat}`);
+    expect(appReturnTo(`/en${chat}`)).toBe(`/en${chat}`);
     const link = new URL(appLinkFromChat("/apps/a?version=v", chat), "https://console.invalid");
     expect(link.searchParams.get("version")).toBe("v");
     expect(link.searchParams.get("returnTo")).toBe(chat);

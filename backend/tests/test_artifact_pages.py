@@ -87,6 +87,13 @@ def _nobody_follows(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(artifact_repo, "follower_ids", AsyncMock(return_value=[]))
 
 
+@pytest.fixture(autouse=True)
+def _no_favourites(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Page detail reads favourites separately from the consent and version state."""
+    monkeypatch.setattr(f"{PATH}.artifact_repo.is_favourite", AsyncMock(return_value=False))
+    monkeypatch.setattr(f"{PATH}.artifact_repo.favourite_ids", AsyncMock(return_value=set()))
+
+
 def _ctx(role: str = OrgRoleName.OWNER) -> AuthContext:
     return AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=role)
 

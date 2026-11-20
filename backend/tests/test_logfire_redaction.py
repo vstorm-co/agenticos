@@ -369,6 +369,23 @@ async def test_an_invitation_handle_is_masked_and_the_rest_of_a_sign_in_kept(
     ]
 
 
+@pytest.mark.security
+async def test_a_composio_verifier_reaches_no_span_or_console(configured: Captured) -> None:
+    verifier = secrets.token_urlsafe(32)
+
+    await _request(
+        (
+            "GET",
+            f"/connectors?session_uri=https%3A%2F%2Fbackend.composio.dev%2Fverify%2F{verifier}&intent=day",
+        )
+    )
+
+    exported = configured.exported()
+    assert '"pending_span"' in exported
+    assert verifier not in exported and verifier not in configured.console()
+    assert "/connectors?session_uri=[REDACTED]&intent=day" in exported
+
+
 async def test_ordinary_query_parameters_keep_their_values(configured: Captured) -> None:
     """A search, a page and an id in the query are what a span is read for."""
     await _request(("GET", "/api/v1/agents?q=support&skip=50&limit=25"))

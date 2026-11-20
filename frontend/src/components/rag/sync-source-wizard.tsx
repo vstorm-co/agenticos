@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Copy, Plus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -13,6 +13,7 @@ import {
   WizardSteps,
 } from "@/components/ui";
 import { getErrorMessage, submitFailure } from "@/lib/api-error";
+import { clearDriveResume, readDriveResume, type DriveResume } from "@/lib/drive-oauth-resume";
 import { SourceAudienceNotice } from "@/components/rag/sync-source-audience-notice";
 import { CloneStep } from "@/components/rag/sync-source-clone-step";
 import { ConfigureStep } from "@/components/rag/sync-source-configure-step";
@@ -71,16 +72,22 @@ interface SyncSourceWizardProps {
 type Mode = "new" | "clone";
 type Step = "source" | "configure" | "credential" | "schedule";
 
-/** Each step's word is in the catalog; `words` names the key. */
-const STEPS: { id: Step; words: string }[] = [
-  { id: "source", words: "stepSource" },
-  { id: "configure", words: "stepConfigure" },
-  // Between the configuration and the schedule, because it is the one thing a
-  // source needs that is not configuration: the credential is a vault secret it
-  // references, not a field it carries (#937).
-  { id: "credential", words: "stepCredential" },
-  { id: "schedule", words: "stepSchedule" },
-];
+/** Each step's word is in the catalog. */
+const STEP_WORDS: Record<Step, string> = {
+  source: "stepSource",
+  configure: "stepConfigure",
+  credential: "stepCredential",
+  schedule: "stepSchedule",
+};
+
+/**
+ * The order the steps come in. The credential sits between the configuration
+ * and the schedule, because it is the one thing a source needs that is not
+ * configuration: a vault secret it references, not a field it carries (#937).
+ * A Drive source picks its account first, since the folder is found through it.
+ */
+const STEP_ORDER: readonly Step[] = ["source", "configure", "credential", "schedule"];
+const DRIVE_STEP_ORDER: readonly Step[] = ["source", "credential", "configure", "schedule"];
 
 /** One spelling of "nothing is wrong with this config", for all three places. */
 const NO_ERRORS: Readonly<Record<string, string>> = {};
@@ -91,6 +98,7 @@ const EMPTY_FORM: SyncSourceCreate = {
   collection_name: null,
   config: {},
   secret_id: null,
+  connected_account_id: null,
   organizational_unit: null,
   sync_mode: "full",
   schedule_minutes: null,
@@ -124,6 +132,12 @@ export function SyncSourceWizard({
   const [cloneName, setCloneName] = useState<string>("");
   const [configErrors, setConfigErrors] = useState<Readonly<Record<string, string>>>(NO_ERRORS);
   /**
+   * A Google consent this wizard's page left for and came back from. Taken from
+   * storage on mount, so the dialog reopens where it was; cleared once the
+   * credential step has answered it.
+   */
+  const [resume, setResume] = useState<DriveResume | null>(() => readDriveResume());
+  /**
    * Which filling-in of this wizard is on screen, counted from the first.
    *
    * A submission is answered after an `await`, by which time the dialog may
@@ -138,6 +152,16 @@ export function SyncSourceWizard({
     if (open) session.current += 1;
   }, [open]);
 
+  // The page remounts after the provider's redirect with this wizard closed, so
+  // a snapshot found on mount opens it. Cleared here so it is not restored twice.
+  useEffect(() => {
+    if (resume === null) return;
+    clearDriveResume();
+    onOpenChange(true);
+    // Mount only - a later `onOpenChange` identity must not reopen the wizard.
+  }, []);
+  const handleResumed = useCallback(() => setResume(null), []);
+
   // Reopening starts from the beginning, during render - an effect would show
   // the last wizard's answers for a frame before clearing them.
   //
@@ -148,11 +172,13 @@ export function SyncSourceWizard({
   // collection the wizard was opened with is the one it is for.
   if (useChanged(open) && open) {
     setMode("new");
-    setStep("source");
+    setStep(resume ? "credential" : "source");
     setForm(
-      editing
-        ? syncSourceForm(editing)
-        : { ...EMPTY_FORM, collection_name: defaultCollection ?? null },
+      resume
+        ? resume.form
+        : editing
+          ? syncSourceForm(editing)
+          : { ...EMPTY_FORM, collection_name: defaultCollection ?? null },
     );
     setCloneSourceId("");
     setCloneName("");
@@ -163,6 +189,7 @@ export function SyncSourceWizard({
     () => connectors.find((c) => c.type === form.connector_type),
     [connectors, form.connector_type],
   );
+  const order = form.connector_type === "gdrive" ? DRIVE_STEP_ORDER : STEP_ORDER;
 
   // Which of the server's complaints this wizard can show beside an input. The
   // backend reports them below the document it was sent - `config.folder_id` -
@@ -237,7 +264,11 @@ export function SyncSourceWizard({
       // needs a kind will not sync without it, so the wizard asks here rather
       // than letting the source be created and fail in a worker.
       if (!selectedConnector) return false;
-      return selectedConnector.secret_kind === "none" || Boolean(form.secret_id);
+      return (
+        selectedConnector.secret_kind === "none" ||
+        Boolean(form.secret_id) ||
+        Boolean(form.connected_account_id)
+      );
     }
     // An edit that changes nothing has nothing to save.
     if (step === "schedule") return changes === null || Object.keys(changes).length > 0;
@@ -295,16 +326,14 @@ export function SyncSourceWizard({
       handleCloneSubmit();
       return;
     }
-    if (step === "source") setStep("configure");
-    else if (step === "configure") setStep("credential");
-    else if (step === "credential") setStep("schedule");
-    else if (step === "schedule") handleSubmit();
+    const next = order[order.indexOf(step) + 1];
+    if (next !== undefined) setStep(next);
+    else handleSubmit();
   };
 
   const handleBack = () => {
-    if (step === "configure") setStep("source");
-    else if (step === "credential") setStep("configure");
-    else if (step === "schedule") setStep("credential");
+    const previous = order[order.indexOf(step) - 1];
+    if (previous !== undefined) setStep(previous);
   };
 
   const isLastStep = mode === "clone" || step === "schedule";
@@ -358,7 +387,7 @@ export function SyncSourceWizard({
           {/* Step indicator - only for new mode */}
           {mode === "new" && (
             <WizardSteps
-              steps={STEPS.map((s) => ({ id: s.id, label: t(s.words) }))}
+              steps={order.map((id) => ({ id, label: t(STEP_WORDS[id]) }))}
               current={step}
             />
           )}
@@ -407,6 +436,8 @@ export function SyncSourceWizard({
                     setForm(update);
                   }}
                   error={configErrors.secret_id}
+                  resumeFrom={resume?.knownAccountIds ?? null}
+                  onResumed={handleResumed}
                 />
               )}
               {step === "schedule" && (

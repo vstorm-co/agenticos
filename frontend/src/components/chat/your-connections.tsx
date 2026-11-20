@@ -4,6 +4,8 @@ import { Check, ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ConnectOwnButton } from "@/components/agents/connect-server-dialog";
+import { ManagedAppConnectButton } from "@/components/connections/managed-app-connect-button";
+import { managedAppToolkit } from "@/hooks/use-managed-app-connect";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { Button } from "@/components/ui";
 import { useAgents, useAgentVersion } from "@/hooks/use-agents";
@@ -66,6 +68,12 @@ export function YourConnections() {
               </span>
               {status === "connected" ? (
                 <Check className="text-brand h-4 w-4 shrink-0" aria-hidden />
+              ) : managedAppToolkit(ref.catalog_key) ? (
+                <ManagedAppConnectButton
+                  catalogKey={ref.catalog_key}
+                  label={t("connect")}
+                  keepThisTab
+                />
               ) : status === "not_connected" && entry !== null ? (
                 <ConnectOwnButton
                   entry={entry}
@@ -80,7 +88,9 @@ export function YourConnections() {
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => window.open(ROUTES.MCP_SERVERS, "_blank", "noopener")}
+                  onClick={() =>
+                    window.open(`${ROUTES.MCP_SERVERS}?tab=advanced`, "_blank", "noopener")
+                  }
                 >
                   <ExternalLink className="mr-1 h-3.5 w-3.5" />
                   {t("openServers")}

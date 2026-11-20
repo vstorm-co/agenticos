@@ -9,13 +9,14 @@ still signs the service account's token; this module only speaks the REST.
 Synchronous on purpose: both callers already run Drive work in a thread.
 """
 
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, Self
 from urllib.parse import quote
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 if TYPE_CHECKING:
     from google.auth.transport import Request
@@ -23,6 +24,13 @@ if TYPE_CHECKING:
 DRIVE_API = "https://www.googleapis.com/drive/v3"
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 _TIMEOUT = httpx.Timeout(30.0, read=120.0)
+
+
+@dataclass(frozen=True)
+class GoogleDriveOAuthGrant:
+    client_id: str
+    client_secret: SecretStr
+    refresh_token: SecretStr
 
 
 def _file_path(file_id: str) -> str:
@@ -48,6 +56,16 @@ class DrivePage(BaseModel):
     """One page of `files.list`."""
 
     files: list[DriveFile] = []
+    next_page_token: str | None = Field(default=None, alias="nextPageToken")
+
+
+class SharedDrive(BaseModel):
+    id: str
+    name: str
+
+
+class SharedDrivePage(BaseModel):
+    drives: list[SharedDrive] = []
     next_page_token: str | None = Field(default=None, alias="nextPageToken")
 
 
@@ -87,6 +105,23 @@ class DriveClient:
 
         return cls(Credentials.from_service_account_file(path, scopes=SCOPES))
 
+    @classmethod
+    def from_oauth_grant(
+        cls, *, client_id: str, client_secret: SecretStr, refresh_token: SecretStr
+    ) -> Self:
+        from google.oauth2.credentials import Credentials
+
+        return cls(
+            Credentials(
+                token=None,
+                refresh_token=refresh_token.get_secret_value(),
+                token_uri="https://oauth2.googleapis.com/token",
+                client_id=client_id,
+                client_secret=client_secret.get_secret_value(),
+                scopes=SCOPES,
+            )
+        )
+
     def __enter__(self) -> Self:
         return self
 
@@ -94,27 +129,60 @@ class DriveClient:
         self._http.close()
 
     def list_page(
-        self, *, q: str, fields: str, page_size: int, page_token: str | None
+        self,
+        *,
+        q: str,
+        fields: str,
+        page_size: int,
+        page_token: str | None,
+        corpora: str | None = None,
+        drive_id: str | None = None,
     ) -> DrivePage:
-        params = {"q": q, "fields": fields, "pageSize": str(page_size)}
+        params = {
+            "q": q,
+            "fields": fields,
+            "pageSize": str(page_size),
+            "supportsAllDrives": "true",
+            "includeItemsFromAllDrives": "true",
+        }
         if page_token:
             params["pageToken"] = page_token
+        if corpora:
+            params["corpora"] = corpora
+        if drive_id:
+            params["driveId"] = drive_id
         response = self._http.get("/files", params=params, headers=self._authorization())
         response.raise_for_status()
         return DrivePage.model_validate(response.json())
 
+    def list_drives_page(
+        self, *, fields: str, page_size: int, page_token: str | None
+    ) -> SharedDrivePage:
+        params = {"fields": fields, "pageSize": str(page_size)}
+        if page_token:
+            params["pageToken"] = page_token
+        response = self._http.get("/drives", params=params, headers=self._authorization())
+        response.raise_for_status()
+        return SharedDrivePage.model_validate(response.json())
+
     def metadata(self, file_id: str, *, fields: str) -> DriveFile:
         response = self._http.get(
-            _file_path(file_id), params={"fields": fields}, headers=self._authorization()
+            _file_path(file_id),
+            params={"fields": fields, "supportsAllDrives": "true"},
+            headers=self._authorization(),
         )
         response.raise_for_status()
         return DriveFile.model_validate(response.json())
 
     def download(self, file_id: str, dest_path: Path) -> None:
-        self._stream(_file_path(file_id), {"alt": "media"}, dest_path)
+        self._stream(_file_path(file_id), {"alt": "media", "supportsAllDrives": "true"}, dest_path)
 
     def export(self, file_id: str, mime_type: str, dest_path: Path) -> None:
-        self._stream(f"{_file_path(file_id)}/export", {"mimeType": mime_type}, dest_path)
+        self._stream(
+            f"{_file_path(file_id)}/export",
+            {"mimeType": mime_type, "supportsAllDrives": "true"},
+            dest_path,
+        )
 
     def _stream(self, path: str, params: dict[str, str], dest_path: Path) -> None:
         with self._http.stream("GET", path, params=params, headers=self._authorization()) as r:

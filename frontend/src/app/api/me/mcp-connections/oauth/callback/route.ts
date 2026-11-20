@@ -8,6 +8,7 @@ import {
   safeMcpOAuthReturn,
 } from "@/lib/mcp-oauth";
 import { ACCOUNT_OAUTH_COOKIE, ACCOUNT_OAUTH_CALLBACK } from "@/lib/connected-account-oauth";
+import { ROUTES } from "@/lib/constants";
 import { ACCESS_TOKEN_COOKIE } from "@/lib/session-cookie";
 import { backendFetch } from "@/lib/server-api";
 
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
     request.nextUrl.origin,
   );
   const servers = (query: string) => {
-    const target = back ?? "/mcp-servers";
+    const target = back ?? ROUTES.CONNECTORS;
     // **A relative `Location`, resolved by the browser against the URL it asked
     // for.** `NextResponse.redirect` takes an absolute one, and the only origin
     // this process knows is the address it binds to - `HOSTNAME=0.0.0.0` and

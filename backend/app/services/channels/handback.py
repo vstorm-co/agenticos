@@ -7,8 +7,9 @@ holds the one predicate that says so, the fixed sentences a chat is told when a
 run ends without an answer, and the plain post that carries them.
 
 A notice is never built from a refusal message or from run data. The four
-sentences below are the whole vocabulary; a chat room is not a place to explain
-who was refused or why.
+sentences below are the whole vocabulary, plus the one reminder built by
+`question_nudge_notice`, which carries only the hours left on the question;
+a chat room is not a place to explain who was refused or why.
 """
 
 import logging
@@ -34,6 +35,18 @@ EXPIRED_NOTICE: Final = "This request expired without a decision."
 STOPPED_NOTICE: Final = "This run was stopped from the console."
 STRANDED_NOTICE: Final = "A decision was recorded, but the run could not continue."
 REFUSED_NOTICE: Final = "That was decided outside the chat, but the run could not continue."
+
+
+def question_nudge_notice(remaining_hours: int) -> str:
+    """The one reminder that an `ask_user` question is still unanswered.
+
+    Built, not constant, for the one number it carries: the hours left
+    before the question expires. Everything else is fixed, like the
+    sentences above - a chat room is not a place to paste the question in
+    again, and the card in the conversation already holds it.
+    """
+    return f"Still waiting for your answer — the question expires in about {remaining_hours}h."
+
 
 _SURFACE_VALUES = frozenset(surface.value for surface in CHANNEL_SURFACES)
 

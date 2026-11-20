@@ -191,7 +191,7 @@ export function ChatControls({
         sideOffset={12}
         collisionPadding={12}
         tabIndex={-1}
-        className="bg-card flex max-h-[min(680px,var(--radix-popover-content-available-height))] w-[480px] flex-col overflow-hidden rounded-2xl p-0"
+        className="bg-card flex max-h-[min(680px,var(--radix-popover-content-available-height))] w-[480px] max-w-[calc(100vw-2rem)] min-w-0 flex-col overflow-hidden rounded-xl p-0 shadow-lg"
         // The page tour walks through these settings sections. Its caption takes
         // focus and its overlay takes the pointer - both outside - and closing on
         // either left the next stop pinned to a section that had gone.

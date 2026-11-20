@@ -58,6 +58,16 @@ export function RunManifest({ runId }: { runId: string }) {
     );
   }
 
+  // A finding's outcome is recorded in a later round's dispositions - the
+  // agent answers the last round's findings when it asks for the next one -
+  // so outcomes resolve across the whole ledger, not per round.
+  const solLoopOutcomes: Record<string, string> = {};
+  for (const round of manifest.sol_loop_rounds ?? []) {
+    for (const [id, outcome] of Object.entries(round.dispositions ?? {})) {
+      solLoopOutcomes[id] = outcome;
+    }
+  }
+
   return (
     <div className="space-y-5">
       {manifest.truncated && (
@@ -127,6 +137,228 @@ export function RunManifest({ runId }: { runId: string }) {
                 )}
               </li>
             ))}
+          </ul>
+        </Section>
+      )}
+
+      {/* The sol-loop ledger: each round's verdict and findings, with what the
+          agent did with them. A round that ran out of budget or that the
+          reviewer never answered reads as exactly that, never as approval. */}
+      {!!manifest.sol_loop_rounds?.length && (
+        <Section title={t("solLoopRounds", { count: manifest.sol_loop_rounds.length })}>
+          <ul className="space-y-3">
+            {manifest.sol_loop_rounds.map((round) => (
+              <li key={round.round} className="space-y-1.5">
+                <p className="text-sm font-medium">
+                  {t("solLoopRound", {
+                    round: round.round,
+                    scope: round.scope,
+                    verdict: round.verdict,
+                  })}
+                </p>
+                {!!round.stop_reason && (
+                  <p className="text-muted-foreground text-xs">
+                    {t("solLoopStopReason", { reason: round.stop_reason })}
+                  </p>
+                )}
+                {!!round.reason && <p className="text-muted-foreground text-xs">{round.reason}</p>}
+                {round.findings.length > 0 && (
+                  <ol className="space-y-1.5">
+                    {round.findings.map((finding) => {
+                      const outcome = finding.outcome ?? solLoopOutcomes[finding.id];
+                      return (
+                        <li key={finding.id} className="space-y-0.5 text-sm">
+                          <p>
+                            {t("solLoopFinding", {
+                              id: finding.id,
+                              severity: finding.severity,
+                              location: `${finding.file}${finding.line ? `:${finding.line}` : ""}`,
+                              claim: finding.claim,
+                            })}
+                          </p>
+                          {!!finding.fix && (
+                            <p className="text-muted-foreground text-xs">
+                              {t("solLoopFix", { fix: finding.fix })}
+                            </p>
+                          )}
+                          {!!outcome && (
+                            <p className="text-muted-foreground text-xs">
+                              {t("solLoopOutcome", { outcome })}
+                            </p>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {/* The eval tool-tuning runs: each run's score, every case's
+          classification, and the draft proposals with their evidence. A
+          proposal is a draft for a human to approve, never a fix that has
+          been made. */}
+      {!!manifest.eval_tool_tuning_runs?.length && (
+        <Section title={t("evalToolTuningRuns", { count: manifest.eval_tool_tuning_runs.length })}>
+          <ul className="space-y-3">
+            {manifest.eval_tool_tuning_runs.map((run, index) => (
+              <li key={`${run.tool}-${index}`} className="space-y-1.5">
+                <p className="text-sm font-medium">
+                  {t("evalToolTuningRun", {
+                    tool: run.tool,
+                    passed: run.passed,
+                    total: run.total,
+                  })}
+                </p>
+                {!!run.dominant_failure && (
+                  <p className="text-muted-foreground text-xs">
+                    {t("evalToolTuningDominantFailure", { failure: run.dominant_failure })}
+                  </p>
+                )}
+                {run.cases.length > 0 && (
+                  <ol className="space-y-1.5">
+                    {run.cases.map((c) => (
+                      <li key={c.name} className="space-y-0.5 text-sm">
+                        <p>
+                          {t("evalToolTuningCase", {
+                            name: c.name,
+                            classification: c.classification,
+                          })}
+                        </p>
+                        <p className="text-muted-foreground text-xs">{c.detail}</p>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+                {run.proposals.length > 0 && (
+                  <ol className="space-y-1.5">
+                    {run.proposals.map((proposal) => (
+                      <li key={proposal.title} className="space-y-0.5 text-sm">
+                        <p>
+                          {t("evalToolTuningProposal", {
+                            kind: proposal.kind,
+                            title: proposal.title,
+                          })}
+                        </p>
+                        <p className="text-muted-foreground text-xs">{proposal.proposed}</p>
+                        <p className="text-muted-foreground text-xs">
+                          {t("evalToolTuningProposalEvidence", {
+                            evidence: proposal.evidence.join(", "),
+                            status: proposal.status,
+                          })}
+                        </p>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {/* The burst ledger: each burst's merged outcome and every part's
+          status. A part that failed reads as exactly that, never as a part
+          that finished - the merge is the record, not a summary of it. */}
+      {!!manifest.burst_runs?.length && (
+        <Section title={t("burstRuns", { count: manifest.burst_runs.length })}>
+          <ul className="space-y-3">
+            {manifest.burst_runs.map((burst) => (
+              <li key={burst.burst} className="space-y-1.5">
+                <p className="text-sm font-medium">
+                  {t("burstRun", { burst: burst.burst, task: burst.task })}
+                </p>
+                <ol className="space-y-0.5">
+                  {burst.results.map((part) => (
+                    <li key={part.id} className="text-sm">
+                      <span className={part.status === "failed" ? "text-destructive" : ""}>
+                        {t("burstPart", {
+                          id: part.id,
+                          title: part.title,
+                          status: part.status,
+                        })}
+                        {part.reason ? ` (${part.reason})` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+                <pre className="bg-muted/50 max-h-64 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
+                  {burst.merged}
+                </pre>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {/* The proof scenarios: each reproduction and its observed attempts. A
+          scenario is proven only when the same reproduction failed before the
+          fix and passed after it - a unit-test attempt never counts, so it
+          reads as exactly that, never as proof. */}
+      {!!manifest.proof_scenarios?.length && (
+        <Section title={t("proofScenarios", { count: manifest.proof_scenarios.length })}>
+          <ul className="space-y-3">
+            {manifest.proof_scenarios.map((scenario) => {
+              const beforeFailed = scenario.attempts.filter(
+                (attempt) =>
+                  attempt.phase === "before_fix" &&
+                  attempt.status === "failed" &&
+                  attempt.evidence_kind !== "unit_test",
+              );
+              const afterPassed = scenario.attempts.filter(
+                (attempt) =>
+                  attempt.phase === "after_fix" &&
+                  attempt.status === "passed" &&
+                  attempt.evidence_kind !== "unit_test",
+              );
+              const normalizeCommand = (command: string) => command.trim().replace(/\s+/g, " ");
+              const proven = beforeFailed.some((before) =>
+                afterPassed.some(
+                  (after) =>
+                    normalizeCommand(before.command ?? "") ===
+                    normalizeCommand(after.command ?? ""),
+                ),
+              );
+              return (
+                <li key={scenario.id} className="space-y-1.5">
+                  <p className="text-sm font-medium">
+                    {t("proofScenario", {
+                      id: scenario.id,
+                      name: scenario.name,
+                      proven: proven ? t("proofScenarioProven") : t("proofScenarioUnproven"),
+                    })}
+                  </p>
+                  {!!scenario.covers.length && (
+                    <p className="text-muted-foreground text-xs">
+                      {t("proofScenarioCovers", { files: scenario.covers.join(", ") })}
+                    </p>
+                  )}
+                  {scenario.attempts.length > 0 && (
+                    <ol className="space-y-1.5">
+                      {scenario.attempts.map((attempt, index) => (
+                        <li key={index} className="space-y-0.5 text-sm">
+                          <p>
+                            {t("proofAttempt", {
+                              phase: attempt.phase,
+                              status: attempt.status,
+                              evidence: attempt.evidence_kind,
+                            })}
+                          </p>
+                          {!!attempt.observed && (
+                            <pre className="bg-muted/40 max-h-40 overflow-auto rounded p-3 text-xs whitespace-pre-wrap">
+                              {attempt.observed}
+                            </pre>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </Section>
       )}

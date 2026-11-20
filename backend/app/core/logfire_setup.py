@@ -148,6 +148,25 @@ def redact_secret_arguments(request: HTTPConnection, attributes: dict[str, Any])
     """
     secret = {name for name in request.query_params if name in SECRET_QUERY_PARAMS}
     path = request.url.path
+    if path == f"{settings.API_V1_STR}/personal-subscriptions/claude/login/code":
+        # Invalid SecretStr input is still raw in FastAPI's validation errors.
+        # This endpoint accepts a one-time credential; neither its parsed body
+        # nor an invalid body's input/context belongs in tracing attributes.
+        attributes = {
+            **attributes,
+            "values": dict.fromkeys(attributes.get("values", {}), SECRET_PATH_MARKER),
+        }
+        if attributes.get("errors"):
+            attributes["errors"] = [
+                {
+                    "loc": error.get("loc"),
+                    "type": error.get("type"),
+                    "msg": "Invalid Claude sign-in submission",
+                }
+                if isinstance(error, dict)
+                else SECRET_PATH_MARKER
+                for error in attributes["errors"]
+            ]
     redacted = redact_secret_paths(path)
     if redacted != path:
         kept = set(redacted.split("/"))

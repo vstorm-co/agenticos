@@ -50,6 +50,24 @@ columns are evaluated before projection, so their dependencies need not be selec
 The same records immediately appear in the console; table-trigger dispatch is
 asynchronous and never delays the CRUD response.
 
+## Database tenant isolation { #database-tenant-isolation }
+
+Logical tables remain in the deployment's PostgreSQL database. The tenant RLS
+migration installs policies without enabling them; the operator activates them
+after upgrading and draining all API and worker processes. Once activated, normal
+table operations bind the authenticated organization's ID to the current
+transaction. Missing context exposes no Tables rows, and a transaction cannot
+switch organizations. The boundary includes schemas, records, history, media,
+views, receipts, triggers, normalized links and Tables grants.
+
+Table and row Read/Write permissions still apply in the service. Global account
+export and deletion use a separately configured maintenance connection after
+authentication and a fresh authority check. Removing an organization membership
+cascades that person's Tables grants in the same transaction, including directory
+updates spanning organizations. Other resource grant families keep their existing
+authorization rules. See the [operator cutover procedure](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md)
+for credential separation, preflight, activation and rollback.
+
 ## How a table is built { #how-a-table-is-built }
 
 | Part | What it is | Identity |
@@ -132,11 +150,89 @@ or `max` of a column of numbers - `min` and `max` also of dates. Both are worked
 out when a record is read and never stored, written, filtered or sorted by.
 
 What a lookup shows goes no further than its reader may: a linked table the
-reader cannot see leaves the links unnamed and every lookup and rollup through
-them empty. A link keeps its table for life. A lookup reads a column holding
+reader cannot see leaves the links and every lookup and rollup through them
+empty. The destination's row policy also applies: both raw link IDs in `values`
+and labels in `links` contain only readable records. Archived link fields are
+omitted from returned values.
+
+A link keeps its table for life. A lookup reads a column holding
 values, not another link or lookup, and archiving a link column is refused
 while a lookup or rollup still reads through it. An export writes a link by the
 names of its records, and a lookup by what it read.
+
+Link filters use the same readable destinations. `contains` never matches an
+unreadable or deleted destination; `is_null: true` means no readable destination,
+including when hidden links remain stored. Lists, counts, exports and page queries
+apply this condition before pagination. Treat a returned link array as the
+caller's visible subset. Replacing that array through an older client preserves
+existing links the caller cannot read; unrelated field edits preserve all links.
+
+Every explicitly submitted link ID must be readable, including an ID that is
+already linked or would leave the row unchanged. A hidden ID is refused just like
+an unknown ID. Only omitted hidden links are preserved on the caller's behalf.
+
+An invalid stored row policy blocks record reads and writes with
+`ROW_POLICY_INVALID` (409). It never disables the policy. Authorized users can
+still read table metadata, which reports `row_policy_valid: false`, and an
+authorized table editor can repair it through `PUT /tables/{id}/row-policy`.
+A destination with an invalid policy supplies no linked records or inherited
+project access until repaired.
+
+### Relationship limits and backlinks { #relationship-limits-and-backlinks }
+
+A link field accepts `link_limit` from 1 to 100. Omitting it keeps an existing
+field's limit, or uses 100 for a new field. The limit counts every valid stored
+destination, including those hidden from the writer. Reducing it is refused
+until existing rows fit. A limit of 1 allows one destination per source row;
+several source rows can still point to the same destination.
+
+Connections keep their order and bind both endpoints to the declared tables in
+the same organization. Current reads, filters and inherited project access use
+these canonical connections. Invalid legacy values remain as repair evidence and
+do not grant access. Archiving a field retains its connections, and restoring the
+same field restores them. Deleting a destination removes incoming connections
+without changing source revisions; historical snapshots keep their original data.
+
+`GET /tables/{table_id}/records/{record_id}/backlinks` reads incoming connections
+from the required `source_table_id` and `column_id`. It accepts `skip` from 0 to
+10,000 and `limit` from 1 to 100, defaulting to 50. The destination, source table
+and each source row must be readable; these checks happen before pagination.
+An archived link field cannot be traversed. The result contains ordinary source
+records, with no hidden total or additional permission to edit either endpoint.
+
+### Atomic link changes { #atomic-link-changes }
+
+Use `link_changes` on `PATCH /tables/{id}/records/{record_id}` to add or remove
+specific targets. Keys are immutable link-column UUIDs, and `add` and `remove`
+contain target-record UUIDs. `values` is optional and can update other cells in
+the same request:
+
+```json
+{
+  "expected_revision": 7,
+  "link_changes": {
+    "00000000-0000-4000-8000-000000000001": {
+      "add": ["00000000-0000-4000-8000-000000000002"],
+      "remove": ["00000000-0000-4000-8000-000000000003"]
+    }
+  }
+}
+```
+
+The source record must be writable, and every explicitly added or removed target
+must currently be readable in the linked table and organization. Hidden, missing
+and wrong-table targets are refused without distinguishing them. Unnamed existing
+links stay stored, including links hidden from the editor; the final stored cell,
+including hidden links, must still fit the 100-target limit.
+
+A column cannot appear in both `values` and `link_changes`. Duplicate targets,
+add/remove overlap, unknown or archived columns, and changes to a non-link column
+are refused. All cells change in the existing transaction with one revision,
+history entry, trigger event when applicable, and idempotency receipt. A stale
+revision fails even for a no-op; an authorized no-op creates no history or receipt.
+The grid and record panel send these explicit changes. After a conflict, **Reload
+and reapply** retries the same choices against the fresh revision, preserving
+unrelated links added meanwhile.
 
 ## Formulas { #formulas }
 
@@ -291,6 +387,12 @@ An update or delete that names an old revision is refused with `REVISION_CONFLIC
 and retry. An upsert that finds an existing record and no `expected_revision` gets
 `REVISION_REQUIRED` (428), again with the revision to send.
 
+Current Write access is checked before disclosing a stored revision. An upsert
+for a hidden existing external ID and one for a new ID the caller cannot create
+both return `NOT_FOUND` (404), with the same message and table ID. Creating a row
+also requires table Edit and a row policy that lets its creator read that row;
+a row Write grant alone does not grant creation rights.
+
 An external id is 1 to 255 characters and may contain `/`, as in `2026/ORD-1`. It cannot
 contain NUL or a line break. The service checks this as well as the routes. Over HTTP the route refuses it first,
 with `VALIDATION_ERROR`; a caller that uses the service directly gets `INVALID_RECORD`.
@@ -418,8 +520,13 @@ same string and one caller can use it for a create and an upsert. Only successes
 stored: a refused write leaves no receipt, so you correct it and retry with the
 same key.
 
-A replay is answered only to a caller who can still edit the table. Once access is
-revoked, the same retry is a 404.
+A replay checks the caller's current table access, API-key scopes and row Write
+permission. Revocation makes the retry a 404 without disclosing a hidden row's ID or
+revision. Archiving a table permits an already authorized receipt to be read, with
+read-only record flags; it does not permit a fresh write. Batch imports still require
+table Edit because they can create records. Their retries preserve the original counts
+and `as_of`, but recheck rows named by external IDs or cached error details before
+returning the report.
 
 A receipt lasts 24 hours. After that the key is forgotten, and the same key with the same
 body is a new write: it executes again instead of returning the first answer. Retry within
@@ -650,9 +757,11 @@ against another's, and is refused with `QUOTA_EXCEEDED` (402) when a write would
 | `TABLES_MAX_PER_ORGANIZATION` | 200 | Tables an organization has. Archived ones count, because a table is never deleted |
 | `TABLES_MAX_RECORDS_PER_TABLE` | 100,000 | Records in one table. Updating a record in a full table is allowed |
 | `TABLES_MAX_RECORD_BYTES` | 1,000,000 | The serialized values of one record, in bytes |
-| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Stored PostgreSQL JSONB payload bytes per organization across records, history, receipts and outbox; physical table/index overhead is separate |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Stored record, history, receipt and outbox JSONB bytes, image bytes, and relationship definition, edge and evidence rows per organization; indexes and other physical overhead are separate |
 
 The aggregate ceiling is checked inside the mutation savepoint, under an organization lock, before commit. An over-limit write rolls back its record and every retained copy, including a batch row; remaining batch rows are reported as refused. Receipt replay, unchanged writes, reads and deletion remain available after a limit is lowered. Retention releases the bytes it removes.
+
+Table creation and schema changes use the same storage ceiling. A refusal rolls back the new table or schema version, relationship definitions, rewritten values and their history, and any new creation receipt together. The ordinary table audit is recorded only after storage admission; the separate quota-refusal audit survives the rollback.
 
 The refusal names the quota and its ceiling in `details` (`{"quota": "records", "limit":
 100000}`), never the content, and writes a `table.quota_refused` entry to the
@@ -716,6 +825,69 @@ idea, one level down (see [Saved views](#saved-views)).
 
 Another organization's table, and one the caller may not reach, are both a 404. A
 context with no signed-in subject reaches nothing.
+
+### Read and Write on individual rows { #row-read-write }
+
+Row access has two levels. **Read** shows the row and its visible linked records.
+**Write** includes Read and changes to ordinary cells. Write alone does not allow
+deleting a row, sharing it, changing its access fields, creating records, or changing
+the table schema. Existing table administrators retain their existing rights.
+A person still needs access to the parent table; a row grant never opens another
+table or a linked record on its own.
+
+In the table's sharing dialog, **Row access rules** chooses the default:
+
+| Rule | Read access | Write access |
+|---|---|---|
+| `none` | Everyone who can read the table | Existing table editors, plus row Write grants |
+| `grants` | A live Read or Write grant on the row | A live Write grant on the row |
+| `assignee` | The Read field, Write field, optional project membership, or a row grant | The Write field or a row Write grant |
+
+The table owner, organization Owner/Admin roles and deployment administrator retain
+their policy bypass. They must still pass table access and API-key ceilings. In
+`grants` mode, configure grants before switching existing users over.
+
+Creating a new row still requires table administration. In `grants` mode, a direct
+create that would hide the row from its table editor returns 403:
+`You do not have permission to write this row`. Batch creation reports
+`AUTHORIZATION_ERROR` for that row. Upsert returns the same 404 for a hidden existing
+external ID and unavailable creation, so the refusal does not reveal whether that ID exists.
+
+Managed task boards keep their board-specific access rules and do not offer these
+row-sharing controls.
+
+Open a row and choose **Row access** to add a member or group, select Read or Write,
+set an optional expiry, change a level, or revoke access. Member grants may be permanent;
+group grants default to 90 days. Effective access uses current organization and group
+membership and unexpired grants. The strongest live grant wins. Revoking one grant
+does not remove access provided by another grant or a table rule.
+
+The REST endpoints live under `/tables/{table_id}/records/{record_id}/access`:
+
+- `GET` lists explicit grants for a table administrator who can read the row.
+- `PUT /grants` upserts one `subject_user_id` or `subject_group_id`, a
+  `level` of `read` or `write`, and optional `expires_at`.
+- `DELETE /grants/{subject_user_id}` and
+  `DELETE /group-grants/{subject_group_id}` revoke the named grant.
+
+The same service protects console, API, agent and workflow writes. Row grants are stored
+in the existing `resource_grants` table under `table_record`; only there, API `write`
+maps to stored `edit`. They never become table administration grants. API keys need the
+`tables:view` scope to read and `tables:edit` to write; a grant cannot widen a key.
+Deleting a record removes its grants in the same transaction.
+
+Every returned record carries `access`, `can_delete`, `can_manage_access` and
+`read_only_column_ids`. The last list includes policy-driving fields and project
+membership fields used by another table. Grid cells, the record sheet and kanban moves
+use these answers. Record lists, catalog counts, exports and linked labels use the same
+read rule. An idempotent write replay checks current authority again, so a saved receipt
+cannot retain a revoked Write permission.
+
+Workflow triggers recheck the publisher's current Read permission on the source row.
+Their filters and run inputs use only readable linked records, including both the
+current and previous values. An update that changes only hidden links does not start
+a workflow. Invalid destination policies expose no linked IDs; an invalid source
+policy filters the event. The original stored event and history remain unchanged.
 
 ## Errors { #errors }
 

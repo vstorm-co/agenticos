@@ -18,6 +18,7 @@ _INTERRUPTED = [
     RunStatus.CANCELLED.value,
     RunStatus.BUDGET_EXCEEDED.value,
     RunStatus.LOOP_STOPPED.value,
+    RunStatus.TIMED_OUT.value,
 ]
 """The endings of a turn that may have stopped before its files reached the
 workspace - every one but completing, parking, still running and a guardrail's

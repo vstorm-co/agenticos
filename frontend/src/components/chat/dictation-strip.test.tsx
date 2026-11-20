@@ -6,9 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DictationActions, DictationState } from "@/hooks/use-dictation";
 
-import de from "../../../messages/de.json";
 import en from "../../../messages/en.json";
-import pl from "../../../messages/pl.json";
 
 import {
   browserDictationHint,
@@ -361,34 +359,12 @@ describe("dictationHint", () => {
       ],
     ],
     [
-      "pl",
-      pl,
-      "chat.dictation",
-      [
-        [1, "Wstawiono 1 słowo"],
-        [3, "Wstawiono 3 słowa"],
-        [5, "Wstawiono 5 słów"],
-        [22, "Wstawiono 22 słowa"],
-        [25, "Wstawiono 25 słów"],
-      ],
-    ],
-    [
-      "pl",
-      pl,
+      "en",
+      en,
       "hosted.dictation",
       [
-        [1, "Wstawiono 1 słowo"],
-        [4, "Wstawiono 4 słowa"],
-        [12, "Wstawiono 12 słów"],
-      ],
-    ],
-    [
-      "de",
-      de,
-      "chat.dictation",
-      [
-        [1, "1 Wort eingefügt"],
-        [7, "7 Wörter eingefügt"],
+        [1, "Inserted 1 word"],
+        [4, "Inserted 4 words"],
       ],
     ],
   ])("counts inserted words in %s (%s)", (locale, messages, namespace, cases) => {
@@ -419,7 +395,7 @@ describe("dictationHint", () => {
   });
 
   it("states the limit the same way in every catalog", () => {
-    for (const messages of [en, pl, de]) {
+    for (const messages of [en]) {
       const t = createTranslator({
         locale: "en",
         messages,

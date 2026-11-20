@@ -137,9 +137,17 @@ across the sandbox boundary.
 | `text_to_speech` | Text to speech | analysis | `generate_speech` | — | required | as-is |
 | `video_generation` | Video generation | analysis | `generate_video` | — | required | handed off |
 | `coding_agent` | Coding agent | analysis | `run_coding_agent` | `sandbox:execute` | required | handed off |
+| `harness` | Harness | analysis | `harness_start`, `harness_prompt`, `harness_stop`, `harness_sessions` | `sandbox:execute` | required | handed off |
 | `monitor` | Watch a command | analysis | `start_monitor`, `list_monitors`, `stop_monitor` | `sandbox:execute` | — | handed off |
+| `council` | Council | analysis | `run_council_review` | `agents:delegate` | — | handed off |
+| `babysit_pr` | Babysit PR | analysis | `babysit_pr_check`, `babysit_pr_rate_limit`, `babysit_pr_stop` | — | — | handed off |
+| `sol_loop` | Sol-loop | analysis | `run_sol_loop_review` | `agents:delegate` | — | handed off |
+| `eval_tool_tuning` | Eval tool tuning | analysis | `record_eval_tool_tuning` | — | — | as-is |
+| `burst` | Burst | analysis | `run_burst` | `agents:delegate` | — | handed off |
+| `proof_scenario` | Proof scenario | analysis | `proof_scenario_record`, `proof_scenario_verdict` | — | — | handed off |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | handed off |
 | `background_tasks` | Background topics | reasoning | `start_background_task`, `list_background_tasks`, `stop_background_task` | — | — | handed off |
+| `agent_messages` | Agent messages | reasoning | `agent_send_message`, `agent_read_messages`, `agent_list_threads`, `agent_react` | `agents:message` | — | as-is |
 | `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | as-is |
 | `thinking` | Thinking | reasoning | none, by design | — | — | mapped |
 | `system_reminders` | Instruction reminders | reasoning | none, by design | — | — | no effect |
@@ -153,6 +161,7 @@ across the sandbox boundary.
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | not available |
 | `phone_calls` | [Telephone calls](../voice.md#telephone-calls) | channels | `get_phone_contact_policy`, `call_me`, `list_phone_transfer_contacts`, `transfer_phone_call`, `end_phone_call` | `endpoint_id` | — | — |
 | `ask_user` | Ask the user | utility | `ask_user_question` | — | — | on screen |
+| `secret_request` | Request a secret | utility | `request_secret` | — | — | on screen |
 | `drafts` | Drafts | utility | `write_draft` | — | — | not available |
 | `follow_ups` | Follow-ups | utility | `suggest_next_steps`, `propose_setup` | — | — | not available |
 
@@ -572,6 +581,10 @@ its toolbox, beside the capability.
 ## Background topics { #background-tasks }
 
 Explicit work in a fresh topic that outlives its source reply. The source agent summarizes completion using current history, without tools. See [Background topics](../console.md#background-topics) for limits, approvals, stopping and interrupted work. This is separate from a run’s temporary `background_tools` or async subagents.
+
+## Agent messages { #agent-messages }
+
+Direct messages between two agents, in a thread the console shows. One thread per pair of agents, in one organization; a message is stored, never delivered as a run. Sending needs `agents:run` on both agents, reading on either one, and both must be published. See [Agent messages](../agent-messages.md) for replies, reactions, files, and what it does not do. This is the open version of delegation: where a delegation hides the exchange inside the parent, a thread is readable by anyone who may run either agent.
 
 ## Past conversations { #conversation-search }
 
@@ -1791,6 +1804,96 @@ the ones the parent sees.
 booked to the run's ledger like any model request, and the budget is checked before
 each task. Codex names no model in its events, so with no `model` set its usage is
 booked unpriced and the run's cost is marked partial. A task that ends before its
+harness reports what it spent - failed, timed out or stopped - is booked the same
+way.
+
+## Harness { #harness }
+
+`harness_start` — *Open a named harness session with a first prompt, and keep it open.*
+`harness_prompt` — *Send a follow-up prompt to a named harness session.*
+`harness_stop` — *Close a named harness session.*
+`harness_sessions` — *List the harness sessions this conversation has open.*
+
+An agent backed by a **Claude Code**, **Codex**, **OpenCode**, **Gemini CLI** or **Pi**
+session in its own [sandbox](../sandbox.md), kept open across turns: the agent starts one session
+per line of work and prompts it as the work proceeds, instead of handing one
+task to a harness and reporting back. The session is the CLI's own: it
+remembers what its earlier prompts read and changed, and a person watches each
+prompt work in the chat. Another agent reaches a harness-backed agent through
+ordinary [delegation](#delegation), the way it reaches any specialist.
+
+| Config | Default | Values |
+|---|---|---|
+| `harness` | `claude_code` | `claude_code` (an Anthropic API key or a Claude subscription token), `codex` (an OpenAI API key), `opencode` (the key of the model picked), `gemini` (a Gemini API key), `pi` (the key of the model picked) |
+| `access` | `read_only` | `read_only` reads the code and answers; `edit` changes files and runs commands |
+| `model` | the harness's default | Claude Opus, Sonnet or Haiku 5.5 for Claude Code; GPT-5.6 Sol, Terra, Luna or GPT-5.3 Codex for Codex; `provider/model` for OpenCode and Pi (a model must be picked, so the key has a vendor to come from); Gemini CLI keeps the harness's default (`auto`) |
+| `base_url` | Anthropic directly | Claude Code only: a gateway that speaks Anthropic's API, such as `https://openrouter.ai/api`, whose key the vault then holds. Dropped when Codex is chosen |
+| `timeout_minutes` | 30 | 1–60, for one prompt. The session stays open |
+
+**Four tools, and the binding decides what they may do.** At `edit` the harness edits
+any file and runs any command in the sandbox, with its own prompts off
+(`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`):
+nobody sits at its terminal, and the container is the boundary both flags are
+documented for. At `read_only`, Claude Code runs in plan mode without any tool
+that writes - its editing tools and the shell - and reads with Read, Grep and Glob;
+it is told that nothing else can be approved. Codex in a container has no `read_only`: its read-only mode is a
+sandbox of its own, which cannot start inside the agent's container, and publish
+refuses the combination. OpenCode at `read_only` runs its plan agent, which denies edits; Gemini CLI runs its plan approval mode; Pi runs with only its read tools (`read,grep,find,ls`), since Pi never asks. Whether a person says yes before each prompt is the
+capability's **Human approval** — like every gate, it is off
+until somebody sets it. There is no Tools tab: the four tools are the capability.
+
+**Named sessions.** Each prompt names a `session` - `main` when it names none. The same name continues that session's earlier work in the conversation; a new name opens another. `harness_start` on a name already open starts it over, and `harness_stop` closes it, so a later prompt by that name opens a new one. Prompts in one toolset run one at a time, so two prompts to the same session cannot interleave. A harness session is never resumed by the coding agent, and a coding agent's task never continues a harness session: their session files live apart, `.agenticos/harness/` and `.agenticos/coding-agent/`.
+
+**A conversation's sessions continue across prompts.** The harness's session id is kept
+in the sandbox beside the work, under `.agenticos/harness/`, one per
+conversation and session name, so the second prompt in a chat knows what the first one read - and a
+chat never continues another's in a sandbox several share, a project's or one scoped
+to a person or an agent. A session the sandbox no longer holds starts over by itself, once.
+
+**The person watches it work.** A prompt runs the way a coding agent's task does: the harness is started detached in the sandbox,
+`claude -p --output-format stream-json`, `codex exec --json`, `opencode run --format json`,
+`gemini -p --output-format stream-json` or `pi --mode json`, and its events file
+is read every second and a half. Each step reaches the chat as it happens, in a
+panel of its own under the harness's mark, the way a delegation's do:
+the file it reads, the edit, the command it runs, what it says between them. When
+it finishes, the call's result holds the answer, every step and the files it
+changed. A prompt past `timeout_minutes`, and one the person stops, has its whole
+process group stopped.
+
+**What it needs.** The `sandbox` capability on the `service` backend with shell
+commands on — publishing refuses anything else — and a runtime with the harness
+installed: the `workbench` runtime pins Claude Code 2.1.288 and Codex 0.160.0.
+Whether it ships OpenCode, Gemini CLI or Pi is not established; a harness it
+does not ship reports as failed rather than claiming otherwise. The
+credential comes from the vault through the binding's `secret_id` and reaches the
+command through its environment, never on its command line. In a [project](../projects.md)
+that keeps its files without a container there is no shell, so the harness is
+left out of runs there and the agent is told why.
+
+**A key, not a sign-in.** Claude Code takes an Anthropic API key, or the token
+`claude setup-token` prints for a Claude Pro or Max subscription, stored as a key —
+it is told apart by its `sk-ant-oat` prefix, and it signs in to Anthropic only, not
+to a gateway. Codex takes an OpenAI API key. OpenCode and Pi take the key of the
+model picked, so the binding must pick a model; Gemini CLI always takes a Gemini
+API key. A ChatGPT sign-in is not accepted here yet: the coding agent's sign-in flow — an isolated home, a visibility check, token rotation read back out of the sandbox — is not wired into this capability, so the picker offers API keys only. An API key is the agent's, as a bot's token is in Slack, so
+every run uses it, whoever asked - and anything a prompt runs can read it. Bind a
+key that everyone who may run the agent may share.
+Running on a personal subscription is subject to Anthropic's terms for
+those plans, which may not allow it on a shared deployment.
+
+**The key fits the harness.** The picker offers Claude Code only keys stored for
+Anthropic, and Codex only OpenAI keys. OpenCode and Pi offer only the key of the
+model's vendor, and Gemini CLI only Gemini keys. A key stored for
+`custom` fits any harness, and so does the key already bound. Publish refuses a key
+stored for another provider and names the ones the harness takes: an OpenAI key
+bound to Claude Code would publish and then fail at every prompt. With `base_url`
+set, the key is the gateway's - OpenRouter, LiteLLM or any other - so Claude Code
+takes any key there.
+
+**Its spend is metered.** The harnesses report their tokens per model, which are
+booked to the run's ledger like any model request, and the budget is checked before
+each prompt. Codex names no model in its events, so with no `model` set its usage is
+booked unpriced and the run's cost is marked partial. A prompt that ends before its
 harness reports what it spent - failed, timed out or stopped - is booked the same
 way.
 

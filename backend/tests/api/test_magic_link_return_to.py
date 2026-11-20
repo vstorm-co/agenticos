@@ -41,6 +41,7 @@ class _User:
         self.full_name = "Kacper"
         self.is_active = True
         self.credential_version = 0
+        self.totp_enabled = False
 
 
 @pytest.fixture
@@ -49,7 +50,7 @@ async def client(mock_redis: MagicMock, mock_db_session) -> AsyncGenerator[Async
     service.issue_magic_link_token = AsyncMock(return_value=None)
     service.consume_magic_link_token = AsyncMock(return_value=(_User(), None))
     sessions = MagicMock()
-    sessions.create_session = AsyncMock()
+    sessions.issue_tokens = AsyncMock(return_value=("access-token", "refresh-token"))
     app.dependency_overrides[get_user_service] = lambda: service
     app.dependency_overrides[get_session_service] = lambda: sessions
     app.dependency_overrides[get_redis] = lambda: mock_redis
@@ -158,6 +159,6 @@ async def test_only_the_address_bound_link_proves_this_sessions_current_mailbox(
     response = await client.post(VERIFY, json={"token": token})
     assert response.status_code == 200
     sessions = client.sessions  # ty: ignore[unresolved-attribute]
-    assert sessions.create_session.await_args.kwargs["proved_email"] == (
+    assert sessions.issue_tokens.await_args.kwargs["proved_email"] == (
         user.email if address == user.email else None
     )

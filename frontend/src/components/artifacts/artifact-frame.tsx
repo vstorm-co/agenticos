@@ -15,6 +15,15 @@ import {
   type PausedRun,
 } from "@/hooks/use-artifact-actions";
 import { useArtifactData, useArtifactReasons, useArtifactView } from "@/hooks/use-artifacts";
+import { useRegisterAssistantPageContext } from "@/hooks/use-assistant-page-context";
+import {
+  sanitizeAssistantPageDetails,
+  type AssistantPageDetails,
+} from "@/lib/assistant-page-context";
+import { pageOf } from "@/lib/assistant-bubbles";
+import { usePathname } from "@/lib/locale-navigation";
+import { useAuthStore } from "@/stores/auth-store";
+import { useOrgStore } from "@/stores/org-store";
 import type { ArtifactTheme } from "@/types/artifact";
 import { cn } from "@/lib/utils";
 import type {
@@ -88,6 +97,40 @@ export function readyFrom(
   const { type, n, subscribes } = data as { type?: unknown; n?: unknown; subscribes?: unknown };
   if (type !== READY || n !== nonce) return null;
   return { subscribes: subscribes === true };
+}
+
+/**
+ * Explicit context from the active document, using the data bridge's per-load
+ * nonce. The app can describe a view, but cannot claim another resource/title.
+ */
+export function assistantContextFrom(
+  event: MessageEvent,
+  frame: HTMLIFrameElement | null,
+  nonce: string,
+): { details: AssistantPageDetails } | null {
+  if (
+    !nonce ||
+    frame === null ||
+    frame.contentWindow === null ||
+    event.source !== frame.contentWindow
+  ) {
+    return null;
+  }
+  const data: unknown = event.data;
+  if (typeof data !== "object" || data === null || Array.isArray(data)) return null;
+  const message = data as { type?: unknown; n?: unknown; context?: unknown };
+  if (message.type !== "assistant_context" || message.n !== nonce) return null;
+  if (
+    message.context !== null &&
+    (typeof message.context !== "object" || Array.isArray(message.context))
+  )
+    return null;
+  const {
+    title: _title,
+    resource: _resource,
+    ...details
+  } = sanitizeAssistantPageDetails(message.context);
+  return { details };
 }
 
 /** A binding as the page receives it. */
@@ -409,6 +452,63 @@ export function ArtifactFrame({
   // still reads it - `refetch` runs a disabled query - and posts it.
   const injected = view.data?.injected === true;
   const nonce = view.data?.nonce ?? "";
+  const pathname = usePathname();
+  const userId = useAuthStore((state) => state.user?.id ?? null);
+  const orgId = useOrgStore((state) => state.activeOrgId);
+  const primaryPage = pageOf(pathname) === `/apps/${artifactId}`;
+  const resolvedVersionId = view.data?.version.id ?? "";
+  // Identity includes the owning account/organization and document. A reused
+  // component must never publish a previous app's view under a new scope.
+  const contextIdentity = JSON.stringify([
+    userId,
+    orgId,
+    pathname,
+    artifactId,
+    resolvedVersionId,
+    nonce,
+    view.data?.url,
+  ]);
+  const loadedContextIdentity = useRef<string | null>(null);
+  const [appContext, setAppContext] = useState<{
+    identity: string;
+    details: AssistantPageDetails;
+  } | null>(null);
+  const currentDetails = appContext?.identity === contextIdentity ? appContext.details : null;
+  const assistantDetails = useMemo<AssistantPageDetails>(() => {
+    const filters = Object.fromEntries(
+      Object.entries(currentDetails?.filters ?? {}).filter(([key]) => key !== "version"),
+    );
+    return {
+      ...currentDetails,
+      title,
+      resource: { kind: "app", id: artifactId, title },
+      view: currentDetails?.view ?? "app",
+      // First so the host-owned version survives the bounded filter allowlist.
+      filters: { version: resolvedVersionId, ...filters },
+    };
+  }, [currentDetails, title, artifactId, resolvedVersionId]);
+  useEffect(() => {
+    if (!primaryPage || !nonce || view.isError) return;
+    const listen = (event: MessageEvent) => {
+      if (loadedContextIdentity.current !== contextIdentity) return;
+      const message = assistantContextFrom(event, frame.current, nonce);
+      if (message !== null) {
+        setAppContext({ identity: contextIdentity, details: message.details });
+      }
+    };
+    window.addEventListener("message", listen);
+    return () => window.removeEventListener("message", listen);
+  }, [primaryPage, nonce, contextIdentity, view.isError]);
+  const onAssistantLoad = useCallback(() => {
+    loadedContextIdentity.current = contextIdentity;
+    setAppContext(null);
+    if (primaryPage && nonce && !view.isError) {
+      frame.current?.contentWindow?.postMessage(
+        { type: "assistant_context_request", n: nonce },
+        "*",
+      );
+    }
+  }, [contextIdentity, primaryPage, nonce, view.isError]);
   const data = useArtifactData(artifactId, view.data?.version.id, live && !injected);
   // After the load, never beside it: the page's own load holds the member's one read in
   // flight until its document is served, and a second would be refused or refuse it.
@@ -454,8 +554,9 @@ export function ArtifactFrame({
   const loaded = useCallback(() => {
     onLoad();
     onRunLoad();
+    onAssistantLoad();
     setLoadedNonce(nonce);
-  }, [onLoad, onRunLoad, nonce]);
+  }, [onLoad, onRunLoad, onAssistantLoad, nonce]);
 
   const { refetch: refetchData } = data;
   const { refetch: refetchView } = view;
@@ -522,7 +623,13 @@ export function ArtifactFrame({
   }
   return (
     <>
+      <AssistantContextRegistration
+        key={"assistant-context:" + contextIdentity}
+        details={assistantDetails}
+        enabled={primaryPage && !view.isError}
+      />
       <ArtifactFrameView
+        key={contextIdentity}
         url={view.data.url}
         title={title}
         className={className}
@@ -537,4 +644,16 @@ export function ArtifactFrame({
       />
     </>
   );
+}
+
+/** Remount the registration with the document/account whose data it describes. */
+function AssistantContextRegistration({
+  details,
+  enabled,
+}: {
+  details: AssistantPageDetails;
+  enabled: boolean;
+}) {
+  useRegisterAssistantPageContext(details, enabled);
+  return null;
 }

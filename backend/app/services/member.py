@@ -1,5 +1,6 @@
 import logging
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -10,6 +11,8 @@ from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundErr
 from app.core.permissions import Perm, assignable_roles, role_has
 from app.db.models.organization import MembershipSource, OrganizationMember, OrgRole
 from app.repositories import (
+    agent_embed_repo,
+    agent_exposure_repo,
     agent_trigger_repo,
     api_key_repo,
     audit_log_repo,
@@ -19,6 +22,7 @@ from app.repositories import (
     oauth_repo,
     organization_repo,
     resource_grant_repo,
+    session_repo,
     user_repo,
 )
 from app.repositories import coding_account as coding_account_repo
@@ -28,15 +32,45 @@ from app.services.organization import OrganizationService
 logger = logging.getLogger(__name__)
 
 
-async def end_membership(db: AsyncSession, membership: OrganizationMember) -> None:
+async def end_membership(
+    db: AsyncSession,
+    membership: OrganizationMember,
+    *,
+    actor_user_id: UUID | None = None,
+    action: str = "member.removed",
+    details: dict[str, Any] | None = None,
+) -> None:
     """Remove a membership and every credential that acted through it.
 
     Keys and connected apps are revoked with it, in the same transaction. Left
     active, a missing membership only refused them for now - inviting the person
     back would have woken every old key, and any copy of one, under the new role.
+    Their direct grants go the same way: the `users` row survives the removal,
+    and a grant left behind would revive with it on re-invite.
+
+    Their sessions go too. A session outlives a removal by up to seven days on
+    its refresh token, and a session is not scoped to one organization, so a
+    removal that left it standing would leave a live credential in the hands of
+    someone the organization just removed. That signs the person out everywhere
+    - a member of other organizations signs back in to reach those, which is
+    the price of a credential that cannot be narrowed to one organization.
+
+    Their exposures and embeds pause rather than delete. A binding that keeps
+    answering in a room answers as its publisher, and an embed keeps running
+    as its owner, so both stop on departure; pausing keeps the row, who made it
+    and when, so an administrator can resume it instead of rebuilding it.
+
+    The removal is audited here, once, so every path that ends a membership -
+    an administrator removing someone, the person leaving, a directory sync, a
+    Discord role sweep - leaves the same entry in the trail instead of each
+    caller remembering to write its own. A caller that already had its own
+    action name passes it in (`directory.member_removed`,
+    `discord.member_removed`); the actor is the person who removed them, or the
+    person the sync acted for, and `None` only where there is no actor at all.
     """
     at = datetime.now(UTC)
     organization_id, user_id = membership.organization_id, membership.user_id
+    role = membership.role
     await group_repo.delete_memberships_in_org(db, organization_id=organization_id, user_id=user_id)
     await oauth_repo.revoke_grants_for_member(
         db, organization_id=organization_id, user_id=user_id, at=at
@@ -54,11 +88,37 @@ async def end_membership(db: AsyncSession, membership: OrganizationMember) -> No
         db, organization_id=organization_id, user_id=user_id
     )
     await telephony_repo.delete_member_contact(db, organization_id=organization_id, user_id=user_id)
+    await resource_grant_repo.revoke_for_member(
+        db, organization_id=organization_id, user_id=user_id
+    )
+    sessions_revoked = await session_repo.deactivate_all_user_sessions(db, user_id)
+    exposures_paused = await agent_exposure_repo.pause_for_creator(
+        db, organization_id=organization_id, user_id=user_id
+    )
+    embeds_paused = await agent_embed_repo.pause_for_owner(
+        db, organization_id=organization_id, user_id=user_id
+    )
     await member_repo.delete(db, membership)
     # The editor keeps what they could always do on the leaver's pages; only the owner's
     # standing consent to their republishes goes with the owner.
     await resource_grant_repo.lower_edit_data(
         db, organization_id=organization_id, owner_user_id=user_id
+    )
+    audit_details = dict(details) if details is not None else {"role": role}
+    if sessions_revoked:
+        audit_details["sessions_revoked"] = sessions_revoked
+    if exposures_paused:
+        audit_details["exposures_paused"] = exposures_paused
+    if embeds_paused:
+        audit_details["embeds_paused"] = embeds_paused
+    await record_audit(
+        db,
+        actor_user_id=actor_user_id,
+        organization_id=organization_id,
+        action=action,
+        target_type="member",
+        target_id=str(user_id),
+        details=audit_details,
     )
 
 
@@ -252,17 +312,7 @@ class MemberService:
                 details={"target_role": target.role},
             )
 
-        removed_role = target.role
-        await end_membership(self.db, target)
-        await record_audit(
-            self.db,
-            actor_user_id=requester_id,
-            organization_id=organization_id,
-            action="member.removed",
-            target_type="member",
-            target_id=str(target_user_id),
-            details={"role": removed_role},
-        )
+        await end_membership(self.db, target, actor_user_id=requester_id)
 
     async def leave(self, organization_id: UUID, requester_id: UUID) -> None:
         """Current user leaves the org.
@@ -282,7 +332,7 @@ class MemberService:
             if total > 1:
                 raise BadRequestError(message="Transfer ownership before leaving the organization")
 
-        await end_membership(self.db, membership)
+        await end_membership(self.db, membership, actor_user_id=requester_id, action="member.left")
 
     async def transfer_ownership(
         self,
@@ -346,6 +396,15 @@ class MemberService:
         # a membership it made must not read as one it still maintains.
         await member_repo.update_role(
             self.db, new_owner, role=OrgRole.OWNER.value, source=MembershipSource.MANUAL
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=requester_id,
+            organization_id=organization_id,
+            action="organization.ownership_transferred",
+            target_type="organization",
+            target_id=str(organization_id),
+            details={"from": str(requester_id), "to": str(new_owner_user_id)},
         )
         logger.info(
             "Ownership transferred in org %s from user %s to user %s",

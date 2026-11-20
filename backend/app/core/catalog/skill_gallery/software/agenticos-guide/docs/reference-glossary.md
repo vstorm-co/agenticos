@@ -120,6 +120,7 @@ in [Capabilities](https://vstorm-co.github.io/agenticos/reference/capabilities/)
 |---|---|
 | Apps | `artifacts` |
 | Ask the user | `ask_user` |
+| Request a secret | `secret_request` |
 | Drafts | `drafts` |
 | Web browser | `browser_use` |
 | Chat channel lookup | `channel_tools` |
@@ -131,10 +132,12 @@ in [Capabilities](https://vstorm-co.github.io/agenticos/reference/capabilities/)
 | Coding agent | `coding_agent` |
 | Long conversations | `compaction` |
 | Computer use | `computer_use` |
+| Council | `council` |
 | Context | `context` |
 | Past conversations | `conversation_search` |
 | Follow-ups | `follow_ups` |
 | Guardrails | `guardrails` |
+| Harness | `harness` |
 | Image generation | `image_generation` |
 | Knowledge search | `knowledge` |
 | Media offload | `media` |
@@ -143,9 +146,15 @@ in [Capabilities](https://vstorm-co.github.io/agenticos/reference/capabilities/)
 | Planning | `planning` |
 | Work while tools run | `background_tools` |
 | Background topics | `background_tasks` |
+| Agent messages | `agent_messages` |
 | Watch a command | `monitor` |
+| Babysit PR | `babysit_pr` |
+| Proof scenario | `proof_scenario` |
 | Sandbox | `sandbox` |
 | Skills | `skills` |
+| Sol-loop | `sol_loop` |
+| Eval tool tuning | `eval_tool_tuning` |
+| Burst | `burst` |
 | Subagents | `subagents` |
 | Instruction reminders | `system_reminders` |
 | Text to speech | `text_to_speech` |

@@ -58,6 +58,20 @@ class User(Base, TimestampMixin):
     # see `app/core/permissions.py`. This flag is deliberately outside that: it
     # administers the *deployment*, so it is not scoped to a tenant.
     is_app_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Time-based one-time passwords for console sign-in. The secret is sealed
+    # in the vault under the user's own scope (see `app/core/vault.py`), so a
+    # database read alone never yields it; `totp_enabled` is separate from the
+    # secret's presence because enrolment stores the secret first and only
+    # flips the flag once the authenticator has proved it can produce a code.
+    # Recovery codes are single-use ways back in when the authenticator is
+    # lost, stored as SHA-256 digests - never the codes themselves.
+    totp_secret_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    totp_key_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    totp_last_counter: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
+    totp_recovery_hashes: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # The chosen default-avatar colour, slot 1..10 into the `--avatar-*` ramp;
     # null means auto (derived from the id). Only used when no picture is set.
@@ -86,6 +100,9 @@ class User(Base, TimestampMixin):
     # agent asked to switch it. Null until they choose: the console then keeps
     # whatever the browser's cookie or the URL says, as it always did.
     locale: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    # Closed appearance tokens, owned by this person across their organizations.
+    # No organization or administrator write surface accepts another user's id.
+    appearance: Mapped[dict[str, str] | None] = mapped_column(JSONB, nullable=True)
     # What every agent is told about the person (#2301): the zone "every Monday
     # at 9" is read in, taken from their browser, and their role and work, which
     # they write once rather than in every conversation.

@@ -56,6 +56,9 @@ export interface RawMessagePart {
 
 export interface RawMessage {
   client_message_id?: string | null;
+  thread_root_message_id?: string | null;
+  thread_reply_count?: number;
+  thread_last_activity_at?: string | null;
   id: string;
   conversation_id: string;
   role: "user" | "assistant" | "system";
@@ -82,6 +85,8 @@ export interface RawMessage {
    */
   parts?: RawMessagePart[] | null;
   user_rating?: number | null;
+  /** Reader-scoped status on authenticated transcript pages; absent elsewhere. */
+  is_pinned?: boolean | null;
   rating_count?: { likes: number; dislikes: number } | null;
   files?: ChatMessageFile[] | null;
   sender?: ChatPerson | null;
@@ -253,6 +258,9 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
   return {
     id: msg.id,
     clientMessageId: msg.client_message_id ?? undefined,
+    threadRootMessageId: msg.thread_root_message_id ?? undefined,
+    threadReplyCount: msg.thread_reply_count,
+    threadLastActivityAt: msg.thread_last_activity_at,
     role: msg.role,
     content: msg.content,
     thinking: msg.thinking ?? undefined,
@@ -275,6 +283,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     // Only the one worth drawing. A completed run needs no marker, and a run
     // still going has no answer on screen to mark.
     wasStopped: msg.run_status === "cancelled",
+    guardrailRefused: msg.run_status === "guardrail_blocked" || undefined,
     runFailed: ["failed", "budget_exceeded", "guardrail_blocked", "loop_stopped"].includes(
       msg.run_status ?? "",
     ),
@@ -286,6 +295,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     toolCalls,
     parts,
     user_rating: msg.user_rating ?? undefined,
+    ...(typeof msg.is_pinned === "boolean" ? { isPinned: msg.is_pinned } : {}),
     rating_count: msg.rating_count ?? undefined,
     files,
     fileIds: files?.map((f) => f.id),

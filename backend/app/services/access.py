@@ -18,6 +18,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, OrgRoleName, Perm, Scope
+from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import GRANT_ORDER, GrantLevel, Visibility
 from app.db.models.skill import Skill
 from app.repositories import member_repo, resource_grant_repo, user_repo
@@ -73,9 +74,9 @@ SECRET = ResourceType(key="secret", view=Perm.SECRETS_VIEW, edit=Perm.SECRETS_ED
 ARTIFACT = ResourceType(key="artifact", view=Perm.ARTIFACTS_VIEW, edit=Perm.ARTIFACTS_EDIT)
 DATASET = ResourceType(key="dataset", view=Perm.DATASETS_VIEW, edit=Perm.DATASETS_EDIT)
 PROJECT = ResourceType(key="project", view=Perm.PROJECTS_VIEW, edit=Perm.PROJECTS_EDIT)
-# An organization's MCP server. One permission both sees and manages it, as it
-# always has; what changed is that a server can be narrowed to groups (#2072).
-MCP_CONNECTION = ResourceType(key="mcp_connection", view=Perm.MCP_MANAGE, edit=Perm.MCP_MANAGE)
+# A connection may be selected without handing over its credentials, endpoint
+# settings or sharing. Existing use grants remain usable; administration needs edit.
+MCP_CONNECTION = ResourceType(key="mcp_connection", view=Perm.MCP_USE, edit=Perm.MCP_MANAGE)
 
 
 # The grant level a member needs before a scope-based check is even consulted.
@@ -113,9 +114,8 @@ _PERM_MIN_GRANT: dict[Perm, GrantLevel] = {
     # being able to rename or delete it.
     Perm.PROJECTS_USE: GrantLevel.USE,
     Perm.PROJECTS_EDIT: GrantLevel.EDIT,
-    # A group's server is its members' to bind, and so to manage: `use`, the level
-    # an audience chosen at creation grants.
-    Perm.MCP_MANAGE: GrantLevel.USE,
+    Perm.MCP_USE: GrantLevel.USE,
+    Perm.MCP_MANAGE: GrantLevel.EDIT,
 }
 
 
@@ -176,6 +176,9 @@ async def resolve_access(
     if resource.organization_id != ctx.organization_id:
         return False
 
+    if not _personal_secret_allows(ctx, resource):
+        return False
+
     if (
         resource_type is SKILL
         and perm is Perm.SKILLS_EDIT
@@ -208,6 +211,14 @@ async def resolve_access(
     if granted is None:
         return False
     return GRANT_ORDER[granted] >= GRANT_ORDER[required]
+
+
+def _personal_secret_allows(ctx: AuthContext, resource: OwnedResource) -> bool:
+    """A personal model connection cannot be delegated through a role or grant."""
+    if not isinstance(resource, OrganizationSecret) or resource.usage_scope != "personal":
+        return True
+    person = ctx.personal_user_id
+    return person is not None and resource.owner_user_id == person
 
 
 async def accessible_ids(
@@ -253,6 +264,7 @@ async def accessible_ids(
         resource.id
         for resource in resources
         if resource.organization_id == ctx.organization_id
+        and _personal_secret_allows(ctx, resource)
         and (_scope_allows(scope, resource, subject) or resource.id in granted)
     }
     if resource_type is SKILL and perm is Perm.SKILLS_EDIT:

@@ -185,6 +185,18 @@ export function formatRunCostUsd(amount: number, partial: boolean): string {
   return partial && !cost.startsWith("<") ? `${cost}+` : cost;
 }
 
+/**
+ * How long until an instant, human-readable, or null when it is past or not
+ * an instant. A parked question's expiry reads as the time left to answer it,
+ * never as a negative span - the sweep ends it, and until then the number only
+ * ever counts down.
+ */
+export function timeUntil(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
+  const remaining = new Date(dateStr).getTime() - Date.now();
+  return remaining > 0 ? formatElapsed(remaining) : null;
+}
+
 /** A span of milliseconds, human-readable, or "-" for one that is not a span. */
 export function formatElapsed(ms: number, locale?: string): string {
   if (Number.isNaN(ms) || ms < 0) return "-";

@@ -52,6 +52,20 @@ describe("listing sync sources", () => {
   });
 });
 
+describe("listing Google Drive folders", () => {
+  it("lists one level through the account it is read with, by the parent it names", async () => {
+    await rag.listDriveFolders("account-1", "root");
+    await rag.listDriveFolders("account-1", "drive:0ABshared");
+
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/sync-sources/gdrive/folders", {
+      params: { account: "account-1", parent: "root" },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/sync-sources/gdrive/folders", {
+      params: { account: "account-1", parent: "drive:0ABshared" },
+    });
+  });
+});
+
 describe("search and parsed documents", () => {
   it("sends a search as a body, because a query is not a path", async () => {
     await rag.searchDocuments({ query: "refunds", limit: 5 });

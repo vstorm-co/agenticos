@@ -5,6 +5,8 @@ import { Check, ExternalLink, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ConnectOwnButton } from "@/components/agents/connect-server-dialog";
+import { ManagedAppConnectButton } from "@/components/connections/managed-app-connect-button";
+import { managedAppToolkit } from "@/hooks/use-managed-app-connect";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { Button } from "@/components/ui";
 import { useMcpConnections } from "@/hooks/use-mcp-connections";
@@ -61,7 +63,7 @@ export function ConnectServicesCard({ gaps }: { gaps: PersonalServiceGap[] }) {
           // what says whether that is still true.
           const connected =
             gap.gap === "not_connected" &&
-            ownAccountStatus(gap.catalog_key, connections) !== "not_connected";
+            ownAccountStatus(gap.catalog_key, connections) === "connected";
           return (
             <li
               key={gap.catalog_key}
@@ -77,6 +79,12 @@ export function ConnectServicesCard({ gaps }: { gaps: PersonalServiceGap[] }) {
               </span>
               {connected ? (
                 <Check className="text-brand h-4 w-4 shrink-0" aria-hidden />
+              ) : managedAppToolkit(gap.catalog_key) ? (
+                <ManagedAppConnectButton
+                  catalogKey={gap.catalog_key}
+                  label={t("connect")}
+                  keepThisTab
+                />
               ) : gap.gap === "not_connected" && entry !== null ? (
                 <ConnectOwnButton
                   entry={entry}
@@ -95,7 +103,7 @@ export function ConnectServicesCard({ gaps }: { gaps: PersonalServiceGap[] }) {
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => router.push(ROUTES.MCP_SERVERS)}
+                  onClick={() => router.push(`${ROUTES.MCP_SERVERS}?tab=advanced`)}
                 >
                   <ExternalLink className="mr-1 h-3.5 w-3.5" />
                   {t("openServers")}

@@ -62,7 +62,7 @@ from app.core.security import (
     verify_password,
     verify_special_token,
 )
-from app.db.locks import LOCK_NOT_AVAILABLE
+from app.db.locks import LOCK_NOT_AVAILABLE, LockScope, hold_subject
 from app.db.models.artifact import (
     SERVED_STATES,
     Artifact,
@@ -77,6 +77,7 @@ from app.db.models.artifact_share_request import (
 )
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.session import get_db_context
+from app.db.table_rls import bind_table_access
 from app.db.updates import writable
 from app.repositories import (
     agent_environment_repo,
@@ -2324,10 +2325,10 @@ iframe {{ border: 0; width: 100%; height: 100%; display: block; }}
 
 
 def _refuse_key(ctx: AuthContext) -> None:
-    """Following a page is a person's preference; a key changes none of them."""
+    """Following or favouriting an app is a person's preference, not a key's."""
     if ctx.api_key_id is not None:
         raise AuthorizationError(
-            message="Following an app is a person's choice, made in the console, not by an API key",
+            message="App preferences belong to a person, not an API key",
             details={"subject": "api_key"},
         )
 
@@ -2468,6 +2469,17 @@ class ArtifactService:
         await artifact_repo.unfollow(self.db, artifact_id=artifact.id, user_id=ctx.subject_id)
         return await self.read(ctx, artifact.id)
 
+    async def set_favourite(
+        self, ctx: AuthContext, artifact_id: UUID, *, favourite: bool
+    ) -> ArtifactDetail:
+        """Star or unstar a readable app for this person."""
+        artifact = await self.get(ctx, artifact_id)
+        _refuse_key(ctx)
+        await artifact_repo.set_favourite(
+            self.db, user_id=ctx.subject_id, artifact_id=artifact.id, favourite=favourite
+        )
+        return await self.read(ctx, artifact.id)
+
     async def _detail(
         self, ctx: AuthContext, artifact: Artifact, *, can_edit: bool
     ) -> ArtifactDetail:
@@ -2485,7 +2497,18 @@ class ArtifactService:
             else None
         )
         return ArtifactDetail(
-            **self._read(artifact, current, names).model_dump(),
+            **self._read(
+                artifact,
+                current,
+                names,
+                is_favourite=(
+                    ctx.user_id is not None
+                    and ctx.api_key_id is None
+                    and await artifact_repo.is_favourite(
+                        self.db, user_id=ctx.user_id, artifact_id=artifact.id
+                    )
+                ),
+            ).model_dump(),
             can_edit=can_edit,
             following=ctx.user_id is not None
             and await artifact_repo.is_following(
@@ -2554,7 +2577,11 @@ class ArtifactService:
 
     @staticmethod
     def _read(
-        artifact: Artifact, current: ArtifactVersion | None, environment_names: dict[UUID, str]
+        artifact: Artifact,
+        current: ArtifactVersion | None,
+        environment_names: dict[UUID, str],
+        *,
+        is_favourite: bool = False,
     ) -> ArtifactRead:
         return ArtifactRead(
             id=artifact.id,
@@ -2578,6 +2605,7 @@ class ArtifactService:
             archived_at=artifact.archived_at,
             created_at=artifact.created_at,
             updated_at=artifact.updated_at,
+            is_favourite=is_favourite,
         )
 
     async def _visibility(self, ctx: AuthContext) -> tuple[bool, list[UUID]]:
@@ -2592,6 +2620,8 @@ class ArtifactService:
         ctx: AuthContext,
         *,
         shared_with_me: bool = False,
+        mine_or_shared: bool = False,
+        favourites: bool = False,
         include_archived: bool = False,
         search: str | None = None,
         agent_id: UUID | None = None,
@@ -2601,6 +2631,12 @@ class ArtifactService:
         limit: int = 50,
     ) -> ArtifactList:
         """A page of the artifacts this caller may open, newest publication first.
+
+        `mine_or_shared` narrows to what the caller owns or was shared with, even
+        when their role reaches the whole organization - the sidebar's list. An admin
+        keeps the whole organization on the management page, which does not set it.
+        `favourites` keeps only the caller's starred apps and orders them by when
+        they were starred.
 
         Archived ones only with `include_archived`, and then only those the caller may
         edit - the rule :meth:`read` applies. Each is read at the version the caller is
@@ -2616,7 +2652,17 @@ class ArtifactService:
         """
         if project_id is not None:
             await ProjectService(self.db).get(ctx, project_id)
+        if favourites:
+            _refuse_key(ctx)
         see_all, grant_ids = await self._visibility(ctx)
+        if mine_or_shared and see_all:
+            see_all = False
+            grant_ids = await resource_grant_repo.list_shared_ids(
+                self.db,
+                organization_id=ctx.organization_id,
+                subject_user_id=ctx.subject_id,
+                resource_type=ARTIFACT.key,
+            )
         edit_ids = (
             await visible_resource_ids(
                 self.db, ctx, resource_type=ARTIFACT, perm=Perm.ARTIFACTS_EDIT
@@ -2624,6 +2670,10 @@ class ArtifactService:
             if include_archived
             else None
         )
+        # A team-visible page is one the caller's role may open, so the sidebar lists it
+        # for the roles that reach team-visible rows; a role that stops at its own and
+        # shared pages does not get them.
+        team_visible = mine_or_shared and ctx.scope_for(Perm.ARTIFACTS_VIEW) >= Scope.TEAM
         if shared_with_me and see_all:
             grant_ids = await resource_grant_repo.list_shared_ids(
                 self.db,
@@ -2639,6 +2689,7 @@ class ArtifactService:
             shared_ids=grant_ids,
             shared_with_me=shared_with_me,
             include_archived=include_archived,
+            team_visible=team_visible,
             edit_scope=ctx.scope_for(Perm.ARTIFACTS_EDIT),
             edit_ids=edit_ids,
             search=search,
@@ -2647,6 +2698,7 @@ class ArtifactService:
                 self.db, ctx, resource_type=ARTIFACT, group_id=group_id
             ),
             project_id=project_id,
+            favourites_for=ctx.subject_id if favourites else None,
             skip=skip,
             limit=limit,
         )
@@ -2657,10 +2709,22 @@ class ArtifactService:
         names = await artifact_repo.environment_names(
             self.db, sorted({item.environment_id for item in items if item.environment_id})
         )
+        favourite_ids = (
+            await artifact_repo.favourite_ids(
+                self.db,
+                user_id=ctx.user_id,
+                artifact_ids=[item.id for item in items],
+            )
+            if ctx.user_id is not None and ctx.api_key_id is None
+            else set()
+        )
         return ArtifactList(
             items=[
                 self._read(item, current.get(item.id), names).model_copy(
-                    update={"shared_groups": groups[item.id]}
+                    update={
+                        "shared_groups": groups[item.id],
+                        "is_favourite": item.id in favourite_ids,
+                    }
                 )
                 for item in items
             ],
@@ -3170,6 +3234,10 @@ class ArtifactService:
                 window. No grants, rows or stored bytes have been removed.
         """
         artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT, archived=True)
+        # A late workflow update can recheck its artifact foreign key while holding
+        # the run row. Take the workers' guards before DELETE locks the artifact.
+        await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
+        await hold_subject(self.db, LockScope.WORKFLOW_INLINE_RESULTS_PER_ORG, ctx.organization_id)
         await self._lock_for_delete(artifact)
         await resource_grant_repo.delete_for_resource(
             self.db,
@@ -3958,6 +4026,7 @@ class ArtifactService:
         """The binding's table as its owner reads it now, or why the binding reads nothing."""
         if deadline.remaining_ms() <= 0:
             return self._unavailable(binding, Unavailable("timeout"))
+        await bind_table_access(self.db, owner)
         service = VirtualTableService(self.db)
         try:
             async with self.db.begin_nested():
@@ -3986,6 +4055,7 @@ class ArtifactService:
         """The rows of a binding whose `source` is known, at most `max_records` of them."""
         if deadline.remaining_ms() <= 0:
             return self._unavailable(binding, Unavailable("timeout"))
+        await bind_table_access(self.db, owner)
         service = VirtualTableService(self.db)
         try:
             async with self.db.begin_nested():

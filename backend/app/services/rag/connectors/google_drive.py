@@ -1,21 +1,16 @@
 """Google Drive sync connector for RAG ingestion.
 
-Fetches files from Google Drive using a Google service account. The credential
-is a `GcpServiceAccountSecret` in the organization's vault, named by the
-source's `secret_id`, and there is no deployment-wide fallback: a source runs on
-the credential it names or it does not run.
+Fetches files through either a vault service-account secret or an organization
+Google OAuth account explicitly bound to the source. There is no deployment-wide
+fallback: a source runs on the credential it names or it does not run.
 
 It used to be a `service_account_json` field inside the source's own `config` -
 the same JSON pasted once per source, encrypted with one deployment-wide key,
 invisible to the Vault page that lists every other credential this organization
 holds (#937).
 
-Setup:
-1. Create a service account in Google Cloud Console
-2. Download the JSON key file
-3. Share the target Drive folder with the service account email
-4. Add the JSON to the Vault as a service account credential, once, and point
-   each Drive source at it
+OAuth is the recommended setup for Shared Drives. The service-account path remains
+available for organizations that still use it.
 """
 
 import asyncio
@@ -27,15 +22,16 @@ from typing import ClassVar
 from pydantic import BaseModel, Field
 
 from app.core.exceptions import BadRequestError
-from app.core.secret_kinds import GcpServiceAccountSecret, SecretKind, StorableSecret
+from app.core.secret_kinds import GcpServiceAccountSecret, SecretKind
 from app.services.rag.connectors import (
     BaseSyncConnector,
     ConfigRefusal,
     ConnectorConfig,
     RemoteFile,
     RemoteListing,
+    SyncCredential,
 )
-from app.services.rag.drive_api import DriveClient
+from app.services.rag.drive_api import DriveClient, GoogleDriveOAuthGrant
 from app.services.rag.remote_names import checked_drive_folder_id
 
 logger = logging.getLogger(__name__)
@@ -71,7 +67,7 @@ GOOGLE_DOCS_EXPORT: dict[str, tuple[str, str]] = {
 
 
 class GoogleDriveConnector(BaseSyncConnector):
-    """Google Drive connector using a service account.
+    """Google Drive connector using a source-bound service account or OAuth grant.
 
     The credential is the vault secret the source names, unsealed by the caller
     and handed in - never read from `config`, which holds only what is needed to
@@ -83,7 +79,7 @@ class GoogleDriveConnector(BaseSyncConnector):
     SECRET_KIND: ClassVar[SecretKind] = SecretKind.GCP_SERVICE_ACCOUNT
     CONFIG_MODEL: ClassVar[type[BaseModel]] = GoogleDriveConfig
 
-    def _get_drive_service(self, credential: StorableSecret | None) -> DriveClient:
+    def _get_drive_service(self, credential: SyncCredential | None) -> DriveClient:
         """Build an authenticated Drive client from the vault secret the source names.
 
         **There is no deployment-wide fallback.** A `GOOGLE_DRIVE_CREDENTIALS_FILE`
@@ -108,6 +104,12 @@ class GoogleDriveConnector(BaseSyncConnector):
                     "This Google Drive source has no credential. Pick a service "
                     "account in the Vault and point the source at it."
                 )
+            )
+        if isinstance(credential, GoogleDriveOAuthGrant):
+            return DriveClient.from_oauth_grant(
+                client_id=credential.client_id,
+                client_secret=credential.client_secret,
+                refresh_token=credential.refresh_token,
             )
         if not isinstance(credential, GcpServiceAccountSecret):
             raise BadRequestError(
@@ -198,7 +200,7 @@ class GoogleDriveConnector(BaseSyncConnector):
         return files
 
     async def list_files(
-        self, config: ConnectorConfig, credential: StorableSecret | None
+        self, config: ConnectorConfig, credential: SyncCredential | None
     ) -> RemoteListing:
         """List all files in the configured Google Drive folder."""
         folder_id = config["folder_id"]
@@ -215,7 +217,7 @@ class GoogleDriveConnector(BaseSyncConnector):
         file: RemoteFile,
         dest_path: Path,
         config: ConnectorConfig,
-        credential: StorableSecret | None,
+        credential: SyncCredential | None,
     ) -> None:
         """Download a file from Google Drive to the path the base class chose.
 

@@ -1,0 +1,50 @@
+services:
+  claude-subscription:
+    build: .
+    image: agenticos-claude-subscription:local
+    restart: unless-stopped
+    init: true
+    read_only: true
+    expose:
+      - "8080"
+    environment:
+      CLAUDE_SUBSCRIPTION_SERVICE_KEY: ${CLAUDE_SUBSCRIPTION_SERVICE_KEY:?Set a private runtime service key}
+      CLAUDE_SUBSCRIPTION_BLOCKED_CIDRS: ${CLAUDE_SUBSCRIPTION_BLOCKED_CIDRS:?Include this VM public IP addresses}
+    volumes:
+      - claude-subscription:/state
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=128m
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETUID
+      - SETGID
+      - KILL
+      - NET_ADMIN
+      - SETPCAP
+    security_opt:
+      - no-new-privileges:true
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: "1"
+      net.ipv6.conf.default.disable_ipv6: "1"
+    pids_limit: 512
+    mem_limit: 2g
+    cpus: 2
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - agenticos
+
+volumes:
+  claude-subscription:
+
+networks:
+  agenticos:
+    external: true
+    name: ${AGENTICOS_NETWORK:?Use the existing private API network}

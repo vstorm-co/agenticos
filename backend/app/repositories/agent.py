@@ -334,6 +334,65 @@ async def list_visible(
     return items, total
 
 
+async def list_visible_ids(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
+    statuses: tuple[str, ...] = (),
+) -> set[UUID]:
+    """The ids of the agents this member may list, without the rows.
+
+    The same visibility as `list_visible` - the role's scope plus explicit
+    grants - for a caller that needs the set to filter something else by,
+    such as the threads one of those agents is in. `statuses` narrows to
+    agents in those states; empty means every state the visibility allows,
+    which for an archived agent is none, since visibility already excludes
+    them.
+    """
+    where = _visible_clauses(
+        organization_id=organization_id,
+        user_id=user_id,
+        see_all=see_all,
+        shared_ids=shared_ids,
+        shared_with_me=False,
+        include_archived=False,
+        kind=AgentKind.AGENT,
+    )
+    if statuses:
+        where.append(Agent.status.in_(list(statuses)))
+    result = await db.execute(select(Agent.id).where(*where))
+    return set(result.scalars().all())
+
+
+async def list_by_ids(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_ids: set[UUID] | None,
+    skip: int = 0,
+    limit: int = 50,
+) -> tuple[list[Agent], int]:
+    """Agents by id in this organization, most recently created first.
+
+    `None` means every agent in the organization; an empty set means none.
+    The caller already decided these ids may be read - this is a lookup for
+    names and slugs, not an authorization.
+    """
+    where = [Agent.organization_id == organization_id]
+    if agent_ids is not None:
+        if not agent_ids:
+            return [], 0
+        where.append(Agent.id.in_(agent_ids))
+    query = select(Agent).where(*where).order_by(Agent.created_at.desc()).offset(skip).limit(limit)
+    count_query = select(func.count(Agent.id)).where(*where)
+    items = list((await db.execute(query)).scalars().all())
+    total = (await db.execute(count_query)).scalar() or 0
+    return items, total
+
+
 async def list_visible_labels(
     db: AsyncSession,
     *,
@@ -448,10 +507,10 @@ async def published_starter_titles(
 _CAPABILITY_BINDINGS = TypeAdapter(list[CapabilityBindingSpec])
 
 
-async def published_capabilities(
+async def published_capability_bindings(
     db: AsyncSession, *, version_ids: Sequence[UUID]
-) -> dict[UUID, list[str]]:
-    """Enabled capability ids from the frozen version, never its editable draft."""
+) -> dict[UUID, list[CapabilityBindingSpec]]:
+    """Bindings from the requested frozen versions, for internal listing projections."""
     if not version_ids:
         return {}
     result = await db.execute(
@@ -460,11 +519,7 @@ async def published_capabilities(
         )
     )
     return {
-        version_id: [
-            binding.id
-            for binding in _CAPABILITY_BINDINGS.validate_python([] if raw is None else raw)
-            if binding.enabled
-        ]
+        version_id: _CAPABILITY_BINDINGS.validate_python([] if raw is None else raw)
         for version_id, raw in result.all()
     }
 
@@ -604,11 +659,12 @@ async def published_compaction_windows(
     """The window each version's `compaction` binding overrides its model's with.
 
     An author sets this when the resolved window is wrong - the pricing registry
-    records 1,000,000 for `anthropic:claude-sonnet-4-5` against a real 200,000 -
-    or when they want the trigger to allow for the instructions and tool schemas
-    the compaction estimator does not count. Either way it is the number the
-    *trigger* uses, so it has to be the number the gauge divides by: two figures
-    describing one ceiling, disagreeing, is what this whole area kept producing.
+    is a third-party bundle that has recorded a window too high before
+    (`anthropic:claude-sonnet-4-5`, #773) - or when they want the trigger to
+    allow for the instructions and tool schemas the compaction estimator does
+    not count. Either way it is the number the *trigger* uses, so it has to be
+    the number the gauge divides by: two figures describing one ceiling,
+    disagreeing, is what this whole area kept producing.
 
     The capability array rather than one path, because the binding is an entry in
     a list and JSONB has no readable way to filter one out. It is a handful of

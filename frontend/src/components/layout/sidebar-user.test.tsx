@@ -14,8 +14,8 @@ vi.mock("@/hooks/use-desktop", () => ({
   useChangeServer: () => ({ mutate: desktop.change, isPending: false }),
 }));
 vi.mock("@/components/layout/account-preferences", () => ({
-  AppearanceMenu: () => null,
-  LanguageMenu: () => null,
+  AppearanceMenu: () => <div role="menuitem">appearance</div>,
+  LanguageMenu: () => <div role="menuitem">language</div>,
 }));
 vi.mock("@/components/teams", () => ({
   OrganizationMenuItems: () => <div role="menuitem">organization selection</div>,
@@ -85,6 +85,16 @@ describe("SidebarUser", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("offers no language in the account menu of an English-only deployment", async () => {
+    currentUser.mockReturnValue(OWNER);
+
+    render(<SidebarUser />);
+    await userEvent.click(screen.getByRole("button"));
+
+    expect(await screen.findByRole("menuitem", { name: "appearance" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "language" })).not.toBeInTheDocument();
+  });
+
   it("keeps organization selection out of the account menu", async () => {
     currentUser.mockReturnValue(OWNER);
     render(<SidebarUser />);
@@ -127,3 +137,16 @@ it("opens the setup checklist from the account menu without navigating", async (
     window.removeEventListener("agenticos:open-desktop-setup", open);
   }
 });
+
+it.each([false, true])(
+  "lets a signed-in member reopen onboarding (compact: %s)",
+  async (compact) => {
+    currentUser.mockReturnValue(OWNER);
+    render(<SidebarUser compact={compact} />);
+    await userEvent.click(screen.getByRole("button"));
+    expect(await screen.findByRole("menuitem", { name: "onboarding" })).toHaveAttribute(
+      "href",
+      "/onboarding",
+    );
+  },
+);

@@ -56,9 +56,10 @@ async def list_bots(
 async def create_bot(
     data: ChannelBotCreate,
     service: OrgChannelBotSvc,
+    ctx: Auth,
 ) -> Any:
     """Create a new channel bot. The bot token is encrypted before storage."""
-    return await service.create(data)
+    return await service.create(data, ctx)
 
 
 @router.get(
@@ -188,9 +189,10 @@ async def delete_bot(
 async def activate_bot(
     bot_id: UUID,
     service: OrgChannelBotSvc,
+    ctx: Auth,
 ) -> Any:
     """Activate a channel bot."""
-    return await service.activate(bot_id)
+    return await service.activate(bot_id, ctx)
 
 
 @router.post(
@@ -201,9 +203,10 @@ async def activate_bot(
 async def deactivate_bot(
     bot_id: UUID,
     service: OrgChannelBotSvc,
+    ctx: Auth,
 ) -> Any:
     """Deactivate a channel bot."""
-    return await service.deactivate(bot_id)
+    return await service.deactivate(bot_id, ctx)
 
 
 @router.post(
@@ -214,9 +217,10 @@ async def deactivate_bot(
 async def register_webhook(
     bot_id: UUID,
     service: OrgChannelBotSvc,
+    ctx: Auth,
 ) -> Any:
     """Register a webhook URL with the bot's platform."""
-    return await service.register_webhook(bot_id)
+    return await service.register_webhook(bot_id, ctx)
 
 
 @router.post(
@@ -227,9 +231,10 @@ async def register_webhook(
 async def delete_webhook(
     bot_id: UUID,
     service: OrgChannelBotSvc,
+    ctx: Auth,
 ) -> Any:
     """Remove the webhook from the bot's platform (switches to polling mode)."""
-    return await service.delete_webhook(bot_id)
+    return await service.delete_webhook(bot_id, ctx)
 
 
 @router.get(

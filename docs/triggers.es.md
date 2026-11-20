@@ -1,5 +1,5 @@
 ---
-source_sha: "6aec4865a6f4"
+source_sha: "6aaedf36ba33"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -10,7 +10,7 @@ Hay dos maneras de que eso nos llegue, y cuál usa una fuente es asunto de la
 fuente y no tuyo:
 
 - **Por envío (push).** Un provider hace POST de una carga firmada: **GitHub**,
-  **HubSpot**, **Zendesk**, o cualquier cosa que pueda enviar JSON firmado (la
+  **HubSpot**, **Zendesk**, **Linear**, o cualquier cosa que pueda enviar JSON firmado (la
   fuente **API**).
 - **Por sondeo (polling).** La plataforma lee una cuenta conectada con una
   cadencia: los buzones (**Gmail**, **Outlook**), los archivos (**Google Drive**,
@@ -66,11 +66,20 @@ pasa:
 
 Un trigger de evento no tiene este ajuste: cada entrega es su propio disparo.
 
+**En qué conversación corre cada disparo.** `conversation_mode` en la API lo
+decide: `continue`, el valor por defecto, añade cada disparo al único registro de
+ejecuciones del trigger, así que la pestaña Runs los enumera todos; `fresh` abre
+una conversación nueva por disparo, así que un disparo nunca lee los turnos de
+los disparos anteriores — y la pestaña Runs no tiene una conversación que
+enumerar. Un trigger `fresh` no abre ningún registro de ejecuciones al crearse,
+así que no hay ningún elemento en la barra lateral hasta que corre el primer
+disparo.
+
 Todo lo de abajo es para el caso de los eventos.
 
 ## Adónde va la respuesta y cuándo termina una rutina { #answers-and-ends }
 
-Cada ejecución queda registrada en el registro de ejecuciones del trigger. `answer_to` dice adónde va
+Cada ejecución queda registrada en la conversación en la que corre: el registro de ejecuciones del trigger, salvo que el trigger abra una conversación nueva por disparo. `answer_to` dice adónde va
 además la respuesta, para la persona que lo creó (#2575): `primary`, el valor por defecto, es su propia
 conversación con el agente, así que todo lo que le dice está en un solo lugar; `conversation` es uno de
 sus otros chats (`delivery_conversation_id`), para una rutina creada en ese chat; `run_log` no la publica
@@ -194,11 +203,11 @@ aparece en una lectura, en un listado ni en la URL.
 
 Para Linear el estado de éxito es `200`, también cuando el filtro no coincide.
 
-!!! info "El `202` significa aceptado, no terminado"
+!!! info "Aceptar la entrega no significa que el run haya terminado"
 
     Una entrega que coincide se encola como un job `fire-trigger` en la propia
     transacción de la petición y el agent se ejecuta en el worker, así que el
-    provider recibe su respuesta tras un insert en vez de esperar a un modelo. No leas un `202` como «el agent ya ha respondido» - para
+    provider recibe su respuesta tras un insert en vez de esperar a un modelo. No leas una respuesta de éxito como «el agent ya ha respondido» - para
     eso lee el run en Activity.
 
 Una entrega verificada que no tiene nada que hacer - un trigger inactivo, o una
@@ -218,6 +227,14 @@ y después el evento dentro de un bloque `<event_content>` que le dice al modelo
 que lo lea como datos. Una issue, un correo o un nombre de archivo lo escribe
 quien lo envió, y una frase dentro que suene a orden sigue siendo parte del
 evento.
+
+Una entrega de GitHub también llega al run como una parte estructurada: la
+entrega completa como JSON, con la misma forma con la que el trigger GitHub de
+workflows se la entrega a un run, dentro de un bloque `<event_payload>` junto al
+texto renderizado. Es el mismo contenido no confiable — el run lo lee como
+información con la que trabajar, nunca como instrucciones — y se elimina de la
+fila de espera cuando termina el procesamiento del disparo, así que una espera
+terminada no conserva ni el payload ni el contexto renderizado.
 
 ## Rotar el secreto y editar el filtro { #rotating-the-secret-and-editing-the-filter }
 
@@ -429,7 +446,7 @@ han probado con entregas reales de Linear.
 La API también admite filtros opcionales `event_types` y `actions` en `event_config`.
 
 AgenticOS verifica `Linear-Signature` sobre el cuerpo exacto y comprueba que el
-`webhookTimestamp` firmado en el cuerpo esté dentro de 60 segundos. `200` indica
+`webhookTimestamp` firmado no se aleje más de 60 segundos del momento actual. `200` indica
 una entrega aceptada o sin trabajo, no que el agent haya terminado. Los cuerpos
 idénticos se deduplican durante 15 minutos mientras Redis esté disponible.
 

@@ -23,6 +23,24 @@ def test_an_equals_expectation_ignores_key_order() -> None:
     assert passed is True
 
 
+def test_a_missing_field_compares_the_whole_output() -> None:
+    expectation = EvalExpectation(kind="equals", field=None, value='{"status":"done"}')
+
+    passed, preview = judge(expectation, {"status": "done"})
+
+    assert passed is True
+    assert preview == '{"status": "done"}'
+
+
+def test_a_missing_nested_field_has_no_answer() -> None:
+    expectation = EvalExpectation(kind="equals", field="result.value", value="done")
+
+    passed, preview = judge(expectation, {"result": {}})
+
+    assert passed is False
+    assert preview == ""
+
+
 @pytest.mark.parametrize(
     "kind, actual, expected, matches",
     [

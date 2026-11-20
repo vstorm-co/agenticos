@@ -1,5 +1,5 @@
 ---
-source_sha: "9d709767d4eb"
+source_sha: "692b357e7acd"
 ---
 
 # Aplicaciones { #artifacts }
@@ -887,6 +887,43 @@ caso. Las comprobaciones:
 - una página vinculada cuyo script nunca llama a `agenticos.onData` ni lee
   `agenticos.data`, así que no muestra ningún registro.
 
+### Compartir contexto con el asistente { #sharing-context-with-the-assistant }
+
+`agenticos.setAssistantContext` permite que una aplicación estática o una
+aplicación con bindings de datos describa su vista actual al asistente flotante.
+Está disponible en el visor principal `/apps/{artifactId}` de la consola, con la
+sesión iniciada. Llámala cuando cambien la vista, los filtros o los registros
+seleccionados:
+
+```javascript
+agenticos.setAssistantContext({
+  view: "Orders",
+  filters: { status: "waiting", region: "west" },
+  selected_ids: ["order-42"],
+  summary: "Three orders are waiting for review.",
+  selected_text: "Order 42: awaiting approval."
+});
+```
+
+Todos los campos son opcionales. Llama a `agenticos.setAssistantContext(null)`
+para borrar los detalles aportados por la aplicación. Los textos se recortan a
+estos límites y se omiten las entradas sobrantes:
+
+| Campo | Límite |
+|---|---|
+| `view` | 120 caracteres |
+| `filters` | 20 entradas; claves de 80 caracteres; valores de texto de 240 caracteres |
+| `selected_ids` | 20 IDs como cadenas de texto, de 128 caracteres cada uno |
+| `summary` | 6.000 caracteres |
+| `selected_text` | 2.000 caracteres |
+
+La consola aporta el ID, el título y la versión de la aplicación, además de la
+ruta actual. El iframe no puede sustituir esa identidad ni conceder permisos
+adicionales. La API usa el puente existente de la sandbox; no extrae el DOM ni
+captura automáticamente campos de formulario o parámetros de consulta de la URL.
+Quien usa la vista controla lo que comparte en la
+[ventana del asistente](console.md#the-assistant).
+
 ### Ver la página: la vista previa { #seeing-the-page-preview }
 
 `preview_artifact` dibuja la versión actual de una página como la vería quien la
@@ -1451,4 +1488,4 @@ El skill Apps incluye presentaciones HTML interactivas, estilos de impresión PD
 
 La herramienta MCP de la plataforma `create_app_public_link` requiere acceso de edición y confirmación explícita de publicación. Reutiliza los enlaces existentes y conserva contraseña, caducidad y versión fijada. Los datos en vivo requieren consentimiento separado del propietario. La llamada solo tiene éxito cuando la API confirma la URL pública.
 
-El ejemplo de presentación incluido usa cinco composiciones distintas: portada ilustrada, métrica grande, comparación, secuencia y decisión. El informe recalcula los totales seleccionados y el gráfico desde los mismos recuentos. Visual design también incluye un estudio de producto procedural con bordes modelados, acabados, iluminación local, separación de piezas, vistas con nombre y una alternativa sin WebGL. Son ejemplos HTML adaptables, no una exportación a PowerPoint ni de modelos de fabricación. Las organizaciones existentes reciben versiones de skills mediante el flujo normal de actualización y revisión de biblioteca; las copias editadas localmente permanecen protegidas.
+La herramienta MCP de la plataforma `create_app_public_link` requiere acceso de edición y confirmación explícita de que la App puede compartirse públicamente. Reutiliza los enlaces existentes y conserva contraseña, caducidad y versión fijada. Los datos en vivo requieren consentimiento separado del propietario. La llamada solo tiene éxito cuando la API confirma la URL pública.

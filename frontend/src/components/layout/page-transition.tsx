@@ -57,7 +57,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     <div
       data-direction={direction}
       className={cn(
-        "page-enter flex flex-1 flex-col",
+        "page-enter flex min-w-0 flex-1 flex-col",
         OWN_SCROLL_PANE.test(pathname) && !workflowRunPage && "min-h-0",
         (!OWN_BOTTOM_ROOM.test(pathname) || workflowRunPage) && PAGE_CLEARANCE,
       )}

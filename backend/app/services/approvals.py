@@ -36,11 +36,13 @@ from app.db.models.agent_run import (
     RunSurface,
     ToolApproval,
 )
+from app.db.models.secret_request import SecretRequestStatus
 from app.repositories import (
     agent_repo,
     agent_run_repo,
     channel_prompt_repo,
     organization_repo,
+    secret_request_repo,
     voice_call_repo,
 )
 from app.repositories import workflow_run as workflow_run_repo
@@ -52,6 +54,7 @@ from app.services.channels.handback import (
     ChatNotice,
     chat_destination,
     decided_by_a_person,
+    question_nudge_notice,
 )
 from app.services.channels.handback_jobs import queue_notices
 from app.services.outcome import OutcomeService
@@ -634,8 +637,26 @@ class ApprovalService:
             if destination is not None:
                 await channel_prompt_repo.settle_open(self.db, run_id=run.id, by="expired")
             questions: list[str] = (run.paused_state or {}).get("questions", [])
+            secret_requests: list[str] = (run.paused_state or {}).get("secret_requests", [])
             await TranscriptService(self.db).record(
-                run, prompt=None, answer="", settled=dict.fromkeys(questions, TIMED_OUT)
+                run,
+                prompt=None,
+                answer="",
+                settled=dict.fromkeys([*questions, *secret_requests], TIMED_OUT),
+            )
+            for row in (
+                await secret_request_repo.list_for_run(
+                    self.db, run_id=run.id, organization_id=run.organization_id
+                )
+                if secret_requests
+                else []
+            ):
+                if row.status == SecretRequestStatus.PENDING:
+                    await secret_request_repo.mark_expired(self.db, request=row)
+            error = (
+                f"No answer within {settings.QUESTION_EXPIRY_HOURS}h - the secret request expired"
+                if secret_requests and not questions
+                else f"No answer within {settings.QUESTION_EXPIRY_HOURS}h - the question expired"
             )
             await agent_run_repo.finish_run(
                 self.db,
@@ -646,7 +667,7 @@ class ApprovalService:
                 cost_usd=run.cost_usd,
                 cost_is_partial=run.cost_is_partial,
                 ended_at=now,
-                error=f"No answer within {settings.QUESTION_EXPIRY_HOURS}h - the question expired",
+                error=error,
                 paused_state=None,
             )
             if destination is not None:
@@ -662,6 +683,63 @@ class ApprovalService:
         if ended:
             logger.info("Question sweep: ended %d unanswered run(s)", ended)
         return ended
+
+    async def nudge_unanswered(self) -> int:
+        """Remind the chat once about an `ask_user` question nobody answered.
+
+        Halfway through the question window (`QUESTION_NUDGE_HOURS` into
+        `QUESTION_EXPIRY_HOURS`): early enough to act on, late enough not to
+        nag a person who just stepped away. One reminder per park - the run
+        is stamped `question_nudged_at`, and the stamp is what stops the next
+        hourly sweep sending it again. A run answered since the list was read
+        is left to its answer, and a run with no chat destination gets no
+        notice: the web console has no channel to post one to, and what tells
+        its person is the waiting state the run already shows there, not a
+        second message in a room nobody is in.
+
+        Returns:
+            How many runs were reminded.
+        """
+        now = datetime.now(UTC)
+        listed = await agent_run_repo.list_unnudged_runs(
+            self.db,
+            older_than=now - timedelta(hours=settings.QUESTION_NUDGE_HOURS),
+            younger_than=now - timedelta(hours=settings.QUESTION_EXPIRY_HOURS),
+        )
+        # The run before anything else, in id order, as `expire_unanswered`
+        # takes it: a press that answered the question since the list was read
+        # is waited for here, and the run is then left to it.
+        claimed = [
+            await agent_run_repo.claim_parked_run(self.db, run_id, organization_id=organization_id)
+            for run_id, organization_id in sorted({(run.id, run.organization_id) for run in listed})
+        ]
+        nudged = 0
+        notices: list[ChatNotice] = []
+        for run in claimed:
+            if run is None or run.status != RunStatus.AWAITING_ANSWER.value:
+                continue
+            if (run.paused_state or {}).get("question_results"):
+                continue
+            # A run parked only on a secret gets no question nudge: the
+            # reminder names a question nobody asked, and the Runs view
+            # already shows the secret it is waiting on (#13).
+            paused = run.paused_state or {}
+            if paused.get("secret_requests") and not paused.get("questions"):
+                continue
+            if run.question_nudged_at is not None:
+                continue
+            destination = chat_destination(run)
+            if destination is None:
+                continue
+            remaining = settings.QUESTION_EXPIRY_HOURS - settings.QUESTION_NUDGE_HOURS
+            notices.append(_notice(run, destination, question_nudge_notice(remaining)))
+            await agent_run_repo.record_question_nudge(self.db, run=run, at=now)
+            nudged += 1
+        if notices:
+            await self._tell_chats(notices)
+        if nudged:
+            logger.info("Question sweep: reminded %d run(s) about an unanswered question", nudged)
+        return nudged
 
     async def end_stranded(self) -> int:
         """End the channel runs a decision was recorded on and nothing continued (#2656).

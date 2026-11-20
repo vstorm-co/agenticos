@@ -29,8 +29,8 @@ export function MarkdownTable({ children, ...props }: ComponentProps<"table">) {
   };
 
   return (
-    <div className="group/table relative my-3">
-      <div className="border-foreground/10 overflow-x-auto rounded-lg border">
+    <div className="group/table relative my-4 max-w-full min-w-0">
+      <div className="border-foreground/10 max-w-full min-w-0 overflow-x-auto overscroll-x-contain rounded-lg border">
         <table
           ref={table}
           className="w-full border-collapse text-sm [&_th:last-child]:pr-11"

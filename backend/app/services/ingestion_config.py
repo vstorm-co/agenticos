@@ -641,6 +641,11 @@ class IngestionConfigService:
             raise refused_field(
                 "llamaparse_secret_id", "That key is not in this organization's vault."
             )
+        if row.usage_scope == "personal":
+            raise refused_field(
+                "llamaparse_secret_id",
+                "Background parsing cannot spend a personal model connection",
+            )
         if row.purpose != "llamaparse":
             raise refused_field(
                 "llamaparse_secret_id", f"That key is for {row.purpose}, not LlamaParse."
@@ -696,6 +701,10 @@ class IngestionConfigService:
                     "settings."
                 ),
                 details={"llamaparse_secret_id": config.llamaparse_secret_id},
+            )
+        if row.usage_scope == "personal":
+            raise BadRequestError(
+                message="Background parsing cannot spend a personal model connection"
             )
         try:
             secret = unseal_secret(

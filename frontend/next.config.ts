@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
@@ -14,6 +15,12 @@ import { staticSecurityHeaders } from "./src/lib/security-headers";
 import { locales } from "./src/lib/locales";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
+
+// Freeze one identity into the browser and version endpoint, even when the
+// package version is unchanged. Inherit it when Next reloads this config in a
+// build worker; all replicas should run the same built image.
+const appBuildId = process.env.NEXT_PUBLIC_APP_BUILD_ID || randomUUID();
+process.env.NEXT_PUBLIC_APP_BUILD_ID = appBuildId;
 
 /**
  * Pages that have moved, and the URL that still has to work.
@@ -35,13 +42,20 @@ const MOVED_ROUTES: readonly { from: string; to: string }[] = [
   // capability is bound to, and a URL naming only half of what it shows is a URL
   // that has to be re-learned later. Both old spellings land on the vault, so
   // neither the pre-move bookmark nor the post-move one breaks.
-  { from: "/settings/providers", to: "/vault" },
-  { from: "/providers", to: "/vault" },
-  { from: "/settings/mcp-servers", to: "/mcp-servers" },
+  { from: "/settings/providers", to: "/connectors/vault" },
+  { from: "/providers", to: "/connectors/vault" },
+  { from: "/settings/mcp-servers", to: "/connectors" },
   // The catalog and a person's own connections were two pages presented as
   // peers, which is why nobody could say what separated them. They are one page
-  // now, with connection state on the row it belongs to.
-  { from: "/settings/integrations", to: "/mcp-servers" },
+  // now, with connection state on the row it belongs to. That page is the Apps
+  // tab of Connectors, which also holds the channels, remote agents, vault and
+  // sandboxes that used to sit as their own nav entries.
+  { from: "/mcp-servers", to: "/connectors" },
+  { from: "/channels", to: "/connectors/channels" },
+  { from: "/remote-agents", to: "/connectors/remote-agents" },
+  { from: "/vault", to: "/connectors/vault" },
+  { from: "/sandboxes", to: "/connectors/sandboxes" },
+  { from: "/settings/integrations", to: "/connectors" },
   // The organization's integrations page rendered the same two components over
   // the same rows as `/kb/{id}`, and the only thing it could show that a
   // collection's page cannot is an integration assigned to no collection yet.
@@ -60,8 +74,9 @@ const MOVED_ROUTES: readonly { from: string; to: string }[] = [
   { from: "/workspaces/:id", to: "/documents/:id" },
 ];
 
-const nextConfig: NextConfig = {
+export const nextConfig: NextConfig = {
   output: "standalone",
+  generateBuildId: () => appBuildId,
   allowedDevOrigins: process.env.PUBLIC_SITE_URL
     ? [new URL(process.env.PUBLIC_SITE_URL).hostname]
     : undefined,
@@ -97,6 +112,13 @@ const nextConfig: NextConfig = {
       {
         source: "/(.*)",
         headers: [...staticSecurityHeaders],
+      },
+      // Webmail renders email HTML on another origin, and browsers require
+      // CORS on font responses even when the email itself is publicly viewable.
+      // Keep the wildcard limited to the public font files used by email.
+      {
+        source: "/fonts/email/:path*",
+        headers: [{ key: "Access-Control-Allow-Origin", value: "*" }],
       },
       // Relax framing for the file endpoint so the chat preview panel can
       // embed PDFs/HTML in an iframe from the same origin. Listed AFTER the

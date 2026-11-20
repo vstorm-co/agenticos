@@ -1,5 +1,5 @@
 ---
-source_sha: "54b551bbe389"
+source_sha: "facf3e422251"
 ---
 
 # Skills { #skills }
@@ -243,6 +243,27 @@ almacenados: nombre de 1 a 64 caracteres y descripción de hasta 500. Una
 propuesta fuera de estos límites se omite con una advertencia; sus archivos
 originales permanecen intactos. Un savepoint aísla la escritura para que una
 propuesta rechazada no impida guardar el estado y el coste del turno.
+
+### Skills aprendidos — una propuesta aprobada actualiza el skill que nombra { #learned-skills-an-approved-proposal-becomes-a-skill-on-its-own }
+
+Aplicar una propuesta edita el skill que nombra. El aprendizaje automático de
+skills escribe después el texto aprobado en ese skill mediante
+`POST /v1/agents/{agent_id}/learned-skills`. La propuesta guardada aporta el
+skill destino, el texto y la procedencia. La petición sigue enviando `content`,
+que debe coincidir con el texto de la propuesta. El `name` y el `description`
+que envía quien llama están obsoletos y se ignoran.
+
+El aprendizaje solo actualiza un skill existente, así que la respuesta informa
+siempre `created` como `false`. Una propuesta sin skill destino, o que no está
+aplicada o fue revertida, devuelve 404. Un campo de la petición que no coincide
+con la propuesta guardada devuelve 409, igual que un skill que cambió desde que
+se escribió la propuesta. Ese skill se rechaza en lugar de sobrescribirse.
+
+Cada escritura se audita como `skill.learned` con la propuesta, la entrada del
+libro de registro y la clave del patrón que la motivaron. Aprender la misma
+propuesta dos veces no escribe nada la segunda vez. Un cambio aprendido es a
+partir de ahí una edición ordinaria: versionado con el mismo incremento que
+cualquier edición, y deshecho con una edición nueva en lugar de una restauración.
 
 Un cambio registra la versión del skill para la que se escribió: en un run, la
 versión que ese run recibió, y un turno posterior que reescribe el cambio
@@ -1028,6 +1049,6 @@ Los ejemplos incluyen un filtro de evidencias, criterios editables, una comparac
 
 Apps exporta páginas HTML/Markdown publicadas o presentaciones web mediante `export_artifact`. El operador configura `ARTIFACT_RENDER_CDP_URL` e instala el extra `browser`; el agente necesita un workspace para guardar el PDF real. Se aplican las reglas de acceso y audiencia de la vista previa y se rechazan datos vinculados no disponibles. Cada archivo admite hasta 50 páginas y 20 MB y recibe un nombre único. Revisa el PDF, los saltos y todas las diapositivas. No se añade un formato PowerPoint.
 
-Chat puede incrustar contenido interactivo. Mattermost y otros canales de texto reciben un enlace autorizado a la App, una imagen renderizada cuando se admite o un PDF solicitado mediante envío de archivos; HTML no se ejecuta en el mensaje. Un enlace no concede acceso público. Las instalaciones existentes usan la actualización normal de biblioteca: se actualizan copias intactas, los skills utilizados esperan su comprobación y las personalizaciones se protegen.
+Chat puede incrustar contenido interactivo. Mattermost y otros canales de texto reciben un enlace autorizado a la App, una imagen renderizada cuando se admite o un PDF solicitado mediante envío de archivos; HTML no se ejecuta en el mensaje. Un enlace no concede acceso público. Las instalaciones existentes usan la actualización normal de biblioteca: se actualizan copias intactas, los skills que siguen los agents esperan su comprobación y las personalizaciones se protegen.
 
 Los skills de plataforma incluidos en la biblioteca y los que acompañan al AI Architect se leen y usan con los permisos normales del recurso. Cambiar su contenido, archivos, versiones o forks, eliminarlos o reservar su nombre requiere permiso para editar agentes en toda la organización (Owner/Admin en los roles integrados). Una concesión de edición del skill no evita esta protección. Los skills ordinarios de la organización conservan sus reglas de propiedad y uso compartido.

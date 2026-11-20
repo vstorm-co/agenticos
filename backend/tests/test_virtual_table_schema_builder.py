@@ -25,6 +25,13 @@ def _existing(label: str = "Name", **rest) -> ColumnDef:
     return ColumnDef(id=uuid.uuid4(), label=label, type="text", **rest)
 
 
+def test_only_link_columns_can_limit_linked_records():
+    with pytest.raises(InvalidSchemaError, match="Only a link column") as refused:
+        build_columns([ColumnInput(label="Name", type="text", link_limit=1)], [])
+
+    assert refused.value.details["fields"][0]["field"] == "columns.0.link_limit"
+
+
 def test_an_existing_column_is_matched_by_id_so_a_rename_keeps_it():
     old = _existing("Name")
 

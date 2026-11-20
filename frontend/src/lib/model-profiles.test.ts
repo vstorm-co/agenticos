@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  connectionModelLabel,
   hasKey,
   modelDetail,
   modelInUse,
@@ -9,6 +10,17 @@ import {
   usableForAgents,
 } from "./model-profiles";
 import { ApiError } from "@/lib/api-error";
+
+it("keeps connection labels distinct and within the server's length limit", () => {
+  const base = "Anthropic · claude-test";
+  const first = connectionModelLabel(base, "My account", []);
+  expect(first).toBe("My account · Anthropic · claude-test");
+  expect(modelShortName(first)).toBe("claude-test");
+  expect(connectionModelLabel(base, "My account", [first, `${first} (2)`])).toBe(`${first} (3)`);
+  const long = connectionModelLabel("x".repeat(200), "y".repeat(200), []);
+  expect(long).toHaveLength(128);
+  expect(connectionModelLabel("x".repeat(200), "y".repeat(200), [long])).toHaveLength(128);
+});
 
 function profile(overrides: Partial<Parameters<typeof modelDetail>[0]> = {}) {
   return { label: "the cheap one", provider: "openai", model: "gpt-4.1", ...overrides };

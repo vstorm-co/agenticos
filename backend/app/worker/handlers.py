@@ -45,6 +45,14 @@ def ingest() -> Handlers:
 
 def production() -> Handlers:
     """Every kind, for a worker that runs the agent and system pools on its own loop."""
+    from app.services.browser_procedure_teaching._generation import (
+        draft_browser_procedure_teaching,
+    )
+    from app.services.browser_procedure_teaching._maintenance import (
+        sweep_browser_procedure_teachings,
+    )
+    from app.services.browser_teaching import build_teaching_proposal, sweep_browser_teachings
+    from app.services.coding_account_usage import refresh_usage
     from app.services.sandbox_workspace import retry_pending_destroys
     from app.worker.tasks import (
         approval_tasks,
@@ -57,6 +65,7 @@ def production() -> Handlers:
         diagnostics_tasks,
         eval_suite_tasks,
         eval_tasks,
+        failure_learning_tasks,
         generated_media_tasks,
         improvement_tasks,
         invitation_tasks,
@@ -67,6 +76,7 @@ def production() -> Handlers:
         proactive_tasks,
         rag_tasks,
         report_tasks,
+        room_tasks,
         run_tasks,
         skill_check_tasks,
         task_tasks,
@@ -91,6 +101,14 @@ def production() -> Handlers:
             Handler(jobs.DELIVER_ROUTINE_ANSWER, trigger_tasks.deliver_routine_answer),
             Handler(jobs.RUN_AGENT, run_tasks.run_agent),
             Handler(jobs.REVERT_CODING_TASK, coding_tasks.revert_coding_task),
+            Handler(jobs.BUILD_TEACHING_PROPOSAL, build_teaching_proposal),
+            Handler(jobs.SWEEP_BROWSER_TEACHINGS, _each_tick(sweep_browser_teachings)),
+            Handler(jobs.DRAFT_BROWSER_PROCEDURE_TEACHING, draft_browser_procedure_teaching),
+            Handler(
+                jobs.SWEEP_BROWSER_PROCEDURE_TEACHINGS,
+                _each_tick(sweep_browser_procedure_teachings),
+            ),
+            Handler(jobs.REFRESH_CODING_ACCOUNT_USAGE, refresh_usage),
             Handler(jobs.RUN_EVAL, eval_tasks.run_eval),
             Handler(jobs.RUN_AUTHORING, authoring_tasks.run_authoring),
             Handler(jobs.ADVANCE_IMPROVEMENT, improvement_tasks.advance_improvement),
@@ -107,6 +125,8 @@ def production() -> Handlers:
             Handler(jobs.GENERATE_CASES, case_generation_tasks.generate_cases),
             Handler(jobs.RUN_CONVERSATION_TASK, conversation_tasks.run_task),
             Handler(jobs.RETURN_CONVERSATION_TASK, conversation_tasks.return_task),
+            Handler(jobs.RUN_ROOM_REQUEST, room_tasks.run_request),
+            Handler(jobs.RECONCILE_ROOM_REQUESTS, _each_tick(room_tasks.reconcile_requests)),
             Handler(
                 jobs.RECONCILE_CONVERSATION_TASKS, _each_tick(conversation_tasks.reconcile_tasks)
             ),
@@ -175,6 +195,7 @@ def production() -> Handlers:
             Handler(jobs.WATCH_SWEEP, proactive_tasks.watch_sweep),
             Handler(jobs.WEEKLY_USAGE_REPORT, report_tasks.weekly_usage_report),
             Handler(jobs.MONTHLY_USAGE_REPORT, report_tasks.monthly_usage_report),
+            Handler(jobs.FAILURE_LEDGER_DIGEST, failure_learning_tasks.failure_ledger_digest),
         ]
     )
 
@@ -198,9 +219,11 @@ def _settlers() -> dict[str, Settler]:
         eval_tasks,
         project_tasks,
         rag_tasks,
+        room_tasks,
     )
 
     return {
+        jobs.RUN_ROOM_REQUEST.kind: _settler(jobs.RUN_ROOM_REQUEST, room_tasks.settle_lost_request),
         jobs.RUN_CONVERSATION_TASK.kind: _settler(
             jobs.RUN_CONVERSATION_TASK, conversation_tasks.settle_lost_task
         ),

@@ -4,10 +4,11 @@ import { useId, useState } from "react";
 import { Check, KeyRound, Plus, Save } from "lucide-react";
 
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
-import { hasKey, runsAgents } from "@/lib/model-profiles";
+import { connectionModelLabel, hasKey, runsAgents } from "@/lib/model-profiles";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
 import { InlineSecret } from "@/components/vault/inline-secret";
+import { PersonalApiConnection } from "@/components/vault/personal-api-connection";
 import { ProviderRow } from "@/components/vault/provider-row";
 import {
   Button,
@@ -29,6 +30,7 @@ import {
 } from "@/hooks";
 import { Perm } from "@/types/permissions";
 import type { ModelApi, ModelProfile, ModelRegion, ProviderInfo } from "@/types/providers";
+import type { Secret } from "@/types/secrets";
 import { useTranslations } from "next-intl";
 
 interface AddModelProps {
@@ -54,6 +56,8 @@ interface AddModelProps {
    * on a change of selection - see the `key` in `ModelProfilePicker`.
    */
   selected?: ModelProfile;
+  /** A settings connection creates a model on this exact credential. */
+  connection?: Secret;
   /**
    * The way out, where there is one.
    *
@@ -222,6 +226,7 @@ export function AddModel({
   onCancel,
   disabled,
   selected,
+  connection,
   purpose,
 }: AddModelProps) {
   const fieldId = useId();
@@ -245,10 +250,13 @@ export function AddModel({
   // What somebody picked, which is not the same as what the field shows: a
   // `null` here means nobody has picked yet, and the answer below is what the
   // organization already told us.
-  const [pickedProvider, setPickedProvider] = useState<string | null>(selected?.provider ?? null);
+  const [pickedProvider, setPickedProvider] = useState<string | null>(
+    connection?.purpose ?? selected?.provider ?? null,
+  );
   const [model, setModel] = useState(selected?.model ?? "");
   const [label, setLabel] = useState("");
-  const [secretId, setSecretId] = useState(selected?.secret_id ?? "");
+  const [secretId, setSecretId] = useState(connection?.id ?? selected?.secret_id ?? "");
+  const [createdConnection, setCreatedConnection] = useState<Secret | null>(null);
   const [baseUrl, setBaseUrl] = useState(selected?.base_url ?? "");
   const [gatewayDiscovery, setGatewayDiscovery] = useState<{
     endpoint: string;
@@ -304,7 +312,13 @@ export function AddModel({
   // catalog changes when a provider ships a model, not while a form is open.
   // The keys already stored for this provider. A secret's purpose *is* the
   // provider id, which is what makes this a lookup rather than a convention.
-  const keys = secrets.filter((secret) => secret.purpose === providerId);
+  const availableSecrets =
+    createdConnection && !secrets.some((secret) => secret.id === createdConnection.id)
+      ? [...secrets, createdConnection]
+      : secrets;
+  const keys = connection
+    ? [connection]
+    : availableSecrets.filter((secret) => secret.purpose === providerId);
   // A self-hosted model in use that runs with no key on purpose. The form offers
   // "no key" for it and starts there, instead of on the provider's first key: that
   // key is a suggestion for a new model, and saved onto this one it would be sent
@@ -314,7 +328,16 @@ export function AddModel({
     selected.secret_id === null &&
     hasKey(selected) &&
     providerId === selected.provider;
-  const chosenKey = secretId || (offersNoKey ? "" : (keys[0]?.id ?? ""));
+  const soleKey = keys.length === 1 ? keys[0] : undefined;
+  const chosenKey =
+    secretId ||
+    (offersNoKey ||
+    !soleKey ||
+    (selected?.usage_scope === "personal" && soleKey.usage_scope !== "personal")
+      ? ""
+      : soleKey.id);
+  const chosenConnection = keys.find((secret) => secret.id === chosenKey);
+  const personal = chosenConnection?.usage_scope === "personal";
   const endpoint = baseUrl.trim().replace(/\/+$/, "");
   const manualDiscovery =
     providerId !== "system-one" &&
@@ -353,9 +376,11 @@ export function AddModel({
     source,
     isLoading: loadingModels,
   } = useProviderModels(
-    providerId,
+    personal && endpoint ? "" : providerId,
     ["openrouter", "stav", "otari"].includes(providerId) ? listingEndpoint : undefined,
-    ["stav", "otari"].includes(providerId) ? chosenKey || undefined : undefined,
+    (personal && !endpoint) || ["stav", "otari"].includes(providerId)
+      ? chosenKey || undefined
+      : undefined,
     (pickedApi ?? startingApi) === "decisions" || ["typesafe", "system-one"].includes(providerId),
   );
 
@@ -404,6 +429,7 @@ export function AddModel({
   // whatever its first two fields say.
   const unchanged =
     selected !== undefined &&
+    hasKey(selected) &&
     provider?.id === selected.provider &&
     model.trim() === selected.model &&
     label.trim() === "" &&
@@ -431,6 +457,8 @@ export function AddModel({
     !unchanged &&
     provider?.id === selected.provider &&
     model.trim() === selected.model &&
+    // A personal choice must not move everyone using an organization profile.
+    (personal ? "personal" : "organization") === (selected.usage_scope ?? "organization") &&
     label.trim() === "";
 
   const endpointChanged =
@@ -457,8 +485,15 @@ export function AddModel({
 
   // Both ways of choosing a key, because a refusal that outlives the value it
   // named accuses the one the reader has just picked.
-  const chooseKey = (id: string) => {
+  const chooseKey = (id: string, created?: Secret) => {
     setSecretId(id);
+    if (
+      (created ?? keys.find((key) => key.id === id))?.usage_scope === "personal" &&
+      selected?.usage_scope !== "personal"
+    ) {
+      setBaseUrl("");
+      setPickedApi(null);
+    }
     setFailure(NO_FAILURE);
   };
 
@@ -509,14 +544,16 @@ export function AddModel({
         ...(selected ? [selected.label] : []),
       ];
       const automaticLabel =
-        separate || labels.includes(baseLabel)
-          ? endpointProfileLabel(
-              baseLabel,
-              customEndpoint ? baseUrl : "",
-              labels,
-              t("defaultEndpoint"),
-            )
-          : baseLabel;
+        personal && chosenConnection
+          ? connectionModelLabel(baseLabel, chosenConnection.name, labels)
+          : separate || labels.includes(baseLabel)
+            ? endpointProfileLabel(
+                baseLabel,
+                customEndpoint ? baseUrl : "",
+                labels,
+                t("defaultEndpoint"),
+              )
+            : baseLabel;
       const profile = await createProfile.mutateAsync({
         label: label.trim() || automaticLabel,
         provider: provider.id,
@@ -557,6 +594,7 @@ export function AddModel({
         <FormField htmlFor={`${fieldId}-add-model-provider`} label={t("provider")}>
           <Select
             value={providerId}
+            disabled={disabled || connection !== undefined}
             onValueChange={(value) => {
               setPickedProvider(value);
               setSecretId("");
@@ -633,7 +671,7 @@ export function AddModel({
           {/* One key needs no question. The vault has exactly one OpenRouter
               key in most organizations, and a select with a single option is a
               decision somebody has to make about nothing. */}
-          {keys.length === 1 && !offersNoKey && (
+          {keys.length === 1 && !offersNoKey && chosenKey !== "" && (
             <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
               <KeyRound className="h-3.5 w-3.5" />
               {t.rich("usingKey", {
@@ -641,18 +679,19 @@ export function AddModel({
                 strong: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
               })}
               <span className="font-mono">····{keys[0]?.hint}</span>
+              {personal && <span>{tRoot("personalModels.personal")}</span>}
             </p>
           )}
 
-          {(keys.length > 1 || (offersNoKey && keys.length > 0)) && (
+          {(keys.length > 1 || ((offersNoKey || chosenKey === "") && keys.length > 0)) && (
             <>
               <Label htmlFor={`${fieldId}-add-model-key`}>{t("key")}</Label>
               <Select
-                value={chosenKey || NO_KEY}
+                value={chosenKey || (offersNoKey ? NO_KEY : "")}
                 onValueChange={(value) => chooseKey(value === NO_KEY ? "" : value)}
               >
                 <SelectTrigger id={`${fieldId}-add-model-key`}>
-                  <SelectValue />
+                  <SelectValue placeholder={tRoot("personalModels.chooseConnection")} />
                 </SelectTrigger>
                 <SelectContent>
                   {offersNoKey && <SelectItem value={NO_KEY}>{t("noKeyForEndpoint")}</SelectItem>}
@@ -661,6 +700,11 @@ export function AddModel({
                       {/* The provider is the filter this list was built with, so
                           it is also every row's mark - no `purpose` lookup. */}
                       <ProviderRow provider={provider.id} name={secret.name} hint={secret.hint} />
+                      {secret.usage_scope === "personal" && (
+                        <span className="text-muted-foreground ml-2 text-xs">
+                          {tRoot("personalModels.personal")}
+                        </span>
+                      )}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -708,6 +752,19 @@ export function AddModel({
               select. */}
           {failure.fields.secret_id !== undefined && (
             <p className="text-destructive text-xs">{failure.fields.secret_id}</p>
+          )}
+          {personal && (
+            <p className="text-muted-foreground text-xs">{tRoot("personalModels.personalUse")}</p>
+          )}
+          {!connection && canStoreKey && ["anthropic", "openai"].includes(provider.id) && (
+            <PersonalApiConnection
+              provider={provider}
+              disabled={disabled}
+              onCreated={(secret) => {
+                setCreatedConnection(secret);
+                chooseKey(secret.id, secret);
+              }}
+            />
           )}
         </div>
       )}

@@ -1,5 +1,5 @@
 ---
-source_sha: "9d709767d4eb"
+source_sha: "692b357e7acd"
 ---
 
 # Aplikacje { #artifacts }
@@ -883,6 +883,42 @@ Sprawdzane są:
 - strona z bindingami, której skrypt nigdy nie wywołuje `agenticos.onData` ani nie
   czyta `agenticos.data`, więc nie pokazuje żadnych rekordów.
 
+### Udostępnianie kontekstu asystentowi { #sharing-context-with-the-assistant }
+
+`agenticos.setAssistantContext` pozwala aplikacji statycznej lub aplikacji z
+powiązaniami danych opisać bieżący widok pływającemu asystentowi. Funkcja jest
+dostępna w głównym widoku `/apps/{artifactId}` konsoli dla zalogowanego
+użytkownika. Wywołuj ją ponownie po zmianie widoku, filtrów lub wybranych
+rekordów:
+
+```javascript
+agenticos.setAssistantContext({
+  view: "Orders",
+  filters: { status: "waiting", region: "west" },
+  selected_ids: ["order-42"],
+  summary: "Three orders are waiting for review.",
+  selected_text: "Order 42: awaiting approval."
+});
+```
+
+Wszystkie pola są opcjonalne. Wywołaj `agenticos.setAssistantContext(null)`, aby
+usunąć szczegóły przekazane przez aplikację. Tekst jest skracany do podanych
+limitów, a nadmiarowe wpisy są pomijane:
+
+| Pole | Limit |
+|---|---|
+| `view` | 120 znaków |
+| `filters` | 20 wpisów; klucze po 80 znaków; wartości tekstowe po 240 znaków |
+| `selected_ids` | 20 identyfikatorów tekstowych, po 128 znaków każdy |
+| `summary` | 6000 znaków |
+| `selected_text` | 2000 znaków |
+
+Konsola dostarcza ID, tytuł i wersję aplikacji oraz bieżącą ścieżkę. Ramka iframe
+nie może zastąpić tej tożsamości ani nadać dodatkowych uprawnień. API korzysta z
+istniejącego mostu sandboxa; nie odczytuje DOM ani nie zbiera automatycznie pól
+formularzy lub parametrów zapytania w adresie URL. Osoba korzystająca z aplikacji kontroluje
+udostępnianie w [oknie asystenta](console.md#the-assistant).
+
 ### Jak wygląda strona: podgląd { #seeing-the-page-preview }
 
 `preview_artifact` rysuje bieżącą wersję strony tak, jak zobaczy ją ktoś, kto ją
@@ -1430,7 +1466,7 @@ Podglądy w chacie rezerwują miejsce podczas ładowania renderera wizualizacji 
 
 Przejściowe błędy renderera i przekroczenia czasu otrzymują najwyżej dwie automatyczne próby ponowienia z rosnącym opóźnieniem. Brak konfiguracji renderera i odmowa dostępu nie uruchamiają ponowień. Powrót do karty ani zmiana jej widoczności nie odnawiają wyczerpanego limitu prób. Gotowe obrazy pozostają w buforze dla wersji, do której czytelnik ma dostęp.
 
-Skill Apps zawiera interaktywne prezentacje HTML, style wydruku PDF i przykłady gotowych komponentów. Eksport PDF wymaga skonfigurowanego renderera; sama walidacja podglądu nie dowodzi wykonania skryptu. Wykresy, tabele i treści interaktywne sprawdzaj w wyrenderowanym podglądzie. Eksport PowerPoint nie jest dostępny.
+Skill Apps zawiera interaktywne prezentacje HTML, style wydruku PDF i przykłady komponentów do wielokrotnego użytku. Eksport PDF wymaga skonfigurowanego renderera; podgląd ograniczony do walidacji nie dowodzi poprawnego wykonania skryptu. Wykresy, tabele i treści interaktywne sprawdzaj w wyrenderowanym podglądzie. Eksport PowerPoint nie jest dostępny.
 
 Narzędzie MCP platformy `create_app_public_link` wymaga prawa edycji i jawnego potwierdzenia publicznego udostępnienia aplikacji. Używa istniejącego linku, zachowując hasło, termin ważności i przypiętą wersję. Dane na żywo wymagają osobnej zgody właściciela. Wywołanie kończy się sukcesem dopiero po potwierdzeniu publicznego URL-a przez API.
 

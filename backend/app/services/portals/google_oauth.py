@@ -36,13 +36,24 @@ TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
 
 DRIVE = "https://www.googleapis.com/auth/drive"
+DRIVE_READONLY = "https://www.googleapis.com/auth/drive.readonly"
+DRIVE_GRANT_SCOPES = frozenset({DRIVE, DRIVE_READONLY})
 GMAIL = "https://www.googleapis.com/auth/gmail.modify"
 CALENDAR = "https://www.googleapis.com/auth/calendar"
 DOCS = "https://www.googleapis.com/auth/documents"
 SHEETS = "https://www.googleapis.com/auth/spreadsheets"
 SLIDES = "https://www.googleapis.com/auth/presentations"
 
-ACCOUNT_SCOPES: tuple[str, ...] = ("openid", "email", DRIVE, GMAIL, CALENDAR, DOCS, SHEETS, SLIDES)
+ACCOUNT_SCOPES: tuple[str, ...] = (
+    "openid",
+    "email",
+    DRIVE_READONLY,
+    GMAIL,
+    CALENDAR,
+    DOCS,
+    SHEETS,
+    SLIDES,
+)
 """What a connected Google account is asked for: every service a terminal can mount.
 
 Asked for at once rather than per service, so one consent covers a person's Drive,

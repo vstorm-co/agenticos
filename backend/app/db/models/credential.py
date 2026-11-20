@@ -8,7 +8,7 @@ string or a global environment key.
 """
 
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import (
     Boolean,
@@ -58,6 +58,20 @@ class ModelProfile(Base, TimestampMixin):
         ForeignKey("organization_secrets.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Immutable once created. It survives a disconnected key, so SET NULL above
+    # cannot turn a personal profile into one somebody else can see or rekey.
+    personal_owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
+    @property
+    def usage_scope(self) -> Literal["organization", "personal"]:
+        """Personal ownership survives disconnecting the backing credential."""
+        return "personal" if self.personal_owner_user_id is not None else "organization"
+
     # Whether this profile runs with no key *on purpose*: a self-hosted model,
     # or an OpenAI-compatible gateway that authenticates nothing, saved with no
     # key. Stored because the key column cannot say it - `secret_id` is
@@ -92,10 +106,11 @@ class ModelProfile(Base, TimestampMixin):
     region: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # How many tokens this model accepts, as the provider's own listing said when
     # the profile was created. Recorded rather than resolved at run time because
-    # the request path may not call a provider, and the alternative source is
-    # wrong in the direction that breaks a run: `genai-prices` records 1M for
-    # `anthropic:claude-sonnet-4-5` against a real 200K, and a `FallbackModel`'s
-    # composite id resolves to nothing at all (#773).
+    # the request path may not call a provider, and the alternative source is a
+    # third-party bundle whose numbers have been wrong in the direction that
+    # breaks a run: an earlier snapshot recorded 1M for
+    # `anthropic:claude-sonnet-4-5` against a real 200K (#773), and a
+    # `FallbackModel`'s composite id resolves to nothing at all.
     #
     # Null for a profile created before this existed, for a provider that
     # publishes no length, and for one whose listing could not be reached - all

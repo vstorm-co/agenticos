@@ -878,6 +878,11 @@ class KnowledgeBaseService:
                 message="That key is not in this organization's vault",
                 details={"embedding_secret_id": str(secret_id)},
             )
+        if row.usage_scope == "personal":
+            raise refused_field(
+                "embedding_secret_id",
+                "A collection cannot spend a personal model connection; choose an organization key",
+            )
         if row.purpose != provider.provider:
             raise refused_field(
                 "embedding_secret_id",

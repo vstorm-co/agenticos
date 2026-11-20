@@ -15,7 +15,13 @@ _ORG = uuid.uuid4()
 
 
 def _secret(**overrides: object) -> SimpleNamespace:
-    values = {"name": "Prod", "kind": "api_key", "purpose": "openai", "visibility": "org"}
+    values = {
+        "name": "Prod",
+        "kind": "api_key",
+        "purpose": "openai",
+        "visibility": "org",
+        "usage_scope": "organization",
+    }
     values.update(overrides)
     return SimpleNamespace(**values)
 

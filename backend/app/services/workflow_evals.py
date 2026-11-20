@@ -25,12 +25,12 @@ from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_eval as eval_repo
 from app.repositories import workflow_run as workflow_run_repo
+from app.schemas.eval_judging import EvalExpectation
 from app.schemas.workflow_eval import (
     MAX_CASES,
     EvalCaseCreate,
     EvalCaseList,
     EvalCaseRead,
-    EvalExpectation,
     EvalResult,
     EvalRunRead,
 )

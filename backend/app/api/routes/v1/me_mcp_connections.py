@@ -5,16 +5,24 @@ on the current user - there's no cross-user view of these. The stored bearer
 token never appears in any response (only `has_auth_token`).
 """
 
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
 from app.agents.mcp_oauth import OAuthError
-from app.api.deps import CurrentUser, McpConnectionSvc, OptionalCurrentUser, key_needs
+from app.api.deps import (
+    CurrentUser,
+    DBSession,
+    McpConnectionSvc,
+    OptionalCurrentUser,
+    get_active_organization,
+    get_auth_context,
+    key_needs,
+)
 from app.api.public_api import PUBLIC
 from app.core.exceptions import NotFoundError
-from app.core.permissions import Perm
+from app.core.permissions import AuthContext, Perm
 from app.schemas.mcp_connection import (
     McpConnectionCreate,
     McpConnectionList,
@@ -29,6 +37,7 @@ from app.schemas.mcp_connection import (
     McpSignInProbeResult,
     McpToolRead,
 )
+from app.services.mcp_connection import is_google_mcp
 
 router = APIRouter()
 
@@ -104,8 +113,20 @@ async def start_mcp_oauth(
     data: McpOAuthStart,
     service: McpConnectionSvc,
     user: CurrentUser,
+    request: Request,
+    db: DBSession,
+    x_organization_id: Annotated[UUID | None, Header()] = None,
 ) -> Any:
-    """Begin the OAuth flow; returns the provider consent URL to redirect to."""
+    """Begin the OAuth flow; returns the provider consent URL to redirect to.
+
+    A Google-hosted server connects with the organization's Google client, so the
+    caller's organization is needed then, and only then: a personal server does not
+    need an active organization.
+    """
+    ctx: AuthContext | None = None
+    if is_google_mcp(data.url):
+        org = await get_active_organization(request, user, db, x_organization_id)
+        ctx = await get_auth_context(request, user, org, db)
     try:
         authorization_url = await service.oauth_start(
             user_id=user.id,
@@ -115,6 +136,7 @@ async def start_mcp_oauth(
             label=data.label,
             client_id=data.client_id,
             client_secret=data.client_secret,
+            ctx=ctx,
         )
     except OAuthError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

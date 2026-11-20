@@ -18,6 +18,7 @@ from enum import StrEnum
 from pydantic import TypeAdapter
 
 from app.core import catalog
+from app.services.app_connections import APPS
 
 
 class CatalogAuth(StrEnum):
@@ -26,6 +27,7 @@ class CatalogAuth(StrEnum):
     NONE = "none"
     TOKEN = "token"
     OAUTH = "oauth"
+    COMPOSIO = "composio"
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,16 @@ class CatalogEntry:
 # icons that may accompany an entry.
 CATALOG: tuple[CatalogEntry, ...] = catalog.load(
     "mcp_servers.json", TypeAdapter(tuple[CatalogEntry, ...])
+) + tuple(
+    CatalogEntry(
+        key=app.catalog_key,
+        name=app.name,
+        description=app.description,
+        category=app.category,
+        auth=CatalogAuth.COMPOSIO,
+        docs_url=f"https://docs.composio.dev/toolkits/{app.toolkit}",
+    )
+    for app in APPS
 )
 
 BY_KEY: dict[str, CatalogEntry] = {entry.key: entry for entry in CATALOG}

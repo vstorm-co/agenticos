@@ -1,12 +1,15 @@
-Subject: [[inviter_name]] invited you to [[org_name]] on [[app_name]]
+Subject: Your invitation to [[org_name]]
 
-Hi there,
+Your invitation to [[org_name]]
 
-[[inviter_name]] has invited you to join [[org_name]] on [[app_name]].
+[[inviter_name]] invited you to the [[org_name]] workspace on [[app_name]].
 
-Accept your invitation:
+Workspace: [[org_name]]
+Invited by [[inviter_name]]
+
+Accept invitation:
 [[accept_url]]
 
-This invitation was sent by [[inviter_name]]. If you don't know who this is, you can ignore this email.
+If you were not expecting this invitation, you can ignore this email.
 
-- The [[app_name]] Team
+[[app_name]]

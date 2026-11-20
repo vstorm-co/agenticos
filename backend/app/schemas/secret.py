@@ -5,17 +5,31 @@ and four characters, and there is deliberately no endpoint that returns a
 plaintext - reading one is the runtime's privilege, not a client's.
 """
 
-from typing import Literal
+from typing import Literal, Self
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
-from app.core.secret_kinds import SecretKind, SecretKindInfo, TypedSecret
+from app.core.secret_kinds import (
+    BROWSER_SECRET_KINDS,
+    BrowserLoginSecret,
+    BrowserSecret,
+    SecretKind,
+    SecretKindInfo,
+    TypedSecret,
+)
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.resource_grant import VisibilityLiteral
 
 
 class SecretCreate(BaseSchema):
+    usage_scope: Literal["organization", "personal"] = Field(
+        default="organization",
+        description=(
+            "Personal connections are private, belong to the signed-in user, and may only "
+            "power that user's interactive agent runs. They cannot be shared or used by jobs."
+        ),
+    )
     name: str = Field(
         min_length=1, max_length=128, description="How this secret is picked in the Builder"
     )
@@ -44,6 +58,16 @@ class SecretCreate(BaseSchema):
             "org: everybody in this organization"
         ),
     )
+
+    @model_validator(mode="after")
+    def _browser_defaults(self) -> Self:
+        """A browser login starts personal; an explicit broader request is refused by the service."""
+        if self.value.kind in BROWSER_SECRET_KINDS:
+            if "usage_scope" not in self.model_fields_set:
+                self.usage_scope = "personal"
+            if "visibility" not in self.model_fields_set:
+                self.visibility = "private"
+        return self
 
 
 class SecretUpdate(BaseSchema):
@@ -79,6 +103,7 @@ class OpenAICodexSecretCreate(BaseSchema):
     name: str = Field(min_length=1, max_length=128)
     description: str | None = Field(default=None, max_length=1000)
     visibility: VisibilityLiteral = Field(default="private")
+    usage_scope: Literal["organization", "personal"] = Field(default="organization")
     callback_url: str = Field(
         min_length=1,
         max_length=_MAX_CALLBACK_URL,
@@ -99,6 +124,10 @@ class SecretPurposeRead(BaseSchema):
     label: str
     category: Literal["model_provider", "search", "observability", "connector", "other"]
     kind: SecretKind
+    personal_supported: bool = Field(
+        default=False,
+        description="Whether this deployment accepts an owner-only personal model connection for this provider.",
+    )
     help_url: str | None = None
     description: str = ""
     icon: str = Field(
@@ -124,12 +153,35 @@ class SecretUsage(BaseSchema):
     name: str
 
 
+class BrowserSecretMetadata(BaseSchema):
+    """Selection metadata only; no username, password, TOTP seed or profile values."""
+
+    allowed_origins: list[str]
+    available_fields: list[str]
+    has_totp: bool = False
+
+    @classmethod
+    def from_secret(cls, value: BrowserSecret) -> Self:
+        if isinstance(value, BrowserLoginSecret):
+            fields = ["username", "password"] + (["totp"] if value.totp is not None else [])
+            return cls(
+                allowed_origins=list(value.allowed_origins),
+                available_fields=fields,
+                has_totp=value.totp is not None,
+            )
+        return cls(allowed_origins=list(value.allowed_origins), available_fields=list(value.fields))
+
+
 class SecretRead(BaseSchema, TimestampSchema):
     id: UUID
+    usage_scope: Literal["organization", "personal"] = Field(default="organization")
     name: str
     description: str | None = None
     kind: SecretKind
-    hint: str = Field(description="Four characters of the secret - never the secret itself")
+    hint: str = Field(
+        description="A recognition hint; browser credentials never disclose a fragment"
+    )
+    browser: BrowserSecretMetadata | None = None
     purpose: str = Field(
         default="custom",
         description="What the key is for - a provider id, a service id, or 'custom'",

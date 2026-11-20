@@ -25,6 +25,7 @@ describe("ROUTES", () => {
     expect(ROUTES.SKILL_IMPROVE_FROM_RUN("s1", "run-9")).toBe(
       "/skills/s1/improve/new?from_run=run-9",
     );
+    expect(ROUTES.PROJECT_CHAT("project-1")).toBe("/chat?project=project-1");
   });
 
   it("nests each parameterised route under the listing it belongs to", () => {

@@ -303,6 +303,39 @@ class TestToolDeclarations:
         "system_reminders": {"goal_reanchor": {}},
         # Builds `None` naming no workflow: one named is what makes it offer its tools.
         "workflows": {"workflow_ids": ["00000000-0000-0000-0000-000000000002"]},
+        # Members are required, with no default: one member is what makes the
+        # config valid, and the widest shape - three - is what the builder must
+        # still resolve without a model for any of them.
+        "council": {
+            "members": [
+                {
+                    "name": "Claude Opus",
+                    "provider": "anthropic",
+                    "model_profile_id": "00000000-0000-0000-0000-000000000003",
+                },
+                {
+                    "name": "GPT Sol",
+                    "provider": "openai",
+                    "model_profile_id": "00000000-0000-0000-0000-000000000004",
+                },
+                {
+                    "name": "Gemini Pro",
+                    "provider": "google",
+                    "model_profile_id": "00000000-0000-0000-0000-000000000005",
+                },
+            ]
+        },
+        # A reviewer is required, with no default: one reviewer is what makes
+        # the config valid, and the widest shape - five rounds - is what the
+        # builder must still resolve without a model for it.
+        "sol_loop": {
+            "reviewer": {
+                "name": "GPT Sol",
+                "provider": "openai",
+                "model_profile_id": "00000000-0000-0000-0000-000000000003",
+            },
+            "max_rounds": 5,
+        },
     }
     """Configurations a capability needs before it offers anything.
 
@@ -571,10 +604,22 @@ class TestReadOnlyDeclarations:
 
     WRITES = frozenset(
         {
+            ("babysit_pr", "babysit_pr_stop"),
             ("background_tasks", "list_background_tasks"),
             ("background_tasks", "start_background_task"),
             ("background_tasks", "stop_background_task"),
             ("drafts", "write_draft"),
+            ("proof_scenario", "proof_scenario_record"),
+            ("agent_messages", "agent_send_message"),
+            ("agent_messages", "agent_react"),
+            ("eval_tool_tuning", "record_eval_tool_tuning"),
+            ("harness", "harness_start"),
+            ("harness", "harness_prompt"),
+            ("harness", "harness_stop"),
+            ("council", "run_council_review"),
+            ("sol_loop", "run_sol_loop_review"),
+            ("burst", "run_burst"),
+            ("secret_request", "request_secret"),
             ("memory_files", "correct_memory"),
             ("memory_files", "recall"),
             ("memory_files", "remember"),
@@ -614,6 +659,11 @@ class TestReadOnlyDeclarations:
             ("browser_use", "browser_tabs"),
             ("browser_use", "browser_switch_tab"),
             ("browser_use", "browser_close_tab"),
+            # Read the live origin of this run's browser session, like `browser_read`.
+            ("browser_use", "browser_procedures"),
+            ("browser_use", "browser_credential_options"),
+            # Types a vaulted sign-in into the open page.
+            ("browser_use", "browser_fill_credential"),
             ("coding_agent", "run_coding_agent"),
             ("monitor", "start_monitor"),
             ("monitor", "list_monitors"),
@@ -1255,8 +1305,14 @@ def test_exactly_the_capabilities_a_call_cannot_run_live_say_so():
             "background_tools",
             "background_tasks",
             "coding_agent",
+            "harness",
             "video_generation",
             "monitor",
+            "council",
+            "babysit_pr",
+            "sol_loop",
+            "burst",
+            "proof_scenario",
         },
         "never": {"channel_tools", "channel_actions", "follow_ups", "drafts"},
     }
@@ -1308,28 +1364,15 @@ class TestCapabilitySettingsCopy:
     def test_the_english_catalog_says_what_the_schema_says(self):
         assert self._catalog("en") == self._schema_copy()
 
-    def test_every_language_covers_every_setting_and_nothing_else(self):
-        expected = {
-            cap_id: {field: {"title", "description"} for field in fields}
-            for cap_id, fields in self._schema_copy().items()
-        }
-        for locale in ("pl", "de"):
-            catalog = self._catalog(locale)
-            covered = {
-                cap_id: {field: set(entry) for field, entry in fields.items()}
-                for cap_id, fields in catalog.items()
-            }
-            assert covered == expected, locale
-
 
 class TestConsoleCapabilityGuide:
     """The console explains every capability, under the registry's own name (#2070).
 
     The console reads a capability's name and its plain-language guide from its
-    message catalogs, so a person reads it in their language. That copy is a second
-    place a capability is named: a capability added here with no entry there is shown
-    to a Polish reader in English with no examples, and one renamed here keeps its old
-    name in the Builder while the API, the AI Architect and the docs use the new one.
+    English message catalog (the T3 fork ships English only, #161). That copy is a
+    second place a capability is named: a capability added here with no entry there
+    has no guide, and one renamed here keeps its old name in the Builder while the
+    API, the AI Architect and the docs use the new one.
     """
 
     @staticmethod
@@ -1340,8 +1383,7 @@ class TestConsoleCapabilityGuide:
     def test_every_capability_has_an_entry_and_no_entry_is_orphaned(self):
         registered = sorted(definition.id for definition in all_capabilities())
 
-        for locale in ("en", "pl", "de"):
-            assert sorted(self._guide(locale)) == registered, locale
+        assert sorted(self._guide("en")) == registered
 
     def test_the_english_name_is_the_registry_name(self):
         guide = self._guide("en")
@@ -1354,27 +1396,17 @@ class TestConsoleCapabilityGuide:
         """`docs/reference/glossary*.md` is the one list of names (#2075); a
         capability renamed or added in the console and not there is a glossary
         that has started to disagree with the screen it explains."""
-        docs = MESSAGES_PATH.parents[1] / "docs" / "reference"
-        for locale, page in (
-            ("en", "glossary.md"),
-            ("pl", "glossary.pl.md"),
-            ("de", "glossary.de.md"),
-        ):
-            text = (docs / page).read_text(encoding="utf-8")
-            rows = {
-                cap_id: name.strip()
-                for name, cap_id in re.findall(
-                    r"^\|\s*([^|`]+?)\s*\|\s*`([a-z_0-9]+)`\s*\|$", text, re.M
-                )
-            }
-            assert rows == {
-                cap_id: entry["name"] for cap_id, entry in self._guide(locale).items()
-            }, locale
+        text = (MESSAGES_PATH.parents[1] / "docs" / "reference" / "glossary.md").read_text(
+            encoding="utf-8"
+        )
+        rows = {
+            cap_id: name.strip()
+            for name, cap_id in re.findall(
+                r"^\|\s*([^|`]+?)\s*\|\s*`([a-z_0-9]+)`\s*\|$", text, re.M
+            )
+        }
+        assert rows == {cap_id: entry["name"] for cap_id, entry in self._guide("en").items()}
 
     def test_each_entry_says_what_it_does_needs_and_never_does_with_examples(self):
-        for locale in ("en", "pl", "de"):
-            for cap_id, entry in self._guide(locale).items():
-                assert {"name", "does", "needs", "never", "example1"} <= entry.keys(), (
-                    locale,
-                    cap_id,
-                )
+        for cap_id, entry in self._guide("en").items():
+            assert {"name", "does", "needs", "never", "example1"} <= entry.keys(), cap_id

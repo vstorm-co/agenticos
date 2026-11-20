@@ -1,3 +1,4 @@
+import type { AssistantPageContext } from "@/lib/assistant-page-context";
 import type { ChatPerson } from "./conversation";
 import type { Mentionable } from "./mention";
 
@@ -23,6 +24,18 @@ export interface ChatMessageFile {
  * the composer until it can be sent - and, in the apps, kept sealed on the
  * device so closing the app does not lose it (#2097).
  */
+/** The floating assistant's target and page, fixed when the person submits a question. */
+export interface ChatSubmissionContext {
+  agentId: string | null;
+  pageContext: AssistantPageContext | null;
+  /** Filled after the local-access gate, before a question can enter the outbox. */
+  local?: {
+    payload: Record<string, unknown> | null;
+    fileRoot: string | null;
+    projectId: string | null;
+  };
+}
+
 export interface QueuedMessage {
   id: string;
   /** A continuation keeps its requesting agent; undefined follows the current picker. */
@@ -37,6 +50,7 @@ export interface QueuedMessage {
    * held, marked, until the person sends it again or drops it.
    */
   refused?: string;
+  submission?: ChatSubmissionContext;
 }
 
 /** The earlier message a turn answers, quoted above it. */
@@ -51,6 +65,8 @@ export interface MessageReply {
   agentId?: string;
   /** Its name, where the reply was chosen on screen and the name was at hand. */
   agentName?: string;
+  /** The exact words selected on its message, sent with the linked source id. */
+  selectedText?: string;
 }
 
 /** The workspace selected for a turn, retained after Work on changes. */
@@ -77,6 +93,8 @@ export interface ChatMessage {
   runWaitingFor?: "approval" | "answer";
   runStartedAt?: Date;
   runFailed?: boolean;
+  /** The run refused this turn; its displayed text must not be quoted onward. */
+  guardrailRefused?: boolean;
   /** Safe run failure explanation, shown separately from the assistant's words. */
   runError?: string;
   /** Group ID for related messages in a multi-agent chain. */
@@ -99,6 +117,10 @@ export interface ChatMessage {
   senderGone?: boolean;
   /** The message this turn answers, where somebody replied to one. */
   replyTo?: MessageReply;
+  /** A room subthread, distinct from an ordinary quoted reply. */
+  threadRootMessageId?: string;
+  threadReplyCount?: number;
+  threadLastActivityAt?: string | null;
   /** The published agent that produced this assistant turn. Absent means the
    *  general assistant, which is what a turn sent without an `agent_id` runs.
    *  Recorded per message on both paths - live and reloaded - because the
@@ -147,6 +169,10 @@ export interface ChatMessage {
    * and a remount at the end of a turn cut the reveal off mid-sentence.
    */
   renderKey?: string;
+  /** Saved segments represented by one visible assistant turn, for exact message links. */
+  coalescedMessageIds?: string[];
+  /** Whether the signed-in reader pinned this message; absent on unpersonalized reads. */
+  isPinned?: boolean;
   /** Current user's rating */
   user_rating?: UserRating;
   /** Aggregate rating counts */
@@ -227,6 +253,8 @@ export interface MessagePart {
   type: MessagePartType;
   /** Text for "thinking"/"text" parts, and what the person added for a "steer" (#2087). */
   content?: string;
+  /** Saved message the words came from when a visible turn coalesces several rows. */
+  sourceMessageId?: string | null;
   /** Tool invocation for "tool" parts. */
   toolCall?: ToolCall;
   /** What the agent asked, for an "ask_user" part. */
@@ -317,6 +345,7 @@ export type WSEventType =
   | "compaction_started"
   | "compaction_finished"
   | "compaction_impossible"
+  | "compact_now_result"
   | "personal_services_unavailable"
   // The run's sandbox is still being opened - usually its runtime image being built
   // after an update (#2222) - and then that it is open, or failed to open.
@@ -328,6 +357,8 @@ export type WSEventType =
   | "background_task_turn"
   | "turn_prompt"
   | "presence"
+  | "room_message"
+  | "room_request"
   | "typing"
   | "turn_followed_to_end"
   // Sent on every turn and deliberately unread, because each only announces a step
@@ -364,6 +395,8 @@ export type WSEventType =
   | "browser_held"
   | "browser_released"
   | "browser_needs_person"
+  | "browser_protected"
+  | "browser_procedure_teaching"
   | "browser_pointer"
   | "browser_control_error";
 
@@ -395,6 +428,8 @@ export interface BrowserFrame {
     | "browser_held"
     | "browser_released"
     | "browser_needs_person"
+    | "browser_protected"
+    | "browser_procedure_teaching"
     | "browser_pointer"
     | "browser_control_error";
   /** Which `browse_web` call this belongs to; one turn can browse twice. */
@@ -406,6 +441,10 @@ export interface BrowserFrame {
   native_id?: string | null;
   resumable?: boolean;
   navigable?: boolean;
+  /** Sticky for this page's lifetime, including nested reconnect events. */
+  output_protected?: boolean;
+  credential_plan_id?: string | null;
+  credential_operation?: "fill" | "submit" | null;
   /** On the opening frame: the ceiling, so progress reads as 3/25. */
   max_steps?: number | null;
   /** On the opening frame: the task the model handed over. */
@@ -422,6 +461,14 @@ export interface BrowserFrame {
   by?: string | null;
   /** Who took the browser over, by id - how a viewer tells it is them. */
   by_user_id?: string | null;
+  /** Server-issued holder lease; never reconstructed from a view identity. */
+  takeover_id?: string | null;
+  teaching_session_id?: string | null;
+  teaching_status?:
+    import("@/types/browser-procedure-teaching").BrowserProcedureTeachingStatus | null;
+  teaching_revision?: number | null;
+  teaching_reason?:
+    import("@/types/browser-procedure-teaching").BrowserProcedureTeachingReason | null;
   /** On `browser_pointer`: where the agent is about to press, as fractions of the viewport. */
   x?: number | null;
   y?: number | null;
@@ -682,14 +729,14 @@ export interface SubagentStartFrame extends SubagentFrameBase {
    */
   specialist: SpecialistDefinition | null;
   /**
-   * Set when the worker is Claude Code or Codex, started by the `coding_agent`
+   * Set when the worker is a coding harness, started by the `coding_agent`
    * capability rather than delegated to an agent, so the panel draws its mark.
    */
   harness?: CodingHarness | null;
 }
 
 /** The coding harnesses the `coding_agent` capability runs. */
-export type CodingHarness = "claude_code" | "codex";
+export type CodingHarness = "claude_code" | "codex" | "opencode" | "gemini" | "pi";
 
 export interface SubagentTextDeltaFrame extends SubagentFrameBase {
   kind: "subagent_text_delta";
@@ -755,6 +802,8 @@ export interface SubagentCompleteFrame extends SubagentFrameBase {
  */
 export interface Compaction {
   kind: "compaction_started" | "compaction_finished" | "compaction_impossible";
+  /** The manual maintenance request that owns this progress event, when present. */
+  request_id?: string;
   /** How many messages the history held when it started. */
   messages_before: number | null;
   /** How many it holds now. Null while it is running, and null if it failed. */
@@ -764,6 +813,10 @@ export interface Compaction {
   /** On `compaction_impossible`: the window the trigger was measured against. */
   window_tokens?: number | null;
 }
+
+/** Outcome of an explicit conversation maintenance command. */
+export type ChatCompactionStatus =
+  "idle" | "running" | "compacted" | "unchanged" | "busy" | "unavailable" | "failed";
 
 /** What a whole conversation has cost, as `GET /conversations/{id}/messages` totals it. */
 export interface ConversationCost {
@@ -832,7 +885,7 @@ export interface Delegation {
    * chat reads, and what its absence hides that action for. See `SpecialistDefinition`.
    */
   specialist: SpecialistDefinition | null;
-  /** Claude Code or Codex, when the worker is a coding harness rather than an agent. */
+  /** A coding harness, when the worker is one rather than an agent. */
   harness: CodingHarness | null;
   text: string;
   thinking: string;

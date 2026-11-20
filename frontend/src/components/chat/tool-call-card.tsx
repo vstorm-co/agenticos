@@ -23,6 +23,12 @@ import { LoadSkillResult, LoadedSkillResult } from "./tool-results/skills";
 import { ContextListResult, SkillListResult } from "./tool-results/catalogs";
 import { PlanToolResult } from "./tool-results/plan";
 import { AskedResult, parseAsked } from "./tool-results/asked";
+import {
+  SecretRequestResult,
+  parseSecretRequest,
+  secretRequestDeclined,
+  secretRequestFulfilled,
+} from "./tool-results/secret-request";
 import { platformCallError } from "./tool-results/platform-objects";
 import { GenericToolResult, RawToolView } from "./tool-results/generic";
 import { RunPythonResult } from "./tool-results/run-python";
@@ -119,6 +125,11 @@ export const ToolCallCard = memo(function ToolCallCard({
   // The questions an `ask_user_question` call put, beside the answers it got.
   const asked = useMemo(
     () => (renderer === "asked" ? parseAsked(toolCall) : null),
+    [renderer, toolCall],
+  );
+  // The secret a `request_secret` call asked for, beside what happened to it.
+  const requestedSecret = useMemo(
+    () => (renderer === "secret-request" ? parseSecretRequest(toolCall) : null),
     [renderer, toolCall],
   );
   // A chart is the one entry whose payoff can fail to arrive: `create_chart` that
@@ -332,6 +343,12 @@ export const ToolCallCard = memo(function ToolCallCard({
         <PlanToolResult toolCall={toolCall} resultText={resultText} />
       ) : asked !== null ? (
         <AskedResult asked={asked} />
+      ) : requestedSecret !== null ? (
+        <SecretRequestResult
+          requested={requestedSecret}
+          fulfilled={secretRequestFulfilled(toolCall)}
+          declined={secretRequestDeclined(toolCall)}
+        />
       ) : delegate !== null ? (
         <DelegationResult brief={brief} answer={resultText} />
       ) : renderer === "memory" ? (

@@ -1,5 +1,5 @@
 ---
-source_sha: "9a9b600834b2"
+source_sha: "cf75a731ea37"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -145,9 +145,17 @@ zatrzymania po przejściu przez granicę sandboxa.
 | `text_to_speech` | Zamiana tekstu na mowę | analiza | `generate_speech` | — | wymagany | bez zmian |
 | `video_generation` | Generowanie wideo | analiza | `generate_video` | — | wymagany | przekazana |
 | `coding_agent` | Coding agent | analiza | `run_coding_agent` | `sandbox:execute` | wymagany | przekazana |
+| `harness` | Harness | analiza | `harness_start`, `harness_prompt`, `harness_stop`, `harness_sessions` | `sandbox:execute` | wymagany | przekazana |
 | `monitor` | Obserwuj polecenie | analiza | `start_monitor`, `list_monitors`, `stop_monitor` | `sandbox:execute` | — | przekazana |
+| `council` | Rada | analiza | `run_council_review` | `agents:delegate` | — | przekazana |
+| `babysit_pr` | Babysit PR | analiza | `babysit_pr_check`, `babysit_pr_rate_limit`, `babysit_pr_stop` | — | — | przekazana |
+| `sol_loop` | Sol-loop | analiza | `run_sol_loop_review` | `agents:delegate` | — | przekazana |
+| `eval_tool_tuning` | Dostrajanie narzędzi na podstawie ewaluacji | analiza | `record_eval_tool_tuning` | — | — | bez zmian |
+| `burst` | Burst | analiza | `run_burst` | `agents:delegate` | — | przekazana |
+| `proof_scenario` | Scenariusz dowodowy | analiza | `proof_scenario_record`, `proof_scenario_verdict` | — | — | przekazana |
 | `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | przekazana |
 | `background_tasks` | Tematy w tle | reasoning | `start_background_task`, `list_background_tasks`, `stop_background_task` | — | — | przekazywane |
+| `agent_messages` | Wiadomości agentów | reasoning | `agent_send_message`, `agent_read_messages`, `agent_list_threads`, `agent_react` | `agents:message` | — | bez zmian |
 | `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | bez zmian |
 | `thinking` | Myślenie | rozumowanie | brak, celowo | — | — | odwzorowana |
 | `system_reminders` | Przypomnienia instrukcji | rozumowanie | brak, celowo | — | — | bez efektu |
@@ -161,6 +169,7 @@ zatrzymania po przejściu przez granicę sandboxa.
 | `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | niedostępna |
 | `phone_calls` | [Połączenia telefoniczne](../voice.md#telephone-calls) | channels | `get_phone_contact_policy`, `call_me`, `list_phone_transfer_contacts`, `transfer_phone_call`, `end_phone_call` | `endpoint_id` | — | — |
 | `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — | na ekranie |
+| `secret_request` | Prośba o sekret | narzędzia | `request_secret` | — | — | na ekranie |
 | `drafts` | Wersje robocze | narzędzia | `write_draft` | — | — | niedostępna |
 | `follow_ups` | Następne kroki | narzędzia | `suggest_next_steps`, `propose_setup` | — | — | niedostępna |
 
@@ -426,7 +435,7 @@ się pod `/api/v1/context`, a wiąże się je z agentem po id
 Notatki, które agent prowadzi sam dla siebie w poprzek rozmów, zindeksowane
 jedną, którą sam utrzymuje. Tam gdzie `context` jest biblioteką, którą pisze
 człowiek i wiąże z wieloma agentami, pamięć należy do agenta: pisze do niej
-narzędziami w trakcie runa. Użytkownik może poprawiać własne notatki w **Settings → Memory → Notes**, bez dostępu do notatek innych osób. Korekta zachowuje datę pierwotnego zapisu agenta i stan wyciszenia, sprawdza rewizję oraz zapisuje audyt bez treści notatki. Nie wiąże się jej po
+narzędziami w trakcie runa. Użytkownik może poprawiać własne notatki w **Ustawienia → Pamięć → Notatki** (Settings → Memory → Notes), bez dostępu do notatek innych osób. Korekta zachowuje datę pierwotnego zapisu agenta i stan wyciszenia, sprawdza rewizję oraz zapisuje audyt bez treści notatki. Nie wiąże się jej po
 id — włączenie capability daje agentowi jego notatki.
 
 **`MEMORY.md` jest indeksem i jest pokazywany agentowi przy każdym żądaniu.** To
@@ -600,6 +609,16 @@ jego przyborniku, obok capability.
 ## Tematy w tle { #background-tasks }
 
 Jawne zadanie w nowym temacie, które trwa dłużej niż odpowiedź źródłowa. Agent źródłowy podsumowuje wynik z aktualną historią, bez narzędzi. [Tematy w tle](../console.pl.md#background-topics) opisują limity, zgody, zatrzymanie i przerwaną pracę. To mechanizm oddzielny od tymczasowego `background_tools` i asynchronicznych subagentów jednego uruchomienia.
+
+## Wiadomości agentów { #agent-messages }
+
+Bezpośrednie wiadomości między dwoma agentami, w wątku widocznym w konsoli.
+Jedna para agentów ma jeden wątek w jednej organizacji; wiadomość jest zapisywana,
+a nie dostarczana jako run. Wysyłanie wymaga `agents:run` dla obu agentów, odczyt
+dla co najmniej jednego, a obaj muszą być opublikowani. Zobacz [Wiadomości
+agentów](../agent-messages.md), aby poznać odpowiedzi, reakcje, pliki i ograniczenia.
+To otwarta forma delegacji: delegacja ukrywa wymianę wewnątrz rodzica, a wątek
+może czytać każdy, kto może uruchomić choć jednego z agentów.
 
 ## Poprzednie rozmowy { #conversation-search }
 
@@ -1861,6 +1880,108 @@ jego zużycie jest księgowane bez ceny, a koszt runa oznaczony jako częściowy
 samo księgowane jest zadanie, które kończy się, zanim harness poda, ile wydał -
 nieudane, przerwane limitem czasu albo zatrzymane.
 
+## Harness { #harness }
+
+`harness_start` — *Otwiera nazwaną sesję harnessu z pierwszym promptem i trzyma ją otwartą.*
+`harness_prompt` — *Wysyła kolejny prompt do nazwanej sesji harnessu.*
+`harness_stop` — *Zamyka nazwaną sesję harnessu.*
+`harness_sessions` — *Wymienia sesje harnessu otwarte w tej rozmowie.*
+
+Agent oparty na sesji **Claude Code**, **Codex**, **OpenCode**, **Gemini CLI** albo
+**Pi** we własnym [sandboxie](../sandbox.md), trzymanej otwartej przez kolejne tury:
+agent otwiera jedną sesję
+na wątek pracy i wysyła do niej prompty w miarę postępu, zamiast przekazać jedno
+zadanie harnessowi i zdać raport. Sesja należy do CLI: pamięta, co wcześniejsze prompty czytały i zmieniały, a osoba widzi na czacie, jak pracuje każdy
+prompt. Inny agent dociera do agenta opartego na harnessie przez zwykłą
+[delegację](#delegation), tak jak do każdego specjalisty.
+
+| Konfiguracja | Domyślnie | Wartości |
+|---|---|---|
+| `harness` | `claude_code` | `claude_code` (klucz API Anthropic albo token subskrypcji Claude), `codex` (klucz API OpenAI), `opencode` (klucz wybranego modelu), `gemini` (klucz API Gemini), `pi` (klucz wybranego modelu) |
+| `access` | `read_only` | `read_only` czyta kod i odpowiada; `edit` zmienia pliki i uruchamia polecenia |
+| `model` | domyślny model harnessu | Claude Opus, Sonnet albo Haiku 5.5 dla Claude Code; GPT-5.6 Sol, Terra, Luna albo GPT-5.3 Codex dla Codexa; `provider/model` dla OpenCode i Pi (model trzeba wybrać, aby określić dostawcę klucza); Gemini CLI zachowuje domyślne ustawienie harnessu (`auto`) |
+| `base_url` | bezpośrednio Anthropic | Tylko Claude Code: bramka obsługująca API Anthropic, np. `https://openrouter.ai/api`, której klucz trzyma wtedy vault. Usuwane, gdy wybrano Codex |
+| `timeout_minutes` | 30 | 1–60, na jeden prompt. Sesja pozostaje otwarta |
+
+**Cztery narzędzia, a binding decyduje, co mogą robić.** Przy `edit` harness edytuje
+dowolny plik i uruchamia dowolne polecenie w sandboxie, z własnymi promptami wyłączonymi
+(`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`):
+nikt nie siedzi przy jego terminalu, a kontener jest granicą, dla której obie flagi są
+udokumentowane. Przy `read_only` Claude Code działa w trybie planu bez żadnego narzędzia,
+które zapisuje — bez narzędzi edycji i powłoki — i czyta za pomocą Read, Grep i Glob;
+jest poinformowany, że nic więcej nie może zostać zatwierdzone. Codex w kontenerze nie ma `read_only`: jego tryb tylko do odczytu to
+własny sandbox, który nie może wystartować wewnątrz kontenera agenta, a publikacja
+odrzuca to połączenie.
+
+OpenCode przy `read_only` używa agenta planowania, który odmawia edycji;
+Gemini CLI używa trybu zatwierdzania planu; Pi uruchamia tylko narzędzia
+odczytu (`read,grep,find,ls`), ponieważ nigdy nie pyta o zgodę.
+Czy osoba wyraża zgodę przed każdym promptem, to
+**Zatwierdzenie przez człowieka** tej capability — jak każda bramka, jest wyłączone,
+dopóki ktoś go nie włączy. Nie ma zakładki Narzędzia: cztery narzędzia to capability.
+
+**Nazwane sesje.** Każdy prompt nazywa `session` — `main`, gdy nie nazwano żadnej. Ta sama nazwa kontynuuje wcześniejszą pracę tej sesji w rozmowie; nowa nazwa otwiera kolejną. `harness_start` na nazwie już otwartej zaczyna ją od nowa, a `harness_stop` ją zamyka, więc późniejszy prompt pod tą nazwą otwiera nową. Prompty w jednym zestawie narzędzi działają po kolei, więc dwa prompty do tej samej sesji nie mogą się przeplatać. Sesja harnessu nigdy nie jest wznawiana przez coding agenta, a zadanie coding agenta nigdy nie kontynuuje sesji harnessu: ich pliki sesji leżą osobno, `.agenticos/harness/` i `.agenticos/coding-agent/`.
+
+**Sesje rozmowy trwają przez prompty.** Identyfikator sesji harnessu jest trzymany
+w sandboxie obok pracy, w `.agenticos/harness/`, jeden na
+rozmowę i nazwę sesji, więc drugi prompt w czacie wie, co czytał pierwszy — a
+czat nigdy nie kontynuuje sesji innego czatu w sandboxie współdzielonym przez kilka, w projekcie ani w zakresie
+osoby czy agenta. Sesja, której sandbox już nie trzyma, zaczyna od nowa sama, raz.
+
+**Osoba widzi, jak pracuje.** Prompt działa tak jak zadanie coding agenta: harness startuje odłączony w sandboxie,
+`claude -p --output-format stream-json`, `codex exec --json`, `opencode run --format json`,
+`gemini -p --output-format stream-json` albo `pi --mode json`, a jego plik zdarzeń
+jest odczytywany co półtorej sekundy. Każdy krok dociera do czatu, gdy się dzieje, w
+własnym panelu pod znakiem harnessu, tak jak kroki delegacji:
+plik, który czyta, edycja, polecenie, które uruchamia, co mówi pomiędzy. Gdy
+skończy, wynik wywołania zawiera odpowiedź, każdy krok i pliki, które zmienił.
+Prompt po `timeout_minutes` oraz prompt zatrzymany przez osobę kończy się zatrzymaniem
+całej jego grupy procesów.
+
+**Czego potrzebuje.** Capability `sandbox` na backendzie `service` z włączonymi poleceniami powłoki
+— publikacja odrzuca wszystko inne — oraz runtime z zainstalowanym harnessem:
+runtime `workbench` przypina Claude Code 2.1.288 i Codex 0.160.0.
+Nie ustalono, czy dostarcza OpenCode, Gemini CLI albo Pi; brakujący harness
+zgłasza niepowodzenie zamiast udawać, że jest dostępny. Poświadczenie
+pochodzi z vault poprzez `secret_id` bindingu i trafia do
+polecenia poprzez jego środowisko, nigdy w linii poleceń. W [projekcie](../projects.md),
+który trzyma pliki bez kontenera, nie ma powłoki, więc harness jest
+pominięty w runach tam, a agent dowiaduje się dlaczego.
+
+**Klucz, nie logowanie.** Claude Code przyjmuje klucz API Anthropic albo token,
+który wypisuje `claude setup-token` dla subskrypcji Claude Pro albo Max, przechowywany jako klucz —
+odróżnia go prefiks `sk-ant-oat`, a loguje się tylko do Anthropic, nie
+do bramki. Codex przyjmuje klucz API OpenAI. OpenCode i Pi przyjmują klucz
+wybranego modelu, więc binding musi wskazywać model; Gemini CLI zawsze
+przyjmuje klucz API Gemini.
+
+Logowanie ChatGPT nie jest tu jeszcze akceptowane: przepływ logowania coding
+agenta — odizolowany katalog domowy, sprawdzenie widoczności, rotacja tokenów
+odczytywana z powrotem z sandboxu — nie jest podłączony do tej capability,
+więc selektor oferuje tylko klucze API.
+
+Klucz API należy do agenta, jak token bota w Slacku, więc
+każdy run go używa, ktokolwiek zapytał — a wszystko, co uruchamia prompt, może go odczytać. Powiąż
+klucz, który mogą współdzielić wszyscy, którzy mogą uruchamiać agenta.
+Korzystanie z osobistej subskrypcji podlega warunkom Anthropic dla
+tych planów, które mogą na to nie pozwalać we wspólnym deploymentcie.
+
+**Klucz pasuje do harnessu.** Selektor oferuje Claude Code tylko klucze przechowywane dla
+Anthropic, a Codexowi tylko klucze OpenAI. OpenCode i Pi oferują tylko klucz
+dostawcy wybranego modelu, a Gemini CLI tylko klucze Gemini. Klucz przechowywany
+dla `custom` pasuje do każdego harnessu, podobnie jak klucz już powiązany.
+Publikacja odrzuca klucz
+przechowywany dla innego providera i nazywa te, które przyjmuje harness: klucz OpenAI
+powiązany z Claude Code opublikowałby się, a potem nie działał przy każdym prompcie. Gdy ustawiono `base_url`,
+klucz jest kluczem bramki — OpenRouter, LiteLLM albo innej — więc Claude Code
+przyjmuje wtedy dowolny klucz.
+
+**Jego koszt jest mierzony.** Harnessy zgłaszają swoje tokeny na model, które są
+księgowane w rejestrze runu jak każde żądanie modelu, a budżet jest sprawdzany przed
+każdym promptem. Codex nie nazywa modelu w swoich zdarzeniach, więc bez ustawionego `model` jego zużycie jest
+księgowane bez ceny, a koszt runu jest oznaczony jako częściowy. Prompt, który kończy się, zanim jego
+harness zgłosi, ile wydał — nieudany, przekroczony w czasie albo zatrzymany — jest księgowany tak samo.
+
 ## Obserwuj polecenie { #monitor }
 
 `start_monitor`, `list_monitors`, `stop_monitor` — _Obserwuj długo działające polecenie i dowiaduj się o jego wyjściu, gdy się pojawia._
@@ -1948,7 +2069,7 @@ Zobacz [Wizualizacje](../artifacts.md#visuals).
 
 ## Aplikacje { #artifacts }
 
-`export_artifact` zapisuje bieżącą opublikowaną wersję jako prawdziwy PDF w workspace. Korzysta z izolowanego renderera, obsługuje raporty A4 i prezentacje przeglądarkowe 16:9, zachowuje kontrolę dostępu oraz odbiorców podglądu i odmawia przy niedostępnych danych powiązanych. Wymaga skonfigurowanego renderera i dodatku `browser`. Pliki mają unikalne nazwy oraz limit 50 stron i 20 MB. Zobacz [materiały projektowe](../skills.pl.md#design-resources).
+`export_artifact` zapisuje bieżącą opublikowaną wersję jako prawdziwy PDF w workspace. Korzysta z izolowanego renderera, obsługuje raporty A4 i prezentacje przeglądarkowe 16:9, zachowuje kontrolę dostępu oraz odbiorców podglądu i odmawia przy niedostępnych danych powiązanych. Wymaga skonfigurowanego renderera i dodatku `browser`. Pliki mają unikalne nazwy oraz limit 50 stron i 20 MB. Zobacz [materiały projektowe](../skills.md#design-resources).
 
 `publish_artifact` — _Opublikuj gotową stronę — raport, mały dashboard,
 podsumowanie — pod stałym linkiem._
@@ -3350,7 +3471,7 @@ sprawdzane w chwili składania agenta:
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
-| `tables:read` | `virtual_tables` i każdy [węzeł workflow dla tabel](workflow-nodes.md#virtual-tables) |
+| `tables:read` | Każdy [węzeł workflow dla tabel](workflow-nodes.md#virtual-tables) |
 | `tables:write` | węzły workflow dla tabel, które zapisują |
 | `workflows:run` | `workflows` |
 | `computer:use` | `computer_use` |
@@ -3467,13 +3588,13 @@ Zadania coding w sandboxie w tym samym zestawie narzędzi wykonują się kolejno
 
 ## Podłączone komunikatory (`channel_actions`) { #connected-chat-apps-channel_actions }
 
-Jawne uprawnienia bota do znajdowania kanałów, wyszukiwania wiadomości i dostarczania raportów z dowolnego uruchomienia.
+Jawne uprawnienia bota do znajdowania kanałów, wyszukiwania wiadomości i dostarczania żądanych raportów z dowolnego runa.
 
 | Narzędzie | Działanie |
 | --- | --- |
 | `list_chat_connections` | Identyfikatory botów, uprawnienia i bieżące miejsce rozmowy |
 | `find_chat_channels` | Metadane kanałów bota i stronicowanie |
 | `read_chat_messages` | Ograniczona historia z filtrami |
-| `send_chat_message` | Wiadomość lub raport w nowym wpisie albo istniejącym wątku |
+| `send_chat_message` | Wysłanie wiadomości lub raportu na żądanie, w nowym wpisie albo istniejącym wątku |
 
 Przy każdej operacji usługa ponownie sprawdza członkostwo w organizacji, dostęp do agenta, aktywne powiązanie i bota, a następnie członkostwo bota w kanale i przynależność wątku. Nie dołącza do kanałów ani nie pożycza botów innych agentów. Wyszukiwanie i historia zwracają ograniczone strony; puste dopasowanie nie kończy przeglądania, jeśli istnieje kursor. Błąd dostawcy jest odmową, nie pustym wynikiem. Wysyłanie podlega zasadom akceptacji; niepotwierdzoną wysyłkę trzeba sprawdzić przed ponowieniem. Pozostałe platformy zachowują dotychczasowe narzędzia rozmowy; akcje między kanałami są dostępne tylko tam, gdzie adapter weryfikuje członkostwo.

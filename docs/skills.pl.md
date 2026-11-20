@@ -1,5 +1,5 @@
 ---
-source_sha: "54b551bbe389"
+source_sha: "facf3e422251"
 ---
 
 # Skille { #skills }
@@ -236,6 +236,28 @@ od 1 do 64 znaków i opis do 500 znaków. Zmiana poza limitem jest pomijana z
 ostrzeżeniem; oryginalne pliki pozostają bez zmian. Zapis propozycji używa
 savepointu, więc odrzucona propozycja nie wycofa tury ani nie zablokuje zapisania
 jej statusu i kosztu.
+
+### Skille wyuczone — zatwierdzona propozycja aktualizuje wskazany skill { #learned-skills-an-approved-proposal-becomes-a-skill-on-its-own }
+
+Zastosowanie propozycji edytuje skill, który ona wskazuje. Automatyczne uczenie
+skilli zapisuje potem zatwierdzony tekst propozycji w tym skillu, przez
+`POST /v1/agents/{agent_id}/learned-skills`. Zapisana propozycja dostarcza
+skill docelowy, tekst i pochodzenie. Żądanie nadal wysyła `content`, który musi
+być identyczny z tekstem propozycji. `name` i `description` przekazane przez
+wywołującego są przestarzałe i ignorowane.
+
+Uczenie aktualizuje tylko istniejący skill, więc odpowiedź zawsze zwraca
+`created` jako `false`. Propozycja bez skilla docelowego albo taka, która nie
+jest zastosowana lub została cofnięta, zwraca 404. Pole żądania, które nie
+zgadza się z zapisaną propozycją, zwraca 409. Ten sam kod 409 zwraca skill
+zmieniony od czasu napisania propozycji. Taki skill jest odrzucany zamiast
+nadpisywany.
+
+Każdy zapis jest audytowany jako `skill.learned` wraz z propozycją, wpisem w
+ledgerze i kluczem wzorca, które go zmotywowały. Dwukrotne wyuczenie tej samej
+propozycji za drugim razem niczego nie zapisuje. Wyuczona zmiana jest od tej
+pory zwykłą edycją: wersjonowana tym samym przyrostem wersji co każda edycja i
+cofana nową edycją, a nie przywróceniem.
 
 Zmiana zapisuje wersję skilla, dla której powstała: przy runie jest to wersja,
 którą ten run dostał, a późniejsza tura, która ją nadpisuje, zapisuje swoją. Apply
@@ -1000,10 +1022,10 @@ Szacowany koszt uwzględnia pełną proponowaną treść dla każdej odpowiedzi 
 
 `artifact-pages` prowadzi tworzenie wielokrotnie używanych Apps, raportów z dowodami, narzędzi decyzyjnych i prezentacji przeglądarkowych. `visual-design` obejmuje interaktywne wyjaśnienia, porównania, diagramy i autorskie grafiki proceduralne. Oba dobierają kompozycję, styl i interakcje do nauki, zabawy lub pracy, zamiast wszędzie stosować ten sam dashboard. Szczegółowe poradniki i kompletne przykłady HTML są wczytywane tylko w razie potrzeby.
 
-Przykłady zawierają filtr dowodów, edytowalne kryteria decyzji, jawne porównanie kosztów, powtarzalną grafikę generatywną i prezentację obsługiwaną klawiaturą: przegląd slajdów, cztery motywy oraz pełny układ wydruku. Dane przykładowe i założenia są oznaczone. Weryfikacja obejmuje kontrolki, błędne dane, reset, telefon i ograniczenie animacji.
+Przykłady zawierają filtr dowodów, edytowalne kryteria decyzji, jawne porównanie kosztów, powtarzalną grafikę generatywną i prezentację obsługiwaną klawiaturą: przegląd slajdów, cztery motywy oraz pełny układ wydruku. Dane przykładowe i założenia są oznaczone. Weryfikacja obejmuje kontrolki, stany błędów, reset, telefon i ograniczenie animacji.
 
 Apps eksportuje opublikowaną stronę HTML/Markdown lub prezentację przez `export_artifact`. Operator konfiguruje `ARTIFACT_RENDER_CDP_URL` i dodatek `browser`; agent potrzebuje workspace do zapisania prawdziwego PDF. Eksport stosuje te same zasady dostępu i odbiorców co podgląd App oraz odmawia przy niedostępnych danych powiązanych. Plik ma limit 50 stron i 20 MB oraz unikalną nazwę. Sprawdź PDF, podział stron i komplet slajdów. Nie dodaje to formatu PowerPoint.
 
-Chat może osadzać treści interaktywne. Mattermost i inne kanały tekstowe otrzymują uprawniony link do App, renderowany obraz tam, gdzie jest obsługiwany, lub zamówiony PDF przez wysyłanie plików; HTML nie uruchamia się w wiadomości. Link nie nadaje dostępu publicznego. Istniejące instalacje korzystają ze zwykłego odświeżania biblioteki: nieedytowane kopie są aktualizowane, używane skille czekają na sprawdzenie, a własne zmiany pozostają chronione.
+Chat może osadzać treści interaktywne. Mattermost i inne kanały tekstowe otrzymują uprawniony link do App, renderowany obraz tam, gdzie jest obsługiwany, lub zamówiony PDF przez wysyłanie plików; HTML nie uruchamia się w wiadomości. Link nie nadaje dostępu publicznego. Istniejące instalacje korzystają ze zwykłego odświeżania biblioteki: nieedytowane kopie są aktualizowane, skille obserwowane przez agentów czekają na sprawdzenie aktualizacji, a własne zmiany pozostają chronione.
 
 Skille platformowe z biblioteki oraz skille dostarczane z AI Architect można czytać i używać według zwykłych uprawnień do zasobu. Zmiana ich treści, plików, wersji lub forków, usunięcie oraz zajęcie zarezerwowanej nazwy wymaga uprawnienia edycji agentów w całej organizacji (Owner/Admin we wbudowanych rolach). Grant edycji skilla nie omija tej ochrony. Zwykłe skille organizacji zachowują dotychczasowe zasady własności i udostępniania.

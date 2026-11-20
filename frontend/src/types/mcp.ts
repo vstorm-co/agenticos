@@ -15,7 +15,7 @@
  */
 
 /** How a catalog server authenticates. The only thing that really varies. */
-export type McpAuthKind = "none" | "token" | "oauth";
+export type McpAuthKind = "none" | "token" | "oauth" | "composio";
 
 /** One connectable server in the organization catalog. */
 export interface McpCatalogEntry {

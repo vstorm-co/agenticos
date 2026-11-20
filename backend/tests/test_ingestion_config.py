@@ -601,6 +601,23 @@ class TestLlamaParseCredential:
         ):
             await IngestionConfigService(_db()).check_llamaparse_secret(ORG, self._llamaparse())
 
+    @pytest.mark.security
+    async def test_background_parsing_cannot_select_a_personal_key(self) -> None:
+        config = self._llamaparse()
+        with (
+            patch(
+                "app.services.ingestion_config.organization_secret_repo.get",
+                new=AsyncMock(return_value=MagicMock(usage_scope="personal", purpose="llamaparse")),
+            ) as looked_up,
+            patch("app.services.ingestion_config.unseal_secret") as unseal,
+            pytest.raises(BadRequestError, match="personal model connection") as refused,
+        ):
+            await IngestionConfigService(_db()).check_llamaparse_secret(ORG, config)
+        assert looked_up.await_args is not None
+        assert looked_up.await_args.kwargs["organization_id"] == ORG
+        assert refused.value.details["fields"][0]["field"] == "llamaparse_secret_id"
+        unseal.assert_not_called()
+
 
 def _ocr_service(**overrides: object) -> MagicMock:
     row = MagicMock(

@@ -427,7 +427,10 @@ describe("PortalCatalog", () => {
     const card = within(screen.getByRole("group", { name: "GitHub" }));
 
     expect(card.queryByRole("button", { name: /Add credentials/ })).toBeNull();
-    expect(card.getByRole("link", { name: "Open the vault" })).toHaveAttribute("href", "/vault");
+    expect(card.getByRole("link", { name: "Open the vault" })).toHaveAttribute(
+      "href",
+      "/connectors/vault",
+    );
   });
 
   it("names the missing OAuth App on the card instead of after the click", async () => {

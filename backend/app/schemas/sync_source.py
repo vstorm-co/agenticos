@@ -68,6 +68,7 @@ class SyncSourceCreate(BaseSchema):
     collection_name: str | None = None
     config: dict[str, object]
     secret_id: UUID | None = None
+    connected_account_id: UUID | None = None
     organizational_unit: str | None = Field(default=None, max_length=255)
     sync_mode: str = "new_only"
     schedule_minutes: int | None = None
@@ -88,6 +89,7 @@ class SyncSourceUpdate(BaseSchema):
     name: str | None = None
     config: dict[str, object] | None = None
     secret_id: UUID | None = None
+    connected_account_id: UUID | None = None
     organizational_unit: str | None = Field(default=None, max_length=255)
     sync_mode: str | None = None
     schedule_minutes: int | None = None
@@ -116,6 +118,7 @@ class SyncSourceRead(BaseSchema):
     knowledge_base_id: str | None = None
     config: dict[str, object]
     secret_id: str | None
+    connected_account_id: str | None = None
     secret_hint: str | None = None
     organizational_unit: str | None = None
     sync_mode: str

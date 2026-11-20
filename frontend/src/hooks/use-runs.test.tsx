@@ -7,6 +7,7 @@ import {
   useApprovals,
   useDelegatedRuns,
   usePrefetchRuns,
+  useRetryRun,
   useRunManifest,
   useResumeRun,
   useRun,
@@ -648,6 +649,40 @@ describe("useResumeRun", () => {
     expect(toast.success).toHaveBeenCalledWith(
       "Run resumed. Its answer is also sent to the chat it was asked in.",
     );
+  });
+});
+
+describe("useRetryRun", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("retries the run, says so, and steps to the new run", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockResolvedValue({
+      run_id: "run-10",
+      conversation_id: "conv-1",
+      output: "Here is the answer.",
+      status: "completed",
+    });
+    const onRetried = vi.fn();
+    const { result } = renderHook(() => useRetryRun({ onRetried }), { wrapper });
+
+    await result.current.mutateAsync("run-9");
+
+    expect(apiClient.post).toHaveBeenCalledWith("/runs/run-9/retry");
+    expect(toast.success).toHaveBeenCalledWith(
+      "Run retried - the agent is answering the same question again.",
+    );
+    expect(onRetried).toHaveBeenCalledWith("run-10");
+  });
+
+  it("says a retry was refused rather than leaving the run looking retried", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("This run has not finished"));
+    const { result } = renderHook(() => useRetryRun(), { wrapper });
+
+    await expect(result.current.mutateAsync("run-9")).rejects.toThrow("This run has not finished");
+
+    expect(toast.error).toHaveBeenCalledWith("This run has not finished");
   });
 });
 

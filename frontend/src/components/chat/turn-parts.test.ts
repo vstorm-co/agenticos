@@ -1,5 +1,6 @@
 import { createElement } from "react";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { MessagePart, ToolCall } from "@/types";
@@ -27,6 +28,27 @@ function tool(id: string, name: string): MessagePart {
   const toolCall: ToolCall = { id, name, args: {}, status: "completed" };
   return { id, type: "tool", toolCall } as MessagePart;
 }
+
+it("filters a finished turn's work while keeping its final answer visible", async () => {
+  render(
+    createElement(TurnParts, {
+      parts: [
+        tool("read", "read_file"),
+        tool("write", "write_file"),
+        { id: "answer", type: "text", content: "Your report is ready." },
+      ],
+      isStreaming: false,
+      isUser: false,
+      mcpServers: [],
+    }),
+  );
+  await userEvent.click(screen.getByRole("button", { name: /Worked/ }));
+  await userEvent.click(screen.getByRole("button", { name: "Search and filter activity" }));
+  await userEvent.type(screen.getByRole("searchbox"), "read_file");
+  expect(screen.getByText("read_file", { exact: true })).toBeVisible();
+  expect(screen.queryByText("write_file", { exact: true })).toBeNull();
+  expect(screen.getByText("Your report is ready.")).toBeVisible();
+});
 
 describe("which calls contribute to a browse summary", () => {
   it("retains browser actions so their latest page can update the existing card", () => {

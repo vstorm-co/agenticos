@@ -8,6 +8,7 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Bug,
   SlidersHorizontal,
   Wrench,
   ShieldCheck,
@@ -111,6 +112,7 @@ import { StartEvalDialog } from "@/components/evals/start-eval-dialog";
 import { TestPanel } from "@/components/agents/test-panel/test-panel";
 import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcut";
 import { VersionHistory } from "@/components/agents/version-history";
+import { FailureLearningTab } from "@/components/failure-learning/failure-learning-tab";
 import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
 import { gapStatus } from "@/lib/knowledge-gap-status";
 import { ImproveButton, ImproveLink } from "@/components/agents/improve-link";
@@ -1697,6 +1699,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <History className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("history")}
             </TabsTrigger>
+            <TabsTrigger value="failure-learning" data-tour="agent-tab-failure-learning">
+              <Bug className="mr-1.5 size-4 shrink-0" aria-hidden />
+              {t("failureLearning")}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="build" className="mt-4 space-y-4">
@@ -2251,6 +2257,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </CardContent>
             </Card>
             {canViewRuns && <ImprovementHistory agentId={id} />}
+          </TabsContent>
+          <TabsContent value="failure-learning" className="mt-4 space-y-4">
+            <FailureLearningTab agentId={id} />
           </TabsContent>
 
           {

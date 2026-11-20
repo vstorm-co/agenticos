@@ -326,6 +326,7 @@ describe("a regular agent's tabs", () => {
       "Evals",
       "Knowledge gaps",
       "History",
+      "Failure learning",
     ]);
   });
 });

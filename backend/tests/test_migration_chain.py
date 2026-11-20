@@ -20,6 +20,7 @@ reads the files, and the files are the whole of the question.
 
 from pathlib import Path
 
+import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
@@ -35,8 +36,8 @@ def test_the_chain_has_exactly_one_head() -> None:
     heads = _chain().get_heads()
     assert len(heads) == 1, (
         f"{len(heads)} alembic heads: {', '.join(sorted(heads))}. Two migrations "
-        "written against the same parent were merged one after the other; point "
-        "the later one's down_revision at the earlier one."
+        "written against the same parent were merged one after the other; add "
+        "a merge migration without rewriting either deployed history."
     )
 
 
@@ -70,6 +71,217 @@ def test_no_unmerged_migrations_claim_the_same_parent() -> None:
         and not any(set(children) <= ancestors for ancestors in merged_ancestors)
     }
     assert not forked, f"unmerged revisions sharing a parent: {forked}"
+
+
+@pytest.mark.parametrize(
+    ("current", "remaining"),
+    [
+        (
+            "0296_personal_model_connections",
+            {
+                "0296_gdrive_oauth",
+                "0297_agent_messages",
+                "0298_composio_connections",
+                "0299_merge_personal_composio",
+            },
+        ),
+        (
+            "0298_composio_connections",
+            {
+                "0296_personal_model_connections",
+                "0296_gdrive_oauth",
+                "0299_merge_personal_composio",
+            },
+        ),
+        (
+            "0296_gdrive_oauth",
+            {
+                "0296_personal_model_connections",
+                "0297_agent_messages",
+                "0298_composio_connections",
+                "0299_merge_personal_composio",
+            },
+        ),
+        (
+            ("0296_personal_model_connections", "0298_composio_connections"),
+            {"0296_gdrive_oauth", "0299_merge_personal_composio"},
+        ),
+        (
+            (
+                "0296_personal_model_connections",
+                "0298_composio_connections",
+                "0296_gdrive_oauth",
+            ),
+            {"0299_merge_personal_composio"},
+        ),
+    ],
+)
+def test_deployed_personal_app_and_drive_heads_apply_only_their_missing_upgrades(
+    current: str | tuple[str, ...], remaining: set[str]
+) -> None:
+    # Traverse the actual scripts with Alembic's upgrade-planner options.
+    # Reparenting an already-deployed revision must not replay its DDL.
+    pending = list(
+        _chain().iterate_revisions("0299_merge_personal_composio", current, implicit_base=True)
+    )
+
+    ordered = [revision.revision for revision in reversed(pending)]
+    assert set(ordered) == remaining
+    assert len(ordered) == len(remaining)
+    assert ordered[-1] == "0299_merge_personal_composio"
+    if "0297_agent_messages" in remaining:
+        assert ordered.index("0297_agent_messages") < ordered.index("0298_composio_connections")
+
+
+def test_deployed_personal_and_app_revisions_keep_their_original_parents() -> None:
+    chain = _chain()
+    parents: dict[str, str | list[str] | tuple[str, ...] | None] = {}
+    for revision in (
+        "0296_personal_model_connections",
+        "0297_agent_messages",
+        "0298_composio_connections",
+        "0296_gdrive_oauth",
+    ):
+        script = chain.get_revision(revision)
+        assert script is not None
+        parents[revision] = script.down_revision
+    assert parents == {
+        "0296_personal_model_connections": "0295_tool_approval_consent",
+        "0297_agent_messages": "0295_tool_approval_consent",
+        "0298_composio_connections": "0297_agent_messages",
+        "0296_gdrive_oauth": "0295_tool_approval_consent",
+    }
+
+
+_CORE_UPGRADES = {
+    "0327_virtual_table_relations",
+    "0328_tables_tenant_rls",
+    "0329_user_appearance",
+    "0330_role_navigation",
+    "0331_merge_core_accounts",
+}
+
+
+@pytest.mark.parametrize(
+    ("current", "remaining"),
+    [
+        ("0331_merge_core_accounts", set()),
+        ("0333_room_threads", _CORE_UPGRADES),
+        ("0332_merge_t3_pools_v1761", _CORE_UPGRADES | {"0333_room_threads"}),
+        (
+            "0331_merge_t3_rooms_and_v1761",
+            _CORE_UPGRADES
+            | {
+                "0326_provider_account_pools",
+                "0332_merge_t3_pools_v1761",
+                "0333_room_threads",
+            },
+        ),
+        (
+            ("0331_merge_t3_rooms_and_v1761", "0326_provider_account_pools"),
+            _CORE_UPGRADES | {"0332_merge_t3_pools_v1761", "0333_room_threads"},
+        ),
+    ],
+)
+def test_core_and_published_threads_apply_only_missing_revisions(
+    current: str | tuple[str, ...], remaining: set[str]
+) -> None:
+    pending = list(_chain().iterate_revisions("0336_merge_core_v1761", current, implicit_base=True))
+    ordered = [revision.revision for revision in reversed(pending)]
+    assert set(ordered) == remaining | {"0336_merge_core_v1761"}
+    assert len(ordered) == len(remaining) + 1
+    assert ordered[-1] == "0336_merge_core_v1761"
+    assert "0326_room_threads" not in ordered
+    assert ordered.count("0333_room_threads") <= 1
+
+
+def test_published_v1761_and_thread_revisions_keep_their_original_parents() -> None:
+    chain = _chain()
+    expected = {
+        "0326_provider_account_pools": "0325_merge_t3_rooms_v173",
+        "0331_merge_t3_rooms_and_v1761": (
+            "0330_linear_trigger",
+            "0325_merge_t3_rooms_v173",
+        ),
+        "0332_merge_t3_pools_v1761": (
+            "0331_merge_t3_rooms_and_v1761",
+            "0326_provider_account_pools",
+        ),
+        "0333_room_threads": "0332_merge_t3_pools_v1761",
+    }
+    for revision, parents in expected.items():
+        script = chain.get_revision(revision)
+        assert script is not None
+        assert script.down_revision == parents
+
+
+def test_unreleased_core_follows_published_threads_without_duplicate_ddl() -> None:
+    chain = _chain()
+    assert "0326_room_threads" not in {revision.revision for revision in chain.walk_revisions()}
+    expected = {
+        "0327_virtual_table_relations": "0333_room_threads",
+        "0331_merge_core_accounts": "0330_role_navigation",
+        "0336_merge_core_v1761": "0331_merge_core_accounts",
+    }
+    for revision, parent in expected.items():
+        script = chain.get_revision(revision)
+        assert script is not None
+        assert script.down_revision == parent
+
+
+_T3_TEACHING_REVISIONS = {
+    "0339_browser_teaching_capture",
+    "0340_browser_teaching_review",
+}
+_OPENBOT_UPGRADES = {
+    "0341_room_task_handoffs",
+    "0342_browser_credential_plans",
+    "0343_workflow_media_operations",
+    "0344_browser_procedure_teaching",
+    "0345_credential_continuations",
+}
+
+
+@pytest.mark.parametrize(
+    ("current", "remaining"),
+    [
+        ("0338_message_reply_excerpt", _T3_TEACHING_REVISIONS | _OPENBOT_UPGRADES),
+        ("0339_browser_teaching_capture", {"0340_browser_teaching_review"} | _OPENBOT_UPGRADES),
+        ("0340_browser_teaching_review", _OPENBOT_UPGRADES),
+    ],
+)
+def test_openbot_features_apply_after_the_published_t3_teaching_chain(
+    current: str, remaining: set[str]
+) -> None:
+    chain = _chain()
+    pending = list(chain.iterate_revisions("0345_credential_continuations", current))
+    ordered = [revision.revision for revision in reversed(pending)]
+    assert set(ordered) == remaining
+    assert len(ordered) == len(remaining)
+    assert ordered[-1] == "0345_credential_continuations"
+    positions = {revision: position for position, revision in enumerate(ordered)}
+    for revision in pending:
+        parents = revision.down_revision
+        for parent in (parents,) if isinstance(parents, str) else parents or ():
+            if parent in positions:
+                assert positions[parent] < positions[revision.revision]
+
+
+def test_openbot_features_extend_the_published_chain_without_rewriting_it() -> None:
+    chain = _chain()
+    assert chain.get_heads() == ["0346_merge_t3_v1850"]
+    expected = {
+        "0339_browser_teaching_capture": "0338_message_reply_excerpt",
+        "0340_browser_teaching_review": "0339_browser_teaching_capture",
+        "0341_room_task_handoffs": "0340_browser_teaching_review",
+        "0342_browser_credential_plans": "0341_room_task_handoffs",
+        "0343_workflow_media_operations": "0342_browser_credential_plans",
+        "0344_browser_procedure_teaching": "0343_workflow_media_operations",
+        "0345_credential_continuations": "0344_browser_procedure_teaching",
+    }
+    for revision, parent in expected.items():
+        script = chain.get_revision(revision)
+        assert script is not None and script.down_revision == parent
 
 
 # `alembic_version.version_num` is `VARCHAR(32)`, which alembic creates and never

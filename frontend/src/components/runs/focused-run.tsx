@@ -9,11 +9,13 @@ import { formatUsd } from "@/components/dashboard/format";
 import {
   FlaskConical,
   Activity,
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   CornerLeftUp,
   ExternalLink,
   Play,
+  RotateCcw,
   Puzzle,
   Wrench,
   X,
@@ -35,16 +37,31 @@ import {
   usePermissions,
   usePrefetchRuns,
   useResumeRun,
+  useRetryRun,
   useRun,
 } from "@/hooks";
 import { useRunsADataset } from "@/hooks/use-eval-runs";
 import { useAuthStore } from "@/stores";
 import { ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
-import { cn, formatDateTime, formatRunDuration, timeAgo } from "@/lib/utils";
+import { modelShortName } from "@/lib/model-profiles";
+import { cn, formatDateTime, formatRunDuration, timeAgo, timeUntil } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
-import type { AgentRun, EvalCaseLink, RunSkillUse } from "@/types/runs";
+import type { AgentRun, EvalCaseLink, RunSkillUse, RunStatus } from "@/types/runs";
 import { RunTable } from "./run-table";
+
+/**
+ * The statuses after which a run has nothing left to say - the only ones
+ * whose `error` is an explanation rather than a stale field.
+ */
+const TERMINAL_RUN_STATUSES: readonly RunStatus[] = [
+  "failed",
+  "cancelled",
+  "budget_exceeded",
+  "guardrail_blocked",
+  "loop_stopped",
+  "timed_out",
+];
 
 /**
  * One run as a trace: what went in, what the agent did, what it cost, and the
@@ -106,6 +123,7 @@ export function FocusedRun({
   const view = useSearchParams().get("view");
   const { runs: delegated } = useDelegatedRuns(runId);
   const resume = useResumeRun({ continuesInChat: run?.continues_in_chat ?? false });
+  const retry = useRetryRun({ onRetried: (newRunId) => onFocusRun(newRunId) });
   // What is on screen is the answer being held, which during a step is the run
   // stepped away from. Nothing that navigates may act on it: its neighbours are
   // its own, so an arrow pressed twice quickly would otherwise walk back to
@@ -113,6 +131,9 @@ export function FocusedRun({
   const settling = run !== undefined && run.id !== runId;
   const prevRunId = settling ? null : (run?.prev_run_id ?? null);
   const nextRunId = settling ? null : (run?.next_run_id ?? null);
+  // How long the parked question has left to be answered, for the waiting
+  // section below; null when this run is not parked on one.
+  const waitingExpiresIn = timeUntil(run?.waiting_expires_at);
   // Warmed on arrival, so the step itself is a cache hit rather than a request.
   usePrefetchRuns([prevRunId, nextRunId]);
 
@@ -234,6 +255,27 @@ export function FocusedRun({
                 {t("resumeRun")}
               </Button>
             )}
+            {/* A finished run, asked again. Only the person who started it
+                sees it - the endpoint refuses anybody else, and a retry
+                spends real money as them - and only while the run is
+                finished: a live or parked run has a resume or a stop, not a
+                second copy of itself. A run with no conversation has no
+                request to re-issue, so there is nothing to retry from. */}
+            {TERMINAL_RUN_STATUSES.includes(run.status) &&
+              run.conversation_id !== null &&
+              run.user_id !== null &&
+              run.user_id === meId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mr-1"
+                  disabled={retry.isPending}
+                  onClick={() => retry.mutate(run.id)}
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden />
+                  {t("retryRun")}
+                </Button>
+              )}
             {run.conversation_id !== null && scoresRuns && <RunMoreMenu runId={run.id} />}
             <Button
               variant="ghost"
@@ -318,10 +360,59 @@ export function FocusedRun({
           <Fact label={t("took")}>{formatRunDuration(run.started_at, run.ended_at, locale)}</Fact>
         </dl>
 
+        {/* A run parked on a question is not finished, and the detail is where
+            the whole question is read rather than the row's first line: every
+            unanswered question, and how long is left to answer it. The answer
+            goes in the chat behind the run - the button below - not here. */}
+        {run.status === "awaiting_answer" &&
+          ((run.waiting_questions?.length ?? 0) > 0 ||
+            (run.waiting_secret_requests?.length ?? 0) > 0) && (
+            <section
+              aria-label={t("waitingSection")}
+              className="space-y-1.5 rounded-xl border px-3 py-2.5"
+            >
+              <h3 className="text-foreground text-sm font-semibold">{t("waitingSection")}</h3>
+              <ul className="space-y-1">
+                {(run.waiting_questions ?? []).map((question, index) => (
+                  <li key={index} className="text-sm">
+                    {question}
+                  </li>
+                ))}
+                {(run.waiting_secret_requests ?? []).map((secretName) => (
+                  <li key={secretName} className="text-sm">
+                    {t("needsSecret", { name: secretName })}
+                  </li>
+                ))}
+              </ul>
+              {waitingExpiresIn !== null && (
+                <p className="text-muted-foreground text-xs">
+                  {t("questionExpiresIn", { duration: waitingExpiresIn })}
+                </p>
+              )}
+            </section>
+          )}
+
         {!!run.tool_args_repaired && (
           <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
             <Wrench className="size-3.5 shrink-0" aria-hidden />
             {t("toolArgsRepaired", { count: run.tool_args_repaired })}
+          </p>
+        )}
+
+        {/* Why it stopped, where the operator looks first. The row has
+            carried `error` all along and nothing in the console rendered
+            it, so a failed run read as a badge with no reason - the
+            transcript or the server log was the only way to learn why.
+            Terminal runs only: a live or parked run has no error to
+            explain, and a `cancelled` run without one was stopped, not
+            failed. */}
+        {run.error !== null && TERMINAL_RUN_STATUSES.includes(run.status) && (
+          <p className="text-destructive flex items-start gap-1.5 text-xs">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            <span>
+              <span className="font-medium">{t("whyItStopped")}: </span>
+              {run.error}
+            </span>
           </p>
         )}
 
@@ -336,15 +427,32 @@ export function FocusedRun({
           </p>
         )}
 
+        {/* Shown only when a fallback served the run: the header above names
+            the primary profile, so without this line a bad answer could not be
+            traced to the model that gave it. `serving_model` is a bare model
+            id; `modelShortName` strips the provider prefix the same way the
+            history table does. A null serving model falls back to the label
+            rather than rendering a dash. */}
+        {run.fallback_used === true && (
+          <p className="text-muted-foreground text-xs">
+            {t("servedByFallback", {
+              model:
+                run.serving_model !== null && run.serving_model !== undefined
+                  ? modelShortName(run.serving_model)
+                  : (run.model_label ?? "-"),
+            })}
+          </p>
+        )}
+
         {/* Hidden when it holds none of the three, rather than repeating all
             three conditions around it. */}
         <div className="flex flex-wrap items-center gap-1.5 empty:hidden">
-          {run.parent_run_id !== null && (
+          {(run.retry_of_run_id ?? run.parent_run_id) !== null && (
             <Button
               variant="outline"
               size="sm"
               className="h-7 text-xs"
-              onClick={() => onFocusRun(run.parent_run_id)}
+              onClick={() => onFocusRun(run.retry_of_run_id ?? run.parent_run_id)}
             >
               <CornerLeftUp className="h-3.5 w-3.5" aria-hidden />
               {t("openTheRunItCame")}

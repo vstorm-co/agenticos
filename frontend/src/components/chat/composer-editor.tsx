@@ -302,7 +302,7 @@ export function ComposerEditor({
   };
 
   return (
-    <div className="composer-editor-shell relative [--composer-padding:0.375rem] sm:[--composer-padding:0.625rem]">
+    <div className="composer-editor-shell relative min-w-0 [--composer-padding:0.5rem] sm:[--composer-padding:0.625rem]">
       {value === "" &&
         (idle && !focused ? (
           idle
@@ -328,7 +328,7 @@ export function ComposerEditor({
         autoCapitalize="sentences"
         spellCheck
         className={cn(
-          "composer-editor relative block max-h-[min(8rem,calc(var(--app-height,100dvh)*0.25))] min-h-9 w-full scrollbar-thin overflow-y-auto py-(--composer-padding) text-base break-words whitespace-pre-wrap focus:outline-none sm:max-h-[200px] sm:min-h-10",
+          "composer-editor relative block max-h-[min(8rem,calc(var(--app-height,100dvh)*0.25))] min-h-12 w-full max-w-full min-w-0 scrollbar-thin overflow-y-auto overscroll-contain py-(--composer-padding) text-base [overflow-wrap:anywhere] break-words whitespace-pre-wrap focus:outline-none sm:max-h-[200px] sm:min-h-10",
           disabled && "cursor-not-allowed opacity-50",
           readOnly && "text-foreground/55",
           className,

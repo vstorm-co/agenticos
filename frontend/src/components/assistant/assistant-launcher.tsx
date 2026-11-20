@@ -23,6 +23,8 @@ interface AssistantLauncherProps {
    * there; the chat's own agent picker reaches the assistant.
    */
   overComposer?: boolean;
+  /** The viewer's mobile toolbar occupies the top edge. */
+  viewer?: boolean;
 }
 
 /** In the phone header; at the desktop edge where no top bar exists. */
@@ -35,6 +37,7 @@ export function AssistantLauncher({
   onToggle,
   onHover,
   overComposer = false,
+  viewer = false,
 }: AssistantLauncherProps) {
   const t = useTranslations("assistantWidget");
   return (
@@ -57,6 +60,7 @@ export function AssistantLauncher({
           "md:right-0 md:translate-x-[calc(100%-1.125rem)] md:rounded-r-none md:border-r-0 md:hover:translate-x-0 md:hover:scale-100 md:focus-visible:translate-x-0",
         open && "hidden",
         overComposer && "hidden",
+        viewer && "top-auto right-4 bottom-4",
       )}
     >
       <span className="block size-9 md:size-14 [&>*]:size-full">

@@ -1,14 +1,15 @@
-Subject: [[agent_name]] stopped on its budget
+Subject: Budget limit reached
 
-[[agent_name]] in [[org_name]] stopped mid-run because a spending limit was reached.
+Budget limit reached
 
+[[agent_name]] stopped at its budget limit in [[org_name]].
+
+Spend at stop: [[spent]]
 [[reason]]
 
-The run spent $[[spent]] before it was stopped. Nothing was charged past the
-limit - enforcement happens before each model request, not after.
-
-Raise the limit on the agent, or leave it and the agent resumes when the period
-rolls over:
+Review agent run:
 [[run_url]]
 
-- The [[app_name]] Team
+Review the run and its usage before deciding what to do next.
+
+[[app_name]]

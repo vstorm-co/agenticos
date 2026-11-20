@@ -25,6 +25,7 @@ export type WidgetId =
   | "platform"
   | "health"
   | "background-tasks"
+  | "agent-messages"
   | "background-jobs"
   | "top-orgs"
   | "platform-ratings"
@@ -329,6 +330,14 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r4",
     category: "attention",
     seeAll: ROUTES.WORKFLOWS,
+  },
+  "agent-messages": {
+    id: "agent-messages",
+    gate: holds(Perm.agentsRun),
+    defaultSpan: "s6",
+    defaultRows: "r3",
+    category: "attention",
+    seeAll: ROUTES.AGENT_MESSAGES,
   },
   notifications: {
     id: "notifications",

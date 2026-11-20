@@ -2,4 +2,4 @@ Subject: [[subject]]
 
 [[body]]
 
-- Sent by [[app_name]]
+Sent by a workflow in [[app_name]].

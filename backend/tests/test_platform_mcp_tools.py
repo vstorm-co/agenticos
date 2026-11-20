@@ -44,6 +44,13 @@ def server(api: MagicMock) -> FastMCP:
 
 
 CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
+    ("get_my_appearance", {}, ("GET", "/users/me/appearance", {})),
+    (
+        "set_my_appearance",
+        {"preferences": {"theme": "dark", "accent": "blue"}},
+        ("PATCH", "/users/me/appearance", {"json": {"theme": "dark", "accent": "blue"}}),
+    ),
+    ("reset_my_appearance", {}, ("DELETE", "/users/me/appearance", {})),
     ("list_watches", {}, ("GET", "/me/watches", {})),
     (
         "create_watch",

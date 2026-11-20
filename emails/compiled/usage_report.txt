@@ -1,13 +1,16 @@
-Subject: [[org_name]] - agent usage this [[period]]
+Subject: Agent usage for [[org_name]]
 
-What [[org_name]] spent over the past [[period]]:
+Agent usage for [[org_name]]
 
-  $[[total]] across [[runs]] runs and [[agents]] agents.
+Your usage summary for this [[period]].
 
-Costs are what the models actually charged, priced per run rather than
-estimated from a rate table.
+Total spend: [[total]]
+Agent runs: [[runs]]
+Agents: [[agents]]
 
-Full breakdown:
+Open usage dashboard:
 [[dashboard_url]]
 
-- The [[app_name]] Team
+Open the dashboard for the activity behind these totals.
+
+[[app_name]]

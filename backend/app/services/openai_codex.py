@@ -26,6 +26,7 @@ instant can still race, and the loser is asked to sign in again.
 
 import json
 import logging
+from typing import Literal
 from urllib.parse import parse_qs, urlsplit
 from uuid import UUID
 
@@ -310,8 +311,15 @@ class OpenAICodexService:
         name: str,
         description: str | None,
         visibility: Visibility,
+        usage_scope: Literal["organization", "personal"] = "organization",
     ) -> OrganizationSecret:
         """Finish a sign-in and store it as a new vault secret."""
+        if usage_scope == "personal":
+            raise refused_field(
+                "usage_scope",
+                "ChatGPT subscription sign-in is not enabled for this app. "
+                "Connect an OpenAI API key to use a personal model connection.",
+            )
         value = await self._finish_sign_in(ctx, callback_url)
         return await OrganizationSecretService(self.db).create(
             ctx,
@@ -320,6 +328,7 @@ class OpenAICodexService:
             description=description,
             purpose=PURPOSE,
             visibility=visibility,
+            usage_scope=usage_scope,
         )
 
     async def reconnect(

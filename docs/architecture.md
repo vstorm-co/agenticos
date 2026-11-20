@@ -48,6 +48,7 @@ type rather than as data access.
 | ↳ `rag_document.py` | RAG document lifecycle |
 | ↳ `rag_sync.py` | Remote-source sync orchestration |
 | ↳ `sync_source.py` | Sync-source CRUD, and one source's run history |
+| ↳ `gdrive_picker.py` | Organization Google-account authorization and paged Drive folder browsing |
 | ↳ `audit.py` | Reading the audit trail of the caller's own organization |
 | **`repositories/`** | **Data access layer, database queries** |
 | ↳ `user.py` | User queries |

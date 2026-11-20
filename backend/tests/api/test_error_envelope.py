@@ -26,6 +26,7 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.exceptions import RequestValidationError
 from httpx import AsyncClient, Response
+from pydantic import ValidationError
 from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 from starlette.datastructures import State
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -53,6 +54,7 @@ from app.core.exceptions import (
 )
 from app.main import app
 from app.repositories import user_repo
+from app.schemas.agent import SecretRequestFulfil
 from app.schemas.message_rating import RatingValue
 from app.services.email import templates
 from app.services.email.exceptions import EmailTemplateError
@@ -110,6 +112,21 @@ class TestValidationEnvelope:
             json={"email": "nope", "password": "x"},
         )
         assert "detail" not in response.json()
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_secret_fulfil_422_does_not_echo_the_submitted_value(self):
+        secret = "submitted-secret-value-should-not-appear"
+        with pytest.raises(ValidationError) as raised:
+            SecretRequestFulfil.model_validate({"value": secret + "\nsecond line"})
+
+        response = await validation_exception_handler(
+            _HttpConnection(), RequestValidationError(raised.value.errors())
+        )
+
+        assert response is not None
+        assert response.status_code == 422
+        assert secret.encode() not in response.body
 
     @pytest.mark.anyio
     async def test_the_summary_survives_to_the_wire(self, client: AsyncClient):

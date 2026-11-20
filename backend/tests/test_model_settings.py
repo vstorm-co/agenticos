@@ -22,7 +22,7 @@ from pydantic_ai.capabilities import Thinking
 
 from app.agents.capabilities import CapabilityBinding, build, get, load_builtins
 from app.agents.capabilities.thinking import ThinkingConfig
-from app.agents.factory import build_agent
+from app.agents.factory import DEFAULT_MODEL_TIMEOUTS, build_agent
 from app.agents.model_resolver import PROMPT_CACHE, ModelRequestSpec, ResolvedCredential
 from app.agents.spec import SPEC_VERSION, AgentSpec, ModelSettingsSpec
 from app.core.secret_kinds import ApiKeySecret
@@ -84,7 +84,12 @@ class TestUnsetStaysUnset:
         """The same `null` read the other way round: as an override of the profile."""
         settings = _built_settings(AgentSpec(name="x"), {"temperature": 0.1, "max_tokens": 100})
 
-        assert settings == {**PROMPT_CACHE, "temperature": 0.1, "max_tokens": 100}
+        assert settings == {
+            **PROMPT_CACHE,
+            **DEFAULT_MODEL_TIMEOUTS,
+            "temperature": 0.1,
+            "max_tokens": 100,
+        }
 
     def test_the_agent_is_the_more_specific_statement_of_intent(self):
         settings = _built_settings(
@@ -92,7 +97,12 @@ class TestUnsetStaysUnset:
             {"temperature": 0.1, "max_tokens": 100},
         )
 
-        assert settings == {**PROMPT_CACHE, "temperature": 0.9, "max_tokens": 100}
+        assert settings == {
+            **PROMPT_CACHE,
+            **DEFAULT_MODEL_TIMEOUTS,
+            "temperature": 0.9,
+            "max_tokens": 100,
+        }
 
     def test_every_setting_reaches_the_model_under_its_own_name(self):
         """Names mirror `ModelSettings`, so a mistyped one would be dropped silently."""
@@ -102,6 +112,8 @@ class TestUnsetStaysUnset:
             "max_tokens": 2048,
             "parallel_tool_calls": False,
             "timeout": 30.0,
+            "request_timeout": 45.0,
+            "first_event_timeout": 20.0,
         }
 
         # Beside prompt caching, which every model is asked for unless a profile says not.
@@ -139,6 +151,10 @@ class TestRangesAreRefusedBeforeAnythingRuns:
             {"max_tokens": 10_000_000},
             {"timeout": 0.0},
             {"timeout": 6_000.0},
+            {"request_timeout": 0.0},
+            {"request_timeout": 6_000.0},
+            {"first_event_timeout": 0.0},
+            {"first_event_timeout": 6_000.0},
         ],
     )
     def test_a_value_outside_its_range_is_refused(self, settings: dict):
@@ -149,6 +165,44 @@ class TestRangesAreRefusedBeforeAnythingRuns:
         """`extra="forbid"` is what makes a typo fail rather than do nothing."""
         with pytest.raises(ValidationError):
             ModelSettingsSpec.model_validate({"temperatrue": 0.5})
+
+
+class TestPlatformDefaultDeadlines:
+    """A request has a deadline even when nobody chose one.
+
+    Before these, a model that never answered left the run showing "Working"
+    for ever. The defaults live in the factory merge, not in the stored spec,
+    so an agent's spec still serialises to nothing when its author chose
+    nothing - see `TestUnsetStaysUnset`.
+    """
+
+    def test_a_request_gets_a_deadline_when_nobody_chose_one(self):
+        settings = _built_settings(AgentSpec(name="x"))
+
+        assert settings["timeout"] == 300.0
+        assert settings["request_timeout"] == 300.0
+        assert settings["first_event_timeout"] == 120.0
+
+    def test_a_profile_overrides_a_default_without_clearing_the_others(self):
+        settings = _built_settings(AgentSpec(name="x"), {"request_timeout": 60.0})
+
+        assert settings["request_timeout"] == 60.0
+        assert settings["timeout"] == 300.0
+        assert settings["first_event_timeout"] == 120.0
+
+    def test_the_agent_overrides_the_profile(self):
+        settings = _built_settings(
+            AgentSpec(name="x", model_settings={"first_event_timeout": 30.0}),
+            {"first_event_timeout": 60.0, "request_timeout": 45.0},
+        )
+
+        assert settings["first_event_timeout"] == 30.0
+        assert settings["request_timeout"] == 45.0
+
+    def test_the_new_deadlines_serialise_only_when_chosen(self):
+        spec = AgentSpec(name="x", model_settings={"request_timeout": 45.0})
+
+        assert spec.model_dump(mode="json")["model_settings"] == {"request_timeout": 45.0}
 
 
 class TestSpecsPublishedBeforeThisExisted:

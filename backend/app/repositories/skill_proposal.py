@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -66,6 +66,8 @@ async def get_pending_for_skill(
         SkillProposal.organization_id == organization_id,
         SkillProposal.status == ProposalStatus.PENDING.value,
         SkillProposal.agent_id == agent_id,
+        or_(SkillProposal.source.is_(None), SkillProposal.source != "browser_teaching"),
+        SkillProposal.browser_procedure.is_(None),
     )
     if skill_id is None:
         statement = statement.where(SkillProposal.skill_id.is_(None), SkillProposal.name == name)
@@ -103,8 +105,10 @@ async def create(
     base_version: int | None,
     base_version_id: UUID | None,
     fork_id: UUID | None,
+    browser_teaching_id: UUID | None = None,
 ) -> SkillProposal:
     proposal = SkillProposal(
+        browser_teaching_id=browser_teaching_id,
         organization_id=organization_id,
         skill_id=skill_id,
         agent_id=agent_id,
@@ -121,6 +125,18 @@ async def create(
     await db.flush()
     await db.refresh(proposal)
     return proposal
+
+
+async def for_browser_teaching(
+    db: AsyncSession, *, organization_id: UUID, browser_teaching_id: UUID
+) -> SkillProposal | None:
+    """The proposal one browser demonstration produced, if it produced one."""
+    return await db.scalar(
+        select(SkillProposal).where(
+            SkillProposal.organization_id == organization_id,
+            SkillProposal.browser_teaching_id == browser_teaching_id,
+        )
+    )
 
 
 async def replace_body(
@@ -150,6 +166,8 @@ async def replace_body(
             SkillProposal.organization_id == proposal.organization_id,
             SkillProposal.status == ProposalStatus.PENDING.value,
             SkillProposal.revision == proposal.revision,
+            or_(SkillProposal.source.is_(None), SkillProposal.source != "browser_teaching"),
+            SkillProposal.browser_procedure.is_(None),
         )
         .values(
             description=description,

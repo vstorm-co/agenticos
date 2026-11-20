@@ -17,6 +17,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelResponse, ToolCallPart
 from sqlalchemy import select
 
 from app.agents.spec import AgentSpec
@@ -469,6 +470,97 @@ class TestWhichConversationsAreAtWork:
 
     async def test_no_conversations_asks_nothing(self, db) -> None:
         assert await conversation_repo.running_since(db, []) == {}
+
+    async def test_a_run_parked_on_a_question_marks_its_conversation_waiting(self, db) -> None:
+        """A parked run is not at work, so `running_activity` never sees it -
+        and without a server word the thread looks done from any other tab.
+        The waiting word names the question and the park time."""
+        organization = await _org(db)
+        owner = await _user(db)
+        agent = await _agent(db, organization, owner)
+        now = datetime.now(UTC)
+        parked = await _conversation(db, organization, owner)
+        parked_at = now - timedelta(hours=2)
+        run = await self._run_in(
+            db,
+            parked,
+            agent,
+            status="awaiting_answer",
+            started_at=parked_at - timedelta(minutes=5),
+            ended_at=parked_at,
+            paused_state={
+                "messages": ModelMessagesTypeAdapter.dump_python(
+                    [
+                        ModelResponse(
+                            parts=[
+                                ToolCallPart(
+                                    "ask_user_question",
+                                    {
+                                        "questions": [
+                                            {
+                                                "header": "Model",
+                                                "question": "Which model should I use?",
+                                                "options": [{"label": "A"}, {"label": "B"}],
+                                            }
+                                        ]
+                                    },
+                                    tool_call_id="ask-1",
+                                )
+                            ]
+                        )
+                    ],
+                    mode="json",
+                ),
+                "tool_call_ids": {},
+                "questions": ["ask-1"],
+            },
+        )
+        finished = await _conversation(db, organization, owner)
+        await self._run_in(db, finished, agent, status="completed", started_at=now, ended_at=now)
+
+        activity = await conversation_repo.waiting_activity(db, [parked.id, finished.id])
+
+        assert set(activity) == {parked.id}
+        assert activity[parked.id].since == parked_at
+        assert activity[parked.id].status == "awaiting_answer"
+        assert activity[parked.id].question == "Which model should I use?"
+        assert activity[parked.id].run_ids == [run.id]
+        assert await conversation_repo.waiting_activity(db, []) == {}
+
+    async def test_a_delegated_park_and_a_finished_park_do_not_mark_a_conversation(
+        self, db
+    ) -> None:
+        """A delegate's park belongs to its parent's row, and a run the sweep
+        ended is not waiting on anybody any more."""
+        organization = await _org(db)
+        owner = await _user(db)
+        agent = await _agent(db, organization, owner)
+        now = datetime.now(UTC)
+        conversation = await _conversation(db, organization, owner)
+        top = await self._run_in(
+            db,
+            conversation,
+            agent,
+            status="awaiting_approval",
+            started_at=now - timedelta(hours=1),
+            ended_at=now - timedelta(hours=1),
+        )
+        await self._run_in(
+            db,
+            conversation,
+            agent,
+            status="awaiting_answer",
+            started_at=now - timedelta(minutes=5),
+            ended_at=now - timedelta(minutes=5),
+            parent_run_id=top.id,
+            paused_state={"questions": ["Which model should I use?"]},
+        )
+        top.status = "cancelled"
+        await db.flush()
+
+        activity = await conversation_repo.waiting_activity(db, [conversation.id])
+
+        assert activity == {}
 
 
 class TestWhatAReaderHasNotSeen:

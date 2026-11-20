@@ -33,7 +33,9 @@ import { TurnVisuals } from "./visual-panel";
 import { ChartMessage, parseChartResult } from "./chart-message";
 import { YouFace } from "./you-face";
 import { ReplyQuote } from "./reply-quote";
-import { useTurnElapsed, WorkFold } from "./work-fold";
+import { STALLED_AFTER_MS, useTurnElapsed, WorkFold } from "./work-fold";
+import { formatElapsed } from "@/lib/elapsed";
+import { TurnTrace } from "./turn-trace";
 
 /**
  * A turn's body: its reasoning, its work and its words, in the order they arrived.
@@ -70,10 +72,14 @@ export function TurnParts({
   stopped = false,
   failed = false,
   waitingFor,
+  lastHeartbeatAt,
   allowSetupActions = false,
+  allowQuotes = true,
 }: {
   /** Private configuration actions are opt-in; shared transcripts remain read-only. */
   allowSetupActions?: boolean;
+  /** Refused assistant text is visible, but is never a selected-quote source. */
+  allowQuotes?: boolean;
   parts: MessagePart[];
   isStreaming: boolean;
   isUser: boolean;
@@ -93,6 +99,8 @@ export function TurnParts({
   failed?: boolean;
   /** Includes a delegate paused outside the parent's own tool parts. */
   waitingFor?: "approval" | "answer";
+  /** When the run behind this turn last stamped itself alive, if known. */
+  lastHeartbeatAt?: Date;
 }) {
   const runs = runsOf(parts);
   const waiting =
@@ -106,6 +114,10 @@ export function TurnParts({
             ? "awaiting_approval"
             : undefined;
   const elapsed = useTurnElapsed(startedAt, isStreaming && !waiting);
+  // A run with no work to fold has no WorkFold to say it has gone quiet, so
+  // the turn says so itself once its heartbeat is stale.
+  const heartbeatAgeMs = useTurnElapsed(lastHeartbeatAt, isStreaming && !waiting);
+  const tSteps = useTranslations("chat.steps");
   const tChat = useTranslations("chat");
   const tTools = useTranslations("chat.tools");
   const latest = parts.at(-1);
@@ -183,6 +195,8 @@ export function TurnParts({
         text={run.content}
         showCursor={isStreaming && run.isLast}
         isUser={isUser}
+        quoteable={allowQuotes && !isStreaming && run.part.type === "text"}
+        quoteSourceMessageId={run.part.sourceMessageId}
         onCiteClick={onCiteClick}
         afterWork={afterWork}
       />
@@ -191,7 +205,20 @@ export function TurnParts({
   const active = !failed && (isStreaming || waiting !== undefined);
   const split = foldWork(runs, stopped, active);
   if (split === null) {
-    return <>{runs.map((run) => render(run))}</>;
+    const stalledFor =
+      isStreaming && !waiting && heartbeatAgeMs !== null && heartbeatAgeMs > STALLED_AFTER_MS
+        ? formatElapsed(heartbeatAgeMs, tSteps)
+        : null;
+    return (
+      <>
+        {stalledFor !== null && (
+          <p role="status" className="text-muted-foreground py-0.5 text-[13px]">
+            {tSteps("stalledFor", { duration: stalledFor })}
+          </p>
+        )}
+        {runs.map((run) => render(run))}
+      </>
+    );
   }
   return (
     <>
@@ -204,15 +231,19 @@ export function TurnParts({
         running={isStreaming && !waiting && !failed}
         activity={activity}
         waiting={failed ? undefined : waiting}
+        lastHeartbeatAt={lastHeartbeatAt}
       >
-        {split.folded.map((run, index) => {
-          const previous = split.folded[index - 1];
-          return render(
-            run,
-            false,
-            previous?.kind === "tools" || previous?.part.type === "thinking",
-          );
-        })}
+        <TurnTrace
+          runs={split.folded}
+          render={(run, index, visible) => {
+            const previous = visible[index - 1];
+            return render(
+              run,
+              false,
+              previous?.kind === "tools" || previous?.part.type === "thinking",
+            );
+          }}
+        />
       </WorkFold>
       <TurnBrowses calls={browseCalls(runs)} />
       <TurnCharts calls={chartCalls(runs)} />
@@ -366,10 +397,16 @@ export function TextBubble({
   afterWork = false,
   replyTo,
   replyAgents = [],
+  quoteable = false,
+  quoteSourceMessageId,
 }: {
   text: string;
   replyTo?: MessageReply;
   replyAgents?: readonly DelegateRef[];
+  /** Only this visible text block may supply a selected quote. */
+  quoteable?: boolean;
+  /** The saved transcript row behind this part; null deliberately cannot be quoted. */
+  quoteSourceMessageId?: string | null;
   showCursor: boolean;
   isUser: boolean;
   onCiteClick?: (index: number) => void;
@@ -394,13 +431,24 @@ export function TextBubble({
     return (
       <div
         className={cn(
-          "bg-foreground/[0.07] text-foreground relative rounded-2xl",
-          compact ? "px-3 py-1.5" : "px-3 py-2 sm:px-4 sm:py-2.5",
+          "bg-foreground/[0.07] text-foreground relative max-w-full min-w-0 rounded-2xl",
+          compact ? "px-3 py-2" : "px-4 py-3",
           replyTo && "max-w-[min(85%,28rem)] min-w-[min(100%,12rem)]",
         )}
       >
         {replyTo && <ReplyQuote reply={replyTo} agents={replyAgents} embedded />}
-        <p className={cn("break-words whitespace-pre-wrap", compact ? "text-[13px]" : "text-sm")}>
+        <p
+          data-quoteable-content={quoteable ? "" : undefined}
+          data-quote-source-message-id={
+            quoteable && quoteSourceMessageId !== undefined
+              ? (quoteSourceMessageId ?? "")
+              : undefined
+          }
+          className={cn(
+            "[overflow-wrap:anywhere] break-words whitespace-pre-wrap",
+            compact ? "text-[13px]" : "text-sm",
+          )}
+        >
           <RichText text={text} mentions={mentions ?? []} />
         </p>
       </div>
@@ -412,8 +460,12 @@ export function TextBubble({
     // into place and each new word fades in, instead of appearing; both come off
     // when the turn ends, so nothing already read ever animates again.
     <div
+      data-quoteable-content={quoteable ? "" : undefined}
+      data-quote-source-message-id={
+        quoteable && quoteSourceMessageId !== undefined ? (quoteSourceMessageId ?? "") : undefined
+      }
       className={cn(
-        "prose-sm max-w-none leading-relaxed",
+        "prose-sm max-w-full min-w-0 leading-relaxed [overflow-wrap:anywhere]",
         compact ? "text-[13.5px]" : "text-[15px]",
         // A little more air after the steps than between two rows of them: the
         // answer starts here, and set as tight as a step it read as one more.

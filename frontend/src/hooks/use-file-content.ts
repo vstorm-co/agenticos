@@ -88,7 +88,8 @@ export function useFileBytes(access: FileAccess): UseFileBytesResult {
     error,
   } = useQuery({
     queryKey: access.bytesKey,
-    queryFn: () => access.readBytes(),
+    queryFn: ({ signal }) => access.readBytes(signal),
+    gcTime: access.retainBytes === false ? 0 : undefined,
     retry: false,
   });
 
@@ -130,7 +131,9 @@ export function useFileActions(access: FileAccess): UseFileActionsResult {
     (action: () => Promise<void>) => {
       setError(null);
       void action().catch((failure: unknown) =>
-        setError(getErrorMessage(failure, tErrors, t("couldNotBeFetched"))),
+        setError(
+          getErrorMessage(failure, tErrors, t("couldNotBeFetched")) || t("couldNotBeFetched"),
+        ),
       );
     },
     [t, tErrors],
@@ -153,7 +156,7 @@ export function useFileActions(access: FileAccess): UseFileActionsResult {
  * not a message.
  */
 function readFailure(error: unknown, t: Translate, fallback: string): string | null {
-  return error ? getErrorMessage(error, t, fallback) : null;
+  return error ? getErrorMessage(error, t, fallback) || fallback : null;
 }
 
 /** A commit-owned browser handle, exposed through React's external-store lifecycle. */

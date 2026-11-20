@@ -11,7 +11,9 @@ export type RunStatus =
   | "budget_exceeded"
   | "guardrail_blocked"
   /** Stopped for looping on its tool calls after it was warned (#2086). */
-  | "loop_stopped";
+  | "loop_stopped"
+  /** A model request went past its deadline without answering. */
+  | "timed_out";
 
 /** Which eval run and case one agent run answered. */
 export interface EvalCaseLink {
@@ -58,6 +60,12 @@ export interface AgentRun {
    * console must not resume it too.
    */
   continues_in_chat?: boolean;
+  /** The run's unanswered `ask_user` questions, in the order asked; empty unless parked on an answer. */
+  waiting_questions?: string[];
+  /** The names of the secrets the run's `request_secret` calls wait on (#13); empty unless parked on an answer. */
+  waiting_secret_requests?: string[];
+  /** When the parked question expires unanswered; null unless parked on an answer. */
+  waiting_expires_at?: string | null;
   agent_version_id: string | null;
   user_id: string | null;
   /** Publisher authority is distinct from the actual channel sender. */
@@ -68,6 +76,14 @@ export interface AgentRun {
   system_role?: string | null;
   status: RunStatus;
   model_label: string | null;
+  /**
+   * True when a fallback model served any request of this run. Optional in
+   * the type because runs recorded before it was tracked carry no value;
+   * the API sends it on every run it writes now.
+   */
+  fallback_used?: boolean;
+  /** The bare model id that answered the last successful request, or null. */
+  serving_model?: string | null;
   /**
    * The vendor the model actually ran at, as the provider catalog spells it -
    * what the table keys a brand mark on. `model_label` names the profile; a
@@ -156,6 +172,8 @@ export interface AgentRun {
    * run's delegations, and this is how a row from that answer says so.
    */
   parent_run_id: string | null;
+  /** The original run this top-level retry repeats, or null when not a retry. */
+  retry_of_run_id: string | null;
   /**
    * Which delegation produced this run - the `task_id` its `subagent_*` frames
    * carried, so a panel in a transcript and a row here are visibly one thing.
@@ -353,8 +371,119 @@ export interface RunManifest {
   reviews?: ManifestReview[];
   /** Each `run_code` script code mode ran, and the calls it made (#2107). */
   code_runs?: ManifestCodeRun[];
+  /** Each sol-loop review round, with its verdict and findings (#6). */
+  sol_loop_rounds?: ManifestSolLoopRound[];
+  /** Each eval-driven tool-tuning run, with its score and draft proposals (#11). */
+  eval_tool_tuning_runs?: ManifestEvalToolTuningRun[];
+  /** Each burst, with its merged outcome and every part's status (#10). */
+  burst_runs?: ManifestBurstRun[];
+  /** Each proof scenario the run recorded, with its attempts (#8). */
+  proof_scenarios?: ManifestProofScenario[];
   /** Whether the record was trimmed to fit its size ceiling. */
   truncated: boolean;
+}
+
+/** One finding in a sol-loop review round. */
+export interface ManifestSolLoopFinding {
+  id: string;
+  severity: "blocker" | "should" | "nit";
+  claim: string;
+  file: string;
+  line: number | null;
+  fix: string;
+  outcome: string | null;
+}
+
+/** One sol-loop review round. */
+export interface ManifestSolLoopRound {
+  round: number;
+  scope: string;
+  verdict: string;
+  model: string;
+  findings: ManifestSolLoopFinding[];
+  dispositions: Record<string, string>;
+  stop_reason: string | null;
+  reason: string | null;
+  satisfied: boolean;
+}
+
+/** One eval case scored for one tool in a tuning run. */
+export interface ManifestEvalToolTuningCase {
+  name: string;
+  classification:
+    | "passed"
+    | "not_called"
+    | "wrong_tool"
+    | "transient"
+    | "authorization"
+    | "bad_arguments"
+    | "unknown"
+    | "wrong_answer";
+  passed: boolean;
+  shown: string;
+  detail: string;
+}
+
+/** One tuning proposal a tuning run drafted - a draft, never applied. */
+export interface ManifestEvalToolTuningProposal {
+  kind: "prompt_wording" | "tool_parameters" | "tool_choice";
+  tool: string;
+  title: string;
+  current: string;
+  proposed: string;
+  rationale: string;
+  evidence: string[];
+  status: "draft";
+}
+
+/** One eval-driven tool-tuning run. */
+export interface ManifestEvalToolTuningRun {
+  tool: string;
+  total: number;
+  passed: number;
+  pass_rate: number;
+  dominant_failure: string | null;
+  cases: ManifestEvalToolTuningCase[];
+  proposals: ManifestEvalToolTuningProposal[];
+}
+
+/** One subtask's outcome in a burst. */
+export interface ManifestBurstSubtask {
+  id: string;
+  title: string;
+  status: "completed" | "failed";
+  result: string;
+  reason: string | null;
+}
+
+/** One burst. */
+export interface ManifestBurstRun {
+  burst: number;
+  task: string;
+  merged: string;
+  results: ManifestBurstSubtask[];
+}
+
+/** One observed run of a proof scenario. */
+export interface ManifestProofAttempt {
+  scenario_id: string;
+  phase: "before_fix" | "after_fix";
+  status: "passed" | "failed" | "inconclusive";
+  evidence_kind: string;
+  command: string;
+  observed: string;
+  duration_ms: number;
+  observed_at: string | null;
+}
+
+/** One reproduction for a change, and every attempt made at it. */
+export interface ManifestProofScenario {
+  id: string;
+  name: string;
+  kind: "command" | "reproduction" | "ui";
+  command: string;
+  covers: string[];
+  attempts: ManifestProofAttempt[];
 }
 
 /** One correction a run reviewer sent while the run went. */
@@ -694,6 +823,23 @@ export interface ResumedRun {
   cache_write_tokens?: number;
 }
 
+/** What `POST /runs/{id}/retry` answers with: the new run, and what it said.
+
+The new run's id is the point - the detail view steps to it - so the
+rest is the answer's shape rather than a second read: what it said, how
+it ended, what it cost.
+*/
+export interface RetriedRun {
+  run_id: string;
+  conversation_id: string | null;
+  output: string;
+  status: RunStatus;
+  cost_usd: string;
+  cost_is_partial: boolean;
+  input_tokens: number;
+  output_tokens: number;
+}
+
 /** One question as the server carries it, before the card's own shape (#2064). */
 export interface WireQuestion {
   question: string;
@@ -707,6 +853,19 @@ export interface WireQuestion {
 export interface ParkedQuestion {
   tool_call_id: string;
   questions: WireQuestion[];
+}
+
+/** A secret an agent asked its person for, which the run is waiting on (#13). */
+export interface ParkedSecretRequest {
+  id: string;
+  run_id: string;
+  tool_call_id: string;
+  secret_name: string;
+  kind: string;
+  what_for: string;
+  status: string;
+  fulfilled_secret_id?: string | null;
+  fulfilled_hint?: string | null;
 }
 
 /** A skill a run opened or read, at the version it was served. */

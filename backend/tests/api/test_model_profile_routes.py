@@ -42,7 +42,9 @@ def created() -> AsyncMock:
             created_at=datetime(2026, 10, 8, tzinfo=UTC),
         )
     )
-    service = MagicMock(create_profile=create)
+    service = MagicMock(
+        create_profile=create, profile_view=AsyncMock(return_value=create.return_value)
+    )
     app.dependency_overrides[deps.get_auth_context] = lambda: AuthContext(
         user_id=uuid.uuid4(),
         organization_id=uuid.uuid4(),
@@ -116,6 +118,9 @@ def _stored(model: str) -> MagicMock:
         fallback_profile_ids=[],
         context_length=None,
         runs_without_key=False,
+        personal_owner_user_id=None,
+        usage_scope="organization",
+        native_connected=None,
         created_at=datetime(2026, 10, 26, tzinfo=UTC),
         updated_at=None,
     )
@@ -127,7 +132,7 @@ async def test_the_listing_keeps_a_speech_model_and_says_an_agent_cannot_run_on_
     # Every profile is listed - text to speech runs on the speech one - and each
     # says whether an agent can, so pickers filter without a second request (#2487).
     service = MagicMock(
-        list_profiles=AsyncMock(return_value=[_stored("gpt-4.1"), _stored("gpt-4o-mini-tts")])
+        list_profile_views=AsyncMock(return_value=[_stored("gpt-4.1"), _stored("gpt-4o-mini-tts")])
     )
     app.dependency_overrides[deps.get_model_profile_service] = lambda: service
 
@@ -176,7 +181,7 @@ async def test_an_edit_reaches_the_service_with_only_what_was_sent(
     stored.secret_id = None
     update = AsyncMock(return_value=stored)
     app.dependency_overrides[deps.get_model_profile_service] = lambda: MagicMock(
-        update_profile=update
+        update_profile=update, profile_view=AsyncMock(return_value=stored)
     )
     secret_id = uuid.uuid4()
 

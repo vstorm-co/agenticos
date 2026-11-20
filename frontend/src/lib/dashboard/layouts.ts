@@ -275,9 +275,10 @@ const DEFAULT_SECTIONS: SectionDef[] = [
       { widget: "outcomes", span: "s4", rows: "r4" },
     ],
   },
-  // What a person can act on now. Kept to four cards that are short when there
-  // is nothing to do - an approval queue, the failures, the budgets and the
-  // notifications - and the notifications are the one card everybody sees.
+  // What a person can act on now. Kept to five cards that are short when there
+  // is nothing to do - an approval queue, the failures, the budgets, the
+  // agent messages waiting on the reader, and the notifications - and the
+  // notifications are the one card everybody sees.
   {
     id: "attention",
     titleKey: "attention",
@@ -285,6 +286,7 @@ const DEFAULT_SECTIONS: SectionDef[] = [
       { widget: "approvals", span: "s6", rows: "r3" },
       { widget: "recent-failures", span: "s6", rows: "r3" },
       { widget: "budget-headroom", span: "s6", rows: "r3" },
+      { widget: "agent-messages", span: "s6", rows: "r3" },
       { widget: "notifications", span: "s6", rows: "r3" },
     ],
   },

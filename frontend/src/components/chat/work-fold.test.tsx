@@ -4,6 +4,65 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useTurnElapsed, WorkFold, WorkingLine } from "./work-fold";
 
+describe("stalled run", () => {
+  // The heartbeat age is read off the one-second tick, so the first tick
+  // has to land before the label can say anything about it.
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("says the run is stalled once its heartbeat is old", () => {
+    // 119 seconds old, so the first one-second tick lands the age on
+    // exactly two minutes - the label reads whole minutes.
+    render(
+      <WorkFold
+        steps={0}
+        durationMs={120_000}
+        running
+        lastHeartbeatAt={new Date(Date.now() - 119_000)}
+      >
+        {null}
+      </WorkFold>,
+    );
+    act(() => vi.advanceTimersByTime(1000));
+    expect(
+      screen.getByRole("button", { name: "Stalled — no heartbeat for 2m…" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps saying working while the heartbeat is fresh", () => {
+    render(
+      <WorkFold
+        steps={0}
+        durationMs={10_000}
+        running
+        lastHeartbeatAt={new Date(Date.now() - 10_000)}
+      >
+        {null}
+      </WorkFold>,
+    );
+    act(() => vi.advanceTimersByTime(1000));
+    expect(screen.getByRole("button", { name: /Working for 10s…/ })).toBeInTheDocument();
+  });
+
+  it("does not call a finished turn stalled for an old heartbeat", () => {
+    render(
+      <WorkFold steps={0} durationMs={120_000} lastHeartbeatAt={new Date(Date.now() - 120_000)}>
+        {null}
+      </WorkFold>,
+    );
+    expect(screen.getByRole("button", { name: "Thought for 2m" })).toBeInTheDocument();
+  });
+
+  it("does not call a running turn stalled without a heartbeat", () => {
+    render(
+      <WorkFold steps={0} durationMs={10_000} running>
+        {null}
+      </WorkFold>,
+    );
+    expect(screen.getByRole("button", { name: /Working for 10s…/ })).toBeInTheDocument();
+  });
+});
+
 describe("useTurnElapsed", () => {
   beforeEach(() => {
     vi.useFakeTimers();

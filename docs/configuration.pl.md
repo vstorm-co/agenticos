@@ -1,5 +1,5 @@
 ---
-source_sha: "ddd8aae069e6"
+source_sha: "a120d5a47810"
 ---
 
 # Konfiguracja { #configuration }
@@ -61,6 +61,8 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `MIRAGE_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, z którymi folder [wirtualnego terminala](reference/capabilities.md#mirage) może się połączyć, gdy autor wpisuje adres: serwer SSH, host w DSN Postgresa albo MongoDB, serwer IMAP. Adres pochodzi ze speca agenta albo z sekretu, który spec wskazuje, a połączenie nawiązuje to wdrożenie. Dopasowanie jest dokładne i niewrażliwe na wielkość liter. Publikacja sprawdza wpisany host, a każdy run sprawdza hosty w sekretach. Pusta wartość nie dopuszcza żadnego wpisanego adresu. Usługi ze stałym API, takie jak Dysk, GitHub i Notion, nie potrzebują wpisu |
 | `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na których agent z [obsługą komputera](reference/capabilities.md#computer-use) może prowadzić pulpit `computerd`. `daemon_url` jest w specu agenta, a run wysyła token daemona pod adres, który on wskazuje, więc to ta sama lista dozwolonych co `BROWSER_CDP_ALLOWED_HOSTS`: dokładne dopasowanie bez rozróżniania wielkości liter, bez globów. Sprawdzana przy publikacji i ponownie za każdym razem, gdy run otwiera daemona, więc usunięcie hosta zatrzymuje agentów już opublikowanych. Token nie jest ustawieniem: należy do organizacji i leży w jej vaulcie, więc każda organizacja może wskazać dozwolony host, a wejdzie tylko ta, która ma token tego pulpitu. Pusta odmawia backendu daemon; pulpit w sandboksie agenta nie potrzebuje wpisu |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | Przeglądarka, w której osoba loguje się do strony z **Ustawienia → Logowania**, gdzie żaden agent jej nie wskazuje - usługa `browser` z compose to `http://browser:9222`. Jej host musi być w `BROWSER_CDP_ALLOWED_HOSTS`. Strona musi mieć publiczny adres i oglądać ją może tylko osoba, która ją otworzyła. Puste ukrywa tę opcję |
+| `BROWSER_TEACHING_ENABLED` | `false` | Zezwala na nagrywanie **Naucz zadania** w przeglądarce wskazanej przez `BROWSER_SIGN_IN_CDP_URL`, tylko dla organizacji z `BROWSER_TEACHING_ORGANIZATION_IDS`. Nagrywanie zapisuje kroki strukturalne, gdy osoba uruchomienia trzyma kartę; nie zapisuje wpisanych wartości, tekstu strony, ścieżki ani zapytania URL, plików cookie ani zrzutów ekranu. Sesje są usuwane po 24 godzinach, niezależnie od tego ustawienia |
+| `BROWSER_TEACHING_ORGANIZATION_IDS` | `[]` | Identyfikatory organizacji, których dotyczy `BROWSER_TEACHING_ENABLED`, jako lista JSON. Pusta nie dopuszcza żadnej |
 | `VISUAL_RENDER_CDP_URL` | `""` (puste) | Przeglądarka, którą [wizual](reference/capabilities.md#visuals) jest rysowany do obrazka tam, gdzie nie działa ramka - w odpowiedzi na Slacku, Telegramie czy Mattermoście i w miniaturze strony na dashboardzie. Serwis `browser` z compose to `http://browser:9222`; jego host musi być w `BROWSER_CDP_ALLOWED_HOSTS`. Rysunek niczego stamtąd nie osiąga: każde jego żądanie obsługuje wdrożenie albo je odrzuca. Puste wysyła do aplikacji czatu odpowiedź bez obrazka |
 | `BROWSER_EGRESS_PROXY` | `""` (empty); compose ustawia `http://browser-egress:3128` | Proxy, przez które przeglądarka wdrożenia łączy się z każdą stroną. Usługa `browser-egress` z compose to `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): sama rozwiązuje każdy host, odrzuca adresy prywatne, loopback, link-local i metadanych i łączy się z adresem, który sprawdziła, więc ani przekierowanie, ani DNS rebinding nie wprowadzi strony do wnętrza sieci. Używane przez każde przeglądanie bez proxy organizacji i nie na przeglądarce hostowanej. Wewnętrzne narzędzie, które agent ma przeglądać, wymaga wyjątku w `docker/browser-egress/squid.conf`. Puste wypuszcza przeglądarkę bezpośrednio: ustaw `BROWSER_EGRESS_PROXY=` w głównym `.env` tylko dla przeglądarki spoza compose, która nie dosięgnie proxy. Bez proxy każda strona jest sprawdzana przy pierwszym żądaniu w karcie, a potem przeglądarka sama rozwiązuje jej nazwę, więc nazwa, która później w tej samej karcie wskaże adres prywatny, nie zostanie wychwycona |
 | `OUTBOUND_PRIVATE_ALLOWLIST` | `[]` (empty) | Hosty i sieci z Twojej własnej sieci, do których żądanie może sięgnąć, choć rozwiązują się na adres prywatny, na przykład wiki, serwer Git albo serwer MCP: `["wiki", ".corp.example", "10.1.2.0/24"]`. Wpis to dokładny host (`wiki`, bez rozróżniania wielkości liter), sufiks z kropką na początku (`.corp.example` pasuje do `mcp.corp.example` i `a.b.corp.example`, ale nie do samego `corp.example`), adres IP (`10.0.0.5`, `fd00::1`) albo zakres CIDR (`10.1.2.0/24`). Jedna końcowa kropka jest pomijana, więc `wiki.` to `wiki`. Czytają ją kroki workflow `http.request`, `http.download` i `http.upload`, konektory `git`, `web` i `s3`, klient A2A oraz połączenia MCP. Łańcuch żądań dostaje listę tylko wtedy, gdy potrzebuje jej pierwszy URL, ten wpisany albo podpięty przez człowieka: łańcuch zaczynający się od hosta publicznego nigdy jej nie dostaje, więc przekierowanie, metadane OAuth, karta A2A ani crawl publicznej strony nie dosięgną hosta z listy. Każde konto każdej organizacji może sięgnąć do każdego portu dopuszczonego hosta, więc wpisuj tylko usługi, które same sprawdzają swoje poświadczenie: URL podpięty z publicznego wyzwalacza (webhooka, formularza, e-maila) albo z argumentów narzędzia agenta może wskazać dowolny host z listy. Adresy loopback, link-local, multicast i metadanych chmury są odrzucane niezależnie od listy: odrzucana jest nazwa z listy, która odpowiada takim adresem, wszędzie tam, gdzie nazwa jest rozwiązywana (kroki HTTP workflow, git, web, S3, A2A, przepływ OAuth MCP i własny URL połączenia MCP; nazwę z listy, która jeszcze się nie rozwiązuje, nadal można zapisać), a także nazwa z jedną odpowiedzią prywatną spoza listy, z podaniem tego adresu. Start odrzuca wpis błędnie zapisany, sięgający tych adresów (`localhost`, `.internal`, `169.254.169.254`, `127.0.0.0/8`, albo te same adresy zapisane przez dobrze znany prefiks NAT64 lub 6to4, jak `64:ff9b::/96` i `2002::/16`; własnego prefiksu NAT64 innej sieci nie da się rozpoznać, więc nie wpisuj go, jeśli tłumaczy na te adresy) albo wskazujący nazwą lub adresem hosta bazy danych, hosta Redis lub hosta samego API (sufiks obejmujący nazwę API jest dozwolony; zakres obejmujący rozwiązany adres któregoś z magazynów wychwytuje `doctor`). `agenticos cmd doctor` pokazuje ją jako `private network`: ostrzeżenie dla zakresu szerszego niż /16 (IPv4) albo /48 (IPv6), błąd, gdy zakres obejmuje bazę danych lub Redis. [Arkusz HIPAA](security.md#the-sheet) wymienia ją jako `private-network`. Pusta lista odrzuca każdy adres prywatny. Zobacz [Usługi we własnej sieci](deploy.md#services-on-your-own-network) i [połączenie](mcp.md#a-connection) |
@@ -307,6 +309,8 @@ według `KERBEROS_DISPLAY_NAME` (domyślnie `Kerberos`).
 | `POSTGRES_PORT` | `5432` | Port PostgreSQL |
 | `POSTGRES_USER` | `postgres` | Użytkownik PostgreSQL |
 | `POSTGRES_PASSWORD` | (empty) | Hasło PostgreSQL |
+| `POSTGRES_MIGRATION_URL` | (unset) | Osobne poświadczenie właściciela PostgreSQL dla Alembic oraz kontroli wstępnej i aktywacji Tables RLS. URL dostawcy jest dostosowywany do zainstalowanego sterownika. Zwykłe sesje aplikacji nadal używają ustawień wykonawczych. |
+| `POSTGRES_MAINTENANCE_URL` | (unset) | Osobne konto PostgreSQL do autoryzowanego globalnego eksportu i usuwania kont po aktywacji Tables RLS. Musi łączyć się z tą samą bazą i należeć do stałej grupy administracyjnej. Wymagane dla tych operacji po włączeniu ochrony; zobacz [procedurę wdrożenia](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md). |
 | `POSTGRES_DB` | `agenticos` | Nazwa bazy danych |
 | `POSTGRES_SSLMODE` | (empty) | Szyfruj połączenie: `require`, `verify-ca` albo `verify-full`. Pusta wartość to plaintext. Zobacz [Szyfrowane połączenia](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Rozmiar puli połączeń |
@@ -427,6 +431,7 @@ się zatrzymuje i żaden z nich tego nie oznajmia:
 | `SMTP_TLS_MODE` | `auto` | Jak otwierane jest szyfrowane połączenie. `auto` pozwala wybrać portowi; `implicit` otwiera TLS od pierwszego bajtu, a `starttls` negocjuje podniesienie, niezależnie od portu. Ignorowane, gdy `SMTP_TLS=false` |
 | `EMAIL_FROM` | `noreply@agenticos.com` | Adres w polu `From` każdej wiadomości |
 | `EMAIL_FROM_NAME` | `agenticos` | Nazwa wyświetlana obok tego adresu |
+| `FAILURE_LEARNING_DIGEST_RECIPIENT` | (pusty) | Jeden adres, na który trafia codzienne podsumowanie rejestru błędów. Pusty oznacza, że nie wybrano odbiorcy, a zadanie podsumowania nie robi nic — nie tworzy roboczych wpisów i nie wysyła maili. Jeden adres dla całego wdrożenia, więc widzi podsumowania każdej organizacji i musi to być adres operatora |
 
 !!! note "Jak szyfrowane jest połączenie"
 
@@ -508,6 +513,7 @@ alarmem dla drugiego, więc każda definicja usługi niesie własną.
 | --- | --- | --- |
 | `APPROVAL_EXPIRY_HOURS` | `72` | Jak długo zaparkowane wywołanie narzędzia czeka, zanim cogodzinne zamiatanie odrzuci je przez timeout |
 | `QUESTION_EXPIRY_HOURS` | `24` | Jak długo run czeka na odpowiedź na pytanie agenta, zanim to samo zamiatanie go zakończy |
+| `QUESTION_NUDGE_HOURS` | `12` | Po jakim czasie od wstrzymania na pytaniu przegląd przypomina raz na czacie, że nadal potrzebna jest odpowiedź |
 
 Trzy dni, bo musi objąć weekend: zatwierdzenie, które przychodzi w piątek po
 południu, jest tym, o którym nikt nie decyduje, a wygaszenie go w sobotę byłoby
@@ -685,6 +691,29 @@ je rozróżniać.
 | `LOGFIRE_ORGANIZATION` | (none) | Slug organizacji, do zbudowania linku **do** zapisanego trace'u. Token jest poświadczeniem do _zapisu_ i nie niesie żadnego z tych slugów |
 | `LOGFIRE_PROJECT` | (none) | Slug projektu, obok organizacji. Gdy któregokolwiek brakuje, `logfire_trace_id` runa nadal jest zapisywane, a link nie jest oferowany |
 | `LOGFIRE_BASE_URL` | `https://logfire-us.pydantic.dev` | Do którego wdrożenia Logfire te slugi należą. `logfire-eu` to inny host, a link zbudowany dla niewłaściwego zwraca 404 |
+
+## Połączenia aplikacji Composio { #composio-app-connections }
+
+Katalog **Połączenia → Aplikacje (Connections → Apps)** korzysta z Composio do
+łączenia osobistych kont w aplikacjach. Skonfiguruj te same ustawienia projektu
+dla API i workera. Oba klucze przechowuj na serwerze; frontend otrzymuje tylko
+metadane katalogu i adresy URL autoryzacji.
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `COMPOSIO_API_KEY` | (none) | Klucz projektu runtime do sesji tool-routera i zarządzania połączonymi kontami. Pusty klucz wyłącza zarządzane połączenia aplikacji. |
+| `COMPOSIO_CATALOG_API_KEY` | (none) | Oddzielny klucz projektu z wyłącznie uprawnieniami **Toolkits: Read** i **Tools: Read**. Włącza przeszukiwalny, stronicowany katalog aplikacji oraz jawne migawki narzędzi dla nowych aplikacji. Bez niego katalog udostępnia tylko pierwotne, sprawdzone integracje. |
+| `COMPOSIO_AUTH_CONFIGS` | `{}` | Mapa JSON slugów toolkitów na identyfikatory auth configów projektu. Pierwotne siedem integracji wymaga jawnego wpisu; inne aplikacje używają skonfigurowanego wpisu lub zarządzanego uwierzytelniania Composio, jeśli jest dostępne. Aplikacje wymagające własnej konfiguracji uwierzytelniania pokazują **Wymagana konfiguracja (Setup required)**. |
+| `COMPOSIO_USER_NAMESPACE` | `t3os` | Stabilny prefiks tożsamości użytkownika w Composio. Zachowaj tę samą wartość dla API i workera i nie zmieniaj jej dla istniejących kont. Dla oddzielnego wdrożenia użyj innej przestrzeni nazw. |
+
+Pierwotne integracje zachowują sprawdzone akcje odczytu. Inne obsługiwane
+aplikacje zapisują ograniczoną listę bezpośrednich nazw narzędzi podczas
+łączenia konta i wymagają zgody na każdą akcję. Ponowne łączenie zachowuje tę
+listę; nowe połączenie zapisuje aktualnie dostępne narzędzia. Istniejące serwery MCP
+pozostają na karcie **Serwery MCP (MCP servers)**. Zobacz
+[połączenia aplikacji](mcp.md#connect-an-app-through-composio) oraz
+[instrukcję konfiguracji Composio](https://github.com/t3grp/agenticos/blob/t3/integrations/composio/README.md),
+aby poznać weryfikację powrotu z autoryzacji, zgodę dostawcy i kontrole wdrożenia.
 
 ## Wyszukiwanie w sieci { #web-search }
 

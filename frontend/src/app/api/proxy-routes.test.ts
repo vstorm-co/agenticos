@@ -48,6 +48,9 @@ import * as systemAgents from "./system-agents/[[...path]]/route";
 import * as mlCalls from "./ml/calls/[[...path]]/route";
 import * as projects from "./projects/[[...path]]/route";
 import * as browserSignIns from "./browser-sign-ins/[[...path]]/route";
+import * as browserTeachings from "./browser-teachings/[[...path]]/route";
+import * as browserProcedureTeachings from "./browser-procedures/teachings/[[...path]]/route";
+import * as browserTeachingPolicy from "./browser-teaching-policy/route";
 import * as channelLink from "./me/channel-link/[[...path]]/route";
 import * as notifications from "./notifications/[[...path]]/route";
 import * as permissions from "./me/permissions/route";
@@ -80,6 +83,7 @@ import * as orgGroupSpendCsv from "./orgs/[id]/groups/[groupId]/spend.csv/route"
 import * as orgDirectoryMappings from "./orgs/[id]/directory-mappings/route";
 import * as orgDirectoryMapping from "./orgs/[id]/directory-mappings/[mappingId]/route";
 import * as providers from "./providers/[[...path]]/route";
+import * as personalSubscriptions from "./personal-subscriptions/[[...path]]/route";
 import * as rag from "./rag/[[...path]]/route";
 import * as ratings from "./ratings/[[...path]]/route";
 import * as roles from "./roles/[[...path]]/route";
@@ -97,6 +101,7 @@ import * as contextChanges from "./context-changes/[[...path]]/route";
 import * as skills from "./skills/[[...path]]/route";
 import * as spend from "./spend/[[...path]]/route";
 import * as stats from "./stats/[[...path]]/route";
+import * as syncSources from "./sync-sources/[[...path]]/route";
 import * as tables from "./tables/[[...path]]/route";
 import * as tasks from "./tasks/[[...path]]/route";
 import * as triggerPortals from "./trigger-portals/[[...path]]/route";
@@ -107,6 +112,7 @@ import * as workflowLogs from "./workflow-logs/[[...path]]/route";
 import * as workflowRuns from "./workflow-runs/[[...path]]/route";
 import * as workflows from "./workflows/[[...path]]/route";
 import * as userLocale from "./users/me/locale/route";
+import * as userAppearance from "./users/me/appearance/route";
 import * as mySuggestions from "./me/suggestions/[[...path]]/route";
 import * as myOnboarding from "./me/onboarding/[[...path]]/route";
 import * as myWatches from "./me/watches/[[...path]]/route";
@@ -141,6 +147,9 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["apps", apps],
   ["audit", audit],
   ["browser-sign-ins", browserSignIns],
+  ["browser-teachings", browserTeachings],
+  ["browser-procedures/teachings", browserProcedureTeachings],
+  ["browser-teaching-policy", browserTeachingPolicy],
   ["catalog", catalog],
   ["channels", channels],
   ["context", context],
@@ -188,6 +197,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["orgs/[id]/directory-mappings", orgDirectoryMappings],
   ["orgs/[id]/directory-mappings/[mappingId]", orgDirectoryMapping],
   ["providers", providers],
+  ["personal-subscriptions", personalSubscriptions],
   ["rag", rag],
   ["ratings", ratings],
   ["roles", roles],
@@ -205,6 +215,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["skills", skills],
   ["spend", spend],
   ["stats", stats],
+  ["sync-sources", syncSources],
   ["tables", tables],
   ["tasks", tasks],
   ["trigger-portals", triggerPortals],
@@ -312,5 +323,16 @@ it("personal model keys require a signed-in session for every exposed verb", asy
       new NextRequest("http://localhost:3000/api/personal-model-keys", { method }),
     );
     expect(response.status).toBe(401);
+  }
+});
+
+it("appearance only exposes read, save and reset behind the session boundary", async () => {
+  const { NextRequest } = await import("next/server");
+  expect(Object.keys(userAppearance).sort()).toEqual(["DELETE", "GET", "PATCH"]);
+  for (const method of ["GET", "PATCH", "DELETE"] as const) {
+    const response = await userAppearance[method](
+      new NextRequest("http://localhost:3000/api/users/me/appearance", { method }),
+    );
+    expect(response.status, method).toBe(401);
   }
 });

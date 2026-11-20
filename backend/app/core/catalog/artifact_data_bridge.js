@@ -182,10 +182,78 @@ function agenticosDataBridge(window, document, config) {
     });
   }
 
+  // Explicit, bounded context for the floating assistant. The console owns the
+  // app identity/title/version; authored pages only describe their current view.
+  // No document, selection, or form values are read automatically.
+  var assistantContext = null;
+  var contextable = parent !== window && typeof n === "string" && n !== "";
+
+  function contextText(value, limit) {
+    return typeof value === "string" ? value.trim().slice(0, limit) : "";
+  }
+
+  function assistantDetails(value) {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+    var out = {};
+    var textFields = { view: 120, summary: 6000, selected_text: 2000 };
+    Object.keys(textFields).forEach(function (key) {
+      var text = contextText(value[key], textFields[key]);
+      if (text) put(out, key, text);
+    });
+    if (value.filters !== null && typeof value.filters === "object" && !Array.isArray(value.filters)) {
+      var filters = {};
+      var keys = Object.keys(value.filters);
+      var count = 0;
+      for (var i = 0; i < keys.length && count < 20; i++) {
+        var key = contextText(keys[i], 80);
+        var raw = value.filters[keys[i]];
+        if (!key || key === "__proto__" || key === "constructor" || key === "prototype") continue;
+        if (typeof raw !== "string" || Object.prototype.hasOwnProperty.call(filters, key)) continue;
+        put(filters, key, raw.slice(0, 240));
+        count += 1;
+      }
+      if (count) put(out, "filters", filters);
+    }
+    if (Array.isArray(value.selected_ids)) {
+      var ids = [];
+      for (var j = 0; j < value.selected_ids.length && ids.length < 20; j++) {
+        var id = contextText(value.selected_ids[j], 128);
+        if (id) ids.push(id);
+      }
+      if (ids.length) put(out, "selected_ids", ids);
+    }
+    return out;
+  }
+
+  function postAssistantContext() {
+    if (contextable) {
+      parent.postMessage({ type: "assistant_context", n: n, context: assistantContext }, "*");
+    }
+  }
+
+  function setAssistantContext(value) {
+    assistantContext = assistantDetails(value);
+    postAssistantContext();
+  }
+
+  // A component may register before its iframe's load event. The console asks
+  // again after each load, so that event cannot silently erase the registration.
+  if (contextable) {
+    window.addEventListener("message", function (event) {
+      var message = event.data;
+      if (event.source !== parent || message === null || typeof message !== "object") return;
+      if (message.type !== "assistant_context_request" || message.n !== n) return;
+      postAssistantContext();
+    });
+  }
+
   // Joined onto what the platform script already put there (`map`, `followUp`,
   // `canFollowUp`), which is a frozen object, so it is replaced rather than extended.
   window.agenticos = Object.freeze(
-    Object.assign({}, window.agenticos, { data: data, onData: onData, run: run, onRun: onRun })
+    Object.assign({}, window.agenticos, {
+      data: data, onData: onData, run: run, onRun: onRun,
+      setAssistantContext: setAssistantContext
+    })
   );
 
   // Answered at load: the server wrote the data in, so there is nothing to wait

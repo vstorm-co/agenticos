@@ -18,6 +18,7 @@ import {
   pushUrlParam,
   setUrlParam,
   timeAgo,
+  timeUntil,
   truncate,
 } from "./utils";
 
@@ -223,6 +224,20 @@ describe("formatElapsed", () => {
     expect(formatElapsed(75_000)).toBe("1 min 15 s");
     expect(formatElapsed(-1)).toBe("-");
     expect(formatElapsed(Number.NaN)).toBe("-");
+  });
+});
+
+describe("timeUntil", () => {
+  it("reads the time left until an instant, and none once it has passed", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-12T08:00:00Z"));
+    expect(timeUntil("2026-11-12T20:00:00Z")).toBe("12 h 0 min");
+    expect(timeUntil("2026-11-12T08:00:00Z")).toBeNull();
+    expect(timeUntil("2026-11-12T07:00:00Z")).toBeNull();
+    expect(timeUntil(null)).toBeNull();
+    expect(timeUntil(undefined)).toBeNull();
+    expect(timeUntil("not a date")).toBeNull();
+    vi.useRealTimers();
   });
 });
 

@@ -1,3 +1,4 @@
+import { ViewerAssistantWidget } from "@/components/assistant/viewer-assistant-widget";
 import { DeploymentGate } from "@/components/branding/deployment-gate";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
 import { AuthGuard } from "@/components/layout/auth-guard";
@@ -29,6 +30,7 @@ export default function ViewerLayout({ children }: { children: React.ReactNode }
         <main id="main" tabIndex={-1} className="flex min-h-0 flex-1 flex-col">
           <DeploymentGate>{children}</DeploymentGate>
         </main>
+        <ViewerAssistantWidget />
       </div>
     </AuthGuard>
   );

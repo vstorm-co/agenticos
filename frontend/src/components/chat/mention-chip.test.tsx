@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { MCP_LOGOS } from "@/lib/mcp-logos.generated";
+import { selectedMessageQuote } from "@/lib/selected-message-quote";
 import type { Mentionable } from "@/types/mention";
 import { LinkFavicon } from "./link-favicon";
 import { MentionChip, RichText } from "./mention-chip";
@@ -125,6 +126,26 @@ describe("an address in the text", () => {
     expect(example!.querySelector("img")).toBeNull();
     expect(example!.querySelector(".lucide-globe")).not.toBeNull();
     expect(example).toHaveTextContent(/^example\.org$/);
+  });
+
+  it("excludes the normalized www LinkCard label from selected quote text", () => {
+    const { container } = render(
+      <p data-quoteable-content>
+        <RichText text="see https://www.example.org/guide" mentions={[]} />
+      </p>,
+    );
+    const message = container.firstElementChild as HTMLElement;
+    const link = screen.getByRole("link");
+    expect(link).toHaveTextContent("example.org/guide");
+    expect(link).toHaveAttribute("data-quote-exclude");
+
+    const range = document.createRange();
+    range.selectNodeContents(link.querySelector("span")!);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    expect(selectedMessageQuote(selection, message)).toBeNull();
   });
 });
 

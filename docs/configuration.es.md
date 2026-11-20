@@ -1,5 +1,5 @@
 ---
-source_sha: "ddd8aae069e6"
+source_sha: "a120d5a47810"
 ---
 
 # Configuración { #configuration }
@@ -63,6 +63,8 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 | `MIRAGE_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a los que puede conectarse una carpeta del [terminal virtual](reference/capabilities.md#mirage) cuando su autor escribe la dirección: un servidor SSH, el host de un DSN de Postgres o MongoDB, un servidor IMAP. La dirección viene del spec de un agent o de un secreto que nombra, y la conexión la hace este deployment. La coincidencia es exacta y sin distinguir mayúsculas. La publicación comprueba un host escrito, y cada run comprueba los hosts dentro de los secretos. Vacío no admite ninguna dirección escrita. Los servicios con una API fija, como Drive, GitHub y Notion, no necesitan entrada |
 | `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Hostnames en los que un agent con [computer use](reference/capabilities.md#computer-use) puede dirigir un escritorio `computerd`. `daemon_url` está en el spec del agent y un run envía el token del daemon a la dirección que nombra, así que es la misma allowlist que `BROWSER_CDP_ALLOWED_HOSTS`: exacta y sin distinguir mayúsculas, sin globs. Se comprueba al publicar y de nuevo cada vez que un run abre el daemon, así que quitar un host detiene a los agents ya publicados. El token no es un ajuste: es de la organización, en su vault, de modo que cualquier organización puede nombrar un host permitido y solo la que tiene el token de ese escritorio entra. Vacía rechaza el backend daemon; un escritorio en la sandbox del agent no necesita entrada |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | El navegador con el que una persona inicia sesión en un sitio desde **Ajustes → Inicios de sesión**, donde ningún agent lo indica - el servicio `browser` de compose es `http://browser:9222`. Su host tiene que estar en `BROWSER_CDP_ALLOWED_HOSTS`. El sitio debe ser una dirección pública y solo la persona que lo abrió puede verlo. Vacío oculta la opción |
+| `BROWSER_TEACHING_ENABLED` | `false` | Permite la captura **Enseñar una tarea** en el navegador que nombra `BROWSER_SIGN_IN_CDP_URL`, solo para las organizaciones de `BROWSER_TEACHING_ORGANIZATION_IDS`. La captura registra pasos estructurales mientras la persona de la ejecución tiene la pestaña; no guarda valores escritos, texto de la página, ruta ni consulta de la URL, cookies ni capturas de pantalla. Las sesiones se borran tras 24 horas, esté o no activado |
+| `BROWSER_TEACHING_ORGANIZATION_IDS` | `[]` | Los identificadores de organización a los que se aplica `BROWSER_TEACHING_ENABLED`, como lista JSON. Vacía no admite ninguna |
 | `VISUAL_RENDER_CDP_URL` | `""` (vacío) | El navegador con el que un [visual](reference/capabilities.md#visuals) se dibuja como imagen donde ningún marco puede ejecutarlo: una respuesta en Slack, Telegram o Mattermost y la miniatura de una página en el panel. El servicio `browser` de compose es `http://browser:9222`; su host debe estar en `BROWSER_CDP_ALLOWED_HOSTS`. El dibujo no alcanza nada desde ahí: cada petición que hace la responde el despliegue o se rechaza. Vacío envía a una aplicación de chat la respuesta sin la imagen |
 | `BROWSER_EGRESS_PROXY` | `""` (empty); compose fija `http://browser-egress:3128` | El proxy a través del cual el navegador del despliegue llega a cada sitio. El servicio `browser-egress` de compose es `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): resuelve cada host por sí mismo, rechaza direcciones privadas, de loopback, link-local y de metadatos y se conecta a la dirección que comprobó, así que ni una redirección ni un DNS rebinding llevan una página dentro de la red. Lo usa todo recorrido sin proxy de la organización y que no esté en un navegador alojado. Una herramienta interna que un agent deba navegar necesita una excepción en `docker/browser-egress/squid.conf`. Vacío deja salir al navegador directamente: pon `BROWSER_EGRESS_PROXY=` en el `.env` raíz solo para un navegador fuera de compose que no alcance el proxy. Sin proxy cada sitio se comprueba en su primera petición en una pestaña y luego el navegador resuelve su nombre por sí mismo, así que un nombre que más tarde en la misma pestaña apunte a una dirección privada no se detecta |
 | `OUTBOUND_PRIVATE_ALLOWLIST` | `[]` (empty) | Hosts y redes de tu propia red que una petición puede alcanzar aunque resuelvan a una dirección privada, por ejemplo una wiki, un servidor Git o un servidor MCP: `["wiki", ".corp.example", "10.1.2.0/24"]`. Una entrada es un host exacto (`wiki`, sin distinguir mayúsculas), un sufijo con un punto inicial (`.corp.example` coincide con `mcp.corp.example` y `a.b.corp.example`, no con `corp.example` en sí), una dirección IP (`10.0.0.5`, `fd00::1`) o un rango CIDR (`10.1.2.0/24`). Se descarta un punto final, así que `wiki.` es `wiki`. La leen los pasos de workflow `http.request`, `http.download` y `http.upload`, los conectores `git`, `web` y `s3`, el cliente A2A y las conexiones MCP. Una cadena de peticiones recibe la lista solo cuando su primera URL, la que una persona escribió o enlazó, la necesita: una cadena que empieza en un host público nunca la recibe, así que la redirección, los metadatos OAuth, la tarjeta A2A o el rastreo de un sitio público no pueden alcanzar un host de la lista. Toda cuenta de toda organización puede alcanzar cualquier puerto de un host admitido, así que lista solo servicios que comprueben su propia credencial: una URL enlazada desde un disparador público (un webhook, un formulario, un correo) o desde los argumentos de una herramienta de un agente puede nombrar cualquier host de la lista. Las direcciones de loopback, link-local, multicast y de metadatos de la nube se rechazan sea cual sea la lista: se rechaza un nombre de la lista que responda con una de ellas dondequiera que el nombre se resuelva (pasos HTTP de workflow, git, web, S3, A2A, el flujo OAuth de MCP y la URL propia de una conexión MCP; un nombre de la lista que aún no se resuelve se puede guardar igualmente), y también un nombre con una respuesta privada que no esté en la lista, nombrando esa dirección. El arranque rechaza una entrada mal formada, que alcance esas direcciones (`localhost`, `.internal`, `169.254.169.254`, `127.0.0.0/8`, o esas mismas direcciones escritas con el prefijo NAT64 conocido o con 6to4, como `64:ff9b::/96` y `2002::/16`; el prefijo NAT64 propio de otra red no se puede reconocer, así que no lo incluyas si traduce a esas direcciones) o que nombre, por nombre o por dirección, el host de la base de datos, el de Redis o el de la propia API (un sufijo que cubra el nombre de la API está permitido; un rango que cubra la dirección resuelta de un almacén lo detecta `doctor`). `agenticos cmd doctor` la informa como `private network`: una advertencia para un rango más ancho que /16 (IPv4) o /48 (IPv6), un fallo cuando un rango cubre la base de datos o Redis. La [hoja HIPAA](security.md#the-sheet) la lista como `private-network`. Vacío rechaza toda dirección privada. Ver [Servicios en tu propia red](deploy.md#services-on-your-own-network) y [una conexión](mcp.md#a-connection) |
@@ -315,6 +317,8 @@ El frontend muestra el botón con `kerberos` en `OAUTH_PROVIDERS`, y lo nombra c
 | `POSTGRES_PORT` | `5432` | Puerto de PostgreSQL |
 | `POSTGRES_USER` | `postgres` | Usuario de PostgreSQL |
 | `POSTGRES_PASSWORD` | (empty) | Contraseña de PostgreSQL |
+| `POSTGRES_MIGRATION_URL` | (unset) | Credencial separada del propietario de PostgreSQL para Alembic y la comprobación previa y activación de Tables RLS. Las URL del proveedor se normalizan al driver instalado. Las sesiones normales de la aplicación siguen usando la configuración de ejecución. |
+| `POSTGRES_MAINTENANCE_URL` | (unset) | Usuario separado de mantenimiento de PostgreSQL para exportaciones y eliminaciones globales de cuentas autorizadas después de activar Tables RLS. Debe acceder a la misma base de datos y pertenecer al grupo fijo de mantenimiento. Es obligatorio para esas acciones con la protección activa; consulta el [procedimiento de transición](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md). |
 | `POSTGRES_DB` | `agenticos` | Nombre de la base de datos |
 | `POSTGRES_SSLMODE` | (empty) | Cifra la conexión: `require`, `verify-ca` o `verify-full`. Vacío es texto plano. Ver [Conexiones cifradas](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Tamaño del pool de conexiones |
@@ -439,6 +443,7 @@ detienen en silencio, sin que ninguno se anuncie:
 | `SMTP_TLS_MODE` | `auto` | Cómo se abre la conexión cifrada. `auto` deja elegir al puerto; `implicit` abre TLS desde el primer byte y `starttls` negocia la mejora, sea cual sea el puerto. Se ignora con `SMTP_TLS=false` |
 | `EMAIL_FROM` | `noreply@agenticos.com` | La dirección `From` de cada mensaje |
 | `EMAIL_FROM_NAME` | `agenticos` | El nombre visible que se muestra junto a esa dirección |
+| `FAILURE_LEARNING_DIGEST_RECIPIENT` | (vacía) | La única dirección a la que va el resumen diario del registro de errores. Vacía significa que no se ha elegido destinatario y el trabajo de resumen no hace nada en absoluto — no crea entradas en borrador ni envía correo. Una sola dirección para todo el despliegue, así que ve el resumen de cada organización y debe ser una dirección de operador |
 
 !!! note "Cómo se cifra la conexión"
 
@@ -521,6 +526,7 @@ servicio lleva la suya.
 | --- | --- | --- |
 | `APPROVAL_EXPIRY_HOURS` | `72` | Cuánto espera una llamada a herramienta aparcada antes de que el barrido horario la deniegue por tiempo |
 | `QUESTION_EXPIRY_HOURS` | `24` | Cuánto espera un run la respuesta a una pregunta del agent antes de que el mismo barrido lo termine |
+| `QUESTION_NUDGE_HOURS` | `12` | Cuánto tiempo después de quedar a la espera de una respuesta el barrido recuerda una vez en el chat que todavía hace falta contestar |
 
 Tres días porque tiene que abarcar un fin de semana: la aprobación que llega el
 viernes por la tarde es la que nadie decide, y caducarla el sábado sería caducarla
@@ -702,6 +708,31 @@ ambos y seguir distinguiéndolos.
 | `LOGFIRE_ORGANIZATION` | (none) | Slug de la organización, para construir un enlace **hacia dentro** de una traza guardada. El token es una credencial de _escritura_ y no lleva ninguno de los dos slugs |
 | `LOGFIRE_PROJECT` | (none) | Slug del proyecto, junto al de la organización. Con cualquiera de los dos sin fijar, el `logfire_trace_id` de un run se sigue registrando y no se ofrece enlace |
 | `LOGFIRE_BASE_URL` | `https://logfire-us.pydantic.dev` | A qué despliegue de Logfire pertenecen esos slugs. `logfire-eu` es otro host, y un enlace construido para el equivocado da 404 |
+
+## Conexiones de aplicaciones con Composio { #composio-app-connections }
+
+El directorio **Connections → Apps** usa Composio para conectar cuentas
+personales de aplicaciones. Configure los mismos ajustes de proyecto para la API
+y el worker. Mantenga ambas claves en el servidor; el frontend solo recibe
+metadatos del catálogo y URL de autorización.
+
+| Variable | Por defecto | Descripción |
+|----------|---------|-------------|
+| `COMPOSIO_API_KEY` | (none) | Clave de proyecto de runtime para las sesiones de tool-router y la gestión de cuentas conectadas. Una clave vacía desactiva las conexiones gestionadas de aplicaciones. |
+| `COMPOSIO_CATALOG_API_KEY` | (none) | Clave de proyecto independiente con permisos **Toolkits: Read** y **Tools: Read** únicamente. Activa el directorio de aplicaciones buscable y paginado, además de snapshots explícitos de herramientas para apps nuevas. Sin ella, el directorio solo muestra las integraciones originales revisadas. |
+| `COMPOSIO_AUTH_CONFIGS` | `{}` | Mapa JSON de slugs de toolkit a IDs de configuración de autenticación del proyecto. Las siete integraciones originales requieren una entrada explícita; otras apps usan una entrada configurada o la autenticación gestionada por Composio cuando está disponible. Las apps que necesitan una configuración de autenticación propia muestran **Setup required**. |
+| `COMPOSIO_USER_NAMESPACE` | `t3os` | Prefijo estable para la identidad de cada usuario en Composio. Manténgalo igual en la API y el worker y no lo cambie para las cuentas existentes. Use un namespace distinto para otro deployment. |
+
+Las integraciones originales conservan sus acciones de lectura revisadas. Las
+demás apps compatibles guardan una lista acotada de nombres de herramientas
+directas al conectar la cuenta y requieren aprobación para cada acción. Volver a
+conectar conserva esa lista; una conexión nueva captura las herramientas
+disponibles en ese momento. Los servidores MCP existentes siguen en la pestaña
+**MCP servers**.
+Consulte [conexiones de aplicaciones](mcp.md#connect-an-app-through-composio) y
+la [guía de configuración de Composio](https://github.com/t3grp/agenticos/blob/t3/integrations/composio/README.md)
+para la verificación de la devolución de llamada, el consentimiento del proveedor
+y las comprobaciones de despliegue.
 
 ## Búsqueda web { #web-search }
 

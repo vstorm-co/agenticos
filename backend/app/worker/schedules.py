@@ -65,9 +65,13 @@ class Schedule:
 
 
 SCHEDULES: tuple[Schedule, ...] = (
+    Schedule("sweep-browser-procedure-teachings", jobs.SWEEP_BROWSER_PROCEDURE_TEACHINGS, _MINUTE),
+    Schedule("reconcile-room-requests", jobs.RECONCILE_ROOM_REQUESTS, timedelta(seconds=15)),
     Schedule(
         "reconcile-conversation-tasks", jobs.RECONCILE_CONVERSATION_TASKS, timedelta(seconds=15)
     ),
+    # Expire teaching payloads after 24 hours and pause recordings whose hold ended.
+    Schedule("sweep-browser-teachings", jobs.SWEEP_BROWSER_TEACHINGS, _MINUTE),
     # Fire the agent triggers that have come due.
     Schedule("check-agent-triggers", jobs.CHECK_AGENT_TRIGGERS, _MINUTE),
     Schedule("channel-observation", jobs.CHANNEL_OBSERVATION_SWEEP, _MINUTE),
@@ -153,6 +157,10 @@ SCHEDULES: tuple[Schedule, ...] = (
     # would be a week nobody is ever sent.
     Schedule("weekly-usage-report", jobs.WEEKLY_USAGE_REPORT, 7 * _DAY, overlap=Overlap.QUEUE),
     Schedule("monthly-usage-report", jobs.MONTHLY_USAGE_REPORT, 30 * _DAY, overlap=Overlap.QUEUE),
+    # Daily: the digest snapshots the last 7 days, so one that arrives while
+    # the last is still sending waits rather than being dropped - a skipped
+    # tick would be a day nobody is told about new failures.
+    Schedule("failure-ledger-digest", jobs.FAILURE_LEDGER_DIGEST, _DAY, overlap=Overlap.QUEUE),
 )
 
 

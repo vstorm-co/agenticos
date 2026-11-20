@@ -1,5 +1,5 @@
 ---
-source_sha: "9d709767d4eb"
+source_sha: "692b357e7acd"
 ---
 
 # Apps { #artifacts }
@@ -978,6 +978,42 @@ veröffentlicht. Die Prüfungen:
 - eine gebundene Seite, deren Skript nie `agenticos.onData` aufruft oder
   `agenticos.data` liest und die deshalb keine Datensätze zeigt.
 
+### Kontext mit dem Assistenten teilen { #sharing-context-with-the-assistant }
+
+Mit `agenticos.setAssistantContext` beschreibt eine statische App oder eine App
+mit Datenbindungen ihre aktuelle Ansicht für den schwebenden Assistenten. Die
+Funktion ist im Hauptviewer `/apps/{artifactId}` der Konsole für angemeldete
+Benutzer verfügbar. Rufen Sie sie erneut auf, sobald sich Ansicht, Filter oder
+ausgewählte Datensätze ändern:
+
+```javascript
+agenticos.setAssistantContext({
+  view: "Orders",
+  filters: { status: "waiting", region: "west" },
+  selected_ids: ["order-42"],
+  summary: "Three orders are waiting for review.",
+  selected_text: "Order 42: awaiting approval."
+});
+```
+
+Alle Felder sind optional. Mit `agenticos.setAssistantContext(null)` löschen Sie
+die von der App gelieferten Details. Texte werden auf diese Länge gekürzt;
+überzählige Einträge werden weggelassen:
+
+| Feld | Grenze |
+|---|---|
+| `view` | 120 Zeichen |
+| `filters` | 20 Einträge; Schlüssel mit 80 Zeichen; Zeichenkettenwerte mit 240 Zeichen |
+| `selected_ids` | 20 IDs als Zeichenketten, je 128 Zeichen |
+| `summary` | 6.000 Zeichen |
+| `selected_text` | 2.000 Zeichen |
+
+Die Konsole liefert App-ID, Titel, Version und aktuellen Pfad. Der iframe kann
+diese Identität nicht ersetzen oder zusätzliche Berechtigungen erteilen. Die API
+nutzt die bestehende Sandbox-Brücke; sie liest das DOM nicht aus und erfasst
+weder Formularfelder noch URL-Abfrageparameter automatisch. Die Person, die die App betrachtet,
+steuert die Freigabe im [Assistentenfenster](console.md#the-assistant).
+
 ### Die Seite sehen: Vorschau { #seeing-the-page-preview }
 
 `preview_artifact` zeichnet die aktuelle Version einer Seite so, wie sie jemand
@@ -1577,7 +1613,7 @@ Chat-Vorschauen reservieren Platz, während der Visual-Renderer oder das App-Vor
 
 Vorübergehende Renderer-Fehler und Zeitüberschreitungen werden höchstens zweimal mit zunehmender Verzögerung erneut versucht. Bei einem nicht konfigurierten Renderer oder verweigertem Zugriff gibt es keine Wiederholung. Die Rückkehr zu einer Karte oder eine Änderung ihrer Sichtbarkeit startet ausgeschöpfte Versuche nicht neu. Erfolgreiche Bilder bleiben für die autorisierte Version zwischengespeichert.
 
-Der Apps-Skill enthält interaktive HTML-Präsentationen, PDF-Druckstile und wiederverwendbare Komponentenbeispiele. PDF-Export benötigt den konfigurierten Renderer; reine Validierung beweist keine erfolgreiche Skriptausführung. Diagramme, Tabellen und interaktive Inhalte müssen in der gerenderten Vorschau geprüft werden. PowerPoint-Export ist nicht enthalten.
+Der Apps-Skill enthält interaktive HTML-Präsentationen, PDF-Druckstile und wiederverwendbare Komponentenbeispiele. PDF-Export benötigt den konfigurierten Renderer; eine Vorschau mit reiner Validierung beweist keine erfolgreiche Skriptausführung. Diagramme, Tabellen und interaktive Inhalte müssen in der gerenderten Vorschau geprüft werden. PowerPoint-Export ist nicht enthalten.
 
 Das Plattform-MCP-Tool `create_app_public_link` benötigt Bearbeitungszugriff und die ausdrückliche Bestätigung der öffentlichen Freigabe. Es verwendet vorhandene Links weiter und erhält Passwort, Ablaufdatum und festgelegte Version. Live-Daten benötigen eine separate Zustimmung des Eigentümers. Ein Aufruf ist erst erfolgreich, wenn die API die öffentliche URL bestätigt.
 

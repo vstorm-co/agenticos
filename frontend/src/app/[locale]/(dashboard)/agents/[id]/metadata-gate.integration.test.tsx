@@ -114,6 +114,8 @@ vi.mock("@/hooks/use-context", () => ({
 }));
 let searchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
   useSearchParams: () => searchParams,
   useRouter: () => ({ push: vi.fn() }),
   usePathname: () => "/agents/a1",

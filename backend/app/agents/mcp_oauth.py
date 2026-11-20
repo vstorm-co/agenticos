@@ -287,6 +287,13 @@ class McpOAuthPayload(BaseModel):
     account_source_organization_id: UUID | None = None
     account_source_secret_id: UUID | None = None
     account_source_generation: UUID | None = None
+    # The organization whose Google app issued `client_id`. Its secret is never
+    # stored here: it is read from that app each time it is spent, so a rotation
+    # reaches every connection at its next refresh.
+    client_org_id: UUID | None = None
+    # The person who started an organization-scoped flow. Checked again at callback:
+    # an organization-scoped row has no person behind it to check otherwise.
+    initiator_id: UUID | None = None
 
 
 @dataclass(frozen=True)

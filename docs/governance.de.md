@@ -1,5 +1,5 @@
 ---
-source_sha: "ef824da65bb6"
+source_sha: "6bf91cb53877"
 ---
 
 # Governance { #governance }
@@ -66,6 +66,11 @@ Stichprobe, höchstens einmal pro Minute je Routine anhand der Datenbankuhr
 aktualisiert. Payload, Autorentext und Secrets werden nicht gespeichert; es wird
 kein Run erstellt und kein Kontingent für Run-Zulassungen verbraucht. Keine Diagnose bedeutet lediglich, dass keine Ablehnung erfasst wurde;
 sie bestätigt keinen Webhook-Eingang. Öffentliche Webhook-Antworten bleiben unverändert.
+
+Die von der Plattform aufgezeichneten Fehler fließen auch in die
+[Lernschleife aus Fehlern](failure-learning.md) ein. Sie sammelt
+wiederkehrende Fehler in einem Ledger und prüft eine Korrektur anhand des
+bisherigen Verhaltens, bevor sie angewendet wird.
 
 ## Zustellung von Routinen { #routine-delivery }
 
@@ -2719,7 +2724,7 @@ Inbox-Vorgänge weder lesen noch erledigen.
 
 ## Genehmigungsgruppen { #approval-groups }
 
-Workflow-Schritte für menschliche Genehmigungen und MCP-Aufrufe können Personen, Organisationsgruppen oder beide nennen. Eine berechtigte Person entscheidet und benötigt unabhängig davon `approvals:decide`. Sind weder Personen noch Gruppen konfiguriert, gilt die bisherige berechtigungsbasierte Regel. Eine konfigurierte leere oder gelöschte Gruppe öffnet den Zugriff niemals für alle.
+Workflow-Schritte für menschliche Genehmigungen und MCP-Aufrufe können Personen, Organisationsgruppen oder beide nennen. Jede einzelne berechtigte Person darf entscheiden und muss unabhängig davon `approvals:decide` besitzen. Sind weder Personen noch Gruppen konfiguriert, gilt die bisherige berechtigungsbasierte Regel. Eine konfigurierte leere oder gelöschte Gruppe öffnet den Zugriff niemals für alle.
 
 Gruppenmitgliedschaft und aktives Konto werden bei der Entscheidung geprüft. Benachrichtigungen ermitteln berechtigte Mitglieder beim Erstellen der Anfrage und entfernen Überschneidungen mit genannten Personen. Ein späterer Beitritt kann die Entscheidung ohne erneute Benachrichtigung erlauben; Austritt oder Berechtigungsverlust entzieht sie.
 

@@ -154,7 +154,10 @@ export const MarkdownContent = memo(function MarkdownContent({
     () => ({
       pre({ children, ...props }) {
         const block = (
-          <pre className="overflow-x-auto p-3.5 text-[12.5px] leading-relaxed" {...props}>
+          <pre
+            className="max-w-full min-w-0 overflow-x-auto overscroll-x-contain p-4 text-[13px] leading-relaxed"
+            {...props}
+          >
             {children}
           </pre>
         );
@@ -287,7 +290,7 @@ export const MarkdownContent = memo(function MarkdownContent({
             href={href}
             target={isExternal ? "_blank" : undefined}
             rel={isExternal ? "noopener noreferrer" : undefined}
-            className="text-foreground hover:text-brand-hover decoration-brand hover:decoration-brand inline-flex items-baseline gap-1 font-medium underline decoration-2 underline-offset-[3px] transition-colors"
+            className="text-foreground hover:text-brand-hover decoration-brand hover:decoration-brand inline font-medium [overflow-wrap:anywhere] break-words underline decoration-2 underline-offset-[3px] transition-colors"
             {...props}
           >
             {app && (

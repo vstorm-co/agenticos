@@ -39,6 +39,7 @@ export const MCP_AUTH_LABEL: Record<McpAuthKind, string> = {
   none: "authNoCredentials",
   token: "authApiToken",
   oauth: "authOauth",
+  composio: "authOauth",
 };
 
 /**

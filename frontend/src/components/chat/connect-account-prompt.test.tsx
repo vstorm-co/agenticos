@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   fetching: false,
   servers: [] as McpCatalogEntry[],
   opened: [] as { returnTo?: string; keepThisTab?: boolean }[],
+  managedConnect: vi.fn(),
 }));
 
 vi.mock("@/hooks/use-mcp-connections", () => ({
@@ -25,8 +26,21 @@ vi.mock("@/hooks/use-mcp-connections", () => ({
 vi.mock("@/hooks/use-mcp-servers", () => ({
   useMcpCatalog: () => ({ servers: state.servers, isLoading: false }),
 }));
+vi.mock("@/hooks/use-managed-app-connect", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-managed-app-connect")>()),
+  useManagedAppConnect: () => state.managedConnect,
+}));
 vi.mock("@/lib/locale-navigation", () => ({
-  getPathname: ({ href, locale }: { href: string; locale: string }) => `/${locale}${href}`,
+  getPathname: ({
+    href,
+    locale,
+  }: {
+    href: string | { pathname: string; query: Record<string, string> };
+    locale: string;
+  }) =>
+    typeof href === "string"
+      ? `/${locale}${href}`
+      : `/${locale}${href.pathname}?${new URLSearchParams(href.query)}`,
 }));
 // The dialog is tested on its own; here it only has to be opened for the right
 // entry, with no `returnTo` and `keepThisTab` - the consent in a new tab, and
@@ -124,7 +138,30 @@ describe("ConnectAccountPrompt", () => {
     state.fetching = false;
     state.servers = [NOTION];
     state.opened = [];
+    state.managedConnect.mockClear();
   });
+
+  it.each(["not_connected", "unauthorized"] as const)(
+    "routes managed %s accounts to setup while keeping the paused chat",
+    async (gap) => {
+      const onRespond = vi.fn();
+      render(
+        <ConnectAccountPrompt
+          request={request({ catalog_key: "composio-notion", gap })}
+          disabled={false}
+          onRespond={onRespond}
+        />,
+      );
+      await userEvent.click(
+        screen.getByRole("button", {
+          name: gap === "not_connected" ? "Connect" : "Open MCP servers",
+        }),
+      );
+      expect(state.managedConnect).toHaveBeenCalledWith("composio-notion", { keepThisTab: true });
+      expect(state.opened).toEqual([]);
+      expect(onRespond).not.toHaveBeenCalled();
+    },
+  );
 
   it("names the service and connects it without leaving the page", async () => {
     const onRespond = vi.fn();
@@ -250,7 +287,7 @@ describe("ConnectAccountPrompt", () => {
       expect(screen.getByText(said)).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Connect" })).toBeNull();
       const link = screen.getByRole("link", { name: "Open MCP servers" });
-      expect(link).toHaveAttribute("href", "/en/mcp-servers");
+      expect(link).toHaveAttribute("href", "/en/connectors?tab=advanced");
       expect(link).toHaveAttribute("target", "_blank");
     },
   );

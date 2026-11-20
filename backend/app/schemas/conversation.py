@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field, JsonValue, field_validator
+from pydantic import ConfigDict, Field, JsonValue, ValidationInfo, field_validator
 
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.mention import MentionKind
@@ -51,6 +51,83 @@ class HistorySource(BaseSchema):
     conversation_id: UUID
     limit: int
     exclude_message_id: UUID | None = None
+    before_message_id: UUID | None = None
+    snapshot: bool = False
+
+
+class ChatPageResource(BaseSchema):
+    """A client-named page resource; its id conveys no access or ownership."""
+
+    model_config = ConfigDict(
+        from_attributes=False,
+        extra="forbid",
+        strict=True,
+        str_strip_whitespace=False,
+    )
+
+    kind: str = Field(min_length=1, max_length=64)
+    id: str = Field(min_length=1, max_length=128)
+    title: str | None = Field(default=None, max_length=240)
+
+
+class ChatPageContext(BaseSchema):
+    """Bounded reference data captured when a floating-chat question is submitted.
+
+    This is a client assertion about its page, not a trusted record or an
+    instruction. Resource ids never select the caller, organization or answering
+    agent, and never authorize a lookup. The snapshot is scoped to one turn;
+    ordinary chat clients may omit it.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=False,
+        extra="forbid",
+        strict=True,
+        str_strip_whitespace=False,
+    )
+
+    path: str = Field(min_length=1, max_length=2048)
+    title: str = Field(max_length=240)
+    captured_at: str = Field(min_length=1, max_length=64)
+    resource: ChatPageResource | None = None
+    view: str | None = Field(default=None, max_length=120)
+    filters: (
+        dict[
+            Annotated[str, Field(min_length=1, max_length=80)],
+            Annotated[str, Field(max_length=240)],
+        ]
+        | None
+    ) = Field(default=None, max_length=20)
+    selected_ids: list[Annotated[str, Field(min_length=1, max_length=128)]] | None = Field(
+        default=None, max_length=20
+    )
+    summary: str | None = Field(default=None, max_length=6000)
+    selected_text: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("path")
+    @classmethod
+    def in_app_path(cls, value: str) -> str:
+        """Accept a page path without an origin, query, fragment or control bytes."""
+        if (
+            not value.startswith("/")
+            or value.startswith("//")
+            or any(character in value for character in ("?", "#", "\\"))
+            or any(ord(character) < 32 or ord(character) == 127 for character in value)
+        ):
+            raise ValueError("Use an in-app path without a query string or fragment")
+        return value
+
+    @field_validator("captured_at")
+    @classmethod
+    def capture_time_has_timezone(cls, value: str) -> str:
+        """Require an ISO timestamp whose timezone does not depend on the server."""
+        try:
+            captured = datetime.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError("Use an ISO timestamp with a timezone") from exc
+        if captured.utcoffset() is None:
+            raise ValueError("Use an ISO timestamp with a timezone")
+        return value
 
 
 class LocalMessageFileSource(BaseSchema):
@@ -113,8 +190,8 @@ class MessagePart(BaseSchema):
     they picked rather than text that only looks like one.
     """
 
-    # The one schema in this module that must not strip its strings. `BaseSchema`
-    # strips every string field, which is right for a name somebody typed into a
+    # Transcript parts must not strip their strings. `BaseSchema` strips every
+    # string field, which is right for a name somebody typed into a
     # form and wrong for a fragment of a transcript: a part is *accumulated* from
     # streamed deltas, so trimming each one deletes the space between the words
     # they meet at - "Two " and "are open." stored as "Twoare open." - and it
@@ -276,6 +353,11 @@ class MessageCreate(MessageBase):
             "replied to one; refused when it is in another conversation."
         ),
     )
+    reply_to_excerpt: str | None = Field(
+        default=None,
+        max_length=280,
+        description="The normalized selected text quoted from the linked message, when selected",
+    )
     parts: list[MessagePart] | None = Field(
         default=None,
         description=(
@@ -324,6 +406,14 @@ class MessageCreate(MessageBase):
     agent_version_id: UUID | None = Field(
         default=None, description="The frozen spec that produced the answer"
     )
+
+    @field_validator("reply_to_excerpt")
+    @classmethod
+    def excerpt_requires_reply(cls, value: str | None, info: ValidationInfo) -> str | None:
+        """An excerpt is meaningful only with the message it was selected from."""
+        if value is not None and info.data.get("reply_to_message_id") is None:
+            raise ValueError("reply_to_excerpt requires reply_to_message_id")
+        return value
 
 
 class MessageFileRead(BaseSchema):
@@ -393,6 +483,14 @@ class MessageRead(MessageBase, TimestampSchema):
 
     id: UUID
     conversation_id: UUID
+    thread_root_message_id: UUID | None = Field(
+        default=None, description="The top-level room message whose subthread contains this turn"
+    )
+    thread_reply_count: int = Field(default=0, ge=0, description="Replies in this root's subthread")
+    thread_last_activity_at: datetime | None = Field(
+        default=None,
+        description="Newest reply time in this root's subthread, independent of the loaded page",
+    )
     run_id: UUID | None = Field(
         default=None,
         description=(
@@ -520,6 +618,10 @@ class MessageRead(MessageBase, TimestampSchema):
         default=None,
         description="Current user's rating (1 or -1)",
     )
+    is_pinned: bool | None = Field(
+        default=None,
+        description="Whether the authenticated reader pinned this message; absent without a reader",
+    )
     rating_count: dict[str, int] | None = Field(
         default=None,
         description="Aggregate counts {likes: N, dislikes: N}",
@@ -559,6 +661,7 @@ class ConversationUpdate(BaseSchema):
 
     title: str | None = Field(default=None, max_length=255)
     is_archived: bool | None = None
+    project_id: UUID | None = Field(default=None, description="The project this chat belongs to")
 
 
 class ConversationAgent(BaseSchema):
@@ -588,6 +691,30 @@ class ConversationForkOrigin(BaseSchema):
         default=None, description="The answer the fork was made from; null once it is gone"
     )
     title: str | None = None
+
+
+class ConversationForkRead(BaseSchema):
+    """A child conversation the source owner may open beside its anchor."""
+
+    id: UUID
+    title: str | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+    is_archived: bool
+    forked_from: ConversationForkOrigin
+
+
+class ConversationForkList(BaseSchema):
+    """A bounded page of personal forks from one conversation."""
+
+    items: list[ConversationForkRead]
+    total: int
+
+
+class ConversationCompactionAvailability(BaseSchema):
+    """Whether the requested published agent supports a paid summary action."""
+
+    available: bool
 
 
 class ConversationRead(ConversationBase, TimestampSchema):
@@ -632,6 +759,46 @@ class ConversationRead(ConversationBase, TimestampSchema):
             "none is. Set on a listing, so a sidebar can show which threads are busy; "
             "a run parked on an approval is waiting, not working, and is not counted."
         ),
+    )
+    running_heartbeat_at: datetime | None = Field(
+        default=None,
+        description=(
+            "When the run still at work in this conversation last stamped "
+            "itself alive, or null when none is. A live run beats every 15 "
+            "seconds; a beat older than that by a wide margin means the "
+            "process behind the run has gone quiet, and the chat shows the "
+            "run as stalled. A hung model call keeps beating, so this does "
+            "not catch a hang - the per-request timeout ends that instead."
+        ),
+    )
+    waiting_since: datetime | None = Field(
+        default=None,
+        description=(
+            "When the run parked in this conversation stopped to wait, or null when "
+            "none is parked. Set on a listing, so a sidebar can show which threads "
+            "are waiting on their person from any tab or device - a parked run is "
+            "not at work, so `running_since` never says it."
+        ),
+    )
+    waiting_status: str | None = Field(
+        default=None,
+        description=(
+            "What the parked run is waiting on - `awaiting_answer` for an unanswered "
+            "question, `awaiting_approval` for an undecided approval - or null when "
+            "none is parked."
+        ),
+    )
+    waiting_question: str | None = Field(
+        default=None,
+        description=(
+            "The parked run's first unanswered question, or null when it parked on "
+            "an approval with no question left open. The full list is on the run "
+            "read; a listing carries the one line a row can show."
+        ),
+    )
+    waiting_run_ids: list[UUID] = Field(
+        default_factory=list,
+        description="Parked top-level runs, so one ending does not hide another.",
     )
     agents: list[ConversationAgent] = Field(
         default_factory=list,

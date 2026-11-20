@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ArtifactViewer } from "./artifact-viewer";
+import { ArtifactFrame, assistantContextFrom } from "./artifact-frame";
+import type { AssistantPageDetails } from "@/lib/assistant-page-context";
 import { ApiError } from "@/lib/api-error";
 import { useOrgStore } from "@/stores";
 import { useAuthStore } from "@/stores/auth-store";
@@ -34,9 +36,17 @@ const orgs = vi.fn(() => [{ id: "o1", name: "Acme" }]);
 const push = vi.fn();
 const replace = vi.fn();
 const sharingPanel = vi.fn();
+const pathname = vi.fn(() => "/apps/a1");
+const registerAssistantPageContext =
+  vi.fn<(details: AssistantPageDetails | null, enabled?: boolean) => void>();
+vi.mock("@/hooks/use-assistant-page-context", () => ({
+  useRegisterAssistantPageContext: (details: AssistantPageDetails | null, enabled?: boolean) =>
+    registerAssistantPageContext(details, enabled),
+}));
 
 const useArtifactDisclosureMock = vi.fn();
 const usePublicDataDisclosureMock = vi.fn();
+const toggleFavourite = vi.fn();
 vi.mock("@/hooks/use-artifacts", () => ({
   useArtifact: (...args: unknown[]) => useArtifactMock(...args),
   useArtifactView: (...args: unknown[]) => useArtifactViewMock(...args),
@@ -44,6 +54,7 @@ vi.mock("@/hooks/use-artifacts", () => ({
   useArtifactReasons: (...args: unknown[]) => useArtifactReasonsMock(...args),
   useArtifactDisclosure: (...args: unknown[]) => useArtifactDisclosureMock(...args),
   usePublicDataDisclosure: (...args: unknown[]) => usePublicDataDisclosureMock(...args),
+  useToggleArtifactFavourite: () => ({ isPending: false, mutate: toggleFavourite }),
 }));
 // What the console does with a page's requests has its own tests
 // (`artifact-actions.test.tsx`); here the viewer only draws what it is lent.
@@ -75,7 +86,7 @@ vi.mock("@/hooks/use-artifact-requests", () => ({
 }));
 vi.mock("@/lib/locale-navigation", () => ({
   useRouter: () => ({ push, replace }),
-  usePathname: () => "/apps/a1",
+  usePathname: () => pathname(),
 }));
 vi.mock("@/hooks", () => ({
   useOrganizations: () => ({ orgs: orgs() }),
@@ -342,6 +353,22 @@ describe("ArtifactViewer", () => {
     rerender(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
     await userEvent.click(screen.getByRole("button", { name: "Unfollow" }));
     expect(follow.mutate).toHaveBeenLastCalledWith(false);
+  });
+
+  it("lets a reader save and unsave the page without editing it", async () => {
+    useArtifactMock.mockReturnValue(state(detail({ can_edit: false, is_favourite: false })));
+    const view = render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+    const add = screen.getByRole("button", { name: "Add Weekly report to favourites" });
+    expect(add).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(add);
+    expect(toggleFavourite).toHaveBeenLastCalledWith({ id: "a1", favourite: true });
+
+    useArtifactMock.mockReturnValue(state(detail({ can_edit: false, is_favourite: true })));
+    view.rerender(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+    const remove = screen.getByRole("button", { name: "Remove Weekly report from favourites" });
+    expect(remove).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(remove);
+    expect(toggleFavourite).toHaveBeenLastCalledWith({ id: "a1", favourite: false });
   });
 
   it("says in a word how far it reaches", () => {
@@ -1880,5 +1907,168 @@ describe("what a page can run, in the viewer", () => {
       "href",
       "/workflows/w1/runs/r1?org=o1",
     );
+  });
+});
+
+describe("the app frame's assistant context", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    pathname.mockReturnValue("/apps/a1");
+    useArtifactViewMock.mockReturnValue(STATIC_VIEW);
+    useArtifactDataMock.mockReturnValue(NO_DATA);
+    useArtifactReasonsMock.mockReturnValue(NO_DATA);
+    useArtifactActionsMock.mockReturnValue(IDLE_ACTIONS);
+    useAuthStore.setState({ user: { id: "u1" } as User });
+    useOrgStore.setState({ activeOrgId: "o1" });
+  });
+  afterEach(() => {
+    pathname.mockReturnValue("/apps/a1");
+  });
+
+  function openFrame() {
+    return render(<ArtifactFrame artifactId="a1" versionId={null} title="Weekly report" />);
+  }
+
+  function lastDetails() {
+    return registerAssistantPageContext.mock.calls.at(-1)?.[0];
+  }
+
+  it("uses the host app identity and the explicitly registered current view", () => {
+    openFrame();
+    expect(lastDetails()).toMatchObject({
+      title: "Weekly report",
+      resource: { kind: "app", id: "a1", title: "Weekly report" },
+      view: "app",
+      filters: { version: "v1" },
+    });
+    const frame = screen.getByTitle("Weekly report") as HTMLIFrameElement;
+    const post = vi.spyOn(frame.contentWindow!, "postMessage");
+    fireEvent.load(frame);
+    expect(post).toHaveBeenCalledWith({ type: "assistant_context_request", n: "n" }, "*");
+
+    const selected_ids = ["deal-1"];
+    postFromFrame({
+      type: "assistant_context",
+      n: "n",
+      context: {
+        title: "Forged title",
+        resource: { kind: "other", id: "secret", title: "Other" },
+        view: "pipeline",
+        filters: { stage: "won", version: "forged" },
+        selected_ids,
+        summary: "One deal",
+      },
+    });
+    selected_ids.push("deal-2");
+    expect(lastDetails()).toMatchObject({
+      title: "Weekly report",
+      resource: { kind: "app", id: "a1", title: "Weekly report" },
+      view: "pipeline",
+      filters: { version: "v1", stage: "won" },
+      selected_ids: ["deal-1"],
+      summary: "One deal",
+    });
+    postFromFrame({ type: "assistant_context", n: "n", context: null });
+    expect(lastDetails()?.summary).toBeUndefined();
+    expect(lastDetails()?.resource?.id).toBe("a1");
+  });
+
+  it("rejects other frames, stale nonces, and malformed messages", () => {
+    openFrame();
+    const frame = screen.getByTitle("Weekly report") as HTMLIFrameElement;
+    const data = { type: "assistant_context", n: "n", context: { summary: "Active" } };
+    const valid = new MessageEvent("message", { data, source: frame.contentWindow });
+    expect(assistantContextFrom(valid, frame, "n")?.details.summary).toBe("Active");
+    expect(assistantContextFrom(valid, frame, "")).toBeNull();
+    expect(assistantContextFrom(valid, null, "n")).toBeNull();
+    for (const event of [
+      new MessageEvent("message", { data, source: window }),
+      new MessageEvent("message", { data: { ...data, n: "old" }, source: frame.contentWindow }),
+      new MessageEvent("message", { data: { ...data, context: [] }, source: frame.contentWindow }),
+      new MessageEvent("message", {
+        data: { ...data, context: "text" },
+        source: frame.contentWindow,
+      }),
+      new MessageEvent("message", { data: null, source: frame.contentWindow }),
+    ]) {
+      expect(assistantContextFrom(event, frame, "n")).toBeNull();
+    }
+
+    // The script can call setAssistantContext while parsing. The host accepts
+    // only after onLoad, when it asks the script to replay its saved context.
+    postFromFrame(data);
+    expect(lastDetails()?.summary).toBeUndefined();
+    fireEvent.load(frame);
+    postFromFrame(data);
+    expect(lastDetails()?.summary).toBe("Active");
+  });
+
+  it("drops the previous document's context on version changes and reloads", () => {
+    const rendered = openFrame();
+    const previous = screen.getByTitle("Weekly report") as HTMLIFrameElement;
+    const previousWindow = previous.contentWindow;
+    fireEvent.load(previous);
+    postFromFrame({ type: "assistant_context", n: "n", context: { summary: "Old version" } });
+    expect(lastDetails()?.summary).toBe("Old version");
+
+    useArtifactViewMock.mockReturnValue({
+      ...STATIC_VIEW,
+      data: {
+        ...STATIC_VIEW.data,
+        url: "https://api/c/new",
+        nonce: "new",
+        version: { id: "v2" },
+      },
+    });
+    rendered.rerender(<ArtifactFrame artifactId="a1" versionId={null} title="Weekly report" />);
+    const current = screen.getByTitle("Weekly report") as HTMLIFrameElement;
+    expect(current).not.toBe(previous);
+    expect(lastDetails()?.summary).toBeUndefined();
+    expect(lastDetails()?.filters?.version).toBe("v2");
+    fireEvent.load(current);
+    act(() =>
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          source: previousWindow,
+          data: { type: "assistant_context", n: "new", context: { summary: "Old frame" } },
+        }),
+      ),
+    );
+    postFromFrame({ type: "assistant_context", n: "n", context: { summary: "Old nonce" } });
+    expect(lastDetails()?.summary).toBeUndefined();
+    postFromFrame({ type: "assistant_context", n: "new", context: { summary: "Current" } });
+    expect(lastDetails()?.summary).toBe("Current");
+    fireEvent.load(current);
+    expect(lastDetails()?.summary).toBeUndefined();
+  });
+
+  it("never re-registers accepted app details under another organization or account", () => {
+    openFrame();
+    fireEvent.load(screen.getByTitle("Weekly report"));
+    postFromFrame({ type: "assistant_context", n: "n", context: { summary: "Organization one" } });
+    expect(lastDetails()?.summary).toBe("Organization one");
+    act(() => useOrgStore.setState({ activeOrgId: "o2" }));
+    expect(lastDetails()?.summary).toBeUndefined();
+    fireEvent.load(screen.getByTitle("Weekly report"));
+    postFromFrame({ type: "assistant_context", n: "n", context: { summary: "Organization two" } });
+    expect(lastDetails()?.summary).toBe("Organization two");
+    act(() => useAuthStore.setState({ user: { id: "u2" } as User }));
+    expect(lastDetails()?.summary).toBeUndefined();
+  });
+
+  it("registers only the primary app route, including localized routes", () => {
+    pathname.mockReturnValue("/chat/session");
+    const rendered = openFrame();
+    expect(registerAssistantPageContext.mock.calls.at(-1)?.[1]).toBe(false);
+    fireEvent.load(screen.getByTitle("Weekly report"));
+    postFromFrame({ type: "assistant_context", n: "n", context: { summary: "Inline" } });
+    expect(lastDetails()?.summary).toBeUndefined();
+
+    pathname.mockReturnValue("/en/apps/a1");
+    rendered.rerender(<ArtifactFrame artifactId="a1" versionId={null} title="Weekly report" />);
+    expect(registerAssistantPageContext.mock.calls.at(-1)?.[1]).toBe(true);
+    pathname.mockReturnValue("/apps/another-app");
+    rendered.rerender(<ArtifactFrame artifactId="a1" versionId={null} title="Weekly report" />);
+    expect(registerAssistantPageContext.mock.calls.at(-1)?.[1]).toBe(false);
   });
 });

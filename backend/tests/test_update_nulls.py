@@ -49,6 +49,7 @@ from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.eval_suite import EvalSuite
+from app.db.models.failure_learning import AgentFailureLedger
 from app.db.models.group import Group, GroupMember
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.local_service import LocalService
@@ -59,6 +60,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.project import Project
+from app.db.models.resource_grant import ResourceGrant
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.session import Session
 from app.db.models.skill import Skill, SkillResource
@@ -96,6 +98,7 @@ from app.schemas.dashboard_layout import DashboardLayoutUpdate
 from app.schemas.dataset import DatasetCaseUpdate, DatasetUpdate
 from app.schemas.deployment_settings import DeploymentSettingsUpdate
 from app.schemas.eval_suite import EvalSuiteUpdate
+from app.schemas.failure_learning import LedgerEntryUpdate
 from app.schemas.group import GroupLeadUpdate, GroupUpdate
 from app.schemas.knowledge_base import KnowledgeBaseUpdate
 from app.schemas.local_service import LocalServiceUpdate
@@ -110,6 +113,7 @@ from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.notification_route import NotificationRouteUpdate
 from app.schemas.onboarding import OnboardingUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
+from app.schemas.permissions import RoleNavigationUpdate
 from app.schemas.project import ProjectUpdate
 from app.schemas.push import ApnsKeyUpdate, PushFocusUpdate, PushPreferencesUpdate
 from app.schemas.resource_grant import VisibilityUpdate
@@ -122,11 +126,12 @@ from app.schemas.skill import SkillResourceUpdate, SkillUpdate
 from app.schemas.skill_version import SkillForkUpdate
 from app.schemas.sync_source import SyncSourceUpdate
 from app.schemas.system_agent import SystemAgentUpdate
+from app.schemas.table_record_access import RecordGrantUpdate
 from app.schemas.table_view import TableViewUpdate
 from app.schemas.task import TaskUpdate
 from app.schemas.user import UserUpdate
 from app.schemas.user_slash_command import UserSlashCommandUpdate
-from app.schemas.virtual_table import RecordUpdate, SchemaUpdate, TableUpdate
+from app.schemas.virtual_table import RecordUpdate, RowPolicyUpdate, SchemaUpdate, TableUpdate
 from app.schemas.virtual_table_trigger import TableTriggerUpdate
 from app.schemas.watch import WatchUpdate
 from app.schemas.workflow import WorkflowActiveUpdate, WorkflowDraftUpdate, WorkflowUpdate
@@ -180,6 +185,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     GroupUpdate: Group,
     GroupLeadUpdate: GroupMember,
     KnowledgeBaseUpdate: KnowledgeBase,
+    LedgerEntryUpdate: AgentFailureLedger,
     LocalServiceUpdate: LocalService,
     SystemAgentUpdate: SystemAgentProfile,
     McpConnectionUpdate: McpConnection,
@@ -193,7 +199,12 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     OrganizationUpdate: Organization,
     PortalPollIntervalUpdate: McpConnection,
     ProjectUpdate: Project,
+    RecordGrantUpdate: ResourceGrant,
     RecordUpdate: None,
+    # Replaces one role's list inside role_navigation JSONB, not a hidden_items row column.
+    RoleNavigationUpdate: None,
+    # Replaces the validated row_policy JSONB document, not columns named after its fields.
+    RowPolicyUpdate: None,
     # Both patch keys within Session.push_preferences JSONB, not columns by name.
     PushFocusUpdate: None,
     PushPreferencesUpdate: None,
@@ -240,6 +251,9 @@ _DUMP_EXEMPT = {
     # row columns. Explicit null resets its model/instructions; omission keeps it.
     "app/services/dataset.py",
     "app/services/rag_document.py",
+    # Appearance tokens merge into one JSONB document and are validated whole;
+    # omitted tokens preserve their value and explicit null is rejected by the schema.
+    "app/services/user_appearance.py",
     "app/services/voice/transport.py",
 }
 
@@ -314,6 +328,8 @@ class TestEveryUpdateSchemaIsAccountedFor:
             "TaskUpdate",
             "NotificationPreferenceUpdate",
             "RecordUpdate",
+            "RoleNavigationUpdate",
+            "RowPolicyUpdate",
             "SchemaUpdate",
             "PushFocusUpdate",
             "PushPreferencesUpdate",
@@ -400,9 +416,9 @@ class TestNothingDumpsAnUpdateItself:
         root = Path(__file__).resolve().parent.parent
         searched = root / "app" / package
         offenders = sorted(
-            str(path.relative_to(root))
+            path.relative_to(root).as_posix()
             for path in searched.rglob("*.py")
-            if str(path.relative_to(root)) not in _DUMP_EXEMPT
+            if path.relative_to(root).as_posix() not in _DUMP_EXEMPT
             and _DUMP.search(path.read_text(encoding="utf-8"))
         )
 

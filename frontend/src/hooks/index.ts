@@ -1,4 +1,6 @@
 export { useAuth } from "./use-auth";
+export { useAppUpdate } from "./use-app-update";
+export { useClaudeSubscription } from "./use-claude-subscription";
 export { useCopyToClipboard } from "./use-copy-to-clipboard";
 export { useApiKeys } from "./use-api-keys";
 export { usePublicOpenApi } from "./use-public-openapi";
@@ -13,12 +15,16 @@ export {
 export { useAdminOrganizationDetail } from "./use-admin-organization-detail";
 export { useWebSocket } from "./use-websocket";
 export { useChat } from "./use-chat";
+export { useRoomRequests, useRoomActions, useRoomSync, useCreateTeamRoom } from "./use-room";
 export {
   useCodingChanges,
   useCodingChangeSets,
   useRevertCodingChanges,
 } from "./use-coding-changes";
 export { useConversationWorkspace } from "./use-conversation-workspace";
+export { useConversationForks } from "./use-conversation-forks";
+export { useConversationMessageSearch } from "./use-conversation-message-search";
+export { useMessagePins } from "./use-message-pins";
 export { useConversationSearch, useConversations } from "./use-conversations";
 export { useConversationShares } from "./use-conversation-shares";
 export { useOrganizations, useOrganizationList, preferredOrg } from "./use-organizations";
@@ -32,18 +38,29 @@ export { useKnowledgeBaseFor, useKnowledgeBases, useKBDetail } from "./use-knowl
 export { useSlashCommands, isBuiltinEnabled, BUILTIN_COMMAND_LIST } from "./use-slash-commands";
 export { useNotificationPreferences } from "./use-notification-preferences";
 export { useNotificationInbox, useUnreadNotificationCount } from "./use-notifications";
+export {
+  useAgentMessageRecipients,
+  useAgentMessages,
+  useAgentMessageThread,
+  useAgentMessageThreads,
+  useMarkAgentMessageThreadRead,
+  useReactToAgentMessage,
+  useSendAgentMessage,
+} from "./use-agent-messages";
 export { useDashboardLayout } from "./use-dashboard-layout";
 export { useDashboardPresets } from "./use-dashboard-presets";
 export { useReusableIntegrations } from "./use-reusable-integrations";
 export { useLocalServices } from "./use-local-services";
 export { useExternalAgents } from "./use-external-agents";
 export { useMcpConnections } from "./use-mcp-connections";
+export { useAppConnections } from "./use-app-connections";
 export { useOrgMcpConnections, useOrgMcpToolCalls } from "./use-org-mcp-connections";
 export { useUsableMcpConnections } from "./use-usable-mcp-connections";
 export { useMcpToolServers } from "./use-mcp-tool-servers";
 export { useMyMemory } from "./use-my-memory";
 export { useMyClaims } from "./use-my-claims";
 export { usePermissions, useRoleCatalog, useAssignableRoles } from "./use-permissions";
+export { useRoleNavigation, useUpdateRoleNavigation } from "./use-role-navigation";
 export { useRetention } from "./use-retention";
 export {
   useAddDepartments,
@@ -80,6 +97,7 @@ export {
   type McpServerRow,
 } from "./use-mcp-servers";
 export { useMcpOAuthOutcome } from "./use-mcp-oauth-outcome";
+export { useDriveFolders } from "./use-drive-folders";
 export {
   usePortalCatalog,
   usePortals,
@@ -118,6 +136,7 @@ export {
   useApprovals,
   useDelegatedRuns,
   usePrefetchRuns,
+  useRetryRun,
   useRun,
   useRunManifest,
   useRuns,
@@ -185,6 +204,13 @@ export { useRecentWorkflowLogs } from "./use-recent-workflow-logs";
 export { useWorkflowStats } from "./use-workflow-stats";
 export { useWorkflowApprovalsSummary, useWorkflowsSummary } from "./use-workflows-summary";
 export { useStepEvals } from "./use-step-evals";
+export {
+  ruleCounts,
+  useEvalTry,
+  useFailureLearning,
+  useOrgPatterns,
+  useProposal,
+} from "./use-failure-learning";
 export { useWebhookTest } from "./use-webhook-test";
 export { useWorkflowChat } from "./use-workflow-chat";
 export { useTableTriggerAdmissions, useTableTriggers } from "./use-table-triggers";
@@ -216,3 +242,8 @@ export { useDurableTasks } from "./use-durable-tasks";
 export { useCodingAccounts } from "./use-coding-accounts";
 
 export { usePersonalModelKeys } from "./use-personal-model-keys";
+export { useBrowserCredentialContinuation } from "./use-browser-credential-continuation";
+export {
+  useAssistantPageContext,
+  useRegisterAssistantPageContext,
+} from "./use-assistant-page-context";

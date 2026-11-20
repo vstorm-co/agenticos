@@ -35,11 +35,12 @@ test.describe("Authentication", () => {
     await expect(page.getByRole("heading", { name: /sign in|log in/i })).toBeVisible();
   });
 
-  test("the root keeps the locale it was reached on", async ({ page }) => {
+  test("a retired locale's root lands on the English sign-in form", async ({ page }) => {
     await page.context().clearCookies();
     await page.goto("/pl");
 
-    await expect(page).toHaveURL(/\/pl\/login$/);
+    await expect(page).toHaveURL(/^[^?#]*\/login$/);
+    await expect(page).not.toHaveURL(/\/pl\//);
   });
 
   test("a deep link survives the login round trip, fragment included", async ({ page }) => {

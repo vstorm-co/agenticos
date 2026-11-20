@@ -56,11 +56,13 @@ form, `overlap` in the API, decides what happens:
 
 An event trigger has no such setting: each delivery is its own fire.
 
+**Which conversation a fire runs in.** `conversation_mode` in the API decides it: `continue`, the default, appends every fire to the trigger's one run log, so the Runs tab lists them all; `fresh` opens a new conversation per fire, so one fire never reads the previous fires' turns — and the Runs tab has no one conversation to list. A `fresh` trigger opens no run-log conversation when it is created, so there is no sidebar item until the first fire runs.
+
 Everything below is for the event case.
 
 ## Where the answer goes, and when a routine ends { #answers-and-ends }
 
-Every fire is recorded in the trigger's run log. `answer_to` says where the answer is also delivered
+Every fire is recorded in the conversation it runs in — the trigger's run log, unless the trigger opens a fresh conversation per fire. `answer_to` says where the answer is also delivered
 to the person who made it (#2575): `primary`, the default, is their own conversation with the agent, so
 everything it tells them is in one place; `conversation` is one of their other chats
 (`delivery_conversation_id`), for a routine made in that chat; `run_log` posts nowhere else.
@@ -201,6 +203,13 @@ a loop from spending the budget in an afternoon.
 then the event inside an `<event_content>` block that tells the model to read it
 as data. An issue, an email or a file name is written by whoever sent it, and a
 sentence in it that sounds like an order is still part of the event.
+
+A GitHub delivery also reaches the run as one structured part: the whole delivery
+as JSON, in the same shape the workflow GitHub trigger hands a run, inside an
+`<event_payload>` block beside the rendered text. It is the same untrusted
+content — the run reads it as information to work on, never as instructions — and
+it is redacted from the wait row once the fire settles, so a finished wait keeps
+neither the payload nor the rendered context.
 
 ## Rotating the secret, and editing the filter
 

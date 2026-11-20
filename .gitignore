@@ -146,3 +146,7 @@ loadtest/corpus/
 
 # Compiled macOS widget, embedded by the bundle hook.
 desktop/.widget-build/
+
+# Private downstream registry and rendered cloud identities.
+*.downstream-sync.private.json
+ci/generated-sync/

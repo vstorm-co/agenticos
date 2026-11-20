@@ -15,6 +15,7 @@ the run history keeps saying what was actually live at the time.
 """
 
 import uuid
+from types import SimpleNamespace
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -29,6 +30,7 @@ from app.agents.spec import (
     CapabilityBindingSpec,
     OrgMcpServerRef,
     PersonalMcpServerRef,
+    PlatformMcpServerRef,
     SpecialistSpec,
     VoiceSpec,
 )
@@ -542,7 +544,8 @@ class TestList:
                 new=AsyncMock(return_value={}),
             ),
             patch(
-                f"{REGISTRY_PATH}.agent_repo.published_capabilities", new=AsyncMock(return_value={})
+                f"{REGISTRY_PATH}.agent_repo.published_capability_bindings",
+                new=AsyncMock(return_value={}),
             ),
             patch(
                 f"{REGISTRY_PATH}.agent_repo.published_coding_agents",
@@ -573,6 +576,7 @@ class TestList:
         version_id = uuid.uuid4()
         published = _agent(ctx, current_version_id=version_id)
         draft = _agent(ctx, shipped_template={"key": template} if template else None)
+        desktop_key = uuid4()
 
         with (
             patch(
@@ -618,9 +622,19 @@ class TestList:
                 new=AsyncMock(return_value={version_id: {"What can you do?": "compass"}}),
             ),
             patch(
-                f"{REGISTRY_PATH}.agent_repo.published_capabilities",
-                new=AsyncMock(return_value={version_id: ["sandbox", "computer_use"]}),
-            ),
+                f"{REGISTRY_PATH}.agent_repo.published_capability_bindings",
+                new=AsyncMock(
+                    return_value={
+                        version_id: [
+                            CapabilityBindingSpec(id="sandbox", config={"backend": "local"}),
+                            CapabilityBindingSpec(id="browser_use", enabled=False),
+                            CapabilityBindingSpec(
+                                id="computer_use", config={"desktop": "e2b"}, secret_id=desktop_key
+                            ),
+                        ]
+                    }
+                ),
+            ) as published_bindings,
             patch(
                 f"{REGISTRY_PATH}.agent_repo.published_coding_agents",
                 new=AsyncMock(
@@ -653,6 +667,11 @@ class TestList:
         assert rows[1].starter_titles == {}
         assert rows[0].published_capabilities == ["sandbox", "computer_use"]
         assert rows[1].published_capabilities == []
+        published_bindings.assert_awaited_once()
+        assert published_bindings.call_args.kwargs["version_ids"] == [version_id]
+        assert rows[0].published_hosted_capabilities == ["computer_use"]
+        assert rows[1].published_hosted_capabilities == []
+        assert str(desktop_key) not in rows[0].model_dump_json()
 
     @pytest.mark.anyio
     async def test_a_role_that_sees_everything_never_looks_up_grants(self):
@@ -1397,6 +1416,105 @@ class TestMayRun:
             new=AsyncMock(return_value=None),
         ):
             assert await AgentRegistryService(_db()).may_run(ctx, agent) is False
+
+
+class TestConfigurationAccess:
+    @pytest.mark.anyio
+    async def test_an_explicit_edit_grant_enables_this_agents_editor_and_publish(self):
+        ctx = _ctx(OrgRoleName.VIEWER)
+        agent = _agent(ctx, owner_user_id=uuid.uuid4())
+        with patch(
+            "app.services.access.resource_grant_repo.get_level",
+            new=AsyncMock(return_value=GrantLevel.EDIT),
+        ):
+            assert await AgentRegistryService(_db()).configuration_access(ctx, agent) == (
+                True,
+                True,
+            )
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("grant", [None, GrantLevel.READ, GrantLevel.USE])
+    async def test_read_and_run_grants_do_not_offer_editing(self, grant):
+        ctx = _ctx(OrgRoleName.VIEWER)
+        agent = _agent(ctx, owner_user_id=uuid.uuid4())
+        with patch(
+            "app.services.access.resource_grant_repo.get_level",
+            new=AsyncMock(return_value=grant),
+        ):
+            assert await AgentRegistryService(_db()).configuration_access(ctx, agent) == (
+                False,
+                False,
+            )
+
+    @pytest.mark.anyio
+    async def test_role_scope_still_enables_the_owners_editor(self):
+        ctx = _ctx()
+        assert await AgentRegistryService(_db()).configuration_access(ctx, _agent(ctx)) == (
+            True,
+            True,
+        )
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_another_tenant_remains_unreachable_even_for_the_owner(self):
+        ctx = _ctx()
+        agent = _agent(ctx, organization_id=uuid.uuid4())
+        assert await AgentRegistryService(_db()).configuration_access(ctx, agent) == (False, False)
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "changes", [{"workflow_id": uuid.uuid4()}, {"status": AgentStatus.ARCHIVED.value}]
+    )
+    async def test_workflow_and_archived_agents_keep_the_listings_resource_access(self, changes):
+        ctx = _ctx()
+        agent = _agent(ctx, **changes)
+        service = AgentRegistryService(_db())
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([agent], 1)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+        ):
+            rows, _total = await service.list_agents(ctx, include_archived=True)
+        assert (
+            (rows[0].can_edit, rows[0].can_publish)
+            == await service.configuration_access(ctx, agent)
+            == (True, True)
+        )
+
+    @pytest.mark.anyio
+    async def test_the_detail_response_carries_resolved_edit_access(self):
+        from app.api.routes.v1.agents import get_agent
+
+        ctx = _ctx(OrgRoleName.VIEWER)
+        agent = _agent(
+            ctx,
+            owner_user_id=uuid.uuid4(),
+            local_coding_agent=None,
+            personal_coding_harness=None,
+            published_model=None,
+            starter_titles={},
+            starter_icons={},
+        )
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=GrantLevel.EDIT),
+            ),
+        ):
+            result = await get_agent(agent.id, AgentRegistryService(_db()), ctx)
+        assert result.can_edit is True
+        assert result.can_publish is True
+        assert result.can_run is True
 
 
 class TestCreate:
@@ -6228,6 +6346,195 @@ class TestAssistantRuntimeGuidance:
             assert actual is spec
 
 
+def _managed_gmail(user_id: uuid.UUID, **overrides: object) -> SimpleNamespace:
+    values: dict[str, object] = {
+        "catalog_key": "composio-gmail",
+        "user_id": user_id,
+        "organization_id": None,
+        "scope": "user",
+        "purpose": "mcp",
+        "auth_type": "composio",
+        "is_enabled": True,
+        "composio_status": "ACTIVE",
+        "composio_account_id": "account",
+        "composio_auth_config_id": "auth-config",
+        "allowed_tools": ["GMAIL_FETCH_EMAILS"],
+    }
+    values.update(overrides)
+    return SimpleNamespace(**values)
+
+
+class TestManagedAppsForAgents:
+    @pytest.mark.anyio
+    async def test_an_agent_gets_only_the_senders_active_connected_catalog_apps(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.services.app_connections import runtime
+
+        ctx = _ctx()
+        agent = _agent(ctx)
+        sender_id = uuid.uuid4()
+        spec = _spec(instructions="Keep this", mcp_servers=[])
+        lookup = AsyncMock(return_value=[_managed_gmail(sender_id)])
+        db = _db()
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.organization_assistant_repo.for_agent", AsyncMock(return_value=None)
+        )
+        monkeypatch.setattr(f"{REGISTRY_PATH}.mcp_connection_repo.list_composio_for_user", lookup)
+        monkeypatch.setattr(runtime, "is_configured", lambda _toolkit: True)
+
+        actual = await AgentRegistryService(db).with_assistant_guidance(
+            agent, spec, sender_user_id=sender_id
+        )
+
+        assert len(actual.mcp_servers) == 1
+        binding = actual.mcp_servers[0]
+        assert isinstance(binding, PersonalMcpServerRef)
+        assert binding.catalog_key == "composio-gmail"
+        assert binding.allowed_tools == [
+            "GMAIL_FETCH_EMAILS",
+            "GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID",
+            "GMAIL_FETCH_MESSAGE_BY_THREAD_ID",
+        ]
+        assert binding.approval == "writes"
+        assert "tools available to you for account-backed tasks" in actual.instructions
+        lookup.assert_awaited_once_with(db, user_id=sender_id)
+        assert spec.mcp_servers == []
+        assert spec.instructions == "Keep this"
+
+    @pytest.mark.anyio
+    async def test_an_agent_with_no_connected_rows_gets_no_configured_placeholders(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.services.app_connections import runtime
+
+        ctx = _ctx()
+        sender_id = uuid.uuid4()
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.organization_assistant_repo.for_agent", AsyncMock(return_value=None)
+        )
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.mcp_connection_repo.list_composio_for_user",
+            AsyncMock(return_value=[]),
+        )
+        monkeypatch.setattr(runtime, "is_configured", lambda _toolkit: True)
+        spec = _spec(mcp_servers=[])
+
+        actual = await AgentRegistryService(_db()).with_assistant_guidance(
+            _agent(ctx), spec, sender_user_id=sender_id
+        )
+
+        assert actual is spec
+
+    @pytest.mark.anyio
+    async def test_an_agent_without_a_sender_does_not_read_managed_rows(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.services.app_connections import runtime
+
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.organization_assistant_repo.for_agent", AsyncMock(return_value=None)
+        )
+        lookup = AsyncMock(return_value=[_managed_gmail(uuid.uuid4())])
+        monkeypatch.setattr(f"{REGISTRY_PATH}.mcp_connection_repo.list_composio_for_user", lookup)
+        monkeypatch.setattr(runtime, "is_configured", lambda _toolkit: True)
+        spec = _spec(mcp_servers=[])
+
+        actual = await AgentRegistryService(_db()).with_assistant_guidance(_agent(_ctx()), spec)
+
+        assert actual is spec
+        lookup.assert_not_awaited()
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "overrides",
+        [{"composio_status": "INITIATED"}, {"is_enabled": False}],
+    )
+    async def test_an_agent_gets_no_binding_for_an_inactive_managed_row(
+        self, monkeypatch: pytest.MonkeyPatch, overrides: dict[str, object]
+    ) -> None:
+        from app.services.app_connections import runtime
+
+        ctx = _ctx()
+        sender_id = uuid.uuid4()
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.organization_assistant_repo.for_agent", AsyncMock(return_value=None)
+        )
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.mcp_connection_repo.list_composio_for_user",
+            AsyncMock(return_value=[_managed_gmail(sender_id, **overrides)]),
+        )
+        monkeypatch.setattr(runtime, "is_configured", lambda _toolkit: True)
+        spec = _spec(mcp_servers=[])
+
+        actual = await AgentRegistryService(_db()).with_assistant_guidance(
+            _agent(ctx), spec, sender_user_id=sender_id
+        )
+
+        assert actual is spec
+
+    @pytest.mark.anyio
+    async def test_connected_app_discovery_preserves_an_explicit_binding_ceiling(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.services.app_connections import runtime
+
+        ctx = _ctx()
+        sender_id = uuid.uuid4()
+        explicit = PersonalMcpServerRef(
+            account="personal",
+            catalog_key="composio-gmail",
+            allowed_tools=["GMAIL_FETCH_EMAILS"],
+            approval="none",
+        )
+        spec = _spec(mcp_servers=[explicit])
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.organization_assistant_repo.for_agent", AsyncMock(return_value=None)
+        )
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.mcp_connection_repo.list_composio_for_user",
+            AsyncMock(return_value=[_managed_gmail(sender_id)]),
+        )
+        monkeypatch.setattr(runtime, "is_configured", lambda _toolkit: True)
+
+        actual = await AgentRegistryService(_db()).with_assistant_guidance(
+            _agent(ctx), spec, sender_user_id=sender_id
+        )
+
+        assert actual.mcp_servers == [explicit]
+        assert actual.mcp_servers[0].allowed_tools == ["GMAIL_FETCH_EMAILS"]
+        assert actual.mcp_servers[0].approval == "none"
+        assert spec.mcp_servers == [explicit]
+
+    @pytest.mark.anyio
+    async def test_assistant_keeps_configured_apps_without_changing_its_stored_spec(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.services.app_connections import runtime
+
+        ctx = _ctx()
+        agent = _agent(ctx)
+        assistant = SimpleNamespace(organization_id=ctx.organization_id)
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.organization_assistant_repo.for_agent",
+            AsyncMock(return_value=assistant),
+        )
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.mcp_connection_repo.list_composio_for_user",
+            AsyncMock(return_value=[]),
+        )
+        monkeypatch.setattr(runtime, "is_configured", lambda toolkit: toolkit == "gmail")
+        spec = _spec(mcp_servers=[PlatformMcpServerRef(account="platform", allowed_tools=[])])
+
+        actual = await AgentRegistryService(_db()).with_assistant_guidance(agent, spec)
+
+        assert [
+            ref.catalog_key for ref in actual.mcp_servers if isinstance(ref, PersonalMcpServerRef)
+        ] == ["composio-gmail"]
+        assert "tools available on this assistant for account-backed tasks" in actual.instructions
+        assert spec.mcp_servers == [PlatformMcpServerRef(account="platform", allowed_tools=[])]
+
+
 @pytest.mark.anyio
 async def test_runtime_architect_removes_only_the_known_obsolete_workflow_denial():
     ctx = _ctx()
@@ -6287,6 +6594,31 @@ def test_where_a_coding_agent_runs_decides_which_listing_field_names_it() -> Non
     assert _personal_coding_harness(None) is None
 
 
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_a_fallback_owned_by_another_person_cannot_be_published() -> None:
+    fallback = _profile(
+        usage_scope="personal", personal_owner_user_id=uuid.uuid4(), label="Personal backup"
+    )
+    profile = _profile(
+        usage_scope="organization",
+        personal_owner_user_id=None,
+        fallback_profile_ids=[str(fallback.id)],
+    )
+    with (
+        patch(f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=profile)),
+        patch(
+            f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",
+            new=AsyncMock(return_value={fallback.id: fallback}),
+        ),
+        pytest.raises(BadRequestError) as refused,
+    ):
+        await AgentRegistryService(_db()).validate_spec(_ctx(), _spec(model_profile_id=profile.id))
+    assert refused.value.details["problems"] == [
+        "Remove the personal fallback that this signed-in user cannot use"
+    ]
+
+
 @pytest.mark.security
 @pytest.mark.anyio
 async def test_a_template_refuses_a_same_named_bundled_skill_without_an_installation_receipt():
@@ -6343,6 +6675,8 @@ async def test_model_validation_distinguishes_decision_profiles_and_fallbacks():
         label="Classifier",
         base_url=None,
         secret_id=uuid4(),
+        usage_scope="organization",
+        personal_owner_user_id=None,
         runs_without_key=False,
         fallback_profile_ids=[],
     )
@@ -6358,7 +6692,13 @@ async def test_model_validation_distinguishes_decision_profiles_and_fallbacks():
             "without automatic fallbacks"
             in (await service.model_profile_problems(ctx, profile.id, decision=True))[0]
         )
-        fallback = SimpleNamespace(provider="typesafe", api="decisions", label="Fallback")
+        fallback = SimpleNamespace(
+            provider="typesafe",
+            api="decisions",
+            label="Fallback",
+            usage_scope="organization",
+            personal_owner_user_id=None,
+        )
         profile.api = None
         with patch(
             f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",

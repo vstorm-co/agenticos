@@ -3,7 +3,10 @@ revision = 5
 requires-python = ">=3.15"
 
 [manifest]
-constraints = [{ name = "opentelemetry-api", specifier = ">=1.45.2" }]
+constraints = [
+    { name = "dnspython", specifier = ">=2.9.2" },
+    { name = "opentelemetry-api", specifier = ">=1.45.2" },
+]
 overrides = [
     { name = "packaging", specifier = ">=26.3" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.14.3" },
@@ -95,6 +98,7 @@ mirage = [
 [package.dev-dependencies]
 dev = [
     { name = "anyio", extra = ["trio"] },
+    { name = "cdp-use" },
     { name = "deptry" },
     { name = "httpx" },
     { name = "jsonschema" },
@@ -194,6 +198,7 @@ provides-extras = ["browser", "kerberos", "mirage"]
 [package.metadata.requires-dev]
 dev = [
     { name = "anyio", extras = ["trio"], specifier = ">=4.16.0" },
+    { name = "cdp-use", specifier = "==1.4.5" },
     { name = "deptry", specifier = ">=0.23.0" },
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "jsonschema", specifier = ">=4.26.0" },

@@ -1,5 +1,5 @@
 ---
-source_sha: "ddd8aae069e6"
+source_sha: "a120d5a47810"
 ---
 
 # Konfiguration { #configuration }
@@ -62,6 +62,8 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 | `MIRAGE_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, mit denen sich ein Ordner des [virtuellen Terminals](reference/capabilities.md#mirage) verbinden darf, wenn sein Autor die Adresse eintippt: ein SSH-Server, der Host in einem Postgres- oder MongoDB-DSN, ein IMAP-Server. Die Adresse kommt aus dem Spec eines Agents oder einem Secret, das er nennt, und die Verbindung baut dieses Deployment auf. Der Abgleich ist exakt und ohne Rücksicht auf Groß- und Kleinschreibung. Die Veröffentlichung prüft einen eingetippten Host, und jeder Run prüft die Hosts in Secrets. Leer lässt keine eingetippte Adresse zu. Dienste mit fester API, etwa Drive, GitHub und Notion, brauchen keinen Eintrag |
 | `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, an denen ein Agent mit [Computer-Bedienung](reference/capabilities.md#computer-use) einen `computerd`-Desktop steuern darf. `daemon_url` steht im Spec des Agents, und ein Run sendet das Token des Daemons an die dort genannte Adresse, daher ist das dieselbe Allowlist wie `BROWSER_CDP_ALLOWED_HOSTS`: exakt und ohne Beachtung der Groß- und Kleinschreibung, ohne Globs. Geprüft beim Veröffentlichen und erneut, wann immer ein Run den Daemon öffnet, sodass das Entfernen eines Hosts auch bereits veröffentlichte Agents stoppt. Das Token ist keine Einstellung: Es gehört der Organisation und liegt in ihrem Vault, sodass jede Organisation einen erlaubten Host nennen kann und nur die hineinkommt, die das Token dieses Desktops hat. Leer verweigert das Daemon-Backend; ein Desktop in der Sandbox des Agents braucht keinen Eintrag |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | Der Browser, mit dem sich eine Person unter **Einstellungen → Anmeldungen** bei einer Website anmeldet, wo kein Agent einen nennt - der compose-Dienst `browser` ist `http://browser:9222`. Sein Host muss in `BROWSER_CDP_ALLOWED_HOSTS` stehen. Die Website muss eine öffentliche Adresse haben, und nur die Person, die ihn geöffnet hat, darf zusehen. Leer blendet die Option aus |
+| `BROWSER_TEACHING_ENABLED` | `false` | Erlaubt die Aufzeichnung **Aufgabe vormachen** im Browser, den `BROWSER_SIGN_IN_CDP_URL` nennt, nur für die Organisationen in `BROWSER_TEACHING_ORGANIZATION_IDS`. Die Aufzeichnung speichert strukturelle Schritte, während die Person des Laufs den Tab hält; sie speichert keine eingegebenen Werte, keinen Seitentext, keinen URL-Pfad und keine Query, keine Cookies und keine Screenshots. Sitzungen werden nach 24 Stunden gelöscht, auch wenn dies aus ist |
+| `BROWSER_TEACHING_ORGANIZATION_IDS` | `[]` | Die Organisations-IDs, für die `BROWSER_TEACHING_ENABLED` gilt, als JSON-Liste. Leer lässt keine zu |
 | `VISUAL_RENDER_CDP_URL` | `""` (leer) | Der Browser, mit dem ein [Visual](reference/capabilities.md#visuals) zu einem Bild gezeichnet wird, wo kein Rahmen es ausführen kann - eine Antwort in Slack, Telegram oder Mattermost und das Dashboard-Vorschaubild einer Seite. Der compose-Dienst `browser` ist `http://browser:9222`; sein Host muss in `BROWSER_CDP_ALLOWED_HOSTS` stehen. Die Zeichnung erreicht von dort nichts: Jede ihrer Anfragen beantwortet das Deployment oder lehnt sie ab. Leer schickt einer Chat-App die Antwort ohne Bild |
 | `BROWSER_EGRESS_PROXY` | `""` (empty); compose setzt `http://browser-egress:3128` | Der Proxy, über den der Browser der Installation jede Website erreicht. Der compose-Dienst `browser-egress` ist `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): Er löst jeden Host selbst auf, lehnt private, Loopback-, Link-Local- und Metadaten-Adressen ab und verbindet sich mit der geprüften Adresse, sodass weder eine Weiterleitung noch DNS-Rebinding eine Seite ins Netz bringt. Genutzt von jedem Durchlauf ohne Proxy der Organisation und nicht auf einem gehosteten Browser. Ein internes Werkzeug, das ein Agent besuchen soll, braucht eine Ausnahme in `docker/browser-egress/squid.conf`. Leer schickt den Browser direkt hinaus: Setze `BROWSER_EGRESS_PROXY=` in der Root-`.env` nur für einen Browser außerhalb von compose, der den Proxy nicht erreicht. Ohne Proxy wird jede Website bei ihrer ersten Anfrage in einem Tab geprüft, danach löst der Browser ihren Namen selbst auf; ein Name, der später im selben Tab auf eine private Adresse zeigt, wird also nicht erkannt |
 | `OUTBOUND_PRIVATE_ALLOWLIST` | `[]` (empty) | Hosts und Netze im eigenen Netzwerk, die eine Anfrage erreichen darf, obwohl sie auf eine private Adresse auflösen, etwa ein Wiki, ein Git-Server oder ein MCP-Server: `["wiki", ".corp.example", "10.1.2.0/24"]`. Ein Eintrag ist ein exakter Host (`wiki`, Groß- und Kleinschreibung egal), ein Suffix mit führendem Punkt (`.corp.example` trifft `mcp.corp.example` und `a.b.corp.example`, nicht `corp.example` selbst), eine IP-Adresse (`10.0.0.5`, `fd00::1`) oder ein CIDR-Bereich (`10.1.2.0/24`). Ein abschließender Punkt wird entfernt, `wiki.` ist also `wiki`. Gelesen wird sie von den Workflow-Schritten `http.request`, `http.download` und `http.upload`, den Konnektoren `git`, `web` und `s3`, dem A2A-Client und MCP-Connections. Eine Anfragekette bekommt die Liste nur, wenn ihre erste URL, die ein Mensch eingegeben oder gebunden hat, sie braucht: Eine Kette, die bei einem öffentlichen Host beginnt, bekommt sie nie, sodass die Weiterleitung, die OAuth-Metadaten, die A2A-Karte oder der Crawl einer öffentlichen Seite keinen gelisteten Host erreichen. Jedes Konto jeder Organisation erreicht jeden Port eines zugelassenen Hosts, listen Sie also nur Dienste, die ihre eigenen Zugangsdaten prüfen: Eine URL, die aus einem öffentlichen Trigger (Webhook, Formular, E-Mail) oder aus den Tool-Argumenten eines Agenten gebunden wird, kann jeden gelisteten Host nennen. Loopback-, Link-Local-, Multicast- und Cloud-Metadaten-Adressen werden unabhängig von der Liste abgelehnt: Ein gelisteter Name, der auf eine solche Adresse antwortet, wird überall abgelehnt, wo der Name aufgelöst wird (Workflow-HTTP-Schritte, git, web, S3, A2A, der MCP-OAuth-Ablauf und die eigene URL einer MCP-Connection; ein gelisteter Name, der noch nicht aufgelöst wird, kann trotzdem gespeichert werden), ebenso ein Name mit einer ungelisteten privaten Antwort, wobei die Adresse genannt wird. Der Start lehnt einen Eintrag ab, der fehlerhaft ist, diese Adressen erreicht (`localhost`, `.internal`, `169.254.169.254`, `127.0.0.0/8`, oder dieselben Adressen über das bekannte NAT64-Präfix oder 6to4 geschrieben, etwa `64:ff9b::/96` und `2002::/16`; das eigene NAT64-Präfix eines anderen Netzes lässt sich nicht erkennen, trage es also nicht ein, wenn es auf diese Adressen übersetzt) oder den Datenbank-Host, den Redis-Host oder den Host der API selbst per Namen oder Adresse benennt (ein Suffix, das den Namen der API abdeckt, ist erlaubt; einen Bereich, der die aufgelöste Adresse eines Speichers abdeckt, findet `doctor`). `agenticos cmd doctor` meldet sie als `private network`: eine Warnung bei einem Bereich, der größer ist als /16 (IPv4) oder /48 (IPv6), einen Fehler, wenn ein Bereich die Datenbank oder Redis abdeckt. Das [HIPAA-Blatt](security.md#the-sheet) führt sie als `private-network`. Leer lehnt jede private Adresse ab. Siehe [Dienste im eigenen Netzwerk](deploy.md#services-on-your-own-network) und [eine Connection](mcp.md#a-connection) |
@@ -317,6 +319,8 @@ mit `KERBEROS_DISPLAY_NAME` (Standard `Kerberos`).
 | `POSTGRES_PORT` | `5432` | PostgreSQL-Port |
 | `POSTGRES_USER` | `postgres` | PostgreSQL-Benutzer |
 | `POSTGRES_PASSWORD` | (empty) | PostgreSQL-Passwort |
+| `POSTGRES_MIGRATION_URL` | (unset) | Separater PostgreSQL-Eigentümerzugang für Alembic sowie Vorprüfung und Aktivierung von Tables RLS. Anbieter-URLs werden an den installierten Treiber angepasst. Normale Anwendungssitzungen verwenden weiterhin die Laufzeiteinstellungen. |
+| `POSTGRES_MAINTENANCE_URL` | (unset) | Separater PostgreSQL-Wartungszugang für autorisierte globale Kontoexporte und Kontolöschungen nach der Aktivierung von Tables RLS. Er muss dieselbe Datenbank erreichen und Mitglied der festen Wartungsgruppe sein. Für diese Aktionen bei aktiver Durchsetzung erforderlich; siehe [Umstellungsverfahren](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md). |
 | `POSTGRES_DB` | `agenticos` | Name der Datenbank |
 | `POSTGRES_SSLMODE` | (empty) | Die Verbindung verschlüsseln: `require`, `verify-ca` oder `verify-full`. Leer heißt Klartext. Siehe [Verschlüsselte Verbindungen](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Größe des Connection Pools |
@@ -444,6 +448,7 @@ angewiesen ist, hört still auf, ohne dass einer davon es ankündigt:
 | `SMTP_TLS_MODE` | `auto` | Wie die verschlüsselte Verbindung geöffnet wird. `auto` lässt den Port entscheiden; `implicit` öffnet TLS ab dem ersten Byte und `starttls` handelt das Upgrade aus, unabhängig vom Port. Wird bei `SMTP_TLS=false` ignoriert |
 | `EMAIL_FROM` | `noreply@agenticos.com` | Die `From`-Adresse jeder Nachricht |
 | `EMAIL_FROM_NAME` | `agenticos` | Der Anzeigename, der neben dieser Adresse steht |
+| `FAILURE_LEARNING_DIGEST_RECIPIENT` | (leer) | Die eine Adresse, an die die tägliche Zusammenfassung des Fehlerverzeichnisses geht. Leer bedeutet, dass kein Empfänger gewählt wurde und der Zusammenfassungsjob überhaupt nichts tut — er legt keine Entwurfseinträge an und schickt keine Mail. Eine Adresse für das ganze Deployment, also sieht sie die Zusammenfassung jeder Organisation und muss eine Operatoradresse sein |
 
 !!! note "Wie die Verbindung verschlüsselt wird"
 
@@ -529,6 +534,7 @@ trägt jede Service-Definition ihre eigene.
 | --- | --- | --- |
 | `APPROVAL_EXPIRY_HOURS` | `72` | Wie lange ein geparkter Tool-Aufruf wartet, bevor der stündliche Durchlauf ihn per Timeout ablehnt |
 | `QUESTION_EXPIRY_HOURS` | `24` | Wie lange ein Run auf die Antwort auf eine Frage des Agents wartet, bevor derselbe Durchlauf ihn beendet |
+| `QUESTION_NUDGE_HOURS` | `12` | Wie lange nach dem Warten auf eine Antwort der Durchlauf einmal im Chat daran erinnert, dass noch eine Antwort benötigt wird |
 
 Drei Tage, weil es ein Wochenende überspannen muss: Die Freigabe, die am
 Freitagnachmittag eintrifft, ist die, über die niemand entscheidet, und sie am
@@ -718,6 +724,29 @@ sie trotzdem auseinanderhalten.
 | `LOGFIRE_ORGANIZATION` | (none) | Slug der Organisation, um einen Link **in** einen gespeicherten Trace zu bauen. Das Token ist eine _schreibende_ Zugangsinformation und trägt keinen der beiden Slugs |
 | `LOGFIRE_PROJECT` | (none) | Slug des Projekts, neben dem der Organisation. Ist eines von beiden nicht gesetzt, wird die `logfire_trace_id` eines Runs weiterhin aufgezeichnet und kein Link angeboten |
 | `LOGFIRE_BASE_URL` | `https://logfire-us.pydantic.dev` | Zu welchem Logfire-Deployment diese Slugs gehören. `logfire-eu` ist ein anderer Host, und ein für den falschen gebauter Link antwortet mit 404 |
+
+## Composio-App-Verbindungen { #composio-app-connections }
+
+Das Verzeichnis **Verbindungen → Apps (Connections → Apps)** nutzt Composio,
+um persönliche App-Konten zu verbinden. Konfigurieren Sie für API und Worker
+dieselben Projekteinstellungen. Bewahren Sie beide Schlüssel auf dem Server auf;
+das Frontend erhält nur Katalogmetadaten und Autorisierungs-URLs.
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `COMPOSIO_API_KEY` | (none) | Laufzeitschlüssel des Projekts für Tool-Router-Sitzungen und die Verwaltung verbundener Konten. Ein leerer Schlüssel deaktiviert verwaltete App-Verbindungen. |
+| `COMPOSIO_CATALOG_API_KEY` | (none) | Separater Projektschlüssel ausschließlich mit den Berechtigungen **Toolkits: Read** und **Tools: Read**. Aktiviert das durchsuchbare, paginierte App-Verzeichnis und explizite Tool-Snapshots für neue Apps. Ohne ihn zeigt das Verzeichnis nur die ursprünglichen, geprüften Integrationen. |
+| `COMPOSIO_AUTH_CONFIGS` | `{}` | JSON-Zuordnung von Toolkit-Slugs zu Projekt-Auth-Config-IDs. Die ursprünglichen sieben Integrationen benötigen einen expliziten Eintrag; weitere Apps verwenden einen konfigurierten Eintrag oder die Composio-verwaltete Authentifizierung, sofern verfügbar. Apps, die eine eigene Auth-Konfiguration benötigen, zeigen **Einrichtung erforderlich (Setup required)**. |
+| `COMPOSIO_USER_NAMESPACE` | `t3os` | Stabiler Präfix für die Composio-Identität pro Benutzer. Verwenden Sie denselben Wert für API und Worker und ändern Sie ihn für bestehende Konten nicht. Verwenden Sie für ein separates Deployment einen eigenen Namespace. |
+
+Die ursprünglichen Integrationen behalten ihre geprüften Leseaktionen. Andere
+unterstützte Apps speichern beim Verbinden des Kontos eine begrenzte Liste
+direkter Tool-Namen und verlangen für jede Aktion eine Freigabe. Eine erneute
+Verbindung erhält diese Liste; eine neue Verbindung erfasst die aktuell
+verfügbaren Tools. Bestehende MCP-Server bleiben im Tab **MCP-Server (MCP servers)**.
+Siehe [App-Verbindungen](mcp.md#connect-an-app-through-composio) und die
+[Composio-Einrichtungsanleitung](https://github.com/t3grp/agenticos/blob/t3/integrations/composio/README.md)
+zu Rückrufprüfung, Anbietereinwilligung und Deployment-Checks.
 
 ## Websuche { #web-search }
 

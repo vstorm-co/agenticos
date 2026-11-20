@@ -246,4 +246,18 @@ describe("VoiceCallButton", () => {
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
     expect(popover()).toBeNull();
   });
+
+  it("is still drawn inside the composer form, which its reason is anchored to", () => {
+    render(
+      <form>
+        <VoiceCallButton
+          readiness={{ ...READY, available: false, unavailable: "no_key" }}
+          failed={false}
+          onStart={vi.fn()}
+          setUpHref={null}
+        />
+      </form>,
+    );
+    expect(screen.getByRole("button", { name: NAME })).toBeInTheDocument();
+  });
 });

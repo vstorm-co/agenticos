@@ -28,8 +28,11 @@ import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { ApiKeyCreateInput, ApiKeyCreated, ApiKeyScopeCatalog } from "@/types/api-keys";
 
-/** How long a new key lives. `never` is a choice, not a default. */
-const EXPIRIES = { "30": 30, "90": 90, "365": 365, never: null } as const;
+/**
+ * How long a new key lives, in days. The API refuses anything past 90 days and
+ * gives a key with no expiry 90 days, so the console offers only those two.
+ */
+const EXPIRIES = { "30": 30, "90": 90 } as const;
 type Expiry = keyof typeof EXPIRIES;
 
 interface CreateApiKeyDialogProps {
@@ -40,9 +43,8 @@ interface CreateApiKeyDialogProps {
   busy: boolean;
 }
 
-function expiresAt(choice: Expiry): string | null {
-  const days = EXPIRIES[choice];
-  return days === null ? null : new Date(Date.now() + days * 86_400_000).toISOString();
+function expiresAt(choice: Expiry): string {
+  return new Date(Date.now() + EXPIRIES[choice] * 86_400_000).toISOString();
 }
 
 /**
@@ -152,8 +154,7 @@ export function CreateApiKeyDialog({
                     value={expiry}
                     disabled={busy}
                     onValueChange={(value) => {
-                      if (value === "30" || value === "90" || value === "365" || value === "never")
-                        setExpiry(value);
+                      if (value === "30" || value === "90") setExpiry(value);
                     }}
                   >
                     <SelectTrigger id="api-key-expiry">

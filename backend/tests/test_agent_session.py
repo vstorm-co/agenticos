@@ -411,6 +411,111 @@ class TestFramesWithoutAnAgent:
         assert events == [("error", {"message": "Empty message"})]
 
 
+class TestPageContextForEachTurn:
+    """A snapshot belongs to its submitted question, never to the session."""
+
+    async def test_a_typed_question_reaches_the_chosen_agent_with_its_page(self) -> None:
+        session = _session()
+        run = AsyncMock(return_value=_finished_turn())
+        snapshot = {
+            "path": "/apps/scheduler",
+            "title": "Dispatch",
+            "captured_at": "2026-11-09T01:30:00.000Z",
+            "resource": {"kind": "app", "id": "scheduler"},
+            "view": "week",
+            "selected_ids": ["job-17"],
+            "summary": "The selected job is unassigned.",
+        }
+        frame = _message("Why is this job unassigned?", page_context=snapshot)
+
+        with _chat(run) as chat:
+            await session.process_message(frame)
+
+        sent = run.await_args.kwargs
+        assert sent["user"] is session.user
+        assert sent["organization_id"] == session.organization_id
+        assert str(sent["agent_id"]) == frame["agent_id"]
+        assert sent["user_input"].startswith("Why is this job unassigned?\n\n")
+        assert "untrusted reference data" in sent["user_input"]
+        encoded = sent["user_input"].split("<page_context>\n", 1)[1]
+        assert json.loads(encoded.removesuffix("\n</page_context>")) == snapshot
+        assert chat.prompt.await_args.args[1] == "Why is this job unassigned?"
+
+    async def test_a_bad_snapshot_is_refused_before_persisting_or_running(self) -> None:
+        session = _session()
+        run = AsyncMock()
+        snapshot = {
+            "path": "/apps?credential=private",
+            "title": "Dispatch",
+            "captured_at": "2026-11-09T01:30:00.000Z",
+        }
+
+        with _chat(run) as chat:
+            await session.process_message(_message(page_context=snapshot))
+
+        assert _frame_types(session) == ["error"]
+        error = _sent_events(session)[0][1]["message"]
+        assert "page context could not be read" in error
+        assert "private" not in error
+        chat.prompt.assert_not_awaited()
+        run.assert_not_awaited()
+
+    async def test_a_later_question_uses_its_snapshot_and_can_omit_context(self) -> None:
+        session = _session()
+        run = AsyncMock(return_value=_finished_turn())
+        first = {
+            "path": "/apps/scheduler",
+            "title": "Dispatch",
+            "captured_at": "2026-11-09T01:30:00.000Z",
+        }
+        second = {
+            "path": "/tables/jobs",
+            "title": "Jobs",
+            "captured_at": "2026-11-09T01:31:00.000Z",
+        }
+
+        with _chat(run):
+            await session.process_message(_message("Explain this page", page_context=first))
+            await session.process_message(_message("And this one?", page_context=second))
+            await session.process_message(_message("A general question"))
+
+        prompts = [call.kwargs["user_input"] for call in run.await_args_list]
+        assert '"path": "/apps/scheduler"' in prompts[0]
+        assert '"path": "/tables/jobs"' in prompts[1]
+        assert "/apps/scheduler" not in prompts[1]
+        assert prompts[2] == "A general question"
+
+    async def test_page_context_preserves_the_reply_attribution_and_mentions(self) -> None:
+        session = _session()
+        run = AsyncMock(return_value=_finished_turn())
+        snapshot = {
+            "path": "/projects/brief",
+            "title": "Project brief",
+            "captured_at": "2026-11-09T01:30:00.000Z",
+        }
+        drive = Mentionable(kind="mcp", id="gdrive", name="Google Drive", detail="gdrive_*")
+        frame = _message(
+            "Find the brief",
+            mentions=[{"kind": "mcp", "id": "gdrive"}],
+            page_context=snapshot,
+        )
+
+        with _chat(run) as chat:
+            chat.prompt.return_value = replace(
+                chat.prompt.return_value, for_model="Alex replied: Find the brief"
+            )
+            chat.runner.mentions = AsyncMock(
+                return_value=ResolvedMentions(mentions=[drive], note="Use Google Drive.")
+            )
+            await session.process_message(frame)
+
+        assert run.await_args.kwargs["user_input"].startswith(
+            "Alex replied: Find the brief\n\nUse Google Drive.\n\n"
+        )
+        assert "<page_context>" in run.await_args.kwargs["user_input"]
+        assert chat.prompt.await_args.kwargs["mentions"] == [drive]
+
+
 class TestControlFrames:
     """What `handle_frame` does with each `type` a client can send.
 
@@ -558,14 +663,30 @@ class TestReauthorizingEachFrame:
         """A correction acts on the session, so it is refused on a dead credential (#2087)."""
         session = self._socket_session()
         inbox = SteeringInbox()
+        running = asyncio.Event()
+        wait_forever = asyncio.Event()
+
+        async def wait_for_cancellation() -> None:
+            running.set()
+            await wait_forever.wait()
+
+        turn_task = asyncio.create_task(wait_for_cancellation())
         session._steering = inbox
-        session._turn_task = asyncio.get_running_loop().create_future()  # a turn "running"
+        session._turn_task = turn_task
+        try:
+            await _wait(running)
 
-        with self._revoked():
-            await session.handle_frame({"type": "steer", "text": "use the EU numbers"})
+            with self._revoked():
+                await session.handle_frame({"type": "steer", "text": "use the EU numbers"})
 
-        assert inbox.unapplied() == []
-        session._turn_task.cancel()
+            assert inbox.unapplied() == []
+            assert turn_task.cancelled()
+            assert session._turn_task is None
+        finally:
+            if not turn_task.done():
+                turn_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await turn_task
 
     async def test_a_revoked_session_cancels_a_turn_already_running(self):
         """A turn in flight when the next frame lands on a revoked session is
@@ -751,7 +872,11 @@ class TestATurnThatFinished:
         )
         assert _sent_events(session)[2] == (
             "message_saved",
-            {"message_id": "saved-1", "conversation_id": _CONVERSATION},
+            {
+                "message_id": "saved-1",
+                "conversation_id": _CONVERSATION,
+                "thread_root_message_id": None,
+            },
         )
 
     async def test_both_halves_of_the_turn_are_filed_under_the_run_that_produced_them(self):
@@ -2460,7 +2585,11 @@ class TestATurnThatDidNotFinishStillKeepsWhatItSaid:
         assert written.args[2] == "gpt-4.1"
         assert (
             "message_saved",
-            {"message_id": "saved-1", "conversation_id": session.current_conversation_id},
+            {
+                "message_id": "saved-1",
+                "conversation_id": session.current_conversation_id,
+                "thread_root_message_id": None,
+            },
         ) in _sent_events(session)
 
     async def test_an_unsaved_partial_reply_reports_the_save_failure_too(self) -> None:
@@ -4029,22 +4158,40 @@ class TestVisualReports:
         websocket = MagicMock(send_json=AsyncMock(), close=AsyncMock())
         session = AgentSession(websocket, MagicMock(), MagicMock(), auth_token="live")
         reports = VisualReports()
+        running = asyncio.Event()
+        wait_forever = asyncio.Event()
+
+        async def wait_for_cancellation() -> None:
+            running.set()
+            await wait_forever.wait()
+
+        turn_task = asyncio.create_task(wait_for_cancellation())
         session._visual_reports = reports
-        session._turn_task = asyncio.get_running_loop().create_future()
+        session._turn_task = turn_task
+        try:
+            await _wait(running)
 
-        with (
-            patch("app.services.agent_session.get_db_context") as db_context,
-            patch(
-                "app.services.agent_session.authenticate_socket_token",
-                new=AsyncMock(side_effect=AuthenticationError(message="Session ended")),
-            ),
-        ):
-            db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
-            db_context.return_value.__aexit__ = AsyncMock(return_value=False)
-            await session.handle_frame({"type": "visual_report", "tool_call_id": "t", "errors": []})
+            with (
+                patch("app.services.agent_session.get_db_context") as db_context,
+                patch(
+                    "app.services.agent_session.authenticate_socket_token",
+                    new=AsyncMock(side_effect=AuthenticationError(message="Session ended")),
+                ),
+            ):
+                db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+                db_context.return_value.__aexit__ = AsyncMock(return_value=False)
+                await session.handle_frame(
+                    {"type": "visual_report", "tool_call_id": "t", "errors": []}
+                )
 
-        assert reports._futures == {}
-        session._turn_task.cancel()
+            assert reports._futures == {}
+            assert turn_task.cancelled()
+            assert session._turn_task is None
+        finally:
+            if not turn_task.done():
+                turn_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await turn_task
 
     async def test_a_drawing_s_pictures_are_sent_to_the_tab(self):
         session = self._session()

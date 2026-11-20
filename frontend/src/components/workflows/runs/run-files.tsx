@@ -10,6 +10,12 @@ import { getErrorMessage } from "@/lib/api-error";
 import { formatBytes } from "@/lib/utils";
 import { downloadWorkflowRunFile } from "@/lib/workflows/runs-api";
 import type { WorkflowRunFile } from "@/lib/workflows/types";
+import {
+  canPreviewWorkflowMedia,
+  isWorkflowMediaFile,
+  WORKFLOW_MEDIA_PREVIEW_BYTES,
+} from "@/lib/workflows/media-preview";
+import { RunFilePreview } from "./run-file-preview";
 
 /**
  * The files a run's steps stored - downloads, rendered pages, a script's output -
@@ -56,7 +62,15 @@ export function RunFiles({ runId, files }: { runId: string; files: WorkflowRunFi
                   <p className="text-muted-foreground text-xs">
                     {file.content_type} · {formatBytes(file.byte_size)}
                   </p>
+                  {isWorkflowMediaFile(file) && !canPreviewWorkflowMedia(file) && (
+                    <p className="text-muted-foreground text-xs">
+                      {t("runFilePreviewLimit", {
+                        size: formatBytes(WORKFLOW_MEDIA_PREVIEW_BYTES),
+                      })}
+                    </p>
+                  )}
                 </div>
+                <RunFilePreview runId={runId} file={file} />
                 <Button
                   variant="ghost"
                   size="icon"

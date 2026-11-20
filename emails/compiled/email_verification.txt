@@ -1,11 +1,14 @@
-Subject: Verify your [[app_name]] email address
+Subject: Verify your email address
 
-Hi [[name]],
+Verify your email address
 
-Please verify your email address to complete your registration.
+Hi [[name]], confirm this email address to finish verifying your [[app_name]] account.
 
+Link expires in: [[expires_in]]
+
+Verify email address:
 [[verify_url]]
 
-This link expires in [[expires_in]].
+If you did not create this account, you can ignore this email.
 
-- The [[app_name]] Team
+[[app_name]]

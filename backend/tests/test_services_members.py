@@ -17,7 +17,7 @@ from app.core.exceptions import (
 from app.schemas.organization import OrganizationMemberUpdate
 from app.services.email.providers.base import SendResult
 from app.services.invitation import InvitationService
-from app.services.member import MemberService
+from app.services.member import MemberService, end_membership
 
 
 class TestMemberService:
@@ -450,6 +450,239 @@ class TestMemberService:
             await service.transfer_ownership(uuid.uuid4(), uuid.uuid4(), requester_id=uuid.uuid4())
 
 
+class TestAccessChangeAudit:
+    """Every path that changes who belongs to an organization leaves one audit entry.
+
+    The removal audit lives in `end_membership` so no caller can forget it, and
+    `remove` no longer writes its own - these tests pin both halves: one entry
+    per removal, with the action naming the path that took it.
+    """
+
+    @pytest.fixture
+    def member_service(self):
+        return MemberService(MagicMock())
+
+    @staticmethod
+    def _ended():
+        """Every repository call `end_membership` makes, stubbed."""
+        return (
+            patch("app.services.member.group_repo.delete_memberships_in_org", new=AsyncMock()),
+            patch("app.services.member.oauth_repo.revoke_grants_for_member", new=AsyncMock()),
+            patch("app.services.member.api_key_repo.revoke_for_member", new=AsyncMock()),
+            patch("app.services.member.coding_account_repo.delete_for_member", new=AsyncMock()),
+            patch(
+                "app.services.member.mcp_connection_repo.delete_accounts_for_member",
+                new=AsyncMock(),
+            ),
+            patch(
+                "app.services.member.agent_trigger_repo.revoke_member_authority", new=AsyncMock()
+            ),
+            patch("app.services.member.telephony_repo.delete_member_contact", new=AsyncMock()),
+            patch(
+                "app.services.member.resource_grant_repo.revoke_for_member",
+                new=AsyncMock(return_value=0),
+            ),
+            patch(
+                "app.services.member.session_repo.deactivate_all_user_sessions",
+                new=AsyncMock(return_value=0),
+            ),
+            patch(
+                "app.services.member.agent_exposure_repo.pause_for_creator",
+                new=AsyncMock(return_value=0),
+            ),
+            patch(
+                "app.services.member.agent_embed_repo.pause_for_owner",
+                new=AsyncMock(return_value=0),
+            ),
+            patch("app.services.member.member_repo.delete", new=AsyncMock()),
+            patch("app.services.member.resource_grant_repo.lower_edit_data", new=AsyncMock()),
+        )
+
+    @staticmethod
+    def _membership(role="member"):
+        membership = MagicMock()
+        membership.organization_id = uuid.uuid4()
+        membership.user_id = uuid.uuid4()
+        membership.role = role
+        return membership
+
+    @pytest.mark.anyio
+    async def test_end_membership_writes_one_member_removed_entry(self):
+        membership = self._membership()
+        with contextlib.ExitStack() as stack:
+            for context in self._ended():
+                stack.enter_context(context)
+            audit = stack.enter_context(patch("app.services.member.record_audit", new=AsyncMock()))
+            await end_membership(MagicMock(), membership)
+
+        audit.assert_awaited_once()
+        entry = audit.await_args.kwargs
+        assert entry["action"] == "member.removed"
+        assert entry["actor_user_id"] is None
+        assert entry["target_id"] == str(membership.user_id)
+        assert entry["details"] == {"role": "member"}
+
+    @pytest.mark.anyio
+    async def test_end_membership_closes_the_leavers_sessions_and_pauses_their_surfaces(self):
+        """The credential outlives the removal, and the surfaces keep answering
+        as the publisher - both stop here, and the audit entry says how many of
+        each, so a later reader can tell a quiet departure from a busy one."""
+        db = MagicMock()
+        membership = self._membership()
+        with contextlib.ExitStack() as stack:
+            for context in self._ended():
+                stack.enter_context(context)
+            sessions = stack.enter_context(
+                patch(
+                    "app.services.member.session_repo.deactivate_all_user_sessions",
+                    new=AsyncMock(return_value=2),
+                )
+            )
+            exposures = stack.enter_context(
+                patch(
+                    "app.services.member.agent_exposure_repo.pause_for_creator",
+                    new=AsyncMock(return_value=1),
+                )
+            )
+            embeds = stack.enter_context(
+                patch(
+                    "app.services.member.agent_embed_repo.pause_for_owner",
+                    new=AsyncMock(return_value=3),
+                )
+            )
+            audit = stack.enter_context(patch("app.services.member.record_audit", new=AsyncMock()))
+            await end_membership(db, membership)
+
+        sessions.assert_awaited_once_with(db, membership.user_id)
+        exposures.assert_awaited_once_with(
+            db, organization_id=membership.organization_id, user_id=membership.user_id
+        )
+        embeds.assert_awaited_once_with(
+            db, organization_id=membership.organization_id, user_id=membership.user_id
+        )
+        assert audit.await_args.kwargs["details"] == {
+            "role": "member",
+            "sessions_revoked": 2,
+            "exposures_paused": 1,
+            "embeds_paused": 3,
+        }
+
+    @pytest.mark.anyio
+    async def test_end_membership_keeps_the_callers_action_and_actor(self):
+        membership = self._membership(role="admin")
+        actor = uuid.uuid4()
+        with contextlib.ExitStack() as stack:
+            for context in self._ended():
+                stack.enter_context(context)
+            audit = stack.enter_context(patch("app.services.member.record_audit", new=AsyncMock()))
+            await end_membership(
+                MagicMock(),
+                membership,
+                actor_user_id=actor,
+                action="directory.member_removed",
+                details={"role": "admin", "provider": "entra"},
+            )
+
+        audit.assert_awaited_once()
+        entry = audit.await_args.kwargs
+        assert (entry["action"], entry["actor_user_id"]) == ("directory.member_removed", actor)
+        assert entry["details"] == {"role": "admin", "provider": "entra"}
+
+    @pytest.mark.anyio
+    async def test_remove_writes_one_entry_and_none_of_its_own(self, member_service):
+        """`remove` used to write `member.removed` itself; the entry now comes
+        from `end_membership`, so a removal must still leave exactly one."""
+        org_id, target_id, requester_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        requester = MagicMock(role="owner")
+        target = self._membership(role="member")
+        target.user_id = target_id
+        target.organization_id = org_id
+
+        calls = 0
+
+        async def mock_get(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            return requester if calls == 1 else target
+
+        with contextlib.ExitStack() as stack:
+            for context in self._ended():
+                stack.enter_context(context)
+            stack.enter_context(patch("app.services.member.member_repo.get", new=mock_get))
+            audit = stack.enter_context(patch("app.services.member.record_audit", new=AsyncMock()))
+            revoked = stack.enter_context(
+                patch(
+                    "app.services.member.resource_grant_repo.revoke_for_member",
+                    new=AsyncMock(return_value=2),
+                )
+            )
+            await member_service.remove(org_id, target_id, requester_id=requester_id)
+
+        audit.assert_awaited_once()
+        entry = audit.await_args.kwargs
+        assert entry["action"] == "member.removed"
+        assert entry["actor_user_id"] == requester_id
+        assert entry["target_id"] == str(target_id)
+        # Their direct grants go with the membership, so inviting them back
+        # wakes none of them.
+        revoked.assert_awaited_once_with(
+            member_service.db, organization_id=org_id, user_id=target_id
+        )
+
+    @pytest.mark.anyio
+    async def test_leave_is_audited_as_a_leave_not_a_removal(self, member_service):
+        org_id, requester_id = uuid.uuid4(), uuid.uuid4()
+        membership = self._membership(role="member")
+        membership.organization_id = org_id
+        membership.user_id = requester_id
+        with contextlib.ExitStack() as stack:
+            for context in self._ended():
+                stack.enter_context(context)
+            stack.enter_context(
+                patch(
+                    "app.services.member.member_repo.get",
+                    new=AsyncMock(return_value=membership),
+                )
+            )
+            audit = stack.enter_context(patch("app.services.member.record_audit", new=AsyncMock()))
+            await member_service.leave(org_id, requester_id=requester_id)
+
+        audit.assert_awaited_once()
+        entry = audit.await_args.kwargs
+        assert entry["action"] == "member.left"
+        assert entry["actor_user_id"] == requester_id
+
+    @pytest.mark.anyio
+    async def test_transfer_ownership_is_audited(self, member_service):
+        org_id, requester_id, new_owner_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        requester = MagicMock(role="owner")
+        new_owner = MagicMock(role="member")
+        with (
+            patch(
+                "app.services.member.member_repo.get",
+                new=AsyncMock(side_effect=[requester, new_owner]),
+            ),
+            patch(
+                "app.services.member.organization_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(is_personal=False)),
+            ),
+            patch("app.services.member.user_repo.get_by_id_for_update", new=AsyncMock()),
+            patch(
+                "app.services.member.OrganizationService.refuse_past_the_ceiling",
+                new=AsyncMock(),
+            ),
+            patch("app.services.member.member_repo.update_role", new=AsyncMock()),
+            patch("app.services.member.record_audit", new=AsyncMock()) as audit,
+        ):
+            await member_service.transfer_ownership(org_id, new_owner_id, requester_id=requester_id)
+
+        audit.assert_awaited_once()
+        entry = audit.await_args.kwargs
+        assert entry["action"] == "organization.ownership_transferred"
+        assert entry["actor_user_id"] == requester_id
+        assert entry["details"] == {"from": str(requester_id), "to": str(new_owner_id)}
+
+
 class TestRoleAssigned:
     """The request schema refuses a role a role change may not grant (#672).
 
@@ -640,6 +873,26 @@ class TestInvitationService:
             )
 
         assert delivered is True
+
+    @pytest.mark.anyio
+    async def test_an_invitation_is_audited_when_it_is_created(self, service):
+        accepted = AsyncMock(return_value=SendResult(provider_message_id="1", accepted=True))
+        requester_id = uuid.uuid4()
+        with contextlib.ExitStack() as stack:
+            for context in self._invited(send=accepted):
+                stack.enter_context(context)
+            audit = stack.enter_context(
+                patch("app.services.invitation.record_audit", new=AsyncMock())
+            )
+            await service.invite(
+                uuid.uuid4(), "user@example.com", "member", requester_id=requester_id
+            )
+
+        audit.assert_awaited_once()
+        entry = audit.await_args.kwargs
+        assert entry["action"] == "invitation.created"
+        assert entry["actor_user_id"] == requester_id
+        assert entry["details"] == {"email": "user@example.com", "role": "member"}
 
     @pytest.mark.anyio
     async def test_a_provider_that_only_logs_has_not_delivered_anything(self, service):
@@ -874,6 +1127,7 @@ class TestRevokingAnInvitationByItsId:
                 new=AsyncMock(return_value=MagicMock(role="admin")),
             ),
             patch("app.services.invitation.invitation_repo.revoke", new=revoke),
+            patch("app.services.invitation.record_audit", new=AsyncMock()),
         ):
             revoked = await service.revoke_by_id(
                 organization_id, invite.id, requester_id=uuid.uuid4()
@@ -881,6 +1135,32 @@ class TestRevokingAnInvitationByItsId:
 
         assert revoked is invite
         revoke.assert_awaited_once_with(service.db, invite)
+
+    @pytest.mark.anyio
+    async def test_revoking_is_audited(self, service):
+        organization_id = uuid.uuid4()
+        invite = _pending_invite(organization_id=organization_id)
+        requester_id = uuid.uuid4()
+
+        with (
+            patch(
+                "app.services.invitation.invitation_repo.get_by_id",
+                new=AsyncMock(return_value=invite),
+            ),
+            patch(
+                "app.services.invitation.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role="admin")),
+            ),
+            patch("app.services.invitation.invitation_repo.revoke", new=AsyncMock()),
+            patch("app.services.invitation.record_audit", new=AsyncMock()) as audit,
+        ):
+            await service.revoke_by_id(organization_id, invite.id, requester_id=requester_id)
+
+        audit.assert_awaited_once()
+        entry = audit.await_args.kwargs
+        assert entry["action"] == "invitation.revoked"
+        assert entry["actor_user_id"] == requester_id
+        assert entry["target_id"] == str(invite.id)
 
 
 def _pending_invite(*, organization_id=None, email="invitee@example.com"):

@@ -232,21 +232,38 @@ used by the runner and checked at publish. One provider's outage should
 not take an organization's agents down when it has a second key or a second
 provider configured.
 
-!!! warning "A fallback is invisible in the run record"
+A fallback is no longer invisible in the run record. When a fallback model
+serves any request of the run, the run row records `fallback_used` and the bare
+model id that answered the last successful request as `serving_model`, and the
+run detail view says "Served by … (fallback)" under the facts strip. The row
+is still written before the first request, so it names the primary profile
+until the run finishes; a run parked awaiting approval carries what its
+finished segments recorded so far.
 
-    The run row is written before the first request, carrying the **primary**
-    profile's label, provider and secret id. If a fallback served the turn, the run
-    still names the primary.
+Two blind spots remain, worth knowing before trusting the numbers during an
+outage:
 
-    So "what did we spend at OpenAI" and "which key is costing the most" answer
-    with the profile that was *asked* first, not the one that answered. Worth
-    knowing before you rely on those numbers during an outage.
+- "What did we spend at OpenAI" and "which key is costing the most" are still
+  answered by the profile that was *asked* first, not the one that answered —
+  cost is attributed to the primary's profile. The new columns say which model
+  answered, not which profile paid.
+- A failure **after** the first streamed event never fails over. Pydantic AI
+  hands the stream over to the caller at the first event, so a mid-stream
+  failure ends the run rather than trying the next model in the chain.
 
 ### Model settings
 
 Per profile, and overridable per agent through the spec's `model_settings`:
-`temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. See
+`temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`,
+`request_timeout`, `first_event_timeout`. See
 [the spec reference](reference/spec.md#model-settings).
+
+A request also has deadlines by default: 300 seconds for one model request
+(`request_timeout`, and `timeout` per attempt) and 120 seconds for the first
+streamed event (`first_event_timeout`). A profile or an agent spec can raise
+or lower them. When the deadline passes, the run ends as `timed_out` — with
+the deadline in its stored error — rather than showing "Working" for ever;
+where a fallback chain is configured, it is tried first.
 
 **Prompt caching is on by default**, through Pydantic AI's provider-neutral
 `cache` setting. Every request of a run re-sends the instructions, the tool
@@ -413,6 +430,7 @@ authenticate with.
 | AWS Bedrock | `bedrock` | access key id, secret key, region, optional session token |
 | Google Vertex AI | `google_cloud` | service account JSON |
 | ChatGPT (Codex subscription) | `openai_codex` | a ChatGPT sign-in, stored by signing in rather than typed |
+| [Claude subscription](https://github.com/t3grp/agenticos/blob/t3/integrations/claude-subscription/README.md) | `claude-subscription` | personal Claude account connected through the official client; aliases `sonnet`, `opus`, `haiku` |
 
 The first three are the reason a secret has a *kind* at all. A form that collected one
 opaque token for Azure would collect something fillable-in-correctly that still
@@ -639,14 +657,14 @@ right when an agent moves to another model.
 !!! danger "Why it is stored rather than resolved per run"
 
     The request path must not call a provider, and the only thing it could
-    otherwise consult is the bundled price snapshot — which is wrong here in the
-    direction that breaks a run.
-
-    That snapshot records 1,000,000 for `anthropic:claude-sonnet-4-5` against a
-    real 200,000, so a trigger at 90% lands above the real ceiling and compaction
-    never fires before the provider refuses the request. A profile with fallbacks
-    is worse: it builds a `FallbackModel` whose composite id resolves to nothing at
-    all.
+    otherwise consult is the bundled price snapshot — a third-party bundle
+    whose numbers are not authoritative: an earlier snapshot recorded
+    1,000,000 for `anthropic:claude-sonnet-4-5` against a real 200,000, so a
+    trigger at 90% landed above the real ceiling and compaction never fired
+    before the provider refused the request (#773). The pinned snapshot
+    records the right 200,000 today, but a bundle bump can move a number
+    without this repo noticing. A profile with fallbacks is worse: it builds
+    a `FallbackModel` whose composite id resolves to nothing at all.
 
 Null means **not recorded**, not zero: a profile older than the column, a provider
 that publishes no length, a curated list, or a listing that could not be reached.

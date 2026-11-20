@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 
 import { LoginForm } from "./login-form";
 import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
@@ -15,8 +16,9 @@ vi.mock("@/lib/api-client", async () => {
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 // The query the page was opened with, which a test sets before mounting.
 const query = vi.hoisted(() => ({ current: new URLSearchParams() }));
+const push = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  useRouter: () => ({ push, replace: vi.fn(), prefetch: vi.fn() }),
   useSearchParams: () => query.current,
   usePathname: () => "/login",
   useParams: () => ({}),
@@ -62,6 +64,34 @@ beforeEach(() => {
 });
 
 describe("signing in with a directory account", () => {
+  it("shows the MFA step and can return to the same directory credentials", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      mfa_required: true,
+      mfa_token: "directory-challenge",
+      expires_in: 300,
+    });
+    mount();
+    await openDirectoryForm();
+
+    await signIn("jdoe", "pw");
+
+    expect(await screen.findByLabelText(/code/i)).toBeEnabled();
+    expect(screen.queryByLabelText("Active Directory username")).not.toBeInTheDocument();
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: /back/i }));
+
+    expect(screen.getByLabelText("Active Directory username")).toHaveValue("jdoe");
+    expect(screen.getByLabelText("Password")).toHaveValue("pw");
+    expect(screen.getByRole("button", { name: "Login" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Login" }));
+    expect(await screen.findByLabelText(/code/i)).toBeEnabled();
+    expect(apiClient.post).toHaveBeenCalledTimes(2);
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it("swaps the email form for a username form named after the directory", async () => {
     mount();
     await openDirectoryForm();

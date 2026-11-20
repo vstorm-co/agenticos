@@ -91,6 +91,7 @@ async def _syncing(
         sync_mode="new_only",
         organization_id=uuid.uuid4(),
         secret_id=None,
+        connected_account_id=None,
         organizational_unit=None,
     )
     source.knowledge_base_id = _BASE.id

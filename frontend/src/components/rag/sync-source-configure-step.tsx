@@ -4,6 +4,7 @@ import { Cog } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { SchemaForm } from "@/components/agents/schema-form";
+import { DriveFolderPicker } from "@/components/rag/drive-folder-picker";
 import type { ConnectorInfo, SyncSourceCreate } from "@/lib/rag-api";
 
 export function ConfigureStep({
@@ -41,6 +42,33 @@ export function ConfigureStep({
     );
   }
 
+  // A Drive source read through a connected account browses for its folder, so
+  // the id is picked rather than typed. A service account cannot browse anybody's
+  // Drive, so it keeps the typed id the schema draws.
+  const driveAccount = connector.type === "gdrive" ? form.connected_account_id : null;
+  if (driveAccount) {
+    return (
+      <div className="space-y-4">
+        <DriveFolderPicker
+          account={driveAccount}
+          value={typeof form.config.folder_id === "string" ? form.config.folder_id : ""}
+          onSelect={(folderId) =>
+            setForm((f) => ({ ...f, config: { ...f.config, folder_id: folderId } }))
+          }
+          error={errors?.folder_id}
+        />
+        <SchemaForm
+          schema={connector.config_schema}
+          value={form.config}
+          onChange={(config) => setForm((f) => ({ ...f, config }))}
+          idPrefix="cfg"
+          errors={errors}
+          hiddenFields={["folder_id"]}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <p className="text-foreground/65 text-sm">
@@ -52,6 +80,9 @@ export function ConfigureStep({
           required: (chunks) => <span className="text-muted-foreground">{chunks}</span>,
         })}
       </p>
+      {connector.type === "gdrive" && (
+        <p className="text-muted-foreground text-sm">{t("driveFolderIdHint")}</p>
+      )}
       <SchemaForm
         schema={connector.config_schema}
         value={form.config}

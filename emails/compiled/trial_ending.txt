@@ -1,12 +1,12 @@
-Subject: Your [[app_name]] trial ends in [[days_left]] days
+Subject: Your trial is ending
 
-Hi [[name]],
+Your trial is ending
 
-Your free trial of [[app_name]] ends in [[days_left]] days. Upgrade now to keep full access.
+Hi [[name]], your [[app_name]] trial is nearly over. Choose a plan to continue.
 
-Upgrade your plan:
+Time remaining: [[days_left]] days
+
+Explore plans:
 [[upgrade_url]]
 
-If you have any questions about pricing, just reply to this email.
-
-- The [[app_name]] Team
+[[app_name]]

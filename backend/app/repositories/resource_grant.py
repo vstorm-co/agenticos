@@ -1,13 +1,25 @@
 """ResourceGrant repository (PostgreSQL async)."""
 
+from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, CursorResult, Delete, delete, func, or_, select, update
+from sqlalchemy import (
+    ColumnElement,
+    CursorResult,
+    Delete,
+    Select,
+    delete,
+    func,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.artifact import Artifact
 from app.db.models.group import Group, GroupMember
+from app.db.models.organization import OrganizationMember
 from app.db.models.resource_grant import GRANT_ORDER, GrantLevel, ResourceGrant
 
 
@@ -23,6 +35,20 @@ async def _delete_rows(db: AsyncSession, statement: Delete) -> int:
     result = await db.execute(statement)
     await db.flush()
     return result.rowcount  # ty: ignore[missing-attribute]
+
+
+def _unexpired() -> ColumnElement[bool]:
+    """A grant whose expiry has passed gives nothing.
+
+    `NULL` is a grant with no expiry - permanent, as every grant made before
+    expiry existed was. The access reads below carry this; the management
+    listings (`list_for_resource`, `list_for_group`) do not, so an expired
+    share stays visible there to be renewed or revoked rather than vanishing
+    silently. The comparison is against this process's clock, the same clock
+    the key and invitation expiries are read against.
+    """
+    now = datetime.now(UTC)
+    return or_(ResourceGrant.expires_at.is_(None), ResourceGrant.expires_at > now)
 
 
 def _reaches_member(organization_id: UUID, subject_user_id: UUID) -> ColumnElement[bool]:
@@ -66,11 +92,70 @@ async def get_level(
             ResourceGrant.organization_id == organization_id,
             ResourceGrant.resource_type == resource_type,
             ResourceGrant.resource_id == resource_id,
+            _unexpired(),
             _reaches_member(organization_id, subject_user_id),
         )
     )
     levels = [GrantLevel(level) for level in result.scalars().all()]
     return max(levels, key=GRANT_ORDER.__getitem__) if levels else None
+
+
+def readable_record_ids(*, organization_id: UUID, subject_user_id: UUID) -> Select[UUID]:
+    """Current Read/Write row grants, as a subquery for filtered record listings.
+
+    The namespace deliberately accepts only READ and EDIT. Other resource
+    levels cannot accidentally become record access through their numeric rank.
+    """
+    return select(ResourceGrant.resource_id).where(
+        ResourceGrant.organization_id == organization_id,
+        ResourceGrant.resource_type == "table_record",
+        ResourceGrant.level.in_((GrantLevel.READ.value, GrantLevel.EDIT.value)),
+        _current_record_member(organization_id, subject_user_id),
+        _unexpired(),
+        _reaches_member(organization_id, subject_user_id),
+    )
+
+
+async def record_levels(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    subject_user_id: UUID,
+    record_ids: list[UUID],
+) -> dict[UUID, GrantLevel]:
+    """Current row grants for a page, including live group membership and expiry."""
+    if not record_ids:
+        return {}
+    result = await db.execute(
+        select(ResourceGrant.resource_id, ResourceGrant.level).where(
+            ResourceGrant.organization_id == organization_id,
+            ResourceGrant.resource_type == "table_record",
+            ResourceGrant.resource_id.in_(record_ids),
+            ResourceGrant.level.in_((GrantLevel.READ.value, GrantLevel.EDIT.value)),
+            _current_record_member(organization_id, subject_user_id),
+            _unexpired(),
+            _reaches_member(organization_id, subject_user_id),
+        )
+    )
+    levels: dict[UUID, GrantLevel] = {}
+    for record_id, raw_level in result:
+        level = GrantLevel(raw_level)
+        previous = levels.get(record_id)
+        if previous is None or GRANT_ORDER[level] > GRANT_ORDER[previous]:
+            levels[record_id] = level
+    return levels
+
+
+def _current_record_member(organization_id: UUID, subject_user_id: UUID) -> ColumnElement[bool]:
+    """A stale request or group row cannot keep grants after organization membership ends."""
+    return (
+        select(OrganizationMember.id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == subject_user_id,
+        )
+        .exists()
+    )
 
 
 async def list_shared_ids(
@@ -96,6 +181,7 @@ async def list_shared_ids(
             ResourceGrant.organization_id == organization_id,
             ResourceGrant.resource_type == resource_type,
             ResourceGrant.level.in_(allowed),
+            _unexpired(),
             _reaches_member(organization_id, subject_user_id),
         )
         .distinct()
@@ -132,8 +218,18 @@ async def upsert(
     resource_id: UUID,
     level: GrantLevel,
     created_by_user_id: UUID | None = None,
+    expires_at: datetime | None = None,
+    clear_expiry: bool = False,
 ) -> ResourceGrant:
-    """Share a resource with a member, replacing any existing level."""
+    """Share a resource with a member, replacing any existing level.
+
+    An expiry given here is set on a new grant, and replaces the stored one on
+    an existing grant. Omitted, an existing grant keeps the expiry it has - a
+    re-share that only changes the level must not silently make a time-bound
+    share permanent - and a new grant is permanent. Clearing an expiry takes
+    revoke and a fresh share, or an explicit `clear_expiry` from a surface that
+    distinguishes an omitted expiry from an intentional null (record access).
+    """
     result = await db.execute(
         select(ResourceGrant).where(
             ResourceGrant.organization_id == organization_id,
@@ -150,11 +246,14 @@ async def upsert(
             resource_type=resource_type,
             resource_id=resource_id,
             level=level.value,
+            expires_at=expires_at,
             created_by_user_id=created_by_user_id,
         )
         db.add(grant)
     else:
         grant.level = level.value
+        if expires_at is not None or clear_expiry:
+            grant.expires_at = expires_at
     await db.flush()
     await db.refresh(grant)
     return grant
@@ -189,9 +288,13 @@ async def upsert_for_group(
     resource_type: str,
     resource_id: UUID,
     level: GrantLevel,
+    expires_at: datetime,
     created_by_user_id: UUID | None = None,
 ) -> ResourceGrant:
-    """Share a resource with a group, replacing any existing level."""
+    """Share a resource with a group, replacing any existing level.
+
+    A group grant always has an expiry. Re-sharing replaces the stored expiry.
+    """
     result = await db.execute(
         select(ResourceGrant).where(
             ResourceGrant.organization_id == organization_id,
@@ -208,11 +311,13 @@ async def upsert_for_group(
             resource_type=resource_type,
             resource_id=resource_id,
             level=level.value,
+            expires_at=expires_at,
             created_by_user_id=created_by_user_id,
         )
         db.add(grant)
     else:
         grant.level = level.value
+        grant.expires_at = expires_at
     await db.flush()
     await db.refresh(grant)
     return grant
@@ -274,6 +379,7 @@ async def ids_shared_with_group(
             ResourceGrant.organization_id == organization_id,
             ResourceGrant.resource_type == resource_type,
             ResourceGrant.subject_group_id == group_id,
+            _unexpired(),
         )
     )
     return list(result.scalars().all())
@@ -294,6 +400,7 @@ async def list_for_resources(
             ResourceGrant.organization_id == organization_id,
             ResourceGrant.resource_type == resource_type,
             ResourceGrant.resource_id.in_(resource_ids),
+            _unexpired(),
         )
     )
     return list(result.scalars().all())
@@ -315,6 +422,7 @@ async def group_grants_for_resources(
             ResourceGrant.resource_type == resource_type,
             ResourceGrant.resource_id.in_(resource_ids),
             ResourceGrant.subject_group_id.is_not(None),
+            _unexpired(),
         )
     )
     return [(resource_id, group_id) for resource_id, group_id in result.all() if group_id]
@@ -341,6 +449,7 @@ async def count_for_resources(
             ResourceGrant.organization_id == organization_id,
             ResourceGrant.resource_type == resource_type,
             ResourceGrant.resource_id.in_(resource_ids),
+            _unexpired(),
         )
         .group_by(ResourceGrant.resource_id)
     )
@@ -391,6 +500,25 @@ async def lower_edit_data(
     )
     await db.flush()
     return result.rowcount
+
+
+async def revoke_for_member(db: AsyncSession, *, organization_id: UUID, user_id: UUID) -> int:
+    """Drop every direct grant to one member of one organization; how many went.
+
+    Called when the membership ends. A grant left behind would revive the
+    moment the person is invited back - the `users` row survives the removal,
+    and the grant with it - so the access has to go with the membership, not
+    wait for someone to remember it. Group grants need nothing here: leaving
+    the group already stops them reaching the person, and the membership's end
+    takes them out of every group.
+    """
+    return await _delete_rows(
+        db,
+        delete(ResourceGrant).where(
+            ResourceGrant.organization_id == organization_id,
+            ResourceGrant.subject_user_id == user_id,
+        ),
+    )
 
 
 async def list_for_group(

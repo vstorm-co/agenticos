@@ -277,6 +277,9 @@ mirage = [
 dev = [
     # The `mirage` extra's pin, for the suite - see the extra.
     "mirage-ai[pydantic-ai,ssh,mongodb,gridfs,postgres,redis,email,nextcloud,hf-buckets,chroma,mem0,langfuse,qdrant,lancedb]==0.0.8",
+    # Keep native browser typing and actual SDK tests in the default CI/dev install.
+    # Deployments still choose the runtime `browser` extra explicitly.
+    "cdp-use==1.4.5",
     "pytest>=9.2.0",
     "anyio[trio]>=4.16.0",
     "pytest-cov>=6.1.0",
@@ -410,7 +413,8 @@ line-length = 100
 # These run on the runner's own `python3` (3.12), before any toolchain is
 # installed - CI's first job, and the dependency-graph submission - so they keep
 # to syntax that interpreter parses.
-per-file-target-version = { "../deploy/updater/*.py" = "py312", "../scripts/ci_changed_scope.py" = "py312", "../scripts/dependency_snapshot.py" = "py312" }
+# The native account probe likewise runs in the workbench's Python 3.12.
+per-file-target-version = { "../deploy/updater/*.py" = "py312", "../scripts/ci_changed_scope.py" = "py312", "../scripts/dependency_snapshot.py" = "py312", "app/services/coding_account_usage/_native_probe.py" = "py312" }
 
 [tool.ruff.lint]
 # Dotless i is a distinct Turkish letter used in localized messages.
@@ -585,6 +589,10 @@ error-on-warning = true
 
 [tool.ty.environment]
 python-version = "3.15"
+# Production runs on Linux (backend/Dockerfile, CI on ubuntu-latest). Without this,
+# ty resolves POSIX-only APIs (resource, signal.SIGKILL, os.killpg) for the host OS,
+# which breaks `ty check` on Windows.
+python-platform = "linux"
 
 [tool.ty.src]
 # `app/commands/` used to be here, which quietly took `app/commands/bootstrap.py`
@@ -651,10 +659,42 @@ include = [
     "app/commands/invite_members.py",
     "app/commands/data_protection.py",
     "app/commands/mcp_audit.py",
+    "app/commands/tables_rls.py",
     "app/core/permissions.py",
+    "app/core/claude_subscription.py",
+    "app/schemas/claude_subscription.py",
+    "app/api/routes/v1/personal_subscriptions.py",
     "app/core/resource_icons.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
+    "app/core/browser_origins.py",
+    "app/core/secret_scopes.py",
+    "app/core/browser_fill.py",
+    "app/core/browser_totp.py",
+    "app/core/browser_continuation.py",
+    "app/core/browser_session.py",
+    "app/db/models/browser_credential.py",
+    "app/db/models/browser_credential_continuation.py",
+    "app/repositories/browser_credential.py",
+    "app/repositories/browser_credential_continuation.py",
+    "app/schemas/browser_credential.py",
+    "app/schemas/browser_credential_continuation.py",
+    "app/services/browser_credentials/**",
+    "app/api/routes/v1/browser_credentials.py",
+    "app/core/browser_teaching.py",
+    "app/db/models/browser_teaching.py",
+    "app/repositories/browser_teaching.py",
+    "app/repositories/browser_teaching_view.py",
+    "app/schemas/browser_teaching.py",
+    "app/services/browser_teaching/**",
+    "app/api/routes/v1/browser_teaching.py",
+    "app/core/browser_procedure_teaching.py",
+    "app/db/models/browser_procedure_teaching.py",
+    "app/repositories/browser_procedure_teaching.py",
+    "app/schemas/browser_procedure_teaching.py",
+    "app/services/browser_procedure_teaching/**",
+    "app/api/routes/v1/_browser_procedure_teaching_http.py",
+    "app/api/routes/v1/browser_procedure_teaching.py",
     "app/core/tool_identity.py",
     "app/core/vault.py",
     # The audit trail, fail-closed and part of the caller's transaction. Every
@@ -706,12 +746,15 @@ include = [
     # Which tables alembic owns and which the vector store makes at runtime. It is
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",
+    "app/db/table_tenant.py",
+    "app/db/table_rls.py",
     # Which explicit `null` on an update may reach a row. It is one function and
     # it stands between a legal request and a 500 naming a database constraint
     # (#637), which is the kind of thing a branch that never runs is exactly how
     # it comes back.
     "app/db/updates.py",
     "app/services/access.py",
+    "app/services/account_maintenance.py",
     # How often a stranger may reach a public surface. It was configured and
     # never applied for the whole life of the product (#39), which is the
     # argument for holding the replacement to the bar every other refusal is
@@ -873,18 +916,25 @@ include = [
     "app/services/portals/outlook_calendar.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
+    "app/services/app_connections/**",
     "app/services/mirage_mounts.py",
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
     # would empty that picker without a single test failing.
     "app/services/decision_models.py",
+    "app/services/image_generation.py",
     "app/services/image_models.py",
+    "app/services/media_inspection.py",
+    "app/services/media_types.py",
     "app/services/model_profile.py",
+    "app/services/claude_subscription/**",
     # Whether an agent can run on a model. A classification that quietly widens
     # hides chat models from every picker; one that narrows lets a speech model
     # through publish (#2487).
     "app/services/model_outputs.py",
     "app/services/organization_secret.py",
+    "app/services/secret_requests.py",
+    "app/services/role_navigation.py",
     "app/services/openai_codex.py",
     # Same shape and the same reason as `image_models`: what a picker offers is
     # decided by filtering a data file against what the platform can actually
@@ -915,6 +965,7 @@ include = [
     "app/services/video_generation/clients.py",
     "app/services/video_generation/exceptions.py",
     "app/services/video_generation/generation.py",
+    "app/services/video_generation/receipts.py",
     "app/services/provider_error_code.py",
     "app/services/transcription_usage.py",
     # The rest of `app/services/rag/` came with the template and is reported
@@ -925,6 +976,7 @@ include = [
     # The Drive REST client that replaced Google's discovery SDK: written here,
     # so held to the bar.
     "app/services/rag/drive_api.py",
+    "app/services/gdrive_picker.py",
     # What a chunk is, and therefore what a search can find. Written here rather
     # than imported (#158), and the rest of the pipeline can only retrieve what
     # this module decided to store - so it is held to the bar the code it
@@ -941,6 +993,7 @@ include = [
     "app/services/rag/citation.py",
     "app/services/sharing.py",
     "app/services/skills.py",
+    "app/services/auto_skill_learning.py",
     "app/services/exporting.py",
     "app/services/run_export.py",
     "app/services/spend.py",
@@ -956,6 +1009,7 @@ include = [
     "app/repositories/mcp_connection.py",
     "app/repositories/mcp_server_check.py",
     "app/repositories/organization_secret.py",
+    "app/repositories/secret_request.py",
     "app/repositories/_visibility.py",
     "app/repositories/resource_grant.py",
     "app/api/routes/v1/_sharing_routes.py",
@@ -968,6 +1022,7 @@ include = [
     "app/api/routes/v1/local_services.py",
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
+    "app/api/routes/v1/auto_skill_learning.py",
     "app/api/routes/v1/skill_checks.py",
     "app/api/routes/v1/workspaces.py",
     "app/api/routes/v1/_workspace_bytes.py",
@@ -978,6 +1033,7 @@ include = [
     "app/repositories/intercepted_tool_call.py",
     "app/repositories/dashboard_layout.py",
     "app/services/dashboard_layout.py",
+    "app/services/user_appearance.py",
     "app/schemas/onboarding.py",
     "app/repositories/onboarding.py",
     "app/services/onboarding.py",
@@ -993,6 +1049,11 @@ include = [
     "app/services/project_workspace_transfer.py",
     "app/worker/tasks/project_tasks.py",
     "app/api/routes/v1/projects.py",
+    "app/repositories/agent_message.py",
+    "app/services/agent_messages.py",
+    "app/api/routes/v1/agent_messages.py",
+    "app/db/models/agent_message.py",
+    "app/schemas/agent_message.py",
     "app/api/routes/v1/context.py",
     "app/db/models/dataset.py",
     "app/schemas/dataset.py",
@@ -1069,8 +1130,13 @@ include = [
     "app/api/routes/v1/visuals.py",
     "app/db/models/api_key.py",
     "app/schemas/api_key.py",
+    "app/schemas/mfa.py",
     "app/repositories/api_key.py",
     "app/services/api_key.py",
+    # TOTP for console sign-in: the code itself, and the service that
+    # enrols it, gates sign-in on it and hands out recovery codes.
+    "app/core/totp.py",
+    "app/services/mfa.py",
     "app/api/routes/v1/api_keys.py",
     "app/db/models/oauth.py",
     "app/schemas/oauth_server.py",
@@ -1227,16 +1293,33 @@ include = [
     "app/api/routes/v1/outcomes.py",
     "app/api/routes/v1/system_agents.py",
     "app/worker/tasks/memory_tasks.py",
+    # A reader's saved message ids, with live metadata read only through that
+    # reader's existing conversation access.
+    "app/db/models/conversation_message_pin.py",
+    "app/repositories/conversation_message_pin.py",
+    "app/schemas/conversation_message_pin.py",
+    "app/services/conversation_message_pin.py",
+    "app/api/routes/v1/conversation_message_pins.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code
     # (#789).
     "app/repositories/conversation_search.py",
     "app/services/conversation_search.py",
+    "app/schemas/conversation_search.py",
     "app/db/models/conversation_task.py",
     "app/schemas/conversation_task.py",
     "app/repositories/conversation_task.py",
     "app/services/conversation_tasks.py",
+    "app/db/models/room_submission.py",
+    "app/db/models/room_routing.py",
+    "app/schemas/room_submission.py",
+    "app/schemas/room_routing.py",
+    "app/repositories/room_submission.py",
+    "app/repositories/room_routing.py",
+    "app/services/room_submission.py",
+    "app/services/room_routing.py",
+    "app/worker/tasks/room_tasks.py",
     # What a coding-agent task changed, read under the conversation's own reader
     # check (#2480).
     "app/db/models/coding_task_change.py",
@@ -1255,6 +1338,7 @@ include = [
     "app/schemas/coding_account.py",
     "app/repositories/coding_account.py",
     "app/services/coding_accounts.py",
+    "app/services/coding_account_usage/*",
     "app/services/personal_codex.py",
     "app/services/coding_account_lease.py",
     "app/services/personal_coding_snapshot.py",
@@ -1333,8 +1417,11 @@ include = [
     # operation key, another tenant's table, an archived column - and a write path
     # that skipped one would overwrite or leak a tenant's rows silently (#1782).
     "app/db/models/virtual_table.py",
+    "app/db/models/virtual_table_relation.py",
     "app/repositories/virtual_table.py",
+    "app/repositories/virtual_table_relation.py",
     "app/schemas/virtual_table.py",
+    "app/schemas/virtual_table_relation.py",
     "app/services/virtual_tables/**",
     "app/api/routes/v1/virtual_tables.py",
     "app/api/routes/v1/_table_responses.py",
@@ -1382,6 +1469,15 @@ include = [
     "app/db/models/workflow_run.py",
     "app/repositories/workflow_run.py",
     "app/schemas/workflow_run.py",
+    # Durable workflow media: catalog bounds, exact-effect journal and safe reads.
+    "app/core/image_workflow_catalog.py",
+    "app/core/video_workflow_catalog.py",
+    "app/db/models/workflow_media_operation.py",
+    "app/repositories/workflow_media_operation.py",
+    "app/schemas/workflow_media.py",
+    "app/services/workflow_media/**",
+    "app/services/workflow_media_catalog.py",
+    "app/services/workflow_media_read.py",
     "app/services/workflow_execution/**",
     "app/worker/tasks/workflow_tasks.py",
     "app/api/routes/v1/workflow_runs.py",
@@ -1394,8 +1490,17 @@ include = [
     "app/db/models/workflow_eval.py",
     "app/repositories/workflow_eval.py",
     "app/schemas/workflow_eval.py",
+    "app/schemas/eval_judging.py",
     "app/services/workflow_evals.py",
+    "app/services/eval_judging.py",
     "app/api/routes/v1/workflow_evals.py",
+    # The failure-learning loop: mined patterns, the ledger, eval cases, tries.
+    "app/db/models/failure_learning.py",
+    "app/repositories/failure_learning.py",
+    "app/schemas/failure_learning.py",
+    "app/services/failure_learning.py",
+    "app/api/routes/v1/failure_learning.py",
+    "app/worker/tasks/failure_learning_tasks.py",
     # The ways in to a workflow (#1792): its webhooks and schedules, the
     # workflow-run WebSocket and the chat's door through it, and the publish
     # that switches its trigger node on.
@@ -1542,10 +1647,42 @@ include = [
     "app/commands/invite_members.py",
     "app/commands/data_protection.py",
     "app/commands/mcp_audit.py",
+    "app/commands/tables_rls.py",
     "app/core/permissions.py",
+    "app/core/claude_subscription.py",
+    "app/schemas/claude_subscription.py",
+    "app/api/routes/v1/personal_subscriptions.py",
     "app/core/resource_icons.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
+    "app/core/browser_origins.py",
+    "app/core/secret_scopes.py",
+    "app/core/browser_fill.py",
+    "app/core/browser_totp.py",
+    "app/core/browser_continuation.py",
+    "app/core/browser_session.py",
+    "app/db/models/browser_credential.py",
+    "app/db/models/browser_credential_continuation.py",
+    "app/repositories/browser_credential.py",
+    "app/repositories/browser_credential_continuation.py",
+    "app/schemas/browser_credential.py",
+    "app/schemas/browser_credential_continuation.py",
+    "app/services/browser_credentials/**",
+    "app/api/routes/v1/browser_credentials.py",
+    "app/core/browser_teaching.py",
+    "app/db/models/browser_teaching.py",
+    "app/repositories/browser_teaching.py",
+    "app/repositories/browser_teaching_view.py",
+    "app/schemas/browser_teaching.py",
+    "app/services/browser_teaching/**",
+    "app/api/routes/v1/browser_teaching.py",
+    "app/core/browser_procedure_teaching.py",
+    "app/db/models/browser_procedure_teaching.py",
+    "app/repositories/browser_procedure_teaching.py",
+    "app/schemas/browser_procedure_teaching.py",
+    "app/services/browser_procedure_teaching/**",
+    "app/api/routes/v1/_browser_procedure_teaching_http.py",
+    "app/api/routes/v1/browser_procedure_teaching.py",
     "app/core/tool_identity.py",
     "app/core/vault.py",
     # The audit trail, fail-closed and part of the caller's transaction. Every
@@ -1597,12 +1734,15 @@ include = [
     # Which tables alembic owns and which the vector store makes at runtime. It is
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",
+    "app/db/table_tenant.py",
+    "app/db/table_rls.py",
     # Which explicit `null` on an update may reach a row. It is one function and
     # it stands between a legal request and a 500 naming a database constraint
     # (#637), which is the kind of thing a branch that never runs is exactly how
     # it comes back.
     "app/db/updates.py",
     "app/services/access.py",
+    "app/services/account_maintenance.py",
     # How often a stranger may reach a public surface. It was configured and
     # never applied for the whole life of the product (#39), which is the
     # argument for holding the replacement to the bar every other refusal is
@@ -1797,18 +1937,25 @@ include = [
     "app/services/portals/outlook_calendar.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
+    "app/services/app_connections/**",
     "app/services/mirage_mounts.py",
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
     # would empty that picker without a single test failing.
     "app/services/decision_models.py",
+    "app/services/image_generation.py",
     "app/services/image_models.py",
+    "app/services/media_inspection.py",
+    "app/services/media_types.py",
     "app/services/model_profile.py",
+    "app/services/claude_subscription/**",
     # Whether an agent can run on a model. A classification that quietly widens
     # hides chat models from every picker; one that narrows lets a speech model
     # through publish (#2487).
     "app/services/model_outputs.py",
     "app/services/organization_secret.py",
+    "app/services/secret_requests.py",
+    "app/services/role_navigation.py",
     "app/services/openai_codex.py",
     # Same shape and the same reason as `image_models`: what a picker offers is
     # decided by filtering a data file against what the platform can actually
@@ -1839,6 +1986,7 @@ include = [
     "app/services/video_generation/clients.py",
     "app/services/video_generation/exceptions.py",
     "app/services/video_generation/generation.py",
+    "app/services/video_generation/receipts.py",
     "app/services/provider_error_code.py",
     "app/services/transcription_usage.py",
     # The rest of `app/services/rag/` came with the template and is reported
@@ -1849,6 +1997,7 @@ include = [
     # The Drive REST client that replaced Google's discovery SDK: written here,
     # so held to the bar.
     "app/services/rag/drive_api.py",
+    "app/services/gdrive_picker.py",
     # What a chunk is, and therefore what a search can find. Written here rather
     # than imported (#158), and the rest of the pipeline can only retrieve what
     # this module decided to store - so it is held to the bar the code it
@@ -1865,6 +2014,7 @@ include = [
     "app/services/rag/citation.py",
     "app/services/sharing.py",
     "app/services/skills.py",
+    "app/services/auto_skill_learning.py",
     "app/services/exporting.py",
     "app/services/run_export.py",
     "app/services/spend.py",
@@ -1880,6 +2030,7 @@ include = [
     "app/repositories/mcp_connection.py",
     "app/repositories/mcp_server_check.py",
     "app/repositories/organization_secret.py",
+    "app/repositories/secret_request.py",
     "app/repositories/_visibility.py",
     "app/repositories/resource_grant.py",
     "app/api/routes/v1/_sharing_routes.py",
@@ -1892,6 +2043,7 @@ include = [
     "app/api/routes/v1/local_services.py",
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
+    "app/api/routes/v1/auto_skill_learning.py",
     "app/api/routes/v1/skill_checks.py",
     "app/api/routes/v1/workspaces.py",
     "app/api/routes/v1/_workspace_bytes.py",
@@ -1902,6 +2054,7 @@ include = [
     "app/repositories/intercepted_tool_call.py",
     "app/repositories/dashboard_layout.py",
     "app/services/dashboard_layout.py",
+    "app/services/user_appearance.py",
     "app/schemas/onboarding.py",
     "app/repositories/onboarding.py",
     "app/services/onboarding.py",
@@ -1917,6 +2070,11 @@ include = [
     "app/services/project_workspace_transfer.py",
     "app/worker/tasks/project_tasks.py",
     "app/api/routes/v1/projects.py",
+    "app/repositories/agent_message.py",
+    "app/services/agent_messages.py",
+    "app/api/routes/v1/agent_messages.py",
+    "app/db/models/agent_message.py",
+    "app/schemas/agent_message.py",
     "app/api/routes/v1/context.py",
     "app/db/models/dataset.py",
     "app/schemas/dataset.py",
@@ -1993,8 +2151,13 @@ include = [
     "app/api/routes/v1/visuals.py",
     "app/db/models/api_key.py",
     "app/schemas/api_key.py",
+    "app/schemas/mfa.py",
     "app/repositories/api_key.py",
     "app/services/api_key.py",
+    # TOTP for console sign-in: the code itself, and the service that
+    # enrols it, gates sign-in on it and hands out recovery codes.
+    "app/core/totp.py",
+    "app/services/mfa.py",
     "app/api/routes/v1/api_keys.py",
     "app/db/models/oauth.py",
     "app/schemas/oauth_server.py",
@@ -2151,16 +2314,33 @@ include = [
     "app/api/routes/v1/outcomes.py",
     "app/api/routes/v1/system_agents.py",
     "app/worker/tasks/memory_tasks.py",
+    # A reader's saved message ids, with live metadata read only through that
+    # reader's existing conversation access.
+    "app/db/models/conversation_message_pin.py",
+    "app/repositories/conversation_message_pin.py",
+    "app/schemas/conversation_message_pin.py",
+    "app/services/conversation_message_pin.py",
+    "app/api/routes/v1/conversation_message_pins.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code
     # (#789).
     "app/repositories/conversation_search.py",
     "app/services/conversation_search.py",
+    "app/schemas/conversation_search.py",
     "app/db/models/conversation_task.py",
     "app/schemas/conversation_task.py",
     "app/repositories/conversation_task.py",
     "app/services/conversation_tasks.py",
+    "app/db/models/room_submission.py",
+    "app/db/models/room_routing.py",
+    "app/schemas/room_submission.py",
+    "app/schemas/room_routing.py",
+    "app/repositories/room_submission.py",
+    "app/repositories/room_routing.py",
+    "app/services/room_submission.py",
+    "app/services/room_routing.py",
+    "app/worker/tasks/room_tasks.py",
     # What a coding-agent task changed, read under the conversation's own reader
     # check (#2480).
     "app/db/models/coding_task_change.py",
@@ -2179,6 +2359,7 @@ include = [
     "app/schemas/coding_account.py",
     "app/repositories/coding_account.py",
     "app/services/coding_accounts.py",
+    "app/services/coding_account_usage/*",
     "app/services/personal_codex.py",
     "app/services/coding_account_lease.py",
     "app/services/personal_coding_snapshot.py",
@@ -2257,8 +2438,11 @@ include = [
     # operation key, another tenant's table, an archived column - and a write path
     # that skipped one would overwrite or leak a tenant's rows silently (#1782).
     "app/db/models/virtual_table.py",
+    "app/db/models/virtual_table_relation.py",
     "app/repositories/virtual_table.py",
+    "app/repositories/virtual_table_relation.py",
     "app/schemas/virtual_table.py",
+    "app/schemas/virtual_table_relation.py",
     "app/services/virtual_tables/**",
     "app/api/routes/v1/virtual_tables.py",
     "app/api/routes/v1/_table_responses.py",
@@ -2306,6 +2490,15 @@ include = [
     "app/db/models/workflow_run.py",
     "app/repositories/workflow_run.py",
     "app/schemas/workflow_run.py",
+    # Durable workflow media: catalog bounds, exact-effect journal and safe reads.
+    "app/core/image_workflow_catalog.py",
+    "app/core/video_workflow_catalog.py",
+    "app/db/models/workflow_media_operation.py",
+    "app/repositories/workflow_media_operation.py",
+    "app/schemas/workflow_media.py",
+    "app/services/workflow_media/**",
+    "app/services/workflow_media_catalog.py",
+    "app/services/workflow_media_read.py",
     "app/services/workflow_execution/**",
     "app/worker/tasks/workflow_tasks.py",
     "app/api/routes/v1/workflow_runs.py",
@@ -2318,8 +2511,17 @@ include = [
     "app/db/models/workflow_eval.py",
     "app/repositories/workflow_eval.py",
     "app/schemas/workflow_eval.py",
+    "app/schemas/eval_judging.py",
     "app/services/workflow_evals.py",
+    "app/services/eval_judging.py",
     "app/api/routes/v1/workflow_evals.py",
+    # The failure-learning loop: mined patterns, the ledger, eval cases, tries.
+    "app/db/models/failure_learning.py",
+    "app/repositories/failure_learning.py",
+    "app/schemas/failure_learning.py",
+    "app/services/failure_learning.py",
+    "app/api/routes/v1/failure_learning.py",
+    "app/worker/tasks/failure_learning_tasks.py",
     # The ways in to a workflow (#1792): its webhooks and schedules, the
     # workflow-run WebSocket and the chat's door through it, and the publish
     # that switches its trigger node on.
@@ -2420,7 +2622,10 @@ exclude_also = [
 
 [tool.uv]
 # CVE-2026-126360: bound untrusted traceparent parsing in the tracing stack.
-constraint-dependencies = ["opentelemetry-api>=1.45.2"]
+constraint-dependencies = [
+    "dnspython>=2.9.2", # GHSA-vvf4-9x63-8xvv: bound WKS service bitmaps.
+    "opentelemetry-api>=1.45.2", # GHSA-mf5v-w3w3-f6cg: bound traceparent parsing.
+]
 
 # aiogram 3.31 caps pydantic below 2.14, and every pydantic 2.13 pins a
 # pydantic-core with no CPython 3.15 wheel, so without this the backend cannot

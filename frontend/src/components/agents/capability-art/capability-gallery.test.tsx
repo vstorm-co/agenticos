@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 
 import type { CapabilityCatalogEntry } from "@/types/agents";
 
+import { DRAWN_ART } from "./art.drawn";
 import { CAPABILITY_ART } from "./art.generated";
 import { CapabilityArt, CapabilityCard } from "./capability-card";
 import { CapabilityGallery, type CapabilityShelf } from "./capability-gallery";
@@ -101,6 +102,13 @@ describe("the capability art", () => {
 
     expect(container.querySelector(".v-B svg")).not.toBeNull();
     expect(container.querySelector(".cap-art")).not.toHaveClass("is-off");
+  });
+
+  it("draws the council scene from the hand-drawn capability art", () => {
+    const { container } = render(<CapabilityArt id="council" name="Council" />);
+
+    expect(DRAWN_ART.council).toContain("shared verdict");
+    expect(container.querySelector(".v-B svg")).not.toBeNull();
   });
 
   it("falls back to an initial for a capability added after the art", () => {

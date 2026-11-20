@@ -83,6 +83,10 @@ beforeEach(() => {
   // clearAllMocks does not undo mockReturnValue - reset the default star
   // explicitly so one test's default does not leak into the next.
   defaultId.mockReturnValue(null);
+  selectedWorkflowId.mockReturnValue(null);
+  workflowsListed.mockReturnValue([]);
+  mayRun.mockReturnValue(true);
+  search = "";
   loading = false;
   fetching = false;
 });
@@ -392,27 +396,129 @@ it("keeps demo icons and choose-agent text off the loading trigger", () => {
   expect(screen.getByTestId("agent-picker-loading-name")).toBeVisible();
 });
 
-it("defaults to the authentic AgenticOS even before a model is connected", async () => {
-  const starter = {
-    ...agent("starter", "AgenticOS", "draft"),
-    is_starter: true,
-    setup_required: true,
-  };
-  listed.mockReturnValue([agent("architect", "Architect"), starter]);
-  selectedId.mockReturnValue(null);
-  render(<AgentPicker />);
-  await waitFor(() => expect(select).toHaveBeenCalledWith("starter"));
-});
-it("does not offer a setup draft without its run permission", () => {
-  listed.mockReturnValue([
-    {
+describe("the floating assistant's picker", () => {
+  it("does not offer a visible agent without run permission", async () => {
+    await open([...PUBLISHED, { ...agent("view-only", "Reference agent"), can_run: false }]);
+
+    expect(screen.queryByRole("radio", { name: /Reference agent/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("radio")).toHaveLength(2);
+  });
+
+  it("ignores an inaccessible default when filling the ordinary chat's empty choice", () => {
+    listed.mockReturnValue([
+      { ...agent("view-only", "Reference agent"), can_run: false },
+      ...PUBLISHED,
+    ]);
+    defaultId.mockReturnValue("view-only");
+    selectedId.mockReturnValue(null);
+
+    render(<AgentPicker />);
+
+    expect(select).toHaveBeenCalledWith("a1");
+  });
+
+  it.each(["view-only", "gone", null])(
+    "does not replace the explicit floating selection %s",
+    (selection) => {
+      listed.mockReturnValue([
+        ...PUBLISHED,
+        { ...agent("view-only", "Reference agent"), can_run: false },
+      ]);
+      selectedId.mockReturnValue(selection);
+
+      render(<AgentPicker autoSelect={false} />);
+
+      expect(select).not.toHaveBeenCalled();
+    },
+  );
+
+  it("ignores the host page's agent query throughout a floating conversation", () => {
+    listed.mockReturnValue(PUBLISHED);
+    selectedId.mockReturnValue("a1");
+    search = "agent=sales";
+
+    const { rerender } = render(<AgentPicker followUrl={false} />);
+    expect(select).not.toHaveBeenCalled();
+
+    search = "agent=a2";
+    rerender(<AgentPicker followUrl={false} />);
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it("offers agents only even when workflows are permitted", async () => {
+    listed.mockReturnValue(PUBLISHED);
+    selectedId.mockReturnValue("a1");
+    workflowsListed.mockReturnValue([workflow("w1", "Lead triage")]);
+    selectedWorkflowId.mockReturnValue("w1");
+
+    render(<AgentPicker includeWorkflows={false} />);
+    await userEvent.click(screen.getByRole("button", { name: "Agent: Support" }));
+
+    expect(workflowsEnabled).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByRole("radiogroup", { name: "Workflows" })).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Support/ })).toHaveAttribute("aria-checked", "true");
+    expect(selectWorkflow).not.toHaveBeenCalled();
+  });
+
+  it("leaves standing preferences out of a surface that does not use them", async () => {
+    listed.mockReturnValue(PUBLISHED);
+    selectedId.mockReturnValue("a1");
+    defaultId.mockReturnValue("a2");
+
+    render(<AgentPicker allowDefault={false} />);
+    await userEvent.click(screen.getByRole("button", { name: "Agent: Support" }));
+
+    expect(screen.queryByText("Default")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /default agent/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: /Sales/ }));
+    expect(select).toHaveBeenCalledWith("a2");
+    expect(setDefault).not.toHaveBeenCalled();
+  });
+
+  it("does not inherit a default when the surface opts out", () => {
+    listed.mockReturnValue(PUBLISHED);
+    selectedId.mockReturnValue(null);
+    defaultId.mockReturnValue("a2");
+
+    render(<AgentPicker allowDefault={false} />);
+
+    expect(select).toHaveBeenCalledWith("a1");
+  });
+
+  it("uses a localized label only for a selected permitted agent", () => {
+    listed.mockReturnValue(PUBLISHED);
+    selectedId.mockReturnValue("a1");
+    const { rerender } = render(<AgentPicker selectedLabel="Architect" />);
+
+    expect(screen.getByRole("button", { name: "Agent: Architect" })).toBeInTheDocument();
+
+    selectedId.mockReturnValue("unknown");
+    rerender(<AgentPicker selectedLabel="Architect" autoSelect={false} />);
+    expect(screen.queryByRole("button", { name: "Agent: Architect" })).not.toBeInTheDocument();
+  });
+  it("defaults to the authentic AgenticOS even before a model is connected", async () => {
+    const starter = {
       ...agent("starter", "AgenticOS", "draft"),
       is_starter: true,
       setup_required: true,
-      can_run: false,
-    },
-  ]);
-  selectedId.mockReturnValue(null);
-  render(<AgentPicker />);
-  expect(select).not.toHaveBeenCalled();
+    };
+    listed.mockReturnValue([agent("architect", "Architect"), starter]);
+    selectedId.mockReturnValue(null);
+    render(<AgentPicker />);
+    await waitFor(() => expect(select).toHaveBeenCalledWith("starter"));
+  });
+
+  it("does not offer a setup draft without its run permission", () => {
+    listed.mockReturnValue([
+      {
+        ...agent("starter", "AgenticOS", "draft"),
+        is_starter: true,
+        setup_required: true,
+        can_run: false,
+      },
+    ]);
+    selectedId.mockReturnValue(null);
+    render(<AgentPicker />);
+    expect(select).not.toHaveBeenCalled();
+  });
 });

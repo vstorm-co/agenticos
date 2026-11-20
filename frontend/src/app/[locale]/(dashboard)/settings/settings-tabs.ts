@@ -49,6 +49,7 @@ export const SETTINGS_TABS: readonly PageTab[] = [
   { labelKey: "slashCommands", href: ROUTES.SETTINGS_SLASH_COMMANDS, icon: Slash },
   { labelKey: "memory", href: ROUTES.SETTINGS_MEMORY, icon: Brain },
   { labelKey: "signIns", href: ROUTES.SETTINGS_SIGN_INS, icon: Globe },
+  { labelKey: "aiConnections", href: ROUTES.SETTINGS_AI_CONNECTIONS, icon: KeyRound },
   { labelKey: "notifications", href: ROUTES.SETTINGS_NOTIFICATIONS, icon: Bell },
   {
     labelKey: "developerAccess",

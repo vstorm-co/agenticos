@@ -1,5 +1,5 @@
 ---
-source_sha: "79ff311d2516"
+source_sha: "248db60fab7b"
 ---
 
 # Die Konsole { #the-console }
@@ -44,7 +44,7 @@ neben dem Mikrofon.
 
 Ressourcenlisten, darunter Inbox und Routines, füllen auch im leeren Zustand die verbleibende Seitenhöhe. Routines bietet Vorlagen im Erstellungsformular statt in einem eigenen Ideenbereich an.
 
-Im Chat sind Agentenporträts größer und ohne Ringe. Der Files-Schalter bleibt beim Öffnen und Schließen des Bereichs im Eingabefeld; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst die Bestätigung übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
+Im Chat sind Agentenporträts größer und ohne Ringe. In der vollständigen Desktop-Chatansicht bleibt der Files-Schalter beim Öffnen und Schließen des Bereichs in den Bedienelementen des Arbeitsbereichs; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst **Run on this model** übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
 
 Seiteneinführungen und Erläuterungen zu Einstellungen sind über das Informationssymbol neben der Überschrift erreichbar. Aktuelle Zusammenfassungen und Warnungen vor destruktiven Aktionen bleiben sichtbar.
 
@@ -70,9 +70,9 @@ Die Chat-Einstellungen haben eine feste Überschrift und Schließen-Schaltfläch
 
 Die Agenten einer Unterhaltung sind nach ihrer letzten Nachricht oder ihrem letzten übergeordneten Lauf sortiert, die neuesten zuerst. Die eingeklappte Chat-Leiste behält die volle Avatargröße bei, überlagert bis zu drei Bilder und blendet ältere Teilnehmer aus; die vollständige Liste bleibt im Tooltip verfügbar.
 
-Ist **Approve everything** nicht verfügbar, unterscheiden die Chat-Einstellungen zwischen fehlender Entscheidungsberechtigung und einer Organisationsrichtlinie, die pauschale Zustimmung deaktiviert. Wer Genehmigungen entscheiden darf, erhält einen Link zu **Budget und Genehmigungen**, um die Richtlinie ausdrücklich zu ändern. Der Chat ändert die Organisationsrichtlinie niemals automatisch.
+Ist **Alles freigeben** (Approve everything) nicht verfügbar, unterscheiden die Chat-Einstellungen zwischen fehlender Entscheidungsberechtigung und einer Organisationsrichtlinie, die pauschale Zustimmung deaktiviert. Wer Genehmigungen entscheiden darf, erhält einen Link zu **Budget und Genehmigungen**, um die Richtlinie ausdrücklich zu ändern. Der Chat ändert die Organisationsrichtlinie niemals automatisch.
 
-Der Eingabebereich zeigt den aktiven Genehmigungsmodus neben der Agent-Auswahl. Über die Beschriftung lässt sich der gespeicherte Modus vor dem Senden ändern. Es gelten dieselben Berechtigungen und Organisationsrichtlinien wie in Chat controls. Automatisch genehmigte Aufrufe behalten ihre genehmigten Audit-Einträge; nur tatsächlich ausstehende Aufrufe zeigen eine Aufforderung zur Entscheidung.
+Der Eingabebereich zeigt den aktiven Genehmigungsmodus neben der Agent-Auswahl. Über die Beschriftung lässt sich der gespeicherte Modus vor dem Senden ändern. Es gelten dieselben Berechtigungsprüfungen und dieselbe Prüfung der organisationsweiten Ausnahmeregelung wie in **Chat-Steuerung** (Chat controls). Automatisch genehmigte Aufrufe behalten ihre genehmigten Audit-Einträge; nur tatsächlich ausstehende Aufrufe zeigen eine Aufforderung zur Entscheidung.
 
 Dialoge behalten auf dem Smartphone an allen Rändern 12 px Abstand. Kompakte Seitenköpfe zeigen Titel und Aktionen in einer Zeile, wenn genug Platz ist. Die Context-Beschreibung öffnet sich über die Editorleiste.
 
@@ -87,6 +87,10 @@ Auf Telefonen bleiben Beschreibung, Kategorie und Dateiverwaltung in Skill- und 
 Seitenüberschriften verwenden die Abstände des umgebenden Layouts ohne Verdopplung. Karten, Seitenleistenzeilen, Tabs und leere Zustände haben auf dem Desktop kompaktere Abstände; Bedienelemente behalten größere Touchflächen.
 
 Sekundäre Schaltflächen und Filter teilen eine deutlichere Füllfläche, kontrastreiche Beschriftungen und klare Zustände bei Hover, Betätigung und geöffnetem Menü. Die Modellauswahl im Chat verwendet denselben Stil.
+
+Der Kopf eines Agent-Chats zeigt das aktuelle Modell mit dem Provider-Symbol. Öffne die Modellauswahl, um gespeicherte Modelle zu suchen, den Provider oder das Konto zu wechseln oder **Modell des Agents verwenden** (Use agent's model) zu wählen. Die Auswahl gilt ab der nächsten Nachricht und wird für dein Konto in der aktuellen Organisation gespeichert; sie bearbeitet den Agenten nicht. Ein laufender Turn behält sein Modell. Getrennte Verbindungen und Modelle ohne Chat-Unterstützung bleiben sichtbar, sind aber nicht auswählbar. Kann die Modellliste nicht gelesen werden, bietet sie **Erneut versuchen** (Retry). **Chat-Steuerung** (Chat controls) neben dem Nachrichtenfeld enthält weiterhin die vollständige Modell- und Verbindungseinrichtung.
+
+Die Modellauswahl im Kopf erfordert `connections:manage`, wie die bisherigen Modellkontrollen. In schreibgeschützten Gesprächen und ohne diese Berechtigung bleibt das aktuelle Modell sichtbar.
 
 Persönliche Einstellungen verwenden auf Desktop und Telefon horizontale, scrollbare Tabs. Erläuterungen öffnen sich über Informationsschaltflächen; Feldanforderungen, Validierungsfehler und Warnungen vor Löschaktionen bleiben sichtbar. Konto enthält Passwortänderungen und aktive Sitzungen.
 
@@ -392,9 +396,22 @@ Auf einem Smartphone gibt es keine Sprechblase - sie würde die Seite verdecken,
 Freigaben, die sie schon genannt hat, bleiben für den Rest des Browser-Tabs
 genannt, auch wenn ein Link die Konsole neu lädt.
 
-Sein Fenster ist der Chat der Konsole selbst, keine Seite in der Seite, und öffnet
-sich mit vier Kacheln, sodass die erste Nachricht ein Klick ist; es führt einen
-eigenen Verlauf. Auf dem Telefon füllt es den Bildschirm.
+Sein Fenster nutzt den Chat der Konsole und startet mit dem ausgewählten
+Hauptassistenten. Über die Agent-Auswahl in der Kopfzeile wählen Sie einen
+veröffentlichten Agent, den Sie ausführen dürfen. Beim Wechsel bleibt das
+aktuelle Gespräch erhalten; Kopfzeile und Gesprächsverlauf folgen der Auswahl.
+Die Begrüßungskacheln des Architekten erscheinen nur beim Hauptassistenten.
+Auf dem Telefon füllt das Fenster den Bildschirm.
+
+Jede neue Frage enthält frischen, strukturierten Kontext zur aktuellen
+Konsolenseite, solange der Seitenkontext aktiviert ist. Das Fenster zeigt,
+welche Seite geteilt wird, und lässt Sie die Freigabe ausschalten.
+
+Eine Frage in der Warteschlange oder ein erneuter Versuch nach einer abgelehnten
+Übermittlung behält den Seitenkontext und den beim Absenden gewählten Agent.
+Eine neue Frage oder eine neu erzeugte Antwort nutzt die aktuelle Seite und den
+aktuellen Agent. Ein Wechsel des Kontos oder der Organisation setzt das Gespräch,
+die Agent-Auswahl und die Seitenkontexteinstellung des Fensters zurück.
 
 Nennt er eine Seite, öffnet der Link sie in der Konsole hinter dem Fenster und
 zeigt auf das gemeinte Bedienelement — die Schaltfläche, die einen Agent anlegt,
@@ -402,7 +419,7 @@ den Reiter mit den Freigaben. Die Kamera in seiner Kopfzeile zeigt ihm die Seite
 auf der Sie sind: Der Browser fragt, welchen Tab Sie teilen, und ein Bild hängt
 an Ihrer nächsten Nachricht.
 
-Längere Aufgaben plant er als Checkliste, die Sie
+Der Architekt plant längere Aufgaben als Checkliste, die Sie
 verfolgen können, er merkt sich Notizen über Sie zwischen Unterhaltungen, sagt
 Ihnen, was Ihre Agents kosten, und löscht nur einen versehentlich angelegten
 Agent-Entwurf und eine Routine, deren Entfernen Sie verlangen. Neben Freigaben und einer leeren
@@ -695,11 +712,50 @@ als Karte in seiner Antwort. Jeder Teil hat ein eigenes Kopiersymbol, das reinen
 kopiert; mehrere Varianten eines Entwurfs sind Tabs in derselben Karte. Das eigene
 **Kopieren** einer Nachricht enthält auch ihre Entwürfe.
 
+**Browser, Computer und Dateien (Files).** In der vollständigen Desktop-Chatansicht
+stehen die Schaltflächen rechts und öffnen das Panel Browser, Computer oder Dateien.
+Diese Leiste ist auf Telefonen und in kompakten Chats ausgeblendet.
+
+Browser und Computer lassen sich
+bereits öffnen, bevor der Agent sie verwendet hat. Das Öffnen eines leeren Panels
+startet weder einen Run noch eine gehostete Sitzung.
+
+Geben Sie im Browser-Panel zuerst die Website-Adresse ein. Hat der ausgewählte Agent die
+entsprechende gehostete Capability und dürfen Sie ihn ausführen, bittet eine
+ausdrückliche Startaktion ihn, den Browser zu öffnen oder ein Desktop-Bild
+aufzunehmen. Andernfalls erklärt das Panel, was nicht verfügbar ist. Die
+veröffentlichten Einstellungen und Zugriffskontrollen des Agents gelten weiterhin.
+Wählen Sie in Teamräumen im Nachrichtenfeld einen Agenten aus und bitten Sie ihn,
+den Browser oder Computer zu öffnen. Die Panels bleiben zum Ansehen verfügbar.
+
+Browser- und Computer-Ansichten bleiben getrennt. Panels sind zunächst geschlossen;
+ein geschlossenes Panel bleibt auch bei neuen Werkzeugergebnissen geschlossen. Auf
+schmalen Bildschirmen füllt das ausgewählte Panel den Bildschirm. Nach einem Run
+kennzeichnet **Letzte Ansicht (Last view)** das abgeschlossene Bild; es ist kein
+Live-Desktop. Fordern Sie ein neues Bildschirmfoto an, um eine Computer-Ansicht zu
+aktualisieren.
+
+**Agent-Einstellungen.** In vollständigen Desktop-Chats öffnet die
+Einstellungsschaltfläche rechts den Entwurf des ausgewählten Agents neben dem
+Gespräch. Die Leiste ist auf Telefonen und in kompakten Chats ausgeblendet;
+verwenden Sie dort den vollständigen Agent-Editor. Bearbeiten Sie Name, Kurzbeschreibung,
+Anweisungen, Standardmodell und vorhandene Capability-Schalter und wählen Sie
+**Save draft**. **Review and publish** prüft den gespeicherten Entwurf und öffnet
+die bestehende Bestätigung zur Veröffentlichung. Eine Änderung des Standardmodells
+entfernt keine Modellauswahl in Chat controls; ein laufender Turn behält seine
+eingefrorene Konfiguration.
+
+Bearbeitung und Veröffentlichung folgen der Zugriffsentscheidung des Servers für
+diesen Agent, einschließlich ausdrücklicher Grants. Schreibgeschützte Chats zeigen
+die Einstellungen ohne Bearbeitungsaktionen; Workflow-Agents werden weiterhin in
+ihrem Workflow konfiguriert. Einklappen oder Wechsel zu Browser, Computer oder Files
+bewahrt ungespeicherte Änderungen des ausgewählten Agents. Speichern Sie vor einem
+Agent-Wechsel oder dem Verlassen des Chats. Externe Änderungen halten das Speichern
+an, bis Sie neu laden oder Ihre Änderungen ausdrücklich behalten.
+
 **Einem Durchlauf zusehen.** Der [Webbrowser](reference/capabilities.md#browser-automation)
-öffnet sich automatisch in einem Panel in voller Höhe neben dem Gespräch.
-Auf schmalen Bildschirmen nutzt er das Vollbild. Nach dem Schließen bleibt
-ein kompakter Link im Gespräch, um das Panel erneut zu öffnen. Karten besuchter
-Seiten zeigen das Website-Symbol, die Domain und den Seitentitel, auch nach dem
+erscheint in seinem eigenen Panel neben dem Gespräch. Karten besuchter Seiten
+öffnen das Browser-Panel erneut und zeigen das Website-Symbol, die Domain und den Seitentitel, auch nach dem
 erneuten Öffnen des Gesprächs. Jede Antwort behält eine Karte pro Browser-Tab;
 Klicks, erneutes Lesen und Zurückgehen aktualisieren diese Karte.
 Die Tableiste im Panel wechselt zwischen den Seiten. Nach dem Lauf bleibt das letzte Bild. **Sitzung fortsetzen** bittet den
@@ -788,7 +844,7 @@ Das Leuchten um das Feld einer Hosted Page, während Sie sprechen, folgt
 **Diktieranimation (Voice glow)** unter **Einstellungen → Profil → Darstellung
 (Settings → Profile → Appearance)**, neben Design und **Bewegung (Motion)**:
 **Kräftig (Vivid)**, **Dezent (Subtle)** (der Standard) oder **Aus (Off)**. Es
-wird pro Browser gespeichert. **Bewegung** bestimmt, wie viel Bewegung die ganze
+wird mit Übernehmen im Konto gespeichert. **Bewegung** bestimmt, wie viel Bewegung die ganze
 Konsole zeigt: **System** (der Standard) folgt der Einstellung für reduzierte
 Bewegung im Betriebssystem, **Reduziert (Reduce)** reduziert die Bewegung auch
 ohne sie, und **Voll (Full)** behält sie, was auch immer das Betriebssystem
@@ -799,7 +855,7 @@ und der Pegel ist eine fünfstufige Anzeige.
 **Workflow-Schritte** in derselben Karte wählt, wie die Workflow-Canvas einen Schritt
 zeichnet: **Farbig (In colour)** (der Standard) zeichnet jeden Schritt in seiner
 Familie, **Schlicht (Simple)** lässt die Kacheln neutral und die Minikarte grau. Die
-Einstellung wird pro Browser gespeichert; denselben Schalter hat die Werkzeugleiste der
+Einstellung wird im Konto gespeichert; denselben Schalter hat die Werkzeugleiste der
 Canvas. Siehe [Wie ein Schritt gezeichnet wird](workflows.md#how-a-step-is-drawn).
 
 ### Die Karte Stimme (Voice) { #the-voice-card }
@@ -962,7 +1018,49 @@ Ausgelagerter Text und Medien einer übernommenen Zusammenfassung werden in die 
 
 Eine Unterhaltung mit einer gespeicherten Checkliste kann nur an ihrer neuesten Nachricht abgezweigt werden, wenn diese eine Antwort des Assistenten ist. Die Kopie behält diese Checkliste einschließlich Aufgaben-IDs und Abhängigkeiten. Frühere Checklistenstände werden nicht gespeichert; eine frühere Abzweigung wird daher abgelehnt, statt spätere Aufgaben in einen älteren Verlauf zu kopieren.
 
+### Nebenstränge { #chat-side-threads }
+
+Bei einer abgeschlossenen Assistentenantwort in einer eigenen persönlichen Unterhaltung können Sie über **Nebenstränge** eine separate Unterhaltung ab diesem Punkt beginnen oder einen vorhandenen Zweig derselben Antwort öffnen. Der Zweig erscheint neben dem Ursprung mit einem eigenen Eingabefeld und weiteren Nachrichten. Verlauf, Entwurf und Warteschlange der ursprünglichen Unterhaltung bleiben erhalten; im Zweig gesendete Nachrichten gehören zum Zweig.
+
+**Zurück zur ursprünglichen Unterhaltung** schließt das Seitenpanel und öffnet die genaue Ausgangsantwort. Ältere Nachrichten werden bei Bedarf nachgeladen. Das Schließen löscht den Zweig nicht. Ein Wechsel der Ausgangsunterhaltung, des Kontos oder der Organisation entfernt das alte Panel. Archivierte Zweige öffnen sich schreibgeschützt. Die Liste kann weitere Zweige dieser Antwort laden; fehlgeschlagene Lese- oder Erstellungsvorgänge lassen sich ohne Wechsel der Hauptunterhaltung wiederholen.
+
+### Gesprächskontext verdichten { #chat-compact-now }
+
+In einem ruhenden persönlichen Gespräch, das dir gehört, lässt **Jetzt komprimieren** im Kopfbereich den veröffentlichten Agenten früheren Kontext zusammenfassen. Die Aktion erscheint bei einer unterstützten zusammenfassenden Kompaktierungsstrategie. Gespeicherte Nachrichten und dein Entwurf bleiben verfügbar. Die Funktion wird in Raumdiskussionen, archivierten oder schreibgeschützten Chats, Workflows und Testfenstern für Entwürfe nicht angeboten.
+
+Ein Hinweis über dem Editor zeigt Fortschritt und Ergebnis: Kontext verdichtet, keine weitere Kürzung, beschäftigt, nicht verfügbar oder fehlgeschlagen. Senden und das Starten eines Sprachanrufs pausieren währenddessen; **Stopp** bricht die Anfrage ab. Ein Gesprächswechsel wiederholt sie nicht. Die Aktion verwendet gegebenenfalls das ausgewählte Chatmodell und unterliegt den üblichen Nutzungsbudgets. Die Kontextanzeige behält den letzten gemessenen Stand bis zu einer späteren Modellanfrage.
+
+### Auf ausgewählten Text antworten { #chat-selected-quote }
+
+Markiere eine Passage in einer gespeicherten Nachricht und wähle **Antworten**. Der Editor behält den Auszug mit bis zu 280 Zeichen samt Quellnachricht. Nach dem Senden bleibt die ausgewählte Passage beim erneuten Öffnen und im Kontext des Agenten erhalten. Das funktioniert in persönlichen Chats und Raumdiskussionen mit Schreibzugriff. Ohne Textauswahl bezieht sich **Antworten** weiterhin auf die ganze Nachricht.
+
+Eine Auswahl über verschiedene Nachrichten oder interaktive Bedienelemente hinweg wird nicht als Auszug verwendet. Text in einer zusammengefassten Assistentenantwort bleibt mit dem gespeicherten Abschnitt verknüpft, aus dem er stammt. Ein noch nicht gespeicherter Abschnitt kann nicht als zitierte Antwort verwendet werden.
+
+### Angeheftete Nachrichten { #chat-message-pins }
+
+Wähle **Nachricht anheften** an einer gespeicherten Nachricht, um ein persönliches Lesezeichen anzulegen. **Angeheftete Nachrichten** im Gesprächskopf öffnet deine Liste. Ein Auszug führt zur genauen Nachricht, auch auf einer älteren Seite oder in einem Raum-Thread. Du kannst eine Anheftung an der Nachricht oder in der Liste entfernen, weitere Einträge laden und einen fehlgeschlagenen Abruf wiederholen.
+
+Anheftungen gehören dir. Andere Leser eines geteilten Gesprächs sehen sie nicht; auch Empfänger mit reinem Lesezugriff können eigene Lesezeichen speichern. Das Öffnen erfordert weiterhin Zugriff auf das Gespräch. Die Liste verwendet den aktuellen Nachrichtenauszug und erstellt keine zusätzliche Kopie des Inhalts.
+
+### Eine Nachricht finden { #chat-message-search }
+
+Verwende die Gesprächssuche in der Chat-Seitenleiste. **Nachrichtentext** durchsucht Gespräche, die du in der aktiven Organisation lesen darfst, und zeigt pro Ergebnis die passendste Nachricht mit Ausschnitt und Zeitpunkt. Grenze die Suche ein, wenn die ersten zwanzig Gespräche das gesuchte nicht enthalten. Wähle **Gesprächstitel**, um auch die Titel archivierter Gespräche zu durchsuchen.
+
+Die Auswahl öffnet die genaue Nachricht, auch eine Antwort in einem Raum-Thread. Ältere Seiten werden nacheinander geladen; **Sprung abbrechen** beendet die Navigation. Bei Lesefehlern kannst du es erneut versuchen; eine nicht mehr verfügbare Nachricht wird gesondert gemeldet. Der Tastaturfokus bleibt auf der ausgewählten Nachricht und eingeklappte Arbeit wird geöffnet, damit passende gespeicherte Abschnitte sichtbar sind. Auch ein direkter Link erfordert Zugriff auf das Gespräch.
+
+### Aktivitäten eines Durchlaufs durchsuchen { #chat-trace-search }
+
+Öffne den Arbeitsverlauf eines Durchlaufs und wähle **Aktivität durchsuchen und filtern**. Suche innerhalb dieses Durchlaufs nach Text, Werkzeugargumenten und Ergebnissen oder zeige nur Werkzeuge, Denkprozesse, Fehler oder Nachrichten. Die Reihenfolge bleibt erhalten und die abschließende Antwort bleibt an ihrem Platz. Freigaben, unbeantwortete Fragen und Modelleinrichtung, die deine Aufmerksamkeit brauchen, bleiben auch ohne Treffer sichtbar. **Filter zurücksetzen** oder Escape zeigt wieder alle Aktivitäten; das Schließen der Filter setzt sie ebenfalls zurück.
+
+### Steuerung während eines Durchlaufs { #chat-live-controls }
+
+Während ein Agent arbeitet, sendet **Einreihen** deine nächste Nachricht nach dem aktuellen Durchlauf. **Lenken** sendet einfachen Text als Hinweis an den laufenden Durchlauf; der Agent berücksichtigt ihn bei der Fortsetzung. Die Auswahl wird für dein Konto, deine Organisation und den gewählten Agenten einschließlich des allgemeinen Assistenten gespeichert. Dateien, Erwähnungen, Antworten, Seitenkontext und Workflow-Eingaben bleiben in der normalen Warteschlange. Kann ein Hinweis nicht gesendet werden, bleibt der Entwurf im Eingabefeld.
+
+Eine Modellwahl während der Ausführung zeigt **Nach diesem Durchlauf**: Die Einstellung gilt für eine spätere Nachricht. **Denkaufwand in den Agenteneinstellungen bearbeiten** öffnet für Mitglieder mit Bearbeitungsrecht die Thinking-Einstellung im Agentenentwurf. Speichere den Entwurf und verwende anschließend die vorhandene Prüfung und Veröffentlichung, damit die Konfiguration für künftige Durchläufe gilt.
+
 ### Hintergrundthemen { #background-topics }
+
+Im vollständigen Desktop-Chat öffnet **Aufgaben** rechts die Hintergrundarbeit neben der Unterhaltung. Wählen Sie **Dieser Chat** oder **Alle meine Aufgaben**, suchen Sie nach Titeln und öffnen Sie Aufgaben unter **Benötigt dich**, **In Arbeit**, **Wartend** oder **Beendet**. Ein neuer Chat zeigt Ihre Aufgaben aller Agents in der aktiven Organisation. Sie können die Breite ändern oder das Panel vergrößern. Das Öffnen startet keine Arbeit; schreibgeschützte Chats behalten Links und blenden **Stoppen** aus. Bei einem Lesefehler können Sie es erneut versuchen.
 
 Aktiviere **Hintergrundthemen** bei einem veröffentlichten Agenten und bitte etwa: „Untersuche den Exportfehler in einem neuen Thema, während wir den Release planen“ oder „Lass den Finanzagenten diese Zahlen prüfen, während wir das Angebot besprechen“. Der Agent verwendet seine eigene festgelegte Version oder einen im Spec festgelegten veröffentlichten Delegaten. Starte aus einem eigenen Gespräch; das neue Thema gehört zum selben Projekt und enthält den Auftrag des Agenten und einen Rücklink, ohne das ursprüngliche Protokoll zu kopieren.
 
@@ -1058,6 +1156,28 @@ Der Posteingang erfordert einen Nachweis der E-Mail-Adresse in der aktuellen Sit
 Bernsteinfarbene Punkte markieren Organisationstabs und die zugehörigen Karten für Sprache, nächtliche Vorschläge, Gedächtnispflege und Architect bei unvollständiger Konfiguration oder ausgeschalteten Vorschlägen. Hover oder Tastaturfokus zeigt die Erklärung; Klicken oder Tippen hält sie geöffnet. Die Hinweise verwenden gespeicherte Einstellungen, verschwinden nach der Einrichtung und beachten Bearbeitungsrechte. Ausgeschaltete Vorschläge gelten als optionale Einrichtung, nicht als Fehler. Auch die iPhone-Push-Karte markiert einen fehlenden Apple-Schlüssel. Bei reduzierter Bewegung entfällt das Pulsieren.
 
 Gespeicherte Browser-Anmeldungen stehen in einem kompakten Einstellungsbereich über die volle Breite, statt einen Eintrag auf die ganze Seite zu strecken. Bekannte Dienste verwenden mitgelieferte Markenlogos; andere Seiten ihr eigenes Favicon ohne Referrer und bei fehlendem Bild ein Globussymbol.
+
+## Darstellung des Kontos { #account-appearance }
+
+Unter **Settings → Profile → Appearance** wählen Sie Design, Stil, Akzentfarbe,
+Ecken, Textgröße, Bewegung, Diktieranimation und Workflow-Schritte. Die Vorschau
+ändert sich mit Ihrer Auswahl. **Übernehmen** speichert die Änderungen im Konto;
+**Vorschau verwerfen** behält die gespeicherten Werte. **Auf Standard
+zurücksetzen** stellt sofort das Systemdesign und die Standarddarstellung wieder her.
+
+Die Auswahl gilt auf allen Geräten und in allen Organisationen. Design und Stil
+im Kontomenü werden sofort gespeichert. Beim Abmelden wird die Darstellung des
+vorherigen Kontos gelöscht. Bestehende Browsereinstellungen werden keinem Konto
+automatisch zugeordnet; wählen und übernehmen Sie sie einmal.
+
+Sie können einen Agenten in Ihrem eigenen, nicht geteilten privaten Chat um
+Änderungen bitten. `get_my_appearance`, `set_my_appearance` und
+`reset_my_appearance` verwenden das authentifizierte Konto und benötigen
+`agents:run`. Schreibzugriffe behalten ihre normale Freigaberichtlinie.
+Geteilte Chats, Projekte, Kanäle, Identitätswechsel und unbeaufsichtigte Läufe
+werden abgewiesen. Nur festgelegte Werte sind erlaubt, kein freies CSS, URLs
+oder fremde Nutzer-IDs. Die Konsole aktualisiert sich nach einem internen
+Werkzeugaufruf, beim Fokussieren und für andere Geräte innerhalb von 30 Sekunden.
 
 ## Sprachen { #languages }
 

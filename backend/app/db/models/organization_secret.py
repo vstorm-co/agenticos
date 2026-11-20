@@ -81,6 +81,11 @@ class OrganizationSecret(Base, TimestampMixin):
     visibility: Mapped[str] = mapped_column(
         String(16), nullable=False, default=Visibility.ORG.value, index=True
     )
+    # Visibility governs management; personal use also limits who may spend the
+    # credential. Existing private keys keep their organization-use behavior.
+    usage_scope: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="organization", server_default="organization"
+    )
     # Envelope produced by app.core.secret_kinds.seal_secret. Unlike a
     # credential, this is never NULL: "none" is not a secret anyone can store.
     authorization_generation: Mapped[uuid.UUID] = mapped_column(
@@ -98,8 +103,16 @@ class OrganizationSecret(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_organization_secrets_org_id"),
         UniqueConstraint("organization_id", "name", name="uq_organization_secret_org_name"),
         CheckConstraint("visibility IN ('private', 'team', 'org')", name="ck_secret_visibility"),
+        CheckConstraint(
+            "usage_scope IN ('organization', 'personal')", name="ck_secret_usage_scope"
+        ),
+        CheckConstraint(
+            "usage_scope <> 'personal' OR (visibility = 'private' AND owner_user_id IS NOT NULL)",
+            name="ck_secret_personal_use",
+        ),
         # A private key with no owner is one nobody can reach and nobody can
         # delete from the UI - the state a nulled `owner_user_id` would leave
         # behind if the column were allowed to disagree with the visibility.

@@ -15,7 +15,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => path.current }));
  */
 describe("stripLocale", () => {
   it("drops a locale this deployment serves", () => {
-    expect(stripLocale("/pl/chat")).toBe("/chat");
+    expect(stripLocale("/en/chat")).toBe("/chat");
     expect(stripLocale("/en/agents/a1")).toBe("/agents/a1");
   });
 
@@ -29,7 +29,7 @@ describe("stripLocale", () => {
   });
 
   it("reads a bare locale as the root", () => {
-    expect(stripLocale("/pl")).toBe("/");
+    expect(stripLocale("/en")).toBe("/");
   });
 
   it("reads an empty path as the root", () => {

@@ -9,23 +9,36 @@ bearer token for one outbound catalog request;
 :meth:`OrganizationSecretService.transcription_key`, which returns the key a
 transcription request names; :meth:`OrganizationSecretService.voice_call_key`,
 which opens the key a voice call was held with only to hang that call up (#54);
+:meth:`OrganizationSecretService.workflow_media_key`, which locks and opens only
+the run principal's original provider key for a bounded workflow media operation;
 and :meth:`OrganizationSecretService.oauth_app`, which hands
 an OAuth client's secret to the provider's own token endpoint inside the connect
 flow and to nowhere else. `smtp_email_service` opens one permitted SMTP account
 straight into its transport, never returning credentials to an API caller.
+Browser listings extract only approved metadata from the current owner's envelope;
+generic runtime readers refuse these kinds.
 """
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Literal, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import secret_purposes
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import (
+    BROWSER_SECRET_KINDS,
     ApiKeySecret,
+    BrowserLoginSecret,
+    BrowserProfileSecret,
     GithubOAuthAppSecret,
     GoogleOAuthAppSecret,
     MicrosoftOAuthAppSecret,
@@ -33,20 +46,30 @@ from app.core.secret_kinds import (
     SecretValue,
     SmtpAccountSecret,
     StorableSecret,
+    TechnicalSecret,
     describe_kind,
     seal_secret,
     unseal_kind,
     unseal_secret,
 )
 from app.core.secret_purposes import CUSTOM
+from app.core.secret_scopes import organization_secret_scope
 from app.core.vault import VaultScope
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import Visibility
+from app.repositories import browser_credential as browser_credential_repo
 from app.repositories import member_repo, organization_secret_repo, resource_grant_repo
 from app.schemas.resource_grant import as_visibility
-from app.schemas.secret import SecretSummary, SecretUsage
-from app.services.access import SECRET, accessible_ids, resolve_access, visible_resource_ids
+from app.schemas.secret import BrowserSecretMetadata, SecretSummary, SecretUsage
+from app.services.access import (
+    SECRET,
+    OwnedResource,
+    accessible_ids,
+    resolve_access,
+    visible_resource_ids,
+)
 from app.services.notifications import NotificationService
+from app.services.sharing import Deferred, ShareChange, register_sharing_guard
 
 if TYPE_CHECKING:
     from app.services.email.service import EmailService
@@ -119,7 +142,37 @@ class OrganizationSecretService:
             see_all=shared is None,
             shared_ids=[] if shared is None else shared,
             purposes=purposes,
+            personal_user_id=ctx.personal_user_id,
         )
+        if any(secret.kind in BROWSER_SECRET_KINDS for secret in secrets):
+            shared_browser_ids = await browser_credential_repo.policy_ids(
+                self.db,
+                ctx.organization_id,
+                [
+                    secret.id
+                    for secret in secrets
+                    if secret.kind in BROWSER_SECRET_KINDS and secret.usage_scope == "organization"
+                ],
+            )
+            browser_owner = ctx.personal_user_id
+            active = (
+                browser_owner is not None
+                and await member_repo.get_active(
+                    self.db, organization_id=ctx.organization_id, user_id=browser_owner
+                )
+                is not None
+            )
+            secrets = [
+                secret
+                for secret in secrets
+                if secret.kind not in BROWSER_SECRET_KINDS
+                or (
+                    active
+                    and secret.owner_user_id == browser_owner
+                    and (secret.usage_scope == "personal" or secret.id in shared_browser_ids)
+                    and secret.visibility == "private"
+                )
+            ]
         people = await member_repo.get_identities_for_users(
             self.db,
             organization_id=ctx.organization_id,
@@ -165,7 +218,9 @@ class OrganizationSecretService:
                     name=secret.name,
                     description=secret.description,
                     kind=SecretKind(secret.kind),
+                    usage_scope="personal" if secret.usage_scope == "personal" else "organization",
                     hint=secret.hint,
+                    browser=self._browser_metadata(secret),
                     purpose=secret.purpose,
                     visibility=as_visibility(secret.visibility),
                     owner_user_id=secret.owner_user_id,
@@ -192,6 +247,7 @@ class OrganizationSecretService:
         description: str | None = None,
         purpose: str = CUSTOM,
         visibility: Visibility = Visibility.ORG,
+        usage_scope: Literal["organization", "personal"] = "organization",
     ) -> OrganizationSecret:
         """Seal and store a secret.
 
@@ -214,9 +270,21 @@ class OrganizationSecretService:
             BadRequestError: If the purpose is not one this deployment offers,
                 or wants a different shape of credential than was given.
         """
+        if value.kind in BROWSER_SECRET_KINDS:
+            await self._check_browser_creation(ctx, usage_scope=usage_scope, visibility=visibility)
+        elif usage_scope == "personal":
+            self._check_personal_connection(ctx, value, purpose=purpose, visibility=visibility)
         self._check_purpose(purpose, value.kind)
         await self._refuse_duplicate_name(ctx, name)
-        sealed = seal_secret(value, scope=VaultScope.organization(ctx.organization_id))
+        sealed = seal_secret(
+            value,
+            scope=organization_secret_scope(
+                organization_id=ctx.organization_id,
+                kind=value.kind,
+                usage_scope=usage_scope,
+                owner_user_id=ctx.user_id if visibility is Visibility.PRIVATE else None,
+            ),
+        )
         secret = await organization_secret_repo.create(
             self.db,
             organization_id=ctx.organization_id,
@@ -233,6 +301,7 @@ class OrganizationSecretService:
             hint=sealed.hint,
             key_version=sealed.key_version,
             created_by_user_id=ctx.user_id,
+            usage_scope=usage_scope,
         )
         notifications = NotificationService(self.db)
         # Before the audit entry, never after it: `record_audit` holds the
@@ -252,6 +321,91 @@ class OrganizationSecretService:
         )
         await notifications.security_event(entry, recipients=audience)
         return secret
+
+    async def _check_browser_creation(
+        self, ctx: AuthContext, *, usage_scope: str, visibility: Visibility
+    ) -> None:
+        owner = ctx.personal_user_id
+        if (
+            owner is None
+            or await member_repo.get_active(
+                self.db, organization_id=ctx.organization_id, user_id=owner
+            )
+            is None
+        ):
+            raise AuthorizationError(
+                message="Sign in as an active member to save a browser credential"
+            )
+        if usage_scope != "personal" or visibility is not Visibility.PRIVATE:
+            raise BadRequestError(message="Browser credentials must be private personal records")
+
+    async def _browser_accessible(self, ctx: AuthContext, secret: OrganizationSecret) -> bool:
+        if secret.kind not in BROWSER_SECRET_KINDS:
+            return True
+        owner = ctx.personal_user_id
+        if (
+            owner is None
+            or secret.owner_user_id != owner
+            or secret.usage_scope not in ("personal", "organization")
+            or secret.visibility != "private"
+        ):
+            return False
+        if secret.usage_scope == "organization" and not await browser_credential_repo.policy_exists(
+            self.db, ctx.organization_id, secret.id
+        ):
+            return False
+        return (
+            await member_repo.get_active(
+                self.db, organization_id=ctx.organization_id, user_id=owner
+            )
+            is not None
+        )
+
+    @staticmethod
+    def _browser_metadata(secret: OrganizationSecret) -> BrowserSecretMetadata | None:
+        """Open only an already-authorized browser record and discard its values after selection metadata."""
+        if secret.kind not in BROWSER_SECRET_KINDS:
+            return None
+        model = (
+            BrowserLoginSecret if secret.kind == SecretKind.BROWSER_LOGIN else BrowserProfileSecret
+        )
+        value = unseal_kind(
+            secret.sealed_secret,
+            model=model,
+            scope=organization_secret_scope(
+                organization_id=secret.organization_id,
+                kind=secret.kind,
+                usage_scope=secret.usage_scope,
+                owner_user_id=secret.owner_user_id,
+            ),
+            key_version=secret.key_version,
+        )
+        return BrowserSecretMetadata.from_secret(value)
+
+    @staticmethod
+    def _check_personal_connection(
+        ctx: AuthContext,
+        value: StorableSecret,
+        *,
+        purpose: str,
+        visibility: Visibility,
+    ) -> None:
+        """Only documented API-key connections can power personal agent models."""
+        if ctx.personal_user_id is None:
+            raise AuthorizationError(message="Sign in as yourself to connect a personal model")
+        if visibility is not Visibility.PRIVATE:
+            raise refused_field("visibility", "A personal model connection must be private")
+        if purpose not in {"anthropic", "openai"} or not isinstance(value, ApiKeySecret):
+            raise refused_field(
+                "usage_scope",
+                "Personal connections currently support Anthropic and OpenAI API keys. "
+                "ChatGPT subscription sign-in is not enabled for this app.",
+            )
+        if purpose == "anthropic" and value.api_key.get_secret_value().startswith("sk-ant-oat"):
+            raise refused_field(
+                "value.api_key",
+                "Use a Claude Console API key for agents, not a Claude Code setup token",
+            )
 
     async def update(
         self,
@@ -276,6 +430,13 @@ class OrganizationSecretService:
         """
         secret = await self._get(ctx, secret_id, perm=Perm.SECRETS_EDIT)
         update_data: dict[str, object] = {}
+        if secret.kind in BROWSER_SECRET_KINDS:
+            locked = await browser_credential_repo.secret(
+                self.db, ctx.organization_id, secret_id, locked=True
+            )
+            if locked is None or not await self._browser_accessible(ctx, locked):
+                raise NotFoundError(message="Browser credential not found")
+            secret = locked
 
         if name is not None and name != secret.name:
             await self._refuse_duplicate_name(ctx, name)
@@ -284,7 +445,19 @@ class OrganizationSecretService:
             update_data["description"] = description
         if value is not None:
             self._refuse_kind_change(secret, value)
-            sealed = seal_secret(value, scope=VaultScope.organization(ctx.organization_id))
+            if secret.usage_scope == "personal" and secret.kind not in BROWSER_SECRET_KINDS:
+                self._check_personal_connection(
+                    ctx, value, purpose=secret.purpose, visibility=Visibility.PRIVATE
+                )
+            sealed = seal_secret(
+                value,
+                scope=organization_secret_scope(
+                    organization_id=secret.organization_id,
+                    kind=secret.kind,
+                    usage_scope=secret.usage_scope,
+                    owner_user_id=secret.owner_user_id,
+                ),
+            )
             update_data["authorization_generation"] = uuid4()
             update_data["sealed_secret"] = sealed.ciphertext
             update_data["hint"] = sealed.hint
@@ -345,7 +518,7 @@ class OrganizationSecretService:
 
     async def resolve_for_bindings(
         self, ctx: AuthContext, secret_ids: list[UUID]
-    ) -> dict[UUID, StorableSecret]:
+    ) -> dict[UUID, TechnicalSecret]:
         """Unseal the secrets a run's bindings reference.
 
         One of the two readers of a plaintext in this service, and the only one
@@ -366,7 +539,38 @@ class OrganizationSecretService:
                 key_version=row.key_version,
             )
             for secret_id, row in rows.items()
+            if row.usage_scope != "personal" and row.kind not in BROWSER_SECRET_KINDS
         }
+
+    async def require_view(self, ctx: AuthContext, secret_id: UUID) -> OrganizationSecret:
+        """The secret, if this caller may view it — otherwise refused.
+
+        The gate for *naming* a secret id in a write: attaching it to a
+        sandbox connection, or probing a service with it. A missing row and
+        an unviewable row are answered alike, so the refusal says nothing
+        about which it was.
+
+        This is deliberately not enforced inside `resolve_for_bindings`:
+        at run time the runner resolves the bindings of a published spec for
+        whoever may run the agent, and the spec's secrets were checked
+        against the publisher at publish. Checking here, at attach time, is
+        the gate — see `docs/permissions.md`.
+        """
+        secret = await organization_secret_repo.get(
+            self.db, secret_id, organization_id=ctx.organization_id
+        )
+        if (
+            secret is None
+            or not await self._browser_accessible(ctx, secret)
+            or not await resolve_access(
+                self.db, ctx, secret, Perm.SECRETS_VIEW, resource_type=SECRET
+            )
+        ):
+            raise AuthorizationError(
+                message="You do not have access to that secret",
+                details={"secret_id": str(secret_id)},
+            )
+        return secret
 
     async def listing_key(
         self, ctx: AuthContext, provider: str, *, secret_id: UUID | None = None
@@ -393,6 +597,8 @@ class OrganizationSecretService:
             self.db, organization_id=ctx.organization_id, purposes=[provider]
         )
         for secret in secrets:
+            if secret.usage_scope == "personal":
+                continue
             value = unseal_secret(
                 secret.sealed_secret,
                 kind=SecretKind(secret.kind),
@@ -421,7 +627,12 @@ class OrganizationSecretService:
         row = await organization_secret_repo.get(
             self.db, secret_id, organization_id=organization_id
         )
-        if row is None or row.kind != SecretKind.API_KEY.value or row.purpose != provider:
+        if (
+            row is None
+            or row.usage_scope == "personal"
+            or row.kind != SecretKind.API_KEY.value
+            or row.purpose != provider
+        ):
             return None
         if shared and row.visibility != Visibility.ORG.value:
             return None
@@ -514,7 +725,7 @@ class OrganizationSecretService:
         row = await organization_secret_repo.get(
             self.db, secret_id, organization_id=organization_id
         )
-        if row is None:
+        if row is None or row.usage_scope == "personal":
             return None
         return unseal_secret(
             row.sealed_secret,
@@ -530,6 +741,12 @@ class OrganizationSecretService:
     async def oauth_app_identity(
         self, ctx: AuthContext, *, kind: SecretKind
     ) -> tuple[OAuthAppSecret, UUID, UUID]:
+        """`oauth_app_identity_for_org` for the caller's own organization."""
+        return await self.oauth_app_identity_for_org(ctx.organization_id, kind=kind)
+
+    async def oauth_app_identity_for_org(
+        self, organization_id: UUID, *, kind: SecretKind
+    ) -> tuple[OAuthAppSecret, UUID, UUID]:
         """Unseal the organization's OAuth client credentials for a token exchange.
 
         The third plaintext reader here, and deliberately the narrowest: it opens one
@@ -541,14 +758,16 @@ class OrganizationSecretService:
         One method over every such kind, because the rule is the same for each and
         it is the rule that matters: `github_oauth_app` connects a repository
         account, `google_oauth_app` and `microsoft_oauth_app` a mailbox, and each
-        organization registers its own client for any of them. A deployment-wide client read from the environment would be a
-        second mechanism for a credential at rest, which this repository does not
-        have.
+        organization registers its own client for any of them. A deployment-wide
+        client read from the environment would be a second mechanism for a credential
+        at rest, which this repository does not have.
 
-        Not gated on `secrets:view`, for the same reason `resolve_for_bindings` is
-        not: this is the runtime spending a credential the organization stored, not a
-        member reading the vault. The caller's `mcp:manage` on the connect route is
-        what authorizes reaching it.
+        Who may reach it is decided by the caller, not here: the org connect route
+        requires `mcp:manage`, and a member's personal connect requires only an
+        active membership of the organization. This method is not gated on
+        `secrets:view`, for the same reason `resolve_for_bindings` is not: it is the
+        runtime spending a credential the organization stored, not a member reading
+        the vault.
 
         Only an *org-visible* credential qualifies, and only an unambiguous one: a
         member's private client must never be spent for the whole organization's
@@ -566,7 +785,7 @@ class OrganizationSecretService:
                 operator knows which rows collide.
         """
         rows = await organization_secret_repo.list_org_visible_by_kind(
-            self.db, organization_id=ctx.organization_id, kind=kind.value
+            self.db, organization_id=organization_id, kind=kind.value
         )
         label = describe_kind(kind)
         if not rows:
@@ -587,7 +806,7 @@ class OrganizationSecretService:
         value = unseal_secret(
             row.sealed_secret,
             kind=kind,
-            scope=VaultScope.organization(ctx.organization_id),
+            scope=VaultScope.organization(organization_id),
             key_version=row.key_version,
         )
         # `unseal_secret` refuses anything whose sealed kind is not the one asked
@@ -647,22 +866,83 @@ class OrganizationSecretService:
                 two read alike, as everywhere secrets are referenced.
         """
         secret = await self._get(ctx, secret_id)
+        if secret.kind in BROWSER_SECRET_KINDS:
+            raise BadRequestError(
+                message="Browser credentials require the confirmed browser writer"
+            )
+        if secret.usage_scope == "personal":
+            raise BadRequestError(
+                message="Personal model connections can only be selected as your agent's model",
+                details={"secret_id": str(secret_id)},
+            )
         if secret.kind != kind.value:
             raise NotFoundError(message="Secret not found", details={"secret_id": str(secret_id)})
         return secret
 
+    async def workflow_media_secret(
+        self,
+        ctx: AuthContext,
+        secret_id: UUID,
+        *,
+        provider: str,
+        locked: bool = False,
+    ) -> OrganizationSecret:
+        """Metadata for an organization API key this run's principal may use.
+
+        Publication does not lend a publisher's private subscription or grant to
+        another principal. A missing, hidden or wrong-tenant id stays missing;
+        a readable but incompatible key can be corrected without opening it.
+        """
+        secret = await self._get(ctx, secret_id, locked=locked)
+        if (
+            secret.kind != SecretKind.API_KEY.value
+            or secret.usage_scope != "organization"
+            or secret.purpose != provider
+        ):
+            raise BadRequestError(message="Choose an organization API key for this media provider")
+        return secret
+
+    async def workflow_media_key(
+        self,
+        ctx: AuthContext,
+        secret_id: UUID,
+        *,
+        provider: str,
+        expected_generation: UUID,
+    ) -> ApiKeySecret:
+        """Open only the original, still-authorized key for one bounded media call.
+
+        The caller retains this transaction through dispatch. Rotation and deletion
+        take the same PostgreSQL row lock; populate_existing refreshes any identity
+        cached before that lock was acquired. The masked value goes only to the
+        trusted generation adapter, never into a graph, receipt or API response.
+        """
+        secret = await self.workflow_media_secret(ctx, secret_id, provider=provider, locked=True)
+        if secret.authorization_generation != expected_generation:
+            raise AuthorizationError(message="The media provider credential changed")
+        return unseal_kind(
+            secret.sealed_secret,
+            model=ApiKeySecret,
+            scope=VaultScope.organization(ctx.organization_id),
+            key_version=secret.key_version,
+        )
+
     async def _get(
-        self, ctx: AuthContext, secret_id: UUID, *, perm: Perm = Perm.SECRETS_VIEW
+        self,
+        ctx: AuthContext,
+        secret_id: UUID,
+        *,
+        perm: Perm = Perm.SECRETS_VIEW,
+        locked: bool = False,
     ) -> OrganizationSecret:
         """One secret the caller may reach, or reported as missing.
 
         A refusal reads as "not found" so a member cannot probe which keys exist
         by watching 403s turn into 404s - the same rule agents and skills follow.
         """
-        secret = await organization_secret_repo.get(
-            self.db, secret_id, organization_id=ctx.organization_id
-        )
-        if secret is None:
+        getter = organization_secret_repo.get_locked if locked else organization_secret_repo.get
+        secret = await getter(self.db, secret_id, organization_id=ctx.organization_id)
+        if secret is None or not await self._browser_accessible(ctx, secret):
             raise NotFoundError(message="Secret not found", details={"secret_id": str(secret_id)})
         allowed = await resolve_access(self.db, ctx, secret, perm, resource_type=SECRET)
         if not allowed:
@@ -694,3 +974,45 @@ class OrganizationSecretService:
                 ),
                 details={"secret_id": str(secret.id), "kind": secret.kind},
             )
+
+
+class SecretSharingGuard:
+    """Personal model connections remain owner-only even when the owner can edit them."""
+
+    async def before_visibility(
+        self, db: AsyncSession, ctx: AuthContext, resource: OwnedResource, visibility: Visibility
+    ) -> None:
+        assert isinstance(resource, OrganizationSecret)
+        if resource.usage_scope == "personal" and visibility is not Visibility.PRIVATE:
+            raise BadRequestError(message="Personal model connections cannot be shared")
+
+    async def before_share(
+        self, db: AsyncSession, ctx: AuthContext, resource: OwnedResource, change: ShareChange
+    ) -> Deferred | None:
+        assert isinstance(resource, OrganizationSecret)
+        if resource.usage_scope == "personal" and (
+            change.visibility is not Visibility.PRIVATE
+            or change.subject_user_id is not None
+            or change.subject_group_id is not None
+        ):
+            raise BadRequestError(message="Personal model connections cannot be shared")
+        return None
+
+    async def adopt(self, db: AsyncSession, ctx: AuthContext, resource: OwnedResource) -> None:
+        """Preserve the existing ownership claim for ordinary private vault entries."""
+        assert isinstance(resource, OrganizationSecret)
+        if resource.kind in BROWSER_SECRET_KINDS:
+            raise BadRequestError(message="A browser credential's personal owner cannot be changed")
+        resource.owner_user_id = ctx.subject_id
+        await record_audit(
+            db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="resource.owner_claimed",
+            target_type=SECRET.key,
+            target_id=str(resource.id),
+            details={"owner_user_id": str(resource.owner_user_id)},
+        )
+
+
+register_sharing_guard(SECRET, SecretSharingGuard())

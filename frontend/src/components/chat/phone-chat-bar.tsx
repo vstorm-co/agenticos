@@ -30,14 +30,14 @@ export function PhoneChatBar() {
   const unread = useUnreadNotificationCount();
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-30 md:hidden">
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-30 lg:hidden">
       <div className="from-background via-background/85 absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent" />
-      <div className="relative flex items-center justify-between px-3 pt-2">
+      <div className="relative flex items-center justify-between px-4 pt-2 md:justify-end">
         <button
           type="button"
           onClick={toggleMenu}
           aria-label={t("toggleMenu")}
-          className={cn(ROUND, "relative")}
+          className={cn(ROUND, "relative md:hidden")}
         >
           <Menu aria-hidden />
           {unread.count > 0 && (

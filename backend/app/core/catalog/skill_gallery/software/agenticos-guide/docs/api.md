@@ -44,8 +44,15 @@ The key is shown **once**, in the response that creates it. Only a SHA-256 of it
 is stored, and it never appears in a log line, an audit entry or an error body.
 Lists show its prefix (`aos_1a2b3c4d`), which is also how an audit entry names
 the key that acted — every entry recorded during a key-authenticated request
-carries `via_api_key` in its details. A key can have an expiry, and revoking it
-(`DELETE /api/v1/api-keys/{id}`) takes effect on its next request.
+carries `via_api_key` in its details.
+
+A key expires 90 days after it is issued by default; a caller may choose an
+earlier expiry, but cannot set one more than
+90 days away. Rotating a legacy key with a later expiry caps its replacement at
+90 days. Revoking it
+(`DELETE /api/v1/api-keys/{id}`) takes effect on its next request. Rotating it
+(`POST /api/v1/api-keys/{id}/rotate`) replaces its secret at once: the old key
+stops working, and the response holds the new one, once.
 
 The console puts your keys before the connection guide, with active keys first.
 Search by name, prefix or issuer; phone cards keep expiry and last use visible.
@@ -147,6 +154,37 @@ back when `AGENT_ID` is set, and revokes the key on exit.
 ```bash
 BASE=http://localhost:8000 EMAIL=you@example.com PASSWORD=... bash docs/examples/public-api.sh
 ```
+
+### Two-factor authentication
+
+A second step at sign-in, from an authenticator app (TOTP, six digits over
+30 seconds). Enrol in the console at **Settings → Account**: the secret is
+shown once, for the app, and enabling it answers with ten single-use
+recovery codes, also shown once - the way back in if the authenticator is
+lost. Switching it off, or replacing the recovery codes, takes a code from
+the account, so a session left open on a shared screen cannot strip the
+factor that protects the next sign-in.
+
+A password, directory, or magic-link sign-in for an account with it enabled
+stops at a challenge instead of a session: the response carries
+`mfa_required`, a `mfa_token` and `expires_in` (five minutes), and no
+cookies are set. The client completes it at `POST /api/v1/auth/mfa/verify`
+with the token and the code, and the answer is the token pair - plus the
+magic link's destination, when the challenge came from one.
+
+The challenge token proves the password step and nothing else: it cannot call
+the API as
+a session, and a password change since it was minted invalidates it. A
+recovery code completes the step too, and is spent doing so; the spend is
+audited, so the account's owner can see a code was used.
+
+The secret is sealed in the vault under the account's own scope, and only
+digests of the recovery codes are stored - a database read alone yields
+neither. Enrolment is per account, not per deployment: whether the
+deployment requires it is a policy decision for the operator, not this
+mechanism. Sign-in through an external authenticator - an OAuth provider,
+or Kerberos - is authenticated there, and relies on that provider's own
+second-factor policy.
 
 ### Sessions and revocation
 
@@ -291,6 +329,8 @@ read) and on the result of a resume and of an answer. It is always false on
 `GET /api/v1/conversations/{id}/transcript` reads one of the issuer's
 conversations turn by turn, with the tools each turn called and what it cost,
 for a key holding `runs:view`.
+The paginated `GET /api/v1/conversations/{id}/messages` route excludes project-room
+thread replies by default. Set `top_level_only=false` to include them.
 
 !!! info "An API caller cannot route around governance"
 

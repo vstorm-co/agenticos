@@ -282,6 +282,8 @@ async def _api_key_for(db: AsyncSession, kb: KnowledgeBase) -> tuple[str, Embedd
     if row is None:
         logger.warning("embedding_secret_missing", extra={"collection": kb.collection_name})
         return "", EmbeddingKeySource.SECRET_MISSING
+    if row.usage_scope == "personal":
+        return "", EmbeddingKeySource.SECRET_UNUSABLE
     try:
         secret = unseal_secret(
             row.sealed_secret,

@@ -22,7 +22,7 @@ from app.core.secret_kinds import ApiKeySecret
 from app.db.models.agent_run import RunStatus
 from app.db.models.voice_call import VoiceEndReason
 from app.schemas.voice import ApprovalUnavailableFrame
-from app.services.voice.session import NOTICES, VoiceCallSession
+from app.services.voice.session import NOTICE_WAIT_SECONDS, NOTICES, VoiceCallSession
 from app.services.voice.starter import VoiceCaller
 
 pytestmark = pytest.mark.anyio
@@ -448,12 +448,37 @@ async def test_an_app_admin_revoked_mid_call_loses_the_flag_at_the_next_heartbea
 
 
 async def test_reaching_the_time_cap_speaks_a_notice_and_ends():
+    from pydantic_ai.realtime import (
+        RealtimeOutputSpeechEndEvent,
+        RealtimeOutputSpeechStartEvent,
+        RealtimeTurnCompleteEvent,
+    )
+
+    notice_requested = asyncio.Event()
+
+    class CompletingNotice(FakeRealtime):
+        async def send(self, content, *, respond=None):
+            await super().send(content, respond=respond)
+            notice_requested.set()
+
+        async def _iter(self):
+            # The provider can only answer the notice after it was requested.
+            # Drive the real event pump instead of hoping two timers interleave.
+            await notice_requested.wait()
+            yield RealtimeOutputSpeechStartEvent()
+            yield RealtimeTurnCompleteEvent()
+            yield RealtimeOutputSpeechEndEvent()
+            await asyncio.sleep(3600)
+
     socket = FakeSocket([_START])
-    realtime = FakeRealtime(hold=True)
+    realtime = CompletingNotice()
     started = _started(realtime, cap=0)
 
-    _, repo = await _run(socket, started)
+    # The production notice bound exceeds _run's unchanged five-second deadline:
+    # only the provider's speech completion can make this positive case pass.
+    _, repo = await _run(socket, started, notice_seconds=NOTICE_WAIT_SECONDS)
 
+    assert notice_requested.is_set()
     assert realtime.sent and "time" in realtime.sent[0].lower()
     assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.TIME_LIMIT
 

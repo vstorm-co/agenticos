@@ -57,6 +57,8 @@ The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
 | `MIRAGE_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a [virtual terminal](reference/capabilities.md#mirage) folder may connect to when its author types the address: an SSH server, the host in a Postgres or MongoDB DSN, an IMAP server. The address comes from an agent spec or a secret it names, and the connection is made from this deployment. Matching is exact and case-folded. Publishing checks a typed host, and each run checks the hosts inside secrets. Empty allows no typed address. Services with a fixed API, such as Drive, GitHub and Notion, need no entry |
 | `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a [computer-use](reference/capabilities.md#computer-use) agent may drive a `computerd` desktop at. `daemon_url` is in the agent spec and a run sends the daemon's token to whatever it names, so this is the same allowlist as `BROWSER_CDP_ALLOWED_HOSTS`: exact and case-folded, with no globs. Checked at publish and again whenever a run opens the daemon, so removing a host stops agents already published. The token is not a setting: it is the organization's, in its vault, so every organization can name an allowed host and only the one holding that desktop's token gets in. Empty refuses the daemon backend; a desktop in the agent's sandbox needs no entry |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | The browser a person signs in to a site with from **Settings → Sign-ins**, where no agent names one - the compose `browser` service is `http://browser:9222`. Its host must be in `BROWSER_CDP_ALLOWED_HOSTS`. The site has to be a public address, and only the person who opened it may watch it. Empty hides the option |
+| `BROWSER_TEACHING_ENABLED` | `false` | Allow **Teach a task** capture in the browser `BROWSER_SIGN_IN_CDP_URL` names, for the organizations in `BROWSER_TEACHING_ORGANIZATION_IDS` only. Capture records structural steps while the run's own person holds the tab; it stores no typed value, page text, URL path or query, cookie or screenshot. Sessions are erased after 24 hours whether or not this is on |
+| `BROWSER_TEACHING_ORGANIZATION_IDS` | `[]` | The organization ids `BROWSER_TEACHING_ENABLED` applies to, as a JSON list. Empty admits none |
 | `VISUAL_RENDER_CDP_URL` | `""` (empty) | The browser a [visual](reference/capabilities.md#visuals) is drawn to a picture with where no frame can run it - a reply in Slack, Telegram or Mattermost, and the dashboard thumbnail of a page. The compose `browser` service is `http://browser:9222`; its host must be in `BROWSER_CDP_ALLOWED_HOSTS`. The drawing reaches nothing from there: every request it makes is answered by the deployment or refused. Empty sends a chat app the answer without the picture |
 | `BROWSER_EGRESS_PROXY` | `""` (empty); compose sets `http://browser-egress:3128` | The proxy the deployment's own browser reaches every site through. The compose `browser-egress` service is `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): it resolves each host itself, refuses private, loopback, link-local and metadata addresses and connects to the address it checked, so neither a redirect nor DNS rebinding takes a page inside the network. Used by every browse without an organization proxy and not on a hosted browser. An internal tool an agent should browse needs an exception in `docker/browser-egress/squid.conf`. Empty sends the browser straight out: set `BROWSER_EGRESS_PROXY=` in the root `.env` only for a browser outside compose that cannot reach the proxy. Without a proxy each site is checked on its first request in a tab and the browser resolves its name itself afterwards, so a name that rebinds to a private address later in the same tab is not caught |
 | `OUTBOUND_PRIVATE_ALLOWLIST` | `[]` (empty) | Hosts and networks on your own network that a request may reach although they resolve to a private address, such as a wiki, a Git server or an MCP server: `["wiki", ".corp.example", "10.1.2.0/24"]`. An entry is an exact host (`wiki`, ignoring case), a suffix with a leading dot (`.corp.example` matches `mcp.corp.example` and `a.b.corp.example`, not `corp.example` itself), an IP address (`10.0.0.5`, `fd00::1`) or a CIDR range (`10.1.2.0/24`). One trailing dot is dropped, so `wiki.` is `wiki`. Read by the workflow `http.request`, `http.download` and `http.upload` steps, the `git`, `web` and `s3` connectors, the A2A client and MCP connections. A request chain gets the list only when its first URL, the one a person typed or bound, needs it: a chain that starts at a public host never does, so a public site's redirect, OAuth metadata, A2A card or crawl cannot reach a listed host. Every account of every organization can reach every port on an admitted host, so list only services that check their own credential: a URL bound from a public trigger (a webhook, a form, an email) or from an agent's tool arguments can name any listed host. Loopback, link-local, multicast and cloud metadata addresses are refused whatever is listed: a listed name that answers one is refused wherever the name is resolved (workflow HTTP steps, git, web, S3, A2A, the MCP OAuth flow and an MCP connection's own URL; a listed name that does not resolve yet can still be saved), and so is a name with one unlisted private answer, naming that address. Startup refuses an entry that is malformed, that reaches those addresses (`localhost`, `.internal`, `169.254.169.254`, `127.0.0.0/8`, or the same addresses written through the NAT64 well-known prefix or 6to4 such as `64:ff9b::/96` and `2002::/16`; another network's own NAT64 prefix cannot be recognised, so do not list it if it translates to those addresses), or that names the database host, the Redis host or the API's own host, by name or address (a suffix that covers the API's name is allowed; `doctor` catches a range that covers a store's resolved address). `agenticos cmd doctor` reports it as `private network`: a warning for a range wider than /16 (IPv4) or /48 (IPv6), a failure when a range covers the database or Redis. The [HIPAA sheet](security.md#the-sheet) lists it as `private-network`. Empty refuses every private address. See [Services on your own network](deploy.md#services-on-your-own-network) and [a connection](mcp.md#a-connection) |
@@ -303,6 +305,8 @@ with `KERBEROS_DISPLAY_NAME` (default `Kerberos`).
 | `POSTGRES_PORT` | `5432` | PostgreSQL port |
 | `POSTGRES_USER` | `postgres` | PostgreSQL user |
 | `POSTGRES_PASSWORD` | (empty) | PostgreSQL password |
+| `POSTGRES_MIGRATION_URL` | (unset) | Separate PostgreSQL owner credential for Alembic and Tables RLS preflight/activation. A provider URL is normalized to the installed driver. Ordinary application sessions keep using the runtime settings. |
+| `POSTGRES_MAINTENANCE_URL` | (unset) | Separate PostgreSQL maintenance login for authorized global account export/deletion after Tables RLS activation. It must reach the same database and be a member of the fixed maintenance group. Required for those actions once enforcement is active; see the [cutover procedure](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md). |
 | `POSTGRES_DB` | `agenticos` | Database name |
 | `POSTGRES_SSLMODE` | (empty) | Encrypt the connection: `require`, `verify-ca` or `verify-full`. Empty is plaintext. See [Encrypted connections](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Connection pool size |
@@ -421,6 +425,7 @@ them announcing itself:
 | `SMTP_TLS_MODE` | `auto` | How the encrypted connection is opened. `auto` lets the port choose; `implicit` opens TLS from the first byte and `starttls` negotiates the upgrade, whatever the port. Ignored when `SMTP_TLS=false` |
 | `EMAIL_FROM` | `noreply@agenticos.com` | The `From` address on every message |
 | `EMAIL_FROM_NAME` | `agenticos` | The display name shown beside that address |
+| `FAILURE_LEARNING_DIGEST_RECIPIENT` | (empty) | The one address the daily failure-ledger digest goes to. Empty means no recipient has been chosen and the digest job does nothing at all - it creates no draft entries and sends no mail. One address for the whole deployment, so it sees every organization's digest and must be an operator address |
 
 !!! note "How the connection is encrypted"
 
@@ -499,6 +504,7 @@ its own.
 | --- | --- | --- |
 | `APPROVAL_EXPIRY_HOURS` | `72` | How long a parked tool call waits before the hourly sweep denies it by timeout |
 | `QUESTION_EXPIRY_HOURS` | `24` | How long a run waits on an agent's unanswered question before the same sweep ends it |
+| `QUESTION_NUDGE_HOURS` | `12` | How long after a question parks before the sweep reminds the chat once that an answer is still needed |
 
 Three days because it has to span a weekend: the approval that arrives on Friday
 afternoon is the one nobody decides, and expiring it on Saturday would be expiring
@@ -674,6 +680,27 @@ them apart.
 | `LOGFIRE_ORGANIZATION` | (none) | Organization slug, for building a link **into** a stored trace. The token is a _write_ credential and carries neither slug |
 | `LOGFIRE_PROJECT` | (none) | Project slug, alongside the organization. With either unset a run's `logfire_trace_id` is still recorded and no link is offered |
 | `LOGFIRE_BASE_URL` | `https://logfire-us.pydantic.dev` | Which Logfire deployment those slugs belong to. `logfire-eu` is a different host, and a link built for the wrong one 404s |
+
+## Composio app connections
+
+The **Connections → Apps** directory uses Composio to connect personal app
+accounts. Give the API and worker the same project settings. Keep both keys on
+the server; the frontend receives catalog metadata and authorization URLs only.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `COMPOSIO_API_KEY` | (none) | Runtime project key for tool-router sessions and connected-account management. An empty key disables managed app connections. |
+| `COMPOSIO_CATALOG_API_KEY` | (none) | Separate project key with **Toolkits: Read** and **Tools: Read** permissions only. Enables the searchable, paginated app directory and explicit tool snapshots for new apps. Without it, the directory falls back to the original reviewed integrations. |
+| `COMPOSIO_AUTH_CONFIGS` | `{}` | JSON map of toolkit slugs to project auth-config IDs. The original seven integrations require an explicit entry; additional apps use a configured entry or Composio-managed authentication when available. Apps needing custom authentication show **Setup required**. |
+| `COMPOSIO_USER_NAMESPACE` | `t3os` | Stable prefix for the per-user Composio identity. Keep it consistent across API and worker and unchanged for existing accounts. Use a distinct namespace for a separate deployment. |
+
+The original integrations retain their reviewed read actions. Other supported
+apps save a bounded list of direct tool names when the account is connected and
+require approval for every action. Reconnecting retains that list; a new
+connection captures the current tools. Existing MCP servers remain on the **MCP servers**
+tab. See [app connections](mcp.md#connect-an-app-through-composio) and the
+[Composio setup guide](https://github.com/t3grp/agenticos/blob/t3/integrations/composio/README.md)
+for callback verification, provider consent and deployment checks.
 
 ## Web search
 

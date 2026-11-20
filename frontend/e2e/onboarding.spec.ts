@@ -1,6 +1,6 @@
 import { expect, test } from "./fixtures";
 
-import { AUTH_STATE, DASHBOARD_GREETING, OWNER_EMAIL, pageHeading } from "./helpers";
+import { AUTH_STATE, OWNER_EMAIL, pageHeading } from "./helpers";
 
 /**
  * Tours are requested help, independent of first-task activation. This spec
@@ -37,61 +37,48 @@ test.describe("Onboarding", () => {
     expect(person.email).toBe(OWNER_EMAIL);
     expect(person.email_verified).toBe(false);
     for (const width of [320, 390, 1440]) {
+      const reset = await page.request.patch("/api/users/me", {
+        data: { onboarding_completed_at: null },
+      });
+      expect(reset.ok(), "resetting onboarding answered " + reset.status()).toBe(true);
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/onboarding");
       await expect(
         page.getByRole("button", { name: "Check invitations", exact: true }),
       ).toHaveCount(0);
-      await page.getByRole("link", { name: "Open the app", exact: true }).click();
+      await page.getByRole("button", { name: "Skip for now", exact: true }).click();
       await expect(page).toHaveURL(/\/chat$/);
-      await expect(
-        page.getByRole("heading", { name: /Good (morning|afternoon|evening)|Up late/ }),
-      ).toBeVisible();
+      await expect(page.getByRole("main")).toBeVisible();
       await expect(
         page.getByRole("button", { name: "Check invitations", exact: true }),
       ).toHaveCount(0);
     }
   });
 
-  test("opens a requested tour from the start hub and remembers its dismissal", async ({
-    page,
-  }) => {
+  test("continues or skips the team setup and remembers its dismissal", async ({ page }) => {
     const reset = await page.request.patch("/api/users/me", {
       data: { onboarding_completed_at: null },
     });
-    expect(reset.ok(), `resetting onboarding answered ${reset.status()}`).toBe(true);
+    expect(reset.ok(), "resetting onboarding answered " + reset.status()).toBe(true);
 
     await page.goto("/onboarding");
-    await page.getByRole("button", { name: "Explore the application", exact: true }).click();
+    await expect(page.getByText("Step 1 of 4", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "About you & your work" })).toBeVisible();
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(page.getByText("Step 2 of 4", { exact: true })).toBeVisible();
 
-    // A deliberate request opens the translated tour independently of activation.
-    await expect(page.locator(TITLE)).toHaveText("Welcome to AgenticOS");
-    await expect(page.locator(POPOVER)).toContainText("Step 1 of");
-
-    // Next walks it, which is the whole of the interaction.
-    await page.locator(NEXT).click();
-    await expect(page.locator(TITLE)).not.toHaveText("Welcome to AgenticOS");
-
-    // Closing writes `onboarding_completed_at` through PATCH /users/me. Waiting on
-    // the write rather than on the overlay disappearing: the overlay goes the
-    // moment the store closes, which says nothing about whether it was recorded,
-    // and "it came back on the next device" is the failure this persistence exists
-    // to prevent.
+    // Skip records completion on the account and returns to chat.
     const written = page.waitForResponse(
       (response) =>
         new URL(response.url()).pathname === "/api/users/me" &&
         response.request().method() === "PATCH" &&
-        response.status() !== 401,
+        response.request().postDataJSON()?.onboarding_completed_at != null,
     );
-    await page.locator(CLOSE).click();
+    await page.getByRole("button", { name: "Skip for now", exact: true }).click();
     const response = await written;
-    expect(response.ok(), `dismissing the tour answered ${response.status()}`).toBe(true);
-    await expect(page.locator(POPOVER)).toBeHidden();
-
-    // And it does not come back on the next load, which is the point of the write.
-    await page.goto("/dashboard");
-    await expect(pageHeading(page, DASHBOARD_GREETING)).toBeVisible();
-    await expect(page.locator(POPOVER)).toBeHidden();
+    expect(response.ok(), "skipping setup answered " + response.status()).toBe(true);
+    await expect(page).toHaveURL(/\/chat$/);
+    await expect(page.getByRole("main")).toBeVisible();
   });
 
   test("leaves a browser extension's prompt clickable, and the page under the tour not", async ({
@@ -102,13 +89,14 @@ test.describe("Onboarding", () => {
     // manager's save prompt sat on screen, unclosable, for the whole walk. The
     // prompt is stood in for the way those extensions build theirs - a custom
     // element under <body>, its button in a shadow root, stacked at the top.
-    const reset = await page.request.patch("/api/users/me", {
-      data: { onboarding_completed_at: null },
+    const complete = await page.request.patch("/api/users/me", {
+      data: { onboarding_completed_at: new Date().toISOString() },
     });
-    expect(reset.ok(), `resetting onboarding answered ${reset.status()}`).toBe(true);
-    await page.goto("/onboarding");
-    await page.getByRole("button", { name: "Explore the application", exact: true }).click();
-    await expect(page.locator(TITLE)).toHaveText("Welcome to AgenticOS");
+    expect(complete.ok(), `completing onboarding answered ${complete.status()}`).toBe(true);
+    await page.goto("/dashboard");
+    await page.getByRole("button", { name: "More information" }).click();
+    await page.getByRole("button", { name: HELP, exact: true }).click();
+    await expect(page.locator(POPOVER)).toBeVisible();
 
     await page.evaluate(() => {
       const host = document.createElement("extension-prompt");

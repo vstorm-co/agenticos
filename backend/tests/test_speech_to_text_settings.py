@@ -211,7 +211,13 @@ class TestTheKeyGoesWithThePair:
 
 
 def _secret(**overrides: object) -> SimpleNamespace:
-    row = {"name": "Team OpenAI", "kind": "api_key", "purpose": "openai", "visibility": "org"}
+    row = {
+        "name": "Team OpenAI",
+        "kind": "api_key",
+        "purpose": "openai",
+        "visibility": "org",
+        "usage_scope": "organization",
+    }
     row.update(overrides)
     return SimpleNamespace(**row)
 

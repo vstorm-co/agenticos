@@ -23,6 +23,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai.exceptions import ModelRequestTimeout
 from pydantic_ai.messages import ModelMessage, ModelRequest, SystemPromptPart
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
@@ -735,6 +736,40 @@ class TestRecordingTheRun:
         # Two commits: the one that opened the run row to other sessions before
         # the stream started, and the one that lands the terminal write.
         assert db.commit.await_count == 2
+
+    async def test_a_timed_out_chat_run_is_recorded_as_timed_out_not_failed(self):
+        """A deadline is the platform working, not a malfunction: its own
+        terminal status and its own sentence, and the exception is still
+        raised on, because somebody is sitting there waiting."""
+        db = _db()
+
+        with _runner(_prepared()) as runner, pytest.raises(ModelRequestTimeout):
+            await _run(
+                db,
+                stream=AsyncMock(side_effect=ModelRequestTimeout("gpt-4.1", 300.0)),
+            )
+
+        finished = runner.finish.call_args.kwargs
+        assert finished["status"] is RunStatus.TIMED_OUT
+        assert "did not finish within 300 seconds" in (finished["error"] or "")
+
+    async def test_a_grouped_timeout_is_still_timed_out_in_chat(self):
+        db = _db()
+
+        with _runner(_prepared()) as runner, pytest.raises(ExceptionGroup):
+            await _run(
+                db,
+                stream=AsyncMock(
+                    side_effect=ExceptionGroup(
+                        "all fallbacks failed",
+                        [ModelRequestTimeout("gpt-4.1", 120.0, setting="first_event_timeout")],
+                    )
+                ),
+            )
+
+        finished = runner.finish.call_args.kwargs
+        assert finished["status"] is RunStatus.TIMED_OUT
+        assert "without producing any output" in (finished["error"] or "")
 
     async def test_a_failed_chat_run_records_the_refusal_and_not_the_provider(self, caplog):
         """The same rule the chat frame took in #659, on the row rather than the

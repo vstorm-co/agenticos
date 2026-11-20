@@ -21,7 +21,10 @@ from app.schemas.user import (
     UserRead,
     UserUpdate,
 )
+from app.services.account_maintenance import account_maintenance
 from app.services.notifications import NotificationService
+from app.services.personal_data import PersonalDataService
+from app.services.user import UserService
 
 router = APIRouter()
 
@@ -138,7 +141,9 @@ async def export_user_data(
     limit exists for is a stolen privileged session walking the deployment's
     people, and that session uses this route rather than that one.
     """
-    return await service.export(user_id, actor_user_id=admin.id, reason=reason)
+    async with account_maintenance(service.db, admin, require_admin=True) as selected:
+        scoped = service if selected is service.db else PersonalDataService(selected)
+        return await scoped.export(user_id, actor_user_id=admin.id, reason=reason)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
@@ -166,27 +171,27 @@ async def delete_user(
     deliberate: a deletion is often a routine offboarding with nothing to
     explain, while reading somebody's conversations never is.
     """
-    target = await service.get_by_id(user_id)
-    await service.admin_delete(user_id, acting_admin_id=admin.id)
-    details: dict[str, Any] = {"email": target.email}
-    if reason is not None:
-        details["reason"] = reason
-    notifications = NotificationService(db)
-    # Before the audit entry, never after it: `record_audit` holds the
-    # chain lock to the end of the transaction, and the notification
-    # below reaches for a `users` row that `admin_delete` takes first
-    # and the chain second (#1763).
-    audience = await notifications.hold_security_audience(None)
-    entry = await record_audit(
-        db,
-        actor_user_id=admin.id,
-        action="admin.user.delete",
-        target_type="user",
-        target_id=str(user_id),
-        details=details,
-        ip_address=request.client.host if request.client else None,
-    )
-    await notifications.security_event(entry, recipients=audience)
+    async with account_maintenance(db, admin, require_admin=True) as selected:
+        scoped = service if selected is db else UserService(selected)
+        target = await scoped.get_by_id(user_id)
+        await scoped.admin_delete(user_id, acting_admin_id=admin.id)
+        details: dict[str, Any] = {"email": target.email}
+        if reason is not None:
+            details["reason"] = reason
+        notifications = NotificationService(selected)
+        # Before the audit entry: notification audience and deletion lock users
+        # before the audit chain. All three belong to the selected transaction.
+        audience = await notifications.hold_security_audience(None)
+        entry = await record_audit(
+            selected,
+            actor_user_id=admin.id,
+            action="admin.user.delete",
+            target_type="user",
+            target_id=str(user_id),
+            details=details,
+            ip_address=request.client.host if request.client else None,
+        )
+        await notifications.security_event(entry, recipients=audience)
 
 
 @router.post("/{user_id}/impersonate", response_model=ImpersonateResponse)

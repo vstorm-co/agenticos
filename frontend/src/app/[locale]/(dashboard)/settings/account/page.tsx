@@ -25,6 +25,7 @@ import {
 } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
 import { ActiveSessions } from "@/components/dashboard/active-sessions";
+import { MfaSettingsSection } from "@/components/settings/mfa-settings";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useAuth } from "@/hooks";
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -147,6 +148,8 @@ export default function AccountSettingsPage() {
           </div>
         </form>
       </SectionCard>
+
+      <MfaSettingsSection />
 
       <ActiveSessions />
       <SectionCard

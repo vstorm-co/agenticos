@@ -153,7 +153,7 @@ describe("YourConnections", () => {
     expect(screen.getByText("Needs authorizing again")).toBeInTheDocument();
     // In a new tab: the conversation, and the question in it, stay where they are.
     await userEvent.click(screen.getByRole("button", { name: "Open MCP servers" }));
-    expect(open).toHaveBeenCalledWith("/mcp-servers", "_blank", "noopener");
+    expect(open).toHaveBeenCalledWith("/connectors?tab=advanced", "_blank", "noopener");
     open.mockRestore();
   });
 });

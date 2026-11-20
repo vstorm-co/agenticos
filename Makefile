@@ -1,4 +1,4 @@
-.PHONY: ci-test-db-configure test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-workspace sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
+.PHONY: ci-test-db-configure ci-media-inspector ci-browser-runtime-check test-backend-jobs-check test-backend-reports-check test-backend-merge test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-workspace sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -471,6 +471,24 @@ format:
 # when a test failed, and the recipe then fails with the suite's status.
 COV_REPORT ?= term-missing
 PLATFORM_COVERAGE = $(shell uv run --quiet --directory backend python -c 'import tomllib; print(",".join(tomllib.load(open("pyproject.toml", "rb"))["tool"]["coverage"]["run"]["include"]))')
+# The platform gate over whatever `backend/.coverage` holds: one run's data, or
+# the shards' data once `test-backend-merge` has combined it. Expects `status` to
+# hold the suite's exit code and leaves it non-zero if the gate fails.
+TEST_GATE = $(if $(findstring xml,$(COV_REPORT)),uv run --directory backend coverage xml -q --fail-under=0 --include="$(PLATFORM_COVERAGE)" || status=1;) \
+	uv run --directory backend coverage report --include="$(PLATFORM_COVERAGE)" || [ $$status -ne 0 ] || status=2;
+
+# CI splits the backend suite over this many `test-shard` jobs (#119).
+# `BACKEND_SHARD=K/N` makes `make test` run shard K's files only and keep its
+# coverage data as `backend/.coverage.shardK` instead of applying the gate, which
+# only means anything over the whole suite. `scripts/ci_backend_shard.py` decides
+# membership, so every file runs in exactly one shard.
+#
+# The shard's data is written there directly (`COVERAGE_FILE`), not renamed from
+# `.coverage` afterwards: pytest-cov erases `.coverage` and every `.coverage.*`
+# beside it when a run starts, so a second shard run in the same tree used to
+# delete the first one's data.
+BACKEND_SHARDS := 3
+BACKEND_SHARD_INDEX = $(firstword $(subst /, ,$(BACKEND_SHARD)))
 
 # The backend suite runs against a throwaway Postgres (docker-compose.test.yml)
 # rather than the development one. The integration reset TRUNCATEs the tables
@@ -507,6 +525,16 @@ ci-test-db-configure:
 	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c 'SELECT pg_reload_conf()'
 	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c 'SHOW fsync' -c 'SHOW synchronous_commit' -c 'SHOW full_page_writes'
 
+# The pinned ffmpeg build the media-inspection tests run; it writes `$GITHUB_PATH`.
+ci-media-inspector:
+	@test "$(CI)" = true && test -n "$(GITHUB_PATH)"
+	bash scripts/ci_install_media_inspector.sh
+
+# The Chromium the native browser acceptance tests drive must be on the runner.
+ci-browser-runtime-check:
+	test -x "$(T3OS_TEST_CHROMIUM_EXECUTABLE)"
+	"$(T3OS_TEST_CHROMIUM_EXECUTABLE)" --version
+
 # `-n auto --maxprocesses 4`: run across worker processes. The integration
 # suite is I/O-bound on one Postgres and roughly halves; the unit suite is
 # import-bound (every worker imports the app once) and gains little past four
@@ -516,10 +544,27 @@ ci-test-db-configure:
 # stays serial: worker startup is not worth paying for one file.
 test:
 	$(TEST_DB_START)
-	@status=0; \
-	$(TEST_DB_ENV) uv run --directory backend pytest tests/ -v --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4 || status=$$?; \
-	$(if $(findstring xml,$(COV_REPORT)),uv run --directory backend coverage xml -q --fail-under=0 --include="$(PLATFORM_COVERAGE)" || status=1;) \
-	uv run --directory backend coverage report --include="$(PLATFORM_COVERAGE)" || [ $$status -ne 0 ] || status=2; \
+	@status=0; paths=tests/; \
+	$(if $(BACKEND_SHARD),paths=$$(uv run --quiet --directory backend python ../scripts/ci_backend_shard.py $(BACKEND_SHARD) tests) || exit 1;) \
+	$(TEST_DB_ENV) $(if $(BACKEND_SHARD),COVERAGE_FILE=.coverage.shard$(BACKEND_SHARD_INDEX)) uv run --directory backend pytest $$paths -v --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4 || status=$$?; \
+	$(if $(BACKEND_SHARD),test -s backend/.coverage.shard$(BACKEND_SHARD_INDEX) || status=1;,$(TEST_GATE)) \
+	exit $$status
+
+# The aggregate `test` job in CI: every shard must have succeeded, every shard's
+# coverage data must be present, and the gate then runs once over their union.
+test-backend-jobs-check:
+	@test "$(TESTS)" = success
+
+test-backend-reports-check:
+	@for shard in $$(seq 1 $(BACKEND_SHARDS)); do test -s "backend/.coverage.shard$$shard" || exit 1; done
+	@test "$$(find backend -maxdepth 1 -name ".coverage.shard*" -type f | wc -l | tr -d " ")" = $(BACKEND_SHARDS)
+
+# `unset COVERAGE_FILE`: combined into a file named by an inherited COVERAGE_FILE,
+# such as a shard's own data file, `combine` erased that shard's data first.
+test-backend-merge:
+	@status=0; unset COVERAGE_FILE; \
+	(cd backend && uv run coverage combine -q .coverage.shard*) || exit 1; \
+	$(TEST_GATE) \
 	exit $$status
 
 # Fast loop while writing code — no coverage, no gate.
@@ -545,8 +590,10 @@ test-security:
 	$(TEST_DB_START)
 	$(TEST_DB_ENV) uv run --directory backend pytest tests/ -m security -q --no-cov -p no:randomly
 
-# The list of refusal tests written to backend/security-tests.txt, and appended to
-# the CI job summary when one is present. Collection only - no database, no run -
+# The complete list of refusal tests is written to backend/security-tests.txt;
+# a bounded preview is appended to the CI job summary when one is present.
+# GitHub caps each summary at 1 MiB. The artifact retains every collected test.
+# Collection only - no database, no run -
 # so it is the cheap step CI calls with `if: always()`. Informational: it lists,
 # it does not gate, which is why `check` never reaches it and test_ci_parity.py
 # names it in CI_ONLY_TARGETS.
@@ -558,8 +605,9 @@ security-report:
 	if [ -n "$$GITHUB_STEP_SUMMARY" ]; then \
 	  { echo "## Security refusal tests"; echo; \
 	    echo "$$count tests carry the security marker. Run them with: make test-security"; echo; \
-	    echo '<details><summary>The list</summary>'; echo; echo '```'; \
-	    cat backend/security-tests.txt; echo '```'; echo; echo '</details>'; \
+		    echo 'Download the security-tests artifact for the complete list.'; echo; \
+		    echo '<details><summary>First 100 tests (up to 500 characters each)</summary>'; echo; echo '```'; \
+		    head -n 100 backend/security-tests.txt | cut -c 1-500; echo '```'; echo; echo '</details>'; \
 	  } >> "$$GITHUB_STEP_SUMMARY"; \
 	fi
 
@@ -829,15 +877,16 @@ eval-retrieval:
 #     locally it runs against a database of its own on the throwaway Postgres,
 #     but it is slow and rarely needed, so `check` leaves it to a hand run.
 CHECK_DB_PORT ?= 5432
+CHECK_DB_HOST ?= $(if $(POSTGRES_HOST),$(POSTGRES_HOST),127.0.0.1)
 # Where `test` reached its database: the throwaway one, or the one `CHECK_DB_PORT` names.
 INTEGRATION_DB_PORT = $(if $(TEST_DB_START),$(TEST_DB_PORT),$(CHECK_DB_PORT))
 
 check: lint test db-check test-frontend-cov build-frontend docs-build docs-slug-check audit audit-frontend licenses-check
 	@echo ""
 	@echo "All checks passed — every CI job except e2e."
-	@if ! python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(INTEGRATION_DB_PORT)), 1).close()' 2>/dev/null; then \
+	@if ! python3 -c 'import socket; socket.create_connection(("$(CHECK_DB_HOST)", $(INTEGRATION_DB_PORT)), 1).close()' 2>/dev/null; then \
 		echo ""; \
-		echo "⚠  No database on 127.0.0.1:$(INTEGRATION_DB_PORT), so tests/integration skipped itself"; \
+		echo "⚠  No database on $(CHECK_DB_HOST):$(INTEGRATION_DB_PORT), so tests/integration skipped itself"; \
 		echo "   — and CI's test job has one, so it did not. '$(if $(TEST_DB_START),make docker-test-db,make docker-db)' closes that gap."; \
 	fi
 
@@ -896,16 +945,18 @@ presentation:
 #
 # Locally this starts the throwaway test Postgres and cycles the chain in a
 # database it drops and creates first (`MIGRATIONS_TEST_DB`), so `downgrade base`
-# can never empty a database with your work in it. With `TEST_DB=external` (CI)
-# it runs against the database `POSTGRES_*` / `backend/.env` name, as before.
+# can never empty a database with your work in it. Override the optional owner
+# URL too: it otherwise takes precedence over these throwaway POSTGRES_* values.
+# With `TEST_DB=external` (CI), the configured migration URL or POSTGRES_* values
+# still select the explicitly supplied database.
 MIGRATIONS_TEST_DB ?= agenticos_migrations_test
 test-migrations:
 ifeq ($(TEST_DB),throwaway)
 	$(TEST_DB_START)
 	docker compose -p agenticos-test -f docker-compose.test.yml exec -T db psql -U postgres -v ON_ERROR_STOP=1 -c 'DROP DATABASE IF EXISTS $(MIGRATIONS_TEST_DB) WITH (FORCE)' -c 'CREATE DATABASE $(MIGRATIONS_TEST_DB)'
-	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
-	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic downgrade base
-	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) POSTGRES_MIGRATION_URL=postgresql://postgres:postgres@localhost:$(TEST_DB_PORT)/$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) POSTGRES_MIGRATION_URL=postgresql://postgres:postgres@localhost:$(TEST_DB_PORT)/$(MIGRATIONS_TEST_DB) uv run --directory backend alembic downgrade base
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) POSTGRES_MIGRATION_URL=postgresql://postgres:postgres@localhost:$(TEST_DB_PORT)/$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
 else
 	uv run --directory backend alembic upgrade head
 	uv run --directory backend alembic downgrade base
@@ -926,10 +977,10 @@ endif
 # the integration suite. CI always has a database, so there it runs for real,
 # after `test-migrations` has left it at head.
 db-check:
-	@if python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(CHECK_DB_PORT)), 1).close()' 2>/dev/null; then \
+	@if python3 -c 'import socket; socket.create_connection(("$(CHECK_DB_HOST)", $(CHECK_DB_PORT)), 1).close()' 2>/dev/null; then \
 		uv run --directory backend alembic check; \
 	else \
-		echo "⚠  No database on 127.0.0.1:$(CHECK_DB_PORT), so 'alembic check' was skipped"; \
+		echo "⚠  No database on $(CHECK_DB_HOST):$(CHECK_DB_PORT), so 'alembic check' was skipped"; \
 		echo "   — and CI's test job has one, so it did not. 'make docker-db' closes that gap."; \
 	fi
 

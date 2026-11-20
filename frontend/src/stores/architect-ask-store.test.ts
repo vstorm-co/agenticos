@@ -1,12 +1,25 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { useArchitectAskStore } from "./architect-ask-store";
+import { architectAskMatchesScope, useArchitectAskStore } from "./architect-ask-store";
 
 beforeEach(() => {
   useArchitectAskStore.setState({ request: null });
 });
 
 describe("useArchitectAskStore", () => {
+  it("carries account scope and rejects delivery after a user or organization change", () => {
+    const scope = { userId: "user-1", orgId: "org-1" };
+    useArchitectAskStore.getState().ask("Read my selected account", scope);
+    const request = useArchitectAskStore.getState().request!;
+    expect(request.scope).toEqual(scope);
+    expect(architectAskMatchesScope(request, scope)).toBe(true);
+    expect(architectAskMatchesScope(request, { ...scope, userId: "user-2" })).toBe(false);
+    expect(architectAskMatchesScope(request, { ...scope, orgId: "org-2" })).toBe(false);
+    expect(architectAskMatchesScope(request, { ...scope, userId: null })).toBe(false);
+    useArchitectAskStore.getState().ask("Legacy ask");
+    expect(architectAskMatchesScope(useArchitectAskStore.getState().request!, scope)).toBe(true);
+  });
+
   it("makes the same words asked twice two asks", () => {
     useArchitectAskStore.getState().ask("Make an agent");
     const first = useArchitectAskStore.getState().request;

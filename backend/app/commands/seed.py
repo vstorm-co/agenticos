@@ -9,11 +9,12 @@ Uses random data generation - install faker for better data:
 import asyncio
 import random
 import string
+from contextlib import nullcontext
 
 import click
 
 from app.commands import command, info, success, warning
-from app.db.session import get_db_context
+from app.db.session import get_db_context, get_table_maintenance_context
 from app.schemas.user import UserCreate
 from app.services.user import UserService
 
@@ -78,7 +79,12 @@ def seed(
         return
 
     async def _seed() -> None:
-        async with get_db_context() as db:
+        async with (
+            get_db_context() as runtime,
+            (
+                get_table_maintenance_context(runtime) if users and clear else nullcontext(runtime)
+            ) as db,
+        ):
             user_svc = UserService(db)
             created_counts = {}
 

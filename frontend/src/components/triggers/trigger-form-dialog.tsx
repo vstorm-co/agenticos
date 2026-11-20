@@ -62,6 +62,7 @@ import type { RoutineNotificationChannel } from "@/types/routines";
 import { AnswerToField } from "@/components/triggers/answer-to-field";
 import { BudgetField, parseBudget, raisesBudget } from "@/components/triggers/budget-field";
 import { OverlapField } from "@/components/triggers/overlap-field";
+import { ConversationModeField } from "@/components/triggers/conversation-mode-field";
 import { NO_TEAMS_POST, TeamsPostField } from "@/components/triggers/teams-post-field";
 import { LocalTargetField } from "@/components/triggers/local-target-field";
 import { RunAsCreatorField } from "@/components/triggers/run-as-creator-field";
@@ -92,6 +93,7 @@ import type {
   TriggerCreate,
   TriggerCreated,
   TriggerAnswerTo,
+  TriggerConversationMode,
   TriggerOverlap,
   TriggerType,
   TriggerUpdate,
@@ -264,6 +266,9 @@ export function TriggerFormDialog({
   const [runsAsCreator, setRunsAsCreator] = useState(trigger?.runs_as_creator ?? false);
   const [localTarget, setLocalTarget] = useState<LocalTarget | null>(trigger?.local_target ?? null);
   const [overlap, setOverlap] = useState<TriggerOverlap>(trigger?.overlap ?? "skip");
+  const [conversationMode, setConversationMode] = useState<TriggerConversationMode>(
+    trigger?.conversation_mode ?? "continue",
+  );
   const [teamsPost, setTeamsPost] = useState(trigger?.teams_conversation_id ?? NO_TEAMS_POST);
   const [budget, setBudget] = useState(
     trigger?.monthly_budget_usd != null ? String(Number(trigger.monthly_budget_usd)) : "",
@@ -534,6 +539,7 @@ export function TriggerFormDialog({
       ...(teamsPost !== NO_TEAMS_POST ? { teams_conversation_id: teamsPost } : {}),
       // Only when it is not the server's default, so a plain create says nothing new.
       ...(answerTo !== "primary" ? { answer_to: answerTo } : {}),
+      ...(conversationMode !== "continue" ? { conversation_mode: conversationMode } : {}),
       ...(answerTo === "conversation" ? { delivery_conversation_id: originConversationId } : {}),
       ...(budgetLimit !== null && budgetLimit !== undefined
         ? { monthly_budget_usd: budgetLimit }
@@ -643,6 +649,9 @@ export function TriggerFormDialog({
         }
         if (trigger.trigger_type === "schedule" && overlap !== trigger.overlap) {
           patch.overlap = overlap;
+        }
+        if (conversationMode !== (trigger.conversation_mode ?? "continue")) {
+          patch.conversation_mode = conversationMode;
         }
         const post = teamsPost === NO_TEAMS_POST ? null : teamsPost;
         if (post !== (trigger.teams_conversation_id ?? null)) patch.teams_conversation_id = post;
@@ -983,6 +992,7 @@ export function TriggerFormDialog({
                     hasConversation={hasConversation}
                   />
                 )}
+                <ConversationModeField value={conversationMode} onChange={setConversationMode} />
                 <FailurePolicyField
                   value={maxFailures}
                   onChange={setMaxFailures}
@@ -992,7 +1002,6 @@ export function TriggerFormDialog({
                   value={notificationChannels}
                   onChange={setNotificationChannels}
                 />
-
                 <EndsAtField
                   value={endsAt}
                   onChange={changeEnd}
@@ -1163,6 +1172,7 @@ export function TriggerFormDialog({
                   hasConversation={hasConversation}
                 />
               )}
+              <ConversationModeField value={conversationMode} onChange={setConversationMode} />
               <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
               <NotificationChannelsField
                 value={notificationChannels}

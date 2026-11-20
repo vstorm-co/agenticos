@@ -1,0 +1,15 @@
+[Unit]
+Description=Remove Docker build cache unused for 24 hours
+After=docker.service
+
+[Service]
+Type=oneshot
+User=root
+ExecCondition=/usr/bin/systemctl --quiet is-active docker.service
+UnsetEnvironment=DOCKER_HOST DOCKER_CONTEXT DOCKER_TLS DOCKER_TLS_VERIFY DOCKER_CERT_PATH DOCKER_API_VERSION BUILDX_BUILDER BUILDKIT_HOST
+ExecStart=/usr/bin/docker --host unix:///var/run/docker.sock builder prune --all --force --filter until=24h
+TimeoutStartSec=10min
+Nice=10
+IOSchedulingClass=idle
+StandardOutput=journal
+StandardError=journal

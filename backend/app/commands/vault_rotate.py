@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.commands import command, error, info, success
 from app.core.exceptions import AppException
+from app.core.secret_scopes import browser_sign_in_scope, organization_secret_scope
 from app.core.vault import VaultScope, current_key_version, needs_rotation, rewrap, unseal
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_trigger import AgentTrigger
@@ -55,8 +56,25 @@ def _org_scope(
     return VaultScope.organization(row.organization_id)
 
 
-def _person_scope(row: BrowserSignIn | CodingAccount | PersonalModelKey) -> VaultScope:
+def _secret_scope(row: OrganizationSecret) -> VaultScope:
+    return organization_secret_scope(
+        organization_id=row.organization_id,
+        kind=row.kind,
+        usage_scope=row.usage_scope,
+        owner_user_id=row.owner_user_id,
+    )
+
+
+def _person_scope(row: CodingAccount | PersonalModelKey) -> VaultScope:
     return VaultScope.user(row.user_id)
+
+
+def _browser_scope(row: BrowserSignIn) -> VaultScope:
+    return browser_sign_in_scope(
+        organization_id=row.organization_id,
+        user_id=row.user_id,
+        protection_kind=row.protection_kind,
+    )
 
 
 def _deployment_scope(_row: DeploymentSettings | DiagnosticsIdentity) -> VaultScope:
@@ -103,7 +121,7 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
         model=OrganizationSecret,
         columns=("sealed_secret",),
         version_attr="key_version",
-        scope=_org_scope,
+        scope=_secret_scope,
     ),
     SealedTable(
         label="channel_bots",
@@ -165,7 +183,7 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
         model=BrowserSignIn,
         columns=("sealed_state",),
         version_attr="secret_key_version",
-        scope=_person_scope,
+        scope=_browser_scope,
     ),
     SealedTable(
         label="diagnostics_identity",
@@ -229,7 +247,11 @@ async def _rotate_table(
             else:
                 report.no_secret += 1
             continue
-        scope = spec.scope(row)
+        try:
+            scope = spec.scope(row)
+        except AppException as exc:
+            report.failures.append(f"{spec.label} {row.id}: {exc.message}")
+            continue
         needs_move = any(needs_rotation(value, key_version=version) for value in present.values())
         if dry_run:
             # The preflight's promise is that every stored envelope *opens*, so

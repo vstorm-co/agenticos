@@ -1,7 +1,14 @@
-Subject: Update from [[app_name]]
+Subject: Workspace update
+
+Workspace update
+
+There is an update for you in [[app_name]].
 
 [[summary]]
 
+View update:
 [[context_url]]
 
-- The [[app_name]] Team
+Open the update for its full context.
+
+[[app_name]]

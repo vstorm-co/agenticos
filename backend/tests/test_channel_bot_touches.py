@@ -18,6 +18,14 @@ pytestmark = pytest.mark.anyio
 SERVER = "https://mattermost.acme.internal"
 
 
+@pytest.fixture(autouse=True)
+def _audit_trail_is_not_the_test():
+    """The service writes the audit trail; a mocked session cannot take the
+    advisory lock it chains on, so these tests stand it aside."""
+    with patch("app.services.channel_bot.record_audit", new=AsyncMock()):
+        yield
+
+
 def _create(platform: str = "mattermost", **overrides: object) -> ChannelBotCreate:
     fields: dict[str, object] = {"platform": platform, "name": "bot", "token": "t" * 20}
     if platform in {"mattermost", "imessage"}:

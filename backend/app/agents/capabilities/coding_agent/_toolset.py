@@ -208,6 +208,20 @@ def build_coding_toolset(
             )
         return None
 
+    def failed_report(answer: str, harness: Harness) -> str:
+        """A failure as a report, so the transcript marks it failed.
+
+        The tool's contract is JSON with `outcome`; a bare sentence renders as
+        an italic aside and reads to the model as what the harness said - a
+        refusal it then answers from as if it were a result. A run that could
+        not start is not a result: the report says `failed`, with the same
+        words as its `answer`, and the console draws the red badge to match.
+        """
+        report = CodingReport(harness=harness, access=access, outcome="failed", answer=answer)
+        return json.dumps(
+            {"kind": report.kind, **report.model_dump(mode="json", exclude_defaults=True)}
+        )
+
     async def run_coding_agent(
         ctx: RunContext[Any],
         task: str,
@@ -271,11 +285,12 @@ def build_coding_toolset(
                 or isinstance(ctx.workspace.backend, ProjectWorkspacePort)
                 or _in_room(ctx.deps)
             ):
-                return (
+                return failed_report(
                     "Personal coding accounts cannot run on sources from a shared workspace, "
                     "project or group chat. Copying those files into a private container does "
                     "not make their code trusted. Use a private unshared conversation workspace "
-                    "for personal-account work, or the organization's configured coding mode."
+                    "for personal-account work, or the organization's configured coding mode.",
+                    configured,
                 )
             if personal_executor is None:
                 return steer(
@@ -341,6 +356,8 @@ def build_coding_toolset(
                         return report.model_copy(
                             update={
                                 "account_label": personal.label,
+                                "account_id": str(personal.account_id),
+                                "selection_reason": personal.selection_reason,
                                 "execution": "isolated_task",
                                 "base_revision": personal.base_revision,
                                 "result_archive": personal.result_archive,
@@ -356,17 +373,19 @@ def build_coding_toolset(
             return await run_local(ctx, task, session, fresh_session, harness or configured, folder)
         if api_key is None and sign_in is None:
             # Unreachable once published - the key is required at publish and at
-            # build. A retry rather than a crash for a preview built without one.
-            return steer(ctx, f"{label} has no API key configured.")
+            # build. A missing key is a run that cannot start, not a prompt to
+            # try again with different arguments: there is nothing to retry.
+            return failed_report(f"{label} has no API key configured.", configured)
         refused = mismatch()
         if refused is not None:
-            return refused
+            return failed_report(refused, configured)
         if not task.strip():
             return steer(ctx, "Describe the task in `task`: what to change or find, and where.")
         if not ctx.workspace.attached:
-            return (
+            return failed_report(
                 f"{label} needs a sandbox with a shell, and this agent has none. "
-                "Say so rather than trying again."
+                "Say so rather than trying again.",
+                configured,
             )
         await check_model_context()
         await assert_ambient_budget()
@@ -383,7 +402,11 @@ def build_coding_toolset(
             raise
         if isinstance(report, str):
             await narration.finished("failed", error=report)
-            return report
+            # A refusal from below - no sign-in, a sandbox that would not run
+            # it, a harness that is not installed - reaches here as a sentence.
+            # It leaves as a report, so the transcript marks it failed rather
+            # than letting the model answer from it as if it were a result.
+            return failed_report(report, configured)
         await narration.finished(
             "completed" if report.outcome == "completed" else "failed",
             error=None if report.outcome == "completed" else report.answer[:500],
@@ -413,9 +436,10 @@ def build_coding_toolset(
             return steer(ctx, "Describe the task in `task`: what to change or find, and where.")
         workspace = ctx.workspace.backend if ctx.workspace.attached else None
         if not isinstance(workspace, DeviceWorkspace):
-            return (
+            return failed_report(
                 f"{name} is set to run on the person's computer, and this chat is not working "
-                "on one. Say that Work on needs to be set to This computer."
+                "on one. Say that Work on needs to be set to This computer.",
+                chosen,
             )
         try:
             chat_root = await workspace.working_dir()
@@ -478,10 +502,10 @@ def build_coding_toolset(
                 _book(Usage())
         except AcpError as failed:
             await narration.finished("failed", error=failed.message[:500])
-            return f"{name} could not run on this computer: {failed.message}"
+            return failed_report(f"{name} could not run on this computer: {failed.message}", chosen)
         except _LOCAL_FAILURES as failed:
             await narration.finished("failed", error=str(failed)[:500])
-            return f"{name} could not run on this computer: {failed}"
+            return failed_report(f"{name} could not run on this computer: {failed}", chosen)
         except BaseException:
             with anyio.CancelScope(shield=True):
                 await narration.finished("cancelled")

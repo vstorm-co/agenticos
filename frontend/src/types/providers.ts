@@ -10,7 +10,7 @@
 
 import type { AgentUsage } from "./agents";
 
-import type { SecretKind } from "./secrets";
+import type { SecretKind, SecretUsageScope } from "./secrets";
 
 /** Which of OpenAI's two APIs a profile's requests go to. */
 export type ModelApi = "chat" | "responses" | "decisions";
@@ -68,13 +68,14 @@ export interface ModelProfile {
   label: string;
   provider: string;
   model: string;
+  /** Derived from the backing credential; absent on older deployments. */
+  usage_scope?: SecretUsageScope;
   /**
    * The vault secret this model is keyed by, and the only key it has.
    *
-   * Null on a self-hosted profile, which authenticates against nothing, and on
-   * one whose key was deleted - the foreign key is `ON DELETE SET NULL`. Those
-   * two look the same here and are told apart by `base_url`, which is what the
-   * resolver does.
+   * Null on a self-hosted profile, a personal native subscription, and a profile
+   * whose key was deleted (`ON DELETE SET NULL`). The provider and `missing_key`
+   * identify whether the connection is usable; null alone does not.
    */
   secret_id: string | null;
   /**

@@ -32,6 +32,7 @@ from app.agents.model_resolver import (
     get_provider,
     lacks_key,
 )
+from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_PROVIDER, ClaudeSubscriptionOwner
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -104,6 +105,8 @@ def service_account_json(project: str = "demo-project") -> str:
 
 def secret_for(spec: ProviderSpec):
     """A credential of whichever shape this provider declares it wants."""
+    if spec.secret_kind is SecretKind.NONE:
+        return NoSecret()
     if spec.secret_kind is SecretKind.API_KEY:
         return ApiKeySecret(api_key="sk-test-abcd1234")
     if spec.secret_kind is SecretKind.AZURE_OPENAI:
@@ -218,10 +221,19 @@ class TestProviderCatalog:
         # OpenRouter is the one provider that rejects a bare model id, and does
         # so in the constructor rather than at request time.
         model = "openai/gpt-4.1" if provider_id == "openrouter" else "some-model"
+        owner = (
+            ClaudeSubscriptionOwner(organization_id=uuid.uuid4(), user_id=uuid.uuid4())
+            if provider_id == CLAUDE_SUBSCRIPTION_PROVIDER
+            else None
+        )
+        if owner is not None:
+            model = "sonnet"
         credential = ResolvedCredential(
             provider=provider_id,
             secret=secret_for(spec),
             base_url="https://gateway.example.com" if spec.supports_base_url else None,
+            personal_owner_user_id=owner.user_id if owner is not None else None,
+            claude_subscription_owner=owner,
             credential_source=VaultCodexCredentials(
                 organization_id=uuid.uuid4(), secret_id=uuid.uuid4()
             ),
@@ -2073,11 +2085,12 @@ class TestTheWindowAModelAccepts:
 
     The `compaction` capability triggers on a fraction of the context window, and
     the only thing it could otherwise resolve one from is the `genai-prices`
-    snapshot - which records 1,000,000 for `anthropic:claude-sonnet-4-5` against
-    a real 200,000, and answers nothing at all for a profile with fallbacks,
-    whose `FallbackModel` has a composite `fallback:...` id. Over-recording is
-    the direction that takes a run down: the trigger lands above the real
-    ceiling, compaction never fires, and the provider refuses the request (#773).
+    snapshot - a third-party bundle that has recorded a window too high before
+    (`anthropic:claude-sonnet-4-5`, #773), and that answers nothing at all for
+    a profile with fallbacks, whose `FallbackModel` has a composite
+    `fallback:...` id. Over-recording is the direction that takes a run down:
+    the trigger lands above the real ceiling, compaction never fires, and the
+    provider refuses the request (#773).
     """
 
     @staticmethod

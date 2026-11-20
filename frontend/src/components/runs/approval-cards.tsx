@@ -13,6 +13,11 @@ import { callSummary } from "@/lib/approval-view";
 import { isTableTool } from "@/lib/table-tool-calls";
 import { cn, formatDateTime, timeAgo } from "@/lib/utils";
 import type { ToolApproval } from "@/types/runs";
+import {
+  browserCredentialApproval,
+  isBrowserCredentialPreparation,
+  type BrowserCredentialSelection,
+} from "@/lib/browser-credential-approval";
 
 /**
  * What the call will do in names, resolved when it was parked as the person the
@@ -23,6 +28,7 @@ import type { ToolApproval } from "@/types/runs";
 function useCallLine(approval: ToolApproval, withArguments: boolean): string | null {
   const t = useTranslations("pages.runs");
   const tTools = useTranslations("chat.tools");
+  if (browserCredentialApproval(approval).kind !== "ordinary") return null;
   if (approval.content_hidden) return t("contentHidden");
   // A table write's first string argument is its table's id: the card shows it
   // only as the fallback of `TableCallReadout`, which names the table instead.
@@ -69,11 +75,13 @@ export function PendingApproval({
   deciding,
   onDecide,
   onOpenRun,
+  onReviewCredential,
 }: {
   approval: ToolApproval;
   deciding: boolean;
   onDecide: (approved: boolean) => void;
   onOpenRun: () => void;
+  onReviewCredential?: (selection: BrowserCredentialSelection) => void;
 }) {
   const t = useTranslations("pages.runs");
   const tTime = useTranslations("time");
@@ -90,6 +98,51 @@ export function PendingApproval({
       : null;
   const askedLine = useAskedLine(approval);
   const mayApprove = !(approval.always_asks && approval.content_hidden);
+  const browser = useTranslations("browserCredentials");
+  const credential = browserCredentialApproval(approval);
+  const continuation = useTranslations("browserContinuation");
+  const continuing = credential.kind === "plan" && !!credential.continuationId;
+
+  if (credential.kind !== "ordinary") {
+    return (
+      <li className="flex flex-wrap items-start gap-3 px-5 py-4">
+        <AgentFace agentId={approval.agent_id} className="size-9 shrink-0" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <p className="text-sm font-medium">
+            {actor} · {continuing ? continuation("title") : browser("reviewTitle")}
+          </p>
+          <p className="text-muted-foreground text-sm">
+            {continuing
+              ? continuation("approvalConsent")
+              : credential.kind === "plan"
+                ? browser("fillConsent")
+                : browser("invalidApprovalPlan")}
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              credential.kind === "plan" && onReviewCredential
+                ? onReviewCredential({
+                    runId: credential.runId,
+                    planId: credential.planId,
+                    ...(credential.continuationId
+                      ? { continuationId: credential.continuationId }
+                      : {}),
+                  })
+                : onOpenRun()
+            }
+          >
+            {continuing
+              ? continuation("reviewContinuation")
+              : credential.kind === "plan"
+                ? browser("reviewDestination")
+                : t("openTheRun")}
+          </Button>
+        </div>
+      </li>
+    );
+  }
 
   return (
     <li>
@@ -135,6 +188,9 @@ export function PendingApproval({
               </p>
             </div>
             <ApprovalDelegate approval={approval} />
+            {isBrowserCredentialPreparation(approval.capability_tool_id ?? approval.tool_id) && (
+              <p className="text-muted-foreground text-sm">{browser("requestPreparationOnly")}</p>
+            )}
             <ApprovalDetails
               toolName={approval.tool_id}
               args={approval.tool_args}
@@ -183,9 +239,11 @@ const DECISION_LABEL: Record<string, string> = {
 export function DecidedApproval({
   approval,
   onOpenRun,
+  onReviewCredential,
 }: {
   approval: ToolApproval;
   onOpenRun: () => void;
+  onReviewCredential?: (selection: BrowserCredentialSelection) => void;
 }) {
   const t = useTranslations("pages.runs");
   const tTime = useTranslations("time");
@@ -198,6 +256,47 @@ export function DecidedApproval({
   const labelKey = DECISION_LABEL[approval.status];
   const summary = useCallLine(approval, false);
   const askedLine = useAskedLine(approval);
+  const browser = useTranslations("browserCredentials");
+  const credential = browserCredentialApproval(approval);
+  const continuation = useTranslations("browserContinuation");
+  const continuing = credential.kind === "plan" && !!credential.continuationId;
+
+  if (credential.kind !== "ordinary") {
+    return (
+      <li className="flex flex-wrap items-center gap-3 px-5 py-3">
+        <AgentFace agentId={approval.agent_id} className="size-7 shrink-0" />
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="text-sm font-medium">
+            {actor} · {continuing ? continuation("title") : browser("reviewTitle")}
+          </p>
+          {credential.kind === "unavailable" && (
+            <p className="text-muted-foreground text-xs">{browser("invalidApprovalPlan")}</p>
+          )}
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() =>
+            credential.kind === "plan" && onReviewCredential
+              ? onReviewCredential({
+                  runId: credential.runId,
+                  planId: credential.planId,
+                  ...(credential.continuationId
+                    ? { continuationId: credential.continuationId }
+                    : {}),
+                })
+              : onOpenRun()
+          }
+        >
+          {continuing
+            ? continuation("reviewContinuation")
+            : credential.kind === "plan"
+              ? browser("reviewReceipt")
+              : t("openTheRun")}
+        </Button>
+      </li>
+    );
+  }
 
   return (
     <li className="px-5 py-3">

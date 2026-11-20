@@ -15,6 +15,60 @@ export const qk = {
     agent: (scope: string, agentId: string | null) =>
       ["personal-model-keys", scope, agentId] as const,
   },
+  browserProcedureTeaching: {
+    all: (actor: string | undefined, organization: string | null) =>
+      ["browser-procedure-teaching", actor, organization] as const,
+    detail: (actor: string | undefined, organization: string | null, id: string) =>
+      ["browser-procedure-teaching", actor, organization, "detail", id] as const,
+    policy: (actor: string | undefined, organization: string | null) =>
+      ["browser-procedure-teaching", actor, organization, "policy"] as const,
+    preference: (actor: string | undefined, organization: string | null, id: string) =>
+      ["browser-procedure-teaching", actor, organization, "preference", id] as const,
+    run: (actor: string | undefined, organization: string | null, id: string) =>
+      ["browser-procedure-teaching", actor, organization, "run", id] as const,
+    skills: (actor: string | undefined, organization: string | null) =>
+      ["browser-procedure-teaching", actor, organization, "skills"] as const,
+    list: (actor: string | undefined, organization: string | null) =>
+      ["browser-procedure-teaching", actor, organization, "list"] as const,
+  },
+  browserTeaching: {
+    /** One simple review session, fenced by the reader's organization and identity. */
+    one: (orgId: string, userId: string, id: string) =>
+      ["browser-teaching", orgId, userId, id] as const,
+  },
+  roomRouting: {
+    all: (account: string | undefined, tenant: string | null, conversation: string | null) =>
+      ["room-routing", account, tenant, conversation] as const,
+    policy: (account: string | undefined, tenant: string | null, conversation: string | null) =>
+      ["room-routing", account, tenant, conversation, "policy"] as const,
+    proposals: (
+      account: string | undefined,
+      tenant: string | null,
+      conversation: string | null,
+      thread: string | null,
+    ) => ["room-routing", account, tenant, conversation, "proposals", thread] as const,
+    tasks: (
+      account: string | undefined,
+      tenant: string | null,
+      conversation: string | null,
+      thread: string | null,
+    ) => ["room-routing", account, tenant, conversation, "tasks", thread] as const,
+  },
+  roomThreads: {
+    detail: (
+      account: string | undefined,
+      tenant: string | null,
+      conversation: string | null,
+      root: string | null,
+    ) => ["room-threads", account, tenant, conversation, root] as const,
+  },
+  roomRequests: {
+    list: (account: string | undefined, tenant: string | null, conversation: string | null) =>
+      ["room-requests", account, tenant, conversation] as const,
+  },
+  personalSubscriptions: {
+    claude: (scope: string) => ["personal-subscriptions", "claude", scope] as const,
+  },
   improvements: {
     all: () => ["improvements"] as const,
     awaiting: () => ["improvements", "awaiting"] as const,
@@ -36,6 +90,8 @@ export const qk = {
   codingAccounts: {
     all: () => ["coding-accounts"] as const,
     mine: (scope: string) => ["coding-accounts", scope] as const,
+    usage: (scope: string, account: string, generation: string) =>
+      ["coding-accounts", scope, "usage", account, generation] as const,
   },
   durableTasks: {
     root: () => ["durable-tasks"] as const,
@@ -58,8 +114,10 @@ export const qk = {
   },
   auth: {
     me: () => ["auth", "me"] as const,
+    appearance: (owner: string | undefined) => ["auth", "appearance", owner] as const,
   },
   health: () => ["health"] as const,
+  appVersion: (buildId: string | null) => ["app-version", buildId] as const,
   releases: {
     latest: () => ["releases", "latest"] as const,
     current: (version: string) => ["releases", "notes", version] as const,
@@ -68,6 +126,27 @@ export const qk = {
   // redeploy, not while somebody reads it.
   publicApi: {
     openapi: () => ["public-api", "openapi"] as const,
+  },
+  browserContinuations: {
+    receipt: (
+      actor: string | undefined,
+      org: string | null,
+      source: import("@/types/browser-credentials").BrowserCredentialPlan,
+    ) =>
+      [
+        "browser-continuations",
+        actor,
+        org,
+        source.run_id,
+        source.id,
+        source.parent_plan_id,
+        source.authorization_generation,
+        source.secret_id,
+        source.call_id,
+        source.tab_id,
+        source.document_id,
+        source.origin,
+      ] as const,
   },
   browserSignIns: {
     /** The caller's kept browser sign-ins in one organization (#2129). */
@@ -99,6 +178,7 @@ export const qk = {
     members: (orgId: string) => ["organizations", orgId, "members"] as const,
     permissions: (orgId: string) => ["organizations", orgId, "permissions"] as const,
     roleCatalog: () => ["organizations", "role-catalog"] as const,
+    roleNavigation: (orgId: string) => ["organizations", orgId, "role-navigation"] as const,
     audit: (orgId: string) => ["organizations", orgId, "audit"] as const,
     retention: (orgId: string) => ["organizations", orgId, "retention"] as const,
     // One group's members sit beneath the list, so invalidating the list after a
@@ -220,6 +300,26 @@ export const qk = {
     runNodes: (runId: string) => ["workflows", "run", runId, "nodes"] as const,
     runGraph: (runId: string) => ["workflows", "run", runId, "graph"] as const,
     runFiles: (runId: string) => ["workflows", "run", runId, "files"] as const,
+    runFilePreview: (
+      runId: string,
+      fileId: string,
+      scope: string,
+      contentType: string,
+      byteSize: number,
+      generation: string,
+    ) =>
+      [
+        "workflows",
+        "run",
+        runId,
+        "files",
+        fileId,
+        "preview",
+        scope,
+        contentType,
+        byteSize,
+        generation,
+      ] as const,
     // The decisions workflow steps wait on. Under "workflows" so a decision's
     // invalidation of every run refreshes the queue with them.
     approvals: () => ["workflows", "approvals"] as const,
@@ -521,6 +621,30 @@ export const qk = {
   },
   // The organization's AI Architect: its agent, status and settings (#2063).
   assistant: (orgId: string) => ["assistant", orgId] as const,
+  // The failure-learning loop: mined patterns, the ledger, eval cases, tries
+  // and proposals. Org patterns live under their own prefix - the per-agent
+  // lists are under the agent, so invalidating one agent never refetches
+  // another's ledger.
+  failureLearning: {
+    orgPatterns: () => ["failure-learning", "patterns"] as const,
+    agentPatterns: (agentId: string) =>
+      ["failure-learning", "agents", agentId, "patterns"] as const,
+    ledger: (agentId: string, status?: string) =>
+      status === undefined
+        ? (["failure-learning", "agents", agentId, "ledger"] as const)
+        : (["failure-learning", "agents", agentId, "ledger", "status", status] as const),
+    ledgerEntry: (agentId: string, entryId: string) =>
+      ["failure-learning", "agents", agentId, "ledger", "entry", entryId] as const,
+    cases: (agentId: string) => ["failure-learning", "agents", agentId, "cases"] as const,
+    proposals: (agentId: string, status?: string) =>
+      status === undefined
+        ? (["failure-learning", "agents", agentId, "proposals"] as const)
+        : (["failure-learning", "agents", agentId, "proposals", "status", status] as const),
+    proposal: (agentId: string, proposalId: string) =>
+      ["failure-learning", "agents", agentId, "proposals", "detail", proposalId] as const,
+    try: (agentId: string, tryId: string) =>
+      ["failure-learning", "agents", agentId, "tries", tryId] as const,
+  },
   apiKeys: {
     /** Every key query in one organization, for invalidating after a create or revoke. */
     all: (orgId: string) => ["api-keys", orgId] as const,
@@ -543,6 +667,7 @@ export const qk = {
       limit: number;
       groupId: string;
       projectId?: string;
+      favourites?: boolean;
     }) => ["artifacts", "list", query] as const,
     agents: () => ["artifacts", "agents"] as const,
     detail: (id: string) => ["artifacts", id] as const,
@@ -692,6 +817,21 @@ export const qk = {
      */
     list: (params?: string) =>
       params ? (["conversations", "list", params] as const) : (["conversations", "list"] as const),
+    /** Message snippets are private to the signed-in person and active tenant. */
+    messageSearch: (tenant: string | null, user: string | null, query: string) =>
+      ["conversations", "message-search", tenant, user, query] as const,
+    /** A source owner's bounded child page, private to reader and tenant. */
+    forks: (
+      source: string | null,
+      message: string | null,
+      tenant: string | null,
+      user: string | null,
+      skip: number,
+      limit: number,
+    ) => ["conversations", source, "forks", message, tenant, user, skip, limit] as const,
+    /** Personal pins on one readable transcript; each reader has a separate cache. */
+    messagePins: (tenant: string | null, user: string | null, conversation: string | null) =>
+      ["conversations", "message-pins", tenant, user, conversation] as const,
     /**
      * The newest few, for the dashboard. Its own key because `list()` is owned
      * by the chat sidebar, which caches a different page under a different
@@ -772,6 +912,10 @@ export const qk = {
     // org switch would paint the previous tenant's names onto the new one's
     // dashboard for as long as the refetch took.
     syncSources: (orgId: string) => ["rag", "sync", orgId, "sources"] as const,
+    // One level of a connected account's Drive. Keyed on the organization for the
+    // same reason: the account belongs to one tenant.
+    driveFolders: (orgId: string | null, account: string, parent: string) =>
+      ["rag", "sync", orgId, "gdrive", account, "folders", parent] as const,
   },
   integrations: {
     all: () => ["integrations"] as const,
@@ -808,6 +952,28 @@ export const qk = {
       ["notifications", "destinations", organizationId] as const,
     inbox: () => ["notifications", "inbox"] as const,
     unreadCount: () => ["notifications", "unread-count"] as const,
+  },
+  agentMessages: {
+    all: () => ["agent-messages"] as const,
+    // Called with nothing it is the prefix over every page, which is what a
+    // mutation invalidates: a send lands in whatever page holds the thread.
+    // A `(skip, limit)` variant stays a sub-key of that prefix, so a caller
+    // that ever reads one server page is invalidated by the same bare `list()`.
+    list: (skip?: number, limit?: number) =>
+      skip === undefined
+        ? (["agent-messages", "list"] as const)
+        : (["agent-messages", "list", skip, limit] as const),
+    detail: (threadId: string) => ["agent-messages", threadId] as const,
+    messages: (threadId: string) => ["agent-messages", threadId, "messages"] as const,
+    recipients: () => ["agent-messages", "recipients"] as const,
+  },
+  appConnections: {
+    all: () => ["app-connections"] as const,
+    scope: (userId: string, orgId: string | null) => ["app-connections", userId, orgId] as const,
+    catalog: (userId: string, orgId: string | null, search = "") =>
+      ["app-connections", userId, orgId, "catalog", search] as const,
+    list: (userId: string, orgId: string | null) =>
+      ["app-connections", userId, orgId, "list"] as const,
   },
   connectedAccounts: {
     all: () => ["connected-accounts"] as const,
@@ -1053,6 +1219,8 @@ export const qk = {
       ["tables", tableId, "records", "count", query] as const,
     // One record, as "reload and reapply" refetches it after a conflict.
     record: (tableId: string, recordId: string) => ["tables", tableId, "record", recordId] as const,
+    recordAccess: (tableId: string, recordId: string) =>
+      ["tables", tableId, "record-access", recordId] as const,
     views: (tableId: string) => ["tables", tableId, "views"] as const,
     // One kind's views, as the picker for that tab reads them; under `views` so
     // one invalidation refreshes every kind.

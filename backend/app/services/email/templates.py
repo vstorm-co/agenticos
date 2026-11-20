@@ -11,6 +11,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from app.core.config import settings
 from app.services.email.exceptions import EmailTemplateError
 
 logger = logging.getLogger(__name__)
@@ -99,6 +100,10 @@ def render_email(key: str, context: dict[str, Any]) -> tuple[str, str, str]:
     text_body = "\n".join(lines[1:]).strip()
 
     subject = _render(subject_raw, context)
-    html = _render(html_raw, context, escape=True)
+    html_context = {
+        **context,
+        "email_font_base_url": f"{settings.FRONTEND_URL.rstrip('/')}/fonts/email",
+    }
+    html = _render(html_raw, html_context, escape=True)
     text = _render(text_body, context)
     return subject, html, text

@@ -1,5 +1,5 @@
 ---
-source_sha: "ef824da65bb6"
+source_sha: "6bf91cb53877"
 ---
 
 # Governance { #governance }
@@ -66,6 +66,11 @@ crea un run o se consume la cuota de admisión de runs.
 
 La ausencia de diagnóstico indica que no se ha registrado un rechazo; no confirma la
 entrega de un webhook. Las respuestas públicas de los webhooks no cambian.
+
+Los fallos que registra la plataforma también alimentan el
+[bucle de aprendizaje de errores](failure-learning.md), que identifica los
+fallos recurrentes, los reúne en un registro y evalúa una corrección frente al
+comportamiento anterior antes de aplicarla.
 
 ## Entrega de rutinas { #routine-delivery }
 
@@ -2571,7 +2576,7 @@ publicador no pueden leer ni resolver casos privados de Inbox.
 
 ## Grupos de aprobación { #approval-groups }
 
-Los pasos de aprobación humana y llamadas MCP de workflows pueden indicar personas, grupos de la organización o ambos. Una sola persona elegible decide y debe tener `approvals:decide` de forma independiente. Sin personas ni grupos configurados sigue vigente la regla anterior basada en ese permiso. Un grupo configurado vacío o eliminado nunca permite que decida cualquiera.
+Los pasos de aprobación humana y llamadas MCP de workflows pueden indicar personas, grupos de la organización o ambos. Cualquier persona elegible puede decidir por sí sola y debe tener `approvals:decide` de forma independiente. Sin personas ni grupos configurados sigue vigente la regla anterior basada en ese permiso. Un grupo configurado vacío o eliminado nunca permite que decida cualquiera.
 
 La pertenencia al grupo y la cuenta activa se comprueban al decidir. Las notificaciones resuelven miembros elegibles al crear la solicitud y eliminan duplicados con personas indicadas. Incorporarse después puede dar derecho a decidir sin otra notificación; salir o perder permisos lo retira.
 

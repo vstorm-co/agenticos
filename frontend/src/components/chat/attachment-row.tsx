@@ -65,7 +65,7 @@ export function AttachmentRow({
     // the usage strip and the textarea, `Context 5.7% · $0.0471` and three file
     // cards read as one confused header; what is attached is a thing of its own,
     // and it sits above the box it will be sent from.
-    <div className="chat-input-attachments mb-2 flex items-center gap-2 px-1 py-1">
+    <div className="chat-input-attachments mb-2 flex max-w-full min-w-0 items-center gap-2 px-1 py-1">
       {overflowing && (
         <Arrow direction="left" label={t("scrollAttachmentsLeft")} onClick={() => scrollBy(-1)} />
       )}
@@ -75,7 +75,7 @@ export function AttachmentRow({
           is a row nobody knows scrolls. */}
       <div
         ref={row}
-        className="flex min-w-0 flex-1 snap-x scrollbar-thin items-center gap-2 overflow-x-auto"
+        className="flex min-w-0 flex-1 snap-x scrollbar-thin items-center gap-2 overflow-x-auto overscroll-x-contain"
       >
         {children}
       </div>

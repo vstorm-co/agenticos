@@ -259,6 +259,15 @@ class TestCuratedFallbacksAreData:
         assert windows["claude-opus-5"] == 1_000_000
         assert windows["claude-haiku-4-5"] == 200_000
 
+    def test_the_snapshot_records_sonnet_4_5_at_its_real_window(self):
+        # The survey recorded this as 1,000,000 against a real 200,000 (#773);
+        # the pinned snapshot now says 200,000. Pin it, so a bundle bump that
+        # re-introduces the wrong number fails the build instead of shipping a
+        # compaction trigger that never fires before the provider refuses.
+        from app.services.model_catalog import context_window
+
+        assert context_window("anthropic", "claude-sonnet-4-5") == 200_000
+
     def test_an_openrouter_id_takes_its_window_from_the_provider_it_names(self):
         # An OpenRouter id is `<provider>/<model>`, and the snapshot prices those
         # rows under the provider rather than under the namespaced spelling.

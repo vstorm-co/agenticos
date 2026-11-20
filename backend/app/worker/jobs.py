@@ -64,6 +64,22 @@ class RevertCodingTask(Payload):
     api_key_id: UUID | None = None
 
 
+class RefreshCodingAccountUsage(Payload):
+    organization_id: UUID
+    user_id: UUID
+    account_id: UUID
+    generation: UUID
+    request_id: UUID
+
+
+class DraftBrowserProcedureTeaching(Payload):
+    organization_id: UUID
+    session_id: UUID
+    revision: int = Field(ge=1)
+    source_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    token: UUID
+
+
 class MoveProjectWorkspacePayload(Payload):
     transfer_id: UUID
     project_id: UUID
@@ -222,6 +238,11 @@ class FireTrigger(Payload):
     source_policy_id: UUID | None = None
     activation_id: UUID | None = None
     event_context: str | None = None
+    event_payload: dict[str, JsonValue] | None = None
+    """The full event payload beside the rendered `event_context` (#14): a
+    GitHub delivery's `GithubTriggerOutput`-shaped dict, or `None` for a
+    scheduled fire and any event whose source sends none. Untrusted external
+    content, fenced again where the run reads it."""
     claimed_at: datetime | None = None
     """The `fire_in_flight_since` the scheduled claim stamped - its claim ticket."""
 
@@ -233,6 +254,11 @@ class DeliverRoutineAnswer(Payload):
 
 class ConversationTaskJob(Payload):
     task_id: UUID
+    organization_id: UUID
+
+
+class RoomRequestJob(Payload):
+    request_id: UUID
     organization_id: UUID
 
 
@@ -271,6 +297,18 @@ class AdvanceSkillCheck(Payload):
 
     check_id: UUID
     organization_id: UUID
+
+
+class BuildTeachingProposal(Payload):
+    """Build the one skill proposal a reviewed browser demonstration asked for (#113).
+
+    Keyed by the session and the hash of the reviewed content; the job rechecks
+    authority, budget and the session's state before it writes anything.
+    """
+
+    organization_id: UUID
+    session_id: UUID
+    source_hash: str = Field(min_length=64, max_length=64)
 
 
 class RunEval(Payload):
@@ -587,6 +625,14 @@ RUN_CONVERSATION_TASK = Task(
     timeout=timedelta(hours=3),
     priority=Priority.INTERACTIVE,
 )
+RUN_ROOM_REQUEST = Task(
+    kind="run-room-request",
+    payload_type=RoomRequestJob,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(hours=3),
+    priority=Priority.INTERACTIVE,
+)
 RETURN_CONVERSATION_TASK = Task(
     kind="return-conversation-task",
     payload_type=ConversationTaskJob,
@@ -806,6 +852,15 @@ ADVANCE_SKILL_CHECK = Task(
 )
 SWEEP_SKILL_CHECKS = _sweep("sweep-skill-checks")
 
+SWEEP_BROWSER_TEACHINGS = _sweep("sweep-browser-teachings", timeout=timedelta(minutes=2))
+BUILD_TEACHING_PROPOSAL = Task(
+    kind="build-teaching-proposal",
+    payload_type=BuildTeachingProposal,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
 CHECK_AGENT_TRIGGERS = _sweep("check-agent-triggers")
 POLL_PORTAL_GRANTS = _sweep("poll-portal-grants")
 DELIVER_NOTIFICATIONS = _sweep("deliver-notifications")
@@ -834,6 +889,7 @@ WORKFLOW_TABLE_TRIGGERS = _sweep("workflow-table-triggers", timeout=timedelta(mi
 WORKFLOW_RUN_RETENTION = _sweep("workflow-run-retention", timeout=timedelta(hours=2))
 WORKFLOW_LOG_ALERTS = _sweep("workflow-log-alerts", timeout=timedelta(minutes=5))
 RECONCILE_CONVERSATION_TASKS = _sweep("reconcile-conversation-tasks", timeout=timedelta(seconds=30))
+RECONCILE_ROOM_REQUESTS = _sweep("reconcile-room-requests", timeout=timedelta(seconds=30))
 SWEEP_GENERATED_MEDIA = _sweep("sweep-generated-media")
 SEND_DIAGNOSTICS = _sweep("send-diagnostics", timeout=timedelta(seconds=60))
 PROACTIVE_SWEEP = _sweep("proactive-sweep")
@@ -854,6 +910,34 @@ WATCH_SWEEP = _sweep("watch-sweep")
 # is idempotent across attempts (Codex, #2248).
 WEEKLY_USAGE_REPORT = _sweep("weekly-usage-report", timeout=timedelta(hours=1), max_attempts=3)
 MONTHLY_USAGE_REPORT = _sweep("monthly-usage-report", timeout=timedelta(hours=1), max_attempts=3)
+# One attempt, unlike the reports above: the digest mines a 7-day window
+# and a pattern stays untracked until a draft exists for it, so a tick
+# lost to a deploy or an outage is picked up by the following day's run.
+FAILURE_LEDGER_DIGEST = _sweep("failure-ledger-digest", timeout=timedelta(hours=1))
+
+REFRESH_CODING_ACCOUNT_USAGE = Task(
+    kind="refresh-coding-account-usage",
+    payload_type=RefreshCodingAccountUsage,
+    pool=Pool.WORKFLOW,
+    max_attempts=1,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+    retry_refusal="Refresh usage from your coding account to recheck current owner consent",
+)
+
+
+DRAFT_BROWSER_PROCEDURE_TEACHING = Task(
+    kind="draft-browser-procedure-teaching",
+    payload_type=DraftBrowserProcedureTeaching,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=4),
+    priority=Priority.INTERACTIVE,
+    retry_refusal="Read the browser teaching receipt; an uncertain draft is never retried automatically",
+)
+SWEEP_BROWSER_PROCEDURE_TEACHINGS = _sweep(
+    "sweep-browser-procedure-teachings", timeout=timedelta(minutes=2)
+)
 
 REVERT_CODING_TASK = Task(
     retry_refusal="Retry the revert from its conversation so its files and current access can be checked again",
@@ -943,6 +1027,10 @@ TASKS: dict[str, TaskKind] = {
         DELIVER_CHANNEL_HANDBACK,
         MOVE_PROJECT_WORKSPACE,
         REVERT_CODING_TASK,
+        DRAFT_BROWSER_PROCEDURE_TEACHING,
+        SWEEP_BROWSER_PROCEDURE_TEACHINGS,
+        SWEEP_BROWSER_TEACHINGS,
+        REFRESH_CODING_ACCOUNT_USAGE,
         INGEST_DOCUMENT,
         SYNC_COLLECTION,
         SYNC_SOURCE,
@@ -966,6 +1054,8 @@ TASKS: dict[str, TaskKind] = {
         RUN_CONVERSATION_TASK,
         RETURN_CONVERSATION_TASK,
         RECONCILE_CONVERSATION_TASKS,
+        RUN_ROOM_REQUEST,
+        RECONCILE_ROOM_REQUESTS,
         WORKFLOW_DISPATCH_NODE,
         THINK_FOR_PERSON,
         EXTRACT_MEMORY,
@@ -1010,6 +1100,9 @@ TASKS: dict[str, TaskKind] = {
         WATCH_SWEEP,
         WEEKLY_USAGE_REPORT,
         MONTHLY_USAGE_REPORT,
+        SWEEP_BROWSER_TEACHINGS,
+        BUILD_TEACHING_PROPOSAL,
+        FAILURE_LEDGER_DIGEST,
     )
 }
 """Every kind, by name: what a worker looks a claimed job up in."""

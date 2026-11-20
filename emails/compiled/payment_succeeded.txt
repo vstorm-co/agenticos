@@ -1,12 +1,16 @@
-Subject: Payment confirmed - [[plan_name]] on [[app_name]]
+Subject: Payment received
 
-Hi [[name]],
+Payment received
 
-Your payment of [[amount]] for [[plan_name]] has been processed successfully.
+Hi [[name]], your payment for the [[plan_name]] plan on [[app_name]] was successful.
 
-View your invoice:
+Amount paid: [[amount]]
+Status: Paid
+Plan: [[plan_name]]
+
+View invoice:
 [[invoice_url]]
 
-Thank you for your continued support!
+Keep your invoice for your records.
 
-- The [[app_name]] Team
+[[app_name]]

@@ -58,6 +58,11 @@ routine using the database clock. There is no payload, author text or secret, an
 no run is created or run-admission quota spent for it. No diagnostic means no rejection has been recorded; it
 does not prove webhook delivery. Public webhook responses remain unchanged.
 
+The failures the platform records also feed the
+[failure-learning loop](failure-learning.md), which mines repeating failures
+into a ledger and proves a fix against the old behaviour before anything is
+applied.
+
 ## Routine delivery
 
 A routine created from a private chat through the platform MCP answers in that

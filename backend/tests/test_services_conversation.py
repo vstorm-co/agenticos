@@ -12,11 +12,12 @@ from uuid import uuid4
 import pytest
 from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, SystemPromptPart
 
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.repositories import conversation_repo, conversation_share_repo
 from app.repositories.conversation import RunOutcome
 from app.schemas.conversation import (
+    ConversationUpdate,
     HistoryCheckpointFrontier,
     ToolCallCreate,
 )
@@ -105,6 +106,7 @@ class MockMessage:
         self.content = content
         self.ordinal = 0
         self.model_name = model_name
+        self.agent_id = None
         self.tokens_used = tokens_used
         # Which run produced the turn, and therefore how it ended - a listing
         # reads a status off it so a stopped turn can say it was stopped.
@@ -118,6 +120,7 @@ class MockMessage:
         self.author_user_id = None
         self.channel_identity_id = None
         self.reply_to_message_id = None
+        self.reply_to_excerpt = None
         # Enough of a row for `MessageRead.model_validate`, which the listing runs
         # when it has a reader to attach ratings for.
         self.created_at = datetime(2026, 8, 16, tzinfo=UTC)
@@ -878,6 +881,7 @@ class TestConversationServiceListConversations:
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
             mock_repo.coding_agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_activity = AsyncMock(return_value={})
+            mock_repo.waiting_activity = AsyncMock(return_value={})
             mock_repo.unread_ids = AsyncMock(return_value=set())
 
             items, total = await service.list_conversations(
@@ -893,6 +897,7 @@ class TestConversationServiceListConversations:
     ):
         busy, idle = MockConversation(id=uuid4()), MockConversation(id=uuid4())
         started = datetime(2026, 10, 13, 12, 0, tzinfo=UTC)
+        beat = datetime(2026, 10, 13, 12, 1, 30, tzinfo=UTC)
 
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversations_by_user = AsyncMock(return_value=[busy, idle])
@@ -900,14 +905,53 @@ class TestConversationServiceListConversations:
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
             mock_repo.coding_agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_activity = AsyncMock(
-                return_value={busy.id: conversation_repo.RunningActivity(started, [uuid4()])}
+                return_value={busy.id: conversation_repo.RunningActivity(started, [uuid4()], beat)}
             )
+            mock_repo.waiting_activity = AsyncMock(return_value={})
 
             items, _total = await service.list_conversations(
                 skip=0, limit=50, organization_id=TEST_ORG_ID
             )
 
         assert [item.running_since for item in items] == [started, None]
+        assert [item.running_heartbeat_at for item in items] == [beat, None]
+
+    @pytest.mark.anyio
+    async def test_a_listed_conversation_says_what_its_parked_run_is_waiting_on(
+        self, service: ConversationService
+    ):
+        """A thread parked on an unanswered question says so on the listing -
+        from any tab, not only the one the turn ran in, which only ever knew
+        through its own working store."""
+        waiting, idle = MockConversation(id=uuid4()), MockConversation(id=uuid4())
+        parked = datetime(2026, 11, 12, 8, 0, tzinfo=UTC)
+        run_id = uuid4()
+
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversations_by_user = AsyncMock(return_value=[waiting, idle])
+            mock_repo.count_conversations = AsyncMock(return_value=2)
+            mock_repo.agents_in_conversations = AsyncMock(return_value={})
+            mock_repo.coding_agents_in_conversations = AsyncMock(return_value={})
+            mock_repo.running_activity = AsyncMock(return_value={})
+            mock_repo.waiting_activity = AsyncMock(
+                return_value={
+                    waiting.id: conversation_repo.WaitingActivity(
+                        parked, "awaiting_answer", "Which model should I use?", [run_id]
+                    )
+                }
+            )
+
+            items, _total = await service.list_conversations(
+                skip=0, limit=50, organization_id=TEST_ORG_ID
+            )
+
+        assert [item.waiting_since for item in items] == [parked, None]
+        assert [item.waiting_status for item in items] == ["awaiting_answer", None]
+        assert [item.waiting_question for item in items] == [
+            "Which model should I use?",
+            None,
+        ]
+        assert [item.waiting_run_ids for item in items] == [[run_id], []]
 
     @pytest.mark.anyio
     async def test_a_row_says_whether_it_holds_an_answer_its_reader_has_not_seen(
@@ -1213,6 +1257,121 @@ class TestConversationServiceUpdate:
                 await service.update_conversation(
                     conv_id, mock_update, user_id=other_id, organization_id=TEST_ORG_ID
                 )
+
+    @pytest.mark.anyio
+    async def test_update_moves_conversation_into_a_project(self, service: ConversationService):
+        conversation = MockConversation()
+        project_id = uuid4()
+        user_id = uuid4()
+        ctx = AuthContext(user_id=user_id, organization_id=TEST_ORG_ID, role="member")
+        data = ConversationUpdate(project_id=project_id)
+        with (
+            patch.object(service, "get_conversation", AsyncMock(return_value=conversation)),
+            patch(
+                "app.services.project.ProjectService.check_can_start", new_callable=AsyncMock
+            ) as check,
+            patch.object(
+                conversation_repo, "update_conversation", AsyncMock(return_value=conversation)
+            ) as update,
+        ):
+            await service.update_conversation(
+                conversation.id,
+                data,
+                organization_id=TEST_ORG_ID,
+                user_id=user_id,
+                ctx=ctx,
+            )
+
+        check.assert_awaited_once_with(ctx, project_id)
+        assert update.await_args.kwargs["update_data"]["project_id"] == project_id
+
+    @pytest.mark.anyio
+    async def test_update_moves_conversation_out_of_a_project(self, service: ConversationService):
+        conversation = MockConversation()
+        data = ConversationUpdate(project_id=None)
+        with (
+            patch.object(service, "get_conversation", AsyncMock(return_value=conversation)),
+            patch(
+                "app.services.project.ProjectService.check_can_start", new_callable=AsyncMock
+            ) as check,
+            patch.object(
+                conversation_repo, "update_conversation", AsyncMock(return_value=conversation)
+            ) as update,
+        ):
+            await service.update_conversation(conversation.id, data, organization_id=TEST_ORG_ID)
+
+        check.assert_not_awaited()
+        assert "project_id" in update.await_args.kwargs["update_data"]
+        assert update.await_args.kwargs["update_data"]["project_id"] is None
+
+    @pytest.mark.anyio
+    async def test_omitted_project_id_does_not_change_project(self, service: ConversationService):
+        conversation = MockConversation()
+        data = ConversationUpdate(title="Renamed")
+        with (
+            patch.object(service, "get_conversation", AsyncMock(return_value=conversation)),
+            patch.object(
+                conversation_repo, "update_conversation", AsyncMock(return_value=conversation)
+            ) as update,
+        ):
+            await service.update_conversation(conversation.id, data, organization_id=TEST_ORG_ID)
+
+        assert "project_id" not in update.await_args.kwargs["update_data"]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "failure",
+        [
+            NotFoundError(message="Project not found"),
+            AuthorizationError(message="Cannot use project"),
+        ],
+    )
+    async def test_update_rejects_projects_the_caller_cannot_use(
+        self, service: ConversationService, failure: Exception
+    ):
+        conversation = MockConversation()
+        project_id = uuid4()
+        ctx = AuthContext(user_id=uuid4(), organization_id=TEST_ORG_ID, role="member")
+        with (
+            patch.object(service, "get_conversation", AsyncMock(return_value=conversation)),
+            patch(
+                "app.services.project.ProjectService.check_can_start",
+                new_callable=AsyncMock,
+                side_effect=failure,
+            ),
+            patch.object(
+                conversation_repo, "update_conversation", new_callable=AsyncMock
+            ) as update,
+            pytest.raises(type(failure)),
+        ):
+            await service.update_conversation(
+                conversation.id,
+                ConversationUpdate(project_id=project_id),
+                organization_id=TEST_ORG_ID,
+                ctx=ctx,
+            )
+
+        update.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_project_assignment_requires_an_access_context(
+        self, service: ConversationService
+    ):
+        conversation = MockConversation()
+        with (
+            patch.object(service, "get_conversation", AsyncMock(return_value=conversation)),
+            patch.object(
+                conversation_repo, "update_conversation", new_callable=AsyncMock
+            ) as update,
+            pytest.raises(AuthorizationError),
+        ):
+            await service.update_conversation(
+                conversation.id,
+                ConversationUpdate(project_id=uuid4()),
+                organization_id=TEST_ORG_ID,
+            )
+
+        update.assert_not_awaited()
 
 
 class TestConversationServiceArchive:
@@ -1590,6 +1749,77 @@ class TestConversationServiceAddMessage:
             assert result.content == "Hello"
             assert result.role == "user"
             mock_repo.create_message.assert_called_once()
+
+    @pytest.mark.anyio
+    async def test_add_message_normalizes_a_selected_excerpt_from_rendered_markdown(
+        self, service: ConversationService
+    ):
+        from app.schemas.conversation import MessageCreate
+
+        conv_id = uuid4()
+        source = MockMessage(
+            id=uuid4(),
+            conversation_id=conv_id,
+            role="assistant",
+            content="Plan: **selected\n   words** and [a link](https://example.test).",
+        )
+        data = MessageCreate(
+            role="user",
+            content="Could you expand that?",
+            reply_to_message_id=source.id,
+            reply_to_excerpt="  selected   words ",
+        )
+
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=MockConversation(id=conv_id))
+            mock_repo.get_message_by_id = AsyncMock(return_value=source)
+            mock_repo.create_message = AsyncMock(return_value=MockMessage())
+
+            await service.add_message(conv_id, data, organization_id=TEST_ORG_ID)
+
+        assert mock_repo.create_message.await_args.kwargs["reply_to_excerpt"] == "selected words"
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("source_content", "refused", "selected"),
+        [
+            ("Visible text", False, "some other text"),
+            ("Secret refused text", True, "Secret refused text"),
+        ],
+    )
+    async def test_add_message_rejects_unmatched_or_refused_selected_excerpts(
+        self,
+        service: ConversationService,
+        source_content: str,
+        refused: bool,
+        selected: str,
+    ) -> None:
+        from app.schemas.conversation import MessageCreate
+
+        conv_id = uuid4()
+        source = MockMessage(
+            id=uuid4(),
+            conversation_id=conv_id,
+            role="assistant",
+            content=source_content,
+            guardrail_refused=refused,
+        )
+        data = MessageCreate(
+            role="user",
+            content="Reply",
+            reply_to_message_id=source.id,
+            reply_to_excerpt=selected,
+        )
+
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=MockConversation(id=conv_id))
+            mock_repo.get_message_by_id = AsyncMock(return_value=source)
+            mock_repo.create_message = AsyncMock()
+
+            with pytest.raises(BadRequestError, match="reply_to_excerpt"):
+                await service.add_message(conv_id, data, organization_id=TEST_ORG_ID)
+
+        mock_repo.create_message.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_every_field_the_schema_carries_reaches_the_row(
@@ -2146,6 +2376,10 @@ class TestSayingATurnWasStopped:
         with (
             patch("app.services.conversation.message_rating_repo") as ratings,
             patch(
+                "app.services.conversation.conversation_message_pin_repo.message_pin_ids",
+                AsyncMock(return_value=set()),
+            ),
+            patch(
                 "app.services.conversation.conversation_share_repo.get_share",
                 AsyncMock(return_value=SimpleNamespace(permission="view")),
             ),
@@ -2642,6 +2876,216 @@ class TestTheThreadAModelIsGivenBack:
 
         assert history == []
 
+    async def test_a_room_request_uses_its_selected_history_instead_of_a_shared_summary(
+        self, monkeypatch
+    ):
+        conversation = MockConversation()
+        conversation.guardrail_revision = 7
+        conversation.summary_messages = ModelMessagesTypeAdapter.dump_python(
+            [ModelRequest(parts=[SystemPromptPart(content="Summary includes a later question.")])],
+            mode="json",
+        )
+        conversation.summary_ordinal = 99
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        window = AsyncMock(
+            return_value=[
+                self._row("user", "First question"),
+                self._row("assistant", "First answer"),
+            ]
+        )
+        monkeypatch.setattr(conversation_repo, "get_room_history_messages", window)
+        recent = AsyncMock()
+        after = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "get_recent_messages", recent)
+        monkeypatch.setattr(conversation_repo, "get_messages_after", after)
+        service = ConversationService(AsyncMock())
+        prompt_id = uuid4()
+
+        history = await service.model_history(
+            conversation.id, limit=25, room_request_message_id=prompt_id
+        )
+
+        assert [part.content for message in history for part in message.parts] == [
+            "First question",
+            "First answer",
+        ]
+        assert history.revision == 7
+        window.assert_awaited_once_with(
+            service.db, conversation.id, request_message_id=prompt_id, limit=25
+        )
+        recent.assert_not_awaited()
+        after.assert_not_awaited()
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("room", [False, True])
+    async def test_history_still_withholds_refused_content_and_capabilities(
+        self, monkeypatch: pytest.MonkeyPatch, capability_loads_repo: AsyncMock, room: bool
+    ) -> None:
+        conversation = MockConversation()
+        refused = self._row("user", "REFUSED_SECRET")
+        refused.guardrail_refused = True
+        refused.attachment_context = "REFUSED_ATTACHMENT"
+        answer = self._row("assistant", "REFUSED_ANSWER")
+        answer.guardrail_refused = True
+        answer.attachment_context = "REFUSED_ASSISTANT_ATTACHMENT"
+        answer.parts = [
+            {"type": "text", "text": "REFUSED_STREAMED_TEXT"},
+            {"type": "steer", "text": "REFUSED_STEER"},
+            {"type": "ask_user", "question": "REFUSED_QUESTION", "answer": "REFUSED_CARD_ANSWER"},
+        ]
+        safe = self._row("assistant", "An earlier allowed answer")
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(
+            conversation_repo,
+            "get_room_history_messages" if room else "get_recent_messages",
+            AsyncMock(return_value=[refused, answer, safe]),
+        )
+
+        history = await ConversationService(AsyncMock()).model_history(
+            conversation.id, limit=25, room_request_message_id=uuid4() if room else None
+        )
+
+        assert [part.content for message in history for part in message.parts] == [
+            REFUSED_TURN,
+            "An earlier allowed answer",
+        ]
+        assert capability_loads_repo.await_args.args[1] == {safe.id}
+
+    async def test_a_room_history_requires_a_submission_in_the_same_conversation(self, monkeypatch):
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=MockConversation())
+        )
+        monkeypatch.setattr(
+            conversation_repo, "get_room_history_messages", AsyncMock(return_value=None)
+        )
+
+        with pytest.raises(NotFoundError, match="Room message not found"):
+            await ConversationService(AsyncMock()).model_history(
+                uuid4(), limit=25, room_request_message_id=uuid4()
+            )
+
+    async def test_a_room_boundary_cannot_be_combined_with_a_retry_boundary(self):
+        with pytest.raises(BadRequestError, match="Choose one conversation history boundary"):
+            await ConversationService(AsyncMock()).model_history(
+                uuid4(), limit=25, room_request_message_id=uuid4(), before_message_id=uuid4()
+            )
+
+    async def test_a_retry_reads_the_thread_as_it_stood_when_asked(self, monkeypatch):
+        """A retry re-issues an earlier turn as the prompt, so the history must
+        stop before it: the turn itself and the failed attempt after it are
+        not read back, and the window is the newest turns before the turn."""
+        conversation = MockConversation()
+        prompt = self._row("user", "pay the invoice")
+        prompt.ordinal = 5
+        prompt.conversation_id = conversation.id
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(
+            conversation_repo, "messages_by_id", AsyncMock(return_value={prompt.id: prompt})
+        )
+        window = AsyncMock(return_value=[self._row("user", "hi"), self._row("assistant", "hello")])
+        monkeypatch.setattr(conversation_repo, "get_messages_by_conversation", window)
+
+        history = await ConversationService(AsyncMock()).model_history(
+            conversation.id, limit=50, before_message_id=prompt.id
+        )
+
+        assert [part.content for message in history for part in message.parts] == [
+            "hi",
+            "hello",
+        ]
+        assert window.await_args.kwargs["before"] == prompt.id
+        assert window.await_args.kwargs["latest"] is True
+
+    async def test_a_retry_after_a_summary_keeps_only_what_preceded_the_turn(self, monkeypatch):
+        """The summary half is older than the turn, so it stands; the rows since
+        it are cut at the turn, dropping the question and its failed answer."""
+        conversation = MockConversation()
+        conversation.summary_messages = _checkpoint(
+            ModelMessagesTypeAdapter.dump_python(
+                [
+                    ModelRequest(
+                        parts=[
+                            SystemPromptPart(
+                                content="Summary of previous conversation:\n\nSummary."
+                            )
+                        ]
+                    )
+                ],
+                mode="json",
+            )
+        )
+        conversation.summary_ordinal = 2
+        prompt = self._row("user", "pay the invoice")
+        prompt.ordinal = 5
+        prompt.conversation_id = conversation.id
+        failed = self._row("assistant", "Working on it, half done")
+        failed.ordinal = 6
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(
+            conversation_repo, "messages_by_id", AsyncMock(return_value={prompt.id: prompt})
+        )
+        monkeypatch.setattr(
+            conversation_repo, "get_messages_after", AsyncMock(return_value=[prompt, failed])
+        )
+
+        history = await ConversationService(AsyncMock()).model_history(
+            conversation.id, limit=50, before_message_id=prompt.id
+        )
+
+        assert [part.content for message in history for part in message.parts] == [
+            "Summary of previous conversation:\n\nSummary."
+        ]
+
+    async def test_a_summary_covering_the_turn_is_dropped_for_a_retry(self, monkeypatch):
+        """A summary taken at or after the turn already contains it, so it
+        cannot stand as the history before it - the transcript half reads the
+        window before the turn instead."""
+        conversation = MockConversation()
+        conversation.summary_messages = ModelMessagesTypeAdapter.dump_python(
+            [ModelRequest(parts=[SystemPromptPart(content="Summary.")])], mode="json"
+        )
+        conversation.summary_ordinal = 7
+        prompt = self._row("user", "pay the invoice")
+        prompt.ordinal = 5
+        prompt.conversation_id = conversation.id
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(
+            conversation_repo, "messages_by_id", AsyncMock(return_value={prompt.id: prompt})
+        )
+        window = AsyncMock(return_value=[self._row("user", "hi")])
+        monkeypatch.setattr(conversation_repo, "get_messages_by_conversation", window)
+
+        history = await ConversationService(AsyncMock()).model_history(
+            conversation.id, limit=50, before_message_id=prompt.id
+        )
+
+        assert [part.content for message in history for part in message.parts] == ["hi"]
+        assert window.await_args.kwargs["before"] == prompt.id
+
+    async def test_a_retry_names_a_turn_that_is_not_in_the_thread(self, monkeypatch):
+        """The boundary has to be a message of this conversation: a foreign id
+        would otherwise read back an empty history and answer from nothing."""
+        conversation = MockConversation()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(conversation_repo, "messages_by_id", AsyncMock(return_value={}))
+
+        with pytest.raises(NotFoundError):
+            await ConversationService(AsyncMock()).model_history(
+                conversation.id, limit=50, before_message_id=uuid4()
+            )
+
     async def test_a_summary_is_recorded_against_everything_written_so_far(self, monkeypatch):
         """Including the turn that produced it. Stored short of the answer, the
         next turn would replay the summary and the answer already inside it."""
@@ -2733,10 +3177,7 @@ class TestTheThreadAModelIsGivenBack:
 
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
 
-        assert [part.content for message in history for part in message.parts] == [
-            REFUSED_TURN,
-            "Working",
-        ]
+        assert [part.content for message in history for part in message.parts] == [REFUSED_TURN]
 
     @pytest.mark.security
     async def test_nor_is_it_replayed_after_a_summary(self, monkeypatch):
@@ -2762,11 +3203,15 @@ class TestTheThreadAModelIsGivenBack:
             role="user", content="SECRETWORD", run_id=run_id, guardrail_refused=True
         )
         refused.context_used_tokens = None
+        answer = MockMessage(
+            role="assistant", content="REFUSED_ANSWER", run_id=run_id, guardrail_refused=True
+        )
+        answer.context_used_tokens = None
         monkeypatch.setattr(
             conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
         )
         monkeypatch.setattr(
-            conversation_repo, "get_messages_after", AsyncMock(return_value=[refused])
+            conversation_repo, "get_messages_after", AsyncMock(return_value=[refused, answer])
         )
 
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
@@ -2777,35 +3222,94 @@ class TestTheThreadAModelIsGivenBack:
         ]
 
     @pytest.mark.security
-    async def test_a_reply_to_a_refused_turn_does_not_quote_it(self, monkeypatch):
+    @pytest.mark.parametrize("role", ["user", "assistant"])
+    @pytest.mark.parametrize("room", [False, True])
+    async def test_a_reply_to_a_refused_turn_does_not_quote_it(
+        self, monkeypatch: pytest.MonkeyPatch, role: str, room: bool
+    ) -> None:
         """Quoting is the second way a turn's words reach the model: a reply to
         the refused message would carry an excerpt of it, from inside the window
         or from outside it."""
         conversation = MockConversation()
         run_id = uuid4()
         refused = MockMessage(
-            role="user", content="SECRETWORD", run_id=run_id, guardrail_refused=True
+            role=role, content="SECRETWORD", run_id=run_id, guardrail_refused=True
         )
         refused.context_used_tokens = None
         reply = MockMessage(role="user", content="and this?")
         reply.context_used_tokens = None
         reply.reply_to_message_id = refused.id
+        reply.reply_to_excerpt = "SECRETWORD"
         monkeypatch.setattr(
             conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
         )
         monkeypatch.setattr(
-            conversation_repo, "get_recent_messages", AsyncMock(return_value=[reply])
+            conversation_repo,
+            "get_room_history_messages" if room else "get_recent_messages",
+            AsyncMock(return_value=[reply]),
         )
         monkeypatch.setattr(
             conversation_repo, "messages_by_id", AsyncMock(return_value={refused.id: refused})
         )
         monkeypatch.setattr(conversation_repo, "users_by_id", AsyncMock(return_value={}))
 
-        history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
+        history = await ConversationService(AsyncMock()).model_history(
+            conversation.id, limit=50, room_request_message_id=uuid4() if room else None
+        )
 
         [replayed] = [part.content for message in history for part in message.parts]
         assert "SECRETWORD" not in replayed
         assert REFUSED_TURN in replayed
+
+    async def test_selected_excerpt_reaches_model_history_and_reply_preview(self, monkeypatch):
+        conversation = MockConversation()
+        source = MockMessage(
+            id=uuid4(),
+            conversation_id=conversation.id,
+            role="assistant",
+            content="An answer with **the selected phrase** in it.",
+        )
+        reply = MockMessage(conversation_id=conversation.id, role="user", content="Explain that.")
+        reply.reply_to_message_id = source.id
+        reply.reply_to_excerpt = "the selected phrase"
+        monkeypatch.setattr(
+            conversation_repo, "messages_by_id", AsyncMock(return_value={source.id: source})
+        )
+        monkeypatch.setattr(conversation_repo, "users_by_id", AsyncMock(return_value={}))
+        service = ConversationService(AsyncMock())
+
+        spoken = await service._spoken([reply], conversation)
+        await service._attach_replies([reply])
+
+        assert '"the selected phrase"' in spoken[reply.id]
+        assert reply.reply_to.excerpt == "the selected phrase"
+
+    @pytest.mark.security
+    async def test_a_refused_source_ignores_even_a_stored_selected_excerpt(self, monkeypatch):
+        conversation = MockConversation()
+        source = MockMessage(
+            id=uuid4(),
+            conversation_id=conversation.id,
+            role="assistant",
+            content="SECRETWORD",
+            guardrail_refused=True,
+        )
+        reply = MockMessage(conversation_id=conversation.id, role="user", content="Explain that.")
+        reply.reply_to_message_id = source.id
+        reply.reply_to_excerpt = "SECRETWORD"
+        monkeypatch.setattr(
+            conversation_repo, "messages_by_id", AsyncMock(return_value={source.id: source})
+        )
+        monkeypatch.setattr(conversation_repo, "users_by_id", AsyncMock(return_value={}))
+        service = ConversationService(AsyncMock())
+
+        spoken = await service._spoken([reply], conversation)
+        await service._attach_replies([reply])
+
+        assert "SECRETWORD" not in spoken[reply.id]
+        assert REFUSED_TURN in spoken[reply.id]
+        assert "SECRETWORD" not in reply.reply_to.excerpt
+        assert REFUSED_TURN in reply.reply_to.excerpt
 
     async def test_a_conversation_that_is_gone_has_no_history(self, monkeypatch):
         monkeypatch.setattr(
@@ -3114,6 +3618,7 @@ class TestAFavouriteBelongsToTheReader:
             conversation_repo, "agents_in_conversations", AsyncMock(return_value={})
         )
         monkeypatch.setattr(conversation_repo, "running_activity", AsyncMock(return_value={}))
+        monkeypatch.setattr(conversation_repo, "waiting_activity", AsyncMock(return_value={}))
         monkeypatch.setattr(conversation_repo, "unread_ids", AsyncMock(return_value=set()))
         asked = AsyncMock(return_value=set())
         monkeypatch.setattr(conversation_repo, "favourite_ids", asked)
@@ -3213,6 +3718,7 @@ class TestAFavouriteBelongsToTheReader:
             conversation_repo, "agents_in_conversations", AsyncMock(return_value={})
         )
         monkeypatch.setattr(conversation_repo, "running_activity", AsyncMock(return_value={}))
+        monkeypatch.setattr(conversation_repo, "waiting_activity", AsyncMock(return_value={}))
         monkeypatch.setattr(conversation_repo, "unread_ids", AsyncMock(return_value=set()))
         asked = AsyncMock(return_value=set())
         monkeypatch.setattr(conversation_repo, "favourite_ids", asked)

@@ -35,10 +35,12 @@ from app.db.models.mcp_connection import McpConnection
 from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import Workflow, WorkflowStatus
 from app.db.models.workflow_run import WorkflowRun
+from app.db.table_rls import bind_table_access
 from app.db.updates import writable
 from app.repositories import resource_grant_repo, virtual_table_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_file as workflow_file_repo
+from app.repositories import workflow_media_operation as media_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.reply_expectation import ReplyDraftSelection, ReplyMailboxSelection
 from app.schemas.resource_grant import as_visibility
@@ -428,6 +430,7 @@ class WorkflowRegistryService:
                 effect_kind=definition.effect_kind,
                 retry_guarantee=definition.retry_guarantee,
                 scopes=sorted(definition.scopes),
+                available=definition.available() if definition.available else True,
                 loop_body_only=definition.loop_body_only,
                 exclusive_branches=definition.exclusive_branches,
             )
@@ -505,6 +508,7 @@ class WorkflowRegistryService:
         """Create reviewed resources atomically; no execution or publication."""
         if not ctx.has(Perm.WORKFLOWS_EDIT):
             raise AuthorizationError(message="Preparing a workflow requires workflows:edit")
+        await bind_table_access(self.db, ctx)
         async with self.db.begin_nested():
             table = None
             graph = data.graph
@@ -1241,6 +1245,13 @@ class WorkflowRegistryService:
                 message="Runs of another workflow depend on this workflow. Archive it instead.",
                 details={"workflow_id": str(workflow.id)},
             )
+        if await media_repo.workflow_has_unresolved(
+            self.db, organization_id=ctx.organization_id, workflow_id=workflow.id
+        ):
+            raise WorkflowInUseError(
+                message="This workflow retains unresolved media operations or costs. Keep their evidence and archive it instead.",
+                details={"workflow_id": str(workflow.id)},
+            )
         if await workflow_file_repo.files_are_referenced(
             self.db, organization_id=ctx.organization_id, workflow_id=workflow.id
         ):
@@ -1589,6 +1600,7 @@ class WorkflowRegistryService:
         both a 404: whether a private workflow exists is itself something the
         caller may not learn.
         """
+        await bind_table_access(self.db, ctx)
         if lock:
             await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
         workflow = (

@@ -4,6 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
@@ -258,3 +259,28 @@ async def update(
 async def delete(db: AsyncSession, exposure: AgentExposure) -> None:
     await db.delete(exposure)
     await db.flush()
+
+
+async def pause_for_creator(db: AsyncSession, *, organization_id: UUID, user_id: UUID) -> int:
+    """Pause every binding one member created in one organization.
+
+    A paused binding stops answering in its rooms and disappears from the
+    agent gallery, but the row stays - who bound it and when is the first
+    question asked after an agent answers somewhere nobody expected, and an
+    administrator can resume it. Called when the member leaves, so a departed
+    publisher's agents stop running as them. Only bindings still active are
+    touched, and the count returned is the newly paused ones.
+    """
+    result = await db.execute(
+        sql_update(AgentExposure)
+        .where(
+            AgentExposure.organization_id == organization_id,
+            AgentExposure.created_by_user_id == user_id,
+            AgentExposure.is_active.is_(True),
+        )
+        .values(is_active=False)
+    )
+    await db.flush()
+    # `execute` is typed to return `Result`, which has no `rowcount`; a DML
+    # statement's result carries it at runtime.
+    return int(getattr(result, "rowcount", 0) or 0)

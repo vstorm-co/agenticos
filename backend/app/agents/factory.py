@@ -51,6 +51,7 @@ from app.agents.capabilities.approval import (
     refuse_ungateable_approvals,
 )
 from app.agents.capabilities.artifacts import ARTIFACTS_CAPABILITY_ID
+from app.agents.capabilities.babysit_pr import BABYSIT_PR_RECORDER_RESOURCE
 from app.agents.capabilities.browser_use import BROWSER_CAPABILITY_ID, WebBrowser
 from app.agents.capabilities.budget import (
     BudgetGuard,
@@ -59,6 +60,7 @@ from app.agents.capabilities.budget import (
     SpendLedger,
     SpendLimit,
 )
+from app.agents.capabilities.burst import BURST_RECORDER_RESOURCE
 from app.agents.capabilities.compaction import (
     CONTEXT_GAUGE_RESOURCE,
     MODEL_CONTEXT_WINDOW_RESOURCE,
@@ -66,7 +68,14 @@ from app.agents.capabilities.compaction import (
     build_gauge,
 )
 from app.agents.capabilities.conversation_search import CONVERSATION_SEARCH_CAPABILITY_ID
+from app.agents.capabilities.council import (
+    COUNCIL_MODELS_RESOURCE,
+    COUNCIL_RECORDER_RESOURCE,
+)
 from app.agents.capabilities.drafts._spec import draft_tool_names
+from app.agents.capabilities.eval_tool_tuning import (
+    EVAL_TOOL_TUNING_RECORDER_RESOURCE,
+)
 from app.agents.capabilities.guardrails import (
     ANSWER_TOOLS_RESOURCE,
     GuardrailsConfig,
@@ -80,7 +89,12 @@ from app.agents.capabilities.media import (
     ORGANIZATION_RESOURCE as MEDIA_ORGANIZATION_RESOURCE,
 )
 from app.agents.capabilities.memory_files import MEMORY_FILES_CAPABILITY_ID
+from app.agents.capabilities.proof_scenario import PROOF_SCENARIO_RECORDER_RESOURCE
 from app.agents.capabilities.skills._loader import SkillLoader
+from app.agents.capabilities.sol_loop import (
+    SOL_LOOP_MODELS_RESOURCE,
+    SOL_LOOP_RECORDER_RESOURCE,
+)
 from app.agents.capabilities.system_reminders import (
     REMINDER_STATE_RESOURCE,
     ReminderState,
@@ -138,6 +152,27 @@ _AUDIENCE_AWARE = frozenset(
 # the ceiling mid-task, and the budget caps are what guard cost - this guards
 # only the never-finishing loop, which 100 still catches.
 DEFAULT_MAX_STEPS = 100
+
+# The deadlines a model request gets when neither the model profile nor the
+# agent spec sets one. Before these, a request had no deadline at all unless
+# somebody chose one, and a model that never answered left the run showing
+# "Working" for ever: the heartbeat keeps beating on a live process, so the
+# stale-run sweep never fires, and failover cannot fire because no exception
+# is raised. These are merged at the lowest precedence in `build_agent` (and
+# `_reviewers`), so a profile or spec value still wins.
+#
+# `timeout` is the per-attempt transport deadline, enforced by the provider
+# clients - and by the Claude-subscription model, which enforces only this
+# one, not the two Pydantic AI deadlines below. `request_timeout` is one
+# clock over the whole request to one model, however many times the provider
+# retries it. `first_event_timeout` bounds only the wait for the first
+# streamed event, so it catches a model that never starts answering, not one
+# that answers slowly. All three cap at the 600s `ModelSettingsSpec` allows.
+DEFAULT_MODEL_TIMEOUTS: dict[str, float] = {
+    "timeout": 300.0,
+    "request_timeout": 300.0,
+    "first_event_timeout": 120.0,
+}
 
 
 type AgentAnswer = str | dict[str, Any]
@@ -223,6 +258,15 @@ class BuiltAgent:
     # capability list, where a capability with one gated tool and one ungated
     # one has no single answer.
     approval_required_tools: frozenset[str]
+    # The chain this run was built with, as raw model ids - the primary, then
+    # its fallbacks in order. The run row records only the label, which is a
+    # display name, so without these the caller that persists the run cannot
+    # tell a fallback's answer from the primary's: it would have to compare a
+    # recorded model id against a label, which false-positives whenever the
+    # two differ. Read by `finish()` to derive `fallback_used` and
+    # `serving_model` from the recorder.
+    primary_model: str
+    fallback_models: tuple[str, ...] = ()
     # How many of the run's tool calls arrived malformed and were repaired, read
     # by whoever persists the run - see `app/agents/tool_repair.py`.
     repairs: RepairTally = field(default_factory=RepairTally)
@@ -245,6 +289,8 @@ def build_agent(
     resources: dict[str, Any] | None = None,
     secrets: Mapping[UUID, StorableSecret] | None = None,
     reviewer_models: Mapping[UUID, ModelRequestSpec] | None = None,
+    council_models: Mapping[UUID, ModelRequestSpec] | None = None,
+    sol_loop_models: Mapping[UUID, ModelRequestSpec] | None = None,
     extra_toolsets: list[AbstractToolset[Any]] | None = None,
     extra_capabilities: Sequence[AbstractCapability[AgentDeps]] = (),
     agent_period_spend: PeriodSpendLookup | None = None,
@@ -388,6 +434,25 @@ def build_agent(
     # N requests in a chat of one-request turns. The reminders capability mutates
     # this during the run; the runner writes it back after.
     reminder_state = ReminderState.seed(recorded_reminder_state)
+    # Wrapped, so what the provider is handed is written down as it is handed
+    # over. Reconstructing the prompt and the tool schemas from the spec
+    # afterwards would be a second implementation of everything above this line.
+    # Made before the capabilities, because run reviewers, council, code mode,
+    # sol-loop, proof scenarios, the burst, `CacheWatch` and babysit-pr write
+    # onto it. Babysit-pr also reads it through the resources below.
+    recorder = RunRecorder()
+    for binding in bindings:
+        if binding.capability_id == "tool_search":
+            search = ToolSearchConfig.model_validate(binding.config)
+            recorder.tool_search = RecordedToolSearch(
+                strategy=search.strategy,
+                max_results=search.max_results,
+                defer_capabilities=search.defer_capabilities,
+                defer_mcp_servers=search.defer_mcp_servers,
+                exclude_capabilities=tuple(search.exclude_capabilities),
+                exclude_mcp_servers=tuple(search.exclude_mcp_servers),
+                exclude_tools=tuple(search.exclude_tools),
+            )
     configured = build_capabilities(
         bindings,
         granted_scopes=granted_scopes,
@@ -417,6 +482,26 @@ def build_agent(
             # Which tools' arguments are what the person is shown, so the output
             # guardrails screen them the way they screen the text around them.
             ANSWER_TOOLS_RESOURCE: answer_tools(bindings),
+            # Which models the council's members review on, and where its rounds
+            # are recorded - resolved by the runner, read by the capability.
+            COUNCIL_MODELS_RESOURCE: council_models,
+            COUNCIL_RECORDER_RESOURCE: recorder,
+            # Where a babysit-pr watch's events are recorded - the run's
+            # recorder, read by the capability, resolved by the runner.
+            BABYSIT_PR_RECORDER_RESOURCE: recorder,
+            # Which model sol-loop's reviewer reviews on, and where its rounds
+            # are recorded - resolved by the runner, read by the capability.
+            SOL_LOOP_MODELS_RESOURCE: sol_loop_models,
+            SOL_LOOP_RECORDER_RESOURCE: recorder,
+            # Where eval-driven tool-tuning runs are recorded - the run's
+            # recorder, read by the capability.
+            EVAL_TOOL_TUNING_RECORDER_RESOURCE: recorder,
+            # Where its bursts are recorded - the run's recorder, read by the
+            # capability.
+            BURST_RECORDER_RESOURCE: recorder,
+            # Where proof scenarios are recorded - resolved by the runner, read
+            # by the capability.
+            PROOF_SCENARIO_RECORDER_RESOURCE: recorder,
         },
         secrets=secrets,
     )
@@ -504,24 +589,6 @@ def build_agent(
     # a side-effecting capability to a spec is the only thing that has to be
     # right for approval to apply.
     repairs = RepairTally()
-    # Wrapped, so what the provider is handed is written down as it is handed
-    # over. Reconstructing the prompt and the tool schemas from the spec
-    # afterwards would be a second implementation of everything above this line.
-    # Made before the capabilities, because a run reviewer, code mode and
-    # `CacheWatch` write onto it.
-    recorder = RunRecorder()
-    for binding in bindings:
-        if binding.capability_id == "tool_search":
-            search = ToolSearchConfig.model_validate(binding.config)
-            recorder.tool_search = RecordedToolSearch(
-                strategy=search.strategy,
-                max_results=search.max_results,
-                defer_capabilities=search.defer_capabilities,
-                defer_mcp_servers=search.defer_mcp_servers,
-                exclude_capabilities=tuple(search.exclude_capabilities),
-                exclude_mcp_servers=tuple(search.exclude_mcp_servers),
-                exclude_tools=tuple(search.exclude_tools),
-            )
     asking = frozenset(
         name
         for name, kind in (
@@ -639,6 +706,7 @@ def build_agent(
     # parameter however it is spelled. See `ModelSettingsSpec`.
     model_settings = ModelSettings(
         **{
+            **DEFAULT_MODEL_TIMEOUTS,
             **PROMPT_CACHE,
             **model_spec.params,
             **spec.model_settings.model_dump(),
@@ -681,6 +749,8 @@ def build_agent(
         capabilities=configured,
         recorder=recorder,
         model_label=model_spec.label,
+        primary_model=model_spec.model,
+        fallback_models=tuple(model for _, model in model_spec.fallbacks),
         approval_required_tools=approval_required,
         usage_limits=UsageLimits(request_limit=spec.max_steps or DEFAULT_MAX_STEPS),
         repairs=repairs,
@@ -718,7 +788,7 @@ def _reviewers(
             RunReviewer(
                 name=reviewer.name,
                 model=model.build(),
-                model_settings=ModelSettings(**model.params),
+                model_settings=ModelSettings(**{**DEFAULT_MODEL_TIMEOUTS, **model.params}),
                 instructions=reviewer.instructions,
                 every=reviewer.every,
                 window=window,

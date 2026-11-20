@@ -99,6 +99,7 @@ async def create_profile(
     fallback_profile_ids: list[str] | None = None,
     context_length: int | None = None,
     runs_without_key: bool = False,
+    personal_owner_user_id: UUID | None = None,
 ) -> ModelProfile:
     profile = ModelProfile(
         organization_id=organization_id,
@@ -113,6 +114,7 @@ async def create_profile(
         fallback_profile_ids=fallback_profile_ids or [],
         context_length=context_length,
         runs_without_key=runs_without_key,
+        personal_owner_user_id=personal_owner_user_id,
     )
     db.add(profile)
     await db.flush()

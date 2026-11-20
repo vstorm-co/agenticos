@@ -8,6 +8,7 @@ look like an ordinary call (see tests/test_org_scope_regression.py).
 from uuid import UUID
 
 from sqlalchemy import bindparam, false, or_, select, text
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,6 +40,7 @@ async def get_locked(
             OrganizationSecret.organization_id == organization_id,
         )
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
 
@@ -103,6 +105,7 @@ async def list_secrets(
     see_all: bool = True,
     shared_ids: list[UUID] | None = None,
     purposes: list[str] | None = None,
+    personal_user_id: UUID | None = None,
 ) -> list[OrganizationSecret]:
     """Every secret in one organization, before access is resolved.
 
@@ -116,6 +119,14 @@ async def list_secrets(
     instead of a list comprehension over the whole vault.
     """
     query = select(OrganizationSecret).where(OrganizationSecret.organization_id == organization_id)
+    query = query.where(
+        or_(
+            OrganizationSecret.usage_scope == "organization",
+            (OrganizationSecret.owner_user_id == personal_user_id)
+            if personal_user_id is not None
+            else false(),
+        )
+    )
     if purposes:
         query = query.where(OrganizationSecret.purpose.in_(purposes))
     if not see_all:
@@ -148,6 +159,7 @@ async def create(
     hint: str,
     key_version: int,
     created_by_user_id: UUID | None,
+    usage_scope: str = "organization",
 ) -> OrganizationSecret:
     secret = OrganizationSecret(
         organization_id=organization_id,
@@ -161,6 +173,7 @@ async def create(
         hint=hint,
         key_version=key_version,
         created_by_user_id=created_by_user_id,
+        usage_scope=usage_scope,
     )
     db.add(secret)
     await db.flush()
@@ -199,13 +212,24 @@ async def promote_owned_private_to_org(db: AsyncSession, *, owner_user_id: UUID)
     personal key whose owner leaves "becomes the organization's problem to clean
     up" - and it leaves the row reachable rather than stranded.
 
-    Returns the number of rows promoted.
+    Personal-use connections are removed first: deleting their owner must never
+    lend those credentials to the organization. Model profiles then lose their
+    key through the existing foreign key and refuse their next run.
+
+    Returns the number of organization-use rows promoted.
     """
+    await db.execute(
+        sql_delete(OrganizationSecret).where(
+            OrganizationSecret.owner_user_id == owner_user_id,
+            OrganizationSecret.usage_scope == "personal",
+        )
+    )
     result = await db.execute(
         sql_update(OrganizationSecret)
         .where(
             OrganizationSecret.owner_user_id == owner_user_id,
             OrganizationSecret.visibility == Visibility.PRIVATE.value,
+            OrganizationSecret.usage_scope == "organization",
         )
         .values(visibility=Visibility.ORG.value)
     )

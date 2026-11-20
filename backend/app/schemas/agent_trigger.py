@@ -46,6 +46,9 @@ def valid_time_zone(value: str | None) -> str | None:
 TriggerOverlapName = Literal["skip", "queue", "allow"]
 """`app.db.models.agent_trigger.TriggerOverlap`, as the API spells it."""
 
+TriggerConversationModeName = Literal["continue", "fresh"]
+"""`app.db.models.agent_trigger.TriggerConversationMode`, as the API spells it."""
+
 # GitHub's `issues` webhook actions, so a typo like `opnened` is a 422 rather
 # than a filter stored to match nothing. From GitHub's webhook-events reference.
 GithubIssueAction = Literal[
@@ -560,6 +563,15 @@ class TriggerCreate(BaseSchema):
             "`allow` fires on top of it. Schedules only; `skip` when omitted"
         ),
     )
+    conversation_mode: TriggerConversationModeName = Field(
+        default="continue",
+        description=(
+            "Which conversation a fire's run goes in: `continue` appends every "
+            "fire to the trigger's one run-log conversation; `fresh` opens a new "
+            "conversation per fire and stores none of them on the trigger. "
+            "There is no mode naming one conversation to keep appending to (#14)"
+        ),
+    )
 
     # Event fields.
     event_source: EventSourceName | None = None
@@ -675,6 +687,7 @@ _UPDATE_NOT_NULLABLE = (
     "overlap",
     "answer_to",
     "result_mode",
+    "conversation_mode",
 )
 
 
@@ -730,6 +743,10 @@ class TriggerUpdate(BaseSchema):
 
     overlap: TriggerOverlapName | None = Field(
         default=None, description="A schedule's overlap policy; see `TriggerCreate.overlap`"
+    )
+    conversation_mode: TriggerConversationModeName | None = Field(
+        default=None,
+        description="Which conversation a fire's run goes in; see `TriggerCreate.conversation_mode`",
     )
     is_active: bool | None = None
     environment_id: UUID | None = None
@@ -898,6 +915,10 @@ class TriggerRead(BaseSchema, TimestampSchema):
     cron_expression: str | None = None
     time_zone: str | None = None
     overlap: TriggerOverlapName = "skip"
+    conversation_mode: TriggerConversationModeName = Field(
+        default="continue",
+        description="Which conversation a fire's run goes in; see `TriggerCreate.conversation_mode`",
+    )
     event_source: EventSourceName | None = None
     event_config: dict[str, Any] = Field(default_factory=dict)
     prompt: str

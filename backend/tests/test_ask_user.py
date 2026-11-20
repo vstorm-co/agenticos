@@ -247,6 +247,69 @@ def test_a_known_renamed_question_is_parsed_without_rewriting_its_exposed_name()
     assert call.tool_name == "clarify"
 
 
+def test_parked_question_ids_resolve_to_displayed_text_in_call_order() -> None:
+    from pydantic_ai.messages import (
+        ModelMessagesTypeAdapter,
+        ModelRequest,
+        ModelResponse,
+        TextPart,
+        ToolCallPart,
+        UserPromptPart,
+    )
+
+    from app.agents.ask_user import parked_question_texts
+
+    messages = ModelMessagesTypeAdapter.dump_python(
+        [
+            ModelRequest(parts=[UserPromptPart("A question in user text is not a parked ask")]),
+            ModelResponse(
+                parts=[
+                    TextPart("Which region? This is prose, not a question call."),
+                    ToolCallPart("unrelated", {"not_questions": True}, tool_call_id="other"),
+                    ToolCallPart(
+                        "clarify",
+                        {
+                            "questions": [
+                                {
+                                    "header": "Location",
+                                    "question": "Where?",
+                                    "options": [{"label": "Home"}, {"label": "Office"}],
+                                },
+                                {
+                                    "header": "Region",
+                                    "question": "Which region?",
+                                    "options": [{"label": "EU"}, {"label": "US"}],
+                                },
+                            ]
+                        },
+                        tool_call_id="ask-1",
+                    ),
+                    ToolCallPart(
+                        "ask_user_question",
+                        {
+                            "questions": [
+                                {
+                                    "header": "Environment",
+                                    "question": "Which environment?",
+                                    "options": [{"label": "Local"}, {"label": "Cloud"}],
+                                }
+                            ]
+                        },
+                        tool_call_id="ask-2",
+                    ),
+                ]
+            ),
+        ],
+        mode="json",
+    )
+
+    assert parked_question_texts(messages, ["ask-2", "ask-1", "missing"]) == [
+        "Which environment?",
+        "Where?",
+        "Which region?",
+    ]
+
+
 def test_a_thread_parked_on_a_question_reads_back() -> None:
     """The step a parked question leaves is one the transcript can serve.
 

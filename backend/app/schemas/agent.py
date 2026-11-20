@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import Field, computed_field, field_validator
+from pydantic import Field, SecretStr, computed_field, field_validator
 
 from app.agents.ask_user import QuestionItem
 from app.agents.capabilities import CapabilityToolInfo
@@ -301,6 +301,15 @@ class AgentRead(BaseSchema):
         default=None,
         description="Enabled capability ids from the published version, filled by the listing. Null when unknown.",
     )
+    published_hosted_capabilities: list[str] | None = Field(
+        default=None,
+        description=(
+            "Enabled browser/computer capabilities whose frozen published configuration "
+            "explicitly selects a supported hosted target. Empty means none; null means "
+            "not loaded. This does not verify provider health, override local chat choices, "
+            "or grant permission to run the agent."
+        ),
+    )
     local_coding_agent: LocalCodingAgent | None = Field(
         default=None,
         description=(
@@ -371,7 +380,10 @@ def agent_draft_revision(spec: AgentSpec) -> str:
 
 
 class AgentDetail(AgentRead):
-    """An agent plus the spec currently being edited."""
+    """An agent plus its draft, with the listing's same resource access hints.
+
+    Views additionally gate configuration by lifecycle and workflow ownership.
+    """
 
     draft_spec: AgentSpec
 
@@ -1007,6 +1019,57 @@ class ParkedQuestion(BaseSchema):
     questions: list[QuestionItem] = Field(
         description="The questions, as the console's question card draws them."
     )
+
+
+class ParkedSecretRequest(BaseSchema):
+    """A `request_secret` call a run is waiting on its person to answer (#13)."""
+
+    tool_call_id: str = Field(description="The call to answer, which is what a client posts.")
+    secret_name: str = Field(description="The name the secret will be stored under.")
+    what_for: str = Field(description="What the secret is for, in the agent's own words.")
+    kind: str = Field(default="api_key", description="The shape of the credential.")
+
+
+class SecretRequestRead(BaseSchema):
+    """One secret request, as the card draws it. Never carries the value."""
+
+    id: UUID = Field(description="The request to fulfil or decline.")
+    run_id: UUID
+    tool_call_id: str = Field(description="The call that raised the request.")
+    secret_name: str
+    kind: str
+    what_for: str
+    status: str = Field(description="pending, fulfilled, declined or expired.")
+    fulfilled_secret_id: UUID | None = Field(
+        default=None, description="The secret the fulfil created, once there is one."
+    )
+    fulfilled_hint: str | None = Field(
+        default=None, description="The stored secret's last four characters, once fulfilled."
+    )
+    created_at: datetime | None = None
+    decided_at: datetime | None = None
+
+
+class SecretRequestFulfil(BaseSchema):
+    """The value for a secret request, posted from the card (#13).
+
+    `SecretStr` so the value is masked in any repr or log line that ever
+    carries this object: the fulfil endpoint seals it and drops it, and
+    nothing after this schema holds it.
+    """
+
+    value: SecretStr = Field(
+        min_length=1,
+        max_length=8192,
+        description="The secret value, sealed into the vault on fulfil and never stored or returned.",
+    )
+
+    @field_validator("value", mode="after")
+    @classmethod
+    def _single_line_value(cls, value: SecretStr) -> SecretStr:
+        if "\n" in value.get_secret_value() or "\r" in value.get_secret_value():
+            raise ValueError("The secret must be a single line")
+        return value
 
 
 class QuestionAnswers(BaseSchema):

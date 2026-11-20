@@ -11,6 +11,7 @@ import {
 } from "@/lib/onboarding/flows";
 import {
   IMPROVEMENT,
+  BROWSER_TEACHING_DETAIL,
   IMPROVEMENT_START,
   AGENT_BUILDER,
   DATASET_DETAIL,
@@ -57,6 +58,23 @@ const STOCKED: OrgState = {
 };
 const NO_CHOICES: Record<string, "yes" | "skip"> = {};
 
+it("explains the owner teaching review without clicking Draft or Apply", () => {
+  expect(flowForPage(BROWSER_TEACHING_DETAIL)).toBe("review-browser-teaching");
+  const flow = FLOWS["review-browser-teaching"];
+  expect(canOfferFlow(flow, deny)).toBe(true);
+  expect(flow.steps.map((step) => step.target)).toEqual([
+    "teaching-review",
+    "teaching-draft",
+    "teaching-proposal",
+  ]);
+  for (const step of flow.steps) {
+    expect(step.optional).toBe(true);
+    expect(step.signal).toBeUndefined();
+    expect(step.activate).toBeUndefined();
+    expect(step.page).toBe(BROWSER_TEACHING_DETAIL);
+  }
+});
+
 describe("FLOWS", () => {
   it("walks each per-section flow into its dialog and ends on the resource landing", () => {
     // Skill and knowledge open at the section's create trigger, follow the reader
@@ -96,6 +114,7 @@ describe("FLOWS", () => {
     expect(first?.roam).toBe(true);
     expect(first?.target).toBeUndefined();
     expect(first?.signal).toEqual({ kind: "opened" });
+    expect(first?.activate).toBe("connectors-advanced");
     expect(flow.steps[1]?.blockSubmit).toBe("mcp-dialog-connect");
     expect(last?.signal).toEqual({ kind: "created", resource: "mcp" });
     expect(last?.inOverlay).toBe(true);
@@ -276,6 +295,21 @@ describe("create-dataset", () => {
 });
 
 describe("flowForPage", () => {
+  it("offers personal-model setup only with every permission its controls require", () => {
+    expect(flowForPage(ROUTES.SETTINGS_AI_CONNECTIONS)).toBe("connect-personal-model");
+    const flow = FLOWS["connect-personal-model"];
+    expect(canOfferFlow(flow, allow)).toBe(true);
+    for (const missing of [Perm.connectionsManage, Perm.agentsView]) {
+      expect(canOfferFlow(flow, (permission) => permission !== missing)).toBe(false);
+    }
+    expect(
+      canOfferFlow(
+        flow,
+        (permission) => permission !== Perm.secretsEdit && permission !== Perm.secretsView,
+      ),
+    ).toBe(true);
+    expect(flow.steps[0]?.signal).toEqual({ kind: "created", resource: "model" });
+  });
   it("maps each section, collapsing its detail routes onto the same flow", () => {
     expect(flowForPage(ROUTES.AGENTS)).toBe("create-agent");
     // An Agents "?" that walked into the builder still offers the agent flow.
@@ -288,10 +322,11 @@ describe("flowForPage", () => {
     expect(flowForPage(KB_DETAIL)).toBe("create-kb");
     expect(flowForPage(ROUTES.TABLES)).toBe("create-table");
     expect(flowForPage(TABLE_DETAIL)).toBe("create-table");
-    expect(flowForPage(ROUTES.MCP_SERVERS)).toBe("create-mcp");
+    expect(flowForPage(ROUTES.MCP_SERVERS)).toBe("connect-app");
     expect(flowForPage(ROUTES.ROUTINES)).toBe("create-routine");
     expect(flowForPage(ROUTES.DATASETS)).toBe("create-dataset");
     expect(flowForPage(ROUTES.WORKFLOWS)).toBe("create-workflow");
+    expect(flowForPage(ROUTES.AGENT_MESSAGES)).toBe("create-agent-message");
     expect(flowForPage(ROUTES.ORGS)).toBe("create-org");
     expect(flowForPage(ORG_MEMBERS)).toBe("create-org");
     expect(flowForPage(ORG_ROLES)).toBe("create-org");

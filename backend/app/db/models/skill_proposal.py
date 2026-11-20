@@ -24,7 +24,8 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
+from pydantic import JsonValue
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -49,6 +50,14 @@ class SkillProposal(Base, TimestampMixin):
         # first. Composite because filtering on status alone would scan every
         # decided proposal the deployment has ever recorded.
         Index("ix_skill_proposals_pending", "organization_id", "status"),
+        UniqueConstraint("id", "organization_id", name="uq_skill_proposals_tenant"),
+        Index(
+            "uq_skill_proposal_browser_source",
+            "organization_id",
+            text("(browser_procedure->>'source_session_id')"),
+            unique=True,
+            postgresql_where=text("browser_procedure IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -154,6 +163,9 @@ class SkillProposal(Base, TimestampMixin):
     """The fork the change is for, or `None` for main: the line its agent read from."""
 
     source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    browser_procedure: Mapped[dict[str, JsonValue] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
     """What wrote it: `workspace`, `improve` or `library`. `None` for a proposal recorded
     before the source was kept, read by whether it has an authoring request."""
 
@@ -169,6 +181,20 @@ class SkillProposal(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+
+    browser_teaching_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("browser_teaching_sessions.id", ondelete="SET NULL"),
+        nullable=True,
+        unique=True,
+        index=True,
+    )
+    """The reviewed browser demonstration this proposal was built from (#113).
+
+    Unique: one demonstration yields at most one proposal, however often its build
+    job is retried. Its content holds only reviewed steps, parameter names and the
+    demonstration's allowed origins.
+    """
 
     def __repr__(self) -> str:
         return f"<SkillProposal(name={self.name}, status={self.status})>"

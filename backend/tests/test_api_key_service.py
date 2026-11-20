@@ -86,6 +86,152 @@ class TestCreating:
             )
         assert refused.value.details["fields"][0]["field"] == "expires_at"
 
+    @staticmethod
+    async def _created_row(_db: object, **kwargs: Any) -> ApiKey:
+        return ApiKey(id=uuid.uuid4(), created_at=datetime.now(UTC), **kwargs)
+
+    async def test_a_key_without_an_expiry_gets_ninety_days(self) -> None:
+        """No expiry used to mean for ever; now it means ninety days."""
+        ctx = _ctx()
+        issuer = User(id=ctx.user_id, email="ada@example.com", hashed_password="<redacted>")
+        with (
+            patch(f"{PATH}.api_key_repo.prefix_taken", new=AsyncMock(return_value=False)),
+            patch(f"{PATH}.api_key_repo.create", new=self._created_row),
+            patch(f"{PATH}.record_audit", new=AsyncMock()),
+            patch(f"{PATH}.user_repo.get_by_id", new=AsyncMock(return_value=issuer)),
+        ):
+            before = datetime.now(UTC)
+            created = await ApiKeyService(MagicMock()).create(
+                ctx, ApiKeyCreate(name="x", scopes=[Perm.AGENTS_VIEW])
+            )
+
+        assert created.expires_at is not None
+        assert timedelta(days=89) < created.expires_at - before < timedelta(days=91)
+
+    async def test_an_expiry_given_is_kept(self) -> None:
+        ctx = _ctx()
+        wanted = datetime.now(UTC) + timedelta(days=90)
+        issuer = User(id=ctx.user_id, email="ada@example.com", hashed_password="<redacted>")
+        with (
+            patch(f"{PATH}.api_key_repo.prefix_taken", new=AsyncMock(return_value=False)),
+            patch(f"{PATH}.api_key_repo.create", new=self._created_row),
+            patch(f"{PATH}.record_audit", new=AsyncMock()),
+            patch(f"{PATH}.user_repo.get_by_id", new=AsyncMock(return_value=issuer)),
+        ):
+            created = await ApiKeyService(MagicMock()).create(
+                ctx,
+                ApiKeyCreate(name="x", scopes=[Perm.AGENTS_VIEW], expires_at=wanted),
+            )
+
+        assert created.expires_at == wanted
+
+    async def test_an_expiry_beyond_ninety_days_is_refused(self) -> None:
+        with pytest.raises(BadRequestError) as refused:
+            await ApiKeyService(MagicMock()).create(
+                _ctx(),
+                ApiKeyCreate(
+                    name="x",
+                    scopes=[Perm.AGENTS_VIEW],
+                    expires_at=datetime.now(UTC) + timedelta(days=91),
+                ),
+            )
+        assert refused.value.details["fields"][0]["field"] == "expires_at"
+
+
+class TestRotating:
+    @staticmethod
+    async def _update_row(_db: object, *, key: ApiKey, update_data: dict[str, Any]) -> ApiKey:
+        for name, value in update_data.items():
+            setattr(key, name, value)
+        return key
+
+    @pytest.mark.security
+    async def test_rotation_mints_a_new_secret_and_revokes_the_old(self) -> None:
+        ctx = _ctx(OrgRoleName.MEMBER)
+        old = _key(ctx)
+        issuer = User(id=ctx.user_id, email="ada@example.com", hashed_password="<redacted>")
+        with (
+            patch(f"{PATH}.api_key_repo.get", new=AsyncMock(return_value=old)),
+            patch(f"{PATH}.api_key_repo.prefix_taken", new=AsyncMock(return_value=False)),
+            patch(f"{PATH}.api_key_repo.create", new=TestCreating._created_row),
+            patch(f"{PATH}.api_key_repo.update", new=self._update_row),
+            patch(f"{PATH}.record_audit", new=AsyncMock()) as audit,
+            patch(f"{PATH}.user_repo.get_by_id", new=AsyncMock(return_value=issuer)),
+        ):
+            before = datetime.now(UTC)
+            rotated = await ApiKeyService(MagicMock()).rotate(ctx, old.id)
+
+        assert rotated.prefix != old.prefix
+        assert rotated.key.startswith(rotated.prefix)
+        assert rotated.name == old.name
+        assert rotated.scopes == old.scopes
+        assert old.revoked_at is not None
+        # The old key had no expiry: the replacement gets a fresh default lifetime.
+        assert rotated.expires_at is not None
+        assert timedelta(days=89) < rotated.expires_at - before < timedelta(days=91)
+        audit.assert_awaited_once()
+        entry = audit.await_args.kwargs
+        assert entry["action"] == "api_key.rotated"
+        assert entry["details"]["old_prefix"] == old.prefix
+        assert entry["details"]["new_prefix"] == rotated.prefix
+
+    async def test_rotation_caps_a_legacy_far_future_expiry_at_ninety_days(self) -> None:
+        ctx = _ctx(OrgRoleName.MEMBER)
+        wanted = datetime.now(UTC) + timedelta(days=365)
+        old = _key(ctx, expires_at=wanted)
+        issuer = User(id=ctx.user_id, email="ada@example.com", hashed_password="<redacted>")
+        with (
+            patch(f"{PATH}.api_key_repo.get", new=AsyncMock(return_value=old)),
+            patch(f"{PATH}.api_key_repo.prefix_taken", new=AsyncMock(return_value=False)),
+            patch(f"{PATH}.api_key_repo.create", new=TestCreating._created_row),
+            patch(f"{PATH}.api_key_repo.update", new=self._update_row),
+            patch(f"{PATH}.record_audit", new=AsyncMock()),
+            patch(f"{PATH}.user_repo.get_by_id", new=AsyncMock(return_value=issuer)),
+        ):
+            rotated = await ApiKeyService(MagicMock()).rotate(ctx, old.id)
+
+        assert rotated.expires_at is not None
+        assert timedelta(days=89) < rotated.expires_at - datetime.now(UTC) < timedelta(days=91)
+
+    async def test_a_revoked_key_cannot_be_rotated_back_to_life(self) -> None:
+        ctx = _ctx(OrgRoleName.MEMBER)
+        old = _key(ctx, revoked_at=datetime.now(UTC) - timedelta(days=1))
+        with (
+            patch(f"{PATH}.api_key_repo.get", new=AsyncMock(return_value=old)),
+            pytest.raises(BadRequestError, match="Only an active key can be rotated"),
+        ):
+            await ApiKeyService(MagicMock()).rotate(ctx, old.id)
+
+    async def test_somebody_else_s_key_reads_as_missing_without_manage(self) -> None:
+        ctx = _ctx(OrgRoleName.MEMBER)
+        other = _key(_ctx(), organization_id=ctx.organization_id)
+        with (
+            patch(f"{PATH}.api_key_repo.get", new=AsyncMock(return_value=other)),
+            pytest.raises(NotFoundError),
+        ):
+            await ApiKeyService(MagicMock()).rotate(ctx, other.id)
+
+    async def test_an_admin_cannot_rotate_another_member_s_key(self) -> None:
+        ctx = _ctx(OrgRoleName.ADMIN)
+        other = _key(_ctx(), organization_id=ctx.organization_id)
+        with (
+            patch(f"{PATH}.api_key_repo.get", new=AsyncMock(return_value=other)),
+            pytest.raises(NotFoundError),
+        ):
+            await ApiKeyService(MagicMock()).rotate(ctx, other.id)
+
+    @pytest.mark.parametrize("key_fields", [{"internal": True}, {"oauth_grant_id": uuid.uuid4()}])
+    async def test_internal_and_oauth_keys_cannot_be_rotated(
+        self, key_fields: dict[str, Any]
+    ) -> None:
+        ctx = _ctx()
+        key = _key(ctx, **key_fields)
+        with (
+            patch(f"{PATH}.api_key_repo.get", new=AsyncMock(return_value=key)),
+            pytest.raises(BadRequestError, match="cannot be rotated"),
+        ):
+            await ApiKeyService(MagicMock()).rotate(ctx, key.id)
+
 
 class TestListing:
     async def test_a_manager_lists_every_key_and_a_member_their_own(self) -> None:

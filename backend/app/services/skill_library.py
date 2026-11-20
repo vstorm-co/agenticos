@@ -227,7 +227,7 @@ def _read(folder: Path, *, key: str | None = None) -> LibrarySkill:
         LibraryResource(
             # Relative, so a folder of templates keeps its shape: the model asks
             # for `forms/w9.md`, which is what the file is called.
-            name=str(path.relative_to(folder)),
+            name=path.relative_to(folder).as_posix(),
             content=path.read_text(encoding="utf-8"),
         )
         for path in sorted(folder.rglob("*"))

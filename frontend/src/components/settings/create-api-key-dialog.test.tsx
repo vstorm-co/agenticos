@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CreateApiKeyDialog } from "./create-api-key-dialog";
 import type { ApiKeyCreated, ApiKeyScopeCatalog } from "@/types/api-keys";
 
+const DAY_MS = 86_400_000;
 const toastError = vi.fn();
 vi.mock("@/components/public-config/public-config-provider", () => ({
   usePublicConfig: () => ({ apiUrl: "https://api.example" }),
@@ -72,7 +73,10 @@ describe("CreateApiKeyDialog", () => {
 
     const [sent] = onCreate.mock.lastCall ?? [];
     expect(sent?.scopes).toEqual(["agents:view", "collections:view"]);
-    expect(new Date(sent?.expires_at ?? 0).getTime()).toBeGreaterThan(Date.now());
+    // No expiry is never sent: the default is 90 days, the API's maximum.
+    const lifetime = new Date(sent?.expires_at ?? 0).getTime() - Date.now();
+    expect(lifetime).toBeGreaterThan(89 * DAY_MS);
+    expect(lifetime).toBeLessThanOrEqual(90 * DAY_MS);
     expect(await screen.findByDisplayValue("aos_0123abcdsecret")).toBeInTheDocument();
     // The key goes to the API's origin, never to the console's proxy.
     expect(
@@ -83,7 +87,7 @@ describe("CreateApiKeyDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("issues exactly the permissions ticked under Custom, with no expiry when asked", async () => {
+  it("issues exactly the permissions ticked under Custom, expiring in 30 days when asked", async () => {
     const { onCreate } = open();
 
     await userEvent.type(screen.getByLabelText("Name"), "ci");
@@ -92,14 +96,21 @@ describe("CreateApiKeyDialog", () => {
     await userEvent.click(screen.getByRole("checkbox", { name: "collections:edit" }));
     await userEvent.click(screen.getByRole("checkbox", { name: "agents:view" }));
     await userEvent.click(screen.getByRole("checkbox", { name: "agents:view" }));
-    await pick("Expires", "Never");
+    await userEvent.click(screen.getByLabelText("Expires"));
+    // Only lifetimes the API accepts are offered: no "Never", nothing past 90 days.
+    expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual([
+      "In 30 days",
+      "In 90 days",
+    ]);
+    await userEvent.click(screen.getByRole("option", { name: "In 30 days" }));
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
 
-    expect(onCreate).toHaveBeenCalledWith({
-      name: "ci",
-      scopes: ["collections:edit"],
-      expires_at: null,
-    });
+    const [sent] = onCreate.mock.lastCall ?? [];
+    expect(sent?.name).toBe("ci");
+    expect(sent?.scopes).toEqual(["collections:edit"]);
+    const lifetime = new Date(sent?.expires_at ?? 0).getTime() - Date.now();
+    expect(lifetime).toBeGreaterThan(29 * DAY_MS);
+    expect(lifetime).toBeLessThanOrEqual(30 * DAY_MS);
   });
 
   it("requires an explicit choice to delegate personal MCP", async () => {
@@ -194,7 +205,7 @@ it("retains custom selections across search and an in-flight refusal, blocking d
   await userEvent.click(screen.getByRole("checkbox", { name: "collections:view" }));
   await userEvent.clear(screen.getByLabelText("Find a permission"));
   expect(screen.getByRole("checkbox", { name: "agents:view" })).toBeChecked();
-  await pick("Expires", "Never");
+  await pick("Expires", "In 30 days");
   await userEvent.click(screen.getByRole("button", { name: "Create" }));
   expect(screen.getByLabelText("Name")).toBeDisabled();
   expect(screen.getByLabelText("Find a permission")).toBeDisabled();
@@ -207,15 +218,19 @@ it("retains custom selections across search and an in-flight refusal, blocking d
   held.reject(new Error("refused"));
   await waitFor(() => expect(screen.getByLabelText("Name")).toBeEnabled());
   expect(screen.getByLabelText("Name")).toHaveValue("Support sync");
-  expect(screen.getByLabelText("Expires")).toHaveTextContent("Never");
+  expect(screen.getByLabelText("Expires")).toHaveTextContent("In 30 days");
   expect(screen.getByRole("checkbox", { name: "agents:view" })).toBeChecked();
   await userEvent.click(screen.getByRole("button", { name: "Create" }));
   await screen.findByRole("heading", { name: "Copy your key" });
   expect(create).toHaveBeenLastCalledWith({
     name: "Support sync",
     scopes: ["agents:view", "collections:view"],
-    expires_at: null,
+    expires_at: expect.any(String),
   });
+  const [retried] = create.mock.lastCall ?? [];
+  const lifetime = new Date(retried?.expires_at ?? 0).getTime() - Date.now();
+  expect(lifetime).toBeGreaterThan(29 * DAY_MS);
+  expect(lifetime).toBeLessThanOrEqual(30 * DAY_MS);
 });
 
 it("submits the name with Enter while Enter in permission search leaves the form intact", async () => {

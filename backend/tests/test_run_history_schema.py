@@ -36,6 +36,8 @@ def _row(**overrides: object) -> AgentRun:
         # Set explicitly: a column default is applied on flush, and this row never is.
         "modality": "text",
         "is_test": False,
+        "fallback_used": False,
+        "serving_model": None,
     }
     return AgentRun(**{**defaults, **overrides})
 
@@ -68,6 +70,14 @@ def test_a_run_somebody_started_reports_no_parent() -> None:
     assert read.subagent_task_id is None
 
 
+def test_a_retry_reports_its_origin_without_becoming_a_delegation() -> None:
+    origin_id = uuid.uuid4()
+    read = AgentRunRead.model_validate(_row(retry_of_run_id=origin_id))
+
+    assert read.retry_of_run_id == origin_id
+    assert read.parent_run_id is None
+
+
 def test_an_orphaned_delegation_reports_no_task_id() -> None:
     """Deleting the parent must not leave a handle pointing at nothing.
 
@@ -94,3 +104,35 @@ def test_a_routine_run_reports_its_specific_activation_without_exposing_the_poli
 @pytest.mark.parametrize("policy", [None, {}, {"acts_as_creator": True}])
 def test_legacy_and_non_routine_runs_have_no_activation(policy: dict[str, object] | None) -> None:
     assert AgentRunRead.model_validate(_row(routine_policy=policy)).routine_activation_id is None
+
+
+def test_a_run_read_declares_its_waiting_fields() -> None:
+    """The waiting questions and their expiry are declared on the read, so the
+    API sends them rather than dropping them silently - the failure this file
+    exists for. The values themselves are set by the route's `waiting_update`,
+    not by validation, so a bare read carries the empty answer: no questions,
+    no expiry."""
+    read = AgentRunRead.model_validate(_row())
+
+    assert read.waiting_questions == []
+    assert read.waiting_expires_at is None
+
+
+def test_a_run_served_by_a_fallback_reports_which_model_answered() -> None:
+    """The fallback is visible to the client, which is the whole point of
+    recording it: without the schema declaring it, the column exists, the row
+    is written, and the API sends neither the flag nor the model - the exact
+    failure this file exists for.
+    """
+    read = AgentRunRead.model_validate(_row(fallback_used=True, serving_model="gpt-5"))
+
+    assert read.fallback_used is True
+    assert read.serving_model == "gpt-5"
+
+
+def test_a_run_served_by_its_primary_reports_no_fallback() -> None:
+    """False and null rather than absent, so a client branches on one shape."""
+    read = AgentRunRead.model_validate(_row(fallback_used=False, serving_model=None))
+
+    assert read.fallback_used is False
+    assert read.serving_model is None

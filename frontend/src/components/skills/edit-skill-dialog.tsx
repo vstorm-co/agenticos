@@ -160,7 +160,7 @@ export function EditSkillDialogBody({
       await saveCategory(change);
       toast.success(
         !textChanged(change)
-          ? tSkills("savedAgentsCurrent")
+          ? tSkills("savedCategory")
           : fork === null
             ? t("saved", { number: next })
             : t("savedFork", { name: fork.name, number: next }),

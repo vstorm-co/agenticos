@@ -668,3 +668,39 @@ async def test_shared_stream_resolves_draft_identity_from_the_running_agent(nati
         await RunFrames(emit=emit).drive(run)
     assert len(emitted) == 1
     assert emitted[0].get("presentation_kind") == ("draft" if native else None)
+
+
+class _SilentRun:
+    """An agent run whose graph ends without a single model event.
+
+    A plain object is no node kind Pydantic AI recognises, so `drive` reads
+    it as the end node and emits the final result - exactly the path a
+    provider stream that closes silently takes.
+    """
+
+    def __init__(self) -> None:
+        from types import SimpleNamespace
+
+        self.ctx = SimpleNamespace(deps=SimpleNamespace(user_deps=None))
+        self.result = SimpleNamespace(output="")
+
+    def __aiter__(self) -> AsyncIterator[object]:
+        return self._iterate()
+
+    async def _iterate(self) -> AsyncIterator[object]:
+        yield object()
+
+
+async def test_drive_fails_a_turn_whose_model_stream_produced_nothing() -> None:
+    """A turn that "completes" with no model event must not read as answered.
+
+    Without the guard, `_outcome` would only catch a missing result - a
+    turn ending with an empty result would be persisted as an empty answer
+    and the question would look answered.
+    """
+    frames = RunFrames(emit=AsyncMock())
+
+    with pytest.raises(RuntimeError, match="without producing any output"):
+        await frames.drive(_SilentRun())
+
+    assert frames.model_events == 0

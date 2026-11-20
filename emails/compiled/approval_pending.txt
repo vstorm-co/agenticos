@@ -1,12 +1,14 @@
-Subject: [[agent_name]] is held, waiting on an approval
+Subject: [[agent_name]] is awaiting approval
 
-[[agent_name]] parked a tool call and cannot go on until somebody decides:
-[[tools]]. [[asked_by]]
+[[agent_name]] is awaiting approval
 
-The run is held, not failed. It resumes from where it stopped once the call is
-approved, and ends there if it is denied.
+An authorized approver needs to review the tool use requested for this run.
 
-Approving it is not yours on this deployment - an owner, an admin or an operator
-can. Nothing is asked of you; this is so you know why the run went quiet.
+Agent: [[agent_name]]
+[[asked_by]]
+Requested tools:
+[[tools]]
 
-- The [[app_name]] Team
+This is a status update. There is no approval action to take from this email.
+
+[[app_name]]

@@ -32,10 +32,12 @@ from app.repositories import embed_visitor as embed_visitor_repo
 from app.repositories import agent_environment as agent_environment_repo
 from app.repositories import agent_exposure as agent_exposure_repo
 from app.repositories import agent_run as agent_run_repo
+from app.repositories import failure_learning as failure_learning_repo
 from app.repositories import agent_trigger as agent_trigger_repo
 from app.repositories import intercepted_tool_call as intercepted_tool_call_repo
 from app.repositories import run_manifest as run_manifest_repo
 from app.repositories import agent_workspace as agent_workspace_repo
+from app.repositories import agent_message as agent_message_repo
 from app.repositories import pending_sandbox_destroy as pending_sandbox_destroy_repo
 from app.repositories import sandbox_connection as sandbox_connection_repo
 from app.repositories import sandbox_operation as sandbox_operation_repo
@@ -98,6 +100,7 @@ from app.repositories import mcp_connection as mcp_connection_repo
 from app.repositories import mcp_registry_server as mcp_registry_server_repo
 from app.repositories import mcp_server_check as mcp_server_check_repo
 from app.repositories import organization_secret as organization_secret_repo
+from app.repositories import secret_request as secret_request_repo
 
 from app.repositories import notification as notification_repo
 from app.repositories import voice_call as voice_call_repo
@@ -140,6 +143,7 @@ __all__ = [
     "mcp_registry_server_repo",
     "mcp_server_check_repo",
     "organization_secret_repo",
+    "secret_request_repo",
     "resource_grant_repo",
     "group_repo",
     "directory_mapping_repo",
@@ -154,9 +158,11 @@ __all__ = [
     "embed_visitor_repo",
     "agent_run_repo",
     "agent_trigger_repo",
+    "failure_learning_repo",
     "intercepted_tool_call_repo",
     "run_manifest_repo",
     "agent_workspace_repo",
+    "agent_message_repo",
     "pending_sandbox_destroy_repo",
     "sandbox_connection_repo",
     "sandbox_operation_repo",

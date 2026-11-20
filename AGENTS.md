@@ -227,28 +227,35 @@ retranslated is how a stale translation stops being visible.
 | Groups, directory group mappings, LDAP and Kerberos sign-in | `docs/directory.md` |
 | Departments: groups as audiences, the group page, where an agent's knowledge comes from | `docs/departments.md` |
 | Budgets, approvals, alerts, audit | `docs/governance.md` |
+| Failure learning: mining, ledger, eval cases, tries | `docs/failure-learning.md` |
 | What ships as a capability, its tools and config | `docs/reference/capabilities.md` |
 | The agent spec, field by field | `docs/reference/spec.md` |
 | Every workflow node: config, ports, errors, retries | `docs/reference/workflow-nodes.md` |
+| Image, Video and Asset workflows: configuration, holds and recovery | `docs/workflows.md#media-inputs-and-generation`; implementation boundaries in `docs/design/media-workflow-nodes.md` (repo only) |
 | What the console calls each thing, and its name in the API and spec | `docs/reference/glossary.md` |
-| MCP connections, the server catalog, OAuth | `docs/mcp.md` |
+| MCP connections, the server catalog, OAuth, managed Composio apps | `docs/mcp.md` |
 | Providers, model profiles, fallbacks, cost | `docs/models.md` |
+| Provider quota visibility and account pools: implementation and acceptance status | `docs/design/provider-quota-account-pools.md` (repo only) |
 | Which model to pick, open weights vs closed | `docs/choosing-models.md` |
 | Adoption, roles, cost, the security review | `docs/rollout.md` |
 | The vault, secret kinds, what never leaks | `docs/secrets.md` |
+| Browser login, TOTP and profile vault: implementation and protection boundaries | `docs/design/browser-credential-vault.md` (repo only) |
 | Where personal data lives, what leaves, deletion, the controls and the open gaps | `docs/data-protection.md` |
 | Third-party licences, the notices, the review and its open findings | `docs/licenses.md` |
 | Every component a deployment is made of, and the release SBOM | `docs/reference/components.md` |
 | Threat model, data flow, at-rest, the controls matrix | `docs/security.md` |
 | Skills — format, library, skills vs knowledge | `docs/skills.md` |
+| Browser teaching and site procedural memory: review and rollout boundaries | `docs/design/browser-teaching-site-memory.md` (repo only) |
 | Context files — standing knowledge bound to agents | `docs/context.md` |
 | Datasets — versioned eval cases, import/export, Add to dataset | `docs/datasets.md` |
 | Eval runs — estimate, isolation, baselines, confirmed regressions, model comparison | `docs/evals.md` |
 | Authoring assistant — suggestions from evidence, decisions, checking with evals | `docs/authoring.md` |
 | Virtual Tables — typed records, schema versions, revisions, idempotent writes, the `/tables` API | `docs/virtual-tables.md` |
 | Agent and team tasks: research and proposal only | `docs/design/agent-tasks.md` (repo only) |
+| Room lead routing and handoffs over existing tasks | `docs/design/room-lead-task-handoffs.md` (repo only; implementation and acceptance status) |
 | Workflows — the visual editor: canvas, palette, bindings, autosave, publish, versions | `docs/workflows.md` |
 | Projects: shared files, instructions and chats | `docs/projects.md` |
+| Agent messages: direct messages between agents, in a thread the console shows | `docs/agent-messages.md` |
 | Knowledge gaps — questions the knowledge base could not answer, grouped into topics | `docs/knowledge-gaps.md` |
 | Named environments, promotion, per-environment tracing, test connections, isolated (eval) runs | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |

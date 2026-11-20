@@ -193,6 +193,7 @@ test("phone MCP form freezes a refused write, retries and persists configuration
       route.fulfill({ json: { ok: false, tools: [], error: "Controlled probe refusal" } }),
     );
     await page.goto("/mcp-servers");
+    await page.getByRole("tab", { name: "MCP servers", exact: true }).click();
     await page.getByRole("button", { name: "Add a custom server", exact: true }).click();
     const editor = page
       .getByRole("dialog")
@@ -281,6 +282,7 @@ test("phone OAuth start keeps a refused draft and retries the redirect", async (
     route.fulfill({ json: { sign_in: true, registers_clients: true } }),
   );
   await page.goto("/mcp-servers");
+  await page.getByRole("tab", { name: "MCP servers", exact: true }).click();
   await page.getByRole("button", { name: "Add a custom server", exact: true }).click();
   const editor = page.getByRole("dialog");
   await editor.getByLabel("Name", { exact: true }).fill("Company workspace");

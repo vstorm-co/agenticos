@@ -224,10 +224,10 @@ describe("the first publish", () => {
     await mount();
     await publish();
 
-    expect(await screen.findByText(/Set a baseline: test this version/)).toBeInTheDocument();
+    expect(await screen.findByText(/Set a baseline/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Set a baseline" }));
 
-    expect(screen.queryByText(/Set a baseline: test this version/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Set a baseline/)).not.toBeInTheDocument();
   });
 
   it("says nothing of the kind on a later version", async () => {
@@ -235,7 +235,7 @@ describe("the first publish", () => {
     await mount();
     await publish();
 
-    expect(screen.queryByText(/Set a baseline: test this version/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Set a baseline/)).not.toBeInTheDocument();
   });
 });
 

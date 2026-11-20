@@ -22,6 +22,7 @@ from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import (
     AuthenticationError,
     AuthorizationError,
+    BadRequestError,
     InternalError,
     NotFoundError,
 )
@@ -58,6 +59,12 @@ _TOUCH_EVERY = timedelta(minutes=1)
 _RUN_CREDENTIAL_LIFETIME = timedelta(hours=2)
 """Long enough for a run that waits on an approval for a while; a run parked
 longer than this asks the platform again for a fresh one when it resumes."""
+_DEFAULT_LIFETIME = timedelta(days=90)
+"""What a key created without an expiry gets. A key that lives for ever is a
+secret that never stops working when it leaks, so the default is a lifetime,
+not an absence of one."""
+_MAX_LIFETIME = timedelta(days=90)
+_EXPIRY_CLOCK_TOLERANCE = timedelta(minutes=5)
 _REFUSED = "Invalid, expired or revoked API key"
 
 # Keys never manage keys: a leaked one must not be able to mint its successors.
@@ -181,14 +188,17 @@ class ApiKeyService:
         if Perm.MCP_PERSONAL_USE in data.scopes and current_impersonator() is not None:
             raise AuthorizationError(message="Personal MCP delegation requires your own session")
         now = datetime.now(UTC)
-        if data.expires_at is not None and data.expires_at <= now:
-            raise refused_field("expires_at", "The expiry has to be in the future")
+        if data.expires_at is not None:
+            if data.expires_at <= now:
+                raise refused_field("expires_at", "The expiry has to be in the future")
+            if data.expires_at > now + _MAX_LIFETIME + _EXPIRY_CLOCK_TOLERANCE:
+                raise refused_field("expires_at", "The expiry cannot be more than 90 days away")
         key, row = await self._mint(
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
             name=data.name,
             scopes=sorted({perm.value for perm in data.scopes}),
-            expires_at=data.expires_at,
+            expires_at=data.expires_at if data.expires_at is not None else now + _DEFAULT_LIFETIME,
             oauth_grant_id=None,
         )
         await record_audit(
@@ -325,6 +335,69 @@ class ApiKeyService:
         if provenance:
             await api_key_repo.update(self.db, key=_row, update_data=provenance)
         return key
+
+    async def rotate(self, ctx: AuthContext, key_id: UUID) -> ApiKeyCreated:
+        """Replace a key's secret, revoking the old one in the same transaction.
+
+        The replacement carries the same name, scopes, issuer and organization
+        as the key it replaces - the same access, under a secret nobody has
+        seen. Its expiry is the old key's when one was set, and a fresh default
+        lifetime when the old key had none. The old key stops working at once:
+        there is no overlap window, so the caller swaps to the returned secret
+        in the same step. Provenance (`source_agent_id`,
+        `source_conversation_id`) is not carried over - it names the chat that
+        minted an internal key, not authority.
+
+        The plaintext is in exactly one response, this one, like `create`.
+
+        Raises:
+            NotFoundError: Not this organization's key, or not issued by the
+                caller - the same answer as `revoke`, so an id cannot be used
+                to learn which keys exist.
+            BadRequestError: The key is internal, OAuth-grant-backed, revoked,
+                or expired.
+        """
+        key = await api_key_repo.get(self.db, key_id, organization_id=ctx.organization_id)
+        if key is None or key.user_id != ctx.subject_id:
+            raise NotFoundError(message="API key not found", details={"api_key_id": key_id})
+        if key.internal or key.oauth_grant_id is not None:
+            raise BadRequestError(message="Internal and OAuth keys cannot be rotated")
+        now = datetime.now(UTC)
+        if _status(key, now) != "active":
+            # A revoked key rotated back to life would undo the revocation -
+            # the leak it was revoked for would have a fresh secret.
+            raise BadRequestError(
+                message="Only an active key can be rotated",
+                details={"api_key_id": key_id, "status": _status(key, now)},
+            )
+        new_key, row = await self._mint(
+            organization_id=key.organization_id,
+            user_id=key.user_id,
+            name=key.name,
+            scopes=list(key.scopes),
+            expires_at=min(key.expires_at, now + _MAX_LIFETIME)
+            if key.expires_at is not None
+            else now + _DEFAULT_LIFETIME,
+            oauth_grant_id=key.oauth_grant_id,
+            internal=key.internal,
+        )
+        await api_key_repo.update(self.db, key=key, update_data={"revoked_at": now})
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="api_key.rotated",
+            target_type="api_key",
+            target_id=str(row.id),
+            details={
+                "name": key.name,
+                "old_prefix": key.prefix,
+                "new_prefix": row.prefix,
+            },
+        )
+        issuer = await user_repo.get_by_id(self.db, key.user_id)
+        email = issuer.email if issuer is not None else ""
+        return ApiKeyCreated(**_read(row, email, now).model_dump(), key=new_key)
 
     async def list_keys(self, ctx: AuthContext) -> ApiKeyList:
         """Every key in the organization for `api_keys:manage`, otherwise the caller's own."""

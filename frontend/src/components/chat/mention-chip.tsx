@@ -100,6 +100,7 @@ function LinkCard({ url }: { url: string }) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
+      data-quote-exclude=""
       title={url}
       className="decoration-brand hover:text-brand-hover inline-flex max-w-72 items-center gap-1 align-bottom font-medium underline decoration-2 underline-offset-[3px] transition-colors"
     >

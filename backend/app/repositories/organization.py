@@ -347,6 +347,36 @@ async def set_avatar_color(
     return org
 
 
+async def set_role_navigation(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    role: str,
+    hidden_items: list[str],
+) -> Organization | None:
+    """Replace one role's preferences without losing another role's concurrent edit.
+
+    Refresh an identity-map row after acquiring the lock: another request may
+    have changed it while this transaction waited for the organization.
+    """
+    result = await db.execute(
+        select(Organization)
+        .where(Organization.id == organization_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    organization = result.scalar_one_or_none()
+    if organization is None:
+        return None
+    organization.role_navigation = {
+        **(organization.role_navigation or {}),
+        role: list(hidden_items),
+    }
+    await db.flush()
+    await db.refresh(organization)
+    return organization
+
+
 async def set_chat_approval_waiver(
     db: AsyncSession, org: Organization, *, allowed: bool
 ) -> Organization:

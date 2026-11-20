@@ -15,6 +15,9 @@ itself: that the directory is found from wherever the package is installed, and
 that every template the email service can ask for is actually on disk.
 """
 
+import re
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -23,6 +26,78 @@ from app.services.email import templates
 from app.services.email.exceptions import EmailTemplateError
 from app.services.email.service import EmailKey
 from app.services.email.templates import render_email
+
+_COMPILED_EMAIL_KEYS = (
+    "approval_pending",
+    "approval_requested",
+    "budget_exceeded",
+    "email_change_notice",
+    "email_change_verification",
+    "email_verification",
+    "failure_learning_digest",
+    "impersonation_notice",
+    "invitation",
+    "low_credits",
+    "magic_link",
+    "newsletter_welcome",
+    "notification",
+    "password_reset",
+    "payment_failed",
+    "payment_succeeded",
+    "subscription_canceled",
+    "subscription_changed",
+    "trial_ending",
+    "trial_expired",
+    "usage_report",
+    "welcome",
+    "workflow_message",
+)
+
+_REAL_TEMPLATE_CONTEXT = {
+    "accept_url": "https://app.example.test/accept?token=abc&next=%2Fhome",
+    "access_until": "2026-12-01",
+    "admin_email": "admin@example.test",
+    "agent_name": "Research Agent",
+    "agents": "3",
+    "amount": "$12.34",
+    "app_name": "Example Workspace",
+    "approvals_url": "https://app.example.test/approvals?token=abc&next=%2Fhome",
+    "asked_by": "Asked by Eve",
+    "balance": "100",
+    "body": "First workflow line\nSecond line <details>& notes",
+    "context_url": "https://app.example.test/updates?token=abc&next=%2Fhome",
+    "confirm_url": "https://app.example.test/confirm?token=abc&next=%2Fhome",
+    "dashboard_url": "https://app.example.test/dashboard?token=abc&next=%2Fhome",
+    "days_left": "5",
+    "email_font_base_url": "https://attacker.example/fonts",
+    "expires_in": "1 hour",
+    "invoice_url": "https://app.example.test/invoice?token=abc&next=%2Fhome",
+    "inviter_name": "Eve",
+    "login_url": "https://app.example.test/login?token=abc&next=%2Fhome",
+    "magic_url": "https://app.example.test/magic?token=abc&next=%2Fhome",
+    "name": "Ada",
+    "new_email": "ada.new@example.test",
+    "new_plan": "Pro",
+    "old_plan": "Starter",
+    "org_name": "Example Org",
+    "period": "October 2026",
+    "plan_name": "Pro",
+    "reason": "Monthly allowance reached",
+    "resubscribe_url": "https://app.example.test/resubscribe?token=abc&next=%2Fhome",
+    "reset_url": "https://app.example.test/reset?token=abc&next=%2Fhome",
+    "runs": "42",
+    "run_url": "https://app.example.test/runs/42?token=abc&next=%2Fhome",
+    "spent": "$25.00",
+    "subject": "Workflow status",
+    "summary": "Update one\nUpdate two <safe>& sound",
+    "topup_url": "https://app.example.test/topup?token=abc&next=%2Fhome",
+    "tools": "search_web(query='A & B')\nsend_email(to='ada@example.test')",
+    "total": "$48.00",
+    "update_url": "https://app.example.test/update?token=abc&next=%2Fhome",
+    "upgrade_url": "https://app.example.test/upgrade?token=abc&next=%2Fhome",
+    "verify_url": "https://app.example.test/verify?token=abc&next=%2Fhome",
+    "portal_url": "https://app.example.test/portal?token=abc&next=%2Fhome",
+}
 
 
 class TestFindingTheCompiledDirectory:
@@ -95,6 +170,57 @@ class TestEveryTemplateTheServiceCanAskFor:
             render_email("no_such_email", {})
 
         assert "no_such_email.html" in str(caught.value)
+
+
+class TestCompiledEmailContract:
+    @pytest.mark.parametrize("key", _COMPILED_EMAIL_KEYS)
+    def test_every_compiled_template_renders_its_declared_variables(
+        self, key: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(templates.settings, "FRONTEND_URL", "https://app.example.test/")
+
+        subject, html, text = render_email(key, _REAL_TEMPLATE_CONTEXT)
+
+        unresolved = re.compile(r"\[\[[^\]]+\]\]")
+        assert not unresolved.search(subject), key
+        assert not unresolved.search(html), key
+        assert not unresolved.search(text), key
+        assert "Example Workspace" in html, key
+        assert "Example Workspace" in text, key
+        assert "https://app.example.test/fonts/email/" in html, key
+        assert "attacker.example" not in html, key
+
+    def test_action_and_copyable_links_keep_escaped_query_parameters(self) -> None:
+        _, html, text = render_email("invitation", _REAL_TEMPLATE_CONTEXT)
+
+        escaped_url = "https://app.example.test/accept?token=abc&amp;next=%2Fhome"
+        assert html.count(f'href="{escaped_url}"') == 2
+        assert "https://app.example.test/accept?token=abc&next=%2Fhome" in text
+
+    @pytest.mark.security
+    def test_live_workflow_and_approval_content_keeps_escaped_multiline_values(self) -> None:
+        _, workflow_html, workflow_text = render_email("workflow_message", _REAL_TEMPLATE_CONTEXT)
+        _, approval_html, approval_text = render_email("approval_requested", _REAL_TEMPLATE_CONTEXT)
+
+        assert "First workflow line\nSecond line &lt;details&gt;&amp; notes" in workflow_html
+        assert "First workflow line\nSecond line <details>& notes" in workflow_text
+        assert (
+            "search_web(query=&#x27;A &amp; B&#x27;)\nsend_email(to=&#x27;ada@example.test&#x27;)"
+            in approval_html
+        )
+        assert "search_web(query='A & B')\nsend_email(to='ada@example.test')" in approval_text
+
+    def test_compiled_templates_match_the_generator(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        result = subprocess.run(
+            [sys.executable, "emails/build.py", "--check"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stdout + result.stderr
 
 
 class TestRendering:
@@ -228,6 +354,63 @@ class TestRendering:
         _, html, _ = render_email("greeting", {})
 
         assert html == "<p>[[missing]]</p>"
+
+    def test_html_receives_an_absolute_font_url_from_frontend_url(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _fake_template(
+            tmp_path,
+            monkeypatch,
+            key="greeting",
+            html="<style>@font-face{src:url('[[email_font_base_url]]/Geist-Regular.woff2')}</style>",
+            text="Subject: hi\nBody",
+        )
+        monkeypatch.setattr(templates.settings, "FRONTEND_URL", "https://app.example.test/")
+
+        _, html, _ = render_email("greeting", {})
+
+        assert "https://app.example.test/fonts/email/Geist-Regular.woff2" in html
+
+    def test_caller_cannot_override_the_html_font_url(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _fake_template(
+            tmp_path,
+            monkeypatch,
+            key="greeting",
+            html="<style>@font-face{src:url('[[email_font_base_url]]/Geist-Regular.woff2')}</style>",
+            text="Subject: hi\nBody",
+        )
+        monkeypatch.setattr(templates.settings, "FRONTEND_URL", "https://app.example.test///")
+
+        _, html, _ = render_email(
+            "greeting", {"email_font_base_url": "https://attacker.example/fonts"}
+        )
+
+        assert "https://app.example.test/fonts/email/Geist-Regular.woff2" in html
+        assert "attacker.example" not in html
+
+    def test_font_url_is_html_escaped_and_does_not_change_plain_text_rendering(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _fake_template(
+            tmp_path,
+            monkeypatch,
+            key="greeting",
+            html="<style>@font-face{src:url('[[email_font_base_url]]/Geist-Regular.woff2')}</style><p>[[body]]</p>",
+            text="Subject: [[body]]\n[[body]]",
+        )
+        monkeypatch.setattr(templates.settings, "FRONTEND_URL", "https://app.example.test/")
+        long_url = "https://example.test/path?token=" + ("x" * 512) + "&next=%2Fhome"
+        body = f"Line one\n{long_url}\nLine three"
+
+        subject, html, text = render_email("greeting", {"body": body})
+
+        assert "https://app.example.test/fonts/email/Geist-Regular.woff2" in html
+        assert long_url.replace("&", "&amp;") in html
+        assert "Line one\n" + long_url.replace("&", "&amp;") + "\nLine three" in html
+        assert subject == body
+        assert text == body
 
 
 def _fake_template(

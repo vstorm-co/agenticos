@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import (
     ActiveOrg,
+    AgentRegistrySvc,
     Auth,
     CodingTaskChangeSvc,
     ConversationShareSvc,
@@ -14,6 +15,8 @@ from app.api.deps import (
     CurrentUser,
     MessageRatingSvc,
     ProjectSvc,
+    RoomRoutingSvc,
+    RoomSubmissionSvc,
     VisualSvc,
     WorkspaceSvc,
     key_needs,
@@ -25,12 +28,14 @@ from app.api.public_api import PUBLIC
 from app.api.responses import content_disposition
 from app.api.routes.v1._artifact_bytes import visual_image_response
 from app.api.routes.v1._workspace_bytes import file_response
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import Perm
 from app.schemas.coding_task_change import CodingTaskChangeRead
 from app.schemas.conversation import (
+    ConversationCompactionAvailability,
     ConversationCreate,
     ConversationForkCreate,
+    ConversationForkList,
     ConversationList,
     ConversationRead,
     ConversationReadWithMessages,
@@ -38,6 +43,10 @@ from app.schemas.conversation import (
     MessageCreate,
     MessageList,
     MessageRead,
+)
+from app.schemas.conversation_search import (
+    MAX_MESSAGE_SEARCH_SNIPPET_LENGTH,
+    ConversationMessageSearchHitRead,
 )
 from app.schemas.conversation_share import (
     ConversationShareCreate,
@@ -51,15 +60,220 @@ from app.schemas.message_rating import (
     MessageRatingCreate,
     MessageRatingRead,
 )
+from app.schemas.room_routing import (
+    RoomLeadPolicyRead,
+    RoomLeadPolicyWrite,
+    RoomProposalAccept,
+    RoomProposalDiscard,
+    RoomRoutingProposalList,
+    RoomRoutingProposalRead,
+    RoomTaskCardList,
+)
+from app.schemas.room_submission import (
+    RoomAgentRequestList,
+    RoomAgentRequestRead,
+    RoomMessageCreate,
+    RoomMessageRead,
+    RoomThreadRead,
+)
 from app.schemas.visual import VisualPublish, VisualPublished
 from app.schemas.workspace import (
     WorkspaceFileContent,
     WorkspaceFileRead,
     WorkspaceListing,
 )
+from app.services import conversation_search
 from app.services.sandbox_workspace import owner_label, stored_ceiling
 
 router = APIRouter()
+
+
+@router.get("/{conversation_id}/lead-policy", response_model=RoomLeadPolicyRead)
+async def read_room_lead_policy(conversation_id: UUID, service: RoomRoutingSvc, ctx: Auth) -> Any:
+    """The room's pinned lead policy and the current member's explicit controls."""
+    return await service.policy(ctx, conversation_id)
+
+
+@router.put("/{conversation_id}/lead-policy", response_model=RoomLeadPolicyRead)
+async def update_room_lead_policy(
+    conversation_id: UUID, body: RoomLeadPolicyWrite, service: RoomRoutingSvc, ctx: Auth
+) -> Any:
+    """Pin published cloud agents after project-edit and revision checks."""
+    return await service.update_policy(ctx, conversation_id, body)
+
+
+@router.get("/{conversation_id}/routing-proposals", response_model=RoomRoutingProposalList)
+async def list_room_routing_proposals(
+    conversation_id: UUID,
+    service: RoomRoutingSvc,
+    ctx: Auth,
+    thread_root_message_id: UUID | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """Room proposals across all threads, or only the named subthread, newest first."""
+    return await service.list(
+        ctx, conversation_id, thread_root_message_id=thread_root_message_id, skip=skip, limit=limit
+    )
+
+
+@router.get(
+    "/{conversation_id}/routing-proposals/{proposal_id}", response_model=RoomRoutingProposalRead
+)
+async def read_room_routing_proposal(
+    conversation_id: UUID, proposal_id: UUID, service: RoomRoutingSvc, ctx: Auth
+) -> Any:
+    """Reconcile one durable proposal and its final decision after an uncertain response."""
+    return await service.read(ctx, conversation_id, proposal_id)
+
+
+@router.post(
+    "/{conversation_id}/routing-proposals/{proposal_id}/accept",
+    response_model=RoomRoutingProposalRead,
+)
+async def accept_room_routing_proposal(
+    conversation_id: UUID,
+    proposal_id: UUID,
+    body: RoomProposalAccept,
+    service: RoomRoutingSvc,
+    ctx: Auth,
+) -> Any:
+    """The requester accepts selected items once, through the canonical task lifecycle."""
+    return await service.accept(ctx, conversation_id, proposal_id, body)
+
+
+@router.post(
+    "/{conversation_id}/routing-proposals/{proposal_id}/discard",
+    response_model=RoomRoutingProposalRead,
+)
+async def discard_room_routing_proposal(
+    conversation_id: UUID,
+    proposal_id: UUID,
+    body: RoomProposalDiscard,
+    service: RoomRoutingSvc,
+    ctx: Auth,
+) -> Any:
+    """The requester declines the proposal without creating or dispatching work."""
+    return await service.discard(ctx, conversation_id, proposal_id, body)
+
+
+@router.get("/{conversation_id}/task-links", response_model=RoomTaskCardList)
+async def list_room_task_cards(
+    conversation_id: UUID,
+    service: RoomRoutingSvc,
+    ctx: Auth,
+    thread_root_message_id: UUID | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """Current readable canonical task cards, without private working chat or Inbox ids."""
+    return await service.task_cards(
+        ctx, conversation_id, thread_root_message_id=thread_root_message_id, skip=skip, limit=limit
+    )
+
+
+@router.get(
+    "/{conversation_id}/compaction-availability",
+    response_model=ConversationCompactionAvailability,
+)
+async def compaction_availability(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    registry: AgentRegistrySvc,
+    ctx: Auth,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    agent_id: UUID = Query(...),
+) -> ConversationCompactionAvailability:
+    """Read whether this owned personal chat can run a summarising maintenance pass."""
+    conversation = await conversation_service.get_conversation(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        for_write=True,
+        turn=True,
+        include_favourite=False,
+        ctx=ctx,
+    )
+    if (
+        conversation.user_id != current_user.id
+        or conversation.project_id is not None
+        or conversation.workflow_id is not None
+        or conversation.origin is not None
+        or conversation.is_archived
+    ):
+        return ConversationCompactionAvailability(available=False)
+    try:
+        _, spec, _ = await registry.get_runnable_spec(ctx, agent_id)
+    except AuthorizationError, BadRequestError, NotFoundError:
+        return ConversationCompactionAvailability(available=False)
+    available = any(
+        binding.id == "compaction"
+        and binding.enabled
+        and binding.config.get("strategy", "summarize") in {"summarize", "tiered"}
+        for binding in spec.capabilities
+    )
+    return ConversationCompactionAvailability(available=available)
+
+
+@router.post("/{conversation_id}/room-messages", response_model=RoomMessageRead)
+async def post_room_message(
+    conversation_id: UUID,
+    body: RoomMessageCreate,
+    service: RoomSubmissionSvc,
+    ctx: Auth,
+    current_user: CurrentUser,
+) -> Any:
+    """Post as yourself; only an explicit agent selection queues an answer."""
+    return await service.post(ctx, conversation_id, body, current_user)
+
+
+@router.get("/{conversation_id}/room-requests", response_model=RoomAgentRequestList)
+async def list_room_requests(
+    conversation_id: UUID,
+    service: RoomSubmissionSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """The durable queue, and the current reader's right to post to this room."""
+    return await service.list_for_room(ctx, conversation_id, skip=skip, limit=limit)
+
+
+@router.get("/{conversation_id}/room-threads/{root_message_id}", response_model=RoomThreadRead)
+async def read_room_thread(
+    conversation_id: UUID,
+    root_message_id: UUID,
+    service: RoomSubmissionSvc,
+    ctx: Auth,
+    limit: int = Query(50, ge=1, le=100),
+    latest: bool = True,
+    before: UUID | None = None,
+) -> Any:
+    """Read the root separately from replies, oldest first within the selected page.
+
+    `latest=true` reads the newest page. `before` names an earlier-page boundary
+    in this same thread. Opening a thread neither posts nor requests an agent.
+    """
+    return await service.thread(
+        ctx,
+        conversation_id,
+        root_message_id,
+        limit=limit,
+        latest=latest,
+        before=before,
+    )
+
+
+@router.post(
+    "/{conversation_id}/room-requests/{request_id}/cancel",
+    response_model=RoomAgentRequestRead,
+)
+async def cancel_room_request(
+    conversation_id: UUID, request_id: UUID, service: RoomSubmissionSvc, ctx: Auth
+) -> Any:
+    """Withdraw your queued request, retaining the human message."""
+    return await service.cancel(ctx, conversation_id, request_id)
 
 
 @router.get("/background-tasks", response_model=list[ConversationTaskRead])
@@ -130,6 +344,53 @@ async def get_shared_conversation(
 ) -> Any:
     """Access a shared conversation via public token (no auth required)."""
     return await share_service.get_by_token(token)
+
+
+@router.get(
+    "/search/messages",
+    response_model=list[ConversationMessageSearchHitRead],
+    dependencies=[PUBLIC, Depends(key_needs(Perm.RUNS_VIEW))],
+)
+async def search_message_content(
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    query: str = Query(
+        min_length=1,
+        max_length=120,
+        description="Literal text to find in readable conversation messages",
+    ),
+) -> Any:
+    """Search up to 20 matching messages in conversations the caller may read.
+
+    The shared transcript-search service resolves owner, share, project and
+    confirmed room membership access inside the active organization. Input uses
+    plain text search semantics; punctuation does not add query operators.
+    """
+    cleaned_query = query.strip()
+    if not cleaned_query:
+        return []
+    hits = await conversation_search.search(
+        query=cleaned_query,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        limit=20,
+        literal=True,
+    )
+    return [
+        ConversationMessageSearchHitRead(
+            conversation_id=hit.conversation_id,
+            message_id=hit.message_id,
+            thread_root_message_id=hit.thread_root_message_id,
+            title=hit.title,
+            updated_at=hit.updated_at,
+            matched_at=hit.matched_at,
+            hits=hit.hits,
+            snippet=hit.snippet[:MAX_MESSAGE_SEARCH_SNIPPET_LENGTH],
+            speaker_role=hit.speaker_role,
+            speaker_name=hit.speaker_name,
+        )
+        for hit in hits
+    ]
 
 
 @router.get(
@@ -257,6 +518,30 @@ async def get_conversation(
     )
 
     return conversation if include_messages else ConversationRead.model_validate(conversation)
+
+
+@router.get("/{conversation_id}/forks", response_model=ConversationForkList)
+async def list_conversation_forks(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+    message_id: UUID | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+) -> Any:
+    """List the caller's personal child conversations, including archived ones."""
+    items, total = await conversation_service.list_forks(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        ctx=ctx,
+        message_id=message_id,
+        skip=skip,
+        limit=limit,
+    )
+    return ConversationForkList(items=items, total=total)
 
 
 @router.post(
@@ -388,13 +673,15 @@ async def update_conversation(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    ctx: Auth,
 ) -> Any:
-    """Update a conversation's title or archived status."""
+    """Update a conversation's title, archived status or project."""
     return await conversation_service.update_conversation(
         conversation_id,
         data,
         organization_id=active_org.id,
         user_id=current_user.id,
+        ctx=ctx,
     )
 
 
@@ -525,12 +812,20 @@ async def list_messages(
     limit: int = Query(100, ge=1, le=500),
     latest: bool = False,
     before: UUID | None = None,
+    top_level_only: bool = Query(
+        default=True,
+        description="Exclude project-room thread replies unless set to false",
+    ),
 ) -> Any:
     """List messages in a conversation, always scoped to the caller.
 
     `latest=true` selects the newest page, still returned chronologically.
     `before` selects messages older than this conversation's named message;
     combine both to page backwards without concurrent appends shifting offsets.
+
+    `top_level_only` defaults to true so thread replies stay out of a project's
+    main transcript. Set it to false to include them; thread panels use the
+    scoped `room-threads/{root_message_id}` read instead.
 
     Same reasoning as `get_conversation` above: cross-user reads belong to
     `/admin/conversations`, not to a column on the user row.
@@ -546,6 +841,7 @@ async def list_messages(
         limit=limit,
         latest=latest,
         before=before,
+        top_level_only=top_level_only,
         include_tool_calls=True,
         organization_id=active_org.id,
         user_id=current_user.id,

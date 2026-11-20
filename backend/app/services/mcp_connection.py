@@ -37,9 +37,10 @@ import re
 import secrets
 from collections import Counter
 from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Any, Literal
+from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
 from mcp.shared.auth import OAuthToken
@@ -66,7 +67,7 @@ from app.agents.mcp import (
     tool_prefix,
     validate_mcp_url,
 )
-from app.agents.mcp_oauth import McpOAuthPayload, OAuthError
+from app.agents.mcp_oauth import DiscoveredServer, McpOAuthPayload, OAuthError
 from app.agents.spec import (
     McpServerRef,
     OrgMcpServerRef,
@@ -111,6 +112,10 @@ from app.schemas.resource_grant import AudienceChoice
 from app.schemas.resource_usage import AgentUsage
 from app.services import portal_catalog, portals
 from app.services.access import MCP_CONNECTION, accessible_ids, decider_context, resolve_access
+from app.services.app_connections._managed import (
+    is_managed_auth_type,
+    is_managed_catalog_key,
+)
 from app.services.impersonation import refuse_binding_while_impersonating
 from app.services.mcp_catalog import get_entry
 from app.services.notifications import NotificationService
@@ -134,6 +139,100 @@ def _oauth_redirect_uri() -> str:
     """Where the provider sends the user back - a Next route that forwards the
     code + state to our (state-authenticated) callback endpoint."""
     return f"{settings.FRONTEND_URL.rstrip('/')}/api/me/mcp-connections/oauth/callback"
+
+
+GOOGLE_MCP_HOSTS = frozenset(
+    {
+        "aiplatform.googleapis.com",
+        "calendarmcp.googleapis.com",
+        "chatmcp.googleapis.com",
+        "classroommcp.googleapis.com",
+        "docsmcp.googleapis.com",
+        "drivemcp.googleapis.com",
+        "gmailmcp.googleapis.com",
+        "people.googleapis.com",
+        "securesourcemanager.us-central1.rep.googleapis.com",
+        "securitycentermanagement.googleapis.com",
+        "sheetsmcp.googleapis.com",
+        "slidesmcp.googleapis.com",
+        "workspacemcp.googleapis.com",
+    }
+)
+"""The Google-hosted MCP servers, by exact host. The console's `needsGoogleOAuthClient`
+mirrors this list. A suffix match would let any bucket under `googleapis.com` in."""
+
+
+def is_google_mcp(url: str) -> bool:
+    """A Google-hosted MCP server. Google publishes no client registration endpoint.
+
+    These connections use the organization's Google client, so the console and the
+    server must agree on the list in `GOOGLE_MCP_HOSTS`.
+    """
+    parsed = urlsplit(url)
+    return (
+        parsed.scheme == "https"
+        and parsed.hostname in GOOGLE_MCP_HOSTS
+        and parsed.path.startswith("/mcp/")
+    )
+
+
+_GOOGLE_ORG_CLIENT_SCOPE = " ".join(google_oauth.ACCOUNT_SCOPES)
+"""The fallback scopes for an organization's Google client when the server's metadata
+names none it may ask for. The set the organization's app already consents to."""
+
+_GOOGLE_AUTH_PREFIX = "https://www.googleapis.com/auth/"
+
+
+def _org_client_scope(scope: str | None) -> str:
+    """The scopes an organization's Google client may request, from server metadata.
+
+    Metadata can name only identity scopes and Google's own `googleapis.com/auth/`
+    scopes. Google's consent screen governs what those grant, so the org app's
+    consent is never widened by a server it was pointed at. Anything else is dropped.
+    With nothing left, the fallback is requested.
+    """
+    kept = [
+        item
+        for item in (scope or "").split()
+        if item in {"openid", "email", "profile"} or item.startswith(_GOOGLE_AUTH_PREFIX)
+    ]
+    return " ".join(dict.fromkeys(kept)) or _GOOGLE_ORG_CLIENT_SCOPE
+
+
+def _pinned_to_google(server: DiscoveredServer, client_org_id: UUID | None) -> DiscoveredServer:
+    """An organization's Google client is only ever sent to Google's own endpoints.
+
+    Discovery reads endpoints and scopes from metadata the server it was pointed at
+    serves. For an organization client that metadata must decide neither where the
+    org secret goes nor what the org's app is asked to consent to.
+    """
+    if client_org_id is None:
+        return server
+    return replace(
+        server,
+        authorization_endpoint=google_oauth.AUTHORIZE_ENDPOINT,
+        token_endpoint=google_oauth.TOKEN_ENDPOINT,
+        scope=_org_client_scope(server.scope),
+    )
+
+
+def _payload_pinned_to_google(
+    connection: McpConnection, payload: McpOAuthPayload
+) -> McpOAuthPayload:
+    """`_pinned_to_google` for a stored payload, applied again at callback and refresh.
+
+    Keyed on the same question as the org secret: a connection whose client is the
+    organization's app is pinned, whether it is an MCP row or an account row.
+    """
+    if _org_app_organization(connection, payload) is None:
+        return payload
+    return payload.model_copy(
+        update={
+            "authorization_endpoint": google_oauth.AUTHORIZE_ENDPOINT,
+            "token_endpoint": google_oauth.TOKEN_ENDPOINT,
+            "scope": _org_client_scope(payload.scope),
+        }
+    )
 
 
 def _now_epoch() -> float:
@@ -582,21 +681,28 @@ async def _rotate_token(
     if locked.purpose == "account" and (
         payload.account_source_organization_id is None
         or not await McpConnectionService(db)._account_source_current(
-            locked, payload, payload.account_source_organization_id
+            locked, payload, payload.account_source_organization_id, follow_rotation=True
         )
     ):
         return None
     held = _revealed(payload.access_token)
     if _token_is_fresh(payload) and held != rejected:
         return held  # another turn refreshed while we waited
-    if not payload.refresh_token:
+    refresh_token = payload.refresh_token
+    if not refresh_token:
         return None
+    client_secret = await McpConnectionService(db)._refresh_client_secret(locked, payload)
+    # A public client has no secret to spend, so None is only a refusal when the
+    # client came from an organization app that is gone or switched.
+    if client_secret is None and _org_app_organization(locked, payload) is not None:
+        return None
+    payload = _payload_pinned_to_google(locked, payload)
     try:
         token = await mcp_oauth.refresh_tokens(
             token_endpoint=payload.token_endpoint,
             client_id=payload.client_id,
-            client_secret=_revealed(payload.client_secret),
-            refresh_token=payload.refresh_token.get_secret_value(),
+            client_secret=_revealed(client_secret),
+            refresh_token=refresh_token.get_secret_value(),
             # Microsoft's v2.0 endpoint refuses RFC 8707's `resource`; the scopes
             # already say which API the token is for.
             resource=None if payload.provider == microsoft_oauth.PROVIDER else payload.resource,
@@ -613,7 +719,10 @@ async def _rotate_token(
             db_connection=locked,
             update_data={
                 "oauth_payload": _seal_for(
-                    locked, payload.model_copy(update={"refresh_token": None}).model_dump_json()
+                    locked,
+                    _without_org_secret(
+                        locked, payload.model_copy(update={"refresh_token": None})
+                    ).model_dump_json(),
                 ).ciphertext
             },
         )
@@ -621,7 +730,7 @@ async def _rotate_token(
     except OAuthError as exc:
         logger.warning("OAuth token refresh failed for %r: %s", locked.name, exc)
         return None
-    payload = _apply_token(payload, token)
+    payload = _without_org_secret(locked, _apply_token(payload, token))
     await mcp_connection_repo.update(
         db,
         db_connection=locked,
@@ -824,6 +933,10 @@ async def _record_run_reachability(observed: list[tuple[UUID, bool]]) -> None:
 async def resolve_auth_headers(connection: McpConnection) -> dict[str, str] | None:
     """Auth headers to reach *connection*, or None if it can't be used right now
     (OAuth not authorized / expired, or an undecryptable bearer token)."""
+    if is_managed_auth_type(connection.auth_type):
+        # A managed account is resolved through an account-pinned session, never
+        # by turning its metadata-only URL into an ordinary bearer connection.
+        return None
     if connection.auth_type == "oauth":
         token = await _oauth_access_token(connection)
         return {"Authorization": f"Bearer {token}"} if token else None
@@ -879,6 +992,34 @@ def account_source_organization(account: McpConnection) -> UUID | None:
     return None if payload is None else payload.account_source_organization_id
 
 
+def _refuse_managed_app(catalog_key: str | None) -> None:
+    entry = get_entry(catalog_key) if catalog_key is not None else None
+    if is_managed_catalog_key(catalog_key) or (
+        entry is not None and is_managed_auth_type(entry.auth)
+    ):
+        raise BadRequestError(message="Connect this personal app from Connections → Apps")
+
+
+def _org_app_organization(connection: McpConnection, payload: McpOAuthPayload) -> UUID | None:
+    """The organization whose Google app issued this connection's client, if any.
+
+    An account reads its organization from its grant; an MCP connection carries
+    the reference it was started with. `None` for a client the person typed.
+    """
+    if payload.client_org_id is not None:
+        return payload.client_org_id
+    if connection.purpose == "account":
+        return payload.account_source_organization_id
+    return None
+
+
+def _without_org_secret(connection: McpConnection, payload: McpOAuthPayload) -> McpOAuthPayload:
+    """The payload as it is stored: an organization client's secret is never kept."""
+    if _org_app_organization(connection, payload) is None:
+        return payload
+    return payload.model_copy(update={"client_secret": None})
+
+
 class McpConnectionService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -903,6 +1044,7 @@ class McpConnectionService:
                 bounded to, and stand recorded against the target (#1492); refused,
                 not audited.
         """
+        _refuse_managed_app(data.catalog_key)
         if data.catalog_key is not None and not await self._known_catalog_key(data.catalog_key):
             raise BadRequestError(
                 message=f"Unknown catalog server: {data.catalog_key}",
@@ -969,6 +1111,29 @@ class McpConnectionService:
         update_data: dict[str, Any] = writable(
             data, over=McpConnection, exclude={"clear_allowed_tools"}
         )
+
+        if is_managed_auth_type(db_connection.auth_type):
+            # The managed lifecycle owns the endpoint and credential. These
+            # familiar controls still apply, but a generic MCP patch cannot
+            # turn a curated app into a token server or widen its action ceiling.
+            if (
+                set(update_data) - {"name", "label", "is_enabled", "is_default", "allowed_tools"}
+                or data.clear_allowed_tools
+                or (
+                    "allowed_tools" in update_data
+                    and (
+                        update_data["allowed_tools"] is None
+                        or not set(update_data["allowed_tools"]).issubset(
+                            db_connection.allowed_tools or []
+                        )
+                    )
+                )
+            ):
+                raise BadRequestError(
+                    message="Manage this app's authorization from Apps; its allowed actions may only be narrowed"
+                )
+            if "allowed_tools" in update_data or "is_enabled" in update_data:
+                update_data["authorization_generation"] = uuid4()
 
         if "url" in update_data:
             update_data["url"] = await _checked_url(update_data["url"])
@@ -1066,6 +1231,8 @@ class McpConnectionService:
 
     async def delete(self, *, user_id: UUID, connection_id: UUID) -> None:
         db_connection = await self._get_owned(user_id=user_id, connection_id=connection_id)
+        if is_managed_auth_type(db_connection.auth_type):
+            raise BadRequestError(message="Disconnect this account from Apps")
         await mcp_connection_repo.delete(self.db, db_connection=db_connection)
 
     async def test(
@@ -1073,6 +1240,8 @@ class McpConnectionService:
     ) -> tuple[McpConnection, list[McpToolInfo], str | None]:
         """Probe the server, persist the result, and return discovered tools."""
         db_connection = await self._get_owned(user_id=user_id, connection_id=connection_id)
+        if is_managed_auth_type(db_connection.auth_type):
+            raise BadRequestError(message="Check this account from Apps")
         return await self._probe(db_connection)
 
     async def _probe(
@@ -1118,6 +1287,24 @@ class McpConnectionService:
         )
         _refuse_an_unnamed_second_account([first] if first else [], name=name, label=label)
 
+    async def _org_google_client_id(self, ctx: AuthContext, url: str) -> str:
+        """The organization's Google OAuth client ID, for a Google-hosted MCP server.
+
+        Only the public ID is read here. The secret is read from the organization's
+        app each time a grant is spent (`_refresh_client_secret`), so it is never
+        copied into a connection row. Not the deployment's `GOOGLE_CLIENT_ID`, which
+        is sign-in.
+
+        Raises:
+            NotFoundError: The organization has stored no org-visible Google OAuth
+                client - the console shows the prerequisite, with `details.kind`
+                naming the credential to add.
+        """
+        app, _, _ = await OrganizationSecretService(self.db).oauth_app_identity(
+            ctx, kind=SecretKind.GOOGLE_OAUTH_APP
+        )
+        return app.client_id
+
     async def oauth_start_for_org(
         self,
         ctx: AuthContext,
@@ -1154,10 +1341,15 @@ class McpConnectionService:
                 refusal #1438 made for personal connections (#1490).
         """
         refuse_binding_while_impersonating("Connecting an integration")
+        _refuse_managed_app(catalog_key)
         chosen = audience or AudienceChoice()
         existing = await mcp_connection_repo.get_org_scoped_by_name(
             self.db, organization_id=ctx.organization_id, name=name
         )
+        if existing is not None and not await resolve_access(
+            self.db, ctx, existing, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+        ):
+            raise NotFoundError(message="MCP connection not found")
         # Only a new row: authorizing an existing account again is not a second one.
         if existing is None and catalog_key is not None:
             await self._refuse_an_unnamed_second_org_account(
@@ -1186,14 +1378,20 @@ class McpConnectionService:
                 )
             return connection
 
+        client_org_id: UUID | None = None
+        if client_id is None and is_google_mcp(url):
+            client_id = await self._org_google_client_id(ctx, url)
+            client_org_id = ctx.organization_id
         return await self._oauth_start(
             name=name,
             url=url,
             client_id=client_id,
             client_secret=client_secret,
+            client_org_id=client_org_id,
             existing=existing,
             vault_scope=VaultScope.organization(ctx.organization_id),
             create=create,
+            initiator_id=ctx.subject_id,
         )
 
     async def oauth_start(
@@ -1206,8 +1404,14 @@ class McpConnectionService:
         label: str | None = None,
         client_id: str | None = None,
         client_secret: SecretStr | None = None,
+        ctx: AuthContext | None = None,
     ) -> str:
         """Begin the OAuth authorization-code flow for a server this person owns.
+
+        `ctx` is the caller's organization. A Google-hosted server uses that
+        organization's Google client, so a person connecting one never types a
+        client ID; without it the flow falls back to registration, which Google
+        does not offer.
 
         `catalog_key` is stored on the row it creates, and that is the whole
         reason it is a parameter: a personal connection without one can never be
@@ -1221,12 +1425,19 @@ class McpConnectionService:
                 audited.
         """
         refuse_binding_while_impersonating("Connecting an integration")
+        _refuse_managed_app(catalog_key)
         if catalog_key is not None and not await self._known_catalog_key(catalog_key):
             raise BadRequestError(
                 message=f"Unknown catalog server: {catalog_key}",
                 details={"catalog_key": catalog_key},
             )
         existing = await mcp_connection_repo.get_by_name(self.db, user_id=user_id, name=name)
+        if existing is not None and is_managed_auth_type(existing.auth_type):
+            raise BadRequestError(message="Reconnect this account from Apps")
+        client_org_id: UUID | None = None
+        if client_id is None and ctx is not None and is_google_mcp(url):
+            client_id = await self._org_google_client_id(ctx, url)
+            client_org_id = ctx.organization_id
         # Only a new row: authorizing an existing account again is not a second one.
         if existing is None and catalog_key is not None:
             _refuse_an_unnamed_second_account(
@@ -1241,6 +1452,7 @@ class McpConnectionService:
             url=url,
             client_id=client_id,
             client_secret=client_secret,
+            client_org_id=client_org_id,
             existing=existing,
             vault_scope=VaultScope.user(user_id),
             create=lambda **kwargs: mcp_connection_repo.create(
@@ -1264,6 +1476,8 @@ class McpConnectionService:
         create: Callable[..., Awaitable[McpConnection]],
         client_id: str | None = None,
         client_secret: SecretStr | None = None,
+        client_org_id: UUID | None = None,
+        initiator_id: UUID | None = None,
     ) -> str:
         """The flow both scopes share: discover, register, stage, and hand back a URL.
 
@@ -1282,7 +1496,10 @@ class McpConnectionService:
         to be dropped.
         """
         url = await _checked_url(url)
-        server = await mcp_oauth.discover(url)  # raises OAuthError if unsupported
+        server = _pinned_to_google(
+            await mcp_oauth.discover(url),  # raises OAuthError if unsupported
+            client_org_id,
+        )
         redirect_uri = _oauth_redirect_uri()
         if client_id is None:
             # The common case: the server registers this app on the spot. A
@@ -1292,7 +1509,7 @@ class McpConnectionService:
             registered_id, registered_secret = await mcp_oauth.register_client(server, redirect_uri)
             client_id = registered_id
             client_secret = SecretStr(registered_secret) if registered_secret else None
-        elif client_secret is not None:
+        elif client_secret is not None or client_org_id is not None:
             _refuse_a_client_this_server_will_not_authenticate(server)
         pkce = mcp_oauth.new_pkce()
         state = secrets.token_urlsafe(32)
@@ -1304,6 +1521,8 @@ class McpConnectionService:
             registration_endpoint=server.registration_endpoint,
             client_id=client_id,
             client_secret=client_secret,
+            client_org_id=client_org_id,
+            initiator_id=initiator_id,
             scope=server.scope,
             resource=server.resource,
             redirect_uri=redirect_uri,
@@ -1453,6 +1672,7 @@ class McpConnectionService:
             resource=entry.url,
             redirect_uri=redirect_uri,
             provider=github_oauth.PROVIDER,
+            initiator_id=ctx.subject_id,
         )
         # The organization's existing row for this catalog entry, whatever it is
         # named - the catalog key is how the frontend joins portal to connection,
@@ -1739,6 +1959,7 @@ class McpConnectionService:
             redirect_uri=redirect_uri,
             provider=provider,
             code_verifier=code_verifier,
+            initiator_id=ctx.subject_id,
         )
         existing = await mcp_connection_repo.get_portal_grant(
             self.db, organization_id=ctx.organization_id, portal_key=portal_key
@@ -1913,7 +2134,9 @@ class McpConnectionService:
             authorization_endpoint=google_oauth.AUTHORIZE_ENDPOINT,
             token_endpoint=google_oauth.TOKEN_ENDPOINT,
             client_id=creds.client_id,
-            client_secret=creds.client_secret,
+            # Not copied: the secret is read from the organization's app when the
+            # consent is completed and each time the grant is spent.
+            client_secret=None,
             scope=" ".join(google_oauth.ACCOUNT_SCOPES),
             resource=_GOOGLE_APIS,
             redirect_uri=redirect_uri,
@@ -1931,14 +2154,7 @@ class McpConnectionService:
             user_id=None if for_organization else ctx.subject_id,
             organization_id=ctx.organization_id if for_organization else None,
         )
-        from app.repositories import member_repo
-
-        if (
-            await member_repo.get_active(
-                self.db, organization_id=ctx.organization_id, user_id=ctx.subject_id
-            )
-            is None
-        ):
+        if not await self._is_current_member(ctx.organization_id, ctx.subject_id):
             raise AuthorizationError(
                 message="Connecting an account requires current organization membership"
             )
@@ -2112,8 +2328,20 @@ class McpConnectionService:
             )
 
     async def _account_source_current(
-        self, account: McpConnection, payload: McpOAuthPayload, organization_id: UUID
+        self,
+        account: McpConnection,
+        payload: McpOAuthPayload,
+        organization_id: UUID,
+        *,
+        follow_rotation: bool = False,
     ) -> bool:
+        """Whether the grant's owner and organization still stand.
+
+        `follow_rotation` skips the generation check: a rotated org app keeps its
+        client ID, and the grant's refresh token stays valid for it, so the grant
+        reads the app's current secret instead (`_refresh_client_secret`). The
+        caller must then check the client ID itself.
+        """
         from app.repositories import organization_secret_repo
 
         if (
@@ -2133,12 +2361,55 @@ class McpConnectionService:
             )
             if membership is None:
                 return False
+        if follow_rotation:
+            return True
         return (
             await organization_secret_repo.authorization_generation(
                 self.db, payload.account_source_secret_id, organization_id=organization_id
             )
             == payload.account_source_generation
         )
+
+    async def _is_current_member(self, organization_id: UUID, user_id: UUID) -> bool:
+        from app.repositories import member_repo
+
+        return (
+            await member_repo.get_active(self.db, organization_id=organization_id, user_id=user_id)
+            is not None
+        )
+
+    async def _refresh_client_secret(
+        self, connection: McpConnection, payload: McpOAuthPayload
+    ) -> SecretStr | None:
+        """The client secret a token exchange or refresh spends, read live.
+
+        A client the organization registered is never kept in the row. Its secret is
+        read from the organization's Google app each time, so a rotated secret
+        reaches every connection at its next refresh. `None` when the app is gone,
+        is now a different client, or an account's owner has left the organization:
+        the person connects again rather than refreshing with a mismatched client.
+        A connection with no organization client keeps the secret it holds.
+        """
+        org_id = _org_app_organization(connection, payload)
+        if org_id is None:
+            return payload.client_secret
+        # A member who has left the organization keeps no organization client. An
+        # organization-scoped row has no person behind it, so there is nothing to check.
+        if connection.user_id is not None and not await self._is_current_member(
+            org_id, connection.user_id
+        ):
+            return None
+        if connection.purpose == "account" and not await self._account_source_current(
+            connection, payload, org_id, follow_rotation=True
+        ):
+            return None
+        try:
+            app, _, _ = await OrganizationSecretService(self.db).oauth_app_identity_for_org(
+                org_id, kind=SecretKind.GOOGLE_OAUTH_APP
+            )
+        except NotFoundError, BadRequestError:
+            return None
+        return app.client_secret if app.client_id == payload.client_id else None
 
     async def account_grant(
         self, account: McpConnection, *, organization_id: UUID
@@ -2152,14 +2423,19 @@ class McpConnectionService:
         if account.authorization_expired:
             return None
         payload = _decode_payload(account, account.oauth_payload)
-        if payload is None or payload.refresh_token is None or payload.client_secret is None:
+        if payload is None or payload.refresh_token is None:
             return None
-        if not await self._account_source_current(account, payload, organization_id):
+        if not await self._account_source_current(
+            account, payload, organization_id, follow_rotation=True
+        ):
+            return None
+        client_secret = await self._refresh_client_secret(account, payload)
+        if client_secret is None:
             return None
         return AccountGrant(
             email=account.account_email or account.label or account.name,
             client_id=payload.client_id,
-            client_secret=payload.client_secret,
+            client_secret=client_secret,
             refresh_token=payload.refresh_token,
             scopes=frozenset(account.granted_scopes or ()),
         )
@@ -2184,6 +2460,8 @@ class McpConnectionService:
         connection = await mcp_connection_repo.get_by_oauth_state(self.db, state)
         if connection is None or not connection.oauth_pending_payload:
             raise NotFoundError(message="OAuth session not found or already completed")
+        if is_managed_auth_type(connection.auth_type):
+            raise OAuthError("Complete this authorization through Apps while signed in.")
         if connection.purpose == "account":
             await mcp_connection_repo.lock_account_owner(
                 self.db,
@@ -2198,6 +2476,19 @@ class McpConnectionService:
             raise OAuthError("This authorization session is no longer valid - start again.")
         if _now_epoch() - payload.started_at > mcp_oauth.FLOW_TTL_SECS:
             raise OAuthError("This authorization session has expired - start again.")
+        if connection.scope == "org" and payload.initiator_id is not None:
+            # Whoever started the flow must still manage the organization's connections.
+            authority = await decider_context(
+                self.db,
+                organization_id=connection_scope(connection).subject_id,
+                user_id=payload.initiator_id,
+            )
+            if authority is None or not authority.has(Perm.MCP_MANAGE):
+                raise OAuthError("Your organization access changed; start the connection again.")
+            if connection.purpose == "mcp" and not await resolve_access(
+                self.db, authority, connection, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+            ):
+                raise OAuthError("Your connection access changed; start the connection again.")
         if connection.purpose == "account":
             if (
                 browser_nonce is None
@@ -2235,6 +2526,15 @@ class McpConnectionService:
             raise OAuthError(
                 "The account's organization or OAuth client changed; start consent again."
             )
+        if _org_app_organization(connection, payload) is not None:
+            org_secret = await self._refresh_client_secret(connection, payload)
+            if org_secret is None:
+                raise OAuthError(
+                    "The organization's Google app changed; start the connection again."
+                )
+            payload = _payload_pinned_to_google(
+                connection, payload.model_copy(update={"client_secret": org_secret})
+            )
         if payload.provider == github_oauth.PROVIDER:
             payload, granted_scopes = await _complete_github_flow(payload, code)
         elif payload.provider in {google_oauth.PROVIDER, microsoft_oauth.PROVIDER}:
@@ -2270,6 +2570,7 @@ class McpConnectionService:
         # the one it was read from: kept across a switch, it is polled against the
         # new account and never advances again (Codex on #2195). Each cursor
         # names its account, so the fresh snapshot is what tells them apart.
+        payload = _without_org_secret(connection, payload)
         poll_cursor = connection.poll_cursor
         access_token = _revealed(payload.access_token)
         if connection.purpose == "portal" and connection.portal_key is not None:
@@ -2361,24 +2662,35 @@ class McpConnectionService:
         return db_connection
 
     async def list_for_org(self, ctx: AuthContext) -> tuple[list[McpConnection], int]:
-        """The organization's servers the caller reaches: every one not narrowed to
-        groups, and those narrowed to theirs (#2072)."""
+        """Connections the caller may administer, including their private ones."""
         rows, _ = await mcp_connection_repo.list_org_scoped(
             self.db, organization_id=ctx.organization_id
         )
-        narrowed = [row for row in rows if row.visibility != Visibility.ORG.value]
         reached = await accessible_ids(
-            self.db, ctx, narrowed, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+            self.db, ctx, rows, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
         )
-        kept = [row for row in rows if row.visibility == Visibility.ORG.value or row.id in reached]
+        kept = [row for row in rows if row.id in reached]
         return kept, len(kept)
 
     async def list_usable(self, ctx: AuthContext) -> list[McpConnection]:
         """The organization servers a workflow step may bind, disabled ones included
         (a step can still name one): the same set the step's publish check resolves
         (`get_org_connection`), which needs no `mcp:manage`."""
-        rows, _ = await self.list_for_org(ctx)
-        return rows
+        rows, _ = await mcp_connection_repo.list_org_scoped(
+            self.db, organization_id=ctx.organization_id
+        )
+        narrowed = [row for row in rows if row.visibility != Visibility.ORG.value]
+        usable = await accessible_ids(
+            self.db, ctx, narrowed, Perm.MCP_USE, resource_type=MCP_CONNECTION
+        )
+        return [
+            row
+            for row in rows
+            if (
+                row.visibility == Visibility.ORG.value
+                or (ctx.user_id is not None and row.id in usable)
+            )
+        ]
 
     async def used_by(
         self, ctx: AuthContext, connections: list[McpConnection]
@@ -2397,7 +2709,7 @@ class McpConnectionService:
         the server's current name gives it. The caller must reach the server;
         arguments and results are never read.
         """
-        connection = await self._get_org(ctx, connection_id)
+        connection = await self._get_managed_org(ctx, connection_id)
         prefix = tool_prefix(connection.name)
         calls = await conversation_repo.recent_tool_calls(
             self.db, organization_id=ctx.organization_id, connection_id=connection.id, limit=limit
@@ -2442,6 +2754,7 @@ class McpConnectionService:
                 The name becomes the agent's tool prefix, so two servers sharing
                 one is two sets of tools nobody can tell apart.
         """
+        _refuse_managed_app(data.catalog_key)
         if data.catalog_key is not None and not await self._known_catalog_key(data.catalog_key):
             raise BadRequestError(
                 message=f"Unknown catalog server: {data.catalog_key}",
@@ -2509,7 +2822,7 @@ class McpConnectionService:
         self, ctx: AuthContext, *, connection_id: UUID, data: OrgMcpConnectionUpdate
     ) -> McpConnection:
         # Locked from the read - same reason as `update` above.
-        db_connection = await self._get_org(ctx, connection_id, for_update=True)
+        db_connection = await self._get_managed_org(ctx, connection_id, for_update=True)
         update_data: dict[str, Any] = writable(
             data, over=McpConnection, exclude={"clear_allowed_tools"}
         )
@@ -2604,7 +2917,7 @@ class McpConnectionService:
         return connection
 
     async def delete_for_org(self, ctx: AuthContext, *, connection_id: UUID) -> None:
-        db_connection = await self._get_org(ctx, connection_id)
+        db_connection = await self._get_managed_org(ctx, connection_id)
         # Any trigger webhook this account registered is deregistered first,
         # while its token still exists, and the trigger falls back to manual -
         # otherwise the trigger FK's SET NULL trips the shape CHECK (a registered
@@ -2634,7 +2947,7 @@ class McpConnectionService:
         self, ctx: AuthContext, *, connection_id: UUID
     ) -> tuple[McpConnection, list[McpToolInfo], str | None]:
         """Probe an organization server, persist the result, return its tools."""
-        db_connection = await self._get_org(ctx, connection_id)
+        db_connection = await self._get_managed_org(ctx, connection_id)
         return await self._probe(db_connection)
 
     async def webhook_access_token(
@@ -2795,6 +3108,20 @@ class McpConnectionService:
         """
         return await self._get_org(ctx, connection_id)
 
+    async def _get_managed_org(
+        self, ctx: AuthContext, connection_id: UUID, *, for_update: bool = False
+    ) -> McpConnection:
+        """Administrative actions need edit authority, beyond the existing use lookup."""
+        connection = await self._get_org(ctx, connection_id, for_update=for_update)
+        if not await resolve_access(
+            self.db, ctx, connection, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+        ):
+            raise NotFoundError(
+                message="MCP connection not found",
+                details={"connection_id": str(connection_id)},
+            )
+        return connection
+
     async def _get_org(
         self, ctx: AuthContext, connection_id: UUID, *, for_update: bool = False
     ) -> McpConnection:
@@ -2810,14 +3137,13 @@ class McpConnectionService:
             organization_id=ctx.organization_id,
             for_update=for_update,
         )
-        # A server narrowed to groups is not there for anybody outside them - the
-        # same refusal as a missing one (#2072). One left to the organization is
-        # everybody's who got past the route's gate, including a trigger's author
-        # reaching a portal grant without managing servers at all.
+        # Preserve the existing binding and trigger policy. Organization-wide
+        # rows are usable after their caller's resource gate; private rows need
+        # a use grant. Administrative operations add _get_managed_org's check.
         if db_connection is None or (
             db_connection.visibility != Visibility.ORG.value
             and not await resolve_access(
-                self.db, ctx, db_connection, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+                self.db, ctx, db_connection, Perm.MCP_USE, resource_type=MCP_CONNECTION
             )
         ):
             raise NotFoundError(
@@ -2969,6 +3295,13 @@ class AccountNote:
 
 
 @dataclass(frozen=True)
+class ManagedAppNote:
+    app: str
+    prefix: str
+    account: str
+
+
+@dataclass(frozen=True)
 class ResolvedMcpToolsets:
     """What a spec's MCP bindings amount to for one turn.
 
@@ -2983,6 +3316,8 @@ class ResolvedMcpToolsets:
     unavailable: list[UnavailableBinding]
     accounts: list[AccountNote] = field(default_factory=list)
     """The accounts of each service reached through more than one, by prefix."""
+    managed_apps: list[ManagedAppNote] = field(default_factory=list)
+    """Connected managed apps attached to this run, with their tool prefixes."""
     sources: dict[UUID, McpSourceIdentity] = field(default_factory=dict)
     """The concrete accounts admitted by reachable bindings, without credentials."""
     origins: dict[str, UUID] = field(default_factory=dict)
@@ -3254,10 +3589,19 @@ async def build_toolsets_for_agent(
         accounts=_several_accounts(
             [reaches[id(spec)] for spec, _ in attached if id(spec) in reaches]
         ),
+        managed_apps=[
+            ManagedAppNote(
+                app=spec.managed_app_name,
+                prefix=tool_prefix(spec.name),
+                account=spec.account or spec.name,
+            )
+            for spec, _ in attached
+            if spec.managed_app_name is not None
+        ],
         origins=origins,
         sources={
             spec.source_connection_id: McpSourceIdentity(
-                endpoint_hash=hashlib.sha256(spec.url.encode()).hexdigest(),
+                endpoint_hash=hashlib.sha256((spec.source_url or spec.url).encode()).hexdigest(),
                 authorization_generation=spec.authorization_generation,
                 tool_prefix=tool_prefix(spec.name),
             )
@@ -3466,14 +3810,6 @@ async def _own_specs(
     accounts: list[_OwnAccount] = []
     taken: set[str] = set()
     for account in [primary, *(other for other in owned if other is not primary)]:
-        headers = await resolve_auth_headers(account)
-        if headers is None:
-            logger.info(
-                "Skipping one of the sender's own %r connections for this run: "
-                "no usable credentials",
-                ref.catalog_key,
-            )
-            continue
         name = ref.catalog_key if account is primary else _extra_prefix(ref.catalog_key, account)
         reviewed_prefix = (
             None if approved_sources is None else approved_sources[account.id].tool_prefix
@@ -3484,6 +3820,32 @@ async def _own_specs(
             # Two labels that read the same as a tool name (`Sales US`, `Sales-US`)
             # would share one prefix, and the resolver keeps only the first.
             name = f"{name[:55]}-{account.id.hex[:8]}"
+        if is_managed_auth_type(account.auth_type):
+            from app.services.app_connections.runtime import managed_connection_spec
+
+            managed = await managed_connection_spec(
+                account,
+                name=name,
+                allowed_tools=_narrowed_tools(ref.allowed_tools, account.allowed_tools),
+                approval=ref.approval,
+            )
+            if managed is not None:
+                taken.add(name)
+                accounts.append(
+                    _OwnAccount(
+                        spec=managed,
+                        label=f"{managed.account or _account_name(account)} (connection {account.id})",
+                    )
+                )
+            continue
+        headers = await resolve_auth_headers(account)
+        if headers is None:
+            logger.info(
+                "Skipping one of the sender's own %r connections for this run: "
+                "no usable credentials",
+                ref.catalog_key,
+            )
+            continue
         taken.add(name)
         spec = McpServerSpec(
             name=name,
@@ -3510,6 +3872,15 @@ async def watched_connection_spec(connection: McpConnection) -> McpServerSpec | 
     listed; the watch keeps only the tools the server marks read-only, so the
     approval policy here never comes into play.
     """
+    if is_managed_auth_type(connection.auth_type):
+        from app.services.app_connections.runtime import managed_connection_spec
+
+        return await managed_connection_spec(
+            connection,
+            name=connection.catalog_key or connection.name,
+            allowed_tools=connection.allowed_tools,
+            approval="writes",
+        )
     headers = await resolve_auth_headers(connection)
     if headers is None:
         return None

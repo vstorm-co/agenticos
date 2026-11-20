@@ -80,9 +80,7 @@ _WHY = {
 
 _STILL = {
     "not_connected": "is still not connected - the sign-in may not have finished",
-    "unauthorized": (
-        "still does not authorize - they authorize it again on the MCP servers page, under You"
-    ),
+    "unauthorized": "still needs authorization - they can reconnect it in Connectors",
     "unreachable": "is connected, but its server did not answer",
 }
 

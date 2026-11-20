@@ -43,6 +43,8 @@ describe("the tool catalog", () => {
       "generate_image",
       "generate_speech",
       "generate_video",
+      "harness_prompt",
+      "harness_start",
       "run_coding_agent",
       "run_python",
       "write_file",

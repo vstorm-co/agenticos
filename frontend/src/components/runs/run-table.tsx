@@ -18,7 +18,7 @@ import { Badge, DataTable, EntityAvatar, type Column } from "@/components/ui";
 import { useAuthStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
 import { modelShortName } from "@/lib/model-profiles";
-import { formatDateTime, formatRunDuration, timeAgo } from "@/lib/utils";
+import { formatDateTime, formatRunDuration, timeAgo, timeUntil } from "@/lib/utils";
 import type { AgentRun } from "@/types/runs";
 
 /** The orders `GET /runs` offers, matching `RunOrder` on the backend. */
@@ -50,6 +50,34 @@ export interface RunSort {
  * page of rows: the slowest run of a month is not in whichever twenty-five a
  * feed returned.
  */
+/** The question a parked run waits on, and how long is left to answer it. */
+function WaitingQuestion({ run }: { run: AgentRun }) {
+  const t = useTranslations("pages.runs");
+  const questions = run.waiting_questions ?? [];
+  const secrets = run.waiting_secret_requests ?? [];
+  if (run.status !== "awaiting_answer" || (questions.length === 0 && secrets.length === 0)) {
+    return null;
+  }
+  const firstSecret = secrets[0];
+  const first =
+    questions[0] ?? (firstSecret === undefined ? null : t("needsSecret", { name: firstSecret }));
+  const remaining = timeUntil(run.waiting_expires_at);
+  return (
+    <span
+      className="text-muted-foreground block max-w-72 truncate text-xs"
+      title={[...questions, ...secrets.map((name) => t("needsSecret", { name }))].join(" ")}
+    >
+      {first}
+      {remaining !== null && (
+        <span className="whitespace-nowrap">
+          {" · "}
+          {t("questionExpiresIn", { duration: remaining })}
+        </span>
+      )}
+    </span>
+  );
+}
+
 export function RunTable({
   runs,
   sort,
@@ -182,7 +210,11 @@ export function RunTable({
       header: t("status"),
       className: "pl-5",
       cell: (run) => (
-        <div className="space-y-1">
+        // The row has no room for the reason a run stopped - a sentence in
+        // this cell would make every row taller - so it rides on the hover
+        // instead: the detail view carries the full rendering, this is the
+        // one-line form for a list being scanned.
+        <div className="space-y-1" title={run.error ?? undefined}>
           <div className="flex items-center gap-1.5">
             <RunStatusBadge status={run.status} />
             {/* The reason this list is worth reading top to bottom: an
@@ -209,6 +241,11 @@ export function RunTable({
                 : t("delegatedTask", { taskId: run.subagent_task_id })}
             </Badge>
           )}
+          {/* A run parked on a question is not finished, so its row says what
+              it is waiting on rather than leaving the badge to say it alone.
+              The chat behind the run - the link in the last column - is where
+              the answer goes. */}
+          <WaitingQuestion run={run} />
           {(run.asked_in_chat || run.initiated_by_publisher_fallback) && (
             <span className="block max-w-[calc(100vw-10rem)] min-w-0 sm:hidden">
               {personLabel(run)}

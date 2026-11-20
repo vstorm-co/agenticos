@@ -206,7 +206,7 @@ async def test_a_service_already_connected_is_not_asked_for_again():
     ("outcome", "said"),
     [
         ("not_connected", "is still not connected"),
-        ("unauthorized", "authorize it again"),
+        ("unauthorized", "reconnect it in Connectors"),
         ("unreachable", "its server did not answer"),
     ],
 )

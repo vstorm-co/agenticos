@@ -80,6 +80,7 @@ def screen_history(
             provenance=history.provenance,
             source=history.source,
             public_context=history.public_context,
+            ordinal=history.ordinal,
         )
         if isinstance(history, ModelHistory)
         else messages

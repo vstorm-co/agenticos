@@ -1,10 +1,10 @@
-Subject: Your [[app_name]] trial has ended
+Subject: Your trial has ended
 
-Hi [[name]],
+Your trial has ended
 
-Your free trial of [[app_name]] has ended. Upgrade to restore full access.
+Hi [[name]], your [[app_name]] trial has ended. Choose a plan when you are ready to continue.
 
-Upgrade your plan:
+Choose a plan:
 [[upgrade_url]]
 
-- The [[app_name]] Team
+[[app_name]]

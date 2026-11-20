@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 
@@ -8,6 +8,7 @@ import type { ChatPrompt } from "@/components/chat/chat-container";
 import { useShell } from "@/hooks/use-shell";
 import { isDesktopShell } from "@/lib/desktop/shell";
 import { useAssistant } from "@/hooks/use-assistant";
+import { useAssistantPageContext } from "@/hooks/use-assistant-page-context";
 import { useAssistantSignals } from "@/hooks/use-assistant-signals";
 import { pointAt, type ConsoleLink } from "@/lib/assistant-highlight";
 import {
@@ -20,8 +21,8 @@ import {
   setDocked,
 } from "@/lib/assistant-bubbles";
 import { useRouter } from "@/lib/locale-navigation";
-import { ChatScope, useOrgStore } from "@/stores";
-import { useArchitectAskStore } from "@/stores/architect-ask-store";
+import { ChatScope, useAuthStore, useOrgStore } from "@/stores";
+import { architectAskMatchesScope, useArchitectAskStore } from "@/stores/architect-ask-store";
 import type { AssistantState } from "@/types/assistant";
 
 import { AssistantBubble } from "./assistant-bubble";
@@ -48,13 +49,26 @@ let visits = 0;
  * Shown only to somebody who may run agents - the assistant is an agent like any
  * other. Before it has a model the same chat explains how to connect one.
  */
-export function AssistantWidget() {
+export function AssistantWidget({
+  defaultAgentId,
+  viewer = false,
+}: { defaultAgentId?: string | null; viewer?: boolean } = {}) {
   // A failed read leaves the corner empty on every page rather than an error
   // following the reader around; Settings → Assistant is where it is said.
   const { assistant } = useAssistant();
+  const userId = useAuthStore((state) => state.user?.id ?? null);
+  const orgId = useOrgStore((state) => state.activeOrgId);
   if (!assistant || !assistant.can_use || assistant.agent_id === null) return null;
   if (assistant.status === "ready" || assistant.status === "needs_model") {
-    return <ConversationWidget assistant={assistant} agentId={assistant.agent_id} />;
+    return (
+      <ReadyWidget
+        key={JSON.stringify([userId, orgId, assistant.agent_id, defaultAgentId ?? null])}
+        assistant={assistant}
+        agentId={assistant.agent_id}
+        defaultAgentId={defaultAgentId ?? assistant.agent_id}
+        viewer={viewer}
+      />
+    );
   }
   return null;
 }
@@ -95,15 +109,20 @@ function usePhone(): boolean {
   return phone;
 }
 
-function ConversationWidget({
+function ReadyWidget({
   assistant,
   agentId,
+  defaultAgentId,
+  viewer,
 }: {
   assistant: AssistantState;
   agentId: string;
+  defaultAgentId: string;
+  viewer: boolean;
 }) {
   const t = useTranslations("assistantWidget");
   const pathname = usePathname();
+  const { page, getSnapshot } = useAssistantPageContext(pathname);
   const signals = useAssistantSignals();
   const organization = useOrgStore((state) => state.activeOrgId);
   const [open, setOpen] = useState(false);
@@ -191,31 +210,47 @@ function ConversationWidget({
     !preferences.off &&
     !preferences.silenced.includes(pageOf(pathname));
 
-  const openWindow = () => {
+  const openWindow = useCallback(() => {
     dock(false);
     setOpen(true);
     setEverOpened(true);
-  };
+  }, [dock]);
 
   const [draft, setDraft] = useState<{ id: number; text: string } | null>(null);
-  const ask = (text: string, asDraft = false) => {
-    openWindow();
-    if (asDraft) setDraft((last) => ({ id: (last?.id ?? 0) + 1, text }));
-    else setPrompt((last) => ({ id: (last?.id ?? 0) + 1, text }));
-  };
+  const ask = useCallback(
+    (text: string, asDraft = false) => {
+      openWindow();
+      if (asDraft) setDraft((last) => ({ id: (last?.id ?? 0) + 1, text }));
+      else setPrompt((last) => ({ id: (last?.id ?? 0) + 1, text }));
+    },
+    [openWindow],
+  );
 
   // Asked from elsewhere in the console - "Make an agent of this" in a chat. Each
-  // ask once: taken out of the store so a widget mounted later does not repeat
-  // it, and the ref for an effect that runs twice before the store has caught up.
-  const asked = useArchitectAskStore((state) => state.request);
-  const answered = useArchitectAskStore((state) => state.answered);
-  const answeredAsk = useRef<number | null>(null);
+  // ask once: consume an external-store event, then check its account context at
+  // delivery. A queued request is read after mounting; a switch cancels that delivery.
   useEffect(() => {
-    if (asked === null || asked.id === answeredAsk.current) return;
-    answeredAsk.current = asked.id;
-    ask(asked.text, asked.draft);
-    answered(asked.id);
-  });
+    let active = true;
+    const consume = () => {
+      if (!active) return;
+      const { request, answered } = useArchitectAskStore.getState();
+      if (!request) return;
+      answered(request.id);
+      if (
+        architectAskMatchesScope(request, {
+          userId: useAuthStore.getState().user?.id ?? null,
+          orgId: useOrgStore.getState().activeOrgId,
+        })
+      )
+        ask(request.text, request.draft);
+    };
+    const unsubscribe = useArchitectAskStore.subscribe(consume);
+    void Promise.resolve().then(consume);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [ask]);
 
   const followLink = (link: ConsoleLink) => {
     // On a phone the full-screen window steps aside so the page can be seen.
@@ -229,14 +264,15 @@ function ConversationWidget({
       {everOpened && (
         // Keyed by organization: a switch starts the conversation afresh rather
         // than carrying one organization's thread into another.
-        <ChatScope key={organization ?? "none"} agentId={agentId}>
+        <ChatScope key={organization ?? "none"} agentId={defaultAgentId}>
           <AssistantWindow
             assistant={assistant}
             agentId={agentId}
             open={open}
             prompt={prompt}
             draft={draft}
-            page={{ path: pageOf(pathname) }}
+            page={page}
+            getPageContext={getSnapshot}
             tipsOff={preferences.off}
             onTipsOff={(off) => {
               setBubblesOff(off);
@@ -286,6 +322,7 @@ function ConversationWidget({
       <AssistantLauncher
         assistant={assistant}
         agentId={agentId}
+        viewer={viewer}
         open={open}
         docked={docked}
         waiting={(docked || phone) && bubble !== null && isProactive(bubble) && !preferences.off}

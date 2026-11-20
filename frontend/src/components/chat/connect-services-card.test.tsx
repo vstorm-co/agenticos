@@ -120,7 +120,7 @@ describe("ConnectServicesCard", () => {
     expect(screen.queryByRole("button", { name: "Connect" })).toBeNull();
     screen.getByRole("button", { name: "Open MCP servers" }).click();
 
-    expect(state.push).toHaveBeenCalledWith("/mcp-servers");
+    expect(state.push).toHaveBeenCalledWith("/connectors?tab=advanced");
   });
 
   it("falls back to the link for a service the catalog no longer describes", () => {
@@ -139,6 +139,13 @@ describe("ConnectServicesCard", () => {
 
     expect(screen.getByText("Connected. Ask again.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Connect" })).toBeNull();
+  });
+
+  it("does not call a pending or unauthorized account connected", () => {
+    state.connections = [own({ authorized: false, oauth_authorized: false })];
+    render(<ConnectServicesCard gaps={[gap()]} />);
+    expect(screen.queryByText("Connected. Ask again.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Connect" })).toBeInTheDocument();
   });
 
   it("can be dismissed", async () => {

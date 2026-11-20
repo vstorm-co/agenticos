@@ -3,12 +3,14 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 
 import { McpServerList } from "./mcp-server-list";
-import McpServersPage from "@/app/[locale]/(dashboard)/mcp-servers/page";
+import { ManualConnections as McpServersPage } from "@/app/[locale]/(dashboard)/connectors/manual-connections";
 import { Perm, type Permission } from "@/types/permissions";
 import { qk } from "@/lib/query-keys";
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
 import type { McpCatalog, McpCatalogEntry } from "@/types/mcp";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
@@ -21,6 +23,11 @@ vi.mock("@/lib/api-client", async () => {
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const managedConnect = vi.hoisted(() => vi.fn());
+vi.mock("@/hooks/use-managed-app-connect", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-managed-app-connect")>()),
+  useManagedAppConnect: () => managedConnect,
+}));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -412,6 +419,29 @@ describe("McpServerList", () => {
     registryResults = [];
   });
 
+  it.each(["connect", "server"])(
+    "routes a managed app's %s link to native setup without generic OAuth",
+    async (parameter) => {
+      catalogEntries = [
+        ...CATALOG.items,
+        {
+          ...CATALOG.items[1]!,
+          key: "composio-gmail",
+          name: "Gmail",
+          auth: "composio",
+          url: null,
+        },
+      ];
+      window.history.replaceState({}, "", `/connectors?${parameter}=composio-gmail`);
+      await mount();
+      await waitFor(() =>
+        expect(managedConnect).toHaveBeenCalledWith("composio-gmail", { sameTab: true }),
+      );
+      expect(apiClient.post).not.toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).toBeNull();
+    },
+  );
+
   it("keeps the card to two controls and counts what is behind them", async () => {
     // The card used to grow a chip per connection, so a server with three
     // accounts stood taller than its neighbours and the grid went ragged.
@@ -572,7 +602,9 @@ describe("McpServerList", () => {
     );
   });
 
-  it("opens required Google setup instead of attempting dynamic registration", async () => {
+  it("connects a Google server straight to consent, with no client fields", async () => {
+    // The organization's Google app is read on the server: the member never types
+    // a client ID or secret, and the start carries none.
     catalogEntries = [
       ...CATALOG.items,
       {
@@ -584,35 +616,226 @@ describe("McpServerList", () => {
           "https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server",
       },
     ];
+    vi.mocked(apiClient.post).mockResolvedValue({ authorization_url: "https://consent.example" });
     await mount();
     await userEvent.click(
       within(screen.getByRole("group", { name: "Google Calendar" })).getByRole("button", {
         name: "Connect",
       }),
     );
-    expect(screen.getByLabelText("Client ID")).toBeVisible();
-    expect(screen.getByLabelText("Client secret")).toBeVisible();
-    expect(screen.getByRole("link", { name: "Open Google setup guide" })).toHaveAttribute(
-      "href",
-      catalogEntries[2]!.docs_url,
-    );
-    expect(apiClient.post).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
-    expect(apiClient.post).not.toHaveBeenCalled();
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText("Client ID"), "google-app");
-    await userEvent.type(screen.getByLabelText("Client secret"), "test-secret");
-    await userEvent.click(screen.getByRole("radio", { name: /^My own account/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenCalledWith(
         "/me/mcp-connections/oauth/start",
-        expect.objectContaining({ client_id: "google-app", client_secret: "test-secret" }),
+        expect.objectContaining({ url: "https://calendarmcp.googleapis.com/mcp/v1" }),
       ),
     );
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("client_id");
+    expect(screen.queryByLabelText("Client ID")).toBeNull();
   });
 
-  it("opens Google client setup from a connect link without starting registration", async () => {
+  it("asks an admin for the organization's Google app when it is missing", async () => {
+    catalogEntries = [
+      ...CATALOG.items,
+      {
+        ...CATALOG.items[1]!,
+        key: "google-calendar",
+        name: "Google Calendar",
+        url: "https://calendarmcp.googleapis.com/mcp/v1",
+        docs_url:
+          "https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server",
+      },
+    ];
+    vi.mocked(apiClient.post).mockRejectedValue(
+      Object.assign(new ApiError(404, "No Google app"), {
+        details: { kind: "google_oauth_app" },
+      }),
+    );
+    await mount();
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Google Calendar" })).getByRole("button", {
+        name: "Connect",
+      }),
+    );
+    expect(await screen.findByLabelText("Client ID")).toBeVisible();
+    expect(screen.getByLabelText("Client secret")).toBeVisible();
+  });
+
+  it("tells a member to ask an admin when the organization has no Google app", async () => {
+    catalogEntries = [
+      ...CATALOG.items,
+      {
+        ...CATALOG.items[1]!,
+        key: "google-calendar",
+        name: "Google Calendar",
+        url: "https://calendarmcp.googleapis.com/mcp/v1",
+        docs_url:
+          "https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server",
+      },
+    ];
+    vi.mocked(apiClient.post).mockRejectedValue(
+      Object.assign(new ApiError(404, "No Google app"), {
+        details: { kind: "google_oauth_app" },
+      }),
+    );
+    await mount({ canManageOrganization: false });
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Google Calendar" })).getByRole("button", {
+        name: "Connect",
+      }),
+    );
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Ask an admin to set up Google for this organization.",
+      ),
+    );
+    expect(screen.queryByLabelText("Client ID")).toBeNull();
+  });
+
+  it("saves the org's Google client as the organization's app when an admin enters it", async () => {
+    // The admin's client is the organization's, not theirs: it goes to the org
+    // vault as the org's Google app, and the consent start carries no client at
+    // all, so the connection is the admin's personal one reading that app.
+    catalogEntries = [
+      ...CATALOG.items,
+      {
+        ...CATALOG.items[1]!,
+        key: "google-calendar",
+        name: "Google Calendar",
+        url: "https://calendarmcp.googleapis.com/mcp/v1",
+        docs_url:
+          "https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server",
+      },
+    ];
+    let startCalls = 0;
+    vi.mocked(apiClient.post).mockImplementation(async (path: string) => {
+      if (path === "/secrets") return {};
+      startCalls += 1;
+      if (startCalls === 1) {
+        throw Object.assign(new ApiError(404, "No Google app"), {
+          details: { kind: "google_oauth_app" },
+        });
+      }
+      return { authorization_url: "https://consent.example" };
+    });
+    await mount();
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Google Calendar" })).getByRole("button", {
+        name: "Connect",
+      }),
+    );
+    await userEvent.type(await screen.findByLabelText("Client ID"), "org-app");
+    await userEvent.type(screen.getByLabelText("Client secret"), "shh");
+    await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/secrets", {
+        name: "google-oauth-app",
+        description: "Google OAuth client for connected accounts",
+        value: { kind: "google_oauth_app", client_id: "org-app", client_secret: "shh" },
+        visibility: "org",
+      }),
+    );
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenLastCalledWith(
+        "/me/mcp-connections/oauth/start",
+        expect.objectContaining({ url: "https://calendarmcp.googleapis.com/mcp/v1" }),
+      ),
+    );
+    const restart = vi.mocked(apiClient.post).mock.calls.at(-1)?.[1] as Record<string, unknown>;
+    expect(restart).not.toHaveProperty("client_id");
+    expect(restart).not.toHaveProperty("client_secret");
+  });
+
+  it("rotates the org's Google app in place when an admin saves it again", async () => {
+    // The first save made the app; a second save must not add a second secret
+    // with the same name, the server refuses that. It patches the one there is.
+    catalogEntries = [
+      ...CATALOG.items,
+      {
+        ...CATALOG.items[1]!,
+        key: "google-calendar",
+        name: "Google Calendar",
+        url: "https://calendarmcp.googleapis.com/mcp/v1",
+        docs_url:
+          "https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server",
+      },
+    ];
+    let startCalls = 0;
+    vi.mocked(apiClient.post).mockImplementation(async (path: string) => {
+      if (path === "/secrets") {
+        throw new ApiError(409, "A secret named 'google-oauth-app' already exists", {
+          error: {
+            code: "ALREADY_EXISTS",
+            message: "A secret named 'google-oauth-app' already exists",
+          },
+        });
+      }
+      startCalls += 1;
+      if (startCalls === 1) {
+        throw Object.assign(new ApiError(404, "No Google app"), {
+          details: { kind: "google_oauth_app" },
+        });
+      }
+      return { authorization_url: "https://consent.example" };
+    });
+    vi.mocked(apiClient.patch).mockResolvedValue({});
+    await mount();
+    // `serve` routes the other GETs; the secrets list is the one this save reads.
+    const served = vi.mocked(apiClient.get).getMockImplementation();
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path !== "/secrets") return served!(path);
+      return {
+        items: [
+          { id: "other", name: "slack", kind: "api_key" },
+          { id: "org-app-1", name: "google-oauth-app", kind: "google_oauth_app" },
+        ],
+        total: 2,
+      };
+    });
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Google Calendar" })).getByRole("button", {
+        name: "Connect",
+      }),
+    );
+    await userEvent.type(await screen.findByLabelText("Client ID"), "org-app-2");
+    await userEvent.type(screen.getByLabelText("Client secret"), "rotated");
+    await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/secrets/org-app-1", {
+        value: { kind: "google_oauth_app", client_id: "org-app-2", client_secret: "rotated" },
+      }),
+    );
+    expect(apiClient.get).toHaveBeenCalledWith("/secrets");
+  });
+
+  it("keeps a member's own client on their personal connection, not the org's", async () => {
+    // A member without mcp:manage cannot write the org's app, so the client they
+    // type is spent for their own connection only, as it was before.
+    vi.mocked(apiClient.post).mockResolvedValue({ authorization_url: "https://consent.example" });
+    await mount({ canManageOrganization: false });
+
+    const row = within(githubRow());
+    await userEvent.click(row.getByRole("button", { name: "Connect" }));
+    await userEvent.click(await screen.findByRole("button", { name: "More options" }));
+    await userEvent.click(screen.getByRole("radio", { name: "OAuth" }));
+    await userEvent.type(screen.getByLabelText("Client ID"), "member-app");
+    await userEvent.type(screen.getByLabelText("Client secret"), "mine");
+    await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/me/mcp-connections/oauth/start", {
+        name: "github",
+        url: "https://api.githubcopilot.com/mcp/",
+        catalog_key: "github",
+        client_id: "member-app",
+        client_secret: "mine",
+      }),
+    );
+    expect(apiClient.post).not.toHaveBeenCalledWith("/secrets", expect.anything());
+  });
+
+  it("opens a Google connect link straight to consent, with no client fields", async () => {
     catalogEntries = [
       ...CATALOG.items,
       {
@@ -625,10 +848,15 @@ describe("McpServerList", () => {
       },
     ];
     window.history.replaceState({}, "", "/mcp-servers?connect=google-calendar");
+    vi.mocked(apiClient.post).mockResolvedValue({ authorization_url: "https://consent.example" });
     await mount();
-    expect(await screen.findByLabelText("Client ID")).toBeVisible();
-    expect(screen.queryByText(/Leave it empty for a public client/)).toBeNull();
-    expect(apiClient.post).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/me/mcp-connections/oauth/start",
+        expect.not.objectContaining({ client_id: expect.anything() }),
+      ),
+    );
+    expect(screen.queryByLabelText("Client ID")).toBeNull();
     expect(window.location.search).toBe("");
   });
 

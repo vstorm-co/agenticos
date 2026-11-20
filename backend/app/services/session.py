@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError, NotFoundError
-from app.core.security import create_refresh_token, read_uuid_claim
+from app.core.security import create_access_token, create_refresh_token, read_uuid_claim
 from app.db.models.session import Session
 from app.repositories import push_subscription as push_repo
 from app.repositories import session_repo
@@ -80,6 +80,40 @@ def _parse_user_agent(user_agent: str | None) -> tuple[str | None, str | None]:
 class SessionService:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def issue_tokens(
+        self,
+        *,
+        user_id: UUID,
+        credential_version: int,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+        proved_email: str | None = None,
+    ) -> tuple[str, str]:
+        """The token pair for a sign-in that has cleared every factor.
+
+        The session row is created before the access token is minted, so the token
+        can name it in `sid` - which is what lets signing out everywhere revoke the
+        access token, not only stop the next refresh (#1501).
+        """
+        refresh_token = create_refresh_token(
+            subject=str(user_id), credential_version=credential_version
+        )
+        session = await self.create_session(
+            user_id=user_id,
+            refresh_token=refresh_token,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            proved_email=proved_email,
+        )
+        return (
+            create_access_token(
+                subject=str(user_id),
+                sid=str(session.id),
+                auth_time=int(datetime.now(UTC).timestamp()),
+            ),
+            refresh_token,
+        )
 
     async def create_session(
         self,

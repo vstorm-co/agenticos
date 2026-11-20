@@ -2,12 +2,20 @@
 
 # ruff: noqa: I001, RUF022 - Imports structured for Jinja2 template conditionals
 from app.db.models.task_board import TaskBoard, TaskLink
+from app.db.models.virtual_table_relation import (
+    VirtualTableLinkEvidence,
+    VirtualTableRecordLink,
+    VirtualTableRelation,
+)
 from app.db.models.project_tracking import ProjectTracking
 from app.db.models.routine_delivery import RoutineDelivery
 from app.db.models.user import User
 from app.db.models.session import Session
 from app.db.models.conversation import Conversation, Message, ToolCall
+from app.db.models.conversation_message_pin import ConversationMessagePin
 from app.db.models.conversation_task import ConversationTask, ConversationTurnClaim
+from app.db.models.room_submission import RoomSubmission
+from app.db.models.room_routing import RoomLeadPolicy, RoomRoutingProposal, RoomTaskLink
 from app.db.models.coding_task_change import CodingTaskChange
 from app.db.models.chat_file import ChatFile
 from app.db.models.message_rating import MessageRating
@@ -18,6 +26,21 @@ from app.db.models.sync_source import SyncSource
 from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.conversation_last_read import ConversationLastRead
 from app.db.models.browser_sign_in import BrowserSignIn
+from app.db.models.browser_credential_continuation import BrowserCredentialContinuation
+from app.db.models.browser_teaching import (
+    BrowserTeachingSession,
+)
+from app.db.models.browser_procedure_teaching import (
+    BrowserProcedureTeachingPolicy,
+    BrowserProcedureTeachingPreference,
+    BrowserProcedureTeachingSession,
+)
+from app.db.models.browser_credential import (
+    BrowserCredentialAgentGrant,
+    BrowserCredentialMemberGrant,
+    BrowserCredentialPlan,
+    BrowserCredentialPolicy,
+)
 from app.db.models.coding_account import CodingAccount
 from app.db.models.personal_model_key import PersonalModelKey
 from app.db.models.conversation_share import ConversationShare
@@ -46,6 +69,13 @@ from app.db.models.agent_environment import (
     AgentEnvironment,
     AgentEnvironmentConnection,
     ConnectionKind,
+)
+from app.db.models.agent_message import (
+    AgentMessage,
+    AgentMessageAttachment,
+    AgentMessageReaction,
+    AgentMessageRead,
+    AgentMessageThread,
 )
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.sandbox_connection import SandboxConnection
@@ -107,6 +137,7 @@ from app.db.models.background_worker import BackgroundWorker
 from app.db.models.purged_run_spend import PurgedRunSpend
 from app.db.models.credential import ModelProfile
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.secret_request import SecretRequest, SecretRequestStatus
 from app.db.models.context import ContextFile, ContextMode
 from app.db.models.context_proposal import ContextProposal
 from app.db.models.memory import AgentMemoryFile
@@ -206,7 +237,14 @@ from app.db.models.workflow_exposure import (
 )
 from app.db.models.workflow_approval import WorkflowApproval, WorkflowApprovalStatus
 from app.db.models.workflow_eval import WorkflowEvalRun, WorkflowStepEval
+from app.db.models.failure_learning import (
+    AgentEvalCase,
+    AgentEvalRun,
+    AgentFailureLedger,
+    AgentInstructionProposal,
+)
 from app.db.models.workflow_file import WorkflowFile
+from app.db.models.workflow_media_operation import WorkflowMediaOperation
 from app.db.models.workflow_log_alert import WorkflowLogAlertFiring, WorkflowLogAlertRule
 from app.db.models.workflow_log_entry import WorkflowLogEntry
 from app.db.models.virtual_table_trigger import (
@@ -217,6 +255,7 @@ from app.db.models.virtual_table_trigger import (
     VirtualTableTriggerRevision,
 )
 from app.db.models.artifact_share_request import ArtifactShareRequest
+from app.db.models.artifact_favourite import ArtifactFavourite
 
 __all__ = [
     "TaskBoard",
@@ -230,6 +269,15 @@ __all__ = [
     "Visual",
     "ApiKey",
     "BrowserSignIn",
+    "BrowserTeachingSession",
+    "BrowserProcedureTeachingPolicy",
+    "BrowserProcedureTeachingPreference",
+    "BrowserProcedureTeachingSession",
+    "BrowserCredentialAgentGrant",
+    "BrowserCredentialMemberGrant",
+    "BrowserCredentialPlan",
+    "BrowserCredentialContinuation",
+    "BrowserCredentialPolicy",
     "CodingAccount",
     "PersonalModelKey",
     "OrganizationAssistant",
@@ -246,6 +294,7 @@ __all__ = [
     "OAuthRefreshToken",
     "Artifact",
     "ArtifactFollower",
+    "ArtifactFavourite",
     "ArtifactMediaType",
     "ArtifactShareRequest",
     "ArtifactVersion",
@@ -262,9 +311,14 @@ __all__ = [
     "User",
     "Session",
     "Conversation",
+    "ConversationMessagePin",
     "CodingTaskChange",
     "ConversationTask",
     "ConversationTurnClaim",
+    "RoomSubmission",
+    "RoomLeadPolicy",
+    "RoomRoutingProposal",
+    "RoomTaskLink",
     "Message",
     "ToolCall",
     "ChatFile",
@@ -302,6 +356,11 @@ __all__ = [
     "AgentStatus",
     "AgentVersion",
     "AgentEnvironment",
+    "AgentMessage",
+    "AgentMessageAttachment",
+    "AgentMessageReaction",
+    "AgentMessageRead",
+    "AgentMessageThread",
     "AgentEnvironmentConnection",
     "ConnectionKind",
     "AgentWorkspace",
@@ -360,6 +419,8 @@ __all__ = [
     "ApprovalStatus",
     "ModelProfile",
     "OrganizationSecret",
+    "SecretRequest",
+    "SecretRequestStatus",
     "PendingSandboxDestroy",
     "BackgroundJob",
     "BackgroundSchedule",
@@ -379,6 +440,9 @@ __all__ = [
     "VirtualTableOutbox",
     "VirtualTableReceipt",
     "VirtualTableRecord",
+    "VirtualTableRecordLink",
+    "VirtualTableRelation",
+    "VirtualTableLinkEvidence",
     "VirtualTableRecordHistory",
     "VirtualTableSchemaVersion",
     "TableView",
@@ -442,8 +506,13 @@ __all__ = [
     "WorkflowApproval",
     "WorkflowEvalRun",
     "WorkflowStepEval",
+    "AgentEvalCase",
+    "AgentEvalRun",
+    "AgentFailureLedger",
+    "AgentInstructionProposal",
     "WorkflowApprovalStatus",
     "WorkflowFile",
+    "WorkflowMediaOperation",
     "WorkflowLogAlertFiring",
     "WorkflowLogAlertRule",
     "WorkflowLogEntry",

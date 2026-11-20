@@ -39,6 +39,8 @@ PRESENCE = "presence"
 TURN_BEGUN = "turn_begun"
 TYPING = "typing"
 NEXT_STEPS = "next_steps"
+ROOM_MESSAGE = "room_message"
+ROOM_REQUEST = "room_request"
 
 _redis: RedisClient | None = None
 
@@ -147,6 +149,16 @@ async def turn_begun(conversation_id: str, user_id: UUID) -> None:
     await _announce(conversation_id, TURN_BEGUN, by=str(user_id))
 
 
+async def room_message(conversation_id: str, message_id: UUID) -> None:
+    """Invalidate the saved transcript for every subscribed member, including its author."""
+    await _announce(conversation_id, ROOM_MESSAGE, message_id=str(message_id))
+
+
+async def room_request(conversation_id: str, request_id: UUID) -> None:
+    """Invalidate the queue without publishing its prompt or private run details."""
+    await _announce(conversation_id, ROOM_REQUEST, request_id=str(request_id))
+
+
 async def typing(conversation_id: str, user_id: UUID) -> None:
     """Tell the room somebody is writing a message, as a messenger does. Never raises.
 
@@ -202,6 +214,8 @@ async def events(conversation_id: str) -> AsyncGenerator[dict[str, Any]]:
                 TURN_BEGUN,
                 TYPING,
                 NEXT_STEPS,
+                ROOM_MESSAGE,
+                ROOM_REQUEST,
             ):
                 yield event
     finally:

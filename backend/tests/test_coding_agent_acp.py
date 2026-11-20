@@ -528,7 +528,9 @@ async def test_a_chat_not_working_on_a_computer_is_told_how_to_fix_it(
 ) -> None:
     computer = Computer(ScriptedAgent())
     answer, frames = await _local_task(monkeypatch, computer, None)
-    assert "Work on needs to be set to This computer" in answer
+    report = CodingReport.model_validate_json(answer)
+    assert report.outcome == "failed"
+    assert "Work on needs to be set to This computer" in report.answer
     assert computer.ops == [] and frames == []
 
 
@@ -551,7 +553,9 @@ async def test_a_computer_that_is_gone_ends_the_panel_with_the_reason(
     answer, frames = await _local_task(
         monkeypatch, Computer(ScriptedAgent(), unavailable=True), _local_workspace()
     )
-    assert answer.startswith("Claude Code could not run on this computer:")
+    report = CodingReport.model_validate_json(answer)
+    assert report.outcome == "failed"
+    assert report.answer.startswith("Claude Code could not run on this computer:")
     assert frames[-1].status == "failed"
 
 
@@ -1011,7 +1015,9 @@ async def test_translated_native_refusals_end_the_task_as_failed(
     ledger = SpendLedger()
     with metered_by(ledger):
         answer, frames = await _local_task(monkeypatch, computer, _local_workspace())
-    assert "could not run on this computer: Native launch refused" in answer
+    report = CodingReport.model_validate_json(answer)
+    assert report.outcome == "failed"
+    assert "could not run on this computer: Native launch refused" in report.answer
     assert frames[-1].status == "failed"
     assert ledger.entries == []
 

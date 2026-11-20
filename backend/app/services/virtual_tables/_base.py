@@ -7,12 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.virtual_table import VirtualTable
+from app.db.table_rls import bind_table_access
 from app.repositories import virtual_table_repo
 from app.schemas.resource_grant import as_visibility
 from app.schemas.virtual_table import ColumnDef, TableRead
 from app.services.access import TABLE, resolve_access
 from app.services.virtual_tables.deadline import ReadDeadline, arm_if_set
-from app.services.virtual_tables.exceptions import TableArchivedError
+from app.services.virtual_tables.exceptions import InvalidRowPolicyError, TableArchivedError
+from app.services.virtual_tables.row_policy import parse_policy
 
 
 class Operations:
@@ -30,6 +32,7 @@ class Operations:
         lock: bool = False,
         share: bool = False,
         deadline: ReadDeadline | None = None,
+        alternative_perm: Perm | None = None,
     ) -> VirtualTable:
         """The table, if this caller may exercise `perm` on it.
 
@@ -40,6 +43,7 @@ class Operations:
         them off until the write commits. Table locks come first and the audit chain lock last,
         so the two never wait on each other. With a `deadline`, each statement is armed first.
         """
+        await bind_table_access(self.db, ctx)
         await arm_if_set(self.db, deadline)
         table = await virtual_table_repo.get_table(
             self.db,
@@ -49,9 +53,14 @@ class Operations:
             for_share=share,
         )
         await arm_if_set(self.db, deadline)
-        if table is None or not await resolve_access(
+        allowed = table is not None and await resolve_access(
             self.db, ctx, table, perm, resource_type=TABLE
-        ):
+        )
+        if not allowed and table is not None and alternative_perm is not None:
+            allowed = await resolve_access(
+                self.db, ctx, table, alternative_perm, resource_type=TABLE
+            )
+        if table is None or not allowed:
             raise NotFoundError(message="Table not found", details={"table_id": table_id})
         return table
 
@@ -131,8 +140,17 @@ class Operations:
         *,
         can_edit: bool,
         can_restore: bool = False,
+        can_manage_row_access: bool = False,
         can_manage: bool | None = None,
     ) -> TableRead:
+        try:
+            policy = parse_policy(table.row_policy)
+            policy_valid = True
+        except InvalidRowPolicyError:
+            # Metadata remains reachable so an authorized editor can repair the
+            # policy; record operations still refuse the malformed document.
+            policy = None
+            policy_valid = False
         return TableRead(
             id=table.id,
             name=table.name,
@@ -147,6 +165,9 @@ class Operations:
             updated_at=table.updated_at,
             can_edit=can_edit,
             can_restore=can_restore,
+            can_manage_row_access=can_manage_row_access,
+            row_policy=policy,
+            row_policy_valid=policy_valid,
             can_manage=can_edit if can_manage is None else can_manage,
             columns=columns,
         )

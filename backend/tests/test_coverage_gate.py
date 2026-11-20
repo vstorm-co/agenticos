@@ -40,12 +40,17 @@ def _matches_glob(path: str, pattern: str) -> bool:
 
 # Directories whose contents are entirely platform layer: everything AgenticOS
 # adds on top of the generated template. Every file here must be gated.
-PLATFORM_PACKAGES = ("app/agents",)
+PLATFORM_PACKAGES = ("app/agents", "app/services/workflow_media")
 
 # Individual platform modules living in directories we share with the template.
 PLATFORM_MODULES = (
     "app/commands/bootstrap.py",
     "app/core/permissions.py",
+    "app/core/claude_subscription.py",
+    "app/schemas/claude_subscription.py",
+    "app/api/routes/v1/personal_subscriptions.py",
+    "app/services/claude_subscription/_client.py",
+    "app/services/claude_subscription/_service.py",
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
@@ -69,6 +74,8 @@ PLATFORM_MODULES = (
     "app/services/agent_session.py",
     "app/services/approvals.py",
     "app/services/audit.py",
+    # Owner capture summaries and audience-bound cursors stay in both permanent gates.
+    "app/services/browser_procedure_teaching/_listing.py",
     "app/services/impersonation.py",
     "app/services/channels/mentions.py",
     "app/services/channels/handback.py",
@@ -84,10 +91,17 @@ PLATFORM_MODULES = (
     "app/services/model_profile.py",
     "app/services/notifications.py",
     "app/services/organization_secret.py",
+    "app/services/secret_requests.py",
+    "app/services/role_navigation.py",
     "app/services/rag/remote_names.py",
     "app/services/rag/filters.py",
     "app/services/sharing.py",
+    # TOTP for console sign-in: the code, its service and its schemas.
+    "app/core/totp.py",
+    "app/services/mfa.py",
+    "app/schemas/mfa.py",
     "app/services/skills.py",
+    "app/services/auto_skill_learning.py",
     "app/db/models/agent_environment.py",
     "app/schemas/agent_environment.py",
     "app/services/text_similarity.py",
@@ -97,6 +111,7 @@ PLATFORM_MODULES = (
     "app/repositories/agent_exposure.py",
     "app/repositories/mcp_connection.py",
     "app/repositories/organization_secret.py",
+    "app/repositories/secret_request.py",
     "app/repositories/_visibility.py",
     "app/repositories/resource_grant.py",
     "app/repositories/dashboard_layout.py",
@@ -135,6 +150,28 @@ PLATFORM_MODULES = (
     "app/schemas/workflow_log_alert.py",
     "app/services/workflow_log_alerts.py",
     "app/api/routes/v1/workflow_log_alerts.py",
+    "app/core/image_workflow_catalog.py",
+    "app/core/video_workflow_catalog.py",
+    "app/db/models/workflow_media_operation.py",
+    "app/repositories/workflow_media_operation.py",
+    "app/schemas/workflow_media.py",
+    "app/services/workflow_media_catalog.py",
+    "app/services/workflow_media_read.py",
+    "app/services/media_types.py",
+    "app/services/media_inspection.py",
+    "app/services/image_generation.py",
+    "app/services/video_generation/__init__.py",
+    "app/services/video_generation/clients.py",
+    "app/services/video_generation/exceptions.py",
+    "app/services/video_generation/generation.py",
+    "app/services/video_generation/receipts.py",
+    "app/schemas/eval_judging.py",
+    "app/services/eval_judging.py",
+    "app/db/models/failure_learning.py",
+    "app/repositories/failure_learning.py",
+    "app/schemas/failure_learning.py",
+    "app/services/failure_learning.py",
+    "app/api/routes/v1/failure_learning.py",
 )
 
 

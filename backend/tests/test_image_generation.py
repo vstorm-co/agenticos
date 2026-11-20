@@ -36,6 +36,7 @@ from app.agents.capabilities.sandbox._capped import CappedStateBackend
 from app.agents.deps import AgentDeps
 from app.core.config import settings
 from app.core.secret_kinds import ApiKeySecret
+from app.services import image_generation
 from tests.workspaces import ShellFailing, document_workspace
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("generated_media_ledger")]
@@ -75,11 +76,11 @@ class _FakeAgent:
 @pytest.fixture(autouse=True)
 def _fakes(monkeypatch: pytest.MonkeyPatch, tmp_path):
     monkeypatch.setattr(settings, "MEDIA_DIR", tmp_path)
-    # Only the model *run* is faked; `_build_image_model` runs for real (it
+    # Only the model *run* is faked; the legacy provider factory runs for real (it
     # constructs a provider client with a fake key, no network), so its one
     # branch stays covered.
-    monkeypatch.setattr(toolset_module, "PydanticAgent", _FakeAgent)
-    build = toolset_module._build_image_model
+    monkeypatch.setattr(image_generation, "PydanticAgent", _FakeAgent)
+    build = image_generation._legacy_model
 
     def offline_model(model_id: str, api_key: str) -> Model:
         model = build(model_id, api_key)
@@ -94,7 +95,7 @@ def _fakes(monkeypatch: pytest.MonkeyPatch, tmp_path):
         )
         return model
 
-    monkeypatch.setattr(toolset_module, "_build_image_model", offline_model)
+    monkeypatch.setattr(image_generation, "_legacy_model", offline_model)
     _FakeAgent.raise_exc = None
 
 

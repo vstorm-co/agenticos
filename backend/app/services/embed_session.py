@@ -382,6 +382,8 @@ def _no_answer(run: AgentRun) -> str:
         return "This assistant has reached its usage limit."
     if run.status == RunStatus.LOOP_STOPPED.value:
         return "I kept repeating the same steps without getting anywhere, so I stopped. Try asking in a different way."
+    if run.status == RunStatus.TIMED_OUT.value:
+        return "The model took too long to answer, so I stopped waiting. Please try again."
     return "Sorry, I could not produce an answer to that. Please try again."
 
 

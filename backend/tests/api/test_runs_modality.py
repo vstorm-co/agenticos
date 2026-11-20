@@ -43,6 +43,7 @@ def _run(modality: str) -> AgentRun:
         output_tokens=0,
         cost_usd=Decimal("0.30"),
         cost_is_partial=False,
+        fallback_used=False,
         is_test=False,
         tool_args_repaired=0,
         cache_read_tokens=0,

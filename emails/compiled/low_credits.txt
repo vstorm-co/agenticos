@@ -1,10 +1,14 @@
-Subject: Low credits alert - [[balance]] credits remaining on [[app_name]]
+Subject: Credit balance running low
 
-Hi [[name]],
+Credit balance running low
 
-Your [[app_name]] credit balance is running low. You have [[balance]] credits remaining.
+Hi [[name]], your [[app_name]] credit balance is running low. Add credits to keep your work moving.
 
-Top up your credits to keep things running smoothly:
+Available balance: [[balance]] credits
+
+Add credits:
 [[topup_url]]
 
-- The [[app_name]] Team
+Review your balance and choose the amount you need.
+
+[[app_name]]

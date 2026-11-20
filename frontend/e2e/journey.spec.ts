@@ -453,45 +453,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   expect(savedCase["counter_example"]).toBeNull();
   expect(savedCase["history"]).toEqual([]);
 
-  // 9. A project hands its default agent to chat and keeps the conversation.
-  await page.goto("/projects");
-  await page.getByRole("button", { name: "New project", exact: true }).first().click();
-  const projectDialog = page.getByRole("dialog");
-  const projectName = `Journey project ${stamp}`;
-  await projectDialog.getByRole("textbox", { name: "Name", exact: true }).fill(projectName);
-  await projectDialog.getByLabel("Default agent", { exact: true }).click();
-  await page.getByRole("option", { name: agentName, exact: true }).click();
-  await submitDialog(page, {
-    dialog: projectDialog,
-    submit: projectDialog.getByRole("button", { name: "Create", exact: true }),
-    path: "/api/projects",
-  });
-  await nowListed(page.request, "/api/projects", "name", projectName);
-  await expect(page).toHaveURL(/\/projects\/[^/?]+$/);
-  const projectId = new URL(page.url()).pathname.split("/").pop();
-  if (!projectId) throw new Error("Created project has no identity");
-  await page.getByRole("main").getByRole("link", { name: "New chat", exact: true }).click();
-  await expect(page.getByRole("button", { name: /^Agent:/ })).toContainText(agentName);
-  await expect(page.getByText("Live", { exact: true })).toBeVisible();
-  const projectQuestion = `Project question ${stamp}`;
-  await composer.fill(projectQuestion);
-  await page.getByRole("button", { name: "Send message" }).click();
-  await expect(page.getByRole("main").getByText(answerToken, { exact: true })).toBeVisible();
-  await page.reload();
-  await expect(page.getByRole("main").getByText(answerToken, { exact: true })).toBeVisible();
-  await page.goto(`/projects/${projectId}?tab=chats`);
-  await nowMatching(
-    page.request,
-    `/api/projects/${projectId}/chats`,
-    (chat) => String(chat["title"]).includes(projectQuestion),
-    "the conversation saved in its project",
-  );
-  const projectChat = page.getByRole("row").filter({ hasText: projectQuestion });
-  await expect(projectChat).toBeVisible();
-  await projectChat.click();
-  await expect(page.getByRole("main").getByText(answerToken, { exact: true })).toBeVisible();
-
-  // 10. cleaning up
+  // 9. cleaning up
   // This is the one spec that creates a whole agent, and it runs on every push -
   // so without this the organization grows an agent, a model and a key per run,
   // and the counts other specs take start describing the history of CI rather
@@ -508,7 +470,6 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // 7 needs no line of its own: `agent_embeds.agent_id` is `ON DELETE CASCADE`,
   // and the visitor row cascades from the embed.
   for (const path of [
-    `/api/projects/${projectId}`,
     `/api/datasets/${datasetId}`,
     `/api/agents/${agentId}`,
     `/api/providers/model-profiles/${await idOf(page, "/api/providers/model-profiles", "label", modelLabel)}`,

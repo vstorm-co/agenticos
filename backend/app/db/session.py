@@ -16,6 +16,13 @@ from sqlalchemy.pool import NullPool
 from app.core.background import discard_deferred, start_after_rollback, start_deferred
 from app.core.config import settings
 from app.core.exceptions import AppException
+from app.db.table_rls import (
+    TableRlsConfigurationError,
+    async_postgres_url,
+    require_table_connection_role,
+    same_table_database,
+    verify_table_runtime,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -238,6 +245,41 @@ async def get_worker_connection() -> AsyncGenerator[AsyncConnection]:
             yield connection
     finally:
         await worker_engine.dispose()
+
+
+@asynccontextmanager
+async def get_table_maintenance_context(
+    runtime: AsyncSession,
+) -> AsyncGenerator[AsyncSession]:
+    """Keep the complete audited global action in one transaction after RLS cutover.
+
+    Before activation the action retains its original request session. Once active,
+    the separate credential is mandatory. The caller authorizes the action first
+    and refreshes its actor on the selected session. Audit and deferred cleanup use
+    the same managed lifecycle as every other request; neither escapes a rollback.
+    """
+    if not await verify_table_runtime(runtime):
+        yield runtime
+        return
+    configured = settings.POSTGRES_MAINTENANCE_URL
+    if configured is None:
+        raise TableRlsConfigurationError(
+            "Tables RLS requires POSTGRES_MAINTENANCE_URL for account maintenance"
+        )
+    maintenance_engine = create_async_engine(
+        async_postgres_url(configured.get_secret_value()),
+        echo=False,
+        poolclass=NullPool,
+        connect_args={"timeout": 10, "command_timeout": 30},
+    )
+    factory = async_sessionmaker(maintenance_engine, expire_on_commit=False)
+    try:
+        async with _managed_session(factory) as session:
+            await require_table_connection_role(session, maintenance=True)
+            await same_table_database(runtime, session)
+            yield session
+    finally:
+        await maintenance_engine.dispose()
 
 
 async def close_db() -> None:

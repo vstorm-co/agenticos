@@ -83,9 +83,6 @@ export async function LegalPage({ title, summary, lastUpdated, locale, children 
  */
 const DATE_LOCALE: Record<Locale, string> = {
   en: "en-US",
-  pl: "pl-PL",
-  de: "de-DE",
-  tr: "tr-TR",
 };
 
 function formatDate(iso: string, locale: Locale): string {

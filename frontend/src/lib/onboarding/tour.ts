@@ -34,6 +34,7 @@ export const DATASET_DETAIL = "dataset-detail";
  * history and its version tree. The walk opens the first skill the reader can see.
  */
 export const SKILL_DETAIL = "skill-detail";
+export const BROWSER_TEACHING_DETAIL = "browser-teaching-detail";
 
 /** A skill's improvement wizard, `/skills/<id>/improve/<session>`, and its start. */
 export const SKILL_IMPROVEMENT = "skill-improvement";
@@ -348,10 +349,62 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
 
+  {
+    id: "assistant-agent-picker",
+    page: ROUTES.DASHBOARD,
+    target: "assistant-agent-picker",
+    permission: Perm.agentsRun,
+    optional: true,
+  },
+  {
+    id: "assistant-page-context",
+    page: ROUTES.DASHBOARD,
+    target: "assistant-page-context",
+    permission: Perm.agentsRun,
+    optional: true,
+  },
+
   { id: "workspace-background", page: ROUTES.WORK, target: "workspace-background" },
   { id: "chat-start", page: ROUTES.CHAT, target: "chat-start", inTour: true },
-  { id: "chat-agent-picker", page: ROUTES.CHAT, target: "chat-agent-picker", inTour: true },
-  { id: "chat-composer", page: ROUTES.CHAT, target: "chat-composer" },
+  { id: "chat-message-search", page: ROUTES.CHAT, target: "chat-message-search", optional: true },
+  { id: "chat-side-threads", page: ROUTES.CHAT, target: "chat-side-threads", optional: true },
+  { id: "chat-message-pins", page: ROUTES.CHAT, target: "chat-message-pins", optional: true },
+  { id: "chat-selected-quote", page: ROUTES.CHAT, target: "chat-selected-quote", optional: true },
+  { id: "chat-compact-now", page: ROUTES.CHAT, target: "chat-compact-now", optional: true },
+  {
+    id: "chat-agent-picker",
+    page: ROUTES.CHAT,
+    target: "chat-agent-picker",
+    inTour: true,
+    optional: true,
+  },
+  { id: "chat-composer", page: ROUTES.CHAT, target: "chat-composer", optional: true },
+  { id: "chat-send-mode", page: ROUTES.CHAT, target: "chat-send-mode", optional: true },
+  { id: "chat-workspace", page: ROUTES.CHAT, target: "chat-workspace" },
+  {
+    id: "browser-protected-continuation",
+    page: ROUTES.CHAT,
+    target: "browser-protected-continuation",
+    optional: true,
+  },
+  { id: "chat-workspace-tasks", page: ROUTES.CHAT, target: "chat-workspace-tasks", optional: true },
+  { id: "chat-agent-settings", page: ROUTES.CHAT, target: "chat-agent-settings", optional: true },
+  {
+    id: "chat-agent-reasoning",
+    page: ROUTES.CHAT,
+    target: "chat-agent-reasoning",
+    activate: "chat-agent-settings",
+    optional: true,
+  },
+  { id: "chat-team-room", page: ROUTES.CHAT, target: "chat-team-room", optional: true },
+  { id: "chat-team-composer", page: ROUTES.CHAT, target: "chat-team-composer", optional: true },
+  { id: "chat-room-thread", page: ROUTES.CHAT, target: "chat-room-thread", optional: true },
+  {
+    id: "chat-room-thread-panel",
+    page: ROUTES.CHAT,
+    target: "chat-room-thread-panel",
+    optional: true,
+  },
   {
     id: "chat-local-skills",
     page: ROUTES.CHAT,
@@ -398,10 +451,19 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "chat-plan", page: ROUTES.CHAT, target: "chat-plan", optional: true },
   // Only where an agent has drawn something in the conversation on screen.
   { id: "chat-visual", page: ROUTES.CHAT, target: "chat-visual", optional: true },
+  { id: "chat-trace-filter", page: ROUTES.CHAT, target: "chat-trace-filter", optional: true },
+  {
+    id: "chat-model-selector",
+    page: ROUTES.CHAT,
+    target: "chat-model-selector",
+    permission: Perm.connectionsManage,
+    optional: true,
+  },
   {
     id: "chat-model-picker",
     page: ROUTES.CHAT,
     target: "chat-model-picker",
+    optional: true,
     activate: ["chat-settings", "chat-settings-model"],
   },
   // The call button sits in the composer whenever an agent is selected - offered
@@ -631,6 +693,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
     inTour: true,
   },
+  {
+    id: "agent-failure-learning",
+    page: AGENT_BUILDER,
+    target: "agent-failure-learning",
+    activate: "agent-tab-failure-learning",
+    permission: Perm.agentsView,
+    agentKind: "ordinary",
+    inTour: true,
+  },
   // The agent's improvement sessions, read with its runs.
   {
     id: "agent-improvement-history",
@@ -726,6 +797,32 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   { id: "skills-list", page: ROUTES.SKILLS, target: "skills-list", permission: Perm.skillsView },
+  {
+    id: "skills-teaching",
+    page: ROUTES.SKILLS,
+    target: "skills-teaching",
+    activate: "page-secondary-actions",
+  },
+  { id: "teaching-list", page: ROUTES.SKILLS_TEACHING, target: "teaching-list" },
+  {
+    id: "teaching-summary",
+    page: BROWSER_TEACHING_DETAIL,
+    target: "teaching-summary",
+    optional: true,
+  },
+  {
+    id: "teaching-review",
+    page: BROWSER_TEACHING_DETAIL,
+    target: "teaching-review",
+    optional: true,
+  },
+  { id: "teaching-draft", page: BROWSER_TEACHING_DETAIL, target: "teaching-draft", optional: true },
+  {
+    id: "teaching-proposal",
+    page: BROWSER_TEACHING_DETAIL,
+    target: "teaching-proposal",
+    optional: true,
+  },
   // Grouping by department (#2124): only where the organization has groups.
   {
     id: "skills-groups",
@@ -1024,6 +1121,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "artifacts-list",
     permission: Perm.artifactsView,
   },
+  // The reader's starred apps in the sidebar, present once at least one app is
+  // starred. The Apps heading and All apps link remain available when empty.
+  {
+    id: "nav-pinned",
+    page: ROUTES.DASHBOARD,
+    target: "nav-pinned",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
   // Grouping by department (#2124): only where the organization has groups.
   {
     id: "artifacts-groups",
@@ -1305,6 +1411,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "page-secondary-actions",
   },
   { id: "table-view-tabs", page: TABLE_DETAIL, target: "table-view-tabs" },
+  { id: "table-row-access", page: TABLE_DETAIL, target: "table-row-access", optional: true },
+  { id: "record-access", page: TABLE_DETAIL, target: "record-access", optional: true },
 
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
 
@@ -1318,6 +1426,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "org-governance",
     activate: "org-tab-governance",
     anyPermission: [Perm.budgetsManage, Perm.approvalsDecide, Perm.orgSettings],
+  },
+  {
+    id: "org-browser-teaching",
+    page: ORG_MEMBERS,
+    target: "org-browser-teaching",
+    activate: "org-tab-governance",
+    permission: Perm.orgSettings,
   },
   {
     id: "org-proactivity",
@@ -1377,6 +1492,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   { id: "org-members", page: ORG_MEMBERS, target: "org-members", activate: "org-tab-members" },
+  { id: "org-role-navigation", page: ORG_ROLES, target: "org-role-navigation" },
   { id: "org-roles", page: ORG_ROLES, target: "org-roles" },
   {
     id: "org-retention",
@@ -1422,11 +1538,19 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "vault-keys", page: ROUTES.VAULT, target: "vault-keys", permission: Perm.secretsView },
 
   {
+    id: "app-connections",
+    page: ROUTES.CONNECTORS,
+    activate: "connectors-apps",
+    target: "app-connections",
+    inTour: true,
+    optional: true,
+  },
+  {
     id: "mcp-catalog",
     page: ROUTES.MCP_SERVERS,
+    activate: "connectors-advanced",
     target: "mcp-catalog",
     permission: Perm.agentsView,
-    inTour: true,
   },
   // The catalog controls — filter, custom-add, connect — render only inside the
   // list, which the page swaps for an empty-state card when the catalog has no
@@ -1436,6 +1560,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "mcp-filter",
     page: ROUTES.MCP_SERVERS,
+    activate: "connectors-advanced",
     target: "mcp-filter",
     permission: Perm.agentsView,
     optional: true,
@@ -1443,6 +1568,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "mcp-add",
     page: ROUTES.MCP_SERVERS,
+    activate: "connectors-advanced",
     target: "mcp-add",
     permission: Perm.connectionsManage,
     optional: true,
@@ -1450,9 +1576,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "mcp-connect",
     page: ROUTES.MCP_SERVERS,
+    activate: "connectors-advanced",
     target: "mcp-connect",
     permission: Perm.agentsView,
     optional: true,
+  },
+  {
+    id: "connections-more",
+    page: ROUTES.CONNECTORS,
+    target: "connectors-more",
   },
 
   // The chat platforms the organization is reachable on — beside MCP because it
@@ -1612,6 +1744,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // routines stop: the launch walk does not take a first login here.
   { id: "inbox-filters", page: ROUTES.INBOX, target: "inbox-filters" },
 
+  // The threads between the reader's agents. "?"-only, gated on running agents:
+  // the walk does not take a first login here either.
+  {
+    id: "agent-messages",
+    page: ROUTES.AGENT_MESSAGES,
+    target: "agent-messages-list",
+    permission: Perm.agentsRun,
+  },
+
   { id: "workspaces-browser", page: ROUTES.DOCUMENTS, target: "workspaces-browser" },
   // The detail a workspace opens onto — the file tree. "?"-only and shown in
   // place: the reader is already on one of their own workspaces, so the walk
@@ -1623,6 +1764,24 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // in the shared layout, so it lands on whichever of the four pages the reader
   // opened help from. Ungated: everyone has their own settings.
   { id: "settings-tabs", page: SETTINGS_DETAIL, target: "settings-tabs" },
+  {
+    id: "personal-model-connections",
+    page: ROUTES.SETTINGS_AI_CONNECTIONS,
+    target: "personal-model-connections",
+  },
+  {
+    id: "claude-subscription-connect",
+    page: ROUTES.SETTINGS_AI_CONNECTIONS,
+    target: "claude-subscription-connect",
+    permission: Perm.connectionsManage,
+  },
+  {
+    id: "chat-subscription-model",
+    page: ROUTES.CHAT,
+    target: "chat-subscription-model",
+    permission: Perm.connectionsManage,
+    optional: true,
+  },
   {
     id: "personal-coding-accounts",
     page: SETTINGS_DETAIL,
@@ -1702,6 +1861,8 @@ export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
   if (path.startsWith(`${ROUTES.RAG}/`)) return KB_DETAIL;
   if (path.startsWith(`${ROUTES.DATASETS}/`)) return DATASET_DETAIL;
+  if (path === ROUTES.SKILLS_TEACHING) return ROUTES.SKILLS_TEACHING;
+  if (path.startsWith(`${ROUTES.SKILLS_TEACHING}/`)) return BROWSER_TEACHING_DETAIL;
   if (/^\/skills\/[^/]+\/improve\/new(\/|$)/.test(path)) return SKILL_IMPROVEMENT_START;
   if (/^\/skills\/[^/]+\/improve\/[^/]+/.test(path)) return SKILL_IMPROVEMENT;
   if (path.startsWith(`${ROUTES.SKILLS}/`)) return SKILL_DETAIL;
@@ -1713,6 +1874,7 @@ export function pageKey(path: string): string {
     return ORG_MEMBERS;
   }
   if (path.startsWith(`${ROUTES.GROUPS}/`)) return GROUP_DETAIL;
+  if (path === ROUTES.SETTINGS_AI_CONNECTIONS) return path;
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
   if (path.startsWith(`${ROUTES.DOCUMENTS}/`)) return WORKSPACE_DETAIL;
   if (path.startsWith(`${ROUTES.PROJECTS}/`)) return PROJECT_DETAIL;

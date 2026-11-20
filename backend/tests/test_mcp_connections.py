@@ -65,9 +65,9 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.pinned_http import PinnedAsyncClient
-from app.core.secret_kinds import GithubOAuthAppSecret
+from app.core.secret_kinds import GithubOAuthAppSecret, GoogleOAuthAppSecret, SecretKind
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.mcp_connection import AUTHORIZATION_EXPIRED, McpConnection
 from app.schemas.mcp_connection import (
@@ -3958,7 +3958,7 @@ class TestMcpConnectionService:
 
     @pytest.mark.anyio
     async def test_oauth_start_refuses_a_client_the_server_will_not_authenticate(
-        self, service, monkeypatch
+        self, service, repo, monkeypatch
     ):
         """`exchange_code` and `refresh_tokens` only put the secret in the form
         body. A server that does not allow that is refused at start, not after
@@ -3988,6 +3988,9 @@ class TestMcpConnectionService:
                 client_secret=SecretStr("operators-secret"),
             )
         assert "client_secret_basic" in str(excinfo.value)
+        repo.get_by_name.assert_awaited_once()
+        repo.create.assert_not_awaited()
+        repo.update.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_a_server_that_names_no_auth_method_takes_the_static_client(
@@ -4368,6 +4371,66 @@ class TestMcpConnectionService:
         await service.oauth_callback(state="state-google", code="the-code")
 
         assert repo.update.call_args.kwargs["update_data"]["poll_cursor"] is None
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize("changed", ["removed", "replaced"])
+    async def test_an_authorized_org_callback_refuses_a_changed_google_client_before_exchange(
+        self, service, repo, monkeypatch, changed
+    ):
+        from app.services.portals import google_oauth
+
+        authority = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
+        assert authority.has(Perm.MCP_MANAGE)
+        pending = _connection(
+            scope="org",
+            user_id=None,
+            organization_id=authority.organization_id,
+            created_by_user_id=authority.subject_id,
+            auth_type="oauth",
+            url="https://calendarmcp.googleapis.com/mcp/v1",
+            oauth_state="state-org-google",
+        )
+        pending.oauth_pending_payload = _seal_into(
+            pending,
+            _base_payload(
+                provider="google",
+                initiator_id=authority.subject_id,
+                client_org_id=authority.organization_id,
+                client_id="original-client",
+                client_secret=None,
+                authorization_endpoint=google_oauth.AUTHORIZE_ENDPOINT,
+                token_endpoint=google_oauth.TOKEN_ENDPOINT,
+            ).model_dump_json(),
+        )
+        repo.get_by_oauth_state = AsyncMock(return_value=pending)
+        decide = AsyncMock(return_value=authority)
+        monkeypatch.setattr(mcp_connection_service, "decider_context", decide)
+        identity = AsyncMock(
+            side_effect=NotFoundError() if changed == "removed" else None,
+            return_value=(
+                GoogleOAuthAppSecret(client_id="replacement-client", client_secret="org-secret"),
+                uuid4(),
+                uuid4(),
+            ),
+        )
+        monkeypatch.setattr(OrganizationSecretService, "oauth_app_identity_for_org", identity)
+        exchange = AsyncMock()
+        monkeypatch.setattr(google_oauth, "exchange_code", exchange)
+
+        with pytest.raises(mcp_oauth.OAuthError, match="organization's Google app changed"):
+            await service.oauth_callback(state="state-org-google", code="not-exchanged")
+
+        decide.assert_awaited_once_with(
+            service.db,
+            organization_id=authority.organization_id,
+            user_id=authority.subject_id,
+        )
+        identity.assert_awaited_once_with(
+            authority.organization_id, kind=SecretKind.GOOGLE_OAUTH_APP
+        )
+        exchange.assert_not_awaited()
+        repo.update.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_oauth_callback_exchanges_and_clears_state(self, service, repo, monkeypatch):
@@ -4788,7 +4851,7 @@ class TestOrganizationConnections:
     async def test_authorizing_the_organizations_second_account_again_needs_no_label(
         self, service, ctx, repo, monkeypatch
     ):
-        existing = _connection(name="github-oss", catalog_key="github", scope="org")
+        existing = self._org_connection(ctx, name="github-oss", catalog_key="github")
         repo.get_org_scoped_by_name = AsyncMock(return_value=existing)
         repo.get_org_scoped_by_catalog_key = AsyncMock(
             return_value=_connection(name="github", catalog_key="github", scope="org")
@@ -6432,6 +6495,29 @@ class TestGithubPortalOAuth:
             await service.oauth_callback(state="gh-state", code="the-code")
         repo.update.assert_not_called()
 
+    async def test_a_removed_admin_cannot_finish_a_github_connection_they_started(
+        self, service, ctx, repo, creds, monkeypatch
+    ):
+        """The start stamps its initiator on the pending payload, so the callback
+        refuses an admin who has since lost MCP_MANAGE before any token exchange."""
+        await service.oauth_start_for_org_github(ctx, portal_key="github")
+        stored = repo.create_org_scoped.await_args.kwargs
+        pending = _connection(
+            auth_type="oauth",
+            scope="org",
+            organization_id=ctx.organization_id,
+            oauth_state=stored["oauth_state"],
+        )
+        pending.oauth_pending_payload = stored["oauth_pending_payload"]
+        repo.get_by_oauth_state = AsyncMock(return_value=pending)
+        monkeypatch.setattr(mcp_connection_service, "decider_context", AsyncMock(return_value=None))
+        exchange = AsyncMock()
+        monkeypatch.setattr(mcp_connection_service, "_complete_github_flow", exchange)
+
+        with pytest.raises(mcp_connection_service.OAuthError, match="organization access changed"):
+            await service.oauth_callback(state=stored["oauth_state"], code="c")
+        exchange.assert_not_awaited()
+
 
 class TestPolledPortalOAuth:
     """Connecting a portal the platform reads rather than is posted to.
@@ -6557,6 +6643,29 @@ class TestPolledPortalOAuth:
 
         repo.create_org_scoped.assert_not_called()
         assert repo.update.await_count == 1
+
+    async def test_a_removed_admin_cannot_finish_a_portal_connection_they_started(
+        self, service, ctx, repo, client, monkeypatch
+    ):
+        """The start stamps its initiator on the pending payload, so the callback
+        refuses an admin who has since lost MCP_MANAGE before any token exchange."""
+        await service.oauth_start_for_polled_portal(ctx, portal_key="google")
+        stored = repo.create_org_scoped.await_args.kwargs
+        pending = _connection(
+            auth_type="oauth",
+            scope="org",
+            organization_id=ctx.organization_id,
+            oauth_state=stored["oauth_state"],
+        )
+        pending.oauth_pending_payload = stored["oauth_pending_payload"]
+        repo.get_by_oauth_state = AsyncMock(return_value=pending)
+        monkeypatch.setattr(mcp_connection_service, "decider_context", AsyncMock(return_value=None))
+        exchange = AsyncMock()
+        monkeypatch.setattr(mcp_connection_service.google_oauth, "exchange_code", exchange)
+
+        with pytest.raises(mcp_connection_service.OAuthError, match="organization access changed"):
+            await service.oauth_callback(state=stored["oauth_state"], code="c")
+        exchange.assert_not_awaited()
 
 
 class TestCompletingGooglesFlow:
@@ -7104,6 +7213,135 @@ async def test_persistent_platform_automation_requires_binding_approval(policy):
         MagicMock()
     )
     assert all(tools[name].tool_def.metadata[NEEDS_APPROVAL] is True for name in names)
+
+
+class TestGoogleMcpUsesTheOrganizationsGoogleApp:
+    """A Google-hosted MCP server has no dynamic client registration, so the
+    member should never be asked for a client ID or secret: the consent is made
+    with the organization's `google_oauth_app`, read on the server, and the
+    secret never leaves it."""
+
+    GOOGLE_URL = "https://calendarmcp.googleapis.com/mcp/v1"
+
+    @pytest.fixture
+    def ctx(self) -> AuthContext:
+        return AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+
+    @pytest.fixture
+    def service(self):
+        return McpConnectionService(db=AsyncMock())
+
+    @pytest.fixture
+    def repo(self, monkeypatch):
+        mock_repo = MagicMock()
+        mock_repo.list_org_scoped = AsyncMock(return_value=([], 0))
+        mock_repo.get_org_scoped_by_name = AsyncMock(return_value=None)
+        mock_repo.get_by_name = AsyncMock(return_value=None)
+        mock_repo.get_org_scoped_by_catalog_key = AsyncMock(return_value=None)
+        mock_repo.list_user_scoped_by_catalog_key = AsyncMock(return_value=[])
+        mock_repo.create = AsyncMock()
+        mock_repo.create_org_scoped = AsyncMock()
+        monkeypatch.setattr(mcp_connection_service, "mcp_connection_repo", mock_repo)
+        return mock_repo
+
+    @pytest.fixture
+    def discovered(self, monkeypatch):
+        """Google publishes no registration endpoint, and takes the secret in the body."""
+        metadata = OAuthMetadata(
+            issuer=AnyUrl("https://accounts.google.com"),
+            authorization_endpoint=AnyUrl("https://accounts.google.com/o/oauth2/v2/auth"),
+            token_endpoint=AnyUrl("https://oauth2.googleapis.com/token"),
+            response_types_supported=["code"],
+            token_endpoint_auth_methods_supported=["client_secret_post", "client_secret_basic"],
+        )
+        found = mcp_oauth.DiscoveredServer(
+            authorization_endpoint=str(metadata.authorization_endpoint),
+            token_endpoint=str(metadata.token_endpoint),
+            registration_endpoint=None,
+            resource=self.GOOGLE_URL,
+            scope=None,
+            metadata=metadata,
+        )
+        discover = AsyncMock(return_value=found)
+        register = AsyncMock(return_value=("registered", None))
+        monkeypatch.setattr(mcp_oauth, "discover", discover)
+        monkeypatch.setattr(mcp_oauth, "register_client", register)
+        return register
+
+    @pytest.fixture
+    def org_app(self, monkeypatch):
+        app = SimpleNamespace(
+            client_id="org-google-client", client_secret=SecretStr("org-google-secret")
+        )
+        identity = AsyncMock(return_value=(app, None, None))
+        monkeypatch.setattr(OrganizationSecretService, "oauth_app_identity", identity)
+        return identity
+
+    @pytest.mark.anyio
+    async def test_an_organization_connect_uses_the_org_google_app_and_registers_nothing(
+        self, service, ctx, repo, discovered, org_app, monkeypatch
+    ):
+        _allow_any_url(monkeypatch)
+
+        url = await service.oauth_start_for_org(ctx, name="calendar", url=self.GOOGLE_URL)
+
+        assert "client_id=org-google-client" in url
+        discovered.assert_not_called()
+        assert org_app.await_args.kwargs == {"kind": SecretKind.GOOGLE_OAUTH_APP}
+
+    @pytest.mark.anyio
+    async def test_a_personal_connect_with_an_organization_uses_the_org_google_app(
+        self, service, ctx, repo, discovered, org_app, monkeypatch
+    ):
+        _allow_any_url(monkeypatch)
+
+        url = await service.oauth_start(
+            user_id=ctx.user_id, name="calendar", url=self.GOOGLE_URL, ctx=ctx
+        )
+
+        assert "client_id=org-google-client" in url
+        discovered.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_without_an_org_google_app_the_connect_is_refused_naming_the_kind(
+        self, service, ctx, repo, discovered, monkeypatch
+    ):
+        _allow_any_url(monkeypatch)
+        monkeypatch.setattr(
+            OrganizationSecretService,
+            "oauth_app_identity",
+            AsyncMock(
+                side_effect=NotFoundError(
+                    message="No Google OAuth app is configured for this organization",
+                    details={"kind": SecretKind.GOOGLE_OAUTH_APP},
+                )
+            ),
+        )
+
+        with pytest.raises(NotFoundError) as refused:
+            await service.oauth_start_for_org(ctx, name="calendar", url=self.GOOGLE_URL)
+
+        assert refused.value.details == {"kind": SecretKind.GOOGLE_OAUTH_APP}
+        discovered.assert_not_called()
+        repo.create_org_scoped.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_typed_client_is_kept_over_the_org_app(
+        self, service, ctx, repo, discovered, org_app, monkeypatch
+    ):
+        """An explicit client on the request is the caller's choice, not ours to replace."""
+        _allow_any_url(monkeypatch)
+
+        url = await service.oauth_start_for_org(
+            ctx,
+            name="calendar",
+            url=self.GOOGLE_URL,
+            client_id="typed-client",
+            client_secret=SecretStr("s"),
+        )
+
+        assert "client_id=typed-client" in url
+        org_app.assert_not_called()
 
 
 @pytest.mark.anyio

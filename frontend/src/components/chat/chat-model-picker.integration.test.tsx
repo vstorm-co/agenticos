@@ -8,6 +8,7 @@ import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
+import type { ModelProfile } from "@/types/providers";
 
 /**
  * Who is offered the chat's model picker at all, against a mocked backend.
@@ -39,6 +40,17 @@ const PROFILE = {
   fallback_profile_ids: [],
 };
 
+const SUBSCRIPTION: ModelProfile = {
+  ...PROFILE,
+  id: "p-subscription",
+  label: "My Claude subscription · Sonnet",
+  provider: "claude-subscription",
+  model: "sonnet",
+  secret_id: null,
+  usage_scope: "personal",
+  missing_key: false,
+};
+
 const PURPOSES = {
   items: [
     {
@@ -68,7 +80,7 @@ const SECRETS = {
 };
 
 /** The backend this picker reads, answering as it does for a member of one org. */
-function serve(permissions: Permission[]) {
+function serve(permissions: Permission[], profiles: ModelProfile[]) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     // A list shape here is not "no permissions", it is a `TypeError` inside
     // `usePermissions`.
@@ -80,7 +92,7 @@ function serve(permissions: Permission[]) {
         permissions: permissions.map((permission) => ({ permission, scope: "all" })),
       };
     // Readable on `agents:view`, so it is populated for both callers below.
-    if (path === "/providers/model-profiles") return { items: [PROFILE], total: 1 };
+    if (path === "/providers/model-profiles") return { items: profiles, total: profiles.length };
     if (path === "/providers/catalog") return { items: [], total: 0 };
     if (path === "/providers/openai/models") return { items: [], total: 0, source: null };
     if (path === "/secrets") return SECRETS;
@@ -90,15 +102,20 @@ function serve(permissions: Permission[]) {
   });
 }
 
-async function mount(permissions: Permission[], onChange = vi.fn()) {
-  serve(permissions);
+async function mount(
+  permissions: Permission[],
+  onChange = vi.fn(),
+  profiles: ModelProfile[] = [PROFILE],
+  value: string | null = null,
+) {
+  serve(permissions, profiles);
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   render(
     <QueryClientProvider client={client}>
       <ChatModelPicker
-        value={null}
+        value={value}
         agentModel={{
           profile_id: "ap",
           provider: "anthropic",
@@ -125,6 +142,60 @@ beforeEach(() => {
 });
 
 describe("who may move this conversation onto another model", () => {
+  it("selects an existing personal subscription by profile ID without requiring a vault key or creating another model", async () => {
+    const onChange = await mount([Perm.agentsView, Perm.connectionsManage], vi.fn(), [
+      PROFILE,
+      SUBSCRIPTION,
+    ]);
+    await userEvent.click(screen.getByRole("button", { name: "Change model" }));
+    await userEvent.click(
+      screen.getByRole("combobox", { name: "Your Claude subscription models" }),
+    );
+    await userEvent.click(screen.getByRole("option", { name: SUBSCRIPTION.label }));
+    expect(onChange).toHaveBeenCalledWith(SUBSCRIPTION.id);
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: "Manage Claude subscription" })).toHaveAttribute(
+      "href",
+      "/settings/ai-connections",
+    );
+  });
+
+  it("keeps a disconnected subscription unavailable and gives it a reconnect path", async () => {
+    const onChange = await mount(
+      [Perm.agentsView, Perm.connectionsManage],
+      vi.fn(),
+      [{ ...SUBSCRIPTION, missing_key: true }],
+      SUBSCRIPTION.id,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Change model" }));
+    expect(screen.getByText("Reconnect Claude to use these saved models.")).toBeVisible();
+    expect(screen.queryByRole("combobox", { name: "Provider" })).toBeNull();
+    await userEvent.click(
+      screen.getByRole("combobox", { name: "Your Claude subscription models" }),
+    );
+    expect(screen.getByRole("option", { name: SUBSCRIPTION.label })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("lets a subscription user deliberately open the API-model form", async () => {
+    await mount(
+      [Perm.agentsView, Perm.connectionsManage],
+      vi.fn(),
+      [SUBSCRIPTION],
+      SUBSCRIPTION.id,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Change model" }));
+    expect(screen.queryByRole("combobox", { name: "Provider" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Choose an API model" }));
+    expect(screen.getByRole("combobox", { name: "Provider" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Run on this model" })).toBeDisabled();
+    expect(apiClient.get).not.toHaveBeenCalledWith("/providers/claude-subscription/models");
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
   it("offers the whole form to a caller holding connections:manage", async () => {
     await mount([Perm.agentsView, Perm.connectionsManage]);
     await userEvent.click(screen.getByRole("button", { name: "Change model" }));

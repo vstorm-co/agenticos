@@ -7,7 +7,8 @@ An organization points at a server, its tools appear in the Builder, and no code
 changes on our side.
 
 Everything in the [capability catalog](reference/capabilities.md) is code we wrote
-and hold to 100% coverage. Everything here is a URL somebody pasted.
+and hold to 100% coverage. MCP connections reach tools through a server URL or a
+managed app connection.
 
 !!! info "The two are not alternatives"
 
@@ -17,6 +18,33 @@ and hold to 100% coverage. Everything here is a URL somebody pasted.
     **MCP** is the right shape for the dozens of SaaS products a company happens to
     use, where the guarantee that matters is only "the tools are the ones the
     vendor published".
+
+## Connect an app through Composio
+
+In T3OS, **Connections → Apps** lets you search and browse Composio's app catalog.
+Your selected goal highlights suggestions without hiding other apps. Managed
+authentication is available where the provider supports it; apps that need an
+operator's auth configuration show **Setup required**. You consent to each account
+separately, and the backend verifies that the returned account belongs to you.
+
+Your accounts follow the author of each message. The original seven integrations
+keep their reviewed read actions. Other supported apps have an explicit tool
+list saved when you connect, and every action requires your approval. A later
+catalog update cannot silently expand that account's tool access.
+
+**Connections → MCP servers** manages existing personal, organization and custom
+MCP servers. Both connection types use the same account ownership, tool limits
+and approval infrastructure. Chat channels, remote agents, the vault and
+sandboxes are on **More**. Existing `?tab=advanced` links still open MCP servers.
+
+Composio hosts provider credentials and relays requests and results. Connecting
+an app does not automatically synchronize it into a knowledge base. Optional
+setup remains available at `/onboarding` and in the account menu.
+
+The operator configures a runtime project key, a separate catalog metadata key,
+any custom toolkit auth configs, and callback identity verification. See the fork's
+[Composio setup guide](https://github.com/t3grp/agenticos/blob/t3/integrations/composio/README.md)
+for configuration, data handling, and required live acceptance checks.
 
 ## A connection
 
@@ -1345,8 +1373,9 @@ The platform MCP server explains the same app and environment distinctions as ag
 
 - An MCP server is **a URL somebody pasted**, and its tools appear without a
   deploy.
-- **Personal** connections reach one member's assistant; only **organization**
-  connections may be named by a published spec.
+- In a private run, **personal** connections bind at runtime to the sender for any
+  agent; shared rooms skip them. Only **organization** connections may be named
+  by a published spec.
 - Every address in an OAuth flow is **checked and pinned**, including the ones the
   remote server chose.
 - A token never follows a moved URL, a disabled connection hands out none, and

@@ -513,6 +513,22 @@ async def create(
     return connection
 
 
+async def list_composio_for_user(db: AsyncSession, *, user_id: UUID) -> list[McpConnection]:
+    """Managed app accounts share personal MCP ownership, never workspace ownership."""
+    result = await db.execute(
+        select(McpConnection)
+        .where(
+            McpConnection.purpose == "mcp",
+            McpConnection.scope == "user",
+            McpConnection.user_id == user_id,
+            McpConnection.auth_type == "composio",
+        )
+        .order_by(McpConnection.created_at.asc())
+        .execution_options(populate_existing=True)
+    )
+    return list(result.scalars().all())
+
+
 async def create_org_scoped(
     db: AsyncSession,
     *,

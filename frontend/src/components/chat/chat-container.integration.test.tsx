@@ -1,18 +1,37 @@
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  configure,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { announceChange } from "@/lib/live-updates";
 import type { ChangeEvent } from "@/types/change-events";
 import { messageOf } from "./composer-editor";
 import { ChatContainer } from "./chat-container";
+import type { AssistantPageContext } from "@/lib/assistant-page-context";
 import { apiClient } from "@/lib/api-client";
+import { useConversations } from "@/hooks/use-conversations";
+import type { ConversationWorkspace } from "@/lib/conversation-workspace-api";
+import type { Project } from "@/types/projects";
+import type { ConversationCost, ConversationMessage } from "@/types";
+import type { ConversationForkRead } from "@/lib/conversation-forks-api";
+import type { ConversationMessageSearchTarget } from "@/lib/conversation-message-search-api";
 import { qk } from "@/lib/query-keys";
 import { initialCall } from "@/lib/voice/call-reducer";
+import { useChatControlsStore, currentChatControlScope } from "@/stores/chat-controls-store";
 import {
   useAgentSelectionStore,
   useAuthStore,
+  useBrowserPanelStore,
   useChatStore,
   useWorkingStore,
   useComposerIntentStore,
@@ -181,11 +200,19 @@ function receive(type: string, data: Record<string, unknown>): void {
   );
 }
 
-function mount(requestedConversationId?: string) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function mount(
+  requestedConversationId?: string,
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  requestedMessageId?: string,
+  onOpenMessage?: (target: ConversationMessageSearchTarget) => void,
+) {
   return render(
     <QueryClientProvider client={client}>
-      <ChatContainer requestedConversationId={requestedConversationId} />
+      <ChatContainer
+        requestedConversationId={requestedConversationId}
+        requestedMessageId={requestedMessageId}
+        onOpenMessage={onOpenMessage}
+      />
     </QueryClientProvider>,
   );
 }
@@ -228,6 +255,22 @@ function runDelegatedTurn(): void {
 }
 
 const SIGNED_IN = { id: "u-1", email: "kacper@example.test", full_name: "Kacper" };
+
+/** An already-successful history fixture; pending reads use the real API boundary below. */
+function loadTranscript(
+  messages: ConversationMessage[],
+  cost: ConversationCost | null = null,
+  hasEarlier = false,
+) {
+  const conversation = useConversationStore.getState();
+  if (conversation.currentConversationId === null) throw new Error("Select the fixture's chat");
+  conversation.setCurrentMessages(messages, cost, hasEarlier, {
+    conversationId: conversation.currentConversationId,
+    selectionVersion: conversation.selectionVersion,
+    accountId: useAuthStore.getState().user?.id ?? null,
+    tenantId: useOrgStore.getState().activeOrgId,
+  });
+}
 
 // How long a wait in this file gives the container to settle. The whole container
 // mounts here - queries, stores, the socket - and on the CI runner, which runs every
@@ -296,7 +339,496 @@ beforeEach(() => {
   useComposerIntentStore.setState({ intent: null, shared: null });
   useConversationStore.getState().reset();
   useChatStore.getState().clearMessages();
+  // Drafts and the selected workspace pane intentionally survive component unmounts.
+  useChatStore.getState().clearRoomDrafts();
+  useBrowserPanelStore.getState().close();
   voiceCall.call = initialCall;
+});
+
+describe("the chat header's model selection reaches the next request", () => {
+  beforeEach(() => {
+    useChatControlsStore.setState({ byScope: {} });
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) => {
+      if (url === "/me/permissions")
+        return Promise.resolve({
+          permissions: [
+            { permission: "agents:view", scope: "all" },
+            { permission: "agents:run", scope: "all" },
+            { permission: "connections:manage", scope: "all" },
+          ],
+        });
+      if (url.startsWith("/agents") && !url.includes("/dictation") && !url.includes("/voice"))
+        return Promise.resolve({
+          items: [
+            {
+              id: "model-agent",
+              slug: "model-agent",
+              name: "Model agent",
+              status: "published",
+              can_run: true,
+              published_model: {
+                profile_id: "agent-default",
+                provider: "openai",
+                model: "gpt-5",
+                label: "Default GPT",
+              },
+            },
+          ],
+          total: 1,
+        });
+      if (url === "/providers/model-profiles")
+        return Promise.resolve({
+          items: [
+            {
+              id: "saved-fast",
+              provider: "openai",
+              model: "gpt-fast",
+              label: "Saved fast model",
+              secret_id: "team-key",
+              params: {},
+              fallback_profile_ids: [],
+            },
+          ],
+          total: 1,
+        });
+      if (url === "/providers/catalog")
+        return Promise.resolve({ items: [{ id: "openai", name: "OpenAI" }] });
+      return base(url);
+    });
+    useAgentSelectionStore.setState({ selectedAgentId: "model-agent", selectedWorkflowId: null });
+  });
+
+  afterEach(() => act(() => useChatControlsStore.setState({ byScope: {} })));
+
+  it("sends the header's selected profile without editing the agent or discarding the draft", async () => {
+    mount();
+    const composer = await screen.findByRole("textbox", { name: "Type a message..." });
+    await userEvent.type(composer, "Use the selected model");
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Choose chat model: Default GPT" }),
+    );
+    await userEvent.click(await screen.findByRole("radio", { name: "Saved fast model" }));
+    expect(messageOf(composer)).toBe("Use the selected model");
+    await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+    await waitFor(() =>
+      expect(
+        socket.send.mock.calls.map(([frame]) => frame).find((frame) => frame.message),
+      ).toMatchObject({
+        message: "Use the selected model",
+        model_profile_id: "saved-fast",
+        agent_id: "model-agent",
+      }),
+    );
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+
+  it("omits the override from the next request after restoring the agent's model", async () => {
+    useChatControlsStore
+      .getState()
+      .update(currentChatControlScope(), { modelProfileId: "saved-fast" });
+    mount();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Choose chat model: Saved fast model" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Use agent's model/ }));
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Type a message..." }),
+      "Use the agent default",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+    await waitFor(() =>
+      expect(
+        socket.send.mock.calls.map(([frame]) => frame).find((frame) => frame.message),
+      ).toBeDefined(),
+    );
+    const sent = socket.send.mock.calls.map(([frame]) => frame).find((frame) => frame.message);
+    expect(sent).not.toHaveProperty("model_profile_id");
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+});
+
+describe("the chat container - project room workspace", () => {
+  function savedProjectRoom(canPost: boolean): void {
+    const conversation = {
+      id: "c-room",
+      title: "Launch room",
+      user_id: SIGNED_IN.id,
+      project_id: "p-room",
+    };
+    const project: Project = {
+      id: "p-room",
+      name: "Launch",
+      description: null,
+      instructions: "",
+      default_agent_id: null,
+      default_agent_name: null,
+      owner_user_id: SIGNED_IN.id,
+      visibility: "private",
+      backend: "state",
+      runtime: null,
+      chat_count: 1,
+      last_active_at: null,
+      shared_groups: [],
+      can_use: canPost,
+      can_edit: canPost,
+      created_at: null,
+      updated_at: null,
+    };
+    const workspace: ConversationWorkspace = {
+      scope: "project",
+      backend: "state",
+      owner_label: "Launch",
+      total: 1,
+      bytes_total: 12,
+      bytes_limit: null,
+      truncated: false,
+      unreadable_reason: null,
+      items: [
+        {
+          path: "/report.md",
+          size: 12,
+          is_dir: false,
+          modified_at: null,
+          preview: null,
+          thumbnail: null,
+        },
+      ],
+    };
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) => {
+      if (url.startsWith("/conversations?"))
+        return Promise.resolve({ items: [conversation], total: 1 });
+      if (url === "/projects/p-room") return Promise.resolve(project);
+      if (url === "/conversations/c-room/metadata") return Promise.resolve(conversation);
+      if (url === "/conversations/c-room/room-requests")
+        return Promise.resolve({ items: [], total: 0, can_post: canPost });
+      if (url === "/conversations/c-room/workspace") return Promise.resolve(workspace);
+      return base(url);
+    });
+    useConversationStore.getState().setCurrentConversationId(conversation.id);
+  }
+
+  it("keeps tagged replies out of the main view while room metadata and thread authorization are pending", async () => {
+    savedProjectRoom(true);
+    const root = {
+      id: "root-a",
+      conversation_id: "c-room",
+      role: "user" as const,
+      content: "Original room topic",
+      created_at: "2026-11-14T00:00:00Z",
+      thread_reply_count: 1,
+    };
+    const reply = {
+      id: "reply-a",
+      conversation_id: "c-room",
+      role: "user" as const,
+      content: "Scoped reply A",
+      created_at: "2026-11-14T00:00:01Z",
+      thread_root_message_id: "root-a",
+    };
+    loadTranscript([root, reply]);
+    const base = get.getMockImplementation()!;
+    let authorize!: (value: unknown) => void;
+    let metadata!: (value: unknown) => void;
+    let listing!: (value: unknown) => void;
+    get.mockImplementation((url: string) => {
+      if (url.startsWith("/conversations?"))
+        return new Promise((resolve) => {
+          listing = resolve;
+        });
+      if (url === "/conversations/c-room/metadata")
+        return new Promise((resolve) => {
+          metadata = resolve;
+        });
+      if (url.includes("/room-threads/root-a?"))
+        return new Promise((resolve) => {
+          authorize = resolve;
+        });
+      return base(url);
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const openThread = vi.fn();
+    render(
+      <QueryClientProvider client={client}>
+        <ChatContainer
+          requestedConversationId="c-room"
+          requestedThreadRootId="root-a"
+          onCloseThread={vi.fn()}
+          onOpenThread={openThread}
+        />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(authorize).toBeDefined(), SETTLE);
+    expect(screen.queryByText("Scoped reply A")).toBeNull();
+    expect(screen.getByText("Original room topic")).toBeInTheDocument();
+    await act(async () => authorize({ root, items: [reply], total: 1, can_post: true }));
+    const panel = screen.getByRole("complementary", { name: "Thread" });
+    expect(await within(panel).findByText("Scoped reply A")).toBeInTheDocument();
+    expect(screen.getAllByText("Scoped reply A")).toHaveLength(1);
+    expect(within(panel).queryByRole("textbox", { name: "Reply to thread" })).toBeNull();
+    await act(async () => {
+      const conversation = {
+        id: "c-room",
+        user_id: SIGNED_IN.id,
+        project_id: "p-room",
+        title: "Launch room",
+      };
+      listing({ items: [conversation], total: 1 });
+      metadata?.(conversation);
+    });
+    await within(panel).findByRole("textbox", { name: "Reply to thread" });
+    receive("turn_attached", { conversation_id: "c-room", thread_root_message_id: "root-b" });
+    receive("model_request_start", { conversation_id: "c-room", thread_root_message_id: "root-b" });
+    receive("text_delta", {
+      conversation_id: "c-room",
+      thread_root_message_id: "root-b",
+      index: 0,
+      content: "Live in another thread",
+    });
+    expect(screen.queryByText("Live in another thread")).toBeNull();
+    receive("ask_user", {
+      conversation_id: "c-room",
+      thread_root_message_id: "root-b",
+      questions: [{ question: "Question in another thread", options: [{ label: "Continue" }] }],
+    });
+    expect(within(panel).queryByText("Question in another thread")).toBeNull();
+    const jump = within(panel).getByRole("button", { name: "Open thread" });
+    expect(screen.getAllByRole("button", { name: "Open thread" })).toHaveLength(1);
+    await userEvent.click(jump);
+    expect(openThread).toHaveBeenCalledWith("root-b");
+  });
+
+  it("opens retained thread history read-only after its project is detached", async () => {
+    savedProjectRoom(true);
+    const root = {
+      id: "root-history",
+      conversation_id: "c-room",
+      role: "user" as const,
+      content: "Retained original",
+      created_at: "2026-11-14T00:00:00Z",
+      thread_reply_count: 1,
+    };
+    const reply = {
+      id: "history-reply",
+      conversation_id: "c-room",
+      role: "user" as const,
+      content: "Retained thread reply",
+      created_at: "2026-11-14T00:00:01Z",
+      thread_root_message_id: "root-history",
+    };
+    loadTranscript([root]);
+    const base = get.getMockImplementation()!;
+    const conversation = {
+      id: "c-room",
+      user_id: SIGNED_IN.id,
+      project_id: null,
+      title: "Retained conversation",
+    };
+    get.mockImplementation((url: string) => {
+      if (url.startsWith("/conversations?"))
+        return Promise.resolve({ items: [conversation], total: 1 });
+      if (url === "/conversations/c-room/metadata") return Promise.resolve(conversation);
+      if (url.includes("/room-threads/root-history?"))
+        return Promise.resolve({ root, items: [reply], total: 1, can_post: false });
+      return base(url);
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const open = vi.fn();
+    render(
+      <QueryClientProvider client={client}>
+        <ChatContainer
+          requestedConversationId="c-room"
+          requestedThreadRootId="root-history"
+          onCloseThread={vi.fn()}
+          onOpenThread={open}
+        />
+      </QueryClientProvider>,
+    );
+    const panel = await screen.findByRole("complementary", { name: "Thread" });
+    expect(await within(panel).findByText("Retained thread reply")).toBeInTheDocument();
+    expect(within(panel).queryByRole("textbox", { name: "Reply to thread" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "1 reply" }));
+    expect(open).toHaveBeenCalledWith("root-history");
+  });
+  it("keeps project-room files reachable without losing the room draft", async () => {
+    savedProjectRoom(true);
+    mount();
+    const composer = await screen.findByRole("textbox", { name: "Message to the team" });
+    await userEvent.type(composer, "An unsent room draft");
+    const files = await screen.findByRole("button", { name: /^Show the files/ });
+    await userEvent.click(files);
+    await waitFor(() => expect(screen.getByText("report.md")).toBeVisible());
+    expect(composer).toHaveValue("An unsent room draft");
+
+    await userEvent.click(screen.getByRole("button", { name: "Close the file panel" }));
+    await waitFor(() => expect(screen.queryByText("report.md")).toBeNull());
+    expect(files).toHaveFocus();
+    expect(composer).toHaveValue("An unsent room draft");
+    expect(composer).toBeEnabled();
+  });
+
+  it("keeps personal-agent settings out of team rooms", async () => {
+    savedProjectRoom(true);
+    useAgentSelectionStore.setState({ selectedAgentId: "personal-agent" });
+    mount();
+    const composer = await screen.findByRole("textbox", { name: "Message to the team" });
+    await userEvent.type(composer, "Keep this room draft");
+
+    expect(useAgentSelectionStore.getState().selectedAgentId).toBe("personal-agent");
+    expect(screen.getByRole("button", { name: "Open Browser" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Open Computer" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: /^Show the files/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Open agent settings" })).toBeNull();
+
+    act(() => useBrowserPanelStore.getState().openSurface("settings"));
+    expect(useBrowserPanelStore.getState().surface).toBeNull();
+    expect(screen.queryByRole("complementary", { name: "Agent settings" })).toBeNull();
+    expect(composer).toHaveValue("Keep this room draft");
+  });
+
+  it.each([true, false])(
+    "keeps room workspace panes available and directs requests through the room composer (can post: %s)",
+    async (canPost) => {
+      savedProjectRoom(canPost);
+      mount();
+      const composer = canPost
+        ? await screen.findByRole("textbox", { name: "Message to the team" })
+        : null;
+      if (composer) await userEvent.type(composer, "An unsent room draft");
+      else
+        await screen.findByText(
+          "You can read this room. Posting requires permission to use its project.",
+        );
+      const postsBefore = vi.mocked(apiClient.post).mock.calls.length;
+      const promptsBefore = socket.send.mock.calls.filter(([frame]) => frame.message).length;
+
+      for (const [opener, action] of [
+        ["Open Browser", "Ask agent to open browser"],
+        ["Open Computer", "Ask agent to start computer"],
+      ]) {
+        await userEvent.click(screen.getByRole("button", { name: opener }));
+        const guidance = canPost
+          ? "Choose a responder in the room composer and ask them to open the browser or computer."
+          : "You can view this conversation, but cannot start a session here.";
+        expect(screen.getByText(guidance)).toBeVisible();
+        if (canPost) {
+          const start = screen.getByRole("button", { name: action });
+          expect(start).toBeDisabled();
+          fireEvent.submit(start.closest("form")!);
+        } else expect(screen.queryByRole("button", { name: action })).toBeNull();
+        if (composer) {
+          expect(composer).toHaveValue("An unsent room draft");
+          expect(composer).toBeEnabled();
+        }
+      }
+      expect(apiClient.post).toHaveBeenCalledTimes(postsBefore);
+      expect(socket.send.mock.calls.filter(([frame]) => frame.message)).toHaveLength(promptsBefore);
+      expect(
+        screen.queryByText(
+          canPost
+            ? "You can view this conversation, but cannot start a session here."
+            : "Choose a responder in the room composer and ask them to open the browser or computer.",
+        ),
+      ).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Close workspace panel" }));
+    },
+  );
+
+  it("keeps project-room files reachable for a reader who cannot post", async () => {
+    savedProjectRoom(false);
+    mount();
+    await screen.findByText(
+      "You can read this room. Posting requires permission to use its project.",
+    );
+    expect(screen.queryByRole("textbox", { name: "Message to the team" })).toBeNull();
+    await userEvent.click(await screen.findByRole("button", { name: /^Show the files/ }));
+    await waitFor(() => expect(screen.getByText("report.md")).toBeVisible());
+    await userEvent.click(screen.getByRole("button", { name: "Close the file panel" }));
+    await waitFor(() => expect(screen.queryByText("report.md")).toBeNull());
+  });
+
+  it("joins an empty room only after its successful history load and displays colleague presence", async () => {
+    savedProjectRoom(true);
+    useConversationStore.getState().setCurrentConversationId(null);
+    let finish!: (value: unknown) => void;
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url.startsWith("/conversations/c-room/messages")
+        ? new Promise((resolve) => {
+            finish = resolve;
+          })
+        : base(url),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    function Wrapper({ children }: { children: ReactNode }) {
+      return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    }
+    const { result } = renderHook(() => useConversations(), { wrapper: Wrapper });
+    mount("c-room", client);
+    let reading!: Promise<void>;
+    act(() => {
+      reading = result.current.selectConversation("c-room");
+    });
+    await waitFor(() => expect(finish).toBeDefined());
+    expect(useConversationStore.getState().currentConversationId).toBe("c-room");
+    expect(useConversationStore.getState().isLoading).toBe(true);
+    expect(useChatStore.getState().loadedTranscript).toBeNull();
+    expect(socket.send).not.toHaveBeenCalledWith({ type: "attach", conversation_id: "c-room" });
+
+    await act(async () => {
+      finish({ items: [], total: 0, cost: null });
+      await reading;
+    });
+    await waitFor(() =>
+      expect(socket.send).toHaveBeenCalledWith({ type: "attach", conversation_id: "c-room" }),
+    );
+    expect(useChatStore.getState().messages).toEqual([]);
+    receive("presence", {
+      conversation_id: "c-room",
+      people: [{ user_id: "colleague", name: "Colleague", has_avatar: false, avatar_color: null }],
+    });
+    await waitFor(() => expect(screen.getByText("Colleague is here")).toBeVisible());
+  });
+
+  it("keeps the next room turn when a previously empty history refresh finishes late", async () => {
+    savedProjectRoom(true);
+    loadTranscript([]);
+    mount();
+    await waitFor(() =>
+      expect(socket.send).toHaveBeenCalledWith({ type: "attach", conversation_id: "c-room" }),
+    );
+    let finish!: (value: unknown) => void;
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url.startsWith("/conversations/c-room/messages")
+        ? new Promise((resolve) => {
+            finish = resolve;
+          })
+        : base(url),
+    );
+    receive("turn_attached", { conversation_id: "c-room" });
+    receive("turn_followed_to_end", { conversation_id: "c-room" });
+    await waitFor(() => expect(finish).toBeDefined());
+    receive("turn_attached", { conversation_id: "c-room" });
+    receive("turn_prompt", {
+      conversation_id: "c-room",
+      message_id: "next-question",
+      content: "Next question",
+      sender: { user_id: "colleague", name: "Colleague" },
+    });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "New answer" });
+    await act(async () => finish({ items: [], total: 0, cost: null }));
+    receive("text_delta", { index: 0, content: " continues" });
+    expect(useChatStore.getState().messages.map((message) => message.content)).toEqual([
+      "Next question",
+      "New answer continues",
+    ]);
+    receive("final_result", { output: "New answer continues" });
+    receive("complete", {});
+    await waitFor(() => expect(screen.getByText("New answer continues")).toBeVisible());
+  });
 });
 
 describe("the chat container - answering a durable question", () => {
@@ -350,7 +882,7 @@ describe("the chat container - answering a durable question", () => {
       }),
     );
     expect(screen.queryByText("How formal?")).not.toBeInTheDocument();
-    expect(await screen.findByText("Your answer was received.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Your answer was received.")).toBeInTheDocument());
   });
 });
 
@@ -389,6 +921,80 @@ describe("the chat container - Stop without a restored decision card", () => {
       await userEvent.click(stop);
       await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/runs/parked-run/cancel"));
       await waitFor(() => expect(useChatStore.getState().messages[0]?.wasStopped).toBe(true));
+    },
+  );
+});
+
+describe("the chat container - hosted workspace with a restored decision", () => {
+  it.each(["awaiting_answer", "awaiting_approval"] as const)(
+    "refuses a hosted start while %s is restored without an active turn",
+    async (status) => {
+      const fallback = get.getMockImplementation()!;
+      get.mockImplementation((url: string) => {
+        if (url === "/agents")
+          return Promise.resolve({
+            items: [
+              {
+                id: "hosted-agent",
+                slug: "hosted-agent",
+                name: "Hosted agent",
+                status: "published",
+                can_run: true,
+                published_capabilities: ["browser_use", "computer_use"],
+                published_hosted_capabilities: ["browser_use", "computer_use"],
+                local_workspace: false,
+                local_coding_agent: null,
+              },
+            ],
+            total: 1,
+          });
+        if (url === "/me/permissions")
+          return Promise.resolve({
+            organization_id: "org-1",
+            role: "admin",
+            is_app_admin: false,
+            permissions: [{ permission: "approvals:decide", scope: "all" }],
+          });
+        if (url.endsWith("/can-stop")) return Promise.resolve(true);
+        if (url === "/runs/parked-run/parked")
+          return Promise.resolve([
+            { id: "approval", tool_call_id: "call", tool_name: "execute", tool_args: {} },
+          ]);
+        if (url === "/runs/parked-run/questions")
+          return Promise.resolve([
+            {
+              tool_call_id: "call",
+              questions: [
+                { question: "How formal?", options: [{ label: "Casual" }], allow_custom: true },
+              ],
+            },
+          ]);
+        return fallback(url);
+      });
+      useAgentSelectionStore.setState({ selectedAgentId: "hosted-agent" });
+      mount();
+      await userEvent.click(await screen.findByRole("button", { name: "Open Computer" }));
+      const start = screen.getByRole("button", { name: "Ask agent to start computer" });
+      await waitFor(() => expect(start).toBeEnabled());
+
+      act(() =>
+        useChatStore.getState().addMessage({
+          id: "parked-message",
+          role: "assistant",
+          content: "Waiting",
+          timestamp: new Date(),
+          runId: "parked-run",
+          toolCalls: [{ id: "call", name: "execute", args: {}, status }],
+        }),
+      );
+      await screen.findByRole("button", {
+        name: status === "awaiting_approval" ? "Approve" : /Casual/,
+      });
+      await waitFor(() => expect(start).toBeDisabled());
+      const promptsBefore = socket.send.mock.calls.filter(([frame]) => frame.message).length;
+      fireEvent.submit(start.closest("form")!);
+      expect(socket.send.mock.calls.filter(([frame]) => frame.message)).toHaveLength(promptsBefore);
+      await userEvent.click(screen.getByRole("button", { name: "Close workspace panel" }));
     },
   );
 });
@@ -918,7 +1524,9 @@ describe("the chat container - a voice call (#54)", () => {
     const stop = useConversationStore.subscribe((state) => loading(state.isLoading));
     act(() => voiceCall.options.onTurnSaved?.());
     await waitFor(() =>
-      expect(get).toHaveBeenCalledWith("/conversations/c-a/messages?latest=true&limit=101"),
+      expect(get).toHaveBeenCalledWith(
+        "/conversations/c-a/messages?latest=true&limit=101&top_level_only=true",
+      ),
     );
     stop();
     // Not the select path: nothing is cleared and no skeleton is drawn.
@@ -934,7 +1542,9 @@ describe("the chat container - a voice call (#54)", () => {
     get.mockClear();
     act(() => voiceCall.options.onTurnSaved?.());
     await waitFor(() =>
-      expect(get).toHaveBeenCalledWith("/conversations/c-new/messages?latest=true&limit=101"),
+      expect(get).toHaveBeenCalledWith(
+        "/conversations/c-new/messages?latest=true&limit=101&top_level_only=true",
+      ),
     );
     expect(voiceCall.end).not.toHaveBeenCalled();
   });
@@ -950,7 +1560,9 @@ describe("the chat container - a voice call (#54)", () => {
     // A saved turn from the old call no longer reloads the conversation on screen.
     get.mockClear();
     act(() => voiceCall.options.onTurnSaved?.());
-    expect(get).not.toHaveBeenCalledWith("/conversations/c-b/messages?latest=true&limit=101");
+    expect(get).not.toHaveBeenCalledWith(
+      "/conversations/c-b/messages?latest=true&limit=101&top_level_only=true",
+    );
   });
 
   it("hangs up a call started in a new chat when another conversation is opened before it is named", async () => {
@@ -1120,7 +1732,7 @@ describe("the chat container - who a reopened thread is addressed to", () => {
     useAgentSelectionStore.setState({ selectedAgentId: "a-architect" });
     useConversationStore.getState().setCurrentConversationId("c-both");
     // The transcript as the page loads it, the last answer the Support Desk's.
-    useConversationStore.getState().setCurrentMessages([
+    loadTranscript([
       {
         id: "m2",
         conversation_id: "c-both",
@@ -1202,7 +1814,7 @@ describe("the chat container - an answer still being written after its person le
           ],
           total: 1,
         });
-      if (url === `/conversations/${LEFT}/messages?latest=true&limit=101`) {
+      if (url === `/conversations/${LEFT}/messages?latest=true&limit=101&top_level_only=true`) {
         answered();
         const question = {
           id: "m-1",
@@ -1229,7 +1841,7 @@ describe("the chat container - an answer still being written after its person le
   it("uses the persisted run start for a resumed stream and its sidebar clock", async () => {
     useConversationStore.getState().setCurrentConversationId(LEFT);
     const started = running!;
-    useConversationStore.getState().setCurrentMessages([
+    loadTranscript([
       {
         id: "clock-question",
         conversation_id: LEFT,
@@ -1249,7 +1861,7 @@ describe("the chat container - an answer still being written after its person le
   it("says the agent is still answering, and fetches the answer when its run ends", async () => {
     // The thread as a reload finds it: the question, and nothing after it.
     useConversationStore.getState().setCurrentConversationId(LEFT);
-    useConversationStore.getState().setCurrentMessages([
+    loadTranscript([
       {
         id: "m-1",
         conversation_id: LEFT,
@@ -1268,7 +1880,8 @@ describe("the chat container - an answer still being written after its person le
     expect(await screen.findByText(/still answering when you left/)).toBeInTheDocument();
     const reads = () =>
       get.mock.calls.filter(
-        ([url]) => url === `/conversations/${LEFT}/messages?latest=true&limit=101`,
+        ([url]) =>
+          url === `/conversations/${LEFT}/messages?latest=true&limit=101&top_level_only=true`,
       );
     const before = reads().length;
     const question = screen.getByText("Write me a rollout plan");
@@ -1297,7 +1910,7 @@ describe("the chat container - an answer still being written after its person le
     // spoken turn is the caller's: that is not a turn somebody walked away from.
     voiceCall.call = { ...initialCall, phase: "live", callId: "call-1", startedAt: Date.now() };
     useConversationStore.getState().setCurrentConversationId(LEFT);
-    useConversationStore.getState().setCurrentMessages([
+    loadTranscript([
       {
         id: "m-1",
         conversation_id: LEFT,
@@ -1346,7 +1959,7 @@ describe("the chat container - an answer still being written after its person le
     // The run's terminal event goes out when its row commits; the answer is
     // written after that, so the first read can still end in the question.
     useConversationStore.getState().setCurrentConversationId(LEFT);
-    useConversationStore.getState().setCurrentMessages([
+    loadTranscript([
       {
         id: "m-1",
         conversation_id: LEFT,
@@ -1377,7 +1990,7 @@ describe("the chat container - an answer still being written after its person le
     // nothing was ever written after the question (#2301).
     useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
     useConversationStore.getState().setCurrentConversationId(LEFT);
-    useConversationStore.getState().setCurrentMessages([
+    loadTranscript([
       {
         id: "m-1",
         conversation_id: LEFT,
@@ -1457,11 +2070,94 @@ describe("the chat container - late transcript reconciliation", () => {
     return { id, role, content, conversation_id: "c-race", created_at: "2026-10-01T12:00:00Z" };
   }
 
+  it("revalidates a live first turn when its tenant resolves without losing pending text", async () => {
+    useOrgStore.setState({ activeOrgId: null });
+    let finishOrganizations!: (value: unknown) => void;
+    let finishHistory!: (value: unknown) => void;
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) => {
+      if (url === "/orgs")
+        return new Promise((resolve) => {
+          finishOrganizations = resolve;
+        });
+      if (url.startsWith("/conversations/c-new/messages"))
+        return new Promise((resolve) => {
+          finishHistory = resolve;
+        });
+      return base(url);
+    });
+    mount();
+    await waitFor(() => expect(finishOrganizations).toBeDefined());
+    receive("conversation_created", { conversation_id: "c-new" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Before resolution" });
+    expect(useChatStore.getState().loadedTranscript?.tenantId).toBeNull();
+
+    await act(async () =>
+      finishOrganizations({
+        items: [{ id: "org-1", name: "Default", is_personal: true }],
+        total: 1,
+      }),
+    );
+    await waitFor(() => expect(finishHistory).toBeDefined());
+    receive("text_delta", { index: 0, content: " while validating" });
+    await act(async () => finishHistory({ items: [], total: 0, cost: null }));
+    receive("text_delta", { index: 0, content: " after validation" });
+    expect(useChatStore.getState().messages.at(-1)?.content).toBe(
+      "Before resolution while validating after validation",
+    );
+    expect(useChatStore.getState().loadedTranscript?.tenantId).toBe("org-1");
+    expect(
+      get.mock.calls.filter(([url]) => String(url).startsWith("/conversations/c-new/messages")),
+    ).toHaveLength(1);
+  });
+
+  it("does not attach unresolved live history when concrete-tenant revalidation is refused", async () => {
+    useOrgStore.setState({ activeOrgId: null });
+    let finishOrganizations!: (value: unknown) => void;
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) => {
+      if (url === "/orgs")
+        return new Promise((resolve) => {
+          finishOrganizations = resolve;
+        });
+      if (url.startsWith("/conversations/c-new/messages"))
+        return Promise.reject(new Error("refused"));
+      return base(url);
+    });
+    mount();
+    await waitFor(() => expect(finishOrganizations).toBeDefined());
+    receive("conversation_created", { conversation_id: "c-new" });
+    socket.send.mockClear();
+    await act(async () =>
+      finishOrganizations({
+        items: [{ id: "org-1", name: "Default", is_personal: true }],
+        total: 1,
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        get.mock.calls.some(([url]) => String(url).startsWith("/conversations/c-new/messages")),
+      ).toBe(true),
+    );
+    act(() => {
+      socket.isConnected = false;
+      useChatStore.setState({ messages: [...useChatStore.getState().messages] });
+    });
+    act(() => {
+      socket.isConnected = true;
+      useChatStore.setState({ messages: [...useChatStore.getState().messages] });
+    });
+    expect(socket.send).not.toHaveBeenCalledWith({ type: "attach", conversation_id: "c-new" });
+    expect(useChatStore.getState().loadedTranscript?.tenantId).toBeNull();
+    expect(
+      get.mock.calls.filter(([url]) => String(url).startsWith("/conversations/c-new/messages")),
+    ).toHaveLength(1);
+  });
+
   async function openQuestion() {
     useConversationStore.getState().setCurrentConversationId("c-race");
-    useConversationStore
-      .getState()
-      .setCurrentMessages([stored("question", "user", "Initial question")]);
+    loadTranscript([stored("question", "user", "Initial question")]);
     mount();
     await screen.findByText("Initial question");
     receive("turn_attached", { conversation_id: "c-race" });
@@ -1512,7 +2208,7 @@ describe("the chat container - late transcript reconciliation", () => {
   it("renders one prompt and answer when a transcript recovers a lost persistence acknowledgement", async () => {
     const sender = { user_id: "u-1", name: "Kacper", has_avatar: false, avatar_color: null };
     useConversationStore.getState().setCurrentConversationId("c-race");
-    useConversationStore.getState().setCurrentMessages([stored("anchor", "user", "Earlier")]);
+    loadTranscript([stored("anchor", "user", "Earlier")]);
     mount();
     await screen.findByText("Earlier");
     act(() => {
@@ -1536,7 +2232,7 @@ describe("the chat container - late transcript reconciliation", () => {
       });
     });
     act(() =>
-      useConversationStore.getState().setCurrentMessages([
+      loadTranscript([
         stored("anchor", "user", "Earlier"),
         {
           ...stored("saved-question", "user", "Question after reconnect"),
@@ -1587,6 +2283,301 @@ describe("the chat container - late transcript reconciliation", () => {
   });
 });
 
+describe("personal message pins in chat", () => {
+  function openPins(sharePermission?: "view") {
+    const conversation = {
+      id: "c-pins",
+      title: "Saved discussion",
+      user_id: sharePermission ? "another-reader" : SIGNED_IN.id,
+      share_permission: sharePermission,
+      is_archived: false,
+    };
+    const pin = {
+      message_id: "older-pin",
+      thread_root_message_id: "older-root",
+      role: "assistant",
+      message_created_at: "2026-10-01T12:00:00Z",
+      pinned_at: "2026-11-17T00:00:00Z",
+      preview: "An older bookmarked answer",
+    };
+    const fallback = get.getMockImplementation()!;
+    get.mockImplementation((path: string) =>
+      path === "/conversations/c-pins/metadata"
+        ? Promise.resolve(conversation)
+        : path.startsWith("/conversations?")
+          ? Promise.resolve({ items: sharePermission ? [] : [conversation], total: 1 })
+          : path === "/conversations/c-pins/message-pins"
+            ? Promise.resolve({ items: [pin], total: 1 })
+            : fallback(path),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-pins");
+    loadTranscript([
+      {
+        id: "current-pin",
+        conversation_id: "c-pins",
+        role: "user",
+        content: "A message worth keeping",
+        created_at: "2026-11-17T00:00:00Z",
+        is_pinned: false,
+      },
+    ]);
+    vi.mocked(apiClient.post).mockResolvedValue(pin);
+  }
+
+  it("pins the saved message and lazily opens an exact room-reply bookmark", async () => {
+    openPins();
+    const onOpen = vi.fn();
+    mount("c-pins", undefined, undefined, onOpen);
+    await userEvent.click(await screen.findByRole("button", { name: "Pin message" }));
+    expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-pins/messages/current-pin/pin");
+    expect(await screen.findByRole("button", { name: "Unpin message" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(get.mock.calls.some(([path]) => String(path).endsWith("/message-pins"))).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Pinned messages" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "An older bookmarked answer" }),
+    );
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith({
+      conversationId: "c-pins",
+      messageId: "older-pin",
+      threadRootMessageId: "older-root",
+    });
+  });
+
+  it("lets a read-only recipient keep a private pin", async () => {
+    openPins("view");
+    mount("c-pins", undefined, undefined, vi.fn());
+    await screen.findByText("Shared with you as read-only");
+    expect(screen.queryByRole("button", { name: "Reply" })).not.toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "Pin message" }));
+    expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-pins/messages/current-pin/pin");
+  });
+
+  it("hides pin actions when a fresh access read refuses cached history", async () => {
+    openPins("view");
+    const fallback = get.getMockImplementation()!;
+    get.mockImplementation((path: string) =>
+      path === "/conversations/c-pins/metadata"
+        ? Promise.reject(new Error("Access changed"))
+        : fallback(path),
+    );
+    mount("c-pins", undefined, "current-pin", vi.fn());
+    await screen.findByText("The selected message could not be loaded. Try again.");
+    expect(screen.queryByRole("button", { name: "Pin message" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Pinned messages/ })).not.toBeInTheDocument();
+    expect(get.mock.calls.some(([path]) => String(path).endsWith("/message-pins"))).toBe(false);
+  });
+});
+
+describe("manual compaction in the chat surface", () => {
+  function openCompactableChat(shared = false) {
+    const conversation = {
+      id: "c-compact",
+      title: "Long discussion",
+      user_id: shared ? "another-reader" : SIGNED_IN.id,
+      share_permission: shared ? "view" : undefined,
+      is_archived: false,
+      project_id: null,
+    };
+    const fallback = get.getMockImplementation()!;
+    get.mockImplementation((path: string) => {
+      if (path.startsWith("/conversations/c-compact/compaction-availability"))
+        return Promise.resolve({ available: true });
+      if (path === "/conversations/c-compact/metadata") return Promise.resolve(conversation);
+      if (path.startsWith("/conversations?"))
+        return Promise.resolve({ items: shared ? [] : [conversation], total: 1 });
+      if (path.startsWith("/agents") && !path.includes("/dictation") && !path.includes("/voice"))
+        return Promise.resolve({
+          items: [
+            {
+              id: "compact-agent",
+              slug: "compact-agent",
+              name: "Compaction agent",
+              status: "published",
+              can_run: true,
+            },
+          ],
+          total: 1,
+        });
+      if (path === "/agents/compact-agent/voice")
+        return Promise.resolve({ available: true, transport: "webrtc" });
+      return fallback(path);
+    });
+    useAgentSelectionStore.setState({ selectedAgentId: "compact-agent" });
+    useConversationStore.getState().setCurrentConversationId("c-compact");
+    loadTranscript([
+      {
+        id: "saved-question",
+        conversation_id: "c-compact",
+        role: "user",
+        content: "Earlier question",
+        created_at: "2026-11-17T00:00:00Z",
+      },
+      {
+        id: "saved-answer",
+        conversation_id: "c-compact",
+        role: "assistant",
+        content: "Earlier answer",
+        created_at: "2026-11-17T00:00:01Z",
+      },
+    ]);
+    socket.send.mockReturnValue(true);
+    mount("c-compact");
+  }
+
+  afterEach(() => socket.send.mockReset());
+
+  it("compacts without submitting or clearing the draft and reports correlated progress", async () => {
+    openCompactableChat();
+    const compact = await screen.findByRole("button", { name: "Compact now" });
+    receive("session_ready", {});
+    await waitFor(() => expect(compact).toBeEnabled());
+    const editor = screen.getByRole("textbox");
+    await userEvent.type(editor, "Keep this draft");
+    await userEvent.click(compact);
+
+    const request = socket.send.mock.calls
+      .map(([frame]) => frame as Record<string, unknown>)
+      .find((frame) => frame.type === "compact_now");
+    expect(request).toMatchObject({ conversation_id: "c-compact", agent_id: "compact-agent" });
+    expect(typeof request?.request_id).toBe("string");
+    expect(compact).toBeDisabled();
+    expect(messageOf(editor)).toBe("Keep this draft");
+    expect(socket.send.mock.calls.some(([frame]) => frame.message)).toBe(false);
+    expect(useChatStore.getState().messages).toHaveLength(2);
+    act(() => useComposerIntentStore.setState({ intent: "call" }));
+    expect(voiceCall.start).not.toHaveBeenCalled();
+
+    receive("compaction_started", { request_id: request!.request_id, messages_before: 12 });
+    expect(await screen.findByText(/Summarizing 12 earlier messages/)).toBeVisible();
+    receive("compact_now_result", {
+      request_id: request!.request_id,
+      conversation_id: "c-compact",
+      status: "compacted",
+    });
+    receive("session_ready", {});
+    expect(await screen.findByText(/Context compacted/)).toBeVisible();
+    expect(compact).toBeEnabled();
+    expect(messageOf(editor)).toBe("Keep this draft");
+    expect(useChatStore.getState().messages).toHaveLength(2);
+  });
+
+  it("disables manual compaction while the conversation is answering", async () => {
+    openCompactableChat();
+    const compact = await screen.findByRole("button", { name: "Compact now" });
+    receive("session_ready", {});
+    await waitFor(() => expect(compact).toBeEnabled());
+    await userEvent.type(screen.getByRole("textbox"), "A follow-up{Enter}");
+    await waitFor(() =>
+      expect(socket.send.mock.calls.some(([frame]) => frame.message === "A follow-up")).toBe(true),
+    );
+    await waitFor(() => expect(compact).toBeDisabled());
+    await userEvent.click(compact);
+    expect(socket.send.mock.calls.some(([frame]) => frame.type === "compact_now")).toBe(false);
+  });
+
+  it("keeps Stop available during manual compaction and waits for cleanup", async () => {
+    openCompactableChat();
+    const compact = await screen.findByRole("button", { name: "Compact now" });
+    receive("session_ready", {});
+    await waitFor(() => expect(compact).toBeEnabled());
+    await userEvent.click(compact);
+    const request = socket.send.mock.calls
+      .map(([frame]) => frame as Record<string, unknown>)
+      .find((frame) => frame.type === "compact_now");
+    const stop = await screen.findByRole("button", { name: /^Stop/ });
+    expect(stop).toBeEnabled();
+    await userEvent.click(stop);
+    expect(socket.send).toHaveBeenCalledWith({ type: "stop" });
+    receive("compact_now_result", {
+      request_id: request!.request_id,
+      conversation_id: "c-compact",
+      status: "failed",
+    });
+    expect(compact).toBeDisabled();
+    receive("session_ready", {});
+    await waitFor(() => expect(compact).toBeEnabled());
+    expect(useChatStore.getState().messages).toHaveLength(2);
+    expect(socket.send.mock.calls.some(([frame]) => frame.message)).toBe(false);
+  });
+
+  it("hides manual compaction for a read-only shared conversation", async () => {
+    openCompactableChat(true);
+    await screen.findByText("Shared with you as read-only");
+    expect(screen.queryByRole("button", { name: "Compact now" })).not.toBeInTheDocument();
+    expect(socket.send.mock.calls.some(([frame]) => frame.type === "compact_now")).toBe(false);
+  });
+});
+
+it("follows an exact main-chat link through older history and preserves the current page", async () => {
+  const current = {
+    id: "m-2",
+    role: "user" as const,
+    content: "Current page",
+    conversation_id: "paged",
+    created_at: "2026-10-01T12:00:00Z",
+  };
+  useConversationStore.getState().setCurrentConversationId("paged");
+  loadTranscript([current], null, true);
+  const fallback = get.getMockImplementation()!;
+  get.mockImplementation((path: string) =>
+    path.includes("before=m-2")
+      ? Promise.resolve({
+          items: [{ ...current, id: "m-1", content: "Linked earlier page" }],
+          total: 2,
+          cost: null,
+        })
+      : fallback(path),
+  );
+  mount("paged", undefined, "m-1");
+  await screen.findByText("Linked earlier page");
+  await waitFor(() => expect(document.querySelector('[data-message-id="m-1"]')).toHaveFocus());
+  expect(screen.getByText("Current page")).toBeVisible();
+  expect(get.mock.calls.filter(([path]) => String(path).includes("before=m-2"))).toHaveLength(1);
+});
+
+it("reveals a linked segment inside a combined saved turn", async () => {
+  const first = {
+    id: "segment-a",
+    role: "assistant" as const,
+    content: "Earlier saved segment",
+    conversation_id: "combined",
+    run_id: "shared-run",
+    created_at: "2026-10-01T12:00:00Z",
+  };
+  useConversationStore.getState().setCurrentConversationId("combined");
+  loadTranscript([first, { ...first, id: "segment-b", content: "Final saved answer" }]);
+  mount("combined", undefined, "segment-a");
+  await waitFor(() =>
+    expect(document.querySelector('[data-message-ids~="segment-a"]')).toHaveFocus(),
+  );
+  expect(await screen.findByText("Earlier saved segment")).toBeVisible();
+  expect(screen.getByText("Final saved answer")).toBeVisible();
+});
+
+it("does not load older linked history after the access read is refused", async () => {
+  const current = {
+    id: "m-2",
+    role: "user" as const,
+    content: "Cached page",
+    conversation_id: "denied",
+    created_at: "2026-10-01T12:00:00Z",
+  };
+  useConversationStore.getState().setCurrentConversationId("denied");
+  loadTranscript([current], null, true);
+  const fallback = get.getMockImplementation()!;
+  get.mockImplementation((path: string) =>
+    path === "/conversations/denied/metadata"
+      ? Promise.reject(new Error("Access changed"))
+      : fallback(path),
+  );
+  mount("denied", undefined, "old-message");
+  await screen.findByText("The selected message could not be loaded. Try again.");
+  expect(get.mock.calls.some(([path]) => String(path).includes("before="))).toBe(false);
+});
+
 it("loads earlier messages from the transcript control without losing the current page", async () => {
   const current = {
     id: "m-2",
@@ -1596,7 +2587,7 @@ it("loads earlier messages from the transcript control without losing the curren
     created_at: "2026-10-01T12:00:00Z",
   };
   useConversationStore.getState().setCurrentConversationId("paged");
-  useConversationStore.getState().setCurrentMessages([current], null, true);
+  loadTranscript([current], null, true);
   const fallback = get.getMockImplementation()!;
   let finish!: (value: unknown) => void;
   get.mockImplementation((path: string) =>
@@ -1629,7 +2620,7 @@ describe("routine answers arriving in the open source conversation", () => {
       created_at: "2026-11-02T10:00:00Z",
     };
     useConversationStore.getState().setCurrentConversationId("source-chat");
-    useConversationStore.getState().setCurrentMessages([original] as never);
+    loadTranscript([original] as never);
     let deliveredText = "Approved routine result";
     const fallback = get.getMockImplementation()!;
     get.mockImplementation((path: string) =>
@@ -1682,18 +2673,24 @@ it("keeps the draft focused when tapping dock buttons while leaving keyboard foc
 });
 
 describe("the chat container - forking a conversation (#2762)", () => {
-  function listOwnedBy(owner: string, forkedFrom: unknown = null) {
+  function listOwnedBy(
+    owner: string,
+    forkedFrom: unknown = null,
+    sideForks: ConversationForkRead[] = [],
+  ) {
     const base = get.getMockImplementation()!;
-    get.mockImplementation((url: string) =>
-      url.startsWith("/conversations?")
+    get.mockImplementation((url: string) => {
+      if (url === "/conversations/c-mine/forks")
+        return Promise.resolve({ items: sideForks, total: sideForks.length });
+      return url.startsWith("/conversations?")
         ? Promise.resolve({
             items: [{ id: "c-mine", title: "Pricing", user_id: owner, forked_from: forkedFrom }],
             total: 1,
           })
-        : base(url),
-    );
+        : base(url);
+    });
     useConversationStore.getState().setCurrentConversationId("c-mine");
-    useConversationStore.getState().setCurrentMessages([
+    loadTranscript([
       {
         id: "m-answer",
         conversation_id: "c-mine",
@@ -1766,6 +2763,122 @@ describe("the chat container - forking a conversation (#2762)", () => {
     await screen.findByText("Start at 10.", undefined, SETTLE);
     expect(screen.queryByRole("button", { name: "Fork into a new conversation" })).toBeNull();
   });
+
+  it("creates a side thread in its own scope without switching the main transcript or URL", async () => {
+    listOwnedBy(SIGNED_IN.id);
+    const child: ConversationForkRead = {
+      id: "c-side",
+      title: "Alternative path",
+      created_at: "2026-11-17T12:00:00Z",
+      updated_at: null,
+      is_archived: false,
+      forked_from: {
+        conversation_id: "c-mine",
+        message_id: "m-answer",
+        title: "Pricing",
+      },
+    };
+    vi.mocked(apiClient.post).mockImplementation((path: string) =>
+      path === "/conversations/c-mine/fork" ? Promise.resolve(child) : Promise.resolve(undefined),
+    );
+    mount();
+    const mainMessages = structuredClone(useConversationStore.getState().currentMessages);
+    const address = window.location.href;
+
+    await userEvent.click(await screen.findByRole("button", { name: "Side threads" }, SETTLE));
+    await userEvent.click(await screen.findByRole("button", { name: "Start a side thread" }));
+
+    await screen.findByRole("dialog", { name: "Alternative path" }, SETTLE);
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-mine/fork", {
+        message_id: "m-answer",
+      }),
+    );
+    expect(useConversationStore.getState().currentConversationId).toBe("c-mine");
+    expect(useConversationStore.getState().currentMessages).toEqual(mainMessages);
+    expect(window.location.href).toBe(address);
+
+    await userEvent.click(screen.getByRole("button", { name: "Close side thread" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Alternative path" })).toBeNull(),
+    );
+    expect(useConversationStore.getState().currentConversationId).toBe("c-mine");
+    expect(useConversationStore.getState().currentMessages).toEqual(mainMessages);
+    expect(window.location.href).toBe(address);
+  });
+
+  it("opens an existing child from only its exact answer without selecting it in the main chat", async () => {
+    const child: ConversationForkRead = {
+      id: "c-side",
+      title: "Alternative path",
+      created_at: "2026-11-17T12:00:00Z",
+      updated_at: null,
+      is_archived: true,
+      forked_from: {
+        conversation_id: "c-mine",
+        message_id: "m-answer",
+        title: "Pricing",
+      },
+    };
+    listOwnedBy(SIGNED_IN.id, null, [child]);
+    mount();
+    const mainMessages = structuredClone(useConversationStore.getState().currentMessages);
+    const address = window.location.href;
+
+    await userEvent.click(await screen.findByRole("button", { name: "Side threads" }, SETTLE));
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith("/conversations/c-mine/forks", {
+        params: { message_id: "m-answer", skip: "0", limit: "100" },
+      }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: /Alternative path/ }));
+
+    await screen.findByRole("dialog", { name: "Alternative path" }, SETTLE);
+    expect(useConversationStore.getState().currentConversationId).toBe("c-mine");
+    expect(useConversationStore.getState().currentMessages).toEqual(mainMessages);
+    expect(window.location.href).toBe(address);
+  });
+
+  it("jumps back to the exact parent answer without restoring focus to the side-thread opener", async () => {
+    const child: ConversationForkRead = {
+      id: "c-side",
+      title: "Alternative path",
+      created_at: "2026-11-17T12:00:00Z",
+      updated_at: null,
+      is_archived: false,
+      forked_from: {
+        conversation_id: "c-mine",
+        message_id: "m-answer",
+        title: "Pricing",
+      },
+    };
+    listOwnedBy(SIGNED_IN.id, null, [child]);
+    const onOpenParent = vi.fn(() => document.getElementById("parent-message-anchor")?.focus());
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <button type="button">Main chat</button>
+        <div id="parent-message-anchor" tabIndex={-1} />
+        <ChatContainer onOpenParent={onOpenParent} />
+      </QueryClientProvider>,
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: "Side threads" }, SETTLE));
+    await userEvent.click(await screen.findByRole("button", { name: /Alternative path/ }));
+    await screen.findByRole("dialog", { name: "Alternative path" }, SETTLE);
+    await userEvent.click(screen.getByRole("button", { name: "Back to parent conversation" }));
+
+    await waitFor(() =>
+      expect(onOpenParent).toHaveBeenCalledExactlyOnceWith({
+        conversationId: "c-mine",
+        messageId: "m-answer",
+      }),
+    );
+    expect(document.getElementById("parent-message-anchor")).toHaveFocus();
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Alternative path" })).toBeNull(),
+    );
+  });
 });
 
 describe("the chat container - a conversation shared with the reader", () => {
@@ -1782,7 +2895,7 @@ describe("the chat container - a conversation shared with the reader", () => {
           : base(url),
     );
     useConversationStore.getState().setCurrentConversationId("c-theirs");
-    useConversationStore.getState().setCurrentMessages([
+    loadTranscript([
       {
         id: "m-1",
         conversation_id: "c-theirs",
@@ -1951,6 +3064,104 @@ describe("opening a saved chat", () => {
   });
 });
 
+describe("the floating assistant's context submission boundary", () => {
+  const page = (): AssistantPageContext => ({
+    path: "/tables/orders",
+    title: "Orders",
+    captured_at: "2026-01-01T00:00:00.000Z",
+  });
+
+  it("sends page context with text typed into the normal composer", async () => {
+    useAgentSelectionStore.getState().select("agent-1");
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const current = page();
+    render(
+      <QueryClientProvider client={client}>
+        <ChatContainer agentFixed pageContext={() => current} />
+      </QueryClientProvider>,
+    );
+    const editor = await screen.findByRole("textbox", { name: "Type a message..." });
+    await userEvent.type(editor, "Explain this page");
+    await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() =>
+      expect(socket.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: "Explain this page",
+          agent_id: "agent-1",
+          page_context: current,
+        }),
+      ),
+    );
+  });
+
+  it("keeps the submitted page and agent while a draft save holds the question", async () => {
+    useAgentSelectionStore.getState().select("agent-1");
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let current = page();
+    const original = structuredClone(current);
+    const at = (holdSending: boolean) => (
+      <QueryClientProvider client={client}>
+        <ChatContainer
+          agentFixed
+          holdSending={holdSending}
+          pageContext={() => current}
+          emptyState={(onPick) => (
+            <button type="button" onClick={() => onPick("Explain this page")}>
+              pick page
+            </button>
+          )}
+        />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(at(true));
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: "pick page" }));
+    expect(socket.send.mock.calls.filter(([frame]) => frame.message)).toHaveLength(0);
+    current = { ...page(), path: "/runs", title: "Runs" };
+    act(() => useAgentSelectionStore.getState().select("agent-2"));
+    rerender(at(false));
+    await act(async () => {});
+    expect(socket.send.mock.calls.filter(([frame]) => frame.message)).toHaveLength(0);
+    act(() => useAgentSelectionStore.getState().select("agent-1"));
+
+    await waitFor(() =>
+      expect(socket.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: "Explain this page",
+          agent_id: "agent-1",
+          page_context: original,
+        }),
+      ),
+    );
+  });
+
+  it("disables submission for an unavailable agent without secretly holding the question", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const at = (sendDisabled: boolean) => (
+      <QueryClientProvider client={client}>
+        <ChatContainer
+          agentFixed
+          sendDisabled={sendDisabled}
+          pageContext={page}
+          emptyState={(onPick) => (
+            <button type="button" onClick={() => onPick("Do not defer this")}>
+              pick page
+            </button>
+          )}
+        />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(at(true));
+    expect(screen.getByRole("textbox")).toHaveAttribute("contenteditable", "false");
+    fireEvent.click(screen.getByRole("button", { name: "pick page" }));
+    rerender(at(false));
+    await act(async () => {});
+
+    expect(socket.send.mock.calls.filter(([frame]) => frame.message)).toHaveLength(0);
+  });
+});
+
 it("resolves an access request against the requesting agent even after the picker changes", async () => {
   const base = get.getMockImplementation()!;
   get.mockImplementation((url: string) =>
@@ -2059,7 +3270,7 @@ it.each(["shared cache", "metadata"])(
     }
     useAgentSelectionStore.setState({ selectedAgentId: "a-architect" });
     useConversationStore.getState().setCurrentConversationId("c-legacy");
-    useConversationStore.getState().setCurrentMessages([
+    loadTranscript([
       {
         id: "old",
         conversation_id: "c-legacy",

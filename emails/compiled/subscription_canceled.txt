@@ -1,10 +1,13 @@
-Subject: Your [[app_name]] subscription has been canceled
+Subject: Subscription canceled
 
-Hi [[name]],
+Subscription canceled
 
-Your [[plan_name]] subscription has been canceled. You'll have access until [[access_until]].
+Hi [[name]], your [[plan_name]] subscription on [[app_name]] has been canceled.
 
-We'd love to have you back - resubscribe anytime:
+Access continues until: [[access_until]]
+Plan: [[plan_name]]
+
+Resubscribe:
 [[resubscribe_url]]
 
-- The [[app_name]] Team
+[[app_name]]

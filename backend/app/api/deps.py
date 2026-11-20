@@ -27,6 +27,7 @@ from app.core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db_session
+from app.db.table_rls import bind_table_access
 
 DBSession = Annotated[AsyncSession, Depends(get_db_session, scope="function")]
 """The request's session, committed before the response leaves the process.
@@ -69,7 +70,7 @@ transactions that can half-commit.
 from uuid import UUID
 
 from app.db.session import get_db_context
-from fastapi import Request
+from fastapi import Request, Response
 
 from app.clients.redis import RedisClient
 
@@ -83,8 +84,20 @@ Redis = Annotated[RedisClient, Depends(get_redis)]
 
 
 from app.services.mentions import MentionService
+from app.services.mfa import MfaService
 from app.services.personal_data import PersonalDataService
 from app.services.browser_sign_in import BrowserSignInService
+from app.services.browser_credentials import (
+    BrowserCredentialContinuationService,
+    BrowserCredentialPlanService,
+    BrowserCredentialPolicyService,
+)
+from app.services.browser_teaching import BrowserTeachingService
+from app.services.browser_procedure_teaching._service import BrowserProcedureTeachingService
+from app.services.browser_procedure_teaching._policy import BrowserProcedureTeachingPolicyService
+from app.services.browser_procedure_teaching._generation import (
+    BrowserProcedureTeachingDraftService,
+)
 from app.services.user import UserService
 from app.services.session import SessionService
 from app.services.web_push import WebPushService
@@ -95,8 +108,11 @@ from app.services.ws_auth import authenticate_socket_key, authenticate_socket_to
 from app.services.device_pairing import DevicePairingService
 from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
+from app.services.conversation_message_pin import ConversationMessagePinService
 from app.services.coding_task_changes import CodingTaskChangeService
 from app.services.conversation_tasks import ConversationTaskService
+from app.services.room_submission import RoomSubmissionService
+from app.services.room_routing import RoomRoutingService
 from app.services.tasks import TaskService
 from app.services.visual import VisualService
 from app.services.local_service import LocalServiceService
@@ -104,6 +120,22 @@ from app.services.ml import MLService
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import SandboxWorkspaceService
 from app.services.conversation_share import ConversationShareService
+
+
+def take_started_oauth_client(request: Request, *, session_key: str) -> dict[str, str] | None:
+    """Consume this OAuth state's client handoff marker, if it had one."""
+    pending = dict(request.session.get(session_key) or {})
+    started = pending.pop(request.query_params.get("state") or "", None)
+    if pending:
+        request.session[session_key] = pending
+    else:
+        request.session.pop(session_key, None)
+    return started if isinstance(started, dict) else None
+
+
+def no_store_response(response: Response) -> None:
+    """Keep a private response out of browser and intermediary caches."""
+    response.headers["Cache-Control"] = "no-store"
 
 
 def get_user_service(db: DBSession) -> UserService:
@@ -119,6 +151,11 @@ def get_personal_data_service(db: DBSession) -> PersonalDataService:
 def get_session_service(db: DBSession) -> SessionService:
     """Create SessionService instance with database session."""
     return SessionService(db)
+
+
+def get_mfa_service(db: DBSession) -> MfaService:
+    """Create MfaService instance with database session."""
+    return MfaService(db)
 
 
 def get_impersonation_service(db: DBSession) -> ImpersonationService:
@@ -139,6 +176,7 @@ def get_device_pairing_service(redis: Redis, db: DBSession) -> DevicePairingServ
 UserSvc = Annotated[UserService, Depends(get_user_service)]
 PersonalDataSvc = Annotated[PersonalDataService, Depends(get_personal_data_service)]
 SessionSvc = Annotated[SessionService, Depends(get_session_service)]
+MfaSvc = Annotated[MfaService, Depends(get_mfa_service)]
 ImpersonationSvc = Annotated[ImpersonationService, Depends(get_impersonation_service)]
 OAuthExchangeSvc = Annotated[OAuthExchangeService, Depends(get_oauth_exchange_service)]
 DevicePairingSvc = Annotated[DevicePairingService, Depends(get_device_pairing_service)]
@@ -175,6 +213,20 @@ def get_conversation_task_service(db: DBSession) -> ConversationTaskService:
 ConversationTaskSvc = Annotated[ConversationTaskService, Depends(get_conversation_task_service)]
 
 
+def get_room_submission_service(db: DBSession) -> RoomSubmissionService:
+    return RoomSubmissionService(db)
+
+
+RoomSubmissionSvc = Annotated[RoomSubmissionService, Depends(get_room_submission_service)]
+
+
+def get_room_routing_service(db: DBSession) -> RoomRoutingService:
+    return RoomRoutingService(db)
+
+
+RoomRoutingSvc = Annotated[RoomRoutingService, Depends(get_room_routing_service)]
+
+
 def get_coding_task_change_service(db: DBSession) -> CodingTaskChangeService:
     return CodingTaskChangeService(db)
 
@@ -188,6 +240,16 @@ def get_conversation_service(db: DBSession) -> ConversationService:
 
 
 ConversationSvc = Annotated[ConversationService, Depends(get_conversation_service)]
+
+
+def get_conversation_message_pin_service(db: DBSession) -> ConversationMessagePinService:
+    """Create personal message pin service with the request session."""
+    return ConversationMessagePinService(db)
+
+
+ConversationMessagePinSvc = Annotated[
+    ConversationMessagePinService, Depends(get_conversation_message_pin_service)
+]
 
 
 def get_visual_service(db: DBSession) -> VisualService:
@@ -317,6 +379,7 @@ StreamingMessageRatingSvc = Annotated[MessageRatingService, Depends(get_streamin
 from app.services.rag_document import RAGDocumentService
 from app.services.rag_sync import RAGSyncService
 from app.services.sync_source import SyncSourceService
+from app.services.gdrive_picker import GoogleDrivePickerService
 
 
 def get_rag_document_service(db: DBSession) -> RAGDocumentService:
@@ -334,9 +397,14 @@ def get_sync_source_service(db: DBSession) -> SyncSourceService:
     return SyncSourceService(db)
 
 
+def get_google_drive_picker_service(db: DBSession) -> GoogleDrivePickerService:
+    return GoogleDrivePickerService(db)
+
+
 RAGDocumentSvc = Annotated[RAGDocumentService, Depends(get_rag_document_service)]
 RAGSyncSvc = Annotated[RAGSyncService, Depends(get_rag_sync_service)]
 SyncSourceSvc = Annotated[SyncSourceService, Depends(get_sync_source_service)]
+GoogleDrivePickerSvc = Annotated[GoogleDrivePickerService, Depends(get_google_drive_picker_service)]
 from app.services.knowledge_base import KnowledgeBaseService
 
 
@@ -367,6 +435,7 @@ FileUploadSvc = Annotated[FileUploadService, Depends(get_file_upload_service)]
 from app.repositories import member_repo
 from app.services.organization import OrganizationService
 from app.services.retention import RetentionService
+from app.services.role_navigation import RoleNavigationService
 from app.services.member import MemberService
 from app.services.invitation import InvitationService
 from app.services.invitation_staging import InvitationStagingService
@@ -387,6 +456,10 @@ def get_organization_service(db: DBSession) -> OrganizationService:
     return OrganizationService(db)
 
 
+def get_role_navigation_service(db: DBSession) -> RoleNavigationService:
+    return RoleNavigationService(db)
+
+
 def get_member_service(db: DBSession) -> MemberService:
     """Create MemberService instance with database session."""
     return MemberService(db)
@@ -404,6 +477,7 @@ def get_invitation_staging_service(redis: Redis) -> InvitationStagingService:
 
 OrganizationSvc = Annotated[OrganizationService, Depends(get_organization_service)]
 RetentionSvc = Annotated[RetentionService, Depends(get_retention_service)]
+RoleNavigationSvc = Annotated[RoleNavigationService, Depends(get_role_navigation_service)]
 MemberSvc = Annotated[MemberService, Depends(get_member_service)]
 InvitationSvc = Annotated[InvitationService, Depends(get_invitation_service)]
 InvitationStagingSvc = Annotated[InvitationStagingService, Depends(get_invitation_staging_service)]
@@ -479,7 +553,7 @@ from app.core.exceptions import (
 )
 from app.services import rate_limit
 from app.api.embed_cors import allow_embed_origin
-from app.core.audit import set_api_key
+from app.core.audit import current_impersonator, set_api_key
 from app.core.security import encode_untrusted, verify_token
 from app.db.models.user import User
 from app.api.public_api import ASSISTANT_SURFACES, is_assistant_route, is_public_route
@@ -512,6 +586,15 @@ def get_project_service(db: DBSession) -> ProjectService:
 
 
 ProjectSvc = Annotated[ProjectService, Depends(get_project_service)]
+
+from app.services.agent_messages import AgentMessageService
+
+
+def get_agent_message_service(db: DBSession) -> AgentMessageService:
+    return AgentMessageService(db)
+
+
+AgentMessageSvc = Annotated[AgentMessageService, Depends(get_agent_message_service)]
 
 from app.services.project_tracking import ProjectTrackingService
 
@@ -550,6 +633,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login
 oauth2_scheme_optional = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False
 )
+
+_RECENT_AUTH_MAX_AGE_SECONDS = 300
 
 
 async def _authenticate_api_key(request: Request, token: str, api_keys: ApiKeyService) -> User:
@@ -647,6 +732,23 @@ async def get_current_user(
 # resolved per row by `resolve_access` - never a role name on a route. The one
 # global privilege is `CurrentAppAdmin` below, which gates the deployment's own
 # administration rather than a tenant's.
+def require_recent_authentication(
+    token: Annotated[str, Depends(oauth2_scheme)],
+) -> None:
+    """Require an access token minted within five minutes of authentication."""
+    payload = verify_token(token)
+    auth_time = payload.get("auth_time") if payload else None
+    if (
+        payload is None
+        or payload.get("type") != "access"
+        or isinstance(auth_time, bool)
+        or not isinstance(auth_time, (int, float))
+        or not 0 <= datetime.now(UTC).timestamp() - auth_time <= _RECENT_AUTH_MAX_AGE_SECONDS
+    ):
+        raise AuthenticationError(message="Please sign in again before changing MFA settings")
+
+
+RecentAuth = Annotated[None, Depends(require_recent_authentication)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
@@ -792,6 +894,18 @@ def get_model_profile_service(db: DBSession) -> ModelProfileService:
 
 
 ModelProfileSvc = Annotated[ModelProfileService, Depends(get_model_profile_service)]
+
+from app.services.claude_subscription import ClaudeSubscriptionService
+
+
+def get_claude_subscription_service() -> ClaudeSubscriptionService:
+    """Create the server-only native connection service."""
+    return ClaudeSubscriptionService()
+
+
+ClaudeSubscriptionSvc = Annotated[
+    ClaudeSubscriptionService, Depends(get_claude_subscription_service)
+]
 
 from app.services.agent_registry import AgentRegistryService
 
@@ -943,6 +1057,16 @@ def get_skill_service(db: DBSession) -> SkillService:
 
 
 SkillSvc = Annotated[SkillService, Depends(get_skill_service)]
+
+from app.services.auto_skill_learning import AutoSkillLearningService
+
+
+def get_auto_skill_learning_service(db: DBSession) -> AutoSkillLearningService:
+    """Create AutoSkillLearningService instance with database session."""
+    return AutoSkillLearningService(db)
+
+
+AutoSkillLearningSvc = Annotated[AutoSkillLearningService, Depends(get_auto_skill_learning_service)]
 
 
 def get_skill_version_service(db: DBSession) -> SkillVersionService:
@@ -1131,6 +1255,7 @@ ArtifactPublicDataSvc = Annotated[
 ]
 
 from app.services.memory import MemoryService
+from app.services.onboarding_team import OnboardingTeamService
 from app.services.outcome import OutcomeService
 from app.services.primary_conversation import PrimaryConversationService
 from app.services.system_agent import SystemAgentService
@@ -1177,12 +1302,92 @@ PrimaryConversationSvc = Annotated[
 ]
 
 
+def get_onboarding_team_service(db: DBSession) -> OnboardingTeamService:
+    """Create OnboardingTeamService instance with database session."""
+    return OnboardingTeamService(db)
+
+
+OnboardingTeamSvc = Annotated[OnboardingTeamService, Depends(get_onboarding_team_service)]
+
+
 def get_browser_sign_in_service(db: DBSession) -> BrowserSignInService:
     """Create BrowserSignInService instance with database session."""
     return BrowserSignInService(db)
 
 
 BrowserSignInSvc = Annotated[BrowserSignInService, Depends(get_browser_sign_in_service)]
+
+
+def get_browser_credential_plan_service(
+    db: DBSession, redis: Redis
+) -> BrowserCredentialPlanService:
+    return BrowserCredentialPlanService(db, redis)
+
+
+BrowserCredentialPlanSvc = Annotated[
+    BrowserCredentialPlanService, Depends(get_browser_credential_plan_service)
+]
+
+
+def get_browser_credential_continuation_service(
+    db: DBSession, redis: Redis
+) -> BrowserCredentialContinuationService:
+    return BrowserCredentialContinuationService(db, redis)
+
+
+BrowserCredentialContinuationSvc = Annotated[
+    BrowserCredentialContinuationService, Depends(get_browser_credential_continuation_service)
+]
+
+
+def get_browser_credential_policy_service(db: DBSession) -> BrowserCredentialPolicyService:
+    return BrowserCredentialPolicyService(db)
+
+
+BrowserCredentialPolicySvc = Annotated[
+    BrowserCredentialPolicyService, Depends(get_browser_credential_policy_service)
+]
+
+
+def get_browser_teaching_service(db: DBSession, redis: Redis) -> BrowserTeachingService:
+    """Create BrowserTeachingService over the request's session and the shared Redis."""
+    return BrowserTeachingService(db, redis)
+
+
+BrowserTeachingSvc = Annotated[BrowserTeachingService, Depends(get_browser_teaching_service)]
+
+
+def get_browser_procedure_teaching_service(
+    db: DBSession, redis: Redis
+) -> BrowserProcedureTeachingService:
+    return BrowserProcedureTeachingService(db, redis)
+
+
+BrowserProcedureTeachingSvc = Annotated[
+    BrowserProcedureTeachingService, Depends(get_browser_procedure_teaching_service)
+]
+
+
+def get_browser_procedure_teaching_policy_service(
+    db: DBSession,
+) -> BrowserProcedureTeachingPolicyService:
+    return BrowserProcedureTeachingPolicyService(db)
+
+
+BrowserProcedureTeachingPolicySvc = Annotated[
+    BrowserProcedureTeachingPolicyService, Depends(get_browser_procedure_teaching_policy_service)
+]
+
+
+def get_browser_procedure_teaching_draft_service(
+    db: DBSession, redis: Redis
+) -> BrowserProcedureTeachingDraftService:
+    return BrowserProcedureTeachingDraftService(db, redis)
+
+
+BrowserProcedureTeachingDraftSvc = Annotated[
+    BrowserProcedureTeachingDraftService, Depends(get_browser_procedure_teaching_draft_service)
+]
 
 
 def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
@@ -1238,6 +1443,16 @@ def get_workflow_eval_service(db: DBSession) -> WorkflowEvalService:
 
 
 WorkflowEvalSvc = Annotated[WorkflowEvalService, Depends(get_workflow_eval_service)]
+
+from app.services.failure_learning import FailureLearningService
+
+
+def get_failure_learning_service(db: DBSession) -> FailureLearningService:
+    """Create FailureLearningService instance with database session."""
+    return FailureLearningService(db)
+
+
+FailureLearningSvc = Annotated[FailureLearningService, Depends(get_failure_learning_service)]
 
 from app.services.workflow_log_alerts import WorkflowLogAlertService
 
@@ -1346,6 +1561,7 @@ async def get_auth_context(
     """
     caller = _key_caller(request)
     if caller is not None:
+        await bind_table_access(db, caller.context)
         return _attributed(request, user, caller.context, caller.surface)
     membership = _membership_read(request, org, user) or await _member_repo.get(
         db, organization_id=org.id, user_id=user.id
@@ -1360,7 +1576,9 @@ async def get_auth_context(
         organization_id=org.id,
         role=membership.role if membership else "",
         is_app_admin=user.is_app_admin,
+        is_impersonated=current_impersonator() is not None,
     )
+    await bind_table_access(db, ctx)
     return _attributed(request, user, ctx, "console")
 
 
@@ -1400,6 +1618,7 @@ async def get_path_org_context(
             raise NotFoundError(
                 message="Organization not found or access denied", details={"org_id": org_id}
             )
+        await bind_table_access(db, caller.context)
         return _attributed(request, user, caller.context, caller.surface)
     membership = await _member_repo.get(db, organization_id=org_id, user_id=user.id)
     if membership is None and not user.is_app_admin:
@@ -1411,7 +1630,9 @@ async def get_path_org_context(
         organization_id=org_id,
         role=membership.role if membership else "",
         is_app_admin=user.is_app_admin,
+        is_impersonated=current_impersonator() is not None,
     )
+    await bind_table_access(db, ctx)
     return _attributed(request, user, ctx, "console")
 
 
@@ -1461,6 +1682,12 @@ def require(*perms: Perm) -> Callable[..., Awaitable[AuthContext]]:
         return _refuse_missing(ctx, perms)
 
     return dependency
+
+
+async def require_media_catalog_access(ctx: Auth) -> None:
+    """Read-only model metadata is shared by agent and workflow editors."""
+    if not ctx.has(Perm.WORKFLOWS_VIEW):
+        await require(Perm.AGENTS_VIEW)(ctx)
 
 
 def key_needs(perm: Perm) -> Callable[..., Awaitable[None]]:
@@ -1532,6 +1759,25 @@ async def limit_workflow_run(ctx: Auth) -> None:
         limit=rate_limit.run_limit(),
     )
     _refuse_if_over(decision, "Too many workflow runs in the last minute. Wait and try again.")
+
+
+async def limit_agent_eval_run(ctx: Auth) -> None:
+    """Refuse a caller starting more agent eval runs than its share.
+
+    The same allowance as `limit_agent_run`, counted on a surface of its own:
+    an eval try starts a test run of the agent per case, per side, per sample,
+    and each of those runs can spend the organization's budget.
+
+    Usage::
+
+        @router.post("", dependencies=[Depends(limit_agent_eval_run)])
+    """
+    decision = await rate_limit.consume(
+        surface="agent_eval_run",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.run_limit(),
+    )
+    _refuse_if_over(decision, "Too many agent eval runs in the last minute. Wait and try again.")
 
 
 async def limit_ml_call(ctx: Auth) -> None:
@@ -2271,6 +2517,14 @@ def get_mcp_connection_service(db: DBSession) -> McpConnectionService:
 
 
 McpConnectionSvc = Annotated[McpConnectionService, Depends(get_mcp_connection_service)]
+from app.services.app_connections import AppConnectionService
+
+
+def get_app_connection_service(db: DBSession) -> AppConnectionService:
+    return AppConnectionService(db)
+
+
+AppConnectionSvc = Annotated[AppConnectionService, Depends(get_app_connection_service)]
 from app.services.suggestions import SuggestionService
 
 
@@ -2497,6 +2751,18 @@ def get_coding_account_service(db: DBSession) -> CodingAccountService:
 
 
 CodingAccountSvc = Annotated[CodingAccountService, Depends(get_coding_account_service)]
+
+
+from app.services.coding_account_usage import CodingAccountUsageService
+
+
+def get_coding_account_usage_service(db: DBSession, redis: Redis) -> CodingAccountUsageService:
+    return CodingAccountUsageService(db, redis)
+
+
+CodingAccountUsageSvc = Annotated[
+    CodingAccountUsageService, Depends(get_coding_account_usage_service)
+]
 
 
 from app.services.onboarding import OnboardingService

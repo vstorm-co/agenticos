@@ -319,6 +319,11 @@ class McpConnection(Base, TimestampMixin):
     )
 
     auth_type: Mapped[str] = mapped_column(String(16), nullable=False, default="bearer")
+    # Managed app credentials stay at Composio. These identifiers are not secrets;
+    # pending consent still uses the member-bound vault staging below.
+    composio_account_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    composio_auth_config_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    composio_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     # CSRF token for an in-flight OAuth authorization redirect; NULL once done.
     oauth_state: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     # Fernet-encrypted JSON: endpoints, client creds, tokens. Written only by a
@@ -388,6 +393,8 @@ class McpConnection(Base, TimestampMixin):
         configured key, and an OAuth grant the provider has revoked or expired past
         its refresh - the sweep marks the latter `last_status="error"` beforehand.
         """
+        if self.auth_type == "composio":
+            return self.composio_account_id is not None and self.composio_status == "ACTIVE"
         if self.auth_type == "oauth":
             return self.oauth_payload is not None and is_key_version_available(
                 self.secret_key_version

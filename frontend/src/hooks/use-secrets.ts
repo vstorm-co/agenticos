@@ -9,6 +9,13 @@ import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { qk } from "@/lib/query-keys";
+import { isBrowserSecretKind } from "@/types/secrets";
+import {
+  browserCredentialRequest,
+  isBrowserCredentialAudienceCurrent,
+} from "@/lib/browser-credentials-api";
+import { useAuthStore } from "@/stores/auth-store";
+import { useOrgStore } from "@/stores/org-store";
 import type {
   NewSecret,
   Secret,
@@ -34,9 +41,17 @@ import type {
  * field added to `AwsCredentialsSecret` from being a field this app never
  * offers.
  */
+function secretAudience() {
+  return {
+    actor: useAuthStore.getState().user?.id,
+    organization: useOrgStore.getState().activeOrgId,
+  };
+}
+
 export function useSecrets() {
   const tErrors = useTranslations("errors");
   const t = useTranslations("vault");
+  const tb = useTranslations("browserCredentials");
   const queryClient = useQueryClient();
 
   const secrets = useQuery({
@@ -70,21 +85,50 @@ export function useSecrets() {
   // name rather than in a toast that takes it away again. The dialogs decide,
   // through `submitFailure`.
   const create = useMutation({
-    mutationFn: (data: NewSecret) => apiClient.post<Secret>("/secrets", data),
-    onSuccess: async (secret) => {
+    gcTime: 0,
+    mutationFn: (data: NewSecret) =>
+      isBrowserSecretKind(data.value.kind)
+        ? browserCredentialRequest(secretAudience(), (options) =>
+            apiClient.post<Secret>("/secrets", data, { ...options, retryAfterRefresh: false }),
+          )
+        : apiClient.post<Secret>("/secrets", data),
+    onMutate: secretAudience,
+    onSuccess: async (secret, _variables, audience) => {
+      if (isBrowserSecretKind(secret.kind) && !isBrowserCredentialAudienceCurrent(audience)) return;
       await invalidate();
-      toast.success(t("secretStored", { name: secret.name, hint: secret.hint }));
+      if (isBrowserSecretKind(secret.kind) && !isBrowserCredentialAudienceCurrent(audience)) return;
+      toast.success(
+        isBrowserSecretKind(secret.kind)
+          ? tb("saved", { name: secret.name })
+          : t("secretStored", { name: secret.name, hint: secret.hint }),
+      );
     },
   });
 
   const rotate = useMutation({
-    mutationFn: ({ id, ...data }: SecretEdit) => apiClient.patch<Secret>(`/secrets/${id}`, data),
-    onSuccess: async (secret) => {
+    gcTime: 0,
+    mutationFn: ({ id, ...data }: SecretEdit) =>
+      isBrowserSecretKind(data.value?.kind)
+        ? browserCredentialRequest(secretAudience(), (options) =>
+            apiClient.patch<Secret>(`/secrets/${id}`, data, {
+              ...options,
+              retryAfterRefresh: false,
+            }),
+          )
+        : apiClient.patch<Secret>(`/secrets/${id}`, data),
+    onMutate: secretAudience,
+    onSuccess: async (secret, _variables, audience) => {
+      if (isBrowserSecretKind(secret.kind) && !isBrowserCredentialAudienceCurrent(audience)) return;
       await invalidate();
+      if (isBrowserSecretKind(secret.kind) && !isBrowserCredentialAudienceCurrent(audience)) return;
       // Said in full because rotation is the one operation here that destroys
       // something: the id survives, so every agent bound to it keeps working,
       // and the value it used a second ago is gone.
-      toast.success(t("secretRotated", { name: secret.name, hint: secret.hint }));
+      toast.success(
+        isBrowserSecretKind(secret.kind)
+          ? tb("replaced", { name: secret.name })
+          : t("secretRotated", { name: secret.name, hint: secret.hint }),
+      );
     },
   });
 
@@ -111,6 +155,7 @@ export function useSecrets() {
      * first, or it states as fact something it was never told.
      */
     listError: secrets.error,
+    refetchSecrets: invalidate,
     create,
     rotate,
     remove,
@@ -141,7 +186,7 @@ const PROVIDER_PRIORITY: Readonly<Record<string, number>> = {
  * Cached indefinitely; it changes on redeploy, not on a mutation.
  */
 export function useSecretPurposes() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.secrets.purposes(),
     queryFn: () => apiClient.get<SecretPurposeList>("/secrets/purposes"),
     staleTime: Infinity,
@@ -154,7 +199,7 @@ export function useSecretPurposes() {
       ),
     [data],
   );
-  return { purposes, isLoading };
+  return { purposes, isLoading, error, refetch };
 }
 
 /** What `POST /secrets/openai-codex` takes: a finished sign-in, and what to call it. */

@@ -8,6 +8,7 @@ export function syncSourceForm(source: SyncSourceRead): SyncSourceCreate {
     collection_name: source.collection_name,
     config: { ...source.config },
     secret_id: source.secret_id,
+    connected_account_id: source.connected_account_id ?? null,
     organizational_unit: source.organizational_unit,
     sync_mode: source.sync_mode,
     schedule_minutes: source.schedule_minutes,
@@ -53,6 +54,9 @@ export function syncSourceChanges(
     changes.config = configPatch(before.config, form.config);
   }
   if ((form.secret_id ?? null) !== before.secret_id) changes.secret_id = form.secret_id ?? null;
+  if ((form.connected_account_id ?? null) !== (before.connected_account_id ?? null)) {
+    changes.connected_account_id = form.connected_account_id ?? null;
+  }
   if ((form.organizational_unit ?? null) !== before.organizational_unit) {
     changes.organizational_unit = form.organizational_unit ?? null;
   }

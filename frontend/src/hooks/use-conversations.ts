@@ -18,7 +18,6 @@ import {
   useConversationStore,
   useChatStore,
   useInChatScope,
-  useLiveFeedStore,
   useOrgStore,
   useWorkingStore,
 } from "@/stores";
@@ -72,6 +71,7 @@ const PAGE_SIZE = 30;
 const MESSAGE_PAGE_SIZE = 100;
 const transcriptPath = (id: string, before?: string) => {
   const params = new URLSearchParams({ latest: "true", limit: String(MESSAGE_PAGE_SIZE + 1) });
+  params.set("top_level_only", "true");
   if (before) params.set("before", before);
   return `/conversations/${encodeURIComponent(id)}/messages?${params}`;
 };
@@ -231,18 +231,20 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       return response;
     },
     networkMode: "offlineFirst",
-    // While a thread on the page is at work, ask again every few seconds, so its
-    // row stops saying so when the run ends - a routine's, or another tab's, as
+    // While a thread on the page is at work - or waiting on its person - ask
+    // again every few seconds, so its row stops saying so when the run ends or
+    // the question is answered elsewhere: a routine's, or another tab's, as
     // well as this one's. A thread this tab handed off counts too: the listing
     // has to catch up with it before it can say anything about it.
-    // While the live-update socket is up it announces the run ending, so the poll
-    // is only the safety net for what it does not announce (#2219).
+    // The poll also carries the run's heartbeat, which the stalled status reads.
+    // It stays at the short interval while the live-update socket is up too: a
+    // socket announces the run's end, not its heartbeat, so a slower poll left the
+    // page without a heartbeat to show a stall from (#2219 traded this away).
     refetchInterval: (query) =>
-      query.state.data?.items.some((conversation) => conversation.running_since) ||
-      Object.keys(handedOff).length > 0
-        ? useLiveFeedStore.getState().connected
-          ? RUNNING_POLL_LIVE_MS
-          : RUNNING_POLL_MS
+      query.state.data?.items.some(
+        (conversation) => conversation.running_since || conversation.waiting_since,
+      ) || Object.keys(handedOff).length > 0
+        ? RUNNING_POLL_MS
         : false,
   });
   const conversations = data?.items ?? [];
@@ -329,9 +331,9 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       const openAddress = async () => {
         if (!stillCurrent() || !stillAddressed()) return;
         if (urlId && conversationApi.getState().currentConversationId !== urlId) {
-          const selectedBefore = conversationApi.getState().currentConversationId;
+          const selectedBefore = conversationApi.getState().selectionVersion;
           const stillSelected = () =>
-            conversationApi.getState().currentConversationId === selectedBefore;
+            conversationApi.getState().selectionVersion === selectedBefore;
           try {
             const msgs = await readConversation(urlId, () =>
               apiClient.get<ConversationMessagesResponse>(transcriptPath(urlId), { signal }),
@@ -340,7 +342,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
             clearMessages();
             setCurrentConversationId(urlId);
             const page = transcriptPage(msgs);
-            setCurrentMessages(page.items, msgs.cost, page.hasEarlier);
+            setCurrentMessages(page.items, msgs.cost, page.hasEarlier, {
+              conversationId: urlId,
+              selectionVersion: conversationApi.getState().selectionVersion,
+              accountId: startedAs ?? null,
+              tenantId: startedIn,
+            });
           } catch {
             // The failure belongs to whoever asked. A refusal answering after
             // somebody else has signed in says nothing about the conversation they
@@ -349,6 +356,8 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
             // The rejected address must not keep the page in its opening state.
             const address = new URL(window.location.href);
             address.searchParams.delete("id");
+            address.searchParams.delete("thread");
+            address.searchParams.delete("message");
             window.history.replaceState(window.history.state, "", address);
             // Not accessible (deleted, no permission) - clear the stale id
             clearMessages();
@@ -443,12 +452,22 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         stillSameAccount(startedAs) &&
         useOrgStore.getState().activeOrgId === startedOrg &&
         stillSameTenant(tenant) &&
+        conversationApi.getState().selectionVersion === selectionVersion &&
         conversationApi.getState().currentConversationId === id;
 
       setCurrentConversationId(id);
+      const selectionVersion = conversationApi.getState().selectionVersion;
       clearMessages();
       setCurrentMessages([]);
-      if (!scoped) setUrlParam("id", id);
+      if (!scoped) {
+        // A root belongs to the room in the URL. Keep a direct link on initial
+        // load, but do not carry it into a different conversation selection.
+        if (new URL(window.location.href).searchParams.get("id") !== id) {
+          setUrlParam("thread", null);
+          setUrlParam("message", null);
+        }
+        setUrlParam("id", id);
+      }
       setLoading(true);
       setError(null);
       try {
@@ -460,7 +479,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         // Guard against a superseded request resolving after a newer select.
         if (!stillSelected()) return;
         const page = transcriptPage(response);
-        setCurrentMessages(page.items, response.cost, page.hasEarlier);
+        setCurrentMessages(page.items, response.cost, page.hasEarlier, {
+          conversationId: id,
+          selectionVersion,
+          accountId: startedAs ?? null,
+          tenantId: tenant,
+        });
       } catch (err) {
         // Ignore aborted/superseded requests - they're expected on rapid switch.
         if (
@@ -476,7 +500,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       } finally {
         // Only the most recent request owns the loading flag.
         if (messagesAbortRef.current === controller) {
-          setLoading(false);
+          if (conversationApi.getState().selectionVersion === selectionVersion) setLoading(false);
           messagesAbortRef.current = null;
         }
       }
@@ -505,6 +529,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   const rereadConversation = useCallback(
     async (id: string) => {
       const ticket = ++rereadRef.current;
+      const selectionVersion = conversationApi.getState().selectionVersion;
       const startedAs = useAuthStore.getState().user?.id;
       const startedOrg = useOrgStore.getState().activeOrgId;
       let response: ConversationMessagesResponse;
@@ -519,6 +544,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       }
       if (
         ticket !== rereadRef.current ||
+        conversationApi.getState().selectionVersion !== selectionVersion ||
         conversationApi.getState().currentConversationId !== id ||
         useOrgStore.getState().activeOrgId !== startedOrg ||
         !stillSameTenant(tenant) ||
@@ -528,18 +554,29 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       }
       const page = transcriptPage(response);
       const previous = conversationApi.getState();
-      const first = previous.currentMessages[0];
+      const loaded = previous.loadedTranscript;
+      // A fresh authorized read may resolve an unknown tenant, but must not
+      // relabel rows retained from another account, tenant or selection visit.
+      const previousMessages =
+        loaded?.conversationId === id &&
+        loaded.selectionVersion === selectionVersion &&
+        loaded.accountId === (startedAs ?? null) &&
+        (loaded.tenantId === tenant || loaded.tenantId === null)
+          ? previous.currentMessages
+          : [];
+      const first = previousMessages[0];
       const keepsEarlier =
         first !== undefined && !page.items.some((message) => message.id === first.id);
       const merged = [
         ...new Map(
-          [...previous.currentMessages, ...page.items].map((message) => [message.id, message]),
+          [...previousMessages, ...page.items].map((message) => [message.id, message]),
         ).values(),
       ];
       setCurrentMessages(
         merged,
         response.cost,
         keepsEarlier ? previous.hasEarlierMessages : page.hasEarlier,
+        { conversationId: id, selectionVersion, accountId: startedAs ?? null, tenantId: tenant },
       );
     },
     [setCurrentMessages, conversationApi, tenant, stillSameTenant],
@@ -551,13 +588,25 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     const selected = conversationApi.getState();
     const id = selected.currentConversationId;
     const first = selected.currentMessages[0];
-    if (!id || !first || !selected.hasEarlierMessages || earlierRequest.current) return;
     const account = useAuthStore.getState().user?.id;
+    const loaded = selected.loadedTranscript;
+    if (
+      !id ||
+      !first ||
+      !selected.hasEarlierMessages ||
+      earlierRequest.current ||
+      loaded?.conversationId !== id ||
+      loaded.selectionVersion !== selected.selectionVersion ||
+      loaded.accountId !== (account ?? null) ||
+      loaded.tenantId !== tenant
+    )
+      return;
     const organization = useOrgStore.getState().activeOrgId;
     const stillSelected = () =>
       stillSameAccount(account) &&
       stillSameTenant(tenant) &&
       useOrgStore.getState().activeOrgId === organization &&
+      conversationApi.getState().selectionVersion === selected.selectionVersion &&
       conversationApi.getState().currentConversationId === id;
     earlierRequest.current = true;
     setLoadingEarlier(true);
@@ -573,7 +622,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
           [...page.items, ...previous.currentMessages].map((message) => [message.id, message]),
         ).values(),
       ];
-      setCurrentMessages(merged, previous.currentCost, page.hasEarlier);
+      setCurrentMessages(merged, previous.currentCost, page.hasEarlier, {
+        conversationId: id,
+        selectionVersion: selected.selectionVersion,
+        accountId: account ?? null,
+        tenantId: tenant,
+      });
       setError(null);
     } catch (error) {
       if (stillSelected()) {
@@ -842,7 +896,11 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
           clearMessages();
           setCurrentMessages([]);
           setCurrentConversationId(null);
-          if (!scoped) setUrlParam("id", null);
+          if (!scoped) {
+            setUrlParam("thread", null);
+            setUrlParam("message", null);
+            setUrlParam("id", null);
+          }
         }
         toast.success(t("conversationDeleted"));
       } catch (err) {
@@ -897,7 +955,11 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       // Strip the stale ?id= immediately so a refresh mid-flight lands on a
       // fresh /chat instead of the old conversation. The new id will be set
       // by the WS conversation_created event on first message.
-      if (!scoped) setUrlParam("id", null);
+      if (!scoped) {
+        setUrlParam("thread", null);
+        setUrlParam("message", null);
+        setUrlParam("id", null);
+      }
     },
     [
       clearMessages,
@@ -953,8 +1015,6 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
  */
 /** How often a listing with a thread at work in it is read again. */
 const RUNNING_POLL_MS = 4000;
-/** The same poll while the live-update socket carries the run's end as an event. */
-const RUNNING_POLL_LIVE_MS = 30_000;
 
 export function useConversationSearch(term: string) {
   const params = listParams({ ...DEFAULT_QUERY, search: term });

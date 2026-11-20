@@ -77,5 +77,7 @@ async def test_conversation_key_scopes_preserve_session_access(operation: str, c
         else:
             assert response.status_code == (201 if operation == "create" else 200), response.text
             call.assert_awaited_once()
+            if operation == "update":
+                assert call.await_args.kwargs["ctx"] is ctx
     finally:
         app.dependency_overrides.clear()

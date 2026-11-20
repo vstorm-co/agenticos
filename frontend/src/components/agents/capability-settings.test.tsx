@@ -12,6 +12,42 @@ import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agen
 import type { Secret, SecretRequirement } from "@/types/secrets";
 import en from "../../../messages/en.json";
 
+const councilMembers = vi.hoisted(() => [
+  { name: "Reviewer A", provider: "anthropic", model_profile_id: "profile-a" },
+  { name: "Reviewer B", provider: "openai", model_profile_id: "profile-b" },
+  { name: "Reviewer C", provider: "openrouter", model_profile_id: "profile-c" },
+]);
+vi.mock("./browser-credentials-field", () => ({
+  BrowserCredentialsField: ({
+    onChange,
+    disabled,
+  }: {
+    onChange: (ids: string[]) => void;
+    disabled?: boolean;
+  }) => (
+    <div role="group" aria-label="Browser credential references">
+      <button type="button" disabled={disabled} onClick={() => onChange(["credential-a"])}>
+        Choose browser credential
+      </button>
+    </div>
+  ),
+}));
+vi.mock("./council-members-field", () => ({
+  CouncilMembersField: ({
+    onChange,
+    disabled,
+  }: {
+    onChange: (members: typeof councilMembers) => void;
+    disabled?: boolean;
+  }) => (
+    <div role="group" aria-label="Council member editor">
+      <button type="button" disabled={disabled} onClick={() => onChange(councilMembers)}>
+        Save council members
+      </button>
+    </div>
+  ),
+}));
+
 /** The English catalog, so the suites below keep asserting the words on screen. */
 // The catalog, read the way the component reads it - some of these messages take a
 // name or a kind, and a stub that ignored them would assert against a message no
@@ -64,6 +100,21 @@ const CLOCK: CapabilityCatalogEntry = {
   config_schema: null,
   contracts: [],
   requires_secret: null,
+};
+
+const COUNCIL: CapabilityCatalogEntry = {
+  ...KNOWLEDGE,
+  id: "council",
+  name: "Council",
+  tools: [
+    { id: "run_council_review", name: "run_council_review", description: "Review the work." },
+  ],
+  config_schema: {
+    type: "object",
+    properties: {
+      members: { type: "array", title: "Council members" },
+    },
+  },
 };
 
 const SEND_EMAIL: CapabilityCatalogEntry = {
@@ -148,6 +199,86 @@ const openTools = () => {
 const toolField = (id: string, label: "Name" | "Description the model reads" | "Approval") =>
   within(toolRow(id)).getByLabelText(label);
 
+describe("browser credential bindings", () => {
+  const browser: CapabilityCatalogEntry = {
+    ...KNOWLEDGE,
+    id: "browser_use",
+    name: "Web browser",
+    tools: [],
+    config_schema: {
+      type: "object",
+      properties: {
+        connection: {
+          type: "string",
+          enum: ["built_in", "proxy", "hosted", "local"],
+          default: "built_in",
+          title: "Browser connection",
+        },
+        browser_credential_ids: {
+          type: "array",
+          items: { type: "string" },
+          title: "Raw credential IDs",
+          "x-visible-when": { field: "connection", equals: ["built_in"] },
+        },
+      },
+    },
+  };
+
+  it("uses the typed picker for the default built-in browser and preserves unrelated config", async () => {
+    const change = vi.fn();
+    const chosen = binding("browser_use", { config: { max_steps: 4 }, approval: "never" });
+    render(<CapabilitySettings catalog={[browser]} selected={[chosen]} onChange={change} />);
+    expect(screen.queryByRole("textbox", { name: "Raw credential IDs" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Choose browser credential" }));
+    expect(change).toHaveBeenCalledWith({
+      ...chosen,
+      config: { max_steps: 4, browser_credential_ids: ["credential-a"] },
+    });
+  });
+
+  it.each(["proxy", "hosted", "local"])(
+    "does not offer credential binding for a %s connection",
+    (connection) => {
+      render(
+        <CapabilitySettings
+          catalog={[browser]}
+          selected={[binding("browser_use", { config: { connection } })]}
+          onChange={vi.fn()}
+        />,
+      );
+      expect(
+        screen.queryByRole("group", { name: "Browser credential references" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("uses the schema visibility rule to remove credentials when leaving the built-in connection", async () => {
+    const change = vi.fn();
+    render(
+      <CapabilitySettings
+        catalog={[browser]}
+        selected={[
+          binding("browser_use", {
+            config: { connection: "built_in", browser_credential_ids: ["credential-a"] },
+          }),
+        ]}
+        onChange={change}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("combobox", { name: "How the browser reaches the web" }),
+    );
+    await userEvent.click(
+      screen.getByRole("option", { name: en.capabilityChoices.browser_use.connection.proxy.label }),
+    );
+    expect(change).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: { connection: "proxy", browser_credential_ids: undefined },
+      }),
+    );
+  });
+});
+
 describe("CapabilitySettings", () => {
   it("shows every bound capability, configurable or not", () => {
     // Each one has at least an approval mode to set. Hiding the plain ones
@@ -212,6 +343,30 @@ describe("CapabilitySettings", () => {
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ id: "knowledge", config: { default_top_k: 19 } }),
     );
+  });
+
+  it("shows the council member editor instead of a raw members text box", () => {
+    render(
+      <CapabilitySettings catalog={[COUNCIL]} selected={[binding("council")]} onChange={vi.fn()} />,
+    );
+
+    expect(screen.getByRole("group", { name: "Council member editor" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Council members" })).not.toBeInTheDocument();
+  });
+
+  it("reports council member edits through the existing binding without changing its approval", async () => {
+    const onChange = vi.fn();
+    const selected = binding("council", {
+      approval: "required",
+      tool_approval: { run_council_review: "required" },
+      config: { members: [] },
+    });
+    render(<CapabilitySettings catalog={[COUNCIL]} selected={[selected]} onChange={onChange} />);
+    await userEvent.click(screen.getByRole("button", { name: "Save council members" }));
+    expect(onChange).toHaveBeenCalledWith({
+      ...selected,
+      config: { members: councilMembers },
+    });
   });
 
   it("offers an approval choice for a read-only capability too", async () => {

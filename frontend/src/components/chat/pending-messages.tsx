@@ -154,6 +154,15 @@ export function PendingMessages({
                     <span className="text-foreground block truncate text-[13px]">
                       {message.content}
                     </span>
+                    {message.submission?.pageContext && (
+                      <span className="text-muted-foreground block truncate text-xs">
+                        {t("queuedPageContext", {
+                          page:
+                            message.submission.pageContext.title ||
+                            message.submission.pageContext.path,
+                        })}
+                      </span>
+                    )}
                     {message.refused !== undefined && (
                       <span className="text-destructive block truncate text-xs">
                         {t("queuedNotSent", { reason: message.refused })}
@@ -214,14 +223,16 @@ export function PendingMessages({
                       <button
                         type="button"
                         onClick={() => onSendNow(message.id)}
-                        // Neither a file nor a mention can ride along into a running task.
-                        disabled={fileCount > 0 || pointsAt > 0}
+                        // Context and its selected agent need a full turn too.
+                        disabled={fileCount > 0 || pointsAt > 0 || message.submission !== undefined}
                         title={
                           fileCount > 0
                             ? t("sendNowNotWithFiles")
                             : pointsAt > 0
                               ? t("sendNowNotWithMentions")
-                              : t("sendNowHint")
+                              : message.submission !== undefined
+                                ? t("sendNowNotWithPageContext")
+                                : t("sendNowHint")
                         }
                         className={cn(ROW_ACTION, "w-auto gap-1 px-1.5 text-xs")}
                       >

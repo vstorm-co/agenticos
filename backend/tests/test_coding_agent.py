@@ -756,8 +756,12 @@ class TestSpendOfATaskThatDidNotFinish:
         shell = _LostAfterAStep(events=_lines(_SPENDING), hangs=True)
         ledger = SpendLedger()
         with metered_by(ledger):
-            answer = await _call(shell)
-        assert answer == "Claude Code could not run in this sandbox (WorkspaceUnavailableError)."
+            report = CodingReport.model_validate_json(await _call(shell))
+        assert report.outcome == "failed"
+        assert (
+            report.answer
+            == "Claude Code could not run in this sandbox (WorkspaceUnavailableError)."
+        )
         assert ledger.input_tokens == 105
 
 
@@ -957,25 +961,33 @@ class TestRunningATask:
         assert report.outcome == "completed"
 
     async def test_a_runtime_without_the_harness_is_named(self) -> None:
-        answer = await _call(_Shell(exit_code=127), harness="codex")
-        assert "Codex is not installed" in answer
+        report = CodingReport.model_validate_json(
+            await _call(_Shell(exit_code=127), harness="codex")
+        )
+        assert report.outcome == "failed"
+        assert "Codex is not installed" in report.answer
 
-    async def test_a_sandbox_that_cannot_run_it_is_an_answer(self) -> None:
+    async def test_a_sandbox_that_cannot_run_it_is_a_failed_report(self) -> None:
         frames: list[SubagentEvent] = []
         shell = _Shell(raises=WorkspaceUnavailableError("gone"))
-        answer = await _call(shell, frames=frames)
-        assert answer == "Claude Code could not run in this sandbox (WorkspaceUnavailableError)."
+        report = CodingReport.model_validate_json(await _call(shell, frames=frames))
+        assert report.outcome == "failed"
+        assert (
+            report.answer
+            == "Claude Code could not run in this sandbox (WorkspaceUnavailableError)."
+        )
         assert frames[-1].kind == "subagent_complete" and frames[-1].status == "failed"
 
-    async def test_a_sandbox_the_service_will_not_open_is_an_answer(self) -> None:
+    async def test_a_sandbox_the_service_will_not_open_is_a_failed_report(self) -> None:
         """A runtime still building answers 409, which the sandboxd client raises unmapped."""
         refused = httpx.HTTPStatusError(
             "409 Conflict",
             request=httpx.Request("POST", "http://sandboxd/sessions"),
             response=httpx.Response(409),
         )
-        answer = await _call(_Shell(raises=refused))
-        assert answer == "Claude Code could not run in this sandbox (HTTPStatusError)."
+        report = CodingReport.model_validate_json(await _call(_Shell(raises=refused)))
+        assert report.outcome == "failed"
+        assert report.answer == "Claude Code could not run in this sandbox (HTTPStatusError)."
 
     async def test_a_poll_that_comes_back_garbled_reads_as_nothing_yet(self) -> None:
         class _Garbled(_Shell):
@@ -1006,14 +1018,21 @@ class TestRunningATask:
         ]
 
     async def test_an_agent_with_no_sandbox_is_told_to_say_so(self) -> None:
-        answer = await _call(None)
-        assert "needs a sandbox with a shell" in answer
+        report = CodingReport.model_validate_json(await _call(None))
+        assert report.outcome == "failed"
+        assert "needs a sandbox with a shell" in report.answer
 
-    async def test_an_empty_task_or_a_missing_key_asks_again(self) -> None:
+    async def test_an_empty_task_asks_again(self) -> None:
         with pytest.raises(ModelRetry, match="Describe the task"):
             await _call(_Shell(), task="  ")
-        with pytest.raises(ModelRetry, match="no API key"):
-            await _call(_Shell(), api_key=None)
+
+    async def test_a_missing_key_is_a_failed_report_not_a_retry(self) -> None:
+        """No argument fixes a missing key, so there is nothing to retry: the
+        run fails, and the failure is a report rather than a sentence the model
+        answers from."""
+        report = CodingReport.model_validate_json(await _call(_Shell(), api_key=None))
+        assert report.outcome == "failed"
+        assert "no API key" in report.answer
 
 
 TREE = "a" * 40
@@ -1164,8 +1183,9 @@ class TestWhatATaskChanged:
 
     async def test_a_task_that_could_not_run_drops_its_snapshot(self, recorder: _Recorder) -> None:
         shell = _Snapshotting(raises=WorkspaceUnavailableError("gone"))
-        answer = await _call(shell)
-        assert answer.startswith("Claude Code could not run")
+        report = CodingReport.model_validate_json(await _call(shell))
+        assert report.outcome == "failed"
+        assert report.answer.startswith("Claude Code could not run")
         assert shell.snapshots == ["begin", "discard"] and recorder.recorded == []
 
     async def test_a_stopped_task_drops_its_snapshot(self, recorder: _Recorder) -> None:
@@ -1673,14 +1693,16 @@ class TestCodexOnASignIn:
         assert "only in a sandbox nobody else's tasks share" in answer
         assert store.asked_for == []
 
-    async def test_a_sign_in_removed_from_the_vault_is_an_answer(self) -> None:
-        answer = await self._run(_Shell(), _Store(gone=True))
-        assert "no longer in the vault" in answer
+    async def test_a_sign_in_removed_from_the_vault_is_a_failed_report(self) -> None:
+        report = CodingReport.model_validate_json(await self._run(_Shell(), _Store(gone=True)))
+        assert report.outcome == "failed"
+        assert "no longer in the vault" in report.answer
 
-    async def test_a_sandbox_that_cannot_take_the_sign_in_is_an_answer(self) -> None:
+    async def test_a_sandbox_that_cannot_take_the_sign_in_is_a_failed_report(self) -> None:
         shell = _Shell(auth_raises=WorkspaceUnavailableError("gone"))
-        answer = await self._run(shell, _Store())
-        assert answer == "Codex could not run in this sandbox (WorkspaceUnavailableError)."
+        report = CodingReport.model_validate_json(await self._run(shell, _Store()))
+        assert report.outcome == "failed"
+        assert report.answer == "Codex could not run in this sandbox (WorkspaceUnavailableError)."
         # The write may have landed before the failure came back, so its home is
         # still taken back out.
         assert [command for command, _, _ in shell.commands] == [WRITE_AUTH, READ_AUTH]
@@ -1729,10 +1751,11 @@ class TestCredentialsThatDoNotFit:
         self, harness: Any, overrides: dict[str, Any], says: str
     ) -> None:
         shell = _Shell()
-        answer = await _tools(harness, **overrides)["run_coding_agent"].function(
-            _ctx(shell), task="x"
+        report = CodingReport.model_validate_json(
+            await _tools(harness, **overrides)["run_coding_agent"].function(_ctx(shell), task="x")
         )
-        assert says in answer
+        assert report.outcome == "failed"
+        assert says in report.answer
         assert shell.commands == []
 
 

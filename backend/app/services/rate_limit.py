@@ -71,6 +71,8 @@ _redis: RedisClient | None = None
 # this bound the caller becomes a fixed-size hash; a real identifier (an email is
 # at most 254 characters, plus a short prefix) never reaches it (#947).
 _MAX_CALLER_LEN = 320
+_MFA_FAILURE_LIMIT = 3
+_MFA_FAILURE_WINDOW_SECONDS = 300
 
 
 def configure(redis: RedisClient | None) -> None:
@@ -174,6 +176,56 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
     if used > limit.attempts:
         return Decision(allowed=False, retry_after_seconds=limit.window_seconds)
     return Decision(allowed=True, retry_after_seconds=0)
+
+
+def _mfa_backoff_key(user_id: str, suffix: str) -> str:
+    # The identifier is internal, but hashing keeps Redis key shape independent
+    # of the identifier format and avoids storing account IDs in key listings.
+    digest = hashlib.sha256(user_id.encode()).hexdigest()
+    return f"auth:mfa:backoff:{digest}:{suffix}"
+
+
+async def mfa_backoff_locked(user_id: str) -> bool:
+    """Whether this account is locked after repeated failed MFA challenges."""
+    if _redis is None:
+        logger.warning("MFA backoff not configured - auth_mfa_verify reached unmetered")
+        return False
+    try:
+        return await _redis.get(_mfa_backoff_key(user_id, "locked")) is not None
+    except Exception:
+        logger.warning("mfa_backoff_redis_unavailable", exc_info=True)
+        return False
+
+
+async def record_mfa_failure(user_id: str) -> int:
+    """Count a failed MFA challenge in the account's fixed five-minute window."""
+    if _redis is None:
+        logger.warning("MFA backoff not configured - auth_mfa_verify reached unmetered")
+        return 0
+    try:
+        count = await _redis.count_in_window(
+            _mfa_backoff_key(user_id, "failures"), ttl=_MFA_FAILURE_WINDOW_SECONDS
+        )
+        if count >= _MFA_FAILURE_LIMIT:
+            await _redis.set(
+                _mfa_backoff_key(user_id, "locked"), "1", ttl=_MFA_FAILURE_WINDOW_SECONDS
+            )
+    except Exception:
+        logger.warning("mfa_backoff_redis_unavailable", exc_info=True)
+        return 0
+    else:
+        return count
+
+
+async def reset_mfa_failures(user_id: str) -> None:
+    """Clear the failure window and any lock after a successful challenge."""
+    if _redis is None:
+        return
+    try:
+        await _redis.delete(_mfa_backoff_key(user_id, "failures"))
+        await _redis.delete(_mfa_backoff_key(user_id, "locked"))
+    except Exception:
+        logger.warning("mfa_backoff_redis_unavailable", exc_info=True)
 
 
 class LocalWindows:

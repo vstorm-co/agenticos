@@ -10,7 +10,7 @@ import {
   forwardRateLimit,
 } from "@/lib/server-api";
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, secureCookies } from "@/lib/session-cookie";
-import type { LoginResponse } from "@/types";
+import type { LoginResponse, MfaRequiredResponse } from "@/types";
 
 /**
  * Sign in with a directory (LDAP) account's username and password.
@@ -39,15 +39,23 @@ export async function POST(request: NextRequest) {
       ? request.cookies.get(stageCookieName(flow))?.value
       : undefined;
 
-    const data = await backendFetch<LoginResponse>("/api/v1/auth/ldap/login", {
-      method: "POST",
-      headers: { ...forwardedFor(request) },
-      body: JSON.stringify({
-        username: body.username,
-        password: body.password,
-        ...(handle ? { invitation_handle: handle } : {}),
-      }),
-    });
+    const data = await backendFetch<LoginResponse | MfaRequiredResponse>(
+      "/api/v1/auth/ldap/login",
+      {
+        method: "POST",
+        headers: { ...forwardedFor(request) },
+        body: JSON.stringify({
+          username: body.username,
+          password: body.password,
+          ...(handle ? { invitation_handle: handle } : {}),
+        }),
+      },
+    );
+
+    // An account with a second factor enabled stops here, as the password
+    // login does: the challenge passes through untouched - no session, no
+    // cookies - and the form completes it at `/auth/mfa/verify`.
+    if ("mfa_required" in data) return bffJson(data);
 
     const user = await backendFetch("/api/v1/auth/me", {
       headers: { Authorization: `Bearer ${data.access_token}` },

@@ -28,7 +28,12 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.config import settings
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret, AwsCredentialsSecret
 from app.repositories import (
@@ -118,6 +123,7 @@ def _service(monkeypatch, *, secret: Any = None) -> SandboxConnectionService:
     resolved = {} if secret is None else {secret[0]: secret[1]}
     service.secrets = MagicMock()
     service.secrets.resolve_for_bindings = AsyncMock(return_value=resolved)
+    service.secrets.require_view = AsyncMock()
     monkeypatch.setattr(project_repo, "active_moves_for_connection", AsyncMock(return_value=False))
     monkeypatch.setattr(sandbox_connection_repo, "clear_default", AsyncMock())
     # This file is about the connection and the audit entry `record_audit`
@@ -229,6 +235,52 @@ class TestRegistering:
 
         assert read.kind == "daytona"
 
+    @pytest.mark.security
+    async def test_attaching_a_secret_the_caller_cannot_view_is_refused(self, monkeypatch):
+        """A Builder holding `connections:manage` must not be able to name
+        somebody else's private key and have the connection spend it for them."""
+        service = _service(monkeypatch)
+        service.secrets.require_view = AsyncMock(
+            side_effect=AuthorizationError(message="You do not have access to that secret")
+        )
+        monkeypatch.setattr(sandbox_connection_repo, "get_by_name", AsyncMock(return_value=None))
+        created = AsyncMock()
+        monkeypatch.setattr(sandbox_connection_repo, "create", created)
+
+        with pytest.raises(AuthorizationError):
+            await service.create(
+                _ctx(),
+                SandboxConnectionCreate(
+                    name="Big box",
+                    kind="docker",
+                    base_url="http://b:8080",
+                    secret_id=uuid.uuid4(),
+                ),
+            )
+
+        created.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_attaching_a_secret_the_caller_may_view_is_allowed(self, monkeypatch):
+        service = _service(monkeypatch)
+        secret_id = uuid.uuid4()
+        monkeypatch.setattr(sandbox_connection_repo, "get_by_name", AsyncMock(return_value=None))
+        monkeypatch.setattr(
+            sandbox_connection_repo, "list_for_organization", AsyncMock(return_value=[])
+        )
+        created = AsyncMock(return_value=_row(secret_id=secret_id))
+        monkeypatch.setattr(sandbox_connection_repo, "create", created)
+
+        await service.create(
+            _ctx(),
+            SandboxConnectionCreate(
+                name="Big box", kind="docker", base_url="http://b:8080", secret_id=secret_id
+            ),
+        )
+
+        service.secrets.require_view.assert_awaited_once()
+        assert created.await_args.kwargs["secret_id"] == secret_id
+
 
 class TestEditing:
     async def test_a_connection_from_another_organization_reads_as_missing(self, monkeypatch):
@@ -299,6 +351,36 @@ class TestEditing:
         await service.update(_ctx(), row.id, SandboxConnectionUpdate(is_default=True))
 
         cleared.assert_awaited_once()
+
+    @pytest.mark.security
+    async def test_changing_the_secret_to_one_the_caller_cannot_view_is_refused(self, monkeypatch):
+        service = _service(monkeypatch)
+        service.secrets.require_view = AsyncMock(
+            side_effect=AuthorizationError(message="You do not have access to that secret")
+        )
+        row = _row()
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+        updated = AsyncMock()
+        monkeypatch.setattr(sandbox_connection_repo, "update_connection", updated)
+
+        with pytest.raises(AuthorizationError):
+            await service.update(_ctx(), row.id, SandboxConnectionUpdate(secret_id=uuid.uuid4()))
+
+        updated.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_detaching_the_secret_needs_no_view(self, monkeypatch):
+        """Removing a credential is not spending one."""
+        service = _service(monkeypatch)
+        row = _row()
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+        monkeypatch.setattr(
+            sandbox_connection_repo, "update_connection", AsyncMock(return_value=row)
+        )
+
+        await service.update(_ctx(), row.id, SandboxConnectionUpdate(secret_id=None))
+
+        service.secrets.require_view.assert_not_awaited()
 
     async def test_deleting_leaves_the_workspaces_alone(self, monkeypatch):
         """Their rows record what an agent did and where; forgetting a host is
@@ -924,6 +1006,24 @@ class TestTestingAnAddressBeforeItIsSaved:
             )
 
         assert "not an API key" in refused.value.message
+
+    @pytest.mark.security
+    async def test_probing_with_a_secret_the_caller_cannot_view_is_refused(self, monkeypatch):
+        """Naming a key to spend it is the same hole as attaching it: the token
+        goes to an address the caller typed, so the check runs before it leaves."""
+        secret_id = uuid.uuid4()
+        service = _service(monkeypatch, secret=(secret_id, ApiKeySecret(api_key="tok-12345678")))
+        service.secrets.require_view = AsyncMock(
+            side_effect=AuthorizationError(message="You do not have access to that secret")
+        )
+        seen = _serve(monkeypatch, _Response(200, {"runtimes": []}))
+
+        with pytest.raises(AuthorizationError):
+            await service.probe_policy(
+                _ctx(), SandboxProbeRequest(base_url="http://sandboxd:8080", secret_id=secret_id)
+            )
+
+        assert seen == {}
 
     async def test_an_address_that_does_not_answer_is_reported_as_the_address(self, monkeypatch):
         secret_id = uuid.uuid4()

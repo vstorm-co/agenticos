@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
 import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -12,6 +11,7 @@ import { PersonFace } from "@/components/chat/person-face";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button, DataTable, ListCard, ListCardEmpty, type Column } from "@/components/ui";
 import { useProjectChats } from "@/hooks/use-projects";
+import { StartTeamRoom } from "./start-team-room";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { useRouter } from "@/lib/locale-navigation";
@@ -37,12 +37,7 @@ export function ProjectChats({ project }: { project: Project }) {
   const router = useRouter();
 
   const newChat = project.can_use ? (
-    <Button asChild size="sm">
-      <Link href={ROUTES.PROJECT_CHAT(project.id)} data-tour="project-new-chat">
-        <Plus className="h-4 w-4" />
-        {t("newChat")}
-      </Link>
-    </Button>
+    <StartTeamRoom key={project.id} projectId={project.id} />
   ) : undefined;
 
   return (

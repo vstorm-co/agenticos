@@ -40,6 +40,7 @@ const DRIVE_CREDENTIAL = {
 function serve({ secrets = [DRIVE_CREDENTIAL], permissions = ["secrets:view"] } = {}) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/secrets") return { items: secrets, total: secrets.length };
+    if (path === "/connected-accounts") return { items: [], total: 0 };
     if (path === "/me/permissions")
       return {
         organization_id: "org-1",
@@ -271,9 +272,9 @@ describe("the audience of what a source ingests", () => {
     await userEvent.type(screen.getByLabelText("Source name"), "Engineering docs");
     await userEvent.click(screen.getByRole("button", { name: /Google Drive/ }));
     await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
-    await userEvent.type(screen.getByLabelText(/Google Drive Folder ID/), "1AbC_-def");
-    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
     await pickTheCredential();
+    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    await userEvent.type(screen.getByLabelText(/Google Drive Folder ID/), "1AbC_-def");
     await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
 
     expect(await screen.findByText(/Drive service account/)).toHaveTextContent("handbook");
@@ -452,9 +453,9 @@ async function submitConfigured(onSubmit: (data: SyncSourceCreate) => Promise<vo
   await userEvent.type(screen.getByLabelText("Source name"), "Engineering docs");
   await userEvent.click(screen.getByRole("button", { name: /Google Drive/ }));
   await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
-  await userEvent.type(screen.getByLabelText(/Google Drive Folder ID/), "x' in parents");
-  await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
   await pickTheCredential();
+  await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+  await userEvent.type(screen.getByLabelText(/Google Drive Folder ID/), "x' in parents");
   await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
   await userEvent.click(screen.getByRole("button", { name: /Create source/ }));
   return view;
@@ -516,7 +517,6 @@ describe("a config the connector refuses", () => {
 
     await userEvent.type(screen.getByLabelText(/Google Drive Folder ID/), "1AbC");
     await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
-    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
     await userEvent.click(screen.getByRole("button", { name: /Create source/ }));
 
     // The mark follows the field to whichever step holds it, and the credential
@@ -573,12 +573,10 @@ describe("a config the connector refuses", () => {
 
 describe("the credential step", () => {
   /** Walk as far as the credential step, with a connector that needs one. */
-  async function openCredentialStep() {
-    const view = withQuery(wizard(vi.fn()));
+  async function openCredentialStep(onSubmit = vi.fn()) {
+    const view = withQuery(wizard(onSubmit));
     await userEvent.type(screen.getByLabelText("Source name"), "Engineering docs");
     await userEvent.click(screen.getByRole("button", { name: /Google Drive/ }));
-    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
-    await userEvent.type(screen.getByLabelText(/Google Drive Folder ID/), "1AbC");
     await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
     return view;
   }
@@ -606,6 +604,57 @@ describe("the credential step", () => {
     const sent = onSubmit.mock.calls[0]?.[0] as SyncSourceCreate;
     expect(sent.secret_id).toBe("secret-1");
     expect(sent.config).not.toHaveProperty("service_account_json");
+  });
+
+  it("sends an organization Google account reference for OAuth Drive sync", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/secrets") return { items: [DRIVE_CREDENTIAL], total: 1 };
+      if (path === "/connected-accounts")
+        return {
+          items: [
+            {
+              id: "account-1",
+              provider: "google",
+              email: "docs@example.com",
+              scopes: ["https://www.googleapis.com/auth/drive"],
+              owner: "organization",
+              needs_reconnect: false,
+              created_at: "2026-08-20T00:00:00Z",
+            },
+          ],
+          total: 1,
+        };
+      if (path === "/sync-sources/gdrive/folders")
+        return { drives: [], folders: [{ id: "folder-7", name: "Engineering" }] };
+      if (path === "/me/permissions")
+        return {
+          organization_id: "org-1",
+          role: "builder",
+          is_app_admin: false,
+          permissions: ["secrets:view", "connections:view"].map((permission) => ({
+            permission,
+            scope: "all",
+          })),
+        };
+      return {};
+    });
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    await openCredentialStep(onSubmit);
+
+    await userEvent.click(screen.getByRole("button", { name: "Connected Google account" }));
+    await userEvent.click(await screen.findByLabelText("Google account"));
+    await userEvent.click(await screen.findByRole("option", { name: "docs@example.com" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Engineering" }));
+    await userEvent.click(screen.getByRole("button", { name: "Select this folder" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create source" }));
+
+    const submitted = onSubmit.mock.calls[0]?.[0] as SyncSourceCreate;
+    expect(submitted.connected_account_id).toBe("account-1");
+    expect(submitted.config.folder_id).toBe("folder-7");
+    expect(submitted.secret_id).toBeNull();
+    expect(submitted.config).not.toHaveProperty("access_token");
   });
 
   it("offers only the kind this connector authenticates with", async () => {
@@ -728,6 +777,7 @@ describe("editing a source that exists", () => {
     expect(screen.queryByRole("button", { name: /Use existing/ })).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
     expect(screen.getByLabelText(/Google Drive Folder ID/)).toHaveValue("1AbC");
   });
 
@@ -782,8 +832,8 @@ describe("editing a source that exists", () => {
     editor(onUpdate);
 
     await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
-    await userEvent.type(screen.getByLabelText(/Google Drive Folder ID/), "x' in parents");
     await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    await userEvent.type(screen.getByLabelText(/Google Drive Folder ID/), "x' in parents");
     await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
     await screen.findByText("Sync mode");
     await userEvent.click(screen.getByRole("button", { name: /Save changes/ }));

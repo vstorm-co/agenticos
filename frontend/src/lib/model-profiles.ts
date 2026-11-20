@@ -1,6 +1,24 @@
 import { ApiError } from "@/lib/api-error";
 import type { ModelProfile } from "@/types/providers";
 
+/** Keep profiles on different connections distinct within the label's 128-character limit. */
+export function connectionModelLabel(
+  base: string,
+  connection: string,
+  existing: readonly string[],
+): string {
+  const name = connection.slice(0, 64);
+  // Keep the model last: run lists derive their compact model name from this suffix.
+  const desired = `${name} · ${base.slice(0, 125 - name.length)}`;
+  let label = desired;
+  let index = 2;
+  while (existing.includes(label)) {
+    const suffix = ` (${index++})`;
+    label = `${desired.slice(0, 128 - suffix.length)}${suffix}`;
+  }
+  return label;
+}
+
 /**
  * The technical line under a profile's name, or nothing when the name is it.
  *

@@ -8,11 +8,15 @@ import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient, ApiError } from "@/lib/api-client";
-import { useReauthenticate } from "@/hooks/use-auth";
+import { MfaCodeForm } from "@/components/auth/mfa-code-form";
+import { useReauthenticate, type MfaChallenge } from "@/hooks/use-auth";
 import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
 import { ROUTES } from "@/lib/constants";
 
 interface MagicLinkVerified {
+  mfa_required?: true;
+  mfa_token?: string;
+  expires_in?: number;
   return_to?: string | null;
 }
 
@@ -33,10 +37,11 @@ export default function MagicLinkVerifyPage() {
   const token = params.get("token");
   // A link with no token is an error before anything runs, so it is the initial
   // state rather than something an effect corrects a render later.
-  const [state, setState] = useState<"verifying" | "success" | "error">(
+  const [state, setState] = useState<"verifying" | "success" | "error" | "mfa">(
     token ? "verifying" : "error",
   );
   const [error, setError] = useState<string>(token ? "" : t("errorMissingToken"));
+  const [mfa, setMfa] = useState<MfaChallenge | null>(null);
 
   const reauthenticate = useReauthenticate();
 
@@ -47,6 +52,18 @@ export default function MagicLinkVerifyPage() {
       .post<MagicLinkVerified>("/auth/magic-link/verify", { token })
       .then(async (verified) => {
         if (!active) return;
+        // A second factor on the account stops the sign-in at the challenge:
+        // the page swaps to the code step, which completes it.
+        if (verified?.mfa_required) {
+          setMfa({
+            mfa_required: true,
+            mfa_token: verified.mfa_token ?? "",
+            expires_in: verified.expires_in ?? 300,
+            return_to: verified.return_to ?? null,
+          });
+          setState("mfa");
+          return;
+        }
         // The link may be for a different account than the tab already had.
         await reauthenticate();
         if (!active) return;
@@ -76,6 +93,11 @@ export default function MagicLinkVerifyPage() {
       className="bg-background flex min-h-screen flex-col items-center justify-center px-6"
     >
       <div className="w-full max-w-md space-y-6 text-center">
+        {state === "mfa" && mfa && (
+          <div className="text-left">
+            <MfaCodeForm challenge={mfa} onBack={() => router.push(ROUTES.LOGIN)} />
+          </div>
+        )}
         {state === "verifying" && (
           <>
             <Loader2 className="text-foreground/70 mx-auto h-10 w-10 animate-spin" />

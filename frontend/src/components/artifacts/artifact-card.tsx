@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Archive, ArchiveRestore, Globe, MoreHorizontal, Trash2, Users } from "lucide-react";
+import { Archive, ArchiveRestore, Globe, MoreHorizontal, Star, Trash2, Users } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { ArtifactThumbnail } from "@/components/artifacts/artifact-thumbnail";
@@ -27,6 +27,13 @@ export interface ArtifactCardActions {
   onDelete: () => void;
 }
 
+/** The star beside the menu; drawn only for a caller who may open the page's list. */
+export interface ArtifactCardFavourite {
+  on: boolean;
+  busy?: boolean;
+  onToggle: () => void;
+}
+
 /**
  * One artifact in the list: the page itself, live, on top.
  *
@@ -45,10 +52,12 @@ export function ArtifactCard({
   artifact,
   actions,
   busy,
+  favourite,
 }: {
   artifact: Artifact;
   actions?: ArtifactCardActions;
   busy?: boolean;
+  favourite?: ArtifactCardFavourite;
 }) {
   const t = useTranslations("artifacts");
   const ta = useTranslations("agents");
@@ -128,40 +137,62 @@ export function ArtifactCard({
               }),
             })}
           </span>
-          {actions && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  aria-label={ta("moreActionsFor", { name: artifact.title })}
-                  className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring pointer-events-auto -my-1.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {archived ? (
-                  <DropdownMenuItem onSelect={actions.onRestore}>
-                    <ArchiveRestore className="h-4 w-4" />
-                    {t("unarchive")}
+          <span className="pointer-events-auto ml-auto flex shrink-0 items-center gap-1">
+            {favourite && (
+              <button
+                type="button"
+                aria-pressed={favourite.on}
+                aria-label={
+                  favourite.on
+                    ? t("removeFavouriteNamed", { name: artifact.title })
+                    : t("addFavouriteNamed", { name: artifact.title })
+                }
+                title={favourite.on ? t("removeFavourite") : t("addFavourite")}
+                disabled={favourite.busy}
+                onClick={favourite.onToggle}
+                className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring -my-1.5 inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2 disabled:opacity-50"
+              >
+                <Star
+                  className={cn("h-4 w-4", favourite.on && "text-warning fill-current")}
+                  aria-hidden
+                />
+              </button>
+            )}
+            {actions && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={ta("moreActionsFor", { name: artifact.title })}
+                    className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring pointer-events-auto -my-1.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {archived ? (
+                    <DropdownMenuItem onSelect={actions.onRestore}>
+                      <ArchiveRestore className="h-4 w-4" />
+                      {t("unarchive")}
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem onSelect={actions.onArchive}>
+                      <Archive className="h-4 w-4" />
+                      {t("archive")}
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onSelect={actions.onDelete}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {ta("deletePermanently")}
                   </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem onSelect={actions.onArchive}>
-                    <Archive className="h-4 w-4" />
-                    {t("archive")}
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onSelect={actions.onDelete}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  {ta("deletePermanently")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </span>
         </div>
       </div>
     </Card>

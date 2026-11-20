@@ -34,6 +34,14 @@ from app.services.channels.telegram import TelegramAdapter
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
+@pytest.fixture(autouse=True)
+def _audit_trail_is_not_the_test():
+    """The service writes the audit trail; a mocked session cannot take the
+    advisory lock it chains on, so these tests stand it aside."""
+    with patch("app.services.channel_bot.record_audit", new=AsyncMock()):
+        yield
+
+
 def _bot_service(bot: ChannelBot | None) -> MagicMock:
     """A `ChannelBotService` that answers the inbound lookup with `bot`."""
     service = MagicMock()

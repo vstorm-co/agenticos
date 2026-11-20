@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily cleanup of unused Docker build cache
+
+[Timer]
+OnCalendar=*-*-* 00:30:00 UTC
+Persistent=true
+RandomizedDelaySec=5min
+Unit=docker-unused-build-cache.service
+
+[Install]
+WantedBy=timers.target

@@ -53,6 +53,7 @@ MAKEFILE = REPO_ROOT / "Makefile"
 # tag, and `test_images_workflow.py` is what reads that file.
 GATING_JOBS = (
     "lint",
+    "test-shard",
     "test",
     "lint-frontend",
     "frontend-shards",
@@ -93,11 +94,20 @@ INSTALL_EXEMPT = frozenset(
 CI_ONLY_TARGETS = {
     # This disables durability only on CI's ephemeral database container.
     "ci-test-db-configure",
+    # Runner provisioning: a pinned ffmpeg onto `$GITHUB_PATH`, and a check that
+    # the runner's Chromium exists. A laptop installs its own of both.
+    "ci-media-inspector",
+    "ci-browser-runtime-check",
     # Distribution and aggregation transport the same suite/gate as test-frontend-cov.
     "test-frontend-jobs-check",
     "test-frontend-reports-check",
     "test-frontend-merge",
     "build-frontend-pack",
+    # The same transport for the backend shards: `make test` runs the suite, these
+    # check the shards finished and apply its gate to their combined data (#119).
+    "test-backend-jobs-check",
+    "test-backend-reports-check",
+    "test-backend-merge",
     # `downgrade base` against CI's throwaway `test_db` is a rollback test;
     # against a laptop's `backend/.env` it is somebody's afternoon.
     "test-migrations",

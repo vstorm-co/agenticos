@@ -6,7 +6,7 @@ import { AddModel } from "./add-model";
 import { ApiError } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
-import type { SecretPurpose } from "@/types/secrets";
+import type { Secret as StoredSecret, SecretPurpose } from "@/types/secrets";
 import { providerMarkIn } from "@/test-utils/brand-marks";
 
 /**
@@ -24,6 +24,7 @@ interface Secret {
   hint: string;
   purpose: string | null;
   kind: string;
+  usage_scope?: "organization" | "personal";
 }
 
 /** One entry of the provider catalog, which is where the two capability flags live. */
@@ -57,6 +58,7 @@ const state = {
   createProfile: { mutateAsync: vi.fn(), isPending: false },
   updateProfile: { mutateAsync: vi.fn(), isPending: false },
   permissions: [] as Permission[],
+  createdPersonal: null as StoredSecret | null,
 };
 
 const listingRequests = vi.fn();
@@ -71,7 +73,7 @@ vi.mock("@/hooks", () => ({
   }),
   useSecretPurposes: () => ({ purposes: state.purposes }),
   useSecrets: () => ({ secrets: state.secrets }),
-  useProviderModels: (...args: [string, string?, string?]) => {
+  useProviderModels: (...args: [string, string?, string?, boolean?]) => {
     listingRequests(...args);
     return {
       models: state.models,
@@ -96,6 +98,29 @@ vi.mock("@/components/vault/inline-secret", () => ({
       </button>
     );
   },
+}));
+
+// The connection form validates the signed-in owner before returning metadata.
+// Here the model form receives that accepted result while its list is still stale.
+vi.mock("@/components/vault/personal-api-connection", () => ({
+  PersonalApiConnection: ({
+    onCreated,
+    disabled,
+  }: {
+    onCreated: (secret: StoredSecret) => void;
+    disabled?: boolean;
+  }) =>
+    state.createdPersonal ? (
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => {
+          if (state.createdPersonal) onCreated(state.createdPersonal);
+        }}
+      >
+        Connect personal key
+      </button>
+    ) : null,
 }));
 
 // The real one signs in with ChatGPT. What this form needs from it is the same
@@ -177,6 +202,7 @@ beforeEach(() => {
   // the default caller may also store a key, and the tests that care say so.
   state.permissions = [Perm.secretsEdit];
   onCreatedSecret.handler = undefined;
+  state.createdPersonal = null;
 });
 
 function mount(props: Partial<Parameters<typeof AddModel>[0]> = {}) {
@@ -213,6 +239,161 @@ describe("the add-model form", () => {
     expect(first.id).not.toBe(second.id);
     expect(first).toHaveAccessibleName("Provider");
     expect(second).toHaveAccessibleName("Provider");
+  });
+
+  it("keeps a newly connected personal key selected until the list refreshes without duplicating or repointing a shared model", async () => {
+    state.purposes = state.purposes.map((entry) =>
+      entry.id === "openai" ? { ...entry, personal_supported: true } : entry,
+    );
+    const personal: StoredSecret = {
+      id: "s-new-personal",
+      name: "My new OpenAI",
+      description: null,
+      purpose: "openai",
+      kind: "api_key",
+      hint: "safe",
+      usage_scope: "personal",
+      owner_user_id: "user-a",
+    };
+    state.createdPersonal = personal;
+    state.secrets = [secret()];
+    const selected = {
+      id: "p-team",
+      label: "Team GPT",
+      provider: "openai",
+      model: "gpt-5",
+      secret_id: "s-1",
+      base_url: "https://organization-model.example/v1",
+      api: "chat" as const,
+      params: {},
+      fallback_profile_ids: [],
+    };
+    const onCreated = vi.fn();
+    const view = render(<AddModel onCreated={onCreated} selected={selected} />);
+    await userEvent.click(screen.getByRole("button", { name: "Connect personal key" }));
+
+    expect(screen.getByLabelText("Endpoint")).toHaveValue("");
+    expect(listingRequests).toHaveBeenCalledWith("openai", undefined, personal.id, false);
+    expect(screen.queryByRole("button", { name: "Update model" })).not.toBeInTheDocument();
+    state.secrets = [secret(), { ...personal, purpose: "openai" }];
+    view.rerender(<AddModel onCreated={onCreated} selected={selected} />);
+    await userEvent.click(screen.getByLabelText("Key"));
+    const choices = screen.getAllByRole("option", { name: /My new OpenAI/ });
+    expect(choices).toHaveLength(1);
+    await userEvent.click(screen.getByRole("option", { name: /My new OpenAI/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secret_id: personal.id,
+        base_url: null,
+        api: "responses",
+        label: "My new OpenAI · OpenAI · gpt-5",
+      }),
+    );
+    expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+    expect(onCreated).toHaveBeenCalledWith({ id: "p-1" });
+  });
+
+  it("creates a separate personal profile without repointing a shared model", async () => {
+    state.secrets = [
+      secret(),
+      secret({ id: "s-personal", name: "My OpenAI", usage_scope: "personal" }),
+    ];
+    mount({
+      selected: {
+        id: "p-team",
+        label: "Team GPT",
+        provider: "openai",
+        model: "gpt-5",
+        secret_id: "s-1",
+        api: "responses",
+        params: {},
+        fallback_profile_ids: [],
+      },
+    });
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(screen.getByRole("option", { name: /My OpenAI/ }));
+    expect(listingRequests).toHaveBeenCalledWith("openai", undefined, "s-personal", false);
+    expect(screen.queryByRole("button", { name: "Update model" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secret_id: "s-personal",
+        label: "My OpenAI · OpenAI · gpt-5",
+      }),
+    );
+    expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("reconnects an existing personal profile with another own personal key", async () => {
+    state.secrets = [
+      secret({ id: "s-replacement", name: "My replacement", usage_scope: "personal" }),
+    ];
+    mount({
+      selected: {
+        id: "p-personal",
+        label: "My GPT",
+        provider: "openai",
+        model: "gpt-5",
+        secret_id: null,
+        usage_scope: "personal",
+        missing_key: true,
+        api: "responses",
+        params: {},
+        fallback_profile_ids: [],
+      },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Update model" }));
+    expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "p-personal",
+        changes: expect.objectContaining({ secret_id: "s-replacement" }),
+      }),
+    );
+    expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("does not send a personal custom-endpoint key to the public provider's model catalog", () => {
+    state.secrets = [secret({ usage_scope: "personal" })];
+    mount({
+      selected: {
+        id: "p-personal",
+        label: "My gateway",
+        provider: "openai",
+        model: "gpt-5",
+        secret_id: "s-1",
+        usage_scope: "personal",
+        base_url: "https://my-gateway.example/v1",
+        api: "chat",
+        params: {},
+        fallback_profile_ids: [],
+      },
+    });
+    expect(listingRequests).toHaveBeenCalledWith("", undefined, undefined, false);
+    expect(listingRequests).not.toHaveBeenCalledWith("openai", undefined, "s-1", false);
+  });
+
+  it("does not replace a disconnected personal key with an organization key by default", () => {
+    state.secrets = [secret()];
+    mount({
+      selected: {
+        id: "p-personal",
+        label: "My GPT",
+        provider: "openai",
+        model: "gpt-5",
+        secret_id: null,
+        usage_scope: "personal",
+        missing_key: true,
+        api: "responses",
+        params: {},
+        fallback_profile_ids: [],
+      },
+    });
+    expect(screen.getByLabelText("Key")).toHaveTextContent("Choose a connection");
+    expect(screen.queryByText("In use")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
+    expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
+    expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
   });
 
   it("offers only providers, not every purpose in the vault", () => {
@@ -333,13 +514,15 @@ describe("the add-model form", () => {
     expect(screen.getByLabelText("Key")).toBeInTheDocument();
   });
 
-  it("uses the first key by default and the chosen one after that", async () => {
+  it("requires a choice when several keys exist and uses exactly that choice", async () => {
     state.secrets = [secret(), secret({ id: "s-2", name: "OpenAI staging", hint: "9999" })];
     mount();
     await pickProvider("OpenAI");
 
     await userEvent.click(screen.getByLabelText("Model"));
     await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    expect(screen.getByLabelText("Key")).toHaveTextContent("Choose a connection");
+    expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
     await userEvent.click(screen.getByLabelText("Key"));
     await userEvent.click(screen.getByRole("option", { name: /OpenAI staging/ }));
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
@@ -556,14 +739,16 @@ describe("the add-model form", () => {
     expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
   });
 
-  it("cannot be used at all when the caller disables it", async () => {
+  it("cannot save when the caller disables it", async () => {
     state.secrets = [secret()];
     mount({ disabled: true });
-    await pickProvider("OpenAI");
+    expect(screen.getByLabelText("Provider")).toBeDisabled();
     await userEvent.click(screen.getByLabelText("Model"));
     await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
   });
 });
 
@@ -980,6 +1165,8 @@ describe("the two refusals that named a provider and the one that named a value"
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
     await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(screen.getByRole("option", { name: /OpenAI prod/ }));
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
     expect(screen.getByText(message)).toBeInTheDocument();
 
@@ -1758,12 +1945,17 @@ it("never discovers Otari on auto-selection or typing and reconfirms a changed d
   ];
   state.models = [];
   mount();
-  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "otari-a", false);
+  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, undefined, false);
+  expect(screen.getByLabelText("Key")).toHaveTextContent("Choose a connection");
   await userEvent.click(screen.getByLabelText("Model"));
   await userEvent.type(screen.getByPlaceholderText("Search models…"), "support-agent");
   await userEvent.click(screen.getByText("not in the list"));
   expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
   await userEvent.type(screen.getByLabelText("Endpoint"), "https://gateway.company/api/v1");
+  expect(screen.getByRole("button", { name: "Load models" })).toBeDisabled();
+  await userEvent.click(screen.getByLabelText("Key"));
+  await userEvent.click(screen.getByRole("option", { name: /Otari A/ }));
+  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "otari-a", false);
   expect(
     listingRequests.mock.calls.filter(
       ([provider, url]) => provider === "otari" && url !== undefined,

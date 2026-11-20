@@ -1,15 +1,12 @@
-Subject: A change of email address was requested on your [[app_name]] account
+Subject: Email change requested
 
-Hi [[name]],
+Email change requested
 
-Somebody asked to move this [[app_name]] account to:
+Hi [[name]], someone requested a change to the email address on your [[app_name]] account. The new address must be verified before the change is completed.
 
-[[new_email]]
+Requested address: [[new_email]]
+Status: Awaiting verification
 
-Nothing has changed yet. Your account still uses this address, and it will keep
-using it unless that link is confirmed from the new address.
+If this was not you, contact your administrator immediately.
 
-If you did not ask for this, change your password now and tell whoever
-administers this deployment. Somebody may have your session.
-
-- The [[app_name]] Team
+[[app_name]]

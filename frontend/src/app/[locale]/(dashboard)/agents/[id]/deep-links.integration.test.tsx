@@ -264,6 +264,7 @@ describe("the detail page's tabs", () => {
       "agent-tab-evals",
       "agent-tab-gaps",
       "agent-tab-history",
+      "agent-tab-failure-learning",
     ]);
   });
 

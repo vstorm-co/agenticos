@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import de from "./de.json";
 import terms from "./eval-terms.json";
-import pl from "./pl.json";
 
 /**
  * That the eval screens say one word for one thing in Polish and German.
@@ -14,6 +12,9 @@ import pl from "./pl.json";
  * pattern is a form that reads as a second word for a glossary term - "case'ów"
  * for "przypadków", "Evale" for "Ewaluacje", "Draft" for "Entwurf". The product's
  * own nouns - agent, dataset, run, skill - stay English and are not matched.
+ *
+ * The T3 fork ships no Polish or German catalog, so only the rules themselves are
+ * held here; `scripts/check_docs_glossary.py` still applies them to the docs.
  */
 
 interface Mixed {
@@ -164,14 +165,5 @@ describe("the gate", () => {
     ["de", "agents.approvalParksTheRun", "der Bot wirkt kaputt"],
   ] as const)("in %s, lets %s read %j", (locale, key, value) => {
     expect(offences(single(key, value), MIXED[locale])).toEqual([]);
-  });
-});
-
-describe("eval terminology", () => {
-  it.each([
-    ["pl", pl as Catalog, MIXED.pl],
-    ["de", de as Catalog, MIXED.de],
-  ])("in %s, says one word for one thing on the eval screens", (_locale, catalog, mixed) => {
-    expect(offences(catalog, mixed)).toEqual([]);
   });
 });

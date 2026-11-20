@@ -1,13 +1,11 @@
 import { BackgroundIcon } from "@/components/icons/product-icons";
 import {
   FlaskConical,
-  MessagesSquare,
   Activity,
-  Boxes,
+  Bug,
   Building2,
-  KeyRound,
   LayoutDashboard,
-  Network,
+  MessagesSquare,
   Plug,
   ShieldCheck,
   UsersRound,
@@ -48,6 +46,8 @@ export type NavItem = {
   icon: LucideIcon;
   /** Hidden unless the caller holds this. Omitted means always shown. */
   permission?: Permission;
+  /** Hidden unless the caller holds at least one of these: for an entry that opens to several areas. */
+  permissions?: readonly Permission[];
   /** A `data-tour` anchor the onboarding coach points at — only where a flow returns here. */
   dataTour?: string;
   /**
@@ -95,6 +95,28 @@ export const NAV_GROUPS: NavGroup[] = [
         dataTour: "nav-inbox",
         count: "inbox",
       },
+      {
+        labelKey: "agentMessages",
+        href: ROUTES.AGENT_MESSAGES,
+        icon: MessagesSquare,
+        permission: Perm.agentsRun,
+        dataTour: "nav-agent-messages",
+      },
+    ],
+  },
+  {
+    // The apps an agent published, listed by `AppsRows`, which lists only what the
+    // caller may open and hides the whole section when there is none. This entry
+    // is the route table's record of `/apps`; "All apps" is its one static row.
+    labelKey: "apps",
+    domain: "use",
+    items: [
+      {
+        labelKey: "allApps",
+        href: ROUTES.ARTIFACTS,
+        icon: PanelsTopLeft,
+        permission: Perm.artifactsView,
+      },
     ],
   },
   {
@@ -126,12 +148,6 @@ export const NAV_GROUPS: NavGroup[] = [
         href: ROUTES.DATASETS,
         icon: FlaskConical,
         permission: Perm.datasetsView,
-      },
-      {
-        labelKey: "artifacts",
-        href: ROUTES.ARTIFACTS,
-        icon: PanelsTopLeft,
-        permission: Perm.artifactsView,
       },
     ],
   },
@@ -183,59 +199,31 @@ export const NAV_GROUPS: NavGroup[] = [
     collapsible: true,
     items: [
       { labelKey: "activity", href: ROUTES.RUNS, icon: Activity, permission: Perm.runsView },
+      {
+        labelKey: "failureLearning",
+        href: ROUTES.FAILURE_LEARNING,
+        icon: Bug,
+        permission: Perm.runsView,
+      },
       { labelKey: "backgroundWork", href: ROUTES.WORK, icon: BackgroundIcon },
     ],
   },
-  // What the organization is connected to. Set up once, revisited rarely, so
-  // folded until opened.
+  // What the organization is connected to, in one place: the apps agents use,
+  // with the lower-level channels, remote agents, vault and sandboxes behind an
+  // Advanced tab (#connectors). Set up once, revisited rarely, so folded until
+  // opened.
   {
     labelKey: "connections",
     domain: "workspace",
     collapsible: true,
     items: [
       {
-        labelKey: "mcpServers",
-        href: ROUTES.MCP_SERVERS,
+        labelKey: "connectors",
+        href: ROUTES.CONNECTORS,
         icon: Plug,
-        permission: Perm.agentsView,
-      },
-      {
-        // A chat platform an organization is reachable on. Beside the MCP
-        // servers because it is the same kind of thing - a connection the
-        // organization owns, holding a credential in the vault - and not on
-        // an agent's page, where registering one made it look like a property
-        // of that agent rather than something every agent can be bound to.
-        labelKey: "channels",
-        href: ROUTES.CHANNELS,
-        icon: MessagesSquare,
-        permission: Perm.agentsView,
-      },
-      {
-        // Another vendor's agent, reached over A2A (#2092): a connection the
-        // organization registers once, which its agents then delegate to.
-        labelKey: "remoteAgents",
-        href: ROUTES.REMOTE_AGENTS,
-        icon: Network,
-        permission: Perm.agentsView,
-      },
-      {
-        // Gated on what the backend gates listing on: a Member holding secrets
-        // at OWN scope can use the Vault, so the nav must not hide it behind
-        // the broader connections:manage.
-        labelKey: "vault",
-        href: ROUTES.VAULT,
-        icon: KeyRound,
-        permission: Perm.secretsView,
-      },
-      {
-        // Gated on what the backend gates reading these on. Watching where
-        // sandboxes run - the session list, a host's ceilings - is an operator's
-        // job and rides on connections:view; only the add-and-edit controls on
-        // the page itself need connections:manage.
-        labelKey: "sandboxes",
-        href: ROUTES.SANDBOXES,
-        icon: Boxes,
-        permission: Perm.connectionsView,
+        // Each area of the page keeps its own gate; the entry shows to anyone
+        // who can reach one of them.
+        permissions: [Perm.agentsView, Perm.secretsView, Perm.connectionsView],
       },
     ],
   },
@@ -319,4 +307,17 @@ export function navSectionFor(
     }
   }
   return null;
+}
+
+/** Navigation preferences only narrow the entries permitted by the role. */
+export function navItemVisible(
+  item: NavItem,
+  can: (permission: Permission) => boolean,
+  hiddenItems: readonly string[] = [],
+  permissionsLoaded = true,
+): boolean {
+  const recoveryEntry = ["dashboard", "organizations", "adminOverview"].includes(item.labelKey);
+  if (!recoveryEntry && (!permissionsLoaded || hiddenItems.includes(item.labelKey))) return false;
+  if (item.permissions) return item.permissions.some(can);
+  return !item.permission || can(item.permission);
 }

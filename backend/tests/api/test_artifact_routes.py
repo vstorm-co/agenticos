@@ -36,6 +36,7 @@ from app.schemas.artifact import (
     ArtifactActionRunStarted,
     ArtifactBinding,
     ArtifactData,
+    ArtifactRead,
     ArtifactVersionRead,
     BindingReach,
 )
@@ -68,6 +69,8 @@ def _nobody_follows(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(artifact_repo, "is_following", AsyncMock(return_value=False))
     monkeypatch.setattr(artifact_repo, "follower_ids", AsyncMock(return_value=[]))
+    monkeypatch.setattr(artifact_repo, "is_favourite", AsyncMock(return_value=False))
+    monkeypatch.setattr(artifact_repo, "favourite_ids", AsyncMock(return_value=set()))
 
 
 @pytest.fixture(autouse=True)
@@ -203,6 +206,20 @@ class TestFollowing:
         assert response.status_code == 404
         follow.assert_not_called()
 
+    @pytest.mark.security
+    async def test_an_app_the_caller_cannot_open_cannot_be_favourited(
+        self, client: OpenClient
+    ) -> None:
+        favourite = AsyncMock()
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.artifact_repo.set_favourite", new=favourite),
+        ):
+            async with client() as http:
+                response = await http.post(_url(f"/{uuid.uuid4()}/favourite"))
+        assert response.status_code == 404
+        favourite.assert_not_called()
+
 
 class TestMembers:
     async def test_the_listing_carries_each_artifact_s_current_version(
@@ -241,6 +258,52 @@ class TestMembers:
         assert response.status_code == 200
         assert listing.await_args.kwargs["project_id"] == project_id
 
+    async def test_favourite_filter_and_caller_flag_are_returned(self, client: OpenClient) -> None:
+        row = _artifact()
+        with (
+            patch(
+                f"{PATH}.artifact_repo.list_visible", new=AsyncMock(return_value=([row], 1))
+            ) as listing,
+            patch(f"{PATH}.artifact_repo.latest_versions", new=AsyncMock(return_value={})),
+            patch(f"{PATH}.artifact_repo.favourite_ids", new=AsyncMock(return_value={row.id})),
+        ):
+            async with client() as http:
+                response = await http.get(_url("?favourites=true"))
+
+        assert response.status_code == 200
+        assert response.json()["items"][0]["is_favourite"] is True
+        assert listing.await_args.kwargs["favourites_for"] is not None
+
+
+class TestFavourites:
+    async def test_favourite_and_unfavourite_return_the_updated_row(
+        self, client: OpenClient
+    ) -> None:
+        now = datetime.now(UTC)
+        artifact_id = uuid.uuid4()
+        favourited = ArtifactRead(
+            id=artifact_id,
+            name="weekly-report",
+            title="Weekly report",
+            visibility="private",
+            published_at=now,
+            created_at=now,
+            is_favourite=True,
+        )
+        unfavourited = favourited.model_copy(update={"is_favourite": False})
+        with patch.object(
+            ArtifactService, "set_favourite", new=AsyncMock(side_effect=[favourited, unfavourited])
+        ) as set_favourite:
+            async with client() as http:
+                added = await http.post(_url(f"/{artifact_id}/favourite"))
+                removed = await http.delete(_url(f"/{artifact_id}/favourite"))
+
+        assert added.status_code == 200
+        assert added.json()["is_favourite"] is True
+        assert removed.status_code == 200
+        assert removed.json()["is_favourite"] is False
+        assert [call.kwargs["favourite"] for call in set_favourite.await_args_list] == [True, False]
+
     @pytest.mark.security
     async def test_an_artifact_in_another_organization_is_not_found(
         self, client: OpenClient
@@ -259,6 +322,7 @@ class TestMembers:
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
             patch(f"{PATH}.artifact_repo.update", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.hold_subject", new=AsyncMock()),
             patch(f"{PATH}.resource_grant_repo.delete_for_resource", new=AsyncMock()),
             patch(f"{PATH}.artifact_repo.lock_for_delete", new=AsyncMock()),
             patch(f"{PATH}.artifact_repo.delete_artifact", new=AsyncMock()),

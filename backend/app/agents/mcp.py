@@ -208,7 +208,7 @@ class McpServerSpec:
 
     name: str
     url: str
-    headers: dict[str, str] = field(default_factory=dict)
+    headers: dict[str, str] = field(default_factory=dict, repr=False)
     # None = expose every tool the server offers.
     allowed_tools: list[str] | None = None
     test: bool = False
@@ -224,6 +224,8 @@ class McpServerSpec:
     # a labelled connection, or one of several accounts on one service. Shown
     # beside the call on an approval, so "Send mail" says from which mailbox.
     account: str | None = None
+    # Human-facing name for a runtime-only managed app connection.
+    managed_app_name: str | None = None
     # This deployment's own server (`/mcp`), reached through the application in
     # this process rather than over the network - never probed, never dialled out.
     in_process: bool = False
@@ -235,6 +237,12 @@ class McpServerSpec:
     authorization_generation: UUID | None = None
     # An environment replacement still owes the production account its ceiling.
     ceiling_source: tuple[UUID, McpSourceIdentity] | None = None
+    # A managed gateway creates a transport URL per run; consent still belongs
+    # to the stable connection endpoint, not that temporary session URL.
+    source_url: str | None = None
+    # Managed project credentials may only be sent to this exact origin,
+    # including when an HTTP client encounters a redirect.
+    credential_origin: str | None = None
     # Tools, by the name the server gives them, that never wait for approval
     # whatever `approval` says. Only this deployment's own server names any.
     ungated: frozenset[str] = frozenset()
@@ -309,7 +317,11 @@ class SourceStamped(WrapperToolset[Any]):
 
 @asynccontextmanager
 async def _mcp_transport(
-    url: str, headers: dict[str, str] | None, *, timeout: float
+    url: str,
+    headers: dict[str, str] | None,
+    *,
+    timeout: float,
+    credential_origin: str | None = None,
 ) -> AsyncGenerator[tuple[Any, Any]]:
     """Open the right client transport for *url*, yielding `(read, write)`.
 
@@ -325,7 +337,15 @@ async def _mcp_transport(
     into the client `create_mcp_http_client` builds, and the client is owned
     here so it closes with the transport (#1820).
     """
-    if infer_transport_type_from_url(url) == "sse":
+    if credential_origin is not None:
+        from mcp.client.streamable_http import streamable_http_client
+
+        async with (
+            _origin_bound_client(credential_origin, headers or {}, timeout=timeout) as http_client,
+            streamable_http_client(url, http_client=http_client) as (read, write),
+        ):
+            yield read, write
+    elif infer_transport_type_from_url(url) == "sse":
         from mcp.client.sse import sse_client
 
         async with sse_client(url, headers=headers or None, timeout=CONNECT_TIMEOUT_SECS) as (
@@ -348,6 +368,8 @@ async def probe_mcp_server(
     url: str,
     headers: dict[str, str] | None = None,
     timeout: float | None = None,
+    *,
+    credential_origin: str | None = None,
 ) -> list[McpToolInfo]:
     """Connect to an MCP server and list its tools.
 
@@ -360,9 +382,14 @@ async def probe_mcp_server(
     HTTP or SSE) is inferred from the URL, matching the toolset layer.
     """
     budget = timeout or HANDSHAKE_TIMEOUT_SECS
+    session_context = (
+        mcp_session(url, headers, timeout=budget)
+        if credential_origin is None
+        else mcp_session(url, headers, timeout=budget, credential_origin=credential_origin)
+    )
     try:
         async with asyncio.timeout(budget):
-            async with mcp_session(url, headers, timeout=budget) as session:
+            async with session_context as session:
                 result = await session.list_tools()
     except (Exception, BaseExceptionGroup) as exc:
         if carries_base_exception(exc):
@@ -386,7 +413,11 @@ async def probe_mcp_server(
 
 @asynccontextmanager
 async def mcp_session(
-    url: str, headers: dict[str, str] | None, *, timeout: float = CONNECT_TIMEOUT_SECS
+    url: str,
+    headers: dict[str, str] | None,
+    *,
+    timeout: float = CONNECT_TIMEOUT_SECS,
+    credential_origin: str | None = None,
 ) -> AsyncGenerator[ClientSession]:
     """An initialized client session on the server at *url*, closed on exit.
 
@@ -395,8 +426,13 @@ async def mcp_session(
     """
     from mcp import ClientSession
 
+    transport = (
+        _mcp_transport(url, headers, timeout=timeout)
+        if credential_origin is None
+        else _mcp_transport(url, headers, timeout=timeout, credential_origin=credential_origin)
+    )
     async with (
-        _mcp_transport(url, headers, timeout=timeout) as (read, write),
+        transport as (read, write),
         ClientSession(read, write) as session,
     ):
         await session.initialize()
@@ -490,11 +526,18 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     Repeats stay bounded by the run's step limit.
     """
     prefix = tool_prefix(spec.name)
-    # The in-process client carries the headers itself: the two are exclusive.
+    # A custom client carries the headers itself: the two are exclusive.
+    http_client = (
+        _in_process_client(spec.headers)
+        if spec.in_process
+        else _origin_bound_client(spec.credential_origin, spec.headers, timeout=300.0)
+        if spec.credential_origin is not None
+        else None
+    )
     server: Any = MCPToolset(
         spec.url,
-        headers=None if spec.in_process else spec.headers or None,
-        http_client=_in_process_client(spec.headers) if spec.in_process else None,
+        headers=None if http_client is not None else spec.headers or None,
+        http_client=http_client,
         id=f"mcp-{prefix}",
         init_timeout=PLATFORM_INIT_TIMEOUT_SECS if spec.in_process else CONNECT_TIMEOUT_SECS,
         tool_error_behavior="failed",
@@ -506,7 +549,7 @@ def _make_toolset(spec: McpServerSpec) -> Any:
             server,
             connection_id=spec.source_connection_id,
             identity=McpSourceIdentity(
-                endpoint_hash=hashlib.sha256(spec.url.encode()).hexdigest(),
+                endpoint_hash=hashlib.sha256((spec.source_url or spec.url).encode()).hexdigest(),
                 authorization_generation=spec.authorization_generation,
                 tool_prefix=tool_prefix(spec.name),
             ),
@@ -888,6 +931,29 @@ def platform_spec(
     )
 
 
+def _origin_bound_client(
+    origin: str, headers: dict[str, str], *, timeout: float
+) -> httpx2.AsyncClient:
+    """Keep a managed gateway's project credential on its own HTTPS origin."""
+    expected = httpx2.URL(origin)
+
+    async def refuse_other_origin(request: httpx2.Request) -> None:
+        actual = request.url
+        if (actual.scheme, actual.host, actual.port) != (
+            expected.scheme,
+            expected.host,
+            expected.port,
+        ):
+            raise httpx2.RequestError("Managed connection refused a cross-origin request.")
+
+    return httpx2.AsyncClient(
+        headers=headers,
+        timeout=httpx2.Timeout(timeout, connect=CONNECT_TIMEOUT_SECS),
+        follow_redirects=False,
+        event_hooks={"request": [refuse_other_origin]},
+    )
+
+
 def _in_process_client(headers: dict[str, str]) -> Any:
     """An HTTP client whose requests go to this process's API application.
 
@@ -937,7 +1003,12 @@ async def probe_toolsets(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec
         if _answered_recently(key):
             return ResilientMcpToolset(_make_toolset(spec), name=spec.name, key=key)
         try:
-            await probe_mcp_server(spec.url, spec.headers)
+            if spec.credential_origin is None:
+                await probe_mcp_server(spec.url, spec.headers)
+            else:
+                await probe_mcp_server(
+                    spec.url, spec.headers, credential_origin=spec.credential_origin
+                )
         except Exception as exc:
             logger.warning(
                 "Skipping MCP server %r for this turn: %s", spec.name, probe_error_message(exc)

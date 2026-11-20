@@ -48,6 +48,9 @@ function queryPanel() {
 
 const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
+  // The browser continuation panel reaches next-intl's navigation, which reads these.
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
   // The empty Activity window offers to ask an agent (#2075).
   useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => params,
@@ -106,6 +109,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     started_at: "2026-08-04T09:00:00Z",
     ended_at: "2026-08-04T09:00:30Z",
     parent_run_id: null,
+    retry_of_run_id: null,
     subagent_task_id: null,
     modality: "text",
     voice_chain: null,

@@ -43,6 +43,19 @@ export function useTurnElapsed(startedAt: Date | undefined, running: boolean): n
   return elapsed;
 }
 
+/**
+ * How long a running turn may go without its process stamping itself alive
+ * before the fold says so. A live run beats every 15 seconds, and the
+ * conversation listing re-reads every 30 seconds while the live-update
+ * socket is up (4 seconds while it is down), so a healthy run's last beat
+ * can read up to ~45 seconds old through this channel; 90 seconds is past
+ * that noise and still 30 seconds before the stale-run sweep ends the run
+ * at 120. A hung model call keeps beating, so this does not catch a hang -
+ * the per-request timeout ends that instead. What it catches is a process
+ * that has gone quiet.
+ */
+export const STALLED_AFTER_MS = 90_000;
+
 /** "Working for 5s…" over a turn still at work, with a light passing over it. */
 export function WorkingLine({
   elapsedMs,
@@ -110,6 +123,7 @@ export function WorkFold({
   children,
   activity,
   live = false,
+  lastHeartbeatAt,
 }: {
   /** Tool calls folded away; none means the turn only thought. */
   steps: number;
@@ -124,6 +138,8 @@ export function WorkFold({
   activity?: string;
   /** Show progress in place until the run settles; finished history stays scrollable. */
   live?: boolean;
+  /** When the run behind this turn last stamped itself alive, if known. */
+  lastHeartbeatAt?: Date;
 }) {
   const t = useTranslations("chat.steps");
   const tChat = useTranslations("chat");
@@ -135,33 +151,46 @@ export function WorkFold({
   const toggleId = useId();
   const duration = durationMs === null ? null : formatElapsed(durationMs, t);
   const runText = useTranslations("pages.runs");
+  // Stalled is a sub-state of running, not a terminal one: the run is still
+  // going as far as the console knows, but its process has gone quiet. The
+  // age is read off the same one-second tick as the turn's own elapsed time,
+  // so the label stays current without reading the clock during render.
+  // When the turn stops, the last reading stands - but the guard below
+  // keeps it from ever calling a finished turn stalled.
+  const heartbeatAgeMs = useTurnElapsed(lastHeartbeatAt, running);
+  const stalledMs = running ? heartbeatAgeMs : null;
+  const stalledFor =
+    stalledMs !== null && stalledMs > STALLED_AFTER_MS ? formatElapsed(stalledMs, t) : null;
   const label = failed
     ? duration === null
       ? t("failedWork", { count: steps })
       : t("failedAfter", { duration, count: steps })
     : waiting
       ? runText("toolState", { status: waiting })
-      : running
-        ? duration === null
-          ? t("working")
-          : t("workingFor", { duration })
-        : stopped
+      : stalledFor !== null
+        ? t("stalledFor", { duration: stalledFor })
+        : running
           ? duration === null
-            ? t("stopped", { count: steps })
-            : t("stoppedAfter", { duration, count: steps })
-          : steps === 0
+            ? t("working")
+            : t("workingFor", { duration })
+          : stopped
             ? duration === null
-              ? tChat("thoughtAboutIt")
-              : t("thoughtFor", { duration })
-            : duration === null
-              ? t("worked", { count: steps })
-              : t("workedFor", { duration, count: steps });
+              ? t("stopped", { count: steps })
+              : t("stoppedAfter", { duration, count: steps })
+            : steps === 0
+              ? duration === null
+                ? tChat("thoughtAboutIt")
+                : t("thoughtFor", { duration })
+              : duration === null
+                ? t("worked", { count: steps })
+                : t("workedFor", { duration, count: steps });
 
   return (
     <div>
       <button
         type="button"
         id={toggleId}
+        data-message-disclosure
         aria-controls={open ? historyId : undefined}
         aria-expanded={open}
         onClick={() => setChosenOpen(!open)}

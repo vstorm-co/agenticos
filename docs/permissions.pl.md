@@ -1,5 +1,5 @@
 ---
-source_sha: "0ec0a9a4159f"
+source_sha: "b50c2e4de07b"
 ---
 
 # Uprawnienia { #permissions }
@@ -143,6 +143,16 @@ więcej, niż jego wydający ma teraz.
     chroniony. Ustawienie klucza profilu albo przeniesienie endpointu profilu,
     który ma klucz, wymaga `secrets:view` na tym kluczu ([Modele](models.md#changing-a-profiles-key-or-endpoint)).
 
+    Dołączenie sekretu do połączenia sandboxu albo testowanie usługi z jego
+    użyciem też wymaga `secrets:view` na tym sekrecie: połączenie wydaje klucz
+    w imieniu całej organizacji, więc wskazanie cudzego prywatnego klucza musi
+    zostać odrzucone już w momencie dołączenia. Sprawdzenie celowo *nie*
+    znajduje się w `resolve_for_bindings`: w czasie runu runner rozwija
+    powiązania opublikowanej specyfikacji dla każdego, kto może uruchomić
+    agenta, a sekrety specyfikacji zostały sprawdzone względem publikującego
+    przy publikacji. Vault otwiera się dla runu; bramką jest to, kto może
+    wskazać sekret w zapisie.
+
     `connections:manage` wypisuje też integracje synchronizacji organizacji:
     źródła wszystkich baz, z ich konfiguracją, sekretem w vault, którego każde
     używa, i ostatnim błędem, oraz źródła nieprzypisane. Tę listę zwracają
@@ -158,10 +168,20 @@ Uprawnienia **zasobowe** niosą `Scope`, ponieważ odpowiadają na drugie pytani
 na które rola nie potrafi: nie „czy ta rola może ruszać agentów?”, lecz _których_
 agentów.
 
-Jednym z nich jest `mcp:manage`: serwer MCP organizacji można zawęzić do grup lub
-osób, tak jak skill ([Działy](departments.md#a-departments-mcp-servers)). Rola z
-nim na poziomie `SHARED` widzi serwery organizacji, własne i te jej udostępnione;
-`ALL` widzi każdy.
+`mcp:use` i `mcp:manage` rozdzielają wybór połączenia od zarządzania nim. Serwer MCP
+organizacji można ograniczyć do grup lub osób, tak jak skill
+([Działy](departments.md#a-departments-mcp-servers)). Grant `use` pozwala przypiąć
+narzędzia, a `edit` pozwala zarządzać połączeniem. Zakresy ról nadal obowiązują:
+Owner i Admin zachowują `ALL`, a Builder zachowuje `SHARED`.
+
+Istniejące granty `use` pozostają bez zmian, bez podnoszenia do `edit`. Builder
+korzystający z prywatnego serwera potrzebuje jawnego grantu `edit`, aby go zmienić,
+usunąć, sprawdzić lub dalej udostępnić. Istniejące klucze API ze scope'em
+zarządzania zachowują możliwość używania połączenia; klucz ze scope'em używania
+nie może nim zarządzać. Delegacja opublikowanych agentów oraz obecny wybór w
+workflowach i triggerach zachowują dotychczasowych odbiorców. Lista zarządzania
+nadal wymaga `mcp:manage`; zmiana nie dodaje endpointu odkrywania ani uprawnienia
+roli Viewer.
 
 ### Scope { #scope }
 
@@ -190,9 +210,9 @@ własnych.
 
 | Rola | Zamysł | Agents | Secrets | Globalne |
 | --- | --- | --- | --- | --- |
-| `owner` | jest właścicielem organizacji | wszystko `ALL` | `ALL` | wszystko, łącznie z `org:delete` |
-| `admin` | prowadzi ją na co dzień | wszystko `ALL` | `ALL` | wszystko **poza** `org:delete` |
-| `builder` | buduje i uczy się od całej organizacji | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `owner` | jest właścicielem organizacji | wszystko `ALL` | `ALL` | wszystko, łącznie z `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `admin` | prowadzi ją na co dzień | wszystko `ALL` | `ALL` | wszystko **poza** `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `builder` | buduje i uczy się od całej organizacji | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:use`/`mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `operator` | utrzymuje działający system w zdrowiu | `view`/`run` `ALL`, bez edycji | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `member` | codzienny użytkownik | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
 | `viewer` | czyta | `view` `SHARED` | żadne | `members:view` |
@@ -310,6 +330,12 @@ utratę. Osoba trzymająca kilka grantów na jednym wierszu — własny i grant�
 swoich grup — dostaje najwyższy z nich. Baza danych trzyma grant dla dokładnie
 jednego podmiotu, osoby albo grupy, a grupa z innej organizacji nie sięga tutaj
 do nikogo, nawet gdyby jakiś wiersz ją wskazywał.
+
+Udostępnienie może mieć datę wygaśnięcia: po niej grant nie daje nic, bez
+usuwania wiersza przez kogokolwiek - panel udostępniania nadal go pokazuje, więc
+właściciel może go odnowić albo unieważnić. Usunięcie członka unieważnia jego
+bezpośrednie granty razem z członkostwem, więc ponowne zaproszenie go nie budzi
+żadnego z nich.
 
 Tabela jest celowo generyczna — `resource_type` + `resource_id`, bez klucza obcego
 do celu — ponieważ agenci, kolekcje, skille, pliki kontekstu,
@@ -644,16 +670,75 @@ człowiekowi bez przepisywania tego, jako kto zostały uruchomione. Zobacz
 To, co takiemu runowi wolno zrobić, wynika z **ekspozycji** (exposure), która go
 wpuściła, stworzonej przez kogoś, kto rolę jednak miał.
 
+## Widoczność paska bocznego { #sidebar-visibility }
+
+### Co domyślnie widzi członek { #what-a-member-sees-by-default }
+
+Członek (Member) widzi Dashboard, Chat, Inbox, Agent Messages, Apps, Agents,
+Workflows, Routines, Projects, Knowledge Bases, Tables, Skills, Context, Documents,
+Background Work, Connectors, Organizations i Groups. Apps i Projects pokazują
+wyłącznie dostępne zasoby. Activity i Failure Learning wymagają `runs:view`;
+obszar Admin całego wdrożenia wymaga `is_app_admin`, którego rola w organizacji
+nie przyznaje.
+
+Rola Member obejmuje własne zasoby oraz te widoczne dla organizacji albo jawnie
+udostępnione członkowi lub jego grupom. Pozwala edytować własne zasoby robocze i
+uruchamiać dostępnych agentów oraz przepływy pracy. Nie daje dostępu do wszystkich
+prywatnych zasobów organizacji, zarządzania członkami, budżetami ani logami audytu.
+Jawny grant na zasobie może poszerzyć dostęp zgodnie z opisem powyżej.
+
+### Konfiguracja nawigacji dla roli { #configure-navigation-for-a-role }
+
+Otwórz **Organizacje (Organizations) → Członkowie (Members) → Użytkownicy i role
+(Users & Roles)**, a następnie **Sidebar visibility**. Sześć wbudowanych ról i
+definicje ich uprawnień pozostają stałe. Ten edytor konfiguruje nawigację każdej
+roli w wybranej organizacji.
+
+1. Wybierz rolę, aby sprawdzić jej obecną nawigację.
+2. Wybierz widoczne pozycje spośród tych, które można konfigurować. Pozycje
+   niedostępne z powodu uprawnień roli pozostają niedostępne nawet po ich pokazaniu.
+3. Przed zapisem sprawdź podgląd **Sidebar preview**.
+4. Wybierz **Save sidebar**, aby zastosować zmiany.
+5. Aby przywrócić nawigację roli, wybierz **Reset to defaults**, a następnie
+   **Save sidebar**. **Discard changes** pozostawia zapisaną konfigurację bez zmian.
+
+Właściciel (Owner) może edytować Admin i niższe role. Administrator (Admin) może
+edytować Builder, Operator, Member i Viewer, ale nie własny poziom ani Owner.
+Pozostali członkowie mogą przeglądać konfigurację bez jej edytowania. Zmiany
+wymagają `roles:manage` i są zapisywane w śladzie audytowym organizacji.
+
+Dashboard i Organizations nie można ukryć, a pozycja Admin całego wdrożenia
+zachowuje dotychczasowy warunek dostępu superadmina. Te ścieżki odzyskiwania
+konfiguracji pozostają dostępne. Nawigacja Owner się nie zmienia, a konfiguracja
+widoczności nie ogranicza superadminów platformy.
+
+### Widoczność a dostęp { #visibility-and-access }
+
+Zapisane ustawienia filtrują pasek boczny na komputerze i urządzeniu mobilnym,
+przypięte Apps i Projects oraz nawigację palety poleceń, w tym skróty do zasobów i
+akcję nowego czatu. Aktywne okno odświeża uprawnienia co 60 sekund i pobiera
+nieaktualne uprawnienia ponownie, gdy odzyskuje fokus.
+
+Ukrycie pozycji nie odbiera uprawnień API, nie usuwa grantów na zasobach ani nie
+blokuje bezpośredniego adresu URL. Pokazanie pozycji nie przyznaje dodatkowego
+dostępu. Do kontrolowania dostępu służą przypisywanie ról i udostępnianie zasobów;
+widoczność paska bocznego upraszcza nawigację. To ustawienie nie tworzy własnych
+ról ani nie zmienia ich uprawnień.
+
+
 ## Co czyta frontend { #what-the-frontend-reads }
 
 | Endpoint | Odpowiada |
 | --- | --- |
-| `GET /me/permissions` | rolą wywołującego, `is_app_admin` oraz każdym uprawnieniem wraz z jego scope'em |
+| `GET /me/permissions` | rolą wywołującego, `is_app_admin`, każdym uprawnieniem wraz z jego scope'em oraz `hidden_navigation_items` dla tej roli |
 | `GET /roles/catalog` | całym katalogiem i tym, co pakuje w sobie każda rola |
+| `GET /roles/navigation` | wartościami `hidden_items` organizacji dla poszczególnych ról, `configurable_items` oraz `editable_roles` wywołującego |
+| `PATCH /roles/navigation/{role}` | zastępuje `hidden_items` jednej roli; wymaga `roles:manage` i prawa do zarządzania tą rolą |
 
-Oba są **wygodą dla interfejsu i niczym więcej**. Serwer sprawdza każde
-uprawnienie ponownie na endpoincie, który wykonuje działanie, więc klient
-ignorujący te API nic na tym nie zyskuje.
+Odpowiedzi na odczyt służą interfejsowi; nie upoważniają do wykonania działania.
+Serwer ponownie sprawdza każde uprawnienie na endpoincie, który je wykonuje.
+Zmiana nawigacji dotyczy wyłącznie prezentacji, więc klient ignorujący ją nie
+uzyskuje dodatkowego dostępu.
 
 ## Podsumowanie { #recap }
 

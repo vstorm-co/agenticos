@@ -275,6 +275,7 @@ class TestAConnectorSyncsEngine:
             # on every real sync.
             organization_id=uuid.uuid4(),
             secret_id=None,
+            connected_account_id=None,
         )
         source.knowledge_base_id = _BASE.id
         sources = MagicMock(
@@ -333,6 +334,7 @@ class TestAConnectorSyncsEngine:
             # on every real sync.
             organization_id=uuid.uuid4(),
             secret_id=None,
+            connected_account_id=None,
         )
         source.knowledge_base_id = _BASE.id
         sources = MagicMock(

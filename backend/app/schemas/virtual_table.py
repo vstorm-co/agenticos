@@ -180,6 +180,12 @@ class ColumnDef(_Schema):
     link_table_id: UUID | None = Field(
         default=None, description="A link column: the table whose records it links to."
     )
+    link_limit: int | None = Field(
+        default=None,
+        ge=1,
+        le=100,
+        description="Maximum linked records; 1 is a single destination. Missing means 100.",
+    )
     link_column_id: UUID | None = Field(
         default=None,
         description="A lookup or rollup column: the link column of this table it reads through.",
@@ -229,6 +235,12 @@ class ColumnInput(_Request):
     link_table_id: UUID | None = Field(
         default=None, description="A link column: the table whose records it links to."
     )
+    link_limit: int | None = Field(
+        default=None,
+        ge=1,
+        le=100,
+        description="Maximum linked records. Omit to preserve an existing field's limit.",
+    )
     link_column_id: UUID | None = Field(
         default=None,
         description="A lookup or rollup column: the link column of this table it reads through.",
@@ -260,6 +272,88 @@ class ColumnInput(_Request):
         if isinstance(data, dict) and "revision" in data:
             return {key: value for key, value in data.items() if key != "revision"}
         return data
+
+
+class RowPolicy(_Schema):
+    """One table's row-level access policy, stored as JSONB on the table.
+
+    The assignee rule keeps a row visible to the members its Assignee column
+    names. View is wider than edit: a row is viewable when the caller is in the
+    view column, or belongs to a project the row links to (when the project
+    half is configured); it is editable only when the caller is in the edit
+    column. A row with an empty assignee is visible to nobody except the bypass
+    roles. When the project half cannot be resolved - no Projects table, or a
+    missing members column - view degrades to assignee-only, never wider.
+    """
+
+    rule: Literal["assignee", "grants", "none"] = Field(
+        default="assignee",
+        description="Which rule filters the table's rows; `none` clears the policy.",
+    )
+    view_column_id: UUID | None = Field(
+        default=None, description="The user or multi_user column granting Read access"
+    )
+    edit_column_id: UUID | None = Field(
+        default=None,
+        description="The user or multi_user column granting Write access, including Read",
+    )
+    view_project_link_column_id: UUID | None = Field(
+        default=None,
+        description="The link column of this table that names the row's project, "
+        "for the project half of viewing. All three project fields are set together.",
+    )
+    view_projects_table_id: UUID | None = Field(
+        default=None, description="The table of projects the link column points at"
+    )
+    view_project_members_column_id: UUID | None = Field(
+        default=None,
+        description="The user or multi_user column of the Projects table holding its members",
+    )
+
+
+class RowPolicyUpdate(_Request):
+    """Set or clear a table's row policy.
+
+    `{"rule": "none"}` clears it. An assignee policy names its view and edit
+    columns; the three project fields are set together or not at all.
+    """
+
+    rule: Literal["assignee", "grants", "none"]
+    view_column_id: UUID | None = None
+    edit_column_id: UUID | None = None
+    view_project_link_column_id: UUID | None = None
+    view_projects_table_id: UUID | None = None
+    view_project_members_column_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def _check_columns(self) -> RowPolicyUpdate:
+        if self.rule == "assignee":
+            if self.view_column_id is None:
+                raise ValueError("An assignee policy names the column that gates viewing")
+            if self.edit_column_id is None:
+                raise ValueError("An assignee policy names the column that gates editing")
+        elif self.rule == "grants" and any(
+            value is not None
+            for value in (
+                self.view_column_id,
+                self.edit_column_id,
+                self.view_project_link_column_id,
+                self.view_projects_table_id,
+                self.view_project_members_column_id,
+            )
+        ):
+            raise ValueError("Explicit row grants do not name policy columns")
+        project = (
+            self.view_project_link_column_id,
+            self.view_projects_table_id,
+            self.view_project_members_column_id,
+        )
+        if any(item is not None for item in project) and any(item is None for item in project):
+            raise ValueError(
+                "The project half of viewing names a link column, a projects table "
+                "and a members column together"
+            )
+        return self
 
 
 class TableCreate(_Request):
@@ -333,6 +427,20 @@ class TableSummary(_Schema):
 
 class TableRead(TableSummary):
     columns: list[ColumnDef]
+    can_manage_row_access: bool = Field(
+        default=False, description="Whether the caller may configure row access on this table."
+    )
+    row_policy: RowPolicy | None = Field(
+        default=None,
+        description="The table's row-level access policy, or null when every row is "
+        "visible to anyone who may read the table. Check row_policy_valid before "
+        "interpreting null: an invalid stored policy denies record access.",
+    )
+    row_policy_valid: bool = Field(
+        default=True,
+        description="False when the stored row policy needs repair. Metadata remains "
+        "available, but records cannot be accessed until an authorized editor repairs it.",
+    )
     can_manage: bool = Field(
         default=False,
         description="Whether this caller may rename the table, change its columns or "
@@ -419,11 +527,37 @@ class RecordBatchResult(_Schema):
     )
 
 
+class RecordLinkChange(_Request):
+    """Explicit changes to one link cell, without replacing links the caller cannot see."""
+
+    add: list[UUID] = Field(default_factory=list, max_length=100)
+    remove: list[UUID] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def distinct_targets(self) -> RecordLinkChange:
+        if len(set(self.add)) != len(self.add) or len(set(self.remove)) != len(self.remove):
+            raise ValueError("A linked record may only be named once in each change")
+        if set(self.add) & set(self.remove):
+            raise ValueError("A linked record cannot be added and removed in the same change")
+        return self
+
+
 class RecordUpdate(_Request):
-    """A partial update: only the columns named change, and `null` clears one."""
+    """Change named cells and/or explicit links at one expected revision."""
 
     expected_revision: int = Field(ge=1, description="The revision the caller last read")
-    values: dict[CellKey, CellValue]
+    values: dict[CellKey, CellValue] = Field(default_factory=dict)
+    link_changes: dict[UUID, RecordLinkChange] = Field(
+        default_factory=dict,
+        max_length=MAX_COLUMNS,
+        description="Add/remove target record ids, keyed by the immutable link column id",
+    )
+
+    @model_validator(mode="after")
+    def one_change_per_column(self) -> RecordUpdate:
+        if self.values.keys() & {str(column_id) for column_id in self.link_changes}:
+            raise ValueError("A column cannot appear in both values and link_changes")
+        return self
 
 
 class RecordUpsert(_Request):
@@ -468,6 +602,15 @@ class RecordSource(_Schema):
 class RecordRead(_Schema):
     id: UUID
     table_id: UUID
+    access: Literal["read", "write"] = Field(
+        default="read",
+        description="This caller's effective access to this record; Write includes Read",
+    )
+    can_delete: bool = False
+    can_manage_access: bool = False
+    read_only_column_ids: list[UUID] = Field(
+        default_factory=list, description="Access-driving fields this caller cannot change"
+    )
     external_id: str | None = None
     schema_version: int
     values: dict[str, Any]

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import type { ChatPrompt } from "@/components/chat/chat-container";
 import type { IncomingFiles } from "@/components/chat/chat-input";
+import type { AssistantPageContext } from "@/lib/assistant-page-context";
 import { useAuthStore, useOrgStore } from "@/stores";
 import { useArchitectAskStore } from "@/stores/architect-ask-store";
 import { useArchitectMarkStore } from "@/stores/architect-mark-store";
@@ -51,18 +52,21 @@ vi.mock("@/components/chat/chat-container", () => ({
     prompt,
     incomingFiles,
     emptyState,
+    pageContext,
   }: {
     prompt: ChatPrompt | null;
     incomingFiles: IncomingFiles | null;
-    emptyState: (onPick: (text: string) => void) => React.ReactNode;
+    emptyState?: (onPick: (text: string) => void) => React.ReactNode;
+    pageContext?: () => AssistantPageContext | null;
   }) => (
     <div
       data-testid="chat"
       data-prompt={prompt?.text ?? ""}
       data-files={incomingFiles?.files.length ?? 0}
+      data-page-context={JSON.stringify(pageContext?.() ?? null)}
       data-draft={incomingFiles?.text ?? ""}
     >
-      {emptyState(() => undefined)}
+      {emptyState?.(() => undefined)}
       <a href={CONSOLE_LINK}>console link</a>
       <a href="https://evil.example">outside link</a>
     </div>
@@ -82,6 +86,38 @@ vi.mock("@/hooks/use-assistant", () => ({
   useAssistant: () => ({ assistant: state.assistant, isLoading: false }),
 }));
 vi.mock("@/hooks/use-assistant-signals", () => ({ useAssistantSignals: () => state.signals }));
+vi.mock("@/hooks/use-assistant-page-context", () => ({
+  useAssistantPageContext: (path: string) => {
+    const page = {
+      path,
+      title: path === "/apps/app-1" ? "Quarterly report" : path,
+      captured_at: "2026-01-01T00:00:00.000Z",
+    };
+    return { page, getSnapshot: () => structuredClone(page) };
+  },
+}));
+vi.mock("@/hooks/use-agents", () => ({
+  useAgents: () => ({
+    agents: state.assistant
+      ? [
+          {
+            id: state.assistant.agent_id,
+            name: state.assistant.name,
+            slug: state.assistant.slug,
+            status: "published",
+            can_run: true,
+            has_avatar: false,
+            avatar_color: null,
+          },
+        ]
+      : [],
+    isLoading: false,
+    isFetching: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
+vi.mock("@/components/chat/agent-picker", () => ({ AgentPicker: () => null }));
 vi.mock("@/lib/assistant-highlight", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/assistant-highlight")>()),
   pointAt: state.pointAt,
@@ -119,6 +155,11 @@ const chat = () => screen.getByTestId("chat");
 
 beforeEach(() => {
   vi.useFakeTimers();
+  useAuthStore.setState({
+    user: { id: "user-1", email: "one@example.test", is_active: true, created_at: "2026-01-01" },
+  });
+  useOrgStore.setState({ activeOrgId: "org-1" });
+  useArchitectAskStore.setState({ request: null });
   state.assistant = assistant();
   state.pathname = "/agents";
   state.signals = { pendingApprovals: 0, noAgents: false, failedRunId: null, stuckIn: null };
@@ -181,6 +222,16 @@ describe("the Architect widget", () => {
     expect(screen.getByRole("button", { name: "Open Architect" })).toHaveAttribute(
       "data-docked",
       "true",
+    );
+  });
+
+  it("places the viewer launcher below the mobile toolbar", () => {
+    state.assistant = assistant();
+    render(<AssistantWidget viewer />);
+    expect(screen.getByRole("button", { name: "Open Architect" })).toHaveClass(
+      "top-auto",
+      "right-4",
+      "bottom-4",
     );
   });
 
@@ -260,6 +311,51 @@ describe("the Architect widget", () => {
     act(() => useArchitectAskStore.getState().ask("And another"));
     expect(chat()).toHaveAttribute("data-prompt", "And another");
   });
+
+  it("drops an account-scoped ask queued before a workspace change", async () => {
+    state.assistant = assistant({ status: "disabled" });
+    const { rerender } = render(<AssistantWidget />);
+    act(() =>
+      useArchitectAskStore
+        .getState()
+        .ask("Private account task", { userId: "user-1", orgId: "org-1" }),
+    );
+    act(() => useOrgStore.setState({ activeOrgId: "org-2" }));
+    state.assistant = assistant();
+    await act(async () => {
+      rerender(<AssistantWidget />);
+    });
+    expect(useArchitectAskStore.getState().request).toBeNull();
+    expect(screen.queryByTestId("chat")).toBeNull();
+  });
+
+  it.each(["organization", "user"] as const)(
+    "clears a consumed prompt when its %s changes before sending",
+    (kind) => {
+      render(<AssistantWidget />);
+      act(() =>
+        useArchitectAskStore
+          .getState()
+          .ask("Private account task", { userId: "user-1", orgId: "org-1" }),
+      );
+      expect(chat()).toHaveAttribute("data-prompt", "Private account task");
+      act(() => {
+        if (kind === "organization") useOrgStore.setState({ activeOrgId: "org-2" });
+        else
+          useAuthStore.setState({
+            user: {
+              id: "user-2",
+              email: "two@example.test",
+              is_active: true,
+              created_at: "2026-01-01",
+            },
+          });
+      });
+      expect(screen.queryByTestId("chat")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+      expect(chat()).toHaveAttribute("data-prompt", "");
+    },
+  );
 
   it("writes a draft ask into the message box for the reader to send, sending nothing", () => {
     useArchitectAskStore.setState({ request: null });
@@ -714,7 +810,7 @@ describe("the Architect widget", () => {
 
   it("steps out of the chat's composer on any screen, and stays on every other page", () => {
     // The corner it sits in is the composer's send controls there (#2075).
-    state.pathname = "/pl/chat";
+    state.pathname = "/en/chat";
     const { unmount } = render(<AssistantWidget />);
     expect(screen.getByRole("button", { name: "Open Architect" })).toHaveClass("hidden");
     unmount();
@@ -732,6 +828,71 @@ describe("the Architect widget", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Close" })[0]!);
 
     expect(dialog).toHaveClass("hidden");
+  });
+});
+
+describe("page context in the floating window", () => {
+  it("shows the viewer app title and includes it by default", () => {
+    state.pathname = "/apps/app-1";
+    render(<AssistantWidget />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+
+    expect(JSON.parse(chat().getAttribute("data-page-context")!)).toMatchObject({
+      path: "/apps/app-1",
+      title: "Quarterly report",
+    });
+    expect(screen.getByRole("switch", { name: "Use the current page" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("follows navigation while the conversation remains open and supports opting out", () => {
+    const { rerender } = render(<AssistantWidget />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+    expect(JSON.parse(chat().getAttribute("data-page-context")!)).toMatchObject({
+      path: "/agents",
+    });
+
+    state.pathname = "/runs";
+    rerender(<AssistantWidget />);
+    expect(JSON.parse(chat().getAttribute("data-page-context")!)).toMatchObject({ path: "/runs" });
+    fireEvent.click(screen.getByRole("switch", { name: "Use the current page" }));
+    expect(chat()).toHaveAttribute("data-page-context", "null");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Close" })[0]!);
+    state.pathname = "/skills";
+    rerender(<AssistantWidget />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+    expect(chat()).toHaveAttribute("data-page-context", "null");
+    fireEvent.click(screen.getByRole("switch", { name: "Use the current page" }));
+    expect(JSON.parse(chat().getAttribute("data-page-context")!)).toMatchObject({
+      path: "/skills",
+    });
+  });
+
+  it("clears the open floating session when the organization changes", () => {
+    render(<AssistantWidget />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+    expect(screen.getByRole("dialog")).toBeVisible();
+    act(() => useOrgStore.setState({ activeOrgId: "another-org" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("clears the open floating session when the signed-in account changes", () => {
+    render(<AssistantWidget />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+    act(() =>
+      useAuthStore.setState({
+        user: {
+          id: "another-person",
+          email: "another@example.test",
+          is_active: true,
+          created_at: "2026-01-01T00:00:00Z",
+        },
+      }),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
 

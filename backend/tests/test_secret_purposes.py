@@ -54,7 +54,9 @@ class TestTheCatalog:
         from app.agents.model_resolver import PROVIDERS
 
         ids = {entry.id for entry in secret_purposes.all_purposes()}
-        assert set(PROVIDERS) <= ids
+        keyed = {spec.id for spec in PROVIDERS.values() if spec.secret_kind is not SecretKind.NONE}
+        assert keyed <= ids
+        assert "claude-subscription" not in ids
 
     def test_each_purpose_declares_the_shape_it_takes(self):
         """The form follows from the service. A purpose with the wrong kind

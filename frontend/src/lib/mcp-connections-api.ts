@@ -20,8 +20,8 @@ export interface McpConnectionRecord {
   is_enabled: boolean;
   /** Whether the server's own instructions join the agent's. Off unless someone opted in. */
   include_instructions: boolean;
-  /** "bearer" (static token) or "oauth" (authorization-code flow). */
-  auth_type: "bearer" | "oauth";
+  /** Static token, direct OAuth, or provider-managed app authorization. */
+  auth_type: "bearer" | "oauth" | "composio";
   /** OAuth connection that finished consent and has usable tokens. */
   oauth_authorized: boolean;
   /**

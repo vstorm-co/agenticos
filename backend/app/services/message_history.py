@@ -207,6 +207,7 @@ class ModelHistory(list[ModelMessage]):
         provenance: HistoryProvenance | None = None,
         source: HistorySource | None = None,
         public_context: Sequence[ModelMessage] = (),
+        ordinal: int | None = None,
     ) -> None:
         super().__init__(messages)
         self.revision = revision
@@ -214,6 +215,10 @@ class ModelHistory(list[ModelMessage]):
         self.provenance = provenance
         self.source = source
         self.public_context = list(public_context)
+        # Manual compaction snapshots are fenced to the transcript high-water
+        # mark. Normal foreground histories leave this unset because their own
+        # turn writes must remain eligible for the active-run summary path.
+        self.ordinal = ordinal
 
     def extend_public_context(self, messages: Sequence[ModelMessage]) -> None:
         """Retain authorized channel context if private checkpoint replay is refused."""

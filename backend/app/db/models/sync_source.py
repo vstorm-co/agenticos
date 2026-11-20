@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -33,6 +33,7 @@ class SyncSource(TimestampMixin, Base):
     """
 
     __tablename__ = "sync_sources"
+    __table_args__ = (Index("ix_sync_sources_connected_account_id", "connected_account_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -71,6 +72,11 @@ class SyncSource(TimestampMixin, Base):
         ForeignKey("organization_secrets.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
+    )
+    connected_account_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("mcp_connections.id", ondelete="SET NULL"),
+        nullable=True,
     )
     # Which part of the organization the documents this source brings in belong
     # to, stamped on every chunk it ingests. Free text, and per source rather

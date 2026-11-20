@@ -164,7 +164,7 @@ describe("OnboardingTour", () => {
     expect(shownStep().popover?.progressText).toBe(`Step 1 of ${OWNER_LAUNCH}`);
   });
 
-  it("offers the console's languages on the welcome card, and only there (#2072)", async () => {
+  it("offers no language on the welcome card of an English-only deployment", async () => {
     servePermissions(OWNER);
     if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
@@ -172,15 +172,10 @@ describe("OnboardingTour", () => {
 
     const description = document.createElement("div");
     shownStep().popover?.onPopoverRender?.({ description } as never, {} as never);
+    expect(description.querySelector('[aria-label="Language"]')).toBeNull();
     const choices = Array.from(description.querySelectorAll("button"));
-    expect(description.querySelector('[role="group"]')).toHaveAttribute("aria-label", "Language");
-    expect(choices.find((b) => b.getAttribute("aria-pressed") === "true")?.textContent).toContain(
-      "English",
-    );
-    choices.find((b) => b.textContent?.includes("English"))?.click();
-    choices.find((b) => b.textContent?.includes("Polski"))?.click();
-    expect(localeRouter.push).toHaveBeenCalledTimes(1);
-    expect(localeRouter.push).toHaveBeenCalledWith("/dashboard", { locale: "pl" });
+    expect(choices.some((b) => b.textContent?.includes("English"))).toBe(false);
+    expect(localeRouter.push).not.toHaveBeenCalled();
 
     act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
     await waitFor(() => expect(shownStep().popover?.title).toBe("Slice the dashboard"));

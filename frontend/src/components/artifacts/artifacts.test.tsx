@@ -1,8 +1,19 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+  within,
+  type RenderOptions,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState, type ReactElement } from "react";
+import { NextIntlClientProvider } from "next-intl";
+import { Profiler, useState, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import messages from "../../../messages/en.json";
 
 import { AgentFilter } from "./agent-filter";
 import { ArtifactCard } from "./artifact-card";
@@ -35,6 +46,23 @@ import type {
   ArtifactView,
   BindingData,
 } from "@/types/artifact";
+
+/**
+ * The intl provider the root layout mounts above every page. The frame and the
+ * cards translate, and a component that translates throws without it. The zone
+ * is pinned so a date reads the same on every machine.
+ */
+function IntlProvider({ children }: { children: ReactNode }) {
+  return (
+    <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">
+      {children}
+    </NextIntlClientProvider>
+  );
+}
+
+function render(ui: ReactElement, options?: RenderOptions) {
+  return rtlRender(ui, { wrapper: IntlProvider, ...options });
+}
 
 const useArtifactViewMock = vi.fn();
 const useArtifactDataMock = vi.fn();
@@ -182,24 +210,28 @@ describe("the frame", () => {
       isLoading: false,
       data: { url: "https://x/c/t", nonce: "n", live: false, version: version(2) },
     });
-    let renders = 0;
-    let lent: DataBridge | null = null;
+    let commits = 0;
     function Host() {
       const [bridge, setBridge] = useState<DataBridge | null>(null);
-      renders += 1;
-      lent = bridge;
       return (
-        <ArtifactFrame
-          artifactId="a1"
-          versionId={null}
-          title="Report"
-          onBridge={(next) => setBridge(next)}
-        />
+        <>
+          <ArtifactFrame
+            artifactId="a1"
+            versionId={null}
+            title="Report"
+            onBridge={(next) => setBridge(next)}
+          />
+          <output data-testid="bridge-state">{bridge ? "ready" : "waiting"}</output>
+        </>
       );
     }
-    render(<Host />);
-    expect(lent).not.toBeNull();
-    expect(renders).toBeLessThan(5);
+    render(
+      <Profiler id="artifact-bridge" onRender={() => (commits += 1)}>
+        <Host />
+      </Profiler>,
+    );
+    expect(screen.getByTestId("bridge-state")).toHaveTextContent("ready");
+    expect(commits).toBeLessThan(5);
   });
 
   it("shows a skeleton while the address is minted", () => {

@@ -19,7 +19,7 @@ gated on *this* permission, and nothing else" an assertion rather than a hope.
 
 import re
 from collections.abc import AsyncIterator, Callable, Iterator
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager, nullcontext
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -208,6 +208,13 @@ class Call:
     """Appended verbatim, so it carries its own `?` - there is no route here that
     needs one twice and no reason for this to guess."""
 
+    also: Perm | None = None
+    """A second permission that admits the caller on its own, for a gate that reads
+    "either". The refusal test then withholds both, and each must get through alone."""
+
+    read_only: bool = False
+    """A POST that only computes an answer - no write - so a Viewer may call it."""
+
     upload: bool = False
     """A multipart route, which is sent a token file rather than a JSON body.
 
@@ -271,6 +278,22 @@ CALLS: tuple[Call, ...] = (
     ),
     Call("GET", "/agents/mcp-catalog", Perm.AGENTS_VIEW),
     Call("GET", "/agents", Perm.AGENTS_VIEW),
+    # Agent messages: the collection routes gate on `agents:run` - the same
+    # permission the service demands on both agents of a thread - while every
+    # per-thread route resolves access against the agents in that thread, in
+    # the service. The per-thread routes are deliberately absent here.
+    Call("GET", "/agent-messages", Perm.AGENTS_RUN),
+    Call("GET", "/agent-messages/recipients", Perm.AGENTS_RUN),
+    Call(
+        "POST",
+        "/agent-messages",
+        Perm.AGENTS_RUN,
+        body={
+            "sender_agent_id": str(uuid4()),
+            "recipient": str(uuid4()),
+            "body": "hello",
+        },
+    ),
     # How close the organization is to its agent limit: only a caller who can
     # create an agent has a use for it.
     Call("GET", "/agents/ceiling", Perm.AGENTS_EDIT),
@@ -306,6 +329,7 @@ CALLS: tuple[Call, ...] = (
     # named in the query - a role gate refused the Viewer whose one run grant is
     # exactly what lets them create the trigger there.
     Call("GET", "/runs", Perm.RUNS_VIEW),
+    Call("GET", "/failure-learning/patterns", Perm.RUNS_VIEW),
     Call(
         "GET",
         "/runs/export",
@@ -313,6 +337,7 @@ CALLS: tuple[Call, ...] = (
         query="?started_from=2020-01-01T00:00:00&started_to=2020-01-02T00:00:00",
     ),
     Call("GET", "/runs/{run_id}", Perm.RUNS_VIEW),
+    Call("POST", "/runs/{run_id}/retry", Perm.RUNS_VIEW),
     Call("GET", "/runs/{run_id}/parked", Perm.APPROVALS_DECIDE),
     Call("POST", "/runs/{run_id}/resume", Perm.APPROVALS_DECIDE),
     Call("GET", "/approvals", Perm.APPROVALS_DECIDE),
@@ -420,6 +445,23 @@ CALLS: tuple[Call, ...] = (
         },
     ),
     Call("POST", "/workflows/import", Perm.WORKFLOWS_CREATE, body={"name": "Imported"}),
+    # A cost estimate: no credential unwrap, provider call or write.
+    Call(
+        "POST",
+        "/workflows/media-estimate",
+        Perm.WORKFLOWS_VIEW,
+        body={
+            "kind": "image",
+            "config": {"provider": "openai", "model": "gpt-image-1.5", "secret_id": str(_SOME_ID)},
+        },
+        read_only=True,
+    ),
+    Call(
+        "POST",
+        "/workflows/media-operations/{operation_id}/resolve",
+        Perm.BUDGETS_MANAGE,
+        body={"outcome": "not_charged"},
+    ),
     Call("GET", "/workflow-runs", Perm.WORKFLOWS_VIEW),
     # Which providers exist and what shape of credential each takes is read by
     # the Builder's model picker, so it is gated on seeing agents rather than on
@@ -433,10 +475,12 @@ CALLS: tuple[Call, ...] = (
     # Gated the same way and for the same reason: it is the Builder's picker, and
     # "OpenAI draws through the Responses API" is not a secret.
     Call("GET", "/agents/mcp-servers", Perm.AGENTS_VIEW),
-    Call("GET", "/providers/image-models", Perm.AGENTS_VIEW),
+    # The two media catalogs are also the workflow media nodes' pickers, so a
+    # workflow viewer reads them too (`require_media_catalog_access`).
+    Call("GET", "/providers/image-models", Perm.AGENTS_VIEW, also=Perm.WORKFLOWS_VIEW),
     Call("GET", "/providers/speech-to-text-models", Perm.AGENTS_VIEW),
     Call("GET", "/providers/text-to-speech-models", Perm.AGENTS_VIEW),
-    Call("GET", "/providers/video-models", Perm.AGENTS_VIEW),
+    Call("GET", "/providers/video-models", Perm.AGENTS_VIEW, also=Perm.WORKFLOWS_VIEW),
     Call("GET", "/providers/realtime-models", Perm.AGENTS_VIEW),
     # The organization's call minutes by agent, for the dashboard figure and the
     # Voice card: what the organization spent time on, read like its runs.
@@ -686,7 +730,9 @@ CALLS: tuple[Call, ...] = (
     Call("POST", "/context-changes/{proposal_id}/discard", Perm.CONTEXT_EDIT, body={"revision": 1}),
 )
 
-WRITE_CALLS: tuple[Call, ...] = tuple(call for call in CALLS if call.method != "GET")
+WRITE_CALLS: tuple[Call, ...] = tuple(
+    call for call in CALLS if call.method != "GET" and not call.read_only
+)
 
 
 class TestEachRouteDemandsItsOwnPermission:
@@ -702,13 +748,21 @@ class TestEachRouteDemandsItsOwnPermission:
     @pytest.mark.parametrize("call", CALLS, ids=str)
     @pytest.mark.usefixtures("synthetic_roles")
     async def test_a_caller_missing_only_that_permission_is_refused(
-        self, call: Call, as_role: ClientFactory
+        self, call: Call, as_role: ClientFactory, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        async with as_role(all_but(call.permission)) as client:
+        role = all_but(call.permission)
+        withheld = {call.permission, call.also}
+        if call.also is not None:
+            role = f"{role}:{call.also.value}"
+            monkeypatch.setitem(
+                ROLE_PERMS, role, {other: Scope.ALL for other in Perm if other not in withheld}
+            )
+        async with as_role(role) as client:
             response = await _send(client, call)
 
         assert response.status_code == 403, (
-            f"{call} admitted a caller holding every permission except {call.permission.value}"
+            f"{call} admitted a caller holding every permission except "
+            f"{sorted(p.value for p in withheld if p is not None)}"
         )
 
     @pytest.mark.security
@@ -722,12 +776,15 @@ class TestEachRouteDemandsItsOwnPermission:
         422 is excluded as well: a request the app rejects as malformed never
         reached the gate, and would make this test pass for the wrong reason.
         """
-        async with as_role(only(call.permission)) as client:
-            response = await _send(client, call)
+        for permission in (call.permission, call.also):
+            if permission is None:
+                continue
+            async with as_role(only(permission)) as client:
+                response = await _send(client, call)
 
-        assert response.status_code not in (403, 422), (
-            f"{call} refused a caller holding {call.permission.value}"
-        )
+            assert response.status_code not in (403, 422), (
+                f"{call} refused a caller holding {permission.value}"
+            )
 
 
 class TestViewersCannotWrite:
@@ -844,7 +901,10 @@ class TestPermissionIntrospectionIsOpenToEveryMember:
     async def test_every_role_can_read_its_own_permissions(
         self, role: OrgRoleName, as_role: ClientFactory
     ) -> None:
-        async with as_role(role) as client:
+        navigation = SimpleNamespace(for_caller=AsyncMock(return_value=[]))
+        async with as_role(
+            role, overrides={deps.get_role_navigation_service: lambda: navigation}
+        ) as client:
             response = await client.get(f"{settings.API_V1_STR}/me/permissions")
 
         assert response.status_code == 200
@@ -869,6 +929,10 @@ class TestPermissionIntrospectionIsOpenToEveryMember:
 # brought with it authenticates differently and is not this file's business.
 _PLATFORM_PREFIXES = (
     "/agents",
+    # Agent messages: the collection routes gate on `agents:run`, and every
+    # per-thread route resolves `agents:run` against the agents in that thread
+    # inside the service - so the sweep must reach them here.
+    "/agent-messages",
     # Organization API keys. Issuing gates on `api_keys:create`; listing and
     # revoking act on the caller's own keys unless they hold `api_keys:manage`,
     # which the service decides per row.
@@ -960,6 +1024,10 @@ _PLATFORM_PREFIXES = (
     # Call minutes (#54). The call socket itself is `/ws/voice`, outside this
     # prefix, and an agent's readiness lives under `/agents`.
     "/voice",
+    # The failure-learning loop's org-wide patterns list, gated on
+    # `runs:view` like `GET /runs`. (Its per-agent routes live under
+    # `/agents`.)
+    "/failure-learning",
 )
 
 
@@ -1032,6 +1100,9 @@ def _required_permissions(route: RouteContext) -> frozenset[Perm]:
 # authorized even without a `require()` gate - and *must* be, for anything
 # acting on a single resource.
 RESOURCE_AWARE_SERVICES = (
+    # Room routing rechecks the signed-in member's room, project-edit policy
+    # authority and requester-only decisions before touching canonical Tasks.
+    deps.get_room_routing_service,
     deps.get_sharing_service,
     # Listing and revoking API keys act on the caller's own unless they hold
     # `api_keys:manage`; the service decides per key, and answers a key that is
@@ -1052,6 +1123,12 @@ RESOURCE_AWARE_SERVICES = (
     # agent, and which version answers under which name is `agents:publish` on
     # that agent, resolved against its grants.
     deps.get_agent_environment_service,
+    # A thread is between two agents and has no grants of its own: every
+    # per-thread route resolves `agents:run` against the agents in it, inside
+    # the service - sending needs it on both, reading on either - so a viewer
+    # with an explicit run grant on one of them is not refused before the
+    # service can widen their access.
+    deps.get_agent_message_service,
     # A secret is a shared resource: who may edit or delete one is its grants'
     # answer, resolved inside the service exactly as it is for an agent.
     deps.get_secret_service,
@@ -1102,6 +1179,10 @@ RESOURCE_AWARE_SERVICES = (
     # A step's evals are its workflow's: writing and trying them is
     # `workflows:edit` on that workflow, resolved against its grants.
     deps.get_workflow_eval_service,
+    # The failure-learning loop's per-agent routes are its agent's: reading
+    # and curating are `agents:view`/`agents:edit` on that agent, resolved
+    # against its grants - the same shape as a step's evals are its workflow's.
+    deps.get_failure_learning_service,
     # Exporting a workflow reads it through the same registry, so the file is
     # `workflows:view` on that workflow, resolved against its grants (#1953).
     deps.get_workflow_portable_service,
@@ -1249,11 +1330,17 @@ class _NoGrantsSession:
 
     def __init__(self, resource: _SomeoneElsesResource) -> None:
         self._resource = resource
+        self.no_autoflush = nullcontext()
+        self.statements: list[str] = []
+
+    def get_transaction(self) -> None:
+        return None
 
     async def get(self, model: Any, primary_key: Any) -> _SomeoneElsesResource:
         return self._resource
 
-    async def execute(self, statement: Any) -> _NoRows:
+    async def execute(self, statement: Any, parameters: dict[str, object] | None = None) -> _NoRows:
+        self.statements.append(str(statement))
         return _NoRows()
 
 
@@ -1272,6 +1359,7 @@ def _sharing_calls() -> list[tuple[str, str, dict[str, Any] | None]]:
     ]
 
 
+@pytest.mark.security
 class TestSharingRoutesRefuseWithoutAGrant:
     """What the missing `require()` on those routes is replaced by.
 
@@ -1299,6 +1387,9 @@ class TestSharingRoutesRefuseWithoutAGrant:
         # A row the caller cannot view is reported as missing, reading and
         # changing alike, so the sharing routes cannot be used to probe ids (#2619).
         assert response.status_code == 404
+        assert all(statement.lstrip().startswith("SELECT ") for statement in session.statements)
+        if path.startswith("/tables/"):
+            assert any("FROM pg_catalog.pg_class AS c " in sql for sql in session.statements)
 
     @pytest.mark.parametrize(
         ("method", "path", "body"),
@@ -1327,6 +1418,9 @@ class TestSharingRoutesRefuseWithoutAGrant:
             response = await client.request(method, _url(path), json=body)
 
         assert response.status_code == 403
+        assert all(statement.lstrip().startswith("SELECT ") for statement in session.statements)
+        if path.startswith("/tables/"):
+            assert any("FROM pg_catalog.pg_class AS c " in sql for sql in session.statements)
 
 
 class TestReadingWhatARunIsParkedOn:
@@ -1466,6 +1560,15 @@ class TestTheQueueNamesWhatItAsks:
         assert (item["tool_id"], item["capability_tool_id"]) == ("change_ticket", "update_record")
 
 
+@pytest.fixture
+def ordinary_run_without_room_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These HTTP contracts resume a regular run, outside a room delivery."""
+    monkeypatch.setattr("app.services.parked_runs.room_repo.for_run", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        "app.services.parked_runs.turn_repo.legacy_room_pause", AsyncMock(return_value=None)
+    )
+
+
 class TestResumeConveysAFailedContinuation:
     """A resume whose continuation raised is a 5xx that still names the run's status.
 
@@ -1477,7 +1580,10 @@ class TestResumeConveysAFailedContinuation:
     """
 
     async def test_a_failed_resume_answers_5xx_with_the_status_in_the_body(
-        self, as_role: ClientFactory, synthetic_roles: None
+        self,
+        as_role: ClientFactory,
+        synthetic_roles: None,
+        ordinary_run_without_room_request: None,
     ) -> None:
         run_id = uuid4()
 
@@ -1511,7 +1617,10 @@ class TestResumeAnswersWithWhatTheContinuationDid:
     """
 
     async def test_the_continuations_tool_calls_are_in_the_response(
-        self, as_role: ClientFactory, synthetic_roles: None
+        self,
+        as_role: ClientFactory,
+        synthetic_roles: None,
+        ordinary_run_without_room_request: None,
     ) -> None:
         run = MagicMock(
             id=uuid4(),
@@ -1982,6 +2091,9 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", f"{V1}/auth/password-reset/confirm"),
         ("POST", f"{V1}/auth/magic-link/request"),
         ("POST", f"{V1}/auth/magic-link/verify"),
+        # Completes sign-in using the short-lived first-factor challenge and a valid
+        # second factor; it cannot require the session it exists to issue.
+        ("POST", f"{V1}/auth/mfa/verify"),
         # A phone signing in by scanning the code a signed-in console shows
         # (#2097). The phone has no session yet - that is what it is getting -
         # and the single-use, one-minute code is the credential, as a magic
@@ -2389,7 +2501,10 @@ class TestAQuestionTheRunParkedOn:
         assert response.json()[0]["questions"][0]["header"] == "Tone"
 
     async def test_an_answer_continues_the_run_and_says_what_it_did(
-        self, as_role: ClientFactory, synthetic_roles: None
+        self,
+        as_role: ClientFactory,
+        synthetic_roles: None,
+        ordinary_run_without_room_request: None,
     ) -> None:
         run = self._run()
         service = MagicMock(

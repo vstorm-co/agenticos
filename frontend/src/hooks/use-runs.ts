@@ -14,6 +14,7 @@ import type {
   AgentRunList,
   ApprovalList,
   CostSummary,
+  RetriedRun,
   ResumedRun,
   RunManifest,
   RunSource,
@@ -519,6 +520,33 @@ export function useResumeRun(options?: { ignoreStillParked?: boolean; continuesI
       }
       if (options?.ignoreStillParked && stillAwaitingDecision(error)) return;
       toast.error(getErrorMessage(error, tErrors, t("resumeFailed")));
+    },
+  });
+}
+
+/**
+ * Run a finished run's request again, as a new run linked to it.
+ *
+ * A retry executes the agent, so it is a mutation that takes the length of
+ * a run - the button stays disabled while it is pending, and a second tap
+ * while the first is still going would start a second new run rather than
+ * find the first. `onRetried` steps the detail view to the new run: the
+ * answer arrives in the response, but the run is where it is read, with
+ * its own error if this attempt fails too.
+ */
+export function useRetryRun(options?: { onRetried?: (runId: string) => void }) {
+  const tErrors = useTranslations("errors");
+  const t = useTranslations("pages.runs");
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (runId: string) => apiClient.post<RetriedRun>(`/runs/${runId}/retry`),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: qk.runs.all() });
+      toast.success(t("runRetried"));
+      options?.onRetried?.(result.run_id);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, tErrors, t("retryFailed")));
     },
   });
 }

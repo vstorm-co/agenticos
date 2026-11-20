@@ -29,6 +29,7 @@ interface Agenticos {
   onData: (fn: (bindings: Bindings) => void) => void;
   run: (action: unknown, input?: unknown) => Promise<unknown>;
   onRun: (fn: (event: unknown) => void) => () => void;
+  setAssistantContext: (details: unknown) => void;
 }
 
 interface Parent {
@@ -130,7 +131,8 @@ describe("the artifact data bridge", () => {
     await expect(agenticos.data).resolves.toEqual({ deals: UNAVAILABLE, owners: UNAVAILABLE });
     vi.advanceTimersByTime(20_000);
     expect(parent.postMessage).not.toHaveBeenCalled();
-    expect(listeners).toHaveLength(0);
+    // The explicit assistant context listener also serves static apps.
+    expect(listeners).toHaveLength(1);
   });
 
   it("resolves every binding unavailable at once with no parent", async () => {
@@ -372,11 +374,14 @@ describe("the artifact data bridge answered at load", () => {
   });
 
   it("is answered at load even without a parent or when not live", async () => {
-    for (const run of [start({ initial }, { orphan: true }), start({ initial, live: false })]) {
+    const orphan = start({ initial }, { orphan: true });
+    const staticPage = start({ initial, live: false });
+    for (const run of [orphan, staticPage]) {
       await expect(run.agenticos.data).resolves.toEqual({ deals: OK, owners: UNAVAILABLE });
-      expect(run.listeners).toHaveLength(0);
       expect(run.parent.postMessage).not.toHaveBeenCalled();
     }
+    expect(orphan.listeners).toHaveLength(0);
+    expect(staticPage.listeners).toHaveLength(1);
   });
 
   it("asks as before when the page carries no initial data", () => {
@@ -572,5 +577,117 @@ describe("the artifact actions bridge", () => {
     expect(seen).not.toHaveBeenCalled();
     dispatch(good);
     expect(seen).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the explicit assistant context bridge", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("publishes only explicit bounded view data, including for static apps", () => {
+    const { agenticos, parent } = start({ live: false });
+    expect(parent.postMessage).not.toHaveBeenCalled();
+    const filters = { stage: "won" };
+    const selected_ids = ["deal-1"];
+    agenticos.setAssistantContext({
+      title: "Forged title",
+      resource: { kind: "secret", id: "other" },
+      view: "pipeline",
+      filters,
+      selected_ids,
+      summary: "One won deal",
+      selected_text: "Explicit selection",
+      inputValue: "Never sent",
+    });
+    filters.stage = "lost";
+    selected_ids.push("deal-2");
+    expect(parent.postMessage).toHaveBeenCalledExactlyOnceWith(
+      {
+        type: "assistant_context",
+        n: "nonce-1",
+        context: {
+          view: "pipeline",
+          filters: { stage: "won" },
+          selected_ids: ["deal-1"],
+          summary: "One won deal",
+          selected_text: "Explicit selection",
+        },
+      },
+      "*",
+    );
+  });
+
+  it("replays the last detached context only to a parent request under this nonce", () => {
+    const { agenticos, parent, dispatch } = start({ live: false });
+    agenticos.setAssistantContext({ summary: "Current view" });
+    parent.postMessage.mockClear();
+    const request = { type: "assistant_context_request", n: "nonce-1" };
+    dispatch(request, { other: true });
+    dispatch({ ...request, n: "old" });
+    dispatch({ ...request, type: "other" });
+    dispatch(null);
+    expect(parent.postMessage).not.toHaveBeenCalled();
+    dispatch(request);
+    expect(parent.postMessage).toHaveBeenCalledExactlyOnceWith(
+      {
+        type: "assistant_context",
+        n: "nonce-1",
+        context: { summary: "Current view" },
+      },
+      "*",
+    );
+    agenticos.setAssistantContext(null);
+    expect(parent.postMessage).toHaveBeenLastCalledWith(
+      {
+        type: "assistant_context",
+        n: "nonce-1",
+        context: null,
+      },
+      "*",
+    );
+  });
+
+  it("caps context sizes, omits invalid fields, and never changes an object's prototype", () => {
+    const { agenticos, parent } = start({ live: false });
+    const filters = Object.fromEntries([
+      ["__proto__", "ignored"],
+      ["", "ignored"],
+      ["numeric", 5],
+      ...Array.from({ length: 25 }, (_, index) => ["filter" + index, "x".repeat(300)]),
+    ]);
+    agenticos.setAssistantContext({
+      view: "v".repeat(200),
+      filters,
+      selected_ids: ["", null, ...Array.from({ length: 25 }, () => "i".repeat(200))],
+      summary: "s".repeat(7000),
+      selected_text: "t".repeat(3000),
+    });
+    const message = parent.postMessage.mock.calls.at(-1)?.[0] as {
+      context: {
+        view: string;
+        filters: Record<string, string>;
+        selected_ids: string[];
+        summary: string;
+        selected_text: string;
+      };
+    };
+    expect(message.context.view).toHaveLength(120);
+    expect(Object.keys(message.context.filters)).toHaveLength(20);
+    expect(Object.values(message.context.filters).every((value) => value.length === 240)).toBe(
+      true,
+    );
+    expect(Object.getPrototypeOf(message.context.filters)).toBe(Object.prototype);
+    expect(Object.hasOwn(message.context.filters, "__proto__")).toBe(false);
+    expect(message.context.selected_ids).toHaveLength(20);
+    expect(message.context.selected_ids.every((id) => id.length === 128)).toBe(true);
+    expect(message.context.summary).toHaveLength(6000);
+    expect(message.context.selected_text).toHaveLength(2000);
+  });
+
+  it("does not post without a parent or a nonempty load nonce", () => {
+    for (const run of [start({ live: false }, { orphan: true }), start({ live: false, n: "" })]) {
+      run.agenticos.setAssistantContext({ summary: "Local only" });
+      expect(run.parent.postMessage).not.toHaveBeenCalled();
+    }
   });
 });

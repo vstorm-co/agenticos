@@ -1,5 +1,5 @@
 ---
-source_sha: "79ff311d2516"
+source_sha: "248db60fab7b"
 ---
 
 # La consola { #the-console }
@@ -44,7 +44,7 @@ al micrófono.
 
 Las listas de recursos, incluidas Inbox y Routines, ocupan la altura restante de la página incluso cuando están vacías. Las plantillas de Routines siguen en el formulario de creación, sin un panel de ideas aparte.
 
-El chat usa retratos de agentes más grandes y sin marcos. El control Files permanece en el cuadro de mensaje al abrir y cerrar el panel; la animación respeta la preferencia de movimiento reducido. Los ajustes del chat muestran primero el modelo actual. **Change model** abre el formulario del proveedor y del modelo ya rellenados; el cambio solo se aplica al confirmarlo. Las tarjetas de adjuntos aparecen sobre el cuadro de mensaje sin otro panel con sombra.
+El chat usa retratos de agentes más grandes y sin marcos. En la vista completa del chat de escritorio, el control Files permanece entre los controles del espacio de trabajo al abrir y cerrar el panel; la animación respeta la preferencia de movimiento reducido. Los ajustes del chat muestran primero el modelo actual. **Change model** abre el formulario del proveedor y del modelo ya rellenados; el cambio solo se aplica con **Run on this model**. Las tarjetas de adjuntos aparecen sobre el cuadro de mensaje sin otro panel con sombra.
 
 Las introducciones de páginas y explicaciones de ajustes están en el icono de información junto al encabezado. Los resúmenes actuales y avisos de acciones destructivas siguen visibles.
 
@@ -72,7 +72,7 @@ Los agentes de una conversación se ordenan por su último mensaje o ejecución 
 
 Cuando **Approve everything** no está disponible, los ajustes del chat distinguen entre la falta de permiso para decidir aprobaciones y una política de la organización que desactiva el consentimiento permanente. Quien puede decidir aprobaciones recibe un enlace a **Presupuesto y aprobaciones** para cambiar esa política expresamente. El chat nunca modifica la política de la organización automáticamente.
 
-El área de mensaje muestra el modo de aprobación activo junto al selector del agente. Abre la etiqueta para cambiar el modo guardado antes de enviar. Se aplican los mismos permisos y la política de la organización que en Chat controls. Las llamadas aprobadas automáticamente conservan sus registros de auditoría aprobados; solo las llamadas realmente pendientes muestran controles para decidir.
+El campo de mensaje muestra el modo de aprobación activo junto al selector del agente. Abre la etiqueta para cambiar el modo guardado antes de enviar. Se aplican las mismas comprobaciones de permisos y de exención de la organización que en Chat controls. Las llamadas aprobadas automáticamente conservan sus registros de auditoría; solo las llamadas realmente pendientes muestran controles para decidir.
 
 Los diálogos mantienen un margen de 12 px en todos los bordes del teléfono. Los encabezados compactos muestran título y acciones en una línea cuando caben. La descripción de Context se abre desde la barra del editor.
 
@@ -85,6 +85,10 @@ En teléfonos, los editores de skills y contexto mantienen plegadas la descripci
 Los encabezados utilizan el espaciado del diseño que los rodea sin duplicarlo. Las tarjetas, las filas de la barra lateral, las pestañas y los estados vacíos tienen un espaciado más compacto en escritorio; los controles conservan áreas táctiles mayores.
 
 Los botones secundarios y los filtros comparten un relleno más visible, etiquetas con contraste y estados claros al pasar el cursor, pulsar o abrir un menú. El selector de modelo del chat utiliza el mismo estilo.
+
+El encabezado del chat de un agente muestra el modelo actual con el icono del provider. Abre el selector para buscar modelos guardados, cambiar de provider o cuenta, o elegir **Use agent's model**. La selección se aplica al próximo mensaje y se recuerda para tu cuenta en la organización actual; no edita el agente. El turno activo conserva su modelo. Las conexiones desconectadas y los modelos sin chat siguen visibles, pero no se pueden seleccionar. Si no se puede leer la lista, aparece **Retry**. **Chat controls** junto al cuadro de mensaje, mantiene la configuración completa de modelos y conexiones.
+
+Cambiar la selección del encabezado requiere `connections:manage`, igual que los controles de modelo existentes. Las conversaciones de solo lectura y quienes no tienen ese permiso siguen mostrando el modelo actual.
 
 Los ajustes personales usan pestañas horizontales desplazables en escritorio y teléfono. Las explicaciones se abren desde los botones de información; los requisitos de los campos, los errores de validación y las advertencias de eliminación siguen visibles. Cuenta contiene los cambios de contraseña y las sesiones activas.
 
@@ -378,9 +382,22 @@ En un teléfono no hay bocadillo - taparía la página de la que habla - y el bo
 lleva el punto en su lugar. Las aprobaciones que ya mencionó siguen mencionadas
 durante el resto de la pestaña, aunque un enlace recargue la consola.
 
-Su ventana es el propio chat de la consola, no una página dentro de la página, y
-se abre con cuatro mosaicos, para que el primer mensaje sea un clic; guarda su
-propio historial de conversaciones. En un teléfono ocupa toda la pantalla.
+Su ventana usa el chat de la consola y empieza con el asistente principal
+seleccionado. El selector de agents de la cabecera permite elegir un agent
+publicado que tengas permiso para ejecutar. Cambiar de agent conserva la
+conversación actual; la cabecera y el historial siguen la selección. Los mosaicos
+de bienvenida del Architect solo aparecen con el asistente principal seleccionado.
+En un teléfono la ventana ocupa toda la pantalla.
+
+Cada pregunta nueva incluye contexto estructurado y actualizado de la página
+actual de la consola mientras esté activado el contexto de página. La ventana
+muestra qué página se compartirá y permite desactivar esa opción.
+
+Una pregunta en cola o el reintento de un envío rechazado conserva el contexto
+de página y el agent seleccionado al enviarla. Una pregunta nueva o una respuesta
+regenerada usa la página y el agent actuales. Cambiar de cuenta u organización
+restablece la conversación de la ventana, la selección de agent y la opción de
+contexto de página.
 
 Cuando nombra una página, el enlace la abre en la consola detrás de la ventana y
 señala el control al que se refiere — el botón que crea un agent, la pestaña de
@@ -388,7 +405,7 @@ aprobaciones. La cámara de su cabecera le muestra la página en la que estás: 
 navegador pregunta qué pestaña compartir y una imagen se adjunta a tu próximo
 mensaje.
 
-Planifica los trabajos largos como una lista que puedes seguir, guarda
+El Architect planifica los trabajos largos como una lista que puedes seguir, guarda
 notas sobre ti entre conversaciones, te dice cuánto cuestan tus agents y solo
 borra un borrador de agent que creó por error y una rutina que le pidas quitar.
 Además de las
@@ -665,11 +682,48 @@ publicación - como una tarjeta en su respuesta. Cada parte tiene su propio icon
 copiar, que copia texto plano; varias variantes de un borrador son pestañas en la
 misma tarjeta. El **Copiar** propio de un mensaje incluye también sus borradores.
 
+**Navegador (Browser), Equipo (Computer) y Archivos (Files).** En la vista completa
+del chat de escritorio, los controles están a la derecha y abren un panel de
+navegador, equipo o archivos. Esta barra está oculta en teléfonos y chats compactos.
+
+Puedes abrir
+los paneles de navegador y equipo antes de que el agent los use. Abrir un panel
+vacío no inicia ningún run ni sesión alojada.
+
+Introduce la dirección de la página en el panel Navegador antes de iniciarlo. Si el agent seleccionado tiene la
+capability alojada correspondiente y puedes ejecutarlo, una acción explícita de
+inicio le pide que abra el navegador o capture el escritorio. De lo contrario,
+el panel explica qué no está disponible. Siguen vigentes la configuración
+publicada y los controles de acceso del agent. En las salas de equipo, elige quién
+debe responder en el cuadro de mensaje de la sala y pídele que abra el navegador
+o el equipo. Los paneles siguen disponibles para verlos.
+
+Las vistas de navegador y equipo permanecen separadas. Los paneles empiezan
+cerrados; al cerrar uno, permanece cerrado cuando llegan nuevos resultados de
+herramientas. En pantallas estrechas, el panel seleccionado ocupa toda la pantalla.
+Tras un run, la imagen terminada lleva la etiqueta **Última vista (Last view)**;
+no es un escritorio en directo. Pide otra captura para actualizar la vista del equipo.
+
+**Ajustes del agente.** En los chats completos de escritorio, el control de ajustes
+de la derecha abre el borrador del agente seleccionado junto a la conversación.
+La barra está oculta en teléfonos y chats compactos; usa allí el editor completo
+del agente. Edita su nombre, descripción breve,
+instrucciones, modelo predeterminado y los interruptores de las capabilities existentes; después elige
+**Save draft**. **Review and publish** valida el borrador guardado y abre la
+confirmación de publicación existente. Cambiar el modelo predeterminado no elimina
+la selección de modelo de Chat controls; un turno activo conserva su configuración congelada.
+
+La edición y la publicación siguen la decisión del servidor para ese agente,
+incluidos los grants explícitos. Los chats de solo lectura muestran los ajustes
+sin controles de edición; los agentes de un workflow se configuran en ese workflow.
+Cerrar el panel o abrir Browser, Computer o Files conserva los cambios sin guardar
+del agente seleccionado. Guarda antes de cambiar de agente o salir del chat. Los
+cambios externos detienen el guardado hasta que recargues o decidas conservar tus
+cambios.
+
 **Ver un recorrido.** El [navegador web](reference/capabilities.md#browser-automation)
-se abre automáticamente en un panel lateral a toda altura junto al chat.
-En pantallas estrechas ocupa toda la pantalla. Al cerrar el panel queda
-un enlace compacto en la conversación para volver a abrirlo. Las tarjetas de
-páginas visitadas muestran el icono del sitio, el dominio y el título, también
+aparece en su propio panel junto al chat. Las tarjetas de páginas visitadas
+vuelven a abrir el panel del navegador y muestran el icono del sitio, el dominio y el título, también
 al volver a abrir la conversación. Cada respuesta conserva una tarjeta por pestaña
 del navegador; los clics, las nuevas lecturas y volver atrás actualizan esa tarjeta.
 La barra de pestañas del panel cambia de página. Al terminar queda la última imagen. **Reanudar sesión** pide al
@@ -752,7 +806,7 @@ pudo transcribir se guarda hasta que pulses **Retry** o **Discard**.
 
 El brillo alrededor del cuadro de una página alojada mientras hablas sigue a **Voice glow** en
 **Settings → Profile → Appearance**, junto al tema y a **Motion**: **Vivid**,
-**Subtle** (por defecto) u **Off**. Se recuerda por navegador. **Motion** decide
+**Subtle** (por defecto) u **Off**. Apply lo guarda en tu cuenta. **Motion** decide
 cuánto se mueve toda la consola: **System** (por defecto) sigue el ajuste de
 movimiento reducido del sistema operativo, **Reduce** reduce el movimiento sin
 él y **Full** lo mantiene diga lo que diga el sistema operativo. Mientras el
@@ -761,7 +815,7 @@ y el nivel es un indicador de cinco pasos.
 
 **Workflow steps** en la misma tarjeta elige cómo dibuja un paso el lienzo del
 workflow: **In colour** (por defecto) dibuja cada paso en su familia,
-**Simple** deja las fichas neutras y el minimapa gris. Se recuerda por navegador; la
+**Simple** deja las fichas neutras y el minimapa gris. Se guarda en tu cuenta; la
 barra de herramientas del lienzo tiene el mismo interruptor. Véase
 [Cómo se dibuja un paso](workflows.md#how-a-step-is-drawn).
 
@@ -913,7 +967,49 @@ El texto y los medios externalizados de un resumen válido se restauran dentro d
 
 Una conversación con una lista de tareas guardada solo puede bifurcarse en su último mensaje, que debe ser una respuesta del asistente. La copia conserva esa lista, incluidos los identificadores de tareas y las dependencias. No se guardan versiones anteriores de la lista, por lo que se rechaza una bifurcación anterior para evitar copiar tareas posteriores en un historial más antiguo.
 
+### Conversaciones paralelas { #chat-side-threads }
+
+En una respuesta completada del asistente dentro de una conversación personal de tu propiedad, **Conversaciones paralelas** permite iniciar otra conversación desde ese punto o reabrir una rama de la misma respuesta. La rama se abre junto a la original con su propio cuadro de escritura y sus mensajes posteriores. El historial, el borrador y la cola de la conversación original se conservan; los mensajes enviados en la rama pertenecen a ella.
+
+**Volver a la conversación original** cierra el panel lateral y abre la respuesta de origen exacta, cargando mensajes anteriores cuando hace falta. Cerrar el panel no elimina la rama. Cambiar la conversación de origen, la cuenta o la organización retira el panel anterior. Las ramas archivadas se abren en modo de solo lectura. La lista permite cargar más ramas de esta respuesta; los errores de lectura o creación se pueden reintentar sin cambiar la conversación principal.
+
+### Compactar el contexto de la conversación { #chat-compact-now }
+
+En una conversación personal inactiva de tu propiedad, **Compactar ahora** en la cabecera pide al agente publicado que resuma el contexto anterior. La acción aparece cuando el agente tiene una estrategia de compactación por resumen compatible. Los mensajes guardados y tu borrador siguen disponibles. No se ofrece en discusiones de sala, chats archivados o de solo lectura, flujos de trabajo ni paneles de prueba de borradores.
+
+Un aviso sobre el editor muestra el progreso y el resultado: contexto compactado, sin reducción adicional, ocupado, no disponible o fallido. El envío y el inicio de llamadas de voz se pausan durante la compactación; **Detener** cancela la solicitud. Cambiar de conversación no la repite. La acción utiliza el modelo seleccionado para el chat cuando corresponde y respeta los presupuestos habituales de uso. El indicador de contexto conserva la última medición hasta una solicitud posterior al modelo.
+
+### Responder a texto seleccionado { #chat-selected-quote }
+
+Selecciona un pasaje de un mensaje guardado y elige **Responder**. El editor conserva el fragmento, de hasta 280 caracteres, junto con el mensaje de origen. Al enviarlo, el texto seleccionado se mantiene al volver a abrir la conversación y en el contexto que lee el agente. Funciona en chats personales y discusiones de sala donde puedes escribir. Sin texto seleccionado, **Responder** mantiene su comportamiento para el mensaje completo.
+
+Las selecciones que abarcan distintos mensajes o controles interactivos no se usan como citas. Un pasaje de una respuesta combinada del asistente conserva el vínculo con el segmento guardado del que procede. Un segmento que todavía no se ha guardado no puede convertirse en una respuesta citada.
+
+### Mensajes fijados { #chat-message-pins }
+
+Elige **Fijar mensaje** en un mensaje guardado para conservar un marcador personal. **Mensajes fijados** en la cabecera de la conversación abre tu lista. Selecciona un fragmento para volver al mensaje exacto, incluso en una página anterior o en un hilo de sala. Puedes quitar un marcador desde el mensaje o la lista, cargar más entradas y reintentar una lectura fallida.
+
+Los marcadores son tuyos. Otros lectores de una conversación compartida no los ven; un destinatario con acceso de solo lectura también puede guardar sus propios marcadores. Abrir uno sigue requiriendo acceso a la conversación. La lista muestra el fragmento actual del mensaje y no crea otra copia de su contenido.
+
+### Encontrar un mensaje { #chat-message-search }
+
+Usa **Search conversations** en la barra lateral del chat. **Message text** busca en las conversaciones que puedes leer en la organización activa y muestra el mejor mensaje coincidente de cada resultado, con un fragmento y su fecha. Acota la consulta si las primeras veinte conversaciones no incluyen la que necesitas. Elige **Conversation title** para buscar títulos, también de conversaciones archivadas.
+
+Seleccionar un mensaje abre su ubicación exacta, incluso una respuesta dentro de un hilo de sala. El historial anterior se carga página a página; **Cancel jump** detiene la navegación. Un fallo de lectura permite reintentar, mientras que un mensaje que ya no está disponible se indica por separado. El foco del teclado permanece en el mensaje seleccionado y el trabajo plegado se abre para mostrar el segmento guardado coincidente. Seguir un enlace sigue requiriendo acceso a la conversación.
+
+### Buscar actividad dentro de un turno { #chat-trace-search }
+
+Abre el historial de trabajo de un turno y elige **Search and filter activity**. Busca texto, argumentos y resultados de herramientas dentro de ese turno, o muestra solo herramientas, razonamiento, errores o mensajes. Las entradas conservan su orden y la respuesta final permanece en su sitio. Las aprobaciones, preguntas sin responder y la configuración del modelo que necesitan tu atención siguen visibles aunque no coincidan. **Clear filters** o Escape restaura toda la actividad; cerrar los filtros también los borra.
+
+### Controles durante un turno { #chat-live-controls }
+
+Mientras un agente trabaja, **Queue** envía el siguiente mensaje después del turno actual. **Steer** envía indicaciones de texto al turno en curso, que las utiliza al continuar. La elección se recuerda para tu cuenta, organización y agente seleccionado, incluido el asistente general. Los archivos, las menciones, las respuestas, el contexto de página y las entradas de flujos de trabajo siguen la cola habitual. Si no se pueden enviar las indicaciones, el borrador permanece en el cuadro de mensaje.
+
+Elegir un modelo durante un turno muestra **After this turn**: la preferencia se aplica a un mensaje posterior. **Edit reasoning in agent settings** abre el control Thinking del borrador del agente para quienes pueden editarlo. Guarda el borrador y utiliza la revisión y publicación existentes para aplicar la configuración a futuras ejecuciones.
+
 ### Temas en segundo plano { #background-topics }
+
+En el chat completo de escritorio, **Tasks** a la derecha abre el trabajo en segundo plano junto a la conversación. Elige **This chat** o **All my tasks**, busca títulos y abre una tarea de **Needs you**, **Working**, **Waiting** o **Finished**. Un chat nuevo muestra tus tareas de todos los agents en la organización activa. Puedes cambiar el ancho o ampliar el panel. Abrirlo no inicia trabajo; los chats de solo lectura conservan los enlaces y ocultan **Stop**. Un error de lectura ofrece **Retry**.
 
 Activa **Temas en segundo plano** en un agente publicado y pide, por ejemplo: «Investiga el error de exportación en otro tema mientras seguimos planificando la versión» o «Que el agente financiero revise estas cifras mientras comentamos la propuesta». Puede usar su propia versión fijada o un delegado publicado fijado en su especificación. Empieza desde una conversación propia; el tema nuevo pertenece al mismo proyecto e incluye el encargo del agente y un enlace al origen, sin copiar la transcripción original.
 
@@ -1009,6 +1105,28 @@ La bandeja exige demostrar el acceso al correo en la sesión actual: un nuevo ac
 Los puntos ámbar señalan pestañas de organización y tarjetas de voz, sugerencias nocturnas, mantenimiento de memoria y Architect cuando falta configuración o las sugerencias están desactivadas. Al pasar el cursor o enfocar el punto aparece una explicación; pulsarlo la mantiene abierta. Los indicadores usan valores guardados, desaparecen al completar la configuración y respetan los permisos de edición. Las sugerencias desactivadas se presentan como una opción, no como un error. La tarjeta de notificaciones iPhone también señala la falta de una clave Apple. La preferencia de movimiento reducido desactiva la animación.
 
 Los accesos guardados del navegador usan un panel compacto de ancho completo, sin estirar una sola entrada hasta ocupar toda la página. Los servicios conocidos muestran su marca integrada; los demás sitios usan su propio favicon sin enviar el referente y un globo si la imagen no está disponible.
+
+## Apariencia de la cuenta { #account-appearance }
+
+En **Settings → Profile → Appearance**, elige tema, estilo, color de acento,
+esquinas, tamaño de texto, movimiento, brillo de voz y pasos del workflow. La
+vista previa cambia con cada elección. **Apply** guarda los cambios en tu cuenta;
+**Discard preview** conserva lo guardado. **Reset to defaults** restaura de
+inmediato el tema del sistema y la apariencia estándar.
+
+Las opciones te siguen entre dispositivos y organizaciones. El tema y el estilo
+del menú de cuenta se guardan al instante. Al cerrar sesión se borra la
+apariencia de la cuenta anterior. Las preferencias antiguas del navegador no se
+asignan automáticamente a una cuenta: selecciónalas y aplícalas una vez.
+
+Puedes pedir cambios o un restablecimiento a un agente en tu propio chat privado
+sin compartir. `get_my_appearance`, `set_my_appearance` y
+`reset_my_appearance` usan la cuenta autenticada y necesitan `agents:run`;
+las escrituras conservan su política habitual de aprobación. Se rechazan chats
+compartidos, proyectos, canales, suplantaciones y ejecuciones sin supervisión.
+Solo se aceptan valores definidos, nunca CSS libre, URLs o el identificador de
+otra persona. La consola se actualiza tras una herramienta interna, al recuperar
+el foco y en un máximo de 30 segundos para cambios de otros dispositivos.
 
 ## Idiomas { #languages }
 

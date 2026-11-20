@@ -1,5 +1,5 @@
 ---
-source_sha: "38183986d0d8"
+source_sha: "242dfeb03788"
 ---
 
 # Glosario { #glossary }
@@ -125,10 +125,11 @@ se describe en [Capabilities](capabilities.md).
 |---|---|
 | Apps | `artifacts` |
 | Ask the user | `ask_user` |
+| Solicitar un secreto | `secret_request` |
 | Borradores | `drafts` |
 | Web browser | `browser_use` |
 | Chat channel lookup | `channel_tools` |
-| Aplicaciones de chat conectadas | `channel_actions` |
+| Aplicaciones de chat conectadas (Connected chat apps) | `channel_actions` |
 | Llamadas telefónicas | `phone_calls` |
 | Charts | `charts` |
 | Date and time | `clock` |
@@ -136,10 +137,12 @@ se describe en [Capabilities](capabilities.md).
 | Coding agent | `coding_agent` |
 | Long conversations | `compaction` |
 | Computer use | `computer_use` |
+| Consejo | `council` |
 | Context | `context` |
 | Past conversations | `conversation_search` |
 | Follow-ups | `follow_ups` |
 | Guardrails | `guardrails` |
+| Harness | `harness` |
 | Image generation | `image_generation` |
 | Knowledge search | `knowledge` |
 | Media offload | `media` |
@@ -148,9 +151,15 @@ se describe en [Capabilities](capabilities.md).
 | Planning | `planning` |
 | Work while tools run | `background_tools` |
 | Temas en segundo plano | `background_tasks` |
+| Mensajes de agentes | `agent_messages` |
 | Watch a command | `monitor` |
+| Babysit PR | `babysit_pr` |
+| Escenario con evidencia | `proof_scenario` |
 | Sandbox | `sandbox` |
 | Skills | `skills` |
+| Sol-loop | `sol_loop` |
+| Ajuste de herramientas con evals | `eval_tool_tuning` |
+| Burst | `burst` |
 | Subagents | `subagents` |
 | Instruction reminders | `system_reminders` |
 | Text to speech | `text_to_speech` |

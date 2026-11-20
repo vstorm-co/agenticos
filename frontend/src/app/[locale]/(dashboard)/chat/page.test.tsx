@@ -9,6 +9,10 @@ vi.mock("@/components/chat", () => ({
 vi.mock("@/components/chat/phone-chat-bar", () => ({ PhoneChatBar: () => null }));
 vi.mock("@/hooks", () => ({ useMcpOAuthOutcome: () => undefined }));
 vi.mock("@/hooks/use-chat-with", () => ({ useChatWith: () => undefined }));
+vi.mock("@/lib/locale-navigation", () => ({
+  usePathname: () => "/chat",
+  useRouter: () => ({ push: vi.fn() }),
+}));
 
 it("uses the full-bleed content layout without compensating margins", () => {
   const { container } = render(<ChatPage />);
@@ -20,7 +24,7 @@ it("uses the full-bleed content layout without compensating margins", () => {
 it("reserves the phone toolbar space for both initial content and sent-turn scrolling", () => {
   const { container } = render(<ChatPage />);
   expect(container.firstElementChild?.lastElementChild).toHaveClass(
-    "max-md:[&_[data-chat-scroller]]:scroll-pt-20",
-    "max-md:[&_[data-transcript]]:pt-20",
+    "max-lg:[&_[data-chat-scroller]]:scroll-pt-20",
+    "max-lg:[&_[data-transcript]]:pt-20",
   );
 });

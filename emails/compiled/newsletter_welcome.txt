@@ -1,7 +1,7 @@
-Subject: You're subscribed to [[app_name]] updates!
+Subject: You are subscribed to [[app_name]] updates
 
-Hi there,
+You are subscribed to [[app_name]] updates
 
-Thanks for subscribing to [[app_name]] updates! We'll keep you in the loop with product news and announcements.
+You will receive product news and updates about working with your agents.
 
-- The [[app_name]] Team
+[[app_name]]

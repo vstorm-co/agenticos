@@ -8,6 +8,8 @@ import { CODING_AGENT_ID, capabilityConfigErrors } from "@/lib/agent-spec";
 import { getErrorMessage } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
 import { useCapabilityFieldCopy } from "@/components/agents/capability-field-copy";
+import { CouncilMembersField } from "@/components/agents/council-members-field";
+import { BrowserCredentialsField } from "@/components/agents/browser-credentials-field";
 import { SchemaForm } from "@/components/agents/schema-form";
 import { ContextHelp } from "@/components/ui/context-help";
 import {
@@ -331,7 +333,15 @@ export function CapabilityDetail({
 
       {definition.config_schema && !hideConfigForm && (
         <SchemaForm
-          hiddenFields={binding.id === "context" ? ["file_settings"] : undefined}
+          hiddenFields={
+            binding.id === "context"
+              ? ["file_settings"]
+              : binding.id === "council"
+                ? ["members"]
+                : binding.id === "browser_use"
+                  ? ["browser_credential_ids"]
+                  : undefined
+          }
           idPrefix={binding.id}
           schema={definition.config_schema}
           value={binding.config}
@@ -341,6 +351,30 @@ export function CapabilityDetail({
           onChange={(config) => onChange({ ...binding, config })}
         />
       )}
+
+      {binding.id === "council" && (
+        <CouncilMembersField
+          idPrefix={binding.id}
+          value={binding.config.members}
+          disabled={disabled}
+          onChange={(members) => onChange({ ...binding, config: { ...binding.config, members } })}
+        />
+      )}
+
+      {binding.id === "browser_use" &&
+        !hideConfigForm &&
+        definition.config_schema?.properties?.browser_credential_ids &&
+        (keyed.config.connection ?? definition.config_schema.properties.connection?.default) ===
+          "built_in" && (
+          <BrowserCredentialsField
+            idPrefix={binding.id}
+            value={keyed.config.browser_credential_ids}
+            disabled={disabled || readOnly}
+            onChange={(browser_credential_ids) =>
+              onChange({ ...binding, config: { ...binding.config, browser_credential_ids } })
+            }
+          />
+        )}
 
       {/* Only when *this* configuration needs one. A capability offering a
             free provider and a paid one declares the requirement once and
@@ -861,11 +895,14 @@ const SECRET_HELP: Record<string, string | undefined> = {
  * Which subscription sign-in a capability offers beside its key, as it is set up.
  *
  * Only the coding agent has one, and which is the harness's: Codex signs in with
- * ChatGPT, Claude Code with the token `claude setup-token` prints.
+ * ChatGPT, Claude Code with the token `claude setup-token` prints. The new
+ * harnesses offer none - they take an API key only - so they get no sign-in.
  */
 function signInFor(binding: CapabilityBindingSpec): "chatgpt" | "claudeToken" | null {
   if (binding.id !== CODING_AGENT_ID) return null;
-  return binding.config.harness === "codex" ? "chatgpt" : "claudeToken";
+  if (binding.config.harness === "codex") return "chatgpt";
+  if (binding.config.harness === "claude_code") return "claudeToken";
+  return null;
 }
 
 /**

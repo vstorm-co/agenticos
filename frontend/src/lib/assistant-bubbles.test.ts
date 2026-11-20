@@ -38,7 +38,7 @@ describe("bubbleFor", () => {
   });
 
   it("speaks to the page the reader is on, with or without a locale", () => {
-    expect(bubbleFor("/pl/agents", QUIET, 1)).toBe("agents");
+    expect(bubbleFor("/en/agents", QUIET, 1)).toBe("agents");
     expect(bubbleFor("/agents/abc", QUIET, 1)).toBe("agent");
     expect(bubbleFor("/kb/1", QUIET, 1)).toBe("knowledge");
     expect(bubbleFor("/rag", QUIET, 1)).toBe("knowledge");
@@ -56,15 +56,15 @@ describe("bubbleFor", () => {
   });
 
   it("knows a page by its path without the locale", () => {
-    expect(pageOf("/de")).toBe("/");
-    expect(pageOf("/de/kb")).toBe("/kb");
+    expect(pageOf("/en")).toBe("/");
+    expect(pageOf("/en/kb")).toBe("/kb");
     expect(pageOf("/kb")).toBe("/kb");
   });
 });
 
 describe("preferences", () => {
   it("remembers a silenced page once, and the switch", () => {
-    silencePage("/pl/agents");
+    silencePage("/en/agents");
     silencePage("/agents");
     setBubblesOff(true);
 

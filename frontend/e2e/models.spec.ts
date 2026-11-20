@@ -4,6 +4,7 @@ import type { Page } from "@playwright/test";
 import {
   AUTH_STATE,
   DRAFT_AGENT_NAME,
+  FAKE_KEY_LABEL,
   SEEDED_MODEL_ID,
   SEEDED_MODEL_LABEL,
   expectNoRenderedSecret,
@@ -84,6 +85,20 @@ test.describe("Models", () => {
     // agent is on, and which provider that is depends on what ran before.
     await pickProvider(page, "Anthropic");
     await pickProvider(page, "OpenAI");
+    // The model id is the missing requirement in this test. Supply the seeded
+    // provider key first: with multiple keys, the form correctly asks which one
+    // pays for the model instead of silently choosing an account.
+    const key = page.locator("#add-model-key");
+    const automaticKey = page.getByText(FAKE_KEY_LABEL, { exact: true });
+    await expect(key.or(automaticKey).first()).toBeVisible();
+    if (await key.isVisible()) {
+      await key.click();
+      await page.getByRole("option", { name: new RegExp(FAKE_KEY_LABEL) }).click();
+      await expect(key).toContainText(FAKE_KEY_LABEL);
+    } else {
+      // A sole matching key is selected automatically and named in the form.
+      await expect(automaticKey).toBeVisible();
+    }
     // Refused. A profile with a provider and no model id is one that fails at the
     // moment a run needs it rather than here.
     const submit = page.getByRole("button", { name: "Add model" });

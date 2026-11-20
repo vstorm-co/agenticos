@@ -16,7 +16,6 @@ import { createTranslator } from "next-intl";
 
 import type { Translate } from "./agent-step-captions";
 import messages from "../../messages/en.json";
-import plMessages from "../../messages/pl.json";
 // Shared with the backend `tool_prefix` test, so the two normalisers cannot drift
 // apart behind two hand-copied expectation lists (#545, the #144 shape).
 import prefixCases from "./mcp-tool-prefix.cases.json";
@@ -68,16 +67,23 @@ describe("the line for one tool call", () => {
 
   it("joins the pattern to the file in the reader's language (#603)", () => {
     // The join used to be a literal `in`, English under every locale. The verb
-    // and the join both come from `pl.json` now, merged over `en.json` the way
-    // `src/i18n.ts` does it.
-    const tPl = createTranslator({
-      locale: "pl",
-      messages: { chat: { tools: { ...messages.chat.tools, ...plMessages.chat.tools } } },
+    // and the join both come from the catalog now, so a translation that
+    // replaces them replaces both.
+    const translated = createTranslator({
+      locale: "en",
+      messages: {
+        chat: {
+          tools: {
+            ...messages.chat.tools,
+            patternInFile: "{pattern} w {file}",
+          },
+        },
+      },
       namespace: "chat.tools",
     }) as Translate;
 
-    expect(toolStep("grep", { pattern: "TODO", path: "/src/app.py" }, true, tPl).label).toBe(
-      "Wyszukał TODO w app.py",
+    expect(toolStep("grep", { pattern: "TODO", path: "/src/app.py" }, true, translated).label).toBe(
+      "Searched for TODO w app.py",
     );
   });
 

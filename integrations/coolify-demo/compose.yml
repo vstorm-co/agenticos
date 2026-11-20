@@ -1,0 +1,263 @@
+# Private AgenticOS demo. No public routes or host port mappings.
+services:
+  agenticos-migrate:
+    logging: &id001
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '5'
+    image: ghcr.io/vstorm-co/agenticos-backend:1.52.0@sha256:4b4e01a2e7afb094e57ce86891d34571799d2a33654c6936374aa3446109b001
+    command: agenticos db upgrade
+    environment:
+      ENVIRONMENT: production
+      DEBUG: 'false'
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      API_KEY: ${API_KEY:?API_KEY is required}
+      VAULT_MASTER_KEY: ${VAULT_MASTER_KEY:?VAULT_MASTER_KEY is required}
+      POSTGRES_HOST: agenticos-db
+      POSTGRES_PORT: '5432'
+      POSTGRES_USER: postgres
+      POSTGRES_DB: agenticos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      REDIS_HOST: agenticos-cache
+      REDIS_PORT: '6379'
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      FRONTEND_URL: ${PUBLIC_SITE_URL:?PUBLIC_SITE_URL is required}
+      PUBLIC_BASE_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+      DIAGNOSTICS_ENABLED: 'false'
+      UVICORN_WORKERS: '2'
+      WORKER_INGEST_CHILDREN: '1'
+      WORKER_INGEST_MEMORY_MB: '1024'
+    networks:
+      - data
+    depends_on:
+      agenticos-db:
+        condition: service_healthy
+    restart: 'no'
+    labels:
+      traefik.enable: 'false'
+  agenticos-api:
+    logging: *id001
+    image: ghcr.io/vstorm-co/agenticos-backend:1.52.0@sha256:4b4e01a2e7afb094e57ce86891d34571799d2a33654c6936374aa3446109b001
+    stop_grace_period: 40s
+    volumes:
+      - media_data:/app/media
+    environment:
+      ENVIRONMENT: production
+      DEBUG: 'false'
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      API_KEY: ${API_KEY:?API_KEY is required}
+      VAULT_MASTER_KEY: ${VAULT_MASTER_KEY:?VAULT_MASTER_KEY is required}
+      POSTGRES_HOST: agenticos-db
+      POSTGRES_PORT: '5432'
+      POSTGRES_USER: postgres
+      POSTGRES_DB: agenticos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      REDIS_HOST: agenticos-cache
+      REDIS_PORT: '6379'
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      FRONTEND_URL: ${PUBLIC_SITE_URL:?PUBLIC_SITE_URL is required}
+      PUBLIC_BASE_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+      DIAGNOSTICS_ENABLED: 'false'
+      UVICORN_WORKERS: '2'
+      WORKER_INGEST_CHILDREN: '1'
+      WORKER_INGEST_MEMORY_MB: '1024'
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 --timeout-worker-healthcheck 60 --ws websockets-sansio
+    networks:
+      - data
+      - edge
+      - proxy
+    depends_on:
+      agenticos-migrate:
+        condition: service_completed_successfully
+      agenticos-cache:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=5)
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '3'
+          memory: 1536M
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    expose:
+      - '8000'
+    labels:
+      traefik.enable: 'false'
+      traefik.docker.network: coolify
+  agenticos-worker:
+    logging: *id001
+    image: ghcr.io/vstorm-co/agenticos-backend:1.52.0@sha256:4b4e01a2e7afb094e57ce86891d34571799d2a33654c6936374aa3446109b001
+    volumes:
+      - media_data:/app/media
+    command: python -m app.worker
+    environment:
+      ENVIRONMENT: production
+      DEBUG: 'false'
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      API_KEY: ${API_KEY:?API_KEY is required}
+      VAULT_MASTER_KEY: ${VAULT_MASTER_KEY:?VAULT_MASTER_KEY is required}
+      POSTGRES_HOST: agenticos-db
+      POSTGRES_PORT: '5432'
+      POSTGRES_USER: postgres
+      POSTGRES_DB: agenticos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      REDIS_HOST: agenticos-cache
+      REDIS_PORT: '6379'
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      FRONTEND_URL: ${PUBLIC_SITE_URL:?PUBLIC_SITE_URL is required}
+      PUBLIC_BASE_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+      DIAGNOSTICS_ENABLED: 'false'
+      UVICORN_WORKERS: '2'
+      WORKER_INGEST_CHILDREN: '1'
+      WORKER_INGEST_MEMORY_MB: '1024'
+    networks:
+      - data
+      - edge
+    depends_on:
+      agenticos-migrate:
+        condition: service_completed_successfully
+      agenticos-cache:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import os, sys, time; sys.exit(time.time() - os.stat(os.environ.get('WORKER_HEALTH_FILE', '/tmp/agenticos-worker-alive')).st_mtime > 90)
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    stop_grace_period: 45s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2560M
+    labels:
+      traefik.enable: 'false'
+  agenticos-db:
+    logging: *id001
+    image: pgvector/pgvector:pg16
+    command: postgres -c max_connections=200 -c shared_preload_libraries=pg_stat_statements -c shared_buffers=512MB -c effective_cache_size=1536MB -c maintenance_work_mem=128MB -c work_mem=8MB -c wal_buffers=16MB -c random_page_cost=1.1 -c effective_io_concurrency=200 -c max_parallel_workers_per_gather=2
+    shm_size: 512mb
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: agenticos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U postgres -d agenticos
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    labels:
+      traefik.enable: 'false'
+  agenticos-cache:
+    logging: *id001
+    image: valkey/valkey:8-alpine
+    command: valkey-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required} --maxmemory 384mb --maxmemory-policy allkeys-lru --save ''
+    networks:
+      - data
+    healthcheck:
+      test:
+        - CMD
+        - valkey-cli
+        - -a
+        - ${REDIS_PASSWORD}
+        - ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    labels:
+      traefik.enable: 'false'
+  agenticos-frontend:
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '5'
+    image: ghcr.io/vstorm-co/agenticos-frontend:1.52.0@sha256:e3c3dd7868c3b8fbfb7b09fd8de70c7605e832db4011a5db05bd1a794d735bf5
+    environment:
+      NODE_ENV: production
+      BACKEND_URL: http://agenticos-api:8000
+      PUBLIC_API_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL is required}
+      PUBLIC_WS_URL: ${PUBLIC_WS_URL:?PUBLIC_WS_URL is required}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:?PUBLIC_SITE_URL is required}
+      DIAGNOSTICS_ENABLED: 'false'
+      OAUTH_PROVIDERS: ''
+      SESSION_COOKIE_NAMESPACE: agenticos-demo
+    networks:
+      - edge
+      - proxy
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - 'fetch(''http://localhost:3000/api/health'').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))'
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    expose:
+      - '3000'
+    labels:
+      traefik.enable: 'false'
+      traefik.docker.network: coolify
+    depends_on:
+      agenticos-api:
+        condition: service_healthy
+networks:
+  data:
+    driver: bridge
+    internal: true
+  edge:
+    driver: bridge
+  proxy:
+    external: true
+    name: coolify
+volumes:
+  media_data: {}
+  postgres_data: {}

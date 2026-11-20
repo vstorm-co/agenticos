@@ -1,0 +1,41 @@
+{
+  "mode": "before",
+  "runs": [
+    {
+      "width": 1440,
+      "steps": [
+        {
+          "step": "callback with provider code",
+          "final_url": "/auth/callback?code=synthetic-oauth-code",
+          "mfa_step_shown": false
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "steps": [
+        {
+          "step": "callback with provider code",
+          "final_url": "/auth/callback?code=synthetic-oauth-code",
+          "mfa_step_shown": false
+        }
+      ]
+    }
+  ],
+  "api_calls": [
+    {
+      "width": 1440,
+      "method": "POST",
+      "path": "/api/auth/oauth-callback",
+      "status": 200
+    },
+    {
+      "width": 390,
+      "method": "POST",
+      "path": "/api/auth/oauth-callback",
+      "status": 200
+    }
+  ],
+  "page_errors": [],
+  "captured_at": "2026-11-12T11:16:09.527Z"
+}

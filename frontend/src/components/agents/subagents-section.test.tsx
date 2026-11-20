@@ -216,7 +216,7 @@ describe("remote delegates", () => {
 
     expect(screen.getByRole("link", { name: "Register one" })).toHaveAttribute(
       "href",
-      "/remote-agents",
+      "/connectors/remote-agents",
     );
     expect(screen.getByRole("button", { name: "Add a remote agent" })).toBeDisabled();
   });

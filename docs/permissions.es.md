@@ -1,5 +1,5 @@
 ---
-source_sha: "0ec0a9a4159f"
+source_sha: "b50c2e4de07b"
 ---
 
 # Permisos { #permissions }
@@ -148,6 +148,16 @@ de lo que su emisor tiene ahora.
     tiene clave, requiere `secrets:view` sobre esa clave
     ([Modelos](models.md#changing-a-profiles-key-or-endpoint)).
 
+    Adjuntar un secreto a una conexión de sandbox, o probar un servicio con él,
+    también requiere `secrets:view` sobre ese secreto: la conexión gasta la clave
+    en nombre de toda la organización, así que nombrar la clave privada de otra
+    persona debe rechazarse ya en el momento de adjuntarla. La comprobación está
+    deliberadamente *fuera* de `resolve_for_bindings`: en tiempo de ejecución,
+    el runner resuelve los bindings de una spec publicada para cualquiera que
+    pueda ejecutar el agent, y los secretos de la spec se comprobaron contra
+    quien la publicó en el momento de publicarla. El vault se abre para un run;
+    la puerta es quién puede nombrar el secreto en una escritura.
+
     `connections:manage` es también lo que lista las integraciones de
     sincronización de la organización: las fuentes de todas las bases, con su
     configuración, el secreto del vault que usa cada una y su último error, y las
@@ -163,11 +173,21 @@ Los permisos de **recurso** llevan un `Scope`, porque responden a la segunda
 pregunta que un rol no puede: no "¿puede este rol tocar agents?" sino _qué_
 agents.
 
-`mcp:manage` es uno de ellos: un servidor MCP de la organización se puede limitar
-a grupos o personas, como un skill
-([Departamentos](departments.md#a-departments-mcp-servers)). Un rol que lo tiene en
-`SHARED` ve los servidores de la organización, los suyos y los compartidos con él;
-`ALL` los ve todos.
+`mcp:use` y `mcp:manage` separan la selección de una conexión de su administración.
+Un servidor MCP de la organización puede limitarse a grupos o personas, como un
+skill ([Departamentos](departments.md#a-departments-mcp-servers)). Una concesión
+`use` permite vincular sus herramientas; una concesión `edit` permite administrarlo.
+Los alcances de los roles siguen vigentes: Owner y Admin conservan `ALL`, y Builder
+conserva `SHARED`.
+
+Las concesiones `use` existentes se conservan, sin elevarlas a `edit`. Un Builder
+necesita una concesión explícita `edit` para cambiar, eliminar, probar o volver a
+compartir un servidor privado. Las claves API existentes con scope de administración
+conservan el uso de conexiones; una clave con scope de uso no puede administrarlas.
+La delegación de agentes publicados y las rutas existentes de selección en workflows
+y triggers conservan sus usuarios autorizados. La lista de administración sigue
+requiriendo `mcp:manage`; este cambio no añade un endpoint de descubrimiento ni un
+permiso al rol Viewer.
 
 ### Scope { #scope }
 
@@ -195,9 +215,9 @@ Hoy `TEAM` no lo usa ningún rol integrado; existe para los roles personalizados
 
 | Rol | Idea | Agents | Secretos | Globales |
 | --- | --- | --- | --- | --- |
-| `owner` | posee la organización | todos `ALL` | `ALL` | todo, incluido `org:delete` |
-| `admin` | la lleva en el día a día | todos `ALL` | `ALL` | todo **menos** `org:delete` |
-| `builder` | construye, y aprende de toda la organización | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `owner` | posee la organización | todos `ALL` | `ALL` | todo, incluido `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `admin` | la lleva en el día a día | todos `ALL` | `ALL` | todo **menos** `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `builder` | construye, y aprende de toda la organización | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:use`/`mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `operator` | mantiene sano el sistema en marcha | `view`/`run` `ALL`, sin edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `member` | el usuario de cada día | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
 | `viewer` | lee | `view` `SHARED` | ninguno | `members:view` |
@@ -322,6 +342,12 @@ es perderlo. Una persona con varias concesiones sobre una fila - la suya propia 
 las de sus grupos - obtiene la más alta de ellas. La base de datos guarda cada
 concesión para exactamente un sujeto, una persona o un grupo, y un grupo de otra
 organización no alcanza a nadie aquí aunque una fila lo nombrara.
+
+Una concesión puede llevar una caducidad: pasada esta, la concesión no da nada,
+sin que nadie borre la fila - el panel de uso compartido sigue listándola, así
+que el propietario puede renovarla o revocarla. Eliminar a un miembro revoca
+sus concesiones directas con la membresía, así que volver a invitarlo no
+despierta ninguna de ellas.
 
 La tabla es deliberadamente genérica - `resource_type` + `resource_id`, sin clave
 foránea al objetivo - porque los agents, las colecciones, los skills, los
@@ -661,16 +687,78 @@ reescribir como qué se ejecutaron. Mira
 Lo que un run así puede hacer viene de la **exposición** que lo admitió, creada
 por alguien que sí tenía un rol.
 
+## Visibilidad de la barra lateral { #sidebar-visibility }
+
+### Lo que ve un miembro de forma predeterminada { #what-a-member-sees-by-default }
+
+Un miembro (Member) ve Dashboard, Chat, Inbox, Agent Messages, Apps, Agents,
+Workflows, Routines, Projects, Knowledge Bases, Tables, Skills, Context, Documents,
+Background Work, Connectors, Organizations y Groups. Apps y Projects solo muestran
+recursos accesibles. Activity y Failure Learning requieren `runs:view`; el área
+Admin de todo el despliegue requiere `is_app_admin`, que un rol de organización
+no concede.
+
+El rol Member accede a sus propios recursos y a los visibles para la organización
+o compartidos explícitamente con el miembro o sus grupos. Permite editar sus
+propios recursos de trabajo y ejecutar los agents y flujos de trabajo permitidos.
+No concede acceso a todos los recursos privados de la organización, a la
+administración de miembros, a los budgets ni a los registros de auditoría.
+Una concesión explícita sobre un recurso puede ampliar el acceso como se describe
+más arriba.
+
+### Configurar la navegación de un rol { #configure-navigation-for-a-role }
+
+Abre **Organizations → Members → Users & Roles** y después **Sidebar visibility**.
+Los seis roles incorporados y sus definiciones de permisos siguen siendo fijos.
+Este editor configura la navegación de cada rol en la organización seleccionada.
+
+1. Selecciona un rol para revisar su navegación actual.
+2. Elige qué entradas configurables aparecen. Las entradas que los permisos del
+   rol no permiten siguen sin estar disponibles aunque se muestren.
+3. Revisa **Sidebar preview** antes de guardar.
+4. Selecciona **Save sidebar** para aplicar los cambios.
+5. Para restaurar la navegación del rol, selecciona **Reset to defaults** y
+   después **Save sidebar**. **Discard changes** deja intacta la política guardada.
+
+Un propietario (Owner) puede editar Admin y los roles inferiores. Un
+administrador (Admin) puede editar Builder, Operator, Member y Viewer, pero no
+su propio nivel ni Owner. Los demás miembros pueden consultar las políticas sin
+editarlas. Los cambios requieren `roles:manage` y se registran en el historial
+de auditoría de la organización.
+
+Dashboard y Organizations no se pueden ocultar, y la entrada Admin de todo el
+despliegue conserva su comprobación de superadmin. Estas vías de recuperación
+siguen disponibles. La navegación de Owner no cambia, y la política de
+visibilidad no afecta a los superadmins de la plataforma.
+
+### Visibilidad y acceso { #visibility-and-access }
+
+Las opciones guardadas filtran la barra lateral de escritorio y móvil, las Apps
+y Projects fijados y la navegación de la paleta de comandos, incluidos los
+accesos directos a recursos y la acción para crear un chat. Una ventana activa
+actualiza los permisos cada 60 segundos y vuelve a consultar los permisos
+desactualizados cuando recupera el foco.
+
+Ocultar una entrada no revoca permisos de API, no elimina concesiones sobre
+recursos ni bloquea una URL directa. Mostrar una entrada no concede acceso
+adicional. Controla el acceso mediante la asignación de roles y los recursos
+compartidos; simplifica la navegación mediante la visibilidad de la barra lateral.
+Esta opción no crea roles personalizados ni modifica sus permisos.
+
+
 ## Lo que lee el frontend { #what-the-frontend-reads }
 
 | Endpoint | Responde |
 | --- | --- |
-| `GET /me/permissions` | el rol de quien llama, `is_app_admin`, y cada permiso con su scope |
+| `GET /me/permissions` | el rol de quien llama, `is_app_admin`, cada permiso con su scope y `hidden_navigation_items` para ese rol |
 | `GET /roles/catalog` | el catálogo entero y lo que agrupa cada rol |
+| `GET /roles/navigation` | los `hidden_items` de la organización por rol, `configurable_items` y los `editable_roles` de quien llama |
+| `PATCH /roles/navigation/{role}` | sustituye los `hidden_items` de un rol; requiere `roles:manage` y autoridad sobre ese rol |
 
-Los dos son **una comodidad para la UI y nada más**. El servidor vuelve a
-comprobar cada permiso en el endpoint que realiza la acción, así que un cliente
-que ignore estas APIs no gana nada.
+Las respuestas de lectura orientan la UI; no autorizan una acción. El servidor
+vuelve a comprobar cada permiso en el endpoint que la realiza. Actualizar la
+navegación solo cambia la presentación, por lo que un cliente que la ignore no
+obtiene acceso adicional.
 
 ## Resumen { #recap }
 

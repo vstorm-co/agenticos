@@ -58,7 +58,7 @@ describe("AddToAgent", () => {
       resource: { kind: "skill", id: "s1" },
     });
     const [message, options] = vi.mocked(toast.success).mock.calls[0]!;
-    expect(message).toBe("refunds added to the draft of Support.");
+    expect(message).toBe("refunds added to Support's draft.");
     const action = options?.action as { onClick: () => void } | undefined;
     action?.onClick();
     expect(push).toHaveBeenCalledWith("/agents/a1");

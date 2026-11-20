@@ -1,10 +1,7 @@
 import { createTranslator } from "next-intl";
 import { describe, expect, it } from "vitest";
 
-import de from "../../messages/de.json";
 import en from "../../messages/en.json";
-import pl from "../../messages/pl.json";
-import tr from "../../messages/tr.json";
 import type { Translate } from "@/lib/agent-step-captions";
 
 import { usd, wordedSummary } from "./notification-wording";
@@ -18,7 +15,6 @@ function translator(locale: string, messages: object): Translate {
 }
 
 const english = translator("en", en);
-const polish = translator("pl", { ...en, ...pl });
 
 const say = (params: Record<string, string>, t: Translate = english) => wordedSummary(params, t);
 
@@ -36,9 +32,6 @@ describe("wordedSummary", () => {
       "Clerk could not finish its answer: Timed out",
     );
     expect(say({ wording: "run_failed", agent_name: "Clerk" })).toBe("Clerk's run failed.");
-    expect(say({ wording: "run_failed", agent_name: "Clerk", error: "Timed out" }, polish)).toBe(
-      "Run agenta Clerk nie powiódł się: Timed out",
-    );
   });
 
   it("words a routine held on its budget, named or not", () => {
@@ -62,18 +55,15 @@ describe("wordedSummary", () => {
 
   it("words a routine needing attention by its code, and counts an automatic stop", () => {
     expect(
-      say(
-        {
-          wording: "routine_blocked",
-          routine_name: "Digest",
-          routine_detail: "watch_auto_stopped",
-          failures: "3",
-        },
-        polish,
-      ),
+      say({
+        wording: "routine_blocked",
+        routine_name: "Digest",
+        routine_detail: "watch_auto_stopped",
+        failures: "3",
+      }),
     ).toBe(
-      "Rutyna Digest wymaga uwagi: Wstrzymano automatycznie po 3 nieudanych sprawdzeniach. " +
-        "Przejrzyj Aktywność i wznów, gdy będzie gotowa.",
+      "Digest needs attention: Paused automatically after 3 unsuccessful checks. " +
+        "Review Activity and resume when ready.",
     );
     expect(say({ wording: "routine_blocked", routine_detail: "chat_unavailable" })).toBe(
       "Your routine needs attention: Its answer is in Activity, but its chosen chat is unavailable.",
@@ -93,9 +83,6 @@ describe("wordedSummary", () => {
     ).toBe("Ann asked for Web search in Clerk: for prices");
     expect(say({ wording: "suggestions_ready", count: "1" })).toBe(
       "AgenticOS has a new suggestion for you.",
-    );
-    expect(say({ wording: "suggestions_ready", count: "5" }, polish)).toBe(
-      "AgenticOS ma dla Ciebie 5 nowych sugestii.",
     );
     expect(say({ wording: "briefing", count: "2" })).toBe("Your watches found 2 new things.");
     expect(say({ wording: "resource_shared", resource_name: "Q3", group_name: "Sales" })).toBe(
@@ -243,9 +230,6 @@ describe("wordedSummary", () => {
   });
 
   it("words administration notices, and an action it has no sentence for by its name", () => {
-    expect(say({ wording: "security_event", action: "secret.rotated" }, polish)).toBe(
-      "Zrotowano sekret w vault.",
-    );
     expect(say({ wording: "security_event", action: "admin.unknown" })).toBe(
       "A privileged action was recorded: admin.unknown",
     );
@@ -281,9 +265,6 @@ describe("wordedSummary", () => {
     expect(say({ ...alert, count: "1", window_minutes: "15" })).toBe(
       "Errors: 1 occurrence in the log of Intake in the last 15 minutes.",
     );
-    expect(say({ ...alert, count: "4", window_minutes: "180" }, polish)).toBe(
-      "Errors: 4 wystąpienia w logu Intake w ciągu ostatnich 3 godzin.",
-    );
   });
 
   it("keeps the English summary for a wording it does not know", () => {
@@ -291,7 +272,7 @@ describe("wordedSummary", () => {
   });
 });
 
-describe("every locale", () => {
+describe("every sentence", () => {
   const rows: Record<string, string>[] = [
     { wording: "routine_blocked", routine_detail: "trigger_auto_stopped", failures: "2" },
     { wording: "routine_budget_paused", routine_kind: "watch", limit: "5", spent: "5" },
@@ -323,12 +304,8 @@ describe("every locale", () => {
     },
   ];
 
-  it.each([
-    ["de", de],
-    ["pl", pl],
-    ["tr", tr],
-  ])("%s words each sentence without falling back to its key", (locale, messages) => {
-    const t = translator(locale, { ...en, ...messages });
+  it("words each sentence without falling back to its key", () => {
+    const t = english;
     for (const row of rows) {
       const said = wordedSummary(row, t);
       expect(said).toBeTruthy();

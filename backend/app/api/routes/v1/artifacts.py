@@ -56,6 +56,7 @@ from app.schemas.artifact import (
     ArtifactPublicDataCreate,
     ArtifactPublicDataDisclosure,
     ArtifactPublicLinkUpdate,
+    ArtifactRead,
     ArtifactThumbnailRead,
     ArtifactUpdate,
     ArtifactVersionList,
@@ -88,6 +89,11 @@ async def list_artifacts(
     shared_with_me: bool = Query(
         False, description="Only what was shared with the caller - never their own rows"
     ),
+    mine_or_shared: bool = Query(
+        False,
+        description="Only what the caller owns or was shared with, whatever their role - the sidebar's list",
+    ),
+    favourites: bool = Query(False, description="Only apps the caller has favourited"),
     agent_id: UUID | None = Query(None, description="Only the pages this agent published"),
     include_archived: bool = Query(
         False, description="List archived pages too; they are left out otherwise"
@@ -103,6 +109,8 @@ async def list_artifacts(
     return await service.list_readable(
         ctx,
         shared_with_me=shared_with_me,
+        mine_or_shared=mine_or_shared,
+        favourites=favourites,
         include_archived=include_archived,
         search=q,
         agent_id=agent_id,
@@ -441,6 +449,18 @@ async def follow_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) ->
 async def unfollow_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
     """Stop being notified about new versions."""
     return await service.unfollow(ctx, artifact_id)
+
+
+@router.post("/{artifact_id}/favourite", response_model=ArtifactRead)
+async def favourite_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
+    """Add the readable app to this person's favourites."""
+    return await service.set_favourite(ctx, artifact_id, favourite=True)
+
+
+@router.delete("/{artifact_id}/favourite", response_model=ArtifactRead)
+async def unfavourite_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
+    """Remove the app from this person's favourites."""
+    return await service.set_favourite(ctx, artifact_id, favourite=False)
 
 
 @router.get("/{artifact_id}/thumbnail", response_model=ArtifactThumbnailRead)

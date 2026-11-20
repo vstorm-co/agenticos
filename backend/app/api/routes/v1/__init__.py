@@ -21,10 +21,12 @@ from app.api.routes.v1 import oauth
 from app.api.routes.v1 import push
 from app.api.routes.v1 import sessions
 from app.api.routes.v1 import conversations
+from app.api.routes.v1 import conversation_message_pins
 from app.api.routes.v1 import admin_conversations
 from app.api.routes.v1 import me_channel_link
 from app.api.routes.v1 import me_connected_accounts
 from app.api.routes.v1 import me_mcp_connections
+from app.api.routes.v1 import me_app_connections
 from app.api.routes.v1 import org_connected_accounts
 from app.api.routes.v1 import me_onboarding
 from app.api.routes.v1 import me_suggestions
@@ -45,10 +47,14 @@ from app.api.routes.v1 import agent_environments, agent_exposures, agent_trigger
 from app.api.routes.v1 import trigger_webhooks
 from app.api.routes.v1 import agents as agent_registry
 from app.api.routes.v1 import model_providers
+from app.api.routes.v1 import personal_subscriptions
 from app.api.routes.v1 import secrets
 from app.api.routes.v1 import runs as agent_runs
 from app.api.routes.v1 import stats
-from app.api.routes.v1 import context_changes, skill_changes, skill_checks
+from app.api.routes.v1 import skill_changes
+from app.api.routes.v1 import browser_teaching
+from app.api.routes.v1 import auto_skill_learning
+from app.api.routes.v1 import context_changes, skill_checks
 from app.api.routes.v1 import workspaces as agent_workspaces
 from app.api.routes.v1 import skills as agent_skills
 from app.api.routes.v1 import artifacts
@@ -61,6 +67,7 @@ from app.api.routes.v1 import knowledge_gaps
 from app.api.routes.v1 import authoring, improvements, skill_improvements
 from app.api.routes.v1 import virtual_tables, tasks
 from app.api.routes.v1 import (
+    failure_learning,
     workflow_approvals,
     workflow_evals,
     workflow_exposures,
@@ -72,13 +79,15 @@ from app.api.routes.v1 import (
 from app.api.routes.v1 import table_views
 from app.api.routes.v1 import virtual_table_triggers
 from app.api.routes.v1 import memory as memory_files
-from app.api.routes.v1 import outcomes, primary_conversations, system_agents
+from app.api.routes.v1 import onboarding, outcomes, primary_conversations, system_agents
 from app.api.routes.v1 import browser_sign_ins
+from app.api.routes.v1 import browser_credentials
+from app.api.routes.v1 import browser_procedure_teaching
 from app.api.routes.v1 import coding_accounts
 from app.api.routes.v1 import permissions
 from app.api.routes.v1 import email_webhook, imessage_webhook, sms_webhook, telegram_webhook, phone
 from app.api.routes.v1 import slack_webhook
-from app.api.routes.v1 import a2a, external_agents, mattermost_webhook, projects
+from app.api.routes.v1 import a2a, agent_messages, external_agents, mattermost_webhook, projects
 from app.api.routes.v1 import teams_webhook
 from app.api.routes.v1 import embed as embed_widget
 from app.api.routes.v1 import embed_generated_media
@@ -89,6 +98,7 @@ from app.api.routes.v1.invitations import (
     token_router as invitations_token_router,
 )
 from app.api.routes.v1 import knowledge_bases
+from app.api.routes.v1 import sync_source_gdrive
 from app.api.routes.v1 import me_slash_commands
 from app.api.routes.v1 import me_dashboard_layout
 from app.api.routes.v1 import me_personal_data
@@ -127,6 +137,9 @@ v1_router.include_router(
 )
 v1_router.include_router(run_requests.router, tags=["agents"])
 v1_router.include_router(model_providers.router, prefix="/providers", tags=["providers"])
+v1_router.include_router(
+    personal_subscriptions.router, prefix="/personal-subscriptions", tags=["personal-subscriptions"]
+)
 v1_router.include_router(catalog_icons.router, prefix="/catalog", tags=["catalog"])
 v1_router.include_router(secrets.router, prefix="/secrets", tags=["secrets"])
 v1_router.include_router(ml_services.router, prefix="/ml", tags=["ml-services"])
@@ -140,6 +153,8 @@ v1_router.include_router(agent_embeds.router, prefix="/agents", tags=["agents:em
 v1_router.include_router(embed_widget.router, prefix="/embed", tags=["embed"])
 v1_router.include_router(embed_generated_media.router, prefix="/embed", tags=["embed"])
 v1_router.include_router(agent_runs.router, tags=["runs"])
+v1_router.include_router(browser_credentials.router, tags=["browser-credentials"])
+v1_router.include_router(browser_procedure_teaching.router, tags=["browser-procedure-teaching"])
 v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
 v1_router.include_router(skill_checks.router, prefix="/skills", tags=["skills:checks"])
@@ -174,6 +189,7 @@ v1_router.include_router(
     workflow_approvals.router, prefix="/workflow-approvals", tags=["workflow-approvals"]
 )
 v1_router.include_router(workflow_evals.router, prefix="/workflows", tags=["workflows:evals"])
+v1_router.include_router(failure_learning.router, tags=["failure-learning"])
 v1_router.include_router(
     workflow_log_alerts.router, prefix="/workflows", tags=["workflows:log-alerts"]
 )
@@ -214,11 +230,13 @@ v1_router.include_router(memory_files.router, prefix="/memory", tags=["memory"])
 v1_router.include_router(
     primary_conversations.router, prefix="/agents", tags=["primary-conversations"]
 )
+v1_router.include_router(onboarding.router, prefix="/onboarding", tags=["onboarding"])
 v1_router.include_router(system_agents.router, prefix="/system-agents", tags=["system-agents"])
 v1_router.include_router(
     browser_sign_ins.router, prefix="/browser-sign-ins", tags=["browser-sign-ins"]
 )
 v1_router.include_router(skill_changes.router, prefix="/skill-changes", tags=["skills:changes"])
+v1_router.include_router(auto_skill_learning.router, tags=["failure-learning"])
 v1_router.include_router(
     context_changes.router, prefix="/context-changes", tags=["context:changes"]
 )
@@ -254,6 +272,11 @@ v1_router.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
 v1_router.include_router(push.router, prefix="/push", tags=["push"])
 
 v1_router.include_router(conversations.router, prefix="/conversations", tags=["conversations"])
+v1_router.include_router(
+    conversation_message_pins.router,
+    prefix="/conversations",
+    tags=["conversation-message-pins"],
+)
 
 v1_router.include_router(
     org_mcp_connections.router, prefix="/mcp-connections", tags=["mcp-connections"]
@@ -273,6 +296,9 @@ v1_router.include_router(
     me_mcp_connections.router, prefix="/me/mcp-connections", tags=["me:mcp-connections"]
 )
 v1_router.include_router(
+    me_app_connections.router, prefix="/me/app-connections", tags=["me:app-connections"]
+)
+v1_router.include_router(
     me_connected_accounts.router,
     prefix="/me/connected-accounts",
     tags=["me:connected-accounts"],
@@ -289,6 +315,9 @@ v1_router.include_router(workflow_run_socket.router, tags=["workflow-runs"])
 v1_router.include_router(change_events.router, tags=["change-events"])
 v1_router.include_router(device_hub.router, tags=["devices"])
 v1_router.include_router(browse_live.router, tags=["browse-live"])
+v1_router.include_router(
+    browser_teaching.router, prefix="/browser-teachings", tags=["browser-teaching"]
+)
 
 v1_router.include_router(rag.router, prefix="/rag", tags=["rag"])
 
@@ -319,6 +348,7 @@ v1_router.include_router(
     external_agents.router, prefix="/external-agents", tags=["external-agents"]
 )
 v1_router.include_router(projects.router, prefix="/projects", tags=["projects"])
+v1_router.include_router(agent_messages.router, prefix="/agent-messages", tags=["agent-messages"])
 v1_router.include_router(
     sharing.project_sharing_router, prefix="/projects", tags=["projects:sharing"]
 )
@@ -332,6 +362,7 @@ v1_router.include_router(invitations_org_router, prefix="/orgs", tags=["invitati
 v1_router.include_router(invitations_token_router, tags=["invitations"])
 
 v1_router.include_router(knowledge_bases.router, prefix="/kb", tags=["knowledge-bases"])
+v1_router.include_router(sync_source_gdrive.router, prefix="/sync-sources", tags=["sync-sources"])
 v1_router.include_router(
     me_slash_commands.router, prefix="/me/slash-commands", tags=["me:slash-commands"]
 )

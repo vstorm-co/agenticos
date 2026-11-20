@@ -1,5 +1,5 @@
 ---
-source_sha: "38183986d0d8"
+source_sha: "242dfeb03788"
 ---
 
 # Słownik { #glossary }
@@ -116,13 +116,14 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 
 ## Capabilities { #capabilities }
 
-Nazwa, którą pokazuje Builder, i id, które wiąże spec agenta. Każda jest opisana
+Nazwa widoczna w Builderze i identyfikator, do którego odwołuje się spec agenta. Każda jest opisana
 w [Capabilities](capabilities.md).
 
 | W konsoli | W spec |
 |---|---|
 | Aplikacje | `artifacts` |
 | Pytania do użytkownika | `ask_user` |
+| Prośba o sekret | `secret_request` |
 | Wersje robocze | `drafts` |
 | Przeglądarka | `browser_use` |
 | Informacje o kanale czatu | `channel_tools` |
@@ -134,10 +135,12 @@ w [Capabilities](capabilities.md).
 | Coding agent | `coding_agent` |
 | Długie rozmowy | `compaction` |
 | Obsługa komputera | `computer_use` |
+| Rada | `council` |
 | Kontekst | `context` |
 | Poprzednie rozmowy | `conversation_search` |
 | Następne kroki | `follow_ups` |
 | Zabezpieczenia | `guardrails` |
+| Harness | `harness` |
 | Generowanie obrazów | `image_generation` |
 | Wyszukiwanie wiedzy | `knowledge` |
 | Odciążenie z obrazów | `media` |
@@ -146,9 +149,15 @@ w [Capabilities](capabilities.md).
 | Planowanie | `planning` |
 | Praca w trakcie narzędzi | `background_tools` |
 | Tematy w tle | `background_tasks` |
+| Wiadomości agentów | `agent_messages` |
 | Obserwuj polecenie | `monitor` |
+| Babysit PR | `babysit_pr` |
+| Scenariusz dowodowy | `proof_scenario` |
 | Sandbox | `sandbox` |
 | Skille | `skills` |
+| Sol-loop | `sol_loop` |
+| Dostrajanie narzędzi na podstawie ewaluacji | `eval_tool_tuning` |
+| Burst | `burst` |
 | Subagenci | `subagents` |
 | Przypomnienia instrukcji | `system_reminders` |
 | Zamiana tekstu na mowę | `text_to_speech` |
@@ -161,3 +170,5 @@ w [Capabilities](capabilities.md).
 | Wyszukiwanie w internecie | `web_research` |
 | Tabele | AgenticOS MCP: `list_virtual_tables`, `query_virtual_table` |
 | Workflowy | `workflows` |
+
+Angielska nazwa pozycji **Podłączone komunikatory** w konsoli to **Connected chat apps**.

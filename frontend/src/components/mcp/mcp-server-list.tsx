@@ -39,12 +39,15 @@ import {
   useMcpCatalogPage,
   useMcpServerEntry,
 } from "@/hooks/use-mcp-servers";
-import { getErrorMessage } from "@/lib/api-error";
+import { apiClient } from "@/lib/api-client";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
+import type { SecretList } from "@/types/secrets";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
 import {
   type McpOAuthClient,
   mcpOAuthClient,
+  isGoogleAppMissing,
   needsGoogleOAuthClient,
   rememberMcpOAuthReturn,
   secretWithoutClientId,
@@ -64,6 +67,7 @@ import {
 import type { McpServerRow } from "@/lib/mcp-servers";
 import { setUrlParam } from "@/lib/utils";
 import type { McpAuthKind, McpServerStateFilter } from "@/types/mcp";
+import { managedAppToolkit, useManagedAppConnect } from "@/hooks/use-managed-app-connect";
 import type { AudiencePayload } from "@/types/sharing";
 import { useTranslations } from "next-intl";
 
@@ -154,6 +158,37 @@ function hasAccount(scope: Scope, row: McpServerRow): boolean {
   return (scope === "organization" ? row.organizations : row.personals).length > 0;
 }
 
+const ORG_GOOGLE_APP_NAME = "google-oauth-app";
+
+/**
+ * Saves the organization's Google client. A second save rotates the app that the
+ * first one made, rather than adding a second secret with the same name (the
+ * server refuses that with ALREADY_EXISTS).
+ */
+async function saveOrgGoogleApp(
+  clientId: string,
+  clientSecret: string,
+  description: string,
+): Promise<void> {
+  const value = { kind: "google_oauth_app", client_id: clientId, client_secret: clientSecret };
+  try {
+    await apiClient.post("/secrets", {
+      name: ORG_GOOGLE_APP_NAME,
+      description,
+      value,
+      visibility: "org",
+    });
+  } catch (caught) {
+    if (!(caught instanceof ApiError) || caught.code !== "ALREADY_EXISTS") throw caught;
+    const list = await apiClient.get<SecretList>("/secrets");
+    const existing = list.items.find(
+      (secret) => secret.name === ORG_GOOGLE_APP_NAME && secret.kind === "google_oauth_app",
+    );
+    if (!existing) throw caught;
+    await apiClient.patch(`/secrets/${existing.id}`, { value });
+  }
+}
+
 export function McpServerList({
   canManageOrganization,
   initialServerKey,
@@ -167,6 +202,7 @@ export function McpServerList({
     retryOnMount: retryOrganizationOnMount,
   });
   const createdToast = useCreatedToast();
+  const managedConnect = useManagedAppConnect();
   // The whole curated catalog, for the category filter alone - see below.
   const catalog = useMcpCatalog();
   const [category, setCategory] = useState<string>("all");
@@ -240,9 +276,18 @@ export function McpServerList({
         : new URL(window.location.href).searchParams.get(SERVER_PARAM)),
   );
   const manage = (key: string | null) => {
+    if (key && managedAppToolkit(key)) {
+      managedConnect(key, { sameTab: true });
+      return;
+    }
     setManagingKey(key);
     if (persistSelection) setUrlParam(SERVER_PARAM, key);
   };
+  useEffect(() => {
+    if (persistSelection && managingKey && managedAppToolkit(managingKey)) {
+      managedConnect(managingKey, { sameTab: true });
+    }
+  }, [managedConnect, managingKey, persistSelection]);
   // A bookmarked custom or registry server may sit beyond the current page.
   // Resolve that one key, while page entries continue to supply live metadata.
   const { entry: bookmarkedEntry } = useMcpServerEntry(
@@ -290,6 +335,10 @@ export function McpServerList({
   const api = (scope: Scope) => (scope === "organization" ? organization : personal);
 
   const openDraft = (scope: Scope, row: McpServerRow, existing: McpConnectionRecord | null) => {
+    if (managedAppToolkit(row.key)) {
+      managedConnect(row.key, { sameTab: true });
+      return;
+    }
     // The dialog seeds its own fields from this - name, url and auth type off
     // the row and any connection being edited.
     setDraft({
@@ -308,14 +357,17 @@ export function McpServerList({
    * is the way to that form for the first kind.
    */
   const connect = (scope: Scope, row: McpServerRow) => {
+    if (managedAppToolkit(row.key)) {
+      managedConnect(row.key, { sameTab: true });
+      return;
+    }
     const name = freeName(row, takenNames(scope));
     // A second account goes through the form, where it is named.
     if (
       row.auth === "oauth" &&
       row.entry !== null &&
       name !== undefined &&
-      !hasAccount(scope, row) &&
-      !needsGoogleOAuthClient(row.url ?? "")
+      !hasAccount(scope, row)
     ) {
       void handleOAuth(row, name, scope);
       return;
@@ -396,7 +448,22 @@ export function McpServerList({
       window.location.assign(authorization_url);
       return true;
     } catch (caught) {
-      toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign")));
+      if (isGoogleAppMissing(caught)) {
+        if (canManageOrganization) {
+          setDraft({
+            scope,
+            row,
+            existing: null,
+            suggestedName: name,
+            needsLabel: hasAccount(scope, row),
+            googleAppMissing: true,
+          });
+        } else {
+          toast.error(t("googleAppAskAdmin"));
+        }
+      } else {
+        toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign")));
+      }
       setBusyId(null);
       return false;
     }
@@ -426,7 +493,8 @@ export function McpServerList({
   const requestedDraft: DraftState | null =
     draft === null &&
     requestedRow !== null &&
-    (requestedRow.auth !== "oauth" || needsGoogleOAuthClient(requestedRow.url ?? ""))
+    !managedAppToolkit(requestedRow.key) &&
+    requestedRow.auth !== "oauth"
       ? {
           scope: "personal",
           row: requestedRow,
@@ -456,7 +524,11 @@ export function McpServerList({
       toast.error(t("noSuchServerToConnect", { key: connectKey }));
       return;
     }
-    if (requestedRow.auth !== "oauth" || needsGoogleOAuthClient(requestedRow.url ?? "")) return;
+    if (managedAppToolkit(requestedRow.key)) {
+      managedConnect(requestedRow.key, { sameTab: true });
+      return;
+    }
+    if (requestedRow.auth !== "oauth") return;
     const taken = new Set(personal.connections.map((connection) => connection.name));
     const name = freeName(requestedRow, taken) ?? slugForPrefix(connectKey);
     startMcpOAuth({ name, url: requestedRow.url ?? "", catalog_key: connectKey }, "personal")
@@ -464,10 +536,32 @@ export function McpServerList({
         rememberMcpOAuthReturn(serverReturn(connectKey));
         window.location.assign(authorization_url);
       })
-      .catch((caught: unknown) =>
-        toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign"))),
-      );
-  }, [connectKey, catalogLoaded, requestedRow, personal.connections, t, tErrors]);
+      .catch((caught: unknown) => {
+        if (!isGoogleAppMissing(caught)) {
+          toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign")));
+        } else if (canManageOrganization) {
+          setDraft({
+            scope: "personal",
+            row: requestedRow,
+            existing: null,
+            suggestedName: name,
+            needsLabel: hasAccount("personal", requestedRow),
+            googleAppMissing: true,
+          });
+        } else {
+          toast.error(t("googleAppAskAdmin"));
+        }
+      });
+  }, [
+    connectKey,
+    catalogLoaded,
+    requestedRow,
+    personal.connections,
+    canManageOrganization,
+    t,
+    tErrors,
+    managedConnect,
+  ]);
 
   const handleSubmit = async (values: ConnectionFormValues) => {
     if (!activeDraft) return;
@@ -494,7 +588,11 @@ export function McpServerList({
     // Sending the form would make an unauthorized bearer connection that then
     // has to be repaired.
     if (values.auth === "oauth" && existing === null) {
-      if (needsGoogleOAuthClient(url) && (!values.clientId.trim() || !values.clientSecret.trim())) {
+      if (
+        activeDraft.googleAppMissing === true &&
+        needsGoogleOAuthClient(url) &&
+        (!values.clientId.trim() || !values.clientSecret.trim())
+      ) {
         toast.error(t("googleOAuthClientRequired"));
         return;
       }
@@ -502,12 +600,32 @@ export function McpServerList({
         toast.error(t("clientSecretNeedsId"));
         return;
       }
+      // An admin who types the organization's Google client is registering it
+      // for everyone: it is saved as the org's app, and the connect itself is a
+      // personal one that reads that app. Anyone else keeps a personal client.
+      const adminSavesOrgApp =
+        canManageOrganization &&
+        activeDraft.googleAppMissing === true &&
+        needsGoogleOAuthClient(url);
       setSubmitting(true);
+      if (adminSavesOrgApp) {
+        try {
+          await saveOrgGoogleApp(
+            values.clientId.trim(),
+            values.clientSecret.trim(),
+            t("googleAppDescription"),
+          );
+        } catch (caught) {
+          toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign")));
+          setSubmitting(false);
+          return;
+        }
+      }
       const started = await handleOAuth(
         { ...row, url },
         name,
         scope,
-        mcpOAuthClient(values.clientId, values.clientSecret),
+        adminSavesOrgApp ? undefined : mcpOAuthClient(values.clientId, values.clientSecret),
         scope === "organization" ? values.audience : undefined,
         label,
       );
@@ -836,7 +954,7 @@ export function McpServerList({
       </ListCard>
 
       <ServerConnectionsDialog
-        row={managing}
+        row={managing && managedAppToolkit(managing.key) ? null : managing}
         canManageOrganization={canManageOrganization}
         busyId={busyId}
         onClose={() => manage(null)}

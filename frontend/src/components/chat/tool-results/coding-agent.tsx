@@ -28,10 +28,12 @@ interface CodingStep {
   failed?: boolean;
 }
 
-/** What `run_coding_agent` returns - `CodingReport` in the backend. */
+/** What `run_coding_agent` returns - `CodingReport` in the backend - and what a
+ * harness prompt returns: `HarnessReport`, the same shape with its `kind`
+ * renamed and no change set. */
 interface CodingReport {
-  kind: "coding_agent";
-  harness: "claude_code" | "codex";
+  kind: "coding_agent" | "harness";
+  harness: "claude_code" | "codex" | "opencode" | "gemini" | "pi";
   access: "edit" | "read_only";
   outcome: "completed" | "failed" | "timed_out";
   answer: string;
@@ -61,20 +63,30 @@ export const HARNESS_NAME: Record<CodingReport["harness"], string> = {
   claude_code: "Claude Code",
   // i18n-exempt: a product's own name
   codex: "Codex",
+  // i18n-exempt: a product's own name
+  opencode: "OpenCode",
+  // i18n-exempt: a product's own name
+  gemini: "Gemini CLI",
+  // i18n-exempt: a product's own name
+  pi: "Pi",
 };
 
 export function parseCodingReport(text: string): CodingReport | null {
   try {
     const parsed: unknown = JSON.parse(text);
     if (typeof parsed !== "object" || parsed === null) return null;
-    if ("kind" in parsed) return parsed.kind === "coding_agent" ? (parsed as CodingReport) : null;
+    if ("kind" in parsed)
+      return parsed.kind === "coding_agent" || parsed.kind === "harness"
+        ? (parsed as CodingReport)
+        : null;
     // Reports stored before `kind` reached the wire carry no kind at all: they
     // are told apart by the two fields every report has.
     if ("harness" in parsed && "outcome" in parsed) {
       return { ...(parsed as Omit<CodingReport, "kind">), kind: "coding_agent" };
     }
   } catch {
-    // A refusal - no sandbox, the harness not installed - is a sentence, not a report.
+    // Text stored before failures became reports - a refusal from an older run -
+    // is a sentence, not a report, and still reads as one.
   }
   return null;
 }

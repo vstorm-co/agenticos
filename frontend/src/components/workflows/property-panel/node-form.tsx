@@ -83,6 +83,11 @@ import { FormPageForm } from "./form-page-form";
 import { HttpAuthField } from "./http-auth-field";
 import { InputContractForm } from "./input-contract-form";
 import { MergeForm } from "./merge-form";
+import {
+  isMediaGenerationNode,
+  MEDIA_GENERATION_FIELDS,
+  MediaGenerationFields,
+} from "./media-generation-fields";
 import { ACCOUNT_TRIGGERS, PortalAccount } from "./portal-account";
 import { ScheduleTriggerForm } from "./schedule-trigger-form";
 import {
@@ -163,6 +168,8 @@ const PRIMARY_CONFIG: Readonly<Record<string, readonly string[]>> = {
   "convert.text_to_file": ["filename"],
   "html.parse": ["selector"],
   "image.transform": ["crop", "resize", "rotate_degrees", "output_format", "quality"],
+  "image.generate": ["filename", "max_cost_usd"],
+  "video.generate": ["filename", "max_cost_usd"],
   "webhook.respond": ["status_code"],
   "flow.wait": ["seconds", "until_called"],
   "data.combine": ["mode", "key"],
@@ -1253,6 +1260,22 @@ export interface NodeFormProps {
  * objects, repeatable arrays, discriminated unions and binding-aware leaves.
  */
 export function NodeForm(props: NodeFormProps) {
+  if (isMediaGenerationNode(props.definition.id)) {
+    return (
+      <MediaGenerationFields
+        nodeType={props.definition.id}
+        idPrefix={`media-${props.node.id}`}
+        config={props.node.config}
+        errors={props.errors}
+        disabled={props.disabled}
+        onChange={(config) => props.updateNodeConfig(props.node.id, config)}
+      >
+        {(referenceAllowed) => (
+          <NodeFields {...props} toolSchema={null} mediaReferenceAllowed={referenceAllowed} />
+        )}
+      </MediaGenerationFields>
+    );
+  }
   return props.definition.id === MCP_CALL ? (
     <McpCallForm {...props} />
   ) : (
@@ -1281,9 +1304,11 @@ function NodeFields({
   upsertBinding,
   removeBinding,
   toolSchema,
+  mediaReferenceAllowed,
 }: NodeFormProps & {
   /** An MCP tool's argument schema, drawn as one field per argument; null elsewhere. */
   toolSchema: Record<string, unknown> | null;
+  mediaReferenceAllowed?: boolean | null;
 }) {
   const t = useTranslations("workflows");
   // What "N more options" brought out, while it is open: drawn just above the
@@ -1295,7 +1320,14 @@ function NodeFields({
     graph,
     catalog,
     bindings,
-    errors,
+    errors:
+      mediaReferenceAllowed === false &&
+      bindings.some(
+        (binding) =>
+          binding.target_node_id === node.id && binding.target_field === "reference_image",
+      )
+        ? new Map([...errors, ["reference_image", t("mediaReferenceUnsupported")]])
+        : errors,
     disabled,
     updateNodeConfig,
     upsertBinding,
@@ -1348,13 +1380,20 @@ function NodeFields({
   // argument - each bound on its own as `arguments/<name>` - not one object.
   const toolArguments =
     toolSchema !== null && isRecord(toolSchema["properties"]) ? (toolSchema as Schema) : null;
-  const inputFields = (
-    inputSchema === null ? [] : objectFields(inputSchema, defsOf(inputSchema))
-  ).map((entry) =>
-    toolArguments !== null && entry.name === MCP_ARGUMENTS
-      ? { ...entry, schema: { ...toolArguments, title: labelOf(entry.schema, entry.name) } }
-      : entry,
-  );
+  const inputFields = (inputSchema === null ? [] : objectFields(inputSchema, defsOf(inputSchema)))
+    .filter(
+      (entry) =>
+        entry.name !== "reference_image" ||
+        mediaReferenceAllowed !== false ||
+        bindings.some(
+          (binding) => binding.target_node_id === node.id && binding.target_field === entry.name,
+        ),
+    )
+    .map((entry) =>
+      toolArguments !== null && entry.name === MCP_ARGUMENTS
+        ? { ...entry, schema: { ...toolArguments, title: labelOf(entry.schema, entry.name) } }
+        : entry,
+    );
   const configDefs = configSchema === null ? {} : defsOf(configSchema);
   const inputDefs = {
     ...(inputSchema === null ? {} : defsOf(inputSchema)),
@@ -1389,6 +1428,8 @@ function NodeFields({
   // Drawn by another field: an agent step's `inline` by `agent`, an MCP step's
   // tool by its server.
   const drawnElsewhere = (name: string) =>
+    (isMediaGenerationNode(definition.id) &&
+      MEDIA_GENERATION_FIELDS[definition.id].includes(name)) ||
     (definition.id === "flow.await_reply" && ["provider", "connection_id"].includes(name)) ||
     (agentStep && name === AGENT_INLINE) ||
     (mcpStep && name === MCP_TOOL) ||

@@ -1,5 +1,5 @@
 ---
-source_sha: "7b83980dd889"
+source_sha: "543b61f10ddd"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -269,22 +269,42 @@ Ein Profile kann Fallback-Profiles auflisten, die der Reihe nach versucht werden
 Der Ausfall eines Providers sollte die Agents einer Organisation nicht lahmlegen,
 wenn sie einen zweiten Key oder einen zweiten Provider konfiguriert hat.
 
-!!! warning "Ein Fallback ist im Run-Datensatz unsichtbar"
+Ein Fallback ist im Run-Datensatz nicht mehr unsichtbar. Wenn ein
+Fallback-Modell eine Anfrage des Runs bedient, zeichnet die Run-Zeile
+`fallback_used` und die reine Modell-Id, die die letzte erfolgreiche Anfrage
+beantwortet hat, als `serving_model` auf, und die Detailansicht des Runs zeigt
+unter den Fakten „Beantwortet von … (Fallback)". Die Zeile wird weiterhin vor
+der ersten Anfrage geschrieben, also nennt sie bis zum Abschluss des Runs das
+primäre Profil; ein geparkter Run trägt, was seine abgeschlossenen Segmente
+bisher aufgezeichnet haben.
 
-    Die Run-Zeile wird vor der ersten Anfrage geschrieben und trägt Label, Provider
-    und Secret-Id des **primären** Profiles. Hat ein Fallback den Zug bedient, nennt
-    der Run trotzdem das primäre.
+Zwei blinde Flecken bleiben, bevor Sie sich während eines Ausfalls auf die Zahlen
+verlassen:
 
-    "Was haben wir bei OpenAI ausgegeben" und "welcher Key kostet am meisten"
-    antworten also mit dem Profile, das zuerst *gefragt* wurde, nicht mit dem, das
-    geantwortet hat. Wissenswert, bevor Sie sich während eines Ausfalls auf diese
-    Zahlen verlassen.
+- „Was haben wir bei OpenAI ausgegeben" und „welcher Key kostet am meisten"
+  beantwortet weiterhin das primäre Profil, das zuerst *gefragt* wurde, nicht
+  das, das geantwortet hat — die Kosten werden dem primären Profil zugeordnet.
+  Die neuen Spalten sagen, welches Modell geantwortet hat, nicht welches Profil
+  bezahlt hat.
+- Ein Fehler **nach** dem ersten gestreamten Ereignis löst nie einen Fallback
+  aus. Pydantic AI übergibt den Stream beim ersten Ereignis an den Aufrufer,
+  also beendet ein Fehler mitten im Stream den Run, statt das nächste Modell
+  der Kette zu versuchen.
 
 ### Model Settings { #model-settings }
 
 Pro Profile, und pro Agent über die `model_settings` des Specs überschreibbar:
-`temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. Siehe
+`temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`,
+`request_timeout`, `first_event_timeout`. Siehe
 [die Spec-Referenz](reference/spec.md#model-settings).
+
+Eine Anfrage hat außerdem standardmäßig Deadlines: 300 Sekunden für eine
+Modellanfrage (`request_timeout`, und `timeout` pro Versuch) und 120 Sekunden
+für das erste gestreamte Ereignis (`first_event_timeout`). Ein Profil oder ein
+Agent-Spec kann sie erhöhen oder senken. Läuft die Deadline ab, endet der Run
+als `timed_out` — mit der Deadline im gespeicherten Fehler — statt endlos
+„Working" anzuzeigen; wo eine Fallback-Kette konfiguriert ist, wird sie
+zuerst versucht.
 
 **Prompt-Caching ist standardmäßig an**, über die anbieterneutrale
 `cache`-Einstellung von Pydantic AI. Jeder Request eines Runs schickt die
@@ -392,7 +412,7 @@ Standard-Provider verwenden die Modell- und Provider-Ableitung von Pydantic AI. 
 | OpenAI | `openai` | API-Key, oder keine | ✓ |
 | Anthropic | `anthropic` | API-Key | ✓ |
 | Google Gemini | `google` | API-Key | ✓ |
-| TypeSafe (Jev) | `typesafe` | API key | ✓ |
+| TypeSafe (Jev) | `typesafe` | API-Schlüssel | ✓ |
 | OpenRouter | `openrouter` | API-Key |  ✓ |
 | Otari | `otari` | API-Key | ✓ |
 | Alibaba Cloud | `alibaba` | API-Key | ✓ |
@@ -419,7 +439,7 @@ Standard-Provider verwenden die Modell- und Provider-Ableitung von Pydantic AI. 
 
 | Provider | id | Zugangsdaten | Custom URL |
 |---|---|---|---|
-| System One API | `system-one` | API key, or none | ✓ |
+| System One API | `system-one` | API-Schlüssel oder keine Zugangsdaten | ✓ |
 | Ollama | `ollama` | keine | ✓ |
 | LiteLLM proxy | `litellm` | keine | ✓ (`api_base`) |
 
@@ -455,6 +475,7 @@ zurückfallen könnte, und nichts, womit man authentifizieren könnte.
 | AWS Bedrock | `bedrock` | Access Key Id, Secret Key, Region, optionales Session-Token |
 | Google Vertex AI | `google_cloud` | Service-Account-JSON |
 | ChatGPT (Codex-Abonnement) | `openai_codex` | eine ChatGPT-Anmeldung, gespeichert durch Anmelden statt durch Eintippen |
+| [Claude-Abonnement](https://github.com/t3grp/agenticos/blob/t3/integrations/claude-subscription/README.md) | `claude-subscription` | persönliches Claude-Konto, angemeldet über den offiziellen Client; Aliase `sonnet`, `opus`, `haiku` |
 
 Die ersten drei sind der Grund, warum ein Secret überhaupt eine *Art* hat. Ein
 Formular, das für Azure ein einzelnes undurchsichtiges Token einsammelte, würde
@@ -709,14 +730,15 @@ richtig bleibt, wenn ein Agent auf ein anderes Modell umzieht.
 !!! danger "Warum sie gespeichert und nicht pro Run aufgelöst wird"
 
     Der Anfragepfad darf keinen Provider aufrufen, und das Einzige, was er sonst
-    heranziehen könnte, ist der mitgelieferte Preis-Snapshot — der hier in genau der
-    Richtung falsch liegt, die einen Run kaputtmacht.
-
-    Dieser Snapshot verzeichnet 1.000.000 für `anthropic:claude-sonnet-4-5` gegen
-    reale 200.000, ein Auslöser bei 90 % landet also oberhalb der echten Obergrenze,
-    und die Verdichtung greift nie, bevor der Provider die Anfrage ablehnt. Ein
-    Profile mit Fallbacks ist schlimmer: es baut ein `FallbackModel`, dessen
-    zusammengesetzte Id auf gar nichts auflöst.
+    heranziehen könnte, ist der mitgelieferte Preis-Snapshot — ein Bundle eines
+    Drittanbieters, dessen Zahlen nicht maßgeblich sind: ein früherer Snapshot
+    verzeichnete 1.000.000 für `anthropic:claude-sonnet-4-5` gegen reale
+    200.000, ein Auslöser bei 90 % landete also oberhalb der echten Obergrenze,
+    und die Verdichtung griff nie, bevor der Provider die Anfrage ablehnte
+    (#773). Der angepinnte Snapshot verzeichnet heute die richtigen 200.000,
+    doch ein Bundle-Update kann eine Zahl verschieben, ohne dass dieses Repo es
+    bemerkt. Ein Profile mit Fallbacks ist schlimmer: es baut ein
+    `FallbackModel`, dessen zusammengesetzte Id auf gar nichts auflöst.
 
 Null bedeutet **nicht erfasst**, nicht null als Zahl: ein Profile, das älter ist
 als die Spalte, ein Provider, der keine Länge veröffentlicht, eine kuratierte
@@ -862,13 +884,13 @@ Für einen weiteren Endpunkt mit demselben Anbieter und Modell wählen Sie im Bu
 
 ## Entscheidungsmodelle { #decision-models }
 
-Entscheidungsprofile verwenden die native API `decisions` statt Textgenerierung. Anbieter, Modell und Tresorschlüssel werden im Modellformular gewählt. OpenAI, Google und OpenRouter bieten Chat- und Entscheidungs-APIs; TypeSafe und ein eigener System-One-Endpunkt dienen Entscheidungen. Ein Entscheidungsprofil kann weder das Gesprächsmodell eines Agents sein noch auf ein Chatmodell zurückfallen.
+Entscheidungsprofile verwenden die native API `decisions` statt Textgenerierung. Wählen Sie Anbieter, Modell und Vault-Schlüssel im Modellformular. OpenAI, Google und OpenRouter bieten Chat- und Entscheidungs-APIs; TypeSafe und ein eigener System-One-Endpunkt sind für Entscheidungen verfügbar. Ein Entscheidungsprofil kann weder das Gesprächsmodell eines Agents sein noch als Ersatzmodell für ein Chatmodell dienen.
 
 Die Adapter stammen aus Pydantic AI. Aktuelle Vorschläge umfassen OpenAI `gpt-6-luna`, Google `gemini-decision-1` und TypeSafe `jev-1.14.0` / `jev-latest`. OpenRouter lädt Entscheidungsmodelle getrennt von Textmodellen. Ein eigener System-One-Endpunkt benötigt URL und Modell-ID. Verfügbarkeit und Kontozugang bestimmt der Anbieter; Vorschläge garantieren keinen Zugang.
 
-Die Workflow-Schritte **Decision models** wählen ein natives Profil. Bestehende `decide.*`-IDs und TypeSafe-Schlüsselkonfigurationen bleiben gültig. Unterhalb der Konfidenzschwelle folgt der Schritt dem Port `unsure`. Jede Ausführung prüft Schlüssel und Berechtigungen erneut; Kosten zählen zum Workflow- und Organisationsbudget.
+Workflow-Schritte **Entscheidungsmodelle** (Decision models) wählen ein natives Profil. Bestehende `decide.*`-IDs und TypeSafe-Schlüsselkonfigurationen bleiben gültig. Unterhalb der Konfidenzschwelle folgt der Schritt dem Port `unsure`. Jede Ausführung prüft Schlüssel und Berechtigungen erneut; Kosten zählen zum Workflow- und Organisationsbudget.
 
-Automatisches Mitreden in Kanälen kann ein natives Modell oder ein gewöhnliches LLM mit strukturierter Ausgabe verwenden. Native Ja/Nein-Entscheidungen liefern die Wahrscheinlichkeit des Mitredens; ein begrenztes Zahlenfeld erhält diesen Wert. Ein LLM liefert eine Nützlichkeitsbewertung von 0 bis 100, keine kalibrierte Wahrscheinlichkeit. Beide werden einschließlich Gleichheit mit dem Schwellenregler verglichen. Der Klassifikator hat keine Tools. Die Funktion ist optional und beachtet die Intervalle; der Hauptagent darf organisatorische MCP-Konten nutzen, niemals private Zugangsdaten eines Teilnehmers.
+Die Kanaloption **Automatisch an Gesprächen teilnehmen** (Join conversations automatically) kann ein natives Entscheidungsprofil oder ein gewöhnliches LLM mit strukturierter Ausgabe verwenden. Native Ja/Nein-Entscheidungen liefern die Wahrscheinlichkeit des Mitredens; ein begrenztes Zahlenfeld erhält diesen Wert. Ein LLM liefert eine Nützlichkeitsbewertung von 0 bis 100, keine kalibrierte Wahrscheinlichkeit. Beide Werte werden mit dem Regler **Agent starten ab (%)** (Run the agent from (%)) verglichen; der Grenzwert selbst zählt mit. Der Klassifikator hat keine Tools. Die Teilnahme muss ausdrücklich aktiviert werden und richtet sich nach den konfigurierten Intervallen; der Hauptagent darf organisatorische MCP-Konten nutzen, niemals private Zugangsdaten eines Teilnehmers.
 
 Anbieterquellen: [Pydantic AI](https://pydantic.dev/docs/ai/models/decision/), [OpenAI](https://developers.openai.com/api/docs/guides/decisions), [Google](https://ai.google.dev/gemini-api/docs/decisions-api), [TypeSafe](https://docs.typesafe.ai/models), [OpenRouter](https://github.com/OpenRouterTeam/skills/tree/main/skills/openrouter-decisions).
 

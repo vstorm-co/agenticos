@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { useOrgStore } from "@/stores/org-store";
 import { reportShellFailure } from "@/lib/desktop/shell";
 
-import { useConversationStore } from "@/stores";
+import { ChatScope, useConversationStore } from "@/stores";
+import type { ReactNode } from "react";
 import { useLocalAccessStore } from "@/stores/local-access-store";
 import { useWorkOnStore } from "@/stores/work-on-store";
 import type { Agent } from "@/types/agents";
@@ -316,6 +317,32 @@ it("respects an already-open project's cloud workspace", () => {
   );
   result.current("hello");
   expect(send).toHaveBeenCalledWith("hello");
+});
+
+it("keeps the floating agent's local access separate from the main chat", async () => {
+  const send = vi.fn();
+  const mainTarget = { folder: "/work", mode: "workspace_write" } as const;
+  useWorkOnStore.getState().set("chat", mainTarget);
+  const { result } = renderHook(
+    () => ({
+      conversation: useConversationStore.useApi(),
+      send: useLocalAccessGate(send, local),
+    }),
+    {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <ChatScope agentId={local.id}>{children}</ChatScope>
+      ),
+    },
+  );
+  act(() => result.current.conversation.setState({ currentConversationId: "floating" }));
+  act(() => result.current.send("Explain this page"));
+  // Nothing is granted to the floating chat, so the send goes out at once without
+  // borrowing the main chat's folder, and nothing is asked (the agent asks on use).
+  await waitFor(() => expect(send).toHaveBeenCalledWith("Explain this page"));
+  expect(useLocalAccessStore.getState().asking).toBeNull();
+  expect(useWorkOnStore.getState().explicitTargetFor("floating")).toBeNull();
+  expect(useWorkOnStore.getState().targetFor("chat")).toEqual(mainTarget);
+  expect(useConversationStore.getState().currentConversationId).toBe("chat");
 });
 
 describe("useComputerAccessOnUse", () => {

@@ -551,19 +551,20 @@ async def test_deep_descendant_selectors_complete_without_backtracking() -> None
     assert result.output.match_count == 0
 
 
-async def test_a_reader_that_never_finishes_fails_as_too_complex(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+async def test_a_child_that_never_finishes_fails_as_too_complex(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ):
-    # Exercise the deadline independently of selector-library performance.
-    monkeypatch.setattr(
-        html_parse, "_CHILD_SCRIPT", _child_script(tmp_path, "import time; time.sleep(60)")
-    )
+    # Exercise the process budget independently of a selector implementation.
     monkeypatch.setattr(html_parse, "PARSE_DEADLINE_SECONDS", 1)
+    monkeypatch.setattr(
+        html_parse, "_CHILD_SCRIPT", _child_script(tmp_path, "import time\ntime.sleep(60)\n")
+    )
     spawns = _Spawns(monkeypatch)
     started = time.monotonic()
 
     result = await handle(
-        HtmlParseConfig(selector="p div"), HtmlParseInput(html="<p>" + "<div>" * 20_000)
+        HtmlParseConfig(selector="p div"), HtmlParseInput(html="<p>safe input</p>")
     )
 
     assert time.monotonic() - started < 15
@@ -574,6 +575,7 @@ async def test_a_reader_that_never_finishes_fails_as_too_complex(
         "This HTML took too long to read - try a simpler selector or a smaller page"
     )
     assert result.error.details == {"deadline_seconds": 1}
+    assert len(spawns.procs) == 1
     spawns.assert_gone()
 
 

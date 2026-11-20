@@ -8,9 +8,10 @@ import pytest
 from app.agents.capabilities import get, load_builtins
 from app.agents.capabilities.mirage import MirageConfig
 from app.agents.spec import AgentSpec
-from app.core.exceptions import AuthorizationError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext
-from app.repositories import organization_secret_repo
+from app.core.secret_kinds import GoogleOAuthAppSecret, SecretKind
+from app.repositories import member_repo, organization_secret_repo
 from app.schemas.routine_sources import RoutineSourcePolicy
 from app.services import mcp_connection, mirage_mounts
 from app.services.agent_runner import AgentRunnerService, PausedRunState
@@ -31,29 +32,75 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @pytest.mark.parametrize(
-    "changed", ["unchanged", "tenant", "membership", "rotation", "removed", "legacy"]
+    "changed",
+    [
+        "unchanged",
+        "tenant",
+        "membership",
+        "inactive_member",
+        "rotation",
+        "client",
+        "removed",
+        "legacy",
+    ],
 )
 async def test_personal_account_keeps_the_issuing_tenant_and_current_client(monkeypatch, changed):
     account = _account()
     payload = _payload(account_source_secret_id=None) if changed == "legacy" else _payload()
     account.oauth_payload = _sealed(account, payload)
     member = AsyncMock(return_value=None if changed == "membership" else MagicMock())
-    generation = AsyncMock(
-        return_value=None
-        if changed == "removed"
-        else uuid4()
-        if changed == "rotation"
-        else SOURCE_GENERATION
+    active_member = AsyncMock(return_value=None if changed == "inactive_member" else MagicMock())
+    app = GoogleOAuthAppSecret(
+        client_id="replacement-client" if changed == "client" else "org-client",
+        client_secret="rotated-secret" if changed == "rotation" else "org-secret",
+    )
+    identity = AsyncMock(
+        return_value=(app, SOURCE_SECRET, uuid4() if changed == "rotation" else SOURCE_GENERATION),
+        side_effect=NotFoundError() if changed == "removed" else None,
     )
     monkeypatch.setattr(mcp_connection, "decider_context", member)
-    monkeypatch.setattr(organization_secret_repo, "authorization_generation", generation)
+    monkeypatch.setattr(member_repo, "get_active", active_member)
+    monkeypatch.setattr(
+        mcp_connection.OrganizationSecretService, "oauth_app_identity_for_org", identity
+    )
     result = await McpConnectionService(AsyncMock()).account_grant(
         account, organization_id=uuid4() if changed == "tenant" else SOURCE_ORG
     )
-    assert (result is not None) is (changed == "unchanged")
+    # A secret rotation keeps its client and uses the current secret. A replaced
+    # client, removed app or departed member cannot supply a grant. Paused runs
+    # separately pin the credential generation, asserted below.
+    assert (result is not None) is (changed in {"unchanged", "rotation"})
+    if result is not None:
+        assert result.client_id == "org-client"
+        assert result.client_secret == app.client_secret
     if changed in {"tenant", "legacy"}:
         member.assert_not_awaited()
-        generation.assert_not_awaited()
+        active_member.assert_not_awaited()
+    if changed in {"tenant", "legacy", "membership", "inactive_member"}:
+        identity.assert_not_awaited()
+    else:
+        identity.assert_awaited_once_with(SOURCE_ORG, kind=SecretKind.GOOGLE_OAUTH_APP)
+
+
+async def test_membership_lost_during_grant_resolution_never_reads_the_org_client(monkeypatch):
+    account = _account()
+    account.oauth_payload = _sealed(account, _payload())
+    membership = AsyncMock(side_effect=[MagicMock(), None])
+    active_member = AsyncMock(return_value=MagicMock())
+    identity = AsyncMock()
+    monkeypatch.setattr(mcp_connection, "decider_context", membership)
+    monkeypatch.setattr(member_repo, "get_active", active_member)
+    monkeypatch.setattr(
+        mcp_connection.OrganizationSecretService, "oauth_app_identity_for_org", identity
+    )
+    db = AsyncMock()
+
+    grant = await McpConnectionService(db).account_grant(account, organization_id=SOURCE_ORG)
+
+    assert grant is None
+    assert membership.await_count == 2
+    active_member.assert_awaited_once_with(db, organization_id=SOURCE_ORG, user_id=account.user_id)
+    identity.assert_not_awaited()
 
 
 async def test_personal_mount_does_not_list_an_account_issued_by_another_tenant(monkeypatch):

@@ -30,7 +30,12 @@ import {
 } from "@/components/ui";
 import { GroupFilter, NothingSharedWithGroup } from "@/components/groups/group-filter";
 import { usePermissions, useUrlState } from "@/hooks";
-import { useArtifactAgents, useArtifactListActions, useArtifacts } from "@/hooks/use-artifacts";
+import {
+  useArtifactAgents,
+  useArtifactListActions,
+  useArtifacts,
+  useToggleArtifactFavourite,
+} from "@/hooks/use-artifacts";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import type { Artifact } from "@/types/artifact";
@@ -75,6 +80,7 @@ export default function ArtifactsPage() {
   // the server still decides each page, and refuses one the caller may not change.
   const canEdit = can(Perm.artifactsEdit);
   const { archive, unarchive, remove } = useArtifactListActions();
+  const favourites = useToggleArtifactFavourite();
   const [pendingArchive, setPendingArchive] = useState<Artifact | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Artifact | null>(null);
   const busyId = archive.isPending
@@ -204,6 +210,15 @@ export default function ArtifactsPage() {
                   key={artifact.id}
                   artifact={artifact}
                   busy={busyId === artifact.id}
+                  favourite={{
+                    on: artifact.is_favourite === true,
+                    busy: favourites.isPending && favourites.variables?.id === artifact.id,
+                    onToggle: () =>
+                      favourites.mutate({
+                        id: artifact.id,
+                        favourite: artifact.is_favourite !== true,
+                      }),
+                  }}
                   actions={
                     canEdit
                       ? {

@@ -906,6 +906,7 @@ class NotificationService:
             RunStatus.LOOP_STOPPED.value,
             RunStatus.BUDGET_EXCEEDED.value,
             RunStatus.GUARDRAIL_BLOCKED.value,
+            RunStatus.TIMED_OUT.value,
         }
         if run.status not in terminal:
             return

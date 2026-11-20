@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -27,12 +27,14 @@ import type { AgentRun } from "@/types/runs";
 const useRunMock = vi.fn();
 const prefetched = vi.fn();
 const useResumeRunMock = vi.fn();
+const useRetryRunMock = vi.fn();
 vi.mock("@/hooks", () => ({
   useRun: (runId: string) => useRunMock(runId),
   useDelegatedRuns: () => ({ runs: [], total: 0, isLoading: false }),
   usePermissions: () => ({ can: () => true, isLoading: false }),
   usePrefetchRuns: (ids: unknown[]) => prefetched(ids),
   useResumeRun: (options?: unknown) => useResumeRunMock(options),
+  useRetryRun: (options?: unknown) => useRetryRunMock(options),
   useAgent: () => ({ agent: undefined }),
 }));
 vi.mock("@/components/runs/run-timeline", () => ({
@@ -44,7 +46,15 @@ vi.mock("@/components/runs/run-timeline", () => ({
 vi.mock("@/components/runs/run-manifest", () => ({
   RunManifest: () => <div data-testid="manifest" />,
 }));
-vi.mock("@/stores", () => ({ useAuthStore: () => null }));
+// The viewer, so the starter-only controls can tell their run from another
+// person's. The fixture's runs belong to nobody by default, which reads as
+// "not mine" for every control gated on it. The selector is honoured rather
+// than answered with a bare id, because the component asks for the id through
+// it.
+vi.mock("@/stores", () => ({
+  useAuthStore: (selector: (state: { user: { id: string } | null }) => unknown) =>
+    selector({ user: { id: "user-1" } }),
+}));
 const datasets = vi.hoisted(() => ({ runnable: false }));
 vi.mock("@/hooks/use-eval-runs", () => ({
   useRunsADataset: () => datasets.runnable,
@@ -60,6 +70,8 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     status: "completed",
     model_label: "claude-sonnet-4-5",
     provider: "anthropic",
+    fallback_used: false,
+    serving_model: null,
     input_tokens: 1200,
     output_tokens: 340,
     cost_usd: "0.0182",
@@ -73,6 +85,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     started_at: "2026-08-14T09:00:00Z",
     ended_at: "2026-08-14T09:00:04Z",
     parent_run_id: null,
+    retry_of_run_id: null,
     subagent_task_id: null,
     modality: "text",
     voice_chain: null,
@@ -103,6 +116,8 @@ beforeEach(() => {
   datasets.runnable = false;
   useResumeRunMock.mockReset();
   useResumeRunMock.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  useRetryRunMock.mockReset();
+  useRetryRunMock.mockReturnValue({ mutate: vi.fn(), isPending: false });
 });
 
 describe("stepping to a neighbour", () => {
@@ -153,12 +168,144 @@ describe("stepping to a neighbour", () => {
     expect(screen.queryByText(/malformed arguments/)).toBeNull();
   });
 
+  it("says why a failed run stopped, in the run's own words", () => {
+    serve({
+      run: run({
+        status: "failed",
+        error: "The run did not finish (ModelHTTPError, HTTP 400)",
+      }),
+    });
+    renderRun();
+    // The label and the sentence are separate spans, so each is read on its
+    // own rather than as one string.
+    expect(screen.getByText(/Why it stopped/)).toBeInTheDocument();
+    expect(
+      screen.getByText("The run did not finish (ModelHTTPError, HTTP 400)"),
+    ).toBeInTheDocument();
+  });
+
+  it("says why a budget stop stopped it, not only that it did", () => {
+    serve({ run: run({ status: "budget_exceeded", error: "Monthly budget reached" }) });
+    renderRun();
+    expect(screen.getByText(/Why it stopped/)).toBeInTheDocument();
+    expect(screen.getByText("Monthly budget reached")).toBeInTheDocument();
+  });
+
+  it("says nothing about why when the run has no error to explain", () => {
+    serve({ run: run({ status: "failed" }) });
+    renderRun();
+    expect(screen.queryByText(/Why it stopped/)).toBeNull();
+  });
+
+  it("does not draw a held error as the live run's reason", () => {
+    serve({ run: run({ status: "running", error: "The run did not finish" }) });
+    renderRun();
+    expect(screen.queryByText(/Why it stopped/)).toBeNull();
+  });
+
+  it("offers a retry on a failed run the viewer started", () => {
+    serve({ run: run({ status: "failed", user_id: "user-1" }) });
+    renderRun();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("offers a retry on a timed-out run the viewer started", () => {
+    serve({ run: run({ status: "timed_out", user_id: "user-1" }) });
+    renderRun();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("opens the original run from a retry", async () => {
+    serve({ run: run({ retry_of_run_id: "run-1" }) });
+    const onFocusRun = renderRun();
+
+    await userEvent.click(screen.getByRole("button", { name: "Open the run it came from" }));
+
+    expect(onFocusRun).toHaveBeenCalledWith("run-1");
+  });
+
+  it("offers no retry on a run somebody else started", () => {
+    serve({ run: run({ status: "failed", user_id: "user-2" }) });
+    renderRun();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+  });
+
+  it("offers no retry while the run is still going", () => {
+    serve({ run: run({ status: "running", user_id: "user-1" }) });
+    renderRun();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+  });
+
+  it("offers no retry on a parked run - that one resumes", () => {
+    serve({ run: run({ status: "awaiting_approval", user_id: "user-1" }) });
+    renderRun();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+  });
+
+  it("offers no retry on a run with no conversation to retry from", () => {
+    serve({ run: run({ status: "failed", user_id: "user-1", conversation_id: null }) });
+    renderRun();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+  });
+
+  it("retries the run on screen, and steps to the new run", async () => {
+    const mutate = vi.fn();
+    useRetryRunMock.mockReturnValue({ mutate, isPending: false });
+    serve({ run: run({ status: "failed", user_id: "user-1" }) });
+    const onFocusRun = renderRun();
+
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(mutate).toHaveBeenCalledWith("run-2");
+    const options = useRetryRunMock.mock.calls[0]![0] as {
+      onRetried: (runId: string) => void;
+    };
+    options.onRetried("run-9");
+    expect(onFocusRun).toHaveBeenCalledWith("run-9");
+  });
+
+  it("says when a fallback served the run, and which model answered", () => {
+    serve({ run: run({ fallback_used: true, serving_model: "gpt-5" }) });
+    renderRun();
+    expect(screen.getByText("Served by gpt-5 (fallback)")).toBeInTheDocument();
+  });
+
+  it("says nothing about a fallback for a run its primary served", () => {
+    serve({ run: run() });
+    renderRun();
+    expect(screen.queryByText(/fallback/)).toBeNull();
+  });
+
+  it("names the primary profile when no serving model was recorded", () => {
+    serve({ run: run({ fallback_used: true, serving_model: null }) });
+    renderRun();
+    expect(screen.getByText("Served by claude-sonnet-4-5 (fallback)")).toBeInTheDocument();
+  });
+
   it("says how much of the input the cache served, when it did (#2170)", () => {
     serve({ run: run({ cache_read_tokens: 900, cache_write_tokens: 100 }) });
     renderRun();
     expect(
       screen.getByText(/900 read from the provider's cache and 100 written to it/),
     ).toBeVisible();
+  });
+
+  it.each([
+    { read: 90, write: undefined, text: "90 read from the provider's cache and 0 written to it" },
+    { read: undefined, write: 12, text: "0 read from the provider's cache and 12 written to it" },
+  ])(
+    "does not invent a missing cache counter ($read read, $write written)",
+    ({ read, write, text }) => {
+      serve({ run: run({ cache_read_tokens: read, cache_write_tokens: write }) });
+      renderRun();
+      expect(screen.getByText(new RegExp(text))).toBeInTheDocument();
+    },
+  );
+
+  it("admits a fallback whose serving model and original label are unavailable", () => {
+    serve({ run: run({ fallback_used: true, serving_model: null, model_label: null }) });
+    renderRun();
+    expect(screen.getByText("Served by - (fallback)")).toBeInTheDocument();
   });
 
   it("warms both neighbours on arrival, so the step is a cache hit", () => {
@@ -400,6 +547,55 @@ describe("the header a run opens on", () => {
     expect(screen.getAllByText("-").length).toBeGreaterThan(0);
     expect(screen.getByTitle(/no price/i)).toHaveTextContent("+");
     expect(screen.queryByText(/ago$/)).toBeNull();
+  });
+});
+
+describe("a run parked on a question", () => {
+  it("shows the unanswered questions and how long is left to answer them", () => {
+    serve({
+      run: run({
+        status: "awaiting_answer",
+        waiting_questions: ["Which model should I use?", "And the budget?"],
+        waiting_expires_at: new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(),
+      }),
+    });
+    renderRun();
+
+    expect(screen.getByRole("region", { name: "Waiting on you" })).toBeVisible();
+    expect(screen.getByText("Which model should I use?")).toBeVisible();
+    expect(screen.getByText("And the budget?")).toBeVisible();
+    expect(screen.getByText(/Expires in 1 d/)).toBeVisible();
+  });
+
+  it("names every requested secret even when no ordinary question is pending", () => {
+    serve({
+      run: run({
+        status: "awaiting_answer",
+        waiting_secret_requests: ["Vendor API key", "Calendar token"],
+        waiting_expires_at: null,
+      }),
+    });
+    renderRun();
+    const waiting = screen.getByRole("region", { name: "Waiting on you" });
+    expect(within(waiting).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(waiting).getByText("Needs secret: Vendor API key")).toBeVisible();
+    expect(within(waiting).getByText("Needs secret: Calendar token")).toBeVisible();
+    expect(within(waiting).queryByText(/Expires in/)).not.toBeInTheDocument();
+  });
+
+  it("does not display an empty waiting section while pending details are absent", () => {
+    serve({
+      run: run({ status: "awaiting_answer", waiting_questions: [], waiting_secret_requests: [] }),
+    });
+    renderRun();
+    expect(screen.queryByRole("region", { name: "Waiting on you" })).not.toBeInTheDocument();
+  });
+
+  it("shows no waiting section once the run has finished", () => {
+    serve({ run: run({ status: "completed" }) });
+    renderRun();
+
+    expect(screen.queryByRole("region", { name: "Waiting on you" })).toBeNull();
   });
 });
 

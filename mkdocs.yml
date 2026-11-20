@@ -324,11 +324,18 @@ nav:
           - concepts.md
           - console.md
           - projects.md
+          - agent-messages.md
           - screens.md
       - Build the agent:
           - choosing-models.md
           - models.md
           - skills.md
+          - council.md
+          - babysit-pr.md
+          - sol-loop.md
+          - eval-tool-tuning.md
+          - burst.md
+          - proof-scenario.md
           - context.md
           - datasets.md
           - evals.md
@@ -358,6 +365,7 @@ nav:
           - directory.md
           - departments.md
           - governance.md
+          - failure-learning.md
           - secrets.md
           - data-protection.md
           - licenses.md

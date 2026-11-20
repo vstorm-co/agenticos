@@ -8,7 +8,7 @@ import {
   forwardRateLimit,
 } from "@/lib/server-api";
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, secureCookies } from "@/lib/session-cookie";
-import type { LoginResponse } from "@/types";
+import type { LoginResponse, MfaRequiredResponse } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     formData.append("username", body.email);
     formData.append("password", body.password);
 
-    const data = await backendFetch<LoginResponse>("/api/v1/auth/login", {
+    const data = await backendFetch<LoginResponse | MfaRequiredResponse>("/api/v1/auth/login", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -27,6 +27,11 @@ export async function POST(request: NextRequest) {
       },
       body: formData.toString(),
     });
+
+    // An account with a second factor enabled stops here: the challenge
+    // passes through untouched - no session, no cookies - and the form
+    // completes it at `/auth/mfa/verify`.
+    if ("mfa_required" in data) return bffJson(data);
 
     const user = await backendFetch("/api/v1/auth/me", {
       headers: { Authorization: `Bearer ${data.access_token}` },

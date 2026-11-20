@@ -108,6 +108,21 @@ export interface LoginResponse {
   user: User;
 }
 
+/**
+ * The password step passed and the sign-in is waiting on the second factor.
+ *
+ * The client posts `mfa_token` with the authenticator code to
+ * `/auth/mfa/verify` within `expires_in` seconds. The token proves the
+ * password step and nothing else: it is not a session, and no cookies are
+ * set with it.
+ */
+export interface MfaRequiredResponse {
+  mfa_required: true;
+  mfa_token: string;
+  expires_in: number;
+  return_to?: string | null;
+}
+
 export interface RegisterRequest {
   email: string;
   password: string;

@@ -76,12 +76,14 @@ from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
+from app.db.table_rls import bind_table_access
 from app.repositories import virtual_table_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.virtual_table import ColumnDef
 from app.services.access import TABLE, WORKFLOW, resolve_access
+from app.services.workflow_media_catalog import media_binding_problems
 from app.workflows import _registry
 from app.workflows.contracts.definition import TRIGGER_CATEGORY, NodeDefinition, Port
 from app.workflows.contracts.io import (
@@ -177,6 +179,7 @@ async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGrap
     problems += _binding_target_field_problems(graph, definitions)
     problems += _literal_binding_type_problems(graph, definitions)
     problems += _template_binding_problems(graph, definitions)
+    problems += media_binding_problems(graph)
     problems += await _table_binding_problems(db, ctx, graph)
     problems += await file_binding_problems(db, ctx, graph)
     problems += await _resource_problems(db, ctx, graph, definitions)
@@ -711,6 +714,7 @@ async def table_ref_problems(
     exist and be readable, its schema must not have moved since the reference was
     made, and every column it pins must still be live.
     """
+    await bind_table_access(db, ctx)
     table = await virtual_table_repo.get_table(
         db, ref.table_id, organization_id=ctx.organization_id
     )

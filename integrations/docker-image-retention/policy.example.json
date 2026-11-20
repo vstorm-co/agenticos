@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "docker_host": "unix:///var/run/docker.sock",
+  "daemon_id": "REPLACE-WITH-EXACT-DOCKER-DAEMON-ID",
+  "compose_project": "replace-with-exact-project-label",
+  "lock_file": "/var/lib/t3os-image-retention/deploy.lock",
+  "repositories": [
+    "registry.example.invalid/demo/backend",
+    "registry.example.invalid/demo/frontend"
+  ],
+  "components": {
+    "api": {
+      "repository": "registry.example.invalid/demo/backend",
+      "current_image_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "previous_successful_image_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    "worker": {
+      "repository": "registry.example.invalid/demo/backend",
+      "current_image_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "previous_successful_image_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    "frontend": {
+      "repository": "registry.example.invalid/demo/frontend",
+      "current_image_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "previous_successful_image_id": "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+    }
+  },
+  "minimum_age_days": 7,
+  "max_removals": 10,
+  "min_free_gib": 20,
+  "min_free_percent": 20
+}

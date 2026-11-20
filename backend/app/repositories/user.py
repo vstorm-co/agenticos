@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.locks import LockScope, hold_name
@@ -36,6 +37,39 @@ async def get_by_id(db: AsyncSession, user_id: UUID) -> User | None:
     return await db.get(User, user_id)
 
 
+async def consume_totp_recovery_hash(
+    db: AsyncSession, user_id: UUID, digest: str
+) -> list[str] | None:
+    """Remove one recovery digest only if it is still present."""
+    result = await db.execute(
+        sa_update(User)
+        .where(User.id == user_id, User.totp_recovery_hashes.contains([digest]))
+        .values(totp_recovery_hashes=User.totp_recovery_hashes - digest)
+        .returning(User.totp_recovery_hashes)
+    )
+    remaining = result.scalar_one_or_none()
+    if remaining is not None:
+        await db.flush()
+    return remaining
+
+
+async def claim_totp_counter(db: AsyncSession, user_id: UUID, counter: int) -> bool:
+    """Claim a TOTP time step only if no equal or newer step was used."""
+    result = await db.execute(
+        sa_update(User)
+        .where(
+            User.id == user_id,
+            (User.totp_last_counter.is_(None)) | (User.totp_last_counter < counter),
+        )
+        .values(totp_last_counter=counter)
+        .returning(User.id)
+    )
+    claimed = result.scalar_one_or_none() is not None
+    if claimed:
+        await db.flush()
+    return claimed
+
+
 async def get_by_ids(db: AsyncSession, user_ids: Sequence[UUID]) -> list[User]:
     """The users with these ids, in one query; an id with no user is left out."""
     if not user_ids:
@@ -45,14 +79,21 @@ async def get_by_ids(db: AsyncSession, user_ids: Sequence[UUID]) -> list[User]:
 
 
 async def get_by_id_for_update(
-    db: AsyncSession, user_id: UUID, *, nowait: bool = False
+    db: AsyncSession, user_id: UUID, *, nowait: bool = False, fresh: bool = False
 ) -> User | None:
     """Fetch a user row and acquire a SELECT FOR UPDATE lock.
 
     `nowait=True` raises (SQLSTATE `55P03`) instead of waiting when another
     transaction holds a conflicting lock on the row.
+    `fresh=True` reloads an already-authenticated user after acquiring the lock,
+    so a concurrent appearance PATCH merges against the preceding writer.
     """
-    result = await db.execute(select(User).where(User.id == user_id).with_for_update(nowait=nowait))
+    result = await db.execute(
+        select(User)
+        .where(User.id == user_id)
+        .with_for_update(nowait=nowait)
+        .execution_options(populate_existing=fresh)
+    )
     return result.scalar_one_or_none()
 
 
