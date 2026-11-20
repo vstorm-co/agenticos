@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Mount a writable `/app/.next/server/route-cache` in the Helm chart's frontend
+  (chart 0.1.2). Next.js copies each prerendered page there on its first request,
+  which failed on a read-only root filesystem such as OpenShift's `restricted-v2`.
+- Log why an OIDC sign-in was refused: the failed condition and the names of the
+  claims received, never their values. Document the Entra ID optional claims
+  (`email`, `xms_edov` on the ID token) that its UserInfo endpoint does not return.
+
 ## [1.86.1] - 2026-11-20
 
 ### Fixed
