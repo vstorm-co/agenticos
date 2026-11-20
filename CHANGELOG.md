@@ -40,6 +40,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Improve finds missing knowledge in eval answers.** A session that learned from evals sorted no answer for missing knowledge, so it listed no topic even when the agent said the documents were silent: the sort read chat answers alone. Its failed training answers now go to the Knowledge gap classifier too, kept by the run that answered, and one the agent did not know becomes a question in the knowledge base's topics, listed at **Understand** and on the result. Such an answer stays in what the improver reads. A case's erased copies take the questions and verdicts read from its answers with them. The classifier also names what a miss read from an answer lacks, in a few words, and its topic is grouped and named by that - "Lead times by product" rather than one customer's question (#3190).
+
+### Upgrading
+
+- Migration `backend/alembic/versions/0343_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0344_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0345_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+
+## [1.85.1] - 2026-11-20
+
+### Fixed
+
 - The Nginx deployment template now forwards WebSocket upgrades on every API
   path and accepts uploads up to the default 50 MiB file limit on both hosts.
   Console authentication and ordinary JSON keep the 1 MiB limit. The deployment
@@ -51,13 +63,6 @@ Two things are versioned separately from this file and worth knowing about:
   recording the release as healthy or advancing its rollback image pins.
 - Frontend image builds exclude every `.env.*` file except `.env.example`,
   including `.env.production`, `.env.development` and `.env.test`.
-- **Improve finds missing knowledge in eval answers.** A session that learned from evals sorted no answer for missing knowledge, so it listed no topic even when the agent said the documents were silent: the sort read chat answers alone. Its failed training answers now go to the Knowledge gap classifier too, kept by the run that answered, and one the agent did not know becomes a question in the knowledge base's topics, listed at **Understand** and on the result. Such an answer stays in what the improver reads. A case's erased copies take the questions and verdicts read from its answers with them. The classifier also names what a miss read from an answer lacks, in a few words, and its topic is grouped and named by that - "Lead times by product" rather than one customer's question (#3190).
-
-### Upgrading
-
-- Migration `backend/alembic/versions/0343_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
-- Migration `backend/alembic/versions/0344_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
-- Migration `backend/alembic/versions/0345_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
 
 ## [1.85.0] - 2026-11-19
 
@@ -22203,7 +22208,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.85.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.85.1...HEAD
+[1.85.1]: https://github.com/vstorm-co/agenticos/compare/v1.85.0...v1.85.1
 [1.85.0]: https://github.com/vstorm-co/agenticos/compare/v1.84.0...v1.85.0
 [1.84.0]: https://github.com/vstorm-co/agenticos/compare/v1.83.0...v1.84.0
 [1.83.0]: https://github.com/vstorm-co/agenticos/compare/v1.82.2...v1.83.0
