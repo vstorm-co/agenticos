@@ -23,6 +23,8 @@ import type { Secret, SecretKindInfo } from "@/types/secrets";
  */
 
 const AUTHORIZE = "https://auth.openai.com/oauth/authorize?state=s";
+/** Codex offers a device code first; pasting the address is the folded fallback. */
+const openPaste = () => userEvent.click(screen.getByText("Paste an address instead"));
 const CALLBACK = "http://localhost:1455/auth/callback?code=c&state=s";
 
 const PURPOSES = {
@@ -257,6 +259,7 @@ describe("the inline sign-in beside a model picker", () => {
   it("puts a refused paste under the field it was pasted into", async () => {
     api.post.mockRejectedValue(refusedPaste("This sign-in has expired"));
     const onCreated = mount();
+    await openPaste();
 
     await userEvent.type(screen.getByLabelText("Address ChatGPT sent you to"), CALLBACK);
     await userEvent.click(screen.getByRole("button", { name: "Save sign-in" }));
@@ -298,6 +301,7 @@ describe("adding a ChatGPT sign-in to the vault", () => {
 
   it("asks for the address instead of the token fields its schema has", async () => {
     open();
+    await userEvent.click(await screen.findByText("Paste an address instead"));
 
     expect(await screen.findByLabelText("Address ChatGPT sent you to")).toBeVisible();
     expect(screen.queryByLabelText(/Access token/)).toBeNull();
@@ -330,6 +334,7 @@ describe("adding a ChatGPT sign-in to the vault", () => {
   it("puts a refused paste under the address field", async () => {
     api.post.mockRejectedValue(refusedPaste("Paste the whole address"));
     open();
+    await userEvent.click(await screen.findByText("Paste an address instead"));
 
     await userEvent.type(await screen.findByLabelText("Address ChatGPT sent you to"), "nope");
     await userEvent.click(screen.getByRole("button", { name: "Store key" }));
@@ -369,8 +374,9 @@ describe("reconnecting a ChatGPT sign-in", () => {
     return onSubmit;
   };
 
-  it("is a sign-in again, not a value to type", () => {
+  it("is a sign-in again, not a value to type", async () => {
     open();
+    await openPaste();
 
     expect(screen.getByRole("dialog")).toHaveTextContent("Reconnect My ChatGPT");
     expect(screen.getByLabelText("Address ChatGPT sent you to")).toBeVisible();
@@ -393,6 +399,7 @@ describe("reconnecting a ChatGPT sign-in", () => {
   it("puts a refused paste under the address field", async () => {
     api.put.mockRejectedValue(refusedPaste("ChatGPT did not accept this sign-in"));
     open();
+    await openPaste();
 
     await userEvent.type(screen.getByLabelText("Address ChatGPT sent you to"), CALLBACK);
     await userEvent.click(screen.getByRole("button", { name: "Reconnect" }));
@@ -517,4 +524,83 @@ it("stores an official grant privately from the vault and never offers token ent
       callback_url: callback,
     }),
   );
+});
+
+describe("signing in to Codex with a device code", () => {
+  const DEVICE = {
+    state: "st-1",
+    user_code: "ABCD-1234",
+    verification_url: "https://auth.openai.com/codex/device",
+    interval_seconds: 1,
+  };
+
+  it("shows the code, opens ChatGPT and stores the approved sign-in without a paste", async () => {
+    const tab = fakeTab();
+    let polls = 0;
+    api.post.mockImplementation(async (url: string) => {
+      if (url === "/secrets/openai-codex/device") return DEVICE;
+      if (url === "/secrets/openai-codex/device/st-1") return { authorized: ++polls > 1 };
+      if (url === "/secrets/openai-codex") return { ...STORED, id: "new-secret" };
+      throw new Error(url);
+    });
+    const onCreated = vi.fn();
+    render(<InlineChatGPTSignIn suggestedName="ChatGPT" onCreated={onCreated} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Sign in with a code" }));
+
+    expect(await screen.findByText("ABCD-1234")).toBeVisible();
+    await waitFor(() => expect(tab.location.href).toBe(DEVICE.verification_url));
+    await waitFor(
+      () =>
+        expect(api.post).toHaveBeenCalledWith(
+          "/secrets/openai-codex",
+          expect.objectContaining({ device_state: "st-1", visibility: "private" }),
+        ),
+      { timeout: 4000 },
+    );
+    expect(api.post).not.toHaveBeenCalledWith(
+      "/secrets/openai-codex",
+      expect.objectContaining({ callback_url: expect.anything() }),
+    );
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith("new-secret"));
+  });
+
+  it("reports an expired code and lets the person start again", async () => {
+    vi.spyOn(window, "open").mockReturnValue(null);
+    api.post.mockImplementation(async (url: string) => {
+      if (url === "/secrets/openai-codex/device") return DEVICE;
+      throw new ApiError(400, "This device sign-in has expired");
+    });
+    render(<InlineChatGPTSignIn suggestedName="ChatGPT" onCreated={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Sign in with a code" }));
+
+    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Sign in with a code" })).toBeEnabled();
+  });
+
+  it("reconnects a stored sign-in with the approved code", async () => {
+    vi.spyOn(window, "open").mockReturnValue(null);
+    api.post.mockImplementation(async (url: string) =>
+      url === "/secrets/openai-codex/device" ? DEVICE : { authorized: true },
+    );
+    api.put.mockResolvedValue(STORED);
+    render(
+      <RotateSecretDialog
+        secret={STORED}
+        onOpenChange={vi.fn()}
+        kinds={[API_KEY, CODEX]}
+        onSubmit={vi.fn()}
+        isPending={false}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Sign in with a code" }));
+    expect(await screen.findByText("Approved.")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Reconnect" }));
+
+    await waitFor(() =>
+      expect(api.put).toHaveBeenCalledWith("/secrets/s1/openai-codex", { device_state: "st-1" }),
+    );
+  });
 });

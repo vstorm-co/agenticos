@@ -147,6 +147,7 @@ export function AddSecretDialog({
   const [kind, setKind] = useState<StorableSecretKind>("api_key");
   const [value, setValue] = useState<Record<string, unknown>>(initial?.value ?? {});
   const [callbackUrl, setCallbackUrl] = useState("");
+  const [deviceState, setDeviceState] = useState<string | null>(null);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
   const inCategory = purposes.filter((entry) => entry.category === category);
@@ -178,7 +179,9 @@ export function AddSecretDialog({
   const complete =
     shownName.trim().length > 0 &&
     info !== null &&
-    (signsIn ? callbackUrl.trim() !== "" : isSecretComplete(info.json_schema, value));
+    (signsIn
+      ? callbackUrl.trim() !== "" || deviceState !== null
+      : isSecretComplete(info.json_schema, value));
 
   function reset() {
     setCategory(null);
@@ -189,6 +192,7 @@ export function AddSecretDialog({
     setKind("api_key");
     setValue({});
     setCallbackUrl("");
+    setDeviceState(null);
     setErrors({});
   }
 
@@ -202,6 +206,7 @@ export function AddSecretDialog({
     setPurpose("");
     setValue({});
     setCallbackUrl("");
+    setDeviceState(null);
     setErrors({});
   }
 
@@ -210,6 +215,7 @@ export function AddSecretDialog({
     setPurpose(next);
     setValue({});
     setCallbackUrl("");
+    setDeviceState(null);
     setErrors({});
   }
 
@@ -234,7 +240,9 @@ export function AddSecretDialog({
           name: shownName.trim(),
           description: description.trim() || null,
           visibility,
-          callback_url: callbackUrl.trim(),
+          ...(deviceState !== null
+            ? { device_state: deviceState }
+            : { callback_url: callbackUrl.trim() }),
         });
       } else {
         await onSubmit({
@@ -390,6 +398,8 @@ export function AddSecretDialog({
               <ChatGPTSignInSteps
                 key={effectiveKind}
                 kind={isChatGPTSignInKind(effectiveKind) ? effectiveKind : "openai_codex"}
+                deviceEndpoint="/secrets/openai-codex/device"
+                onDeviceAuthorized={setDeviceState}
                 callbackUrl={callbackUrl}
                 onCallbackUrlChange={setCallbackUrl}
                 error={errors.callback_url}
@@ -542,6 +552,7 @@ export function RotateSecretDialog({
   const t = useTranslations("vault");
   const [value, setValue] = useState<Record<string, unknown>>({});
   const [callbackUrl, setCallbackUrl] = useState("");
+  const [deviceState, setDeviceState] = useState<string | null>(null);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const chatgpt = useChatGPTSignIn(
     isChatGPTSignInKind(secret?.kind) ? secret.kind : "openai_codex",
@@ -554,11 +565,14 @@ export function RotateSecretDialog({
   const pending = isPending || chatgpt.reconnect.isPending;
   const complete =
     info !== null &&
-    (reconnects ? callbackUrl.trim() !== "" : isSecretComplete(info.json_schema, value));
+    (reconnects
+      ? callbackUrl.trim() !== "" || deviceState !== null
+      : isSecretComplete(info.json_schema, value));
 
   function clear() {
     setValue({});
     setCallbackUrl("");
+    setDeviceState(null);
     setErrors({});
   }
 
@@ -572,7 +586,11 @@ export function RotateSecretDialog({
     if (pending || secret === null || info === null) return;
     try {
       if (reconnects) {
-        await chatgpt.reconnect.mutateAsync({ id: secret.id, callback_url: callbackUrl.trim() });
+        await chatgpt.reconnect.mutateAsync(
+          deviceState !== null
+            ? { id: secret.id, device_state: deviceState }
+            : { id: secret.id, callback_url: callbackUrl.trim() },
+        );
       } else {
         await onSubmit({ id: secret.id, value: toSecretPayload(secret.kind, value) });
       }
@@ -610,6 +628,8 @@ export function RotateSecretDialog({
                 <ChatGPTSignInSteps
                   key={secret?.id}
                   kind={isChatGPTSignInKind(secret?.kind) ? secret.kind : "openai_codex"}
+                  deviceEndpoint="/secrets/openai-codex/device"
+                  onDeviceAuthorized={setDeviceState}
                   callbackUrl={callbackUrl}
                   onCallbackUrlChange={setCallbackUrl}
                   error={errors.callback_url}

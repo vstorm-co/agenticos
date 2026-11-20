@@ -165,7 +165,9 @@ export interface NewChatGPTSignIn {
   description?: string | null;
   visibility?: SecretVisibility;
   /** The whole address ChatGPT sent the browser to - it carries the code. */
-  callback_url: string;
+  callback_url?: string;
+  /** Codex only: an approved device sign-in, instead of a pasted address. */
+  device_state?: string;
 }
 
 /**
@@ -210,9 +212,20 @@ export function useChatGPTSignIn(kind: ChatGPTSignInKind = "openai_codex") {
   });
 
   const reconnect = useMutation({
-    mutationFn: async ({ id, callback_url }: { id: string; callback_url: string }) => {
+    mutationFn: async ({
+      id,
+      callback_url,
+      device_state,
+    }: {
+      id: string;
+      callback_url?: string;
+      device_state?: string;
+    }) => {
       if (kind === "openai_codex")
-        return apiClient.put<Secret>(`/secrets/${id}/${endpoint}`, { callback_url });
+        return apiClient.put<Secret>(
+          `/secrets/${id}/${endpoint}`,
+          device_state !== undefined ? { device_state } : { callback_url },
+        );
       const result = await apiClient.put<{ connection: Secret; plan_usage_granted: boolean }>(
         `/secrets/${id}/${endpoint}`,
         { callback_url },

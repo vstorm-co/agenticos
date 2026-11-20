@@ -1,5 +1,5 @@
 ---
-source_sha: "31ae9956e201"
+source_sha: "31cb43d6946f"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -523,19 +523,22 @@ Person, und jeder Run auf einem Profile, das sie verwendet, zählt gegen die
 ChatGPT-Limits dieser Person.
 
 Niemand kann die Zugangsdaten eintippen. Stattdessen melden Sie sich mit ChatGPT
-an:
+an, standardmäßig mit einem kurzen Code:
 
 1. Wählen Sie unter **Vault → add a secret** (oder unter **Agents → add a model**,
-   mit ausgewähltem **ChatGPT (Codex subscription)**) **Sign in with ChatGPT**.
-   Eine ChatGPT-Anmeldung öffnet sich in einem neuen Tab.
-2. Bestätigen Sie sie. ChatGPT schickt den Browser danach an
-   `http://localhost:1455/...`, und diese Adresse lädt nicht. Das ist so
-   vorgesehen: OpenAI legt diese Adresse für jeden Client außer dem eigenen fest.
-3. Kopieren Sie die vollständige Adresse aus der Adressleiste und fügen Sie sie
-   wieder in das Formular ein.
+   mit ausgewähltem **ChatGPT (Codex subscription)**, oder unter **Settings →
+   Coding accounts**) **Sign in with a code**. Die Geräteseite von ChatGPT öffnet
+   sich in einem neuen Tab, und das Formular zeigt einen Code.
+2. Geben Sie den Code auf dieser Seite ein und bestätigen Sie die Anmeldung. Das
+   Formular bemerkt die Bestätigung selbst und schließt ab; nichts muss
+   zurückkopiert werden.
 
-Der Code in dieser Adresse funktioniert einmal, nur für die Person, die die
-Anmeldung gestartet hat, und nur innerhalb von 15 Minuten.
+Der Code gilt 15 Minuten, nur für die Person, die die Anmeldung gestartet hat.
+Unterstützt Ihr Konto keine Gerätecodes, öffnen Sie **Paste an address instead**:
+wählen Sie **Sign in with ChatGPT**, bestätigen Sie und fügen Sie die Adresse,
+an die ChatGPT den Browser schickt (`http://localhost:1455/...`, die nicht lädt),
+in das Formular ein. Auch diese Adresse funktioniert einmal, nur für die Person,
+die die Anmeldung gestartet hat, und nur innerhalb von 15 Minuten.
 
 Das Access-Token läuft ab und wird erneuert, während Modelle laufen. Jede
 Erneuerung verbraucht das Refresh-Token, deshalb wird das neue Paar sofort wieder

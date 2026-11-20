@@ -281,10 +281,39 @@ class TestSigningInWithChatGPT:
         assert "the-code" not in response.text
         assert codex.create.call_args.kwargs == {
             "callback_url": callback,
+            "device_state": None,
             "name": "My ChatGPT",
             "description": None,
             "visibility": "private",
         }
+
+    async def test_a_device_code_replaces_the_pasted_address(self, client, codex) -> None:
+        from app.services.openai_codex import DeviceSignIn
+
+        codex.start_device_sign_in = AsyncMock(
+            return_value=DeviceSignIn("st", "CODE-1", "https://auth.openai.com/codex/device", 5)
+        )
+        codex.poll_device_sign_in = AsyncMock(return_value=False)
+        async with client() as opened:
+            started = await opened.post(_url("/openai-codex/device"))
+            polled = await opened.post(_url("/openai-codex/device/st"))
+            created = await opened.post(
+                _url("/openai-codex"), json={"name": "My ChatGPT", "device_state": "st"}
+            )
+            reconnected = await opened.put(
+                _url(f"/{_SECRET_ID}/openai-codex"), json={"device_state": "st"}
+            )
+            ambiguous = await opened.put(
+                _url(f"/{_SECRET_ID}/openai-codex"),
+                json={"device_state": "st", "callback_url": "?code=c&state=s"},
+            )
+        assert started.json()["user_code"] == "CODE-1" and polled.json() == {"authorized": False}
+        assert created.status_code == 201
+        assert codex.create.call_args.kwargs["device_state"] == "st"
+        assert codex.create.call_args.kwargs["callback_url"] is None
+        assert reconnected.status_code == 200
+        assert codex.reconnect.call_args.kwargs == {"callback_url": None, "device_state": "st"}
+        assert ambiguous.status_code == 422
 
     async def test_reconnecting_signs_in_again_in_place(self, client, codex) -> None:
         async with client() as opened:
@@ -294,7 +323,10 @@ class TestSigningInWithChatGPT:
 
         assert response.status_code == 200
         assert codex.reconnect.call_args.args[1] == _SECRET_ID
-        assert codex.reconnect.call_args.kwargs == {"callback_url": "?code=c&state=s"}
+        assert codex.reconnect.call_args.kwargs == {
+            "callback_url": "?code=c&state=s",
+            "device_state": None,
+        }
 
     async def test_an_empty_paste_never_reaches_the_service(self, client, codex) -> None:
         async with client() as opened:

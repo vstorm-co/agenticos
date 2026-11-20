@@ -10050,7 +10050,15 @@
     "googleAccount": "Google account",
     "chatgptPlanDeclined": "Plan sharing was declined. The registration was saved, but this grant cannot run models. Reconnect and approve plan usage.",
     "chatgptOfficialHelp": "Official ChatGPT application consent uses the public Responses API, separately from Codex. This deployment must be eligible and enabled by its operator. Copy the final 127.0.0.1 address back here. Declining plan sharing saves registration without enabling inference.",
-    "chatgptOwnerOnly": "Only you can run models on this grant. Shared profiles, API keys and background jobs cannot use it."
+    "chatgptOwnerOnly": "Only you can run models on this grant. Shared profiles, API keys and background jobs cannot use it.",
+    "chatgptDeviceHelp": "Approve this sign-in on ChatGPT with a short code; nothing to copy back.",
+    "chatgptDeviceStart": "Sign in with a code",
+    "chatgptDeviceEnter": "Enter this code on ChatGPT. This page continues by itself once you approve it.",
+    "chatgptDeviceCopy": "Copy code",
+    "chatgptDeviceOpen": "Open ChatGPT",
+    "chatgptDeviceWaiting": "Waiting for your approval…",
+    "chatgptDeviceApproved": "Approved.",
+    "chatgptPasteInstead": "Paste an address instead"
   },
   "context": {
     "created": "Created {name}",
@@ -17661,7 +17669,8 @@
     "personalAccount": "Personal account: {label}",
     "baseRevision": "Workspace snapshot: {revision}",
     "chatTitle": "Your {name} account",
-    "chatHelp": "This agent runs coding tasks as a private cloud task on your own account. Other members cannot use it."
+    "chatHelp": "This agent runs coding tasks as a private cloud task on your own account. Other members cannot use it.",
+    "pasteInstead": "Paste an address instead"
   },
   "mirage": {
     "folders": "Folders",

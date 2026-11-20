@@ -75,6 +75,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Register installed ACP agents in Desktop settings and delegate tasks through the External ACP agent capability, with native consent, isolated session identity and revocation (#3130).
 
+- Sign in to a Codex subscription with a short device code approved on ChatGPT, in the Vault, the model picker and Coding accounts; pasting the redirect address stays as a fallback.
 - Add Nous Portal, Inception, Cline, Chutes and Synthetic as OpenAI-compatible model providers with each key's own model catalog.
 - Use subscription accounts without a plan key (Antigravity, Grok Build, Devin, Muse Code and others) as model profiles through a CLIProxyAPI subscription gateway that holds their sign-ins, with the gateway's own model list.
 - Kimi Code, Alibaba Coding Plan, OpenCode Go and Ollama Cloud plan keys work as model profiles on their plans' OpenAI-compatible endpoints, with each key's own model catalog, regional endpoints and unpriced subscription usage.

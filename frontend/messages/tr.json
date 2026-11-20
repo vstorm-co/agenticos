@@ -12484,7 +12484,15 @@
     "googleAccount": "Google hesabı",
     "chatgptPlanDeclined": "Plan paylaşımı reddedildi. Kayıt saklandı ancak bu izin modelleri çalıştıramaz. Yeniden bağlanıp plan kullanımını onaylayın.",
     "chatgptOfficialHelp": "Resmi ChatGPT uygulama izni, Codex’ten ayrı olarak herkese açık Responses API kullanır. Dağıtım uygun olmalı ve işletmecisi tarafından etkinleştirilmelidir. Son 127.0.0.1 adresini buraya yapıştırın. Planı reddetmek kaydı saklar ancak model erişimi vermez.",
-    "chatgptOwnerOnly": "Bu izinle modelleri yalnızca siz çalıştırabilirsiniz. Paylaşılan profiller, API anahtarları ve arka plan işleri bu izni kullanamaz."
+    "chatgptOwnerOnly": "Bu izinle modelleri yalnızca siz çalıştırabilirsiniz. Paylaşılan profiller, API anahtarları ve arka plan işleri bu izni kullanamaz.",
+    "chatgptDeviceHelp": "Bu oturumu ChatGPT'de kısa bir kodla onaylayın; geri kopyalanacak bir şey yok.",
+    "chatgptDeviceStart": "Kodla oturum aç",
+    "chatgptDeviceEnter": "Bu kodu ChatGPT'ye girin. Onayladığınızda bu sayfa kendiliğinden devam eder.",
+    "chatgptDeviceCopy": "Kodu kopyala",
+    "chatgptDeviceOpen": "ChatGPT'yi aç",
+    "chatgptDeviceWaiting": "Onayınız bekleniyor…",
+    "chatgptDeviceApproved": "Onaylandı.",
+    "chatgptPasteInstead": "Bunun yerine adres yapıştır"
   },
   "portals": {
     "backToServices": "Hizmetlere dön",
@@ -13594,7 +13602,8 @@
     "personalAccount": "Kişisel hesap: {label}",
     "baseRevision": "Çalışma alanı anlık görüntüsü: {revision}",
     "chatTitle": "{name} hesabın",
-    "chatHelp": "Bu agent kodlama görevlerini kendi hesabınla özel bir bulut görevi olarak çalıştırır. Diğer üyeler bu hesabı kullanamaz."
+    "chatHelp": "Bu agent kodlama görevlerini kendi hesabınla özel bir bulut görevi olarak çalıştırır. Diğer üyeler bu hesabı kullanamaz.",
+    "pasteInstead": "Bunun yerine adres yapıştır"
   },
   "start": {
     "administration": {

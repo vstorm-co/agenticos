@@ -9930,7 +9930,15 @@
     "googleAccount": "Google-Konto",
     "chatgptPlanDeclined": "Die Planfreigabe wurde abgelehnt. Die Registrierung wurde gespeichert, kann aber keine Modelle ausführen. Verbinde erneut und erlaube die Plannutzung.",
     "chatgptOfficialHelp": "Die offizielle ChatGPT-Anwendungsfreigabe nutzt die öffentliche Responses API getrennt von Codex. Der Betreiber muss die Berechtigung prüfen und die Funktion aktivieren. Kopiere die abschließende 127.0.0.1-Adresse hierher. Eine Ablehnung speichert die Registrierung ohne Modellzugriff.",
-    "chatgptOwnerOnly": "Nur du kannst Modelle mit dieser Freigabe ausführen. Geteilte Profile, API-Schlüssel und Hintergrundaufträge können sie nicht nutzen."
+    "chatgptOwnerOnly": "Nur du kannst Modelle mit dieser Freigabe ausführen. Geteilte Profile, API-Schlüssel und Hintergrundaufträge können sie nicht nutzen.",
+    "chatgptDeviceHelp": "Bestätige diese Anmeldung in ChatGPT mit einem kurzen Code; nichts muss zurückkopiert werden.",
+    "chatgptDeviceStart": "Mit Code anmelden",
+    "chatgptDeviceEnter": "Gib diesen Code in ChatGPT ein. Diese Seite fährt selbst fort, sobald du ihn bestätigst.",
+    "chatgptDeviceCopy": "Code kopieren",
+    "chatgptDeviceOpen": "ChatGPT öffnen",
+    "chatgptDeviceWaiting": "Warte auf deine Bestätigung…",
+    "chatgptDeviceApproved": "Bestätigt.",
+    "chatgptPasteInstead": "Stattdessen Adresse einfügen"
   },
   "context": {
     "created": "{name} erstellt",
@@ -17347,7 +17355,8 @@
     "personalAccount": "Persönliches Konto: {label}",
     "baseRevision": "Arbeitsbereich-Snapshot: {revision}",
     "chatTitle": "Dein {name}-Konto",
-    "chatHelp": "Dieser Agent führt Coding-Aufgaben als private Cloud-Aufgabe mit deinem eigenen Konto aus. Andere Mitglieder können es nicht nutzen."
+    "chatHelp": "Dieser Agent führt Coding-Aufgaben als private Cloud-Aufgabe mit deinem eigenen Konto aus. Andere Mitglieder können es nicht nutzen.",
+    "pasteInstead": "Stattdessen Adresse einfügen"
   },
   "mirage": {
     "folders": "Ordner",

@@ -1,5 +1,5 @@
 ---
-source_sha: "31ae9956e201"
+source_sha: "31cb43d6946f"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -501,19 +501,22 @@ pensado para **uso personal**: el inicio de sesión es la suscripción de una
 persona, y cada run en un perfil que lo usa cuenta contra los límites de ChatGPT
 de esa persona.
 
-Nadie puede teclear la credencial. En su lugar inicias sesión con ChatGPT:
+Nadie puede teclear la credencial. En su lugar inicias sesión con ChatGPT, de
+forma predeterminada con un código corto:
 
 1. En **Vault → add a secret** (o en **Agents → add a model**, con **ChatGPT
-   (Codex subscription)** seleccionado), elige **Sign in with ChatGPT**. Se abre
-   un inicio de sesión de ChatGPT en una pestaña nueva.
-2. Apruébalo. ChatGPT envía entonces el navegador a `http://localhost:1455/...`,
-   que no carga. Es lo esperado: OpenAI fija esa dirección para todos los
-   clientes salvo el suyo propio.
-3. Copia la dirección completa de la barra de direcciones y pégala de vuelta en
-   el formulario.
+   (Codex subscription)** seleccionado, o en **Settings → Coding accounts**), elige
+   **Sign in with a code**. La página de dispositivos de ChatGPT se abre en una
+   pestaña nueva y el formulario muestra un código.
+2. Introduce el código en esa página y aprueba el inicio de sesión. El formulario
+   detecta la aprobación por sí mismo y termina; no hay que pegar nada.
 
-El código de esa dirección funciona una sola vez, solo para la persona que inició
-el inicio de sesión, y solo durante 15 minutos.
+El código funciona durante 15 minutos, solo para la persona que inició el inicio
+de sesión. Si tu cuenta no admite códigos de dispositivo, abre **Paste an address
+instead**: elige **Sign in with ChatGPT**, apruébalo y pega en el formulario la
+dirección a la que ChatGPT envía el navegador (`http://localhost:1455/...`, que no
+carga). Esa dirección también funciona una sola vez, solo para la persona que
+inició el inicio de sesión, y solo durante 15 minutos.
 
 El access token caduca y se renueva mientras los modelos se ejecutan. Cada
 renovación gasta el refresh token, así que el par nuevo se vuelve a sellar en el

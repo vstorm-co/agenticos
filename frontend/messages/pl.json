@@ -8746,7 +8746,15 @@
     "googleAccount": "Konto Google",
     "chatgptPlanDeclined": "Odmówiono udostępnienia planu. Rejestracja została zapisana, ale ten grant nie uruchomi modeli. Połącz ponownie i zatwierdź użycie planu.",
     "chatgptOfficialHelp": "Oficjalna zgoda ChatGPT dla aplikacji używa publicznego Responses API, osobno od Codex. Wdrożenie musi spełniać warunki i zostać włączone przez operatora. Wklej końcowy adres 127.0.0.1. Odmowa użycia planu zachowuje rejestrację bez dostępu do modeli.",
-    "chatgptOwnerOnly": "Tylko Ty możesz uruchamiać modele z tym grantem. Współdzielone profile, klucze API i zadania w tle nie mogą go używać."
+    "chatgptOwnerOnly": "Tylko Ty możesz uruchamiać modele z tym grantem. Współdzielone profile, klucze API i zadania w tle nie mogą go używać.",
+    "chatgptDeviceHelp": "Zatwierdź to logowanie w ChatGPT krótkim kodem; niczego nie trzeba kopiować z powrotem.",
+    "chatgptDeviceStart": "Zaloguj kodem",
+    "chatgptDeviceEnter": "Wpisz ten kod w ChatGPT. Ta strona sama przejdzie dalej, gdy go zatwierdzisz.",
+    "chatgptDeviceCopy": "Kopiuj kod",
+    "chatgptDeviceOpen": "Otwórz ChatGPT",
+    "chatgptDeviceWaiting": "Czekam na zatwierdzenie…",
+    "chatgptDeviceApproved": "Zatwierdzono.",
+    "chatgptPasteInstead": "Wklej adres zamiast tego"
   },
   "context": {
     "created": "Utworzono {name}",
@@ -17434,7 +17442,8 @@
     "personalAccount": "Konto osobiste: {label}",
     "baseRevision": "Snapshot workspace: {revision}",
     "chatTitle": "Twoje konto {name}",
-    "chatHelp": "Ten agent wykonuje zadania coding jako prywatne zadanie w chmurze na Twoim własnym koncie. Inni członkowie nie mogą z niego korzystać."
+    "chatHelp": "Ten agent wykonuje zadania coding jako prywatne zadanie w chmurze na Twoim własnym koncie. Inni członkowie nie mogą z niego korzystać.",
+    "pasteInstead": "Wklej adres zamiast tego"
   },
   "mirage": {
     "folders": "Foldery",

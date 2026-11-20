@@ -476,17 +476,21 @@ subscription, rather than through a metered API key. It is meant for **personal
 use**: the sign-in is one person's subscription, and every run on a profile that
 uses it counts against that person's ChatGPT limits.
 
-Nobody can type the credential. You sign in with ChatGPT instead:
+Nobody can type the credential. You sign in with ChatGPT instead, by default
+with a short code:
 
 1. Under **Vault → add a secret** (or **Agents → add a model**, with **ChatGPT
-   (Codex subscription)** selected), choose **Sign in with ChatGPT**. A ChatGPT
-   sign-in opens in a new tab.
-2. Approve it. ChatGPT then sends the browser to `http://localhost:1455/...`,
-   which does not load. That is expected: OpenAI pins that address for every
-   client other than its own.
-3. Copy the whole address from the address bar and paste it back into the form.
+   (Codex subscription)** selected, or **Settings → Coding accounts**), choose
+   **Sign in with a code**. ChatGPT's device page opens in a new tab and the form
+   shows a code.
+2. Enter the code on that page and approve the sign-in. The form notices the
+   approval by itself and finishes; nothing is pasted back.
 
-The code in that address works once, only for the person who started the
+The code works for 15 minutes, only for the person who started the sign-in.
+If your account cannot use device codes, open **Paste an address instead**:
+choose **Sign in with ChatGPT**, approve it, and copy the address ChatGPT sends
+the browser to (`http://localhost:1455/...`, which does not load) back into the
+form. That address also works once, only for the person who started the
 sign-in, and only within 15 minutes.
 
 The access token expires and is refreshed while models run. Each refresh spends

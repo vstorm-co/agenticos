@@ -1,5 +1,5 @@
 ---
-source_sha: "31ae9956e201"
+source_sha: "31cb43d6946f"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -491,18 +491,22 @@ ChatGPT, a nie przez rozliczany za użycie klucz API. Jest przeznaczony do
 **użytku osobistego**: logowanie to subskrypcja jednej osoby, a każdy run na
 profilu, który go używa, wlicza się do limitów ChatGPT tej osoby.
 
-Nikt nie może wpisać tego poświadczenia. Zamiast tego logujesz się do ChatGPT:
+Nikt nie może wpisać tego poświadczenia. Zamiast tego logujesz się do ChatGPT,
+domyślnie krótkim kodem:
 
 1. W **Vault → add a secret** (albo w **Agents → add a model**, z wybranym
-   **ChatGPT (Codex subscription)**) wybierz **Sign in with ChatGPT**. Logowanie
-   do ChatGPT otwiera się w nowej karcie.
-2. Zatwierdź je. ChatGPT przekieruje wtedy przeglądarkę na
-   `http://localhost:1455/...`, który się nie załaduje. Tak ma być: OpenAI
-   przypina ten adres dla każdego klienta poza własnym.
-3. Skopiuj cały adres z paska adresu i wklej go z powrotem do formularza.
+   **ChatGPT (Codex subscription)**, albo w **Settings → Coding accounts**)
+   wybierz **Sign in with a code**. Strona urządzeń ChatGPT otwiera się w nowej
+   karcie, a formularz pokazuje kod.
+2. Wpisz kod na tej stronie i zatwierdź logowanie. Formularz sam zauważy
+   zatwierdzenie i dokończy; niczego nie trzeba wklejać.
 
-Kod w tym adresie działa raz, tylko dla osoby, która rozpoczęła logowanie,
-i tylko przez 15 minut.
+Kod działa przez 15 minut, tylko dla osoby, która rozpoczęła logowanie. Jeśli
+Twoje konto nie obsługuje kodów urządzeń, otwórz **Paste an address instead**:
+wybierz **Sign in with ChatGPT**, zatwierdź logowanie i wklej do formularza adres,
+na który ChatGPT przekieruje przeglądarkę (`http://localhost:1455/...`, który się
+nie załaduje). Ten adres też działa raz, tylko dla osoby, która rozpoczęła
+logowanie, i tylko przez 15 minut.
 
 Token dostępu wygasa i jest odświeżany w trakcie działania modeli. Każde
 odświeżenie zużywa refresh token, więc nowa para jest od razu zapieczętowywana
