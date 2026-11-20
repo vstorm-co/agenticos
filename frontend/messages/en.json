@@ -14412,8 +14412,8 @@
         "description": "Optional exact ID from inspect_acp_agent on this account. Empty keeps the program's own model. This selects a runtime model, not an AgenticOS model profile."
       },
       "api_provider": {
-        "title": "Pi vault-key provider",
-        "description": "Optional Pi API-key lane: Inception, DeepSeek or OpenRouter. Requires the matching native key template and the initiating member's independent vault visibility. It never imports Pi's saved credentials."
+        "title": "Vault-key provider",
+        "description": "Optional vault API key for the native runtime: Inception, DeepSeek or OpenRouter through a Pi key template, or Gemini through the Antigravity Gemini API key template. Requires the matching native template and the initiating member's independent vault visibility. It never imports a CLI's saved credentials."
       },
       "platform_tools": {
         "title": "Forward platform tools",

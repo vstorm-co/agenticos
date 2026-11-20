@@ -289,6 +289,21 @@ function providerModelsQuery(
 }
 
 /**
+ * Plan providers whose regional endpoint is set in the form: the listing goes to
+ * that endpoint with the selected key, never to the vendor's general API.
+ */
+export const KEYED_PLAN_ENDPOINTS = [
+  "zai",
+  "kimi_code",
+  "alibaba_coding_plan",
+  "opencode_go",
+  "ollama_cloud",
+];
+
+/** Providers whose catalog is read at a named endpoint with the profile's own key. */
+export const KEYED_LISTINGS = ["stav", "otari", ...KEYED_PLAN_ENDPOINTS];
+
+/**
  * The models one provider offers, for the field where a model id is typed.
  *
  * Suggestions, never a constraint. A provider ships a model the morning after
@@ -312,7 +327,7 @@ export function useProviderModels(
       providerId !== "" &&
       !(providerId === "openai_chatgpt" && !secretId) &&
       !(providerId === "otari" && !baseUrl) &&
-      !(["stav", "otari", "zai"].includes(providerId) && baseUrl && !secretId),
+      !(KEYED_LISTINGS.includes(providerId) && baseUrl && !secretId),
   });
 
   // Both fields this fills choose a model to talk to, so a speech or embedding

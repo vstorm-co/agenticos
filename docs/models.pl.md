@@ -1,5 +1,5 @@
 ---
-source_sha: "b374a3b618b3"
+source_sha: "3be190cfaa35"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -376,6 +376,10 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | Heroku AI | `heroku` | klucz API | ✓ |
 | Mistral | `mistral` | klucz API | |
 | MiniMax | `minimax` | klucz API | ✓ |
+| Kimi Code (plan) | `kimi_code` | klucz API | ✓ |
+| Alibaba Coding Plan | `alibaba_coding_plan` | klucz API | ✓ |
+| OpenCode Go | `opencode_go` | klucz API | ✓ |
+| Ollama Cloud | `ollama_cloud` | klucz API | ✓ |
 | Moonshot AI | `moonshotai` | klucz API | |
 | Nebius AI Studio | `nebius` | klucz API | |
 | OVHcloud AI Endpoints | `ovhcloud` | klucz API | |
@@ -391,6 +395,17 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 Wybierz **MiniMax**, aby użyć jego API Chat Completions zgodnego z OpenAI. Zapisz klucz API M Plan jako klucz MiniMax w sejfie; zwykły klucz API korzysta z własnego rozliczenia. Pusty Endpoint oznacza `https://api.minimax.io/v1`; własny adres ustaw tylko dla regionu lub bramy właściwych dla klucza. Wpisz dokładny identyfikator modelu z konta, np. `MiniMax-M3.1-Flash`; integracja nie pobiera katalogu planu. Historia MiniMax ma osobną tożsamość dostawcy, więc nie wysyłamy tam zaszyfrowanego rozumowania OpenAI. Znane ceny tokenów służą do szacowania budżetu, a nie rachunku za subskrypcję.
 
 Dla **Z.AI GLM Coding Plan** wybierz **Z.AI** i ustaw **Endpoint** na `https://api.z.ai/api/coding/paas/v4` (globalny) lub `https://open.bigmodel.cn/api/coding/paas/v4` (Chiny), używając klucza właściwego dla planu i regionu. Puste pole Endpoint zachowuje zwykłe API rozliczane według użycia; istniejące profile się nie zmieniają.
+
+**Klucze planów subskrypcyjnych.** Czterech kolejnych dostawców rozlicza plan subskrypcyjny przez klucz planu do endpointu zgodnego z OpenAI. Zapisz klucz planu w skarbcu z odpowiadającym przeznaczeniem; lista modeli pochodzi z katalogu tego klucza, a puste pole Endpoint używa domyślnego adresu planu.
+
+| Provider | Domyślny endpoint | Inny region lub uwaga |
+|---|---|---|
+| Kimi Code (plan) | `https://api.kimi.ai/coding/v1` | Chiny: `https://api.kimi.com/coding/v1` |
+| Alibaba Coding Plan | `https://coding-intl.dashscope.aliyuncs.com/v1` | Chiny: `https://coding.dashscope.aliyuncs.com/v1` |
+| OpenCode Go | `https://opencode.ai/inference/go/openai/v1` | Modele nieobsługiwane w tym protokole endpoint odrzuca |
+| Ollama Cloud | `https://ollama.com/v1` | Modele chmurowe Twojego konta Ollama |
+
+Klucz planu nie jest zamienny z kluczem zwykłego API rozliczanego według użycia. Niektórzy dostawcy ograniczają klucze planów do narzędzi programistycznych; użycie ich z platformy agentów to Twoja decyzja i może skutkować ograniczeniem lub zawieszeniem planu. Budżety AgenticOS traktują to zużycie jako niewycenione użycie subskrypcji.
 
 Przed wczytaniem modeli wybierz klucz z sejfu i potwierdź adres docelowy. Własny katalog korzysta tylko z tego klucza i endpointu; brak listy pozwala wpisać model ręcznie, bez zastępowania jej katalogiem zwykłego API. Szacunki budżetu AgenticOS nie określają pozostałego limitu subskrypcji.
 
@@ -568,12 +583,13 @@ siedmiu providerów, co odpowiedź mówi wprost.
 
 ### Żywe { #live }
 
-Dwudziestu providerów publikuje endpoint listy i jest to jedyne źródło, które wie
+Dwudziestu czterech providerów publikuje endpoint listy i jest to jedyne źródło, które wie
 o modelu wypuszczonym dziś rano:
 
 `anthropic`, `openai`, `google`, `openrouter`, `groq`, `mistral`, `together`,
 `cohere`, `deepseek`, `xai`, `sambanova`, `vercel`, `ovhcloud`, `huggingface`,
-`cerebras`, `fireworks`, `nebius`, `moonshotai`, `zai`, `alibaba`.
+`cerebras`, `fireworks`, `nebius`, `moonshotai`, `zai`, `alibaba`,
+`kimi_code`, `alibaba_coding_plan`, `opencode_go`, `ollama_cloud`.
 
 Kształty odpowiedzi się różnią — tablica siedzi w `data`, w `models` albo w
 korzeniu dokumentu; id to `id`, `name` albo `model`; Gemini poprzedza je

@@ -14098,8 +14098,8 @@
         "description": "Optionale genaue ID aus inspect_acp_agent für dieses Konto. Leer behält das eigene Modell des Programms bei. Dies wählt ein Laufzeitmodell und kein AgenticOS-Modellprofil."
       },
       "api_provider": {
-        "title": "Pi-Anbieter mit Tresorschlüssel",
-        "description": "Optionaler Pi-API-Schlüsselmodus: Inception, DeepSeek oder OpenRouter. Benötigt die passende native Vorlage und eigenen Tresorzugriff des startenden Mitglieds. Gespeicherte Pi-Zugangsdaten werden nicht importiert."
+        "title": "Anbieter mit Tresorschlüssel",
+        "description": "Optionaler Tresor-API-Schlüssel für die native Laufzeit: Inception, DeepSeek oder OpenRouter über eine Pi-Schlüsselvorlage oder Gemini über die Antigravity-Vorlage mit Gemini-API-Schlüssel. Benötigt die passende native Vorlage und eigenen Tresorzugriff des startenden Mitglieds. Gespeicherte CLI-Zugangsdaten werden nicht importiert."
       },
       "platform_tools": {
         "title": "AgenticOS-Werkzeuge",

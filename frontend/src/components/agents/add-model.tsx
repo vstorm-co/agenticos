@@ -29,6 +29,7 @@ import {
   useSecretPurposes,
   useSecrets,
 } from "@/hooks";
+import { KEYED_LISTINGS, KEYED_PLAN_ENDPOINTS } from "@/hooks/use-model-providers";
 import { Perm } from "@/types/permissions";
 import type { ModelApi, ModelProfile, ModelRegion, ProviderInfo } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -321,7 +322,7 @@ export function AddModel({
   const manualDiscovery =
     providerId !== "system-one" &&
     (providerId === "otari" ||
-      (providerId === "zai" && endpoint !== "") ||
+      (KEYED_PLAN_ENDPOINTS.includes(providerId) && endpoint !== "") ||
       (capabilities?.requires_base_url ?? false));
   const confirmedGateway =
     gatewayDiscovery?.endpoint === endpoint && gatewayDiscovery?.secretId === chosenKey;
@@ -357,11 +358,11 @@ export function AddModel({
     source,
     isLoading: loadingModels,
   } = useProviderModels(
-    providerId === "zai" && manualDiscovery && !confirmedGateway ? "" : providerId,
-    ["openrouter", "stav", "otari", "zai"].includes(providerId) ? listingEndpoint : undefined,
-    ["stav", "otari", "zai", "openai_chatgpt"].includes(providerId)
-      ? chosenKey || undefined
-      : undefined,
+    KEYED_PLAN_ENDPOINTS.includes(providerId) && manualDiscovery && !confirmedGateway
+      ? ""
+      : providerId,
+    ["openrouter", ...KEYED_LISTINGS].includes(providerId) ? listingEndpoint : undefined,
+    [...KEYED_LISTINGS, "openai_chatgpt"].includes(providerId) ? chosenKey || undefined : undefined,
     (pickedApi ?? startingApi) === "decisions" || ["typesafe", "system-one"].includes(providerId),
   );
 

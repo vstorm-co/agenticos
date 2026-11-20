@@ -626,7 +626,7 @@ async def test_a_stav_catalog_is_read_at_its_endpoint_with_the_key():
 
 @pytest.mark.anyio
 async def test_custom_catalog_rejects_an_unsupported_provider():
-    with pytest.raises(ValueError, match="only for OpenRouter"):
+    with pytest.raises(ValueError, match=r"supported only for .*openrouter"):
         await models_for("openai", base_url="https://custom.example/v1")
 
 

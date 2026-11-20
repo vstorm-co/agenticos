@@ -178,5 +178,33 @@
     "name_field": "name",
     "context_field": "context_window",
     "modalities_path": "architecture.output_modalities"
+  },
+  "kimi_code": {
+    "url": "https://api.kimi.ai/coding/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "alibaba_coding_plan": {
+    "url": "https://coding-intl.dashscope.aliyuncs.com/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "opencode_go": {
+    "url": "https://opencode.ai/inference/go/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "ollama_cloud": {
+    "url": "https://ollama.com/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
   }
 }

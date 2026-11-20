@@ -364,6 +364,10 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | Heroku AI | `heroku` | API key | ✓ |
 | Mistral | `mistral` | API key | |
 | MiniMax | `minimax` | API key | ✓ |
+| Kimi Code (plan) | `kimi_code` | API key | ✓ |
+| Alibaba Coding Plan | `alibaba_coding_plan` | API key | ✓ |
+| OpenCode Go | `opencode_go` | API key | ✓ |
+| Ollama Cloud | `ollama_cloud` | API key | ✓ |
 | Moonshot AI | `moonshotai` | API key | |
 | Nebius AI Studio | `nebius` | API key | |
 | OVHcloud AI Endpoints | `ovhcloud` | API key | |
@@ -379,6 +383,17 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 Select **MiniMax** for its OpenAI-compatible Chat Completions API. Store your M Plan API key as a MiniMax vault key; a metered API key uses its own billing instead. An empty Endpoint uses `https://api.minimax.io/v1`; set a custom Endpoint only for the region or gateway your key belongs to. Enter the exact model ID from your account, for example `MiniMax-M3.1-Flash`; this integration does not enumerate a plan-specific catalog. MiniMax history has its own provider identity, so OpenAI encrypted reasoning is not sent to it. Token prices, when known, are budget estimates rather than your subscription bill.
 
 For a **Z.AI GLM Coding Plan**, select **Z.AI** and explicitly set **Endpoint** to `https://api.z.ai/api/coding/paas/v4` (global) or `https://open.bigmodel.cn/api/coding/paas/v4` (China), using a key for that plan and region. Leaving Endpoint empty keeps the ordinary metered API; existing profiles do not change.
+
+**Subscription plan keys.** Four more providers bill a subscription plan through a plan key for an OpenAI-compatible endpoint. Store the plan's key under the matching vault purpose; the model list comes from that key's own catalog, and an empty Endpoint uses the plan's default.
+
+| Provider | Default endpoint | Other region or note |
+|---|---|---|
+| Kimi Code (plan) | `https://api.kimi.ai/coding/v1` | China: `https://api.kimi.com/coding/v1` |
+| Alibaba Coding Plan | `https://coding-intl.dashscope.aliyuncs.com/v1` | China: `https://coding.dashscope.aliyuncs.com/v1` |
+| OpenCode Go | `https://opencode.ai/inference/go/openai/v1` | Models not served over this protocol are refused by the endpoint |
+| Ollama Cloud | `https://ollama.com/v1` | Cloud models of your Ollama account |
+
+A plan key is not interchangeable with the vendor's metered API key. Some vendors restrict plan keys to coding tools; using one from an agent platform is your decision and may limit or suspend the plan. AgenticOS budgets treat this usage as unpriced subscription use.
 
 Choose the vault key and confirm the destination before loading models. A custom catalog uses that key and endpoint only; an unavailable listing leaves the model field editable rather than substituting the general API catalog. AgenticOS budget estimates do not measure your remaining subscription allowance.
 
@@ -548,12 +563,13 @@ for seven providers, which the answer says out loud.
 
 ### Live
 
-Twenty providers publish a list endpoint, and it is the only source that knows
+Twenty-four providers publish a list endpoint, and it is the only source that knows
 about a model released this morning:
 
 `anthropic`, `openai`, `google`, `openrouter`, `groq`, `mistral`, `together`,
 `cohere`, `deepseek`, `xai`, `sambanova`, `vercel`, `ovhcloud`, `huggingface`,
-`cerebras`, `fireworks`, `nebius`, `moonshotai`, `zai`, `alibaba`.
+`cerebras`, `fireworks`, `nebius`, `moonshotai`, `zai`, `alibaba`,
+`kimi_code`, `alibaba_coding_plan`, `opencode_go`, `ollama_cloud`.
 
 The response shapes disagree — the array sits at `data`, at `models` or at the
 document root; the id is `id`, `name` or `model`; Gemini prefixes it with

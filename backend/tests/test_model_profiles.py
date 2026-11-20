@@ -8,6 +8,7 @@ agent run.
 """
 
 import json
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Literal
@@ -276,6 +277,53 @@ class TestProviderCatalog:
         assert all(r.headers["Authorization"] == "Bearer minimax-plan-key" for r in requests)
         assert b"verified lookup result" in requests[1].content
         assert result.response.provider_name == "minimax"
+
+    @pytest.mark.parametrize(
+        ("provider", "default"),
+        [
+            ("kimi_code", "https://api.kimi.ai/coding/v1/"),
+            ("alibaba_coding_plan", "https://coding-intl.dashscope.aliyuncs.com/v1/"),
+            ("opencode_go", "https://opencode.ai/inference/go/openai/v1/"),
+            ("ollama_cloud", "https://ollama.com/v1/"),
+        ],
+    )
+    def test_subscription_plan_keys_reach_their_plans_endpoint_under_their_own_identity(
+        self, provider: str, default: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.agents.model_resolver import PROVIDERS
+        from app.services.model_catalog import CUSTOM_LISTINGS, LISTINGS
+
+        monkeypatch.setenv("OPENAI_API_KEY", "unrelated-openai-key")
+        model = build_model(
+            ResolvedCredential(provider=provider, secret=ApiKeySecret(api_key="plan-key")), "m"
+        )
+        assert isinstance(model, OpenAIChatModel)
+        assert str(model.client.base_url) == default and model.client.api_key == "plan-key"
+        assert model.system == provider
+        regional = build_model(
+            ResolvedCredential(
+                provider=provider,
+                secret=ApiKeySecret(api_key="plan-key"),
+                base_url="https://regional.example/v1",
+            ),
+            "m",
+        )
+        assert str(regional.client.base_url) == "https://regional.example/v1/"
+        assert LISTINGS[provider].auth_template == "Bearer {key}"
+        assert CUSTOM_LISTINGS[provider] is True
+        with pytest.raises(
+            BadRequestError, match=re.escape(f"{PROVIDERS[provider].name} requires a vault")
+        ):
+            build_model(ResolvedCredential(provider=provider, secret=NoSecret()), "m")
+
+    def test_plan_usage_is_never_priced_as_metered_api_tokens(self) -> None:
+        from pydantic_ai.usage import RequestUsage
+
+        from app.agents.capabilities.budget._capability import price_request
+
+        usage = RequestUsage(input_tokens=1000, output_tokens=1000)
+        for provider in ("kimi_code", "alibaba_coding_plan", "opencode_go", "ollama_cloud"):
+            assert price_request(usage, "qwen3-coder-plus", provider) is None
 
     def test_minimax_uses_its_own_history_identity_and_selected_key(self) -> None:
         credential = ResolvedCredential(

@@ -11008,8 +11008,8 @@
         "description": "Opcjonalne dokładne ID z inspect_acp_agent dla tego konta. Puste pole zachowuje model programu. Wybiera model środowiska wykonawczego, a nie profil modelu AgenticOS."
       },
       "api_provider": {
-        "title": "Dostawca Pi z kluczem ze skarbca",
-        "description": "Opcjonalny tryb klucza API Pi: Inception, DeepSeek lub OpenRouter. Wymaga zgodnego szablonu natywnego i niezależnego dostępu osoby rozpoczynającej zadanie do tego klucza w skarbcu. Nie importuje zapisanych poświadczeń Pi."
+        "title": "Dostawca klucza ze skarbca",
+        "description": "Opcjonalny klucz API ze skarbca dla natywnego środowiska: Inception, DeepSeek lub OpenRouter przez szablon klucza Pi albo Gemini przez szablon Antigravity z kluczem Gemini API. Wymaga zgodnego szablonu natywnego i niezależnego dostępu osoby rozpoczynającej zadanie do tego klucza w skarbcu. Nie importuje zapisanych poświadczeń CLI."
       },
       "platform_tools": {
         "title": "Narzędzia AgenticOS",

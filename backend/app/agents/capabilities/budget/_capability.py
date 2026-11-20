@@ -174,6 +174,10 @@ def price_request(
         "native-codex",
         "native-claude_code",
         "native-external",
+        "kimi_code",
+        "alibaba_coding_plan",
+        "opencode_go",
+        "ollama_cloud",
     }:
         # Subscription allowances have no verified per-token USD contract.
         return None

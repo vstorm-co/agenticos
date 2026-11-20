@@ -264,6 +264,21 @@ def _api_key(
     )
 
 
+COMPATIBLE_ENDPOINTS: dict[str, str] = {
+    "minimax": "https://api.minimax.io/v1",
+    # The overseas host; mainland China plans use https://api.kimi.com/coding/v1.
+    "kimi_code": "https://api.kimi.ai/coding/v1",
+    # The international host; mainland China uses https://coding.dashscope.aliyuncs.com/v1.
+    "alibaba_coding_plan": "https://coding-intl.dashscope.aliyuncs.com/v1",
+    "opencode_go": "https://opencode.ai/inference/go/openai/v1",
+    "ollama_cloud": "https://ollama.com/v1",
+}
+"""OpenAI-compatible providers built with their own history identity, and the
+endpoint each reaches when a profile names none. A plan key works only at its
+plan's endpoint, so the default is the plan's, never the vendor's general API.
+"""
+
+
 PROVIDERS: dict[str, ProviderSpec] = {
     spec.id: spec
     for spec in (
@@ -305,6 +320,24 @@ PROVIDERS: dict[str, ProviderSpec] = {
         _api_key("heroku", "Heroku AI", base_url_param="base_url"),
         _api_key("mistral", "Mistral"),
         _api_key("minimax", "MiniMax", base_url_param="base_url", model_prefix="openai-chat"),
+        # Subscription plans that issue a plan key for an OpenAI-compatible
+        # endpoint. Each bills the plan, not pay-as-you-go API usage; see
+        # `COMPATIBLE_ENDPOINTS` for the default destination of each.
+        _api_key(
+            "kimi_code", "Kimi Code (plan)", base_url_param="base_url", model_prefix="openai-chat"
+        ),
+        _api_key(
+            "alibaba_coding_plan",
+            "Alibaba Coding Plan",
+            base_url_param="base_url",
+            model_prefix="openai-chat",
+        ),
+        _api_key(
+            "opencode_go", "OpenCode Go", base_url_param="base_url", model_prefix="openai-chat"
+        ),
+        _api_key(
+            "ollama_cloud", "Ollama Cloud", base_url_param="base_url", model_prefix="openai-chat"
+        ),
         _api_key("moonshotai", "Moonshot AI"),
         _api_key("nebius", "Nebius AI Studio"),
         _api_key("ovhcloud", "OVHcloud AI Endpoints"),
@@ -528,15 +561,15 @@ def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provi
     endpoint: dict[str, str] = {}
     if credential.base_url is not None and spec.base_url_param is not None:
         endpoint[spec.base_url_param] = credential.base_url
-    if spec.id == "minimax":
+    if (default := COMPATIBLE_ENDPOINTS.get(spec.id)) is not None:
         from pydantic_ai.providers.openai_compatible import OpenAICompatibleProvider
 
         if not isinstance(secret, ApiKeySecret):
-            raise BadRequestError(message="MiniMax requires a vault API key")
+            raise BadRequestError(message=f"{spec.name} requires a vault API key")
         # A compatible API is a different history authority, not an OpenAI proxy.
         return OpenAICompatibleProvider(
-            "minimax",
-            base_url=credential.base_url or "https://api.minimax.io/v1",
+            spec.id,
+            base_url=credential.base_url or default,
             api_key=secret.api_key.get_secret_value(),
         )
     provider_class = infer_provider_class(spec.prefix)

@@ -1,5 +1,5 @@
 ---
-source_sha: "b374a3b618b3"
+source_sha: "3be190cfaa35"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -385,6 +385,10 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 | Heroku AI | `heroku` | clave de API | ✓ |
 | Mistral | `mistral` | clave de API | |
 | MiniMax | `minimax` | clave de API | ✓ |
+| Kimi Code (plan) | `kimi_code` | clave de API | ✓ |
+| Alibaba Coding Plan | `alibaba_coding_plan` | clave de API | ✓ |
+| OpenCode Go | `opencode_go` | clave de API | ✓ |
+| Ollama Cloud | `ollama_cloud` | clave de API | ✓ |
 | Moonshot AI | `moonshotai` | clave de API | |
 | Nebius AI Studio | `nebius` | clave de API | |
 | OVHcloud AI Endpoints | `ovhcloud` | clave de API | |
@@ -400,6 +404,17 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 Selecciona **MiniMax** para su API Chat Completions compatible con OpenAI. Guarda la clave API de M Plan como clave MiniMax en el almacén; una clave API de pago por uso utiliza su propia facturación. Un Endpoint vacío usa `https://api.minimax.io/v1`; configura otro solo para la región o el gateway de tu clave. Escribe el ID exacto del modelo de tu cuenta, por ejemplo `MiniMax-M3.1-Flash`; esta integración no enumera un catálogo del plan. El historial MiniMax tiene identidad propia y no recibe razonamiento cifrado de OpenAI. Los precios conocidos de tokens estiman el presupuesto, no la factura de suscripción.
 
 Para un **Z.AI GLM Coding Plan**, selecciona **Z.AI** y configura **Endpoint** explícitamente como `https://api.z.ai/api/coding/paas/v4` (global) o `https://open.bigmodel.cn/api/coding/paas/v4` (China), con una clave del plan y la región correspondientes. Un Endpoint vacío conserva la API habitual facturada por uso; los perfiles existentes no cambian.
+
+**Claves de planes de suscripción.** Cuatro providers más facturan un plan de suscripción mediante una clave del plan para un endpoint compatible con OpenAI. Guarda la clave del plan con el propósito correspondiente de la bóveda; la lista de modelos procede del catálogo de esa clave, y un Endpoint vacío usa el predeterminado del plan.
+
+| Provider | Endpoint predeterminado | Otra región o nota |
+|---|---|---|
+| Kimi Code (plan) | `https://api.kimi.ai/coding/v1` | China: `https://api.kimi.com/coding/v1` |
+| Alibaba Coding Plan | `https://coding-intl.dashscope.aliyuncs.com/v1` | China: `https://coding.dashscope.aliyuncs.com/v1` |
+| OpenCode Go | `https://opencode.ai/inference/go/openai/v1` | El endpoint rechaza los modelos que no sirve con este protocolo |
+| Ollama Cloud | `https://ollama.com/v1` | Modelos en la nube de tu cuenta de Ollama |
+
+Una clave de plan no es intercambiable con la clave de API facturada por uso del proveedor. Algunos proveedores limitan las claves de plan a herramientas de programación; usarla desde una plataforma de agentes es tu decisión y puede limitar o suspender el plan. Los presupuestos de AgenticOS tratan este uso como uso de suscripción sin precio.
 
 Selecciona la clave del almacén y confirma el destino antes de cargar modelos. Un catálogo personalizado utiliza solo esa clave y ese endpoint. Si la lista no está disponible, puedes escribir el modelo manualmente; no se sustituye por el catálogo general de la API. Las estimaciones de presupuesto de AgenticOS no miden la cuota restante de tu suscripción.
 
@@ -580,12 +595,13 @@ ninguna de las dos para siete providers, cosa que la respuesta dice en voz alta.
 
 ### En vivo { #live }
 
-Veinte providers publican un endpoint de listado, y es la única fuente que sabe
+Veinticuatro providers publican un endpoint de listado, y es la única fuente que sabe
 de un modelo publicado esta mañana:
 
 `anthropic`, `openai`, `google`, `openrouter`, `groq`, `mistral`, `together`,
 `cohere`, `deepseek`, `xai`, `sambanova`, `vercel`, `ovhcloud`, `huggingface`,
-`cerebras`, `fireworks`, `nebius`, `moonshotai`, `zai`, `alibaba`.
+`cerebras`, `fireworks`, `nebius`, `moonshotai`, `zai`, `alibaba`,
+`kimi_code`, `alibaba_coding_plan`, `opencode_go`, `ollama_cloud`.
 
 Las formas de la respuesta no coinciden — el array está en `data`, en `models` o
 en la raíz del documento; el id es `id`, `name` o `model`; Gemini lo prefija con
