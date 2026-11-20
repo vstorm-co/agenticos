@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useExternalAgentOptions } from "@/hooks/use-desktop";
 import { useSecrets } from "@/hooks/use-secrets";
+import { getErrorMessage } from "@/lib/api-error";
 import type { ExternalAgent, LocalTarget } from "@/lib/desktop/commands";
 
 type Runtime = NonNullable<LocalTarget["conversation_runtime"]>;
@@ -238,6 +239,7 @@ function ExternalModels({
   onChange: (runtime: Runtime) => void;
 }) {
   const t = useTranslations("chat.controls.workOn");
+  const tErrors = useTranslations("errors");
   const options = useExternalAgentOptions(runtime.registration_id ?? null);
   const models = options.data?.models ?? [];
   return (
@@ -269,7 +271,7 @@ function ExternalModels({
       {options.isError && (
         <div className="space-y-1">
           <p role="alert" className="text-destructive text-xs">
-            {options.error instanceof Error ? options.error.message : t("externalModelsFailed")}
+            {getErrorMessage(options.error, tErrors, t("externalModelsFailed"))}
           </p>
           <Button type="button" size="sm" variant="outline" onClick={() => options.refetch()}>
             {t("externalModelsRetry")}
