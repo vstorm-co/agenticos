@@ -16,7 +16,7 @@ from app.schemas.local_service import LocalServiceCreate
 from app.schemas.model_profile import ModelProfileCreate, ModelProfileUpdate
 from app.schemas.solution import SolutionInstall, SolutionManifest
 from app.schemas.sync_source import SyncSourceCreate
-from app.services.platform_mcp._lifecycle import lifecycle_operations
+from app.services.platform_mcp._tools import platform_tools
 from app.services.solution import plan_solution
 
 pytestmark = pytest.mark.anyio
@@ -28,12 +28,13 @@ type Tool = Callable[..., Awaitable[dict[str, JsonValue]]]
 @pytest.fixture
 def api() -> MagicMock:
     stub = MagicMock()
+    stub.credential_id.return_value = "unit-caller"
     stub.request = AsyncMock(return_value={"id": PATH_ID, "organization_id": PATH_ID})
     return stub
 
 
 def tools(api: MagicMock) -> dict[str, Tool]:
-    return {name: function for name, function, _writes in lifecycle_operations(api)}
+    return {tool.name: tool.function for tool in platform_tools(api)}
 
 
 @pytest.mark.parametrize(
@@ -216,7 +217,10 @@ def tools(api: MagicMock) -> dict[str, Tool]:
 async def test_lifecycle_calls_the_scoped_api(
     api: MagicMock, name: str, arguments: dict[str, object], method: str, path: str
 ) -> None:
-    assert await tools(api)[name](**arguments) == {"id": PATH_ID, "organization_id": PATH_ID}
+    expected = {"id": PATH_ID, "organization_id": PATH_ID}
+    if name == "add_dataset_case":
+        expected.update(dataset_id=PATH_ID, read_tool="get_dataset_case")
+    assert await tools(api)[name](**arguments) == expected
     assert api.request.call_args.args == (method, path)
 
 
@@ -278,8 +282,8 @@ async def test_api_refusal_is_not_an_empty_success(api: MagicMock) -> None:
 
 async def test_oversized_contract_is_explicitly_refused(api: MagicMock) -> None:
     api.request.return_value = {"spec": "x" * 65536}
-    with pytest.raises(ToolError, match="no partial contract"):
-        await tools(api)["get_agent_version"](IDENTITY, IDENTITY)
+    result = await tools(api)["get_agent_version"](IDENTITY, IDENTITY)
+    assert result["read_tool"] == "read_platform_details"
 
 
 async def test_malformed_response_is_not_silently_coerced(api: MagicMock) -> None:
@@ -292,13 +296,13 @@ async def test_solution_tools_carry_the_reviewed_manifest_and_hash(api: MagicMoc
     manifest = SolutionManifest.model_validate(
         {"name": "reviewed", "contexts": [{"key": "policy", "data": {"name": "Policy"}}]}
     )
-    await tools(api)["plan_solution"](manifest)
+    await tools(api)["plan_solution"](manifest.model_dump(mode="json"))
     assert api.request.call_args.args == ("POST", "/solutions/plan")
     request = SolutionInstall(
         installation_key="reviewed",
         manifest=manifest,
         expected_manifest_hash=plan_solution(manifest).manifest_hash,
     )
-    await tools(api)["install_solution"](request)
+    await tools(api)["install_solution"](request.model_dump(mode="json"))
     assert api.request.call_args.args == ("POST", "/solutions/install")
     assert api.request.call_args.kwargs["json"] == request.model_dump(mode="json")

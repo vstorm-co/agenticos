@@ -45,6 +45,20 @@ Do not promise these; send the user to the console instead.
 - On baseline servers, create datasets or automatic checks. Contract-1 servers support dataset creation, scored cases, eval runs and suites; use the release skill.
 - Read vault values. Contract-1 tools discover secret references and embedding endpoints. A model profile's `secret_id` is a chat key and is not automatically an embedding key.
 
+## Keep context bounded
+
+On contract-2 servers, search metadata before reading bodies and follow small
+pages. Use named detail tools for one case, file, workflow node, execution step or
+configuration. Oversized reads issue a credential-bound five-minute continuation;
+`read_platform_details` follows that exact authorized read, never another tool.
+Inspect pointers, request content windows and assemble fragments before using a
+contract. Read a complete workflow graph before replacing it. Large write results
+are receipts: inspect status and read back the resource, never repeat the write.
+Authoring contracts are available through `get_authoring_schema` on demand.
+`set_my_preferences` changes only the asking person's theme, style or language;
+`get_my_preferences` discovers their current choice. Never infer an application
+language from the documentation languages: use the tool's locale enum.
+
 ## Choosing the mechanism
 
 | The user wants | Use |

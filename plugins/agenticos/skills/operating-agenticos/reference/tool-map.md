@@ -150,15 +150,57 @@ These refuse an organization API key; they need an OAuth connection.
 
 `create_project` creates the project only: not its files, an agent or a schedule. `create_app_public_link` needs a real `artifact_id` from an App an agent published; never guess one.
 
-## Size limits
+## Progressive disclosure (MCP contract 2)
 
-Discovery responses are refused in full, never truncated, when they exceed their budget.
+Search before listing, start with `limit: 10`, and follow `next_skip`. Discovery
+returns identity and state, not resource bodies. Use `detailed: true` only when
+needed, or the named detail tools below. A summary is never a complete editable
+workflow graph or authoring schema. Read the full graph before replacing it;
+preserve bindings and use the current revision for writes.
 
-| Response | Limit | Then |
+Every successful tool result is bounded to 16 KiB. Oversized reads return a
+`continuation` for `read_platform_details`: first inspect JSON pointers, then read
+only the chosen pointer in `mode: content`. Continue `next_offset`/`next_skip`;
+pass `value_hash` as `expected_hash` to avoid mixing revisions. JSON fragments
+must be assembled before parsing. Handles last five minutes, belong to the exact
+credential and original authorized read, and cannot select another tool or its
+arguments. Every fragment rechecks API access. After expiry or a changed result,
+execute and authorize the original read again. An unavailable original tool cannot
+be invoked through this reader.
+
+Large writes return identity/status receipts, never a false size failure after a
+successful mutation. Do not repeat a write for its body: use its named read tool
+with the required read permission. Request completion does not prove that an
+asynchronous run, ingestion or deployment succeeded. Validation errors are bounded
+and remain explicit refusals. Transcript windows still support up to 8000 chars;
+new body windows support up to 2000 chars.
+
+| Tool | Needs | Changes something |
 |---|---|---|
-| Listings and transcript windows | 64 KiB | narrow `q`, lower `limit`, or lower `content_chars` / `chars` |
-| `get_workflow_input_schema` | 32 KiB | read the contract through the HTTP API outside the model context |
-| One transcript message | `content_chars` up to 8000 | repeat with `skip` set to its `message_index`, `limit: 1` and `content_offset` set to `next_offset` |
+| `read_platform_details` | continuation from an already authorized oversized read; original API access rechecked | no |
+| `get_authoring_schema` | authenticated caller; contracts contain no resource content | no |
+| `read_context_file_content` | read access to the context file | no |
+| `read_skill_content`, `get_skill_resource`, `list_skill_agents`, `list_skill_forks`, `list_skill_resources` | read access to the skill; hidden agent identities remain hidden | no |
+| `get_dataset_case`, `read_dataset_case_field` | read access to the selected dataset/version | no |
+| `get_model_profile`, `get_model_provider` | the corresponding model/provider read permission | no |
+| `get_embedding_endpoint` | `connections:view` | no |
+| `get_agent_environment`, `get_eval_suite` | read access to the agent | no |
+| `get_knowledge_source`, `get_knowledge_connector` | knowledge/source discovery access | no |
+| `get_routine`, `get_watch` | the same resource access as their listings | no |
+| `list_workflow_definition_nodes`, `get_workflow_definition_node` | read access to the workflow | no |
+| `get_workflow_execution_step` | read access to the run; actual node-run ID, including loop instance | no |
+| `prepare_solution` | `agents:edit`; reserves a principal-scoped review for 24 hours | yes, temporary review only |
+| `get_solution_installation` | `agents:edit`; only the caller's receipt in this organization | no |
+| `get_my_preferences` | the caller's own account, `agents:run` for keys | no |
+| `set_my_preferences` | the caller's own account, `agents:run` for keys | yes, theme/style/language only |
+
+Use `get_authoring_schema` for solution, agent, workflow or workflow-preparation
+contracts rather than loading those schemas into every tool definition. The API
+still validates the complete typed payload. For a large solution, review with
+`prepare_solution`, then call `install_solution` with `plan_id`, `installation_key`
+and `expected_manifest_hash` rather than resending the manifest. An expired review
+can be prepared again; the durable installation receipt still prevents duplicate
+resources. For tables, select only required `columns` in `query_virtual_table`.
 
 ## Dependency setup and release lifecycle
 

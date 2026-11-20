@@ -1,5 +1,6 @@
 """Portable, draft-only resource bundles. External dependencies stay explicit IDs."""
 
+from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -106,6 +107,20 @@ class SolutionInstall(BaseModel):
     installation_key: Key
     expected_manifest_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     manifest: SolutionManifest
+
+
+class PreparedSolution(SolutionPlan):
+    """A private review document, automatically expired from Redis after 24 hours."""
+
+    plan_id: UUID
+    expires_at: datetime
+
+
+class PreparedSolutionInstall(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    plan_id: UUID
+    installation_key: Key
+    expected_manifest_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 class SolutionResource(BaseModel):

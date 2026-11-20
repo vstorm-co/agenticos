@@ -253,3 +253,58 @@ async def test_workflow_without_table_creates_no_extra_table_receipt(db: AsyncSe
     )
     result = await SolutionService(db).install(ctx, request)
     assert set(result.resources) == {"flow"}
+
+
+@pytest.mark.security
+async def test_prepared_install_and_history_are_principal_scoped_and_replay_after_cache_loss(
+    db: AsyncSession,
+) -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.clients.redis import RedisClient
+    from app.core.exceptions import NotFoundError
+    from app.schemas.solution import PreparedSolutionInstall
+
+    ctx = await owner(db)
+    other = await owner(db)
+    peer = User(email=f"{uuid4()}@example.com", hashed_password="x", is_active=True)
+    db.add(peer)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=ctx.organization_id, user_id=peer.id, role="owner"))
+    await db.commit()
+    peer_ctx = AuthContext(user_id=peer.id, organization_id=ctx.organization_id, role="owner")
+    stored: dict[str, str] = {}
+
+    async def set_value(key: str, value: str, ttl: int | None = None, nx: bool = False) -> bool:
+        assert ttl == 86400 and nx
+        stored[key] = value
+        return True
+
+    cache = MagicMock(spec=RedisClient)
+    cache.set = AsyncMock(side_effect=set_value)
+    cache.get = AsyncMock(side_effect=stored.get)
+    service = SolutionService(db)
+    source = bundle("prepared")
+    reviewed = await service.prepare(ctx, source.manifest, cache)
+    request = PreparedSolutionInstall(
+        plan_id=reviewed.plan_id,
+        installation_key=source.installation_key,
+        expected_manifest_hash=reviewed.manifest_hash,
+    )
+    for stranger in (other, peer_ctx):
+        with pytest.raises(NotFoundError):
+            await service.install_prepared(stranger, request, cache)
+    installed = await service.install_prepared(ctx, request, cache)
+    await db.commit()
+    historical = await service.read_installation(ctx, source.installation_key)
+    assert historical.resources == installed.resources
+    for stranger in (other, peer_ctx):
+        with pytest.raises(NotFoundError):
+            await service.read_installation(stranger, source.installation_key)
+    stored.clear()
+    with pytest.raises(NotFoundError):
+        await service.install_prepared(ctx, request, cache)
+    renewed = await service.prepare(ctx, source.manifest, cache)
+    request.plan_id = renewed.plan_id
+    replay = await service.install_prepared(ctx, request, cache)
+    assert replay.replayed and replay.resources == installed.resources

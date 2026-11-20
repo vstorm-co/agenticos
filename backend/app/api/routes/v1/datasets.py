@@ -245,7 +245,9 @@ async def add_dataset_case_from_message(
     return await service.add_from_message(ctx, dataset_id, data)
 
 
-@router.get("/{dataset_id}/cases/{case_id}", response_model=DatasetCaseRead)
+@router.get(
+    "/{dataset_id}/cases/{case_id}", dependencies=[ASSISTANT], response_model=DatasetCaseRead
+)
 async def get_dataset_case(
     dataset_id: UUID,
     case_id: UUID,

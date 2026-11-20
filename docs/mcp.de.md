@@ -1,5 +1,5 @@
 ---
-source_sha: "9e538473cdb9"
+source_sha: "1e5dec50f597"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -192,6 +192,14 @@ Server verliert. Null auf einer der beiden Seiten heißt: von dort keine
 Eingrenzung; ein Binding, das nichts benennt, bekommt also, was die Connection
 erlaubt — genau das, was jedes Binding tat, bevor es dies gab.
 
+Null auf dem Binding nimmt also auch jedes Tool, das der Server später bekommt.
+Im Builder sagt **Tools hinzufügen, die der Server später bekommt**, welches von
+beiden ein Binding ist: an ist es null; aus listet es die Tools von heute, und ein
+später hinzugefügtes Tool bleibt draußen. Nach dem Eingrenzen wieder alle Tools
+anzuhaken ergibt die Liste von heute, nie null, und der Schalter lässt sich nur
+mit allen angehakten Tools einschalten - ein Binding kann nicht sagen „diese, und
+was noch kommt“.
+
 Der Builder listet die Tools eines Servers aus dessen **letzter erfolgreicher
 Prüfung**, die auf der Connection festgehalten ist. Eine Prüfung wählt nach außen
 zu einem Dritten und ist auf `connections:manage` beschränkt; der Autor eines
@@ -240,7 +248,9 @@ an diesen Server erzwingen mindestens `writes`, auch bei `none`, da Tools mit de
 Berechtigungen des Aufrufers handeln. Lesezugriffe einschließlich `get_project`
 und `read_conversation` laufen unter `writes` automatisch. Erstellen, Aktualisieren,
 Löschen und andere zustandsändernde Aktionen benötigen eine Freigabe. Mit `all`
-benötigen auch Lesezugriffe eine Freigabe.
+benötigen auch Lesezugriffe eine Freigabe. Diese Untergrenze gilt nur für die
+Voreinstellung des Bindings: Ein einzelnes, benanntes Tool kann weiterhin ohne
+Rückfrage laufen, wie bei jedem anderen Server.
 
 Im Builder sagen die Einstellungen eines Servers das je
 Gruppe: **Lesen** und **Ändern** laufen jeweils ohne Rückfrage oder fragen erst.
@@ -1427,7 +1437,24 @@ einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes
   wartet ebenfalls, weil sein Inhalt spätere Agentenläufe erreicht.
 
 - **Die Werkzeuge lassen sich einschränken** in den Einstellungen der Karte, die
-  jedes Werkzeug auflisten und die ändernden markieren.
+  sie danach gruppieren, woran sie arbeiten - Tabellen, Aufgaben, Workflows,
+  Agenten, Wissensdatenbanken, Skills, Projekte, Automatisierungen, Apps, Runs,
+  Verbindungen und das Konto - und jedes ändernde Werkzeug mit einem Symbol
+  markieren, das es beim Überfahren sagt.
+- **Jedes Werkzeug läuft ohne Rückfrage oder fragt erst.** Die Einstellung einer
+  Gruppe setzt alle ihre Werkzeuge, das Schild neben einem Werkzeug nur dieses.
+  Die Spec speichert die eigene Einstellung eines Werkzeugs im `tool_approval` des
+  Bindings, unter dem Namen des Werkzeugs; das Veröffentlichen lehnt einen Namen
+  ab, den die Plattform nicht anbietet. Eine Änderung ohne Rückfrage zuzulassen
+  betrifft nur dieses Werkzeug: Die Voreinstellung des Bindings bleibt `writes`,
+  oder `all`, sobald jeder Lesezugriff fragt, sodass auch ein später von der
+  Plattform hinzugefügter Lesezugriff fragt.
+- **Manche Werkzeuge fragen immer.** `invite_member` und
+  `update_proactivity_settings` ändern, wer in der Organisation Befugnisse hat,
+  und laufen mit den Rechten der Person, für die der Agent läuft, nicht seines
+  Autors - ein von einem Builder veröffentlichter Agent kann also im Run eines
+  Owners keinen Admin ohne Rückfrage einladen. Ihr Schild lässt sich nicht
+  ausschalten, und das Veröffentlichen lehnt `never` für beide ab.
 
 Die Vorlage **AgenticOS** bindet ihn genau so, ebenso jeder von Grund auf
 angelegte Agent, sodass ein Agent die Plattform sofort nachschlagen kann - und eine
@@ -1546,3 +1573,34 @@ Abhängigkeiten, Agentenfreigaben über Evals und Umgebungen sowie geprüfte Pak
 Vertrag 1 trennt Serverfunktionen von gewährten Scopes. Vault-Referenzen liefern
 IDs und Metadaten, keine Werte oder Hinweise; Geheimnisse werden in der Konsole
 eingegeben. Neue Assistentenoperationen benötigen OAuth.
+
+## Begrenzte Ergebnisse und persönliche Einstellungen { #bounded-results-and-personal-preferences }
+
+MCP-Vertrag 2 hält den Kontext klein: zuerst suchen, standardmäßig Seiten mit 10
+Einträgen und `next_skip` verwenden. Listen liefern Metadaten; eigene Detailtools
+lesen einzelne Dataset-Fälle, Context-Inhalte, Skill-Dateien, Modelle, Anbieter,
+Umgebungen, Workflow-Knoten und Ausführungsschritte. `get_authoring_schema` liefert
+große Eingabeverträge bei Bedarf; die API validiert weiterhin vollständige Daten.
+Vor dem Ersetzen eines Graphen diesen vollständig lesen und Bindings erhalten.
+
+Erfolgreiche Ergebnisse sind auf 16 KiB begrenzt. Große Leseergebnisse liefern eine
+fünf Minuten gültige `continuation` für `read_platform_details`, gebunden an das
+Zugangstoken und den bereits autorisierten Aufruf mit unveränderten Argumenten.
+Jeder Teil prüft den API-Zugriff erneut. JSON-Pointer inspizieren, Inhalte in
+Fenstern lesen und `value_hash` als `expected_hash` übernehmen. JSON-Fragmente vor
+dem Parsen zusammensetzen. Bei Änderungen oder Ablauf ist ein neuer autorisierter
+Leseaufruf nötig. Große Schreibaufrufe liefern Identität und Status: die Ressource
+mit ihrer Leseberechtigung lesen, statt den Schreibaufruf zu wiederholen. Eine
+Quittung bestätigt nicht den Abschluss eines Hintergrundjobs.
+
+`prepare_solution` speichert eine Prüfung für die Person und Organisation für 24
+Stunden. `install_solution` akzeptiert `plan_id`, Installationsschlüssel und den
+geprüften Manifest-Hash. Dauerhafte Installationsquittungen bleiben danach erhalten.
+
+`get_my_preferences` liest Modus, Stil und Sprache des Aufrufers.
+`set_my_preferences` ändert nur übergebene Werte: Modus `light`, `dark`, `system`;
+Stil `standard`, `glass`, `graphite`, `midnight`, `paper`; Sprache aus dem Tool-Enum.
+Im Chat gilt die Änderung sofort, andere sichtbare Konsolen synchronisieren die
+Einstellungen ungefähr alle zehn Sekunden. Einstellungen schreiben dieselben Kontowerte.
+Migration `0343_user_appearance.py` ergänzt nullable Spalten; bestehende Konten
+behalten die Gerätevorgaben, bis eine Auswahl gespeichert wird.

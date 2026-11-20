@@ -17,10 +17,10 @@ from app.schemas.eval_run import EvalRunRequest
 from app.schemas.eval_suite import EvalSuiteCreate, EvalSuiteEstimateRequest, EvalSuiteUpdate
 from app.schemas.local_service import LocalServiceCreate
 from app.schemas.model_profile import ModelProfileCreate, ModelProfileUpdate
-from app.schemas.solution import SolutionInstall, SolutionManifest
+from app.schemas.solution import Key
 from app.schemas.sync_source import SyncSourceCreate
 from app.services.platform_mcp._api import PlatformApi
-from app.workflows.contracts.payload import PayloadTooLarge, json_byte_size
+from app.services.platform_mcp._disclosure import listing, metadata
 
 type Operation = tuple[str, Callable[..., Awaitable[dict[str, JsonValue]]], bool]
 _OBJECT = TypeAdapter(dict[str, JsonValue])
@@ -38,36 +38,50 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
         body: dict[str, JsonValue] | None = None,
         params: dict[str, str | int] | None = None,
     ) -> dict[str, JsonValue]:
-        result = _OBJECT.validate_python(await api.request(method, path, json=body, params=params))
-        try:
-            json_byte_size(result, limit=64 * 1024)
-        except PayloadTooLarge as error:
-            raise ToolError(
-                "Response exceeds 64 KiB. Narrow the page or read this resource in the console; "
-                "no partial contract was returned."
-            ) from error
-        return result
+        return _OBJECT.validate_python(await api.request(method, path, json=body, params=params))
 
-    async def plan_solution(manifest: SolutionManifest) -> dict[str, JsonValue]:
+    async def plan_solution(manifest: dict[str, JsonValue]) -> dict[str, JsonValue]:
         """Validate and fingerprint a resource bundle without writing or spending. Needs `agents:view`.
 
         Returns logical resource keys and required permissions. External model,
         connection and embedding IDs must belong to this deployment. Review the
         exact manifest; install_solution needs this returned manifest_hash.
         """
-        return await call("POST", "/solutions/plan", body=manifest.model_dump(mode="json"))
+        return await call("POST", "/solutions/plan", body=manifest)
 
-    async def install_solution(installation: SolutionInstall) -> dict[str, JsonValue]:
+    async def install_solution(installation: dict[str, JsonValue]) -> dict[str, JsonValue]:
         """Install a reviewed bundle as private drafts in one transaction.
 
         Needs every permission returned by plan_solution. Creates context,
         skills, optional knowledge bases, datasets, agents and workflows with
         optional tables. Publishes, runs and indexes nothing. The same installation
-        key and manifest replay the receipt; a changed payload is refused. The
-        receipt records installation, not current readiness after later edits.
+        key and manifest replay the receipt; a changed payload is refused.
+        For a prepared review pass plan_id, installation_key and expected_manifest_hash;
+        legacy callers may supply manifest instead of plan_id. The receipt records
+        installation, not current readiness after later edits.
         Read resources back, test, share and publish as separate authorized steps.
         """
-        return await call("POST", "/solutions/install", body=installation.model_dump(mode="json"))
+        path = "/solutions/install-plan" if "plan_id" in installation else "/solutions/install"
+        return await call("POST", path, body=installation)
+
+    async def prepare_solution(manifest: dict[str, JsonValue]) -> dict[str, JsonValue]:
+        """Prepare a private 24-hour review so install_solution need not resend a manifest.
+
+        Read get_authoring_schema(contract="solution") first. Needs agents:edit;
+        creates only a bounded temporary review, no solution resources or spend.
+        Review resources, permissions and manifest_hash, then install_solution with
+        plan_id, installation_key and expected_manifest_hash. After expiry/cache
+        loss, prepare the same manifest again and reuse the installation key.
+        """
+        return await call("POST", "/solutions/prepare", body=manifest)
+
+    async def get_solution_installation(installation_key: Key) -> dict[str, JsonValue]:
+        """Read your own historical installation identities after an uncertain write. Needs agents:edit.
+
+        This is history, not resource readiness or a grant. Inspect a large /resources
+        map with read_platform_details; every live resource read checks access again.
+        """
+        return await call("GET", f"/solutions/installations/{installation_key}")
 
     async def get_platform_context() -> dict[str, JsonValue]:
         """Read server version, MCP contract, authentication type and granted token scopes.
@@ -102,17 +116,35 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
             "instruction": "Finish setup in your own console session, then list the resource again.",
         }
 
-    async def list_secret_references() -> dict[str, JsonValue]:
+    async def list_secret_references(
+        q: str | None = None, limit: Limit = 10, skip: Skip = 0, detailed: bool = False
+    ) -> dict[str, JsonValue]:
         """List accessible vault IDs, names, kinds and purposes; never values or hints.
 
         Needs `secrets:view`. Pick an existing matching reference for a model,
         embedding or source. Use get_setup_link when a person must add a key.
         """
-        return await call("GET", "/secrets/references")
+        return listing(
+            await call("GET", "/secrets/references"),
+            q=q,
+            limit=limit,
+            skip=skip,
+            local=True,
+            detailed=detailed,
+        )
 
-    async def list_model_providers() -> dict[str, JsonValue]:
-        """Read provider credential requirements and supported APIs. Needs `agents:view`."""
-        return await call("GET", "/providers/catalog")
+    async def list_model_providers(
+        q: str | None = None, limit: Limit = 10, skip: Skip = 0, detailed: bool = False
+    ) -> dict[str, JsonValue]:
+        """Search provider metadata. Read get_model_provider for its API/region/credential contract. Needs agents:view."""
+        return listing(
+            await call("GET", "/providers/catalog"),
+            q=q,
+            limit=limit,
+            skip=skip,
+            local=True,
+            detailed=detailed,
+        )
 
     async def create_model_profile(profile: ModelProfileCreate) -> dict[str, JsonValue]:
         """Create a model profile using an existing secret ID or a keyless endpoint.
@@ -137,13 +169,22 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
             body=changes.model_dump(mode="json", exclude_unset=True),
         )
 
-    async def list_embedding_endpoints() -> dict[str, JsonValue]:
+    async def list_embedding_endpoints(
+        q: str | None = None, limit: Limit = 10, skip: Skip = 0, detailed: bool = False
+    ) -> dict[str, JsonValue]:
         """List accessible local services, including embedding endpoints and their IDs.
 
         Needs `connections:view`. Select an active service with kind `embedding`
         and the intended provider; an OCR service cannot embed documents.
         """
-        return await call("GET", "/local-services")
+        return listing(
+            await call("GET", "/local-services"),
+            q=q,
+            limit=limit,
+            skip=skip,
+            local=True,
+            detailed=detailed,
+        )
 
     async def create_embedding_endpoint(service: LocalServiceCreate) -> dict[str, JsonValue]:
         """Register an organization-owned keyless embedding endpoint.
@@ -162,7 +203,7 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
         return await call("GET", f"/kb/{kb_id}")
 
     async def list_knowledge_documents(
-        kb_id: UUID, limit: Limit = 20, skip: Skip = 0
+        kb_id: UUID, limit: Limit = 10, skip: Skip = 0
     ) -> dict[str, JsonValue]:
         """Read document identities and indexing states. Needs read access to the base.
 
@@ -174,13 +215,31 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
         """Read indexing completion and failures across the base, not just one page."""
         return await call("GET", f"/kb/{kb_id}/ingestion")
 
-    async def list_knowledge_connectors(kb_id: UUID) -> dict[str, JsonValue]:
-        """Discover sync connector schemas before configuring a repository or other source."""
-        return await call("GET", f"/kb/{kb_id}/sync-sources/connectors")
+    async def list_knowledge_connectors(
+        kb_id: UUID, q: str | None = None, limit: Limit = 10, skip: Skip = 0, detailed: bool = False
+    ) -> dict[str, JsonValue]:
+        """Search connector metadata; read get_knowledge_connector for one configuration schema."""
+        return listing(
+            await call("GET", f"/kb/{kb_id}/sync-sources/connectors"),
+            q=q,
+            limit=limit,
+            skip=skip,
+            local=True,
+            detailed=detailed,
+        )
 
-    async def list_knowledge_sources(kb_id: UUID) -> dict[str, JsonValue]:
+    async def list_knowledge_sources(
+        kb_id: UUID, q: str | None = None, limit: Limit = 10, skip: Skip = 0, detailed: bool = False
+    ) -> dict[str, JsonValue]:
         """Read configured sync sources. Needs access to the knowledge base."""
-        return await call("GET", f"/kb/{kb_id}/sync-sources")
+        return listing(
+            await call("GET", f"/kb/{kb_id}/sync-sources"),
+            q=q,
+            limit=limit,
+            skip=skip,
+            local=True,
+            detailed=detailed,
+        )
 
     async def create_knowledge_source(
         kb_id: UUID, source: SyncSourceCreate
@@ -198,7 +257,7 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
         return await call("POST", f"/kb/{kb_id}/sync-sources/{source_id}/trigger")
 
     async def list_knowledge_sync_logs(
-        kb_id: UUID, source_id: UUID, limit: Limit = 20, skip: Skip = 0
+        kb_id: UUID, source_id: UUID, limit: Limit = 10, skip: Skip = 0
     ) -> dict[str, JsonValue]:
         """Read source sync outcomes; queued or running is not completion."""
         return await call(
@@ -223,17 +282,45 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
 
         Read existing cases before retrying an uncertain write; each add is a new case.
         """
-        return await call(
+        result = await call(
             "POST", f"/datasets/{dataset_id}/cases", body=case.model_dump(mode="json")
         )
+        return {
+            "dataset_id": str(dataset_id),
+            **_OBJECT.validate_python(metadata(result)),
+            "read_tool": "get_dataset_case",
+        }
 
     async def list_dataset_cases(
-        dataset_id: UUID, limit: Limit = 20, skip: Skip = 0
+        dataset_id: UUID,
+        limit: Limit = 10,
+        skip: Skip = 0,
+        version: int | None = None,
+        detailed: bool = False,
     ) -> dict[str, JsonValue]:
         """Read the current dataset's cases and expectations, following total with skip."""
-        return await call(
-            "GET", f"/datasets/{dataset_id}/cases", params={"limit": limit, "skip": skip}
+        result = await call(
+            "GET",
+            f"/datasets/{dataset_id}/cases",
+            params={
+                "limit": limit,
+                "skip": skip,
+                **({"version": version} if version is not None else {}),
+            },
         )
+        if not detailed:
+            rows = result.get("items")
+            if isinstance(rows, list):
+                summaries: list[JsonValue] = []
+                for row in rows:
+                    item = _OBJECT.validate_python(row)
+                    question = TypeAdapter(str).validate_python(item["input"])
+                    summary = _OBJECT.validate_python(metadata(item))
+                    summary["input_preview"] = question[:160]
+                    summary["input_chars"] = len(question)
+                    summaries.append(summary)
+                result["items"] = summaries
+        return listing(result, limit=limit, skip=skip, detailed=True)
 
     async def estimate_eval_run(agent_id: UUID, run: EvalRunRequest) -> dict[str, JsonValue]:
         """Price a dataset eval without running a model. Needs agent and dataset access.
@@ -254,7 +341,7 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
         return await call("POST", f"/agents/{agent_id}/eval-runs", body=run.model_dump(mode="json"))
 
     async def list_agent_versions(
-        agent_id: UUID, limit: Limit = 20, skip: Skip = 0
+        agent_id: UUID, limit: Limit = 10, skip: Skip = 0
     ) -> dict[str, JsonValue]:
         """Read publication history before comparing, promoting or rolling back an agent."""
         return await call(
@@ -265,9 +352,22 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
         """Read one immutable published spec; get_agent's draft is not the live spec."""
         return await call("GET", f"/agents/{agent_id}/versions/{version_id}")
 
-    async def list_agent_environments(agent_id: UUID) -> dict[str, JsonValue]:
-        """Read version pointers, tracks_latest, test connections and promotion guards."""
-        return await call("GET", f"/agents/{agent_id}/environments")
+    async def list_agent_environments(
+        agent_id: UUID,
+        q: str | None = None,
+        limit: Limit = 10,
+        skip: Skip = 0,
+        detailed: bool = False,
+    ) -> dict[str, JsonValue]:
+        """Search environment metadata. Read get_agent_environment for test connections and promotion guards."""
+        return listing(
+            await call("GET", f"/agents/{agent_id}/environments"),
+            q=q,
+            limit=limit,
+            skip=skip,
+            local=True,
+            detailed=detailed,
+        )
 
     async def create_agent_environment(
         agent_id: UUID, environment: EnvironmentCreate
@@ -320,9 +420,22 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
             body={"version_id": str(version_id)},
         )
 
-    async def list_eval_suites(agent_id: UUID) -> dict[str, JsonValue]:
-        """Read the agent's automatic checks before configuring promotion guards."""
-        return await call("GET", f"/agents/{agent_id}/eval-suites")
+    async def list_eval_suites(
+        agent_id: UUID,
+        q: str | None = None,
+        limit: Limit = 10,
+        skip: Skip = 0,
+        detailed: bool = False,
+    ) -> dict[str, JsonValue]:
+        """Search suite metadata; read get_eval_suite before changing automatic checks or promotion guards."""
+        return listing(
+            await call("GET", f"/agents/{agent_id}/eval-suites"),
+            q=q,
+            limit=limit,
+            skip=skip,
+            local=True,
+            detailed=detailed,
+        )
 
     async def estimate_eval_suite(
         agent_id: UUID, suite: EvalSuiteEstimateRequest
@@ -359,6 +472,8 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
     operations = (
         (plan_solution, False),
         (install_solution, True),
+        (prepare_solution, True),
+        (get_solution_installation, False),
         (get_platform_context, False),
         (get_setup_link, False),
         (list_secret_references, False),

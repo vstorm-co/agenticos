@@ -605,10 +605,48 @@ class TestApprovalMarks:
 
         platform = platform_spec("aos_key", allowed_tools=None, approval="writes")
         assert platform.ungated == PLATFORM_UNGATED_TOOLS
+        assert platform.tool_approval == {}
         assert McpServerSpec(name="notion", url="https://mcp.notion.com/mcp").ungated == frozenset()
         assert _make_toolset(platform).ungated == frozenset(
             f"agenticos_{name}" for name in PLATFORM_UNGATED_TOOLS
         )
+
+    @pytest.mark.security
+    def test_a_platform_tool_s_own_approval_is_read_by_the_name_the_model_calls(self):
+        from app.agents.mcp import _make_toolset, platform_spec
+
+        platform = platform_spec(
+            "aos_key",
+            allowed_tools=None,
+            approval="writes",
+            tool_approval={"add_virtual_table_record": "never", "query_virtual_table": "required"},
+        )
+
+        assert _make_toolset(platform).tool_approval == {
+            "agenticos_add_virtual_table_record": "never",
+            "agenticos_query_virtual_table": "required",
+        }
+
+    @pytest.mark.security
+    def test_a_stored_never_cannot_release_a_tool_that_always_asks(self):
+        """Publishing refuses one; a spec that reached the store another way asks anyway."""
+        from app.agents.mcp import platform_spec
+
+        platform = platform_spec(
+            "aos_key",
+            allowed_tools=None,
+            approval="writes",
+            tool_approval={
+                "invite_member": "never",
+                "update_proactivity_settings": "required",
+                "add_virtual_table_record": "never",
+            },
+        )
+
+        assert platform.tool_approval == {
+            "update_proactivity_settings": "required",
+            "add_virtual_table_record": "never",
+        }
 
     @pytest.mark.security
     @pytest.mark.parametrize(
@@ -1263,6 +1301,36 @@ class TestToolsetsForAgent:
 
         assert not any(seen)
         assert resolved.unavailable == [UnavailablePlatformServer()]
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_the_platform_keeps_its_floor_and_carries_each_tools_own_approval(
+        self, monkeypatch
+    ):
+        """`none` is still held to `writes`; only a tool the spec names runs unasked."""
+        seen = self._capture(monkeypatch)
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={}),
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[
+                PlatformMcpServerRef(
+                    account="platform",
+                    approval="none",
+                    tool_approval={"add_virtual_table_record": "never"},
+                )
+            ],
+            platform_credential="aos_key",
+        )
+
+        (platform,) = seen[0]
+        assert platform.approval == "writes"
+        assert platform.tool_approval == {"add_virtual_table_record": "never"}
 
     @pytest.mark.anyio
     async def test_a_server_that_did_not_answer_is_briefed_not_silent(self, monkeypatch):

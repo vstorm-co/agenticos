@@ -19,6 +19,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- MCP contract 2: bounded metadata discovery, paged detail readers, on-demand
+  authoring schemas and credential-bound continuations for large reads. Prepared
+  solution reviews avoid resending large manifests during installation.
+- Self-only MCP console preferences: light/dark/system theme, all existing
+  console styles and supported application languages, synchronized with Settings.
+
+### Upgrading
+
+- Apply `0343_user_appearance.py` for account appearance choices. Nullable fields
+  preserve existing device defaults. MCP clients must follow page continuations
+  and read detail tools instead of assuming list entries contain complete bodies.
+
+
+### Added
+
+- Group the AgenticOS server's tools in the agent Builder by what they work on - tables, tasks, workflows, agents, knowledge bases, skills, projects, automations, apps, runs, connections and the account - with an icon on each tool that changes something. Each group and each tool runs freely or asks first, as on other MCP servers; the spec keeps a tool's own setting in the platform binding's new `tool_approval`, and publishing refuses a name the platform does not offer. The binding's default stays at `writes`, or becomes `all` once every read asks, so a read added later asks too. `invite_member` and `update_proactivity_settings` always ask: they run with the authority of whoever the agent runs for, so publishing refuses `never` on them and a run ignores one already stored.
+- Choose in an MCP server's settings in the Builder whether the agent takes tools the server gains later. **Add tools the server gains later** stores `allowed_tools: null`; switched off, the binding lists today's tools. Ticking every tool back after narrowing now keeps today's list instead of returning to null.
+- Let a routine's creator consent in **Action consent** to AgenticOS's own tools, grouped as the Builder groups them. Only changes the agent already runs without asking appear. Before this, every platform change a routine made asked each time, even when the agent let it run freely. Tool search no longer asks in a routine either.
+- Read a routine's **Action consent** in sections - capabilities, AgenticOS and each MCP account - with only the actions that can be consented to, and **Use the agent's settings** to select exactly what the agent runs without asking. **Reviewed sources** now names each skill, knowledge base, table and account, grouped by kind, instead of listing their ids.
+
 ## [1.84.0] - 2026-11-18
 
 ### Added

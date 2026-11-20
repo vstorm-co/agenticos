@@ -11,7 +11,7 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx2
 import pytest
@@ -83,9 +83,9 @@ async def test_context_and_skill_resources_are_saved_and_bound_through_mcp(
         )
         assert edited["content"] == context["content"] and edited["mode"] == "link"
         assert (
-            _content(await session.call_tool("get_context_file", {"context_id": context_id}))[
-                "content"
-            ]
+            _content(
+                await session.call_tool("read_context_file_content", {"context_id": context_id})
+            )["content"]
             == context["content"]
         )
         skill = _content(
@@ -147,7 +147,9 @@ async def test_context_and_skill_resources_are_saved_and_bound_through_mcp(
 
     other, _other_org = await _owner_key(db, Perm.CONTEXT_VIEW, Perm.SKILLS_VIEW)
     async with _connected(other) as session:
-        assert (await session.call_tool("get_context_file", {"context_id": context_id})).is_error
+        assert (
+            await session.call_tool("read_context_file_content", {"context_id": context_id})
+        ).is_error
         assert (await session.call_tool("get_skill", {"skill_id": skill["id"]})).is_error
         assert (
             await session.call_tool("create_context_file", {"context": {"name": "refused"}})
@@ -1156,7 +1158,7 @@ async def test_oauth_can_create_and_read_a_dataset_through_mcp(
         assert context["authentication"] == "mcp"
         assert context["organization_id"] == str(org.id)
         assert context["granted_scopes"] == ["datasets:edit", "datasets:view"]
-        assert context["mcp_contract_version"] == 1
+        assert context["mcp_contract_version"] == 2
         created = _content(
             await session.call_tool(
                 "create_dataset", {"dataset": {"name": "MCP test", "visibility": "private"}}
@@ -1173,7 +1175,19 @@ async def test_oauth_can_create_and_read_a_dataset_through_mcp(
         cases = _content(
             await session.call_tool("list_dataset_cases", {"dataset_id": created["id"]})
         )
-        assert cases["total"] == 1 and cases["items"][0]["input"] == "Refund?"
+        assert cases["total"] == 1 and "input" not in cases["items"][0]
+        assert cases["items"][0]["input_preview"] == "Refund?"
+        body = _content(
+            await session.call_tool(
+                "read_dataset_case_field",
+                {
+                    "dataset_id": created["id"],
+                    "case_id": cases["items"][0]["case_id"],
+                    "field": "input",
+                },
+            )
+        )
+        assert body["content"] == "Refund?"
     other, _ = await _oauth_owner_key(db, Perm.DATASETS_VIEW, Perm.DATASETS_EDIT)
     async with _connected(other) as session:
         assert (await session.call_tool("get_dataset", {"dataset_id": created["id"]})).is_error
@@ -1386,7 +1400,163 @@ async def test_solution_plan_install_and_retry_cross_the_real_mcp_boundary(
         assert again["replayed"] and first["resources"] == again["resources"]
         context = _content(
             await session.call_tool(
-                "get_context_file", {"context_id": first["resources"]["policy"]["id"]}
+                "read_context_file_content", {"context_id": first["resources"]["policy"]["id"]}
             )
         )
         assert context["content"] == "Use verified sources."
+
+
+@pytest.mark.security
+async def test_large_dataset_cases_have_receipts_windowed_fields_and_live_read_authorization(
+    db: AsyncSession, served: None
+) -> None:
+    key, _org = await _oauth_owner_key(db, Perm.DATASETS_EDIT, Perm.DATASETS_VIEW)
+    async with _connected(key) as session:
+        dataset = _content(
+            await session.call_tool("create_dataset", {"dataset": {"name": "Large regression"}})
+        )
+        result = await session.call_tool(
+            "add_dataset_case",
+            {
+                "dataset_id": dataset["id"],
+                "case": {
+                    "input": "x" * 32000,
+                    "reference_answer": "y" * 32000,
+                    "counter_example": "z" * 32000,
+                },
+            },
+        )
+        assert not result.is_error
+        receipt = _content(result)
+        assert "input" not in receipt and receipt["case_id"]
+        page = _content(
+            await session.call_tool("list_dataset_cases", {"dataset_id": dataset["id"], "limit": 1})
+        )
+        assert page["total"] == 1 and "input" not in page["items"][0]
+        args = {
+            "dataset_id": dataset["id"],
+            "case_id": receipt["case_id"],
+            "field": "input",
+            "chars": 1000,
+        }
+        first = _content(await session.call_tool("read_dataset_case_field", args))
+        assert first["content"] == "x" * 1000 and first["next_offset"] == 1000
+        second = _content(
+            await session.call_tool(
+                "read_dataset_case_field",
+                {**args, "offset": 1000, "expected_hash": first["value_hash"]},
+            )
+        )
+        assert second["content"] == "x" * 1000
+        full = await session.call_tool(
+            "get_dataset_case", {"dataset_id": dataset["id"], "case_id": receipt["case_id"]}
+        )
+        assert _content(full)["read_tool"] == "read_platform_details"
+        fragment = _content(
+            await session.call_tool(
+                "read_platform_details",
+                {
+                    "continuation": _content(full)["continuation"],
+                    "pointer": "/reference_answer",
+                    "chars": 1000,
+                },
+            )
+        )
+        assert fragment["content"] == "y" * 1000
+        denied_write = await session.call_tool(
+            "read_platform_details", {"tool_name": "add_dataset_case", "arguments": {}}
+        )
+        assert denied_write.is_error
+    foreign, _ = await _oauth_owner_key(db, Perm.DATASETS_VIEW)
+    no_scope, _ = await _oauth_owner_key(db, Perm.AGENTS_VIEW)
+    for token in (foreign, no_scope):
+        async with _connected(token) as session:
+            denied = await session.call_tool(
+                "read_platform_details",
+                {
+                    "continuation": _content(full)["continuation"],
+                    "pointer": "/input",
+                },
+            )
+            assert denied.is_error
+
+
+async def test_mcp_installs_a_prepared_review_without_resending_its_manifest(
+    db: AsyncSession, served: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.clients.redis import RedisClient
+
+    key, _ = await _oauth_owner_key(
+        db, Perm.AGENTS_EDIT, Perm.AGENTS_VIEW, Perm.CONTEXT_EDIT, Perm.CONTEXT_VIEW
+    )
+    cache = MagicMock(spec=RedisClient)
+    stored: dict[str, str] = {}
+
+    async def set_value(key: str, value: str, ttl: int | None = None, nx: bool = False) -> bool:
+        stored[key] = value
+        return True
+
+    cache.set = AsyncMock(side_effect=set_value)
+    cache.get = AsyncMock(side_effect=stored.get)
+    monkeypatch.setitem(app.dependency_overrides, deps.get_redis, lambda: cache)
+    manifest = {
+        "name": "reviewed-install",
+        "contexts": [
+            {"key": "policy", "data": {"name": "Reviewed policy", "content": "policy" * 10000}}
+        ],
+    }
+    async with _connected(key) as session:
+        reviewed = _content(await session.call_tool("prepare_solution", {"manifest": manifest}))
+        args = {
+            "installation": {
+                "plan_id": reviewed["plan_id"],
+                "installation_key": "reviewed-install",
+                "expected_manifest_hash": reviewed["manifest_hash"],
+            }
+        }
+        installed = _content(await session.call_tool("install_solution", args))
+        assert not installed["replayed"] and "policy" in installed["resources"]
+        replay = _content(await session.call_tool("install_solution", args))
+        assert replay["replayed"] and replay["resources"] == installed["resources"]
+        history = _content(
+            await session.call_tool(
+                "get_solution_installation", {"installation_key": "reviewed-install"}
+            )
+        )
+        assert history["resources"] == installed["resources"]
+
+
+@pytest.mark.security
+async def test_mcp_preferences_persist_only_for_the_caller(db: AsyncSession, served: None) -> None:
+    key, org = await _owner_key(db, Perm.AGENTS_RUN)
+    other_key, other_org = await _owner_key(db, Perm.AGENTS_RUN)
+    narrow_key, _ = await _owner_key(db, Perm.AGENTS_VIEW)
+    async with _connected(key) as session:
+        assert _content(await session.call_tool("get_my_preferences", {})) == {
+            "theme": None,
+            "look": None,
+            "locale": None,
+        }
+        updated = _content(
+            await session.call_tool(
+                "set_my_preferences", {"theme": "dark", "look": "glass", "locale": "pl"}
+            )
+        )
+        assert updated == {"theme": "dark", "look": "glass", "locale": "pl"}
+        updated = _content(await session.call_tool("set_my_preferences", {"theme": "system"}))
+        assert updated == {"theme": "system", "look": "glass", "locale": "pl"}
+        assert (await session.call_tool("set_my_preferences", {"look": "unavailable"})).is_error
+    async with _connected(other_key) as session:
+        assert _content(await session.call_tool("get_my_preferences", {})) == {
+            "theme": None,
+            "look": None,
+            "locale": None,
+        }
+    async with _connected(narrow_key) as session:
+        assert (await session.call_tool("set_my_preferences", {"theme": "light"})).is_error
+        assert (await session.call_tool("get_my_preferences", {})).is_error
+    await db.refresh(org)
+    user = await db.get(User, org.created_by_user_id)
+    other = await db.get(User, other_org.created_by_user_id)
+    assert user is not None and (user.theme, user.look, user.locale) == ("system", "glass", "pl")
+    assert other is not None and other.theme is None and other.look is None

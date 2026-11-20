@@ -13,11 +13,13 @@ MAP = PLUGIN / "skills/operating-agenticos/reference/tool-map.md"
 
 
 def registered_tools(root: Path) -> set[str]:
-    """Read the two explicit operation tables; do not execute plugin or app code."""
+    """Read the explicit operation tables; do not execute plugin or app code."""
     names: set[str] = set()
     for filename, factory in (
         ("_tools.py", "platform_tools"),
         ("_lifecycle.py", "lifecycle_operations"),
+        ("_details.py", "detail_operations"),
+        ("_disclosure.py", "disclosure_operations"),
     ):
         tree = ast.parse((root / "backend/app/services/platform_mcp" / filename).read_text())
         function = next(
@@ -28,8 +30,8 @@ def registered_tools(root: Path) -> set[str]:
             if not isinstance(value, ast.Tuple):
                 continue
             for entry in value.elts:
-                if isinstance(entry, ast.Tuple) and len(entry.elts) == 2:
-                    name, writes = entry.elts
+                if isinstance(entry, ast.Tuple) and len(entry.elts) in (2, 3):
+                    name, writes = entry.elts[:2]
                     if (
                         isinstance(name, ast.Name)
                         and isinstance(writes, ast.Constant)

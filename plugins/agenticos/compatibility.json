@@ -18,5 +18,14 @@
       "knowledge_sync",
       "solution_bundles"
     ]
+  },
+  "disclosure": {
+    "mcp_contract_version": 2,
+    "features": [
+      "bounded_disclosure",
+      "prepared_solutions",
+      "account_preferences",
+      "platform_tool_policies"
+    ]
   }
 }

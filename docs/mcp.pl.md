@@ -1,5 +1,5 @@
 ---
-source_sha: "9e538473cdb9"
+source_sha: "1e5dec50f597"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -187,6 +187,14 @@ oznacza brak zawężenia z tej strony, więc powiązanie, które nie wymienia ni
 dostaje to, na co pozwala połączenie — czyli to, co robiło każde powiązanie,
 zanim to istniało.
 
+Null na powiązaniu bierze więc też każde narzędzie, które serwer zyska później.
+W Builderze przełącznik **Dodawaj narzędzia, które serwer zyska później** mówi,
+które to z dwóch: włączony to null; wyłączony to lista dzisiejszych narzędzi, a
+narzędzie dodane później zostaje poza nią. Zaznaczenie z powrotem wszystkich
+narzędzi po zawężeniu daje dzisiejszą listę, nigdy null, a przełącznik da się
+włączyć tylko przy wszystkich zaznaczonych - powiązanie nie umie powiedzieć „te,
+i cokolwiek dojdzie”.
+
 Builder wypisuje narzędzia serwera z jego **ostatniego udanego odpytania**,
 zapisanego na połączeniu. Odpytanie wydzwania do zewnętrznej firmy i jest
 bramkowane przez `connections:manage`; autor agenta ma `agents:edit` i potrzebuje
@@ -234,6 +242,8 @@ wymuszają co najmniej `writes`, także przy `none`, ponieważ narzędzia dział
 z uprawnieniami pytającej osoby. Odczyty, w tym `get_project` i `read_conversation`,
 działają automatycznie przy `writes`. Tworzenie, aktualizacja, usuwanie i inne
 operacje zmieniające stan wymagają akceptacji. Wybierz `all`, aby pytać również o odczyty.
+To minimum dotyczy tylko domyślnego ustawienia powiązania: pojedyncze, wskazane
+narzędzie nadal może działać bez pytania, jak na każdym innym serwerze.
 
 W Builderze
 ustawienia serwera mówią to osobno dla grup: **Odczyt** i **Zmiany** działają bez
@@ -1366,8 +1376,22 @@ nazwana jak to wdrożenie; jej włączenie wiąże go jako
   pozostają wymagane, ale nie zastępują zatwierdzenia trwałej automatyzacji.
   `set_my_profile` też czeka, bo jego treść trafia do przyszłych uruchomień agentów.
 
-- **Narzędzia można zawęzić** w ustawieniach karty, które pokazują każde narzędzie
-  i oznaczają te, które coś zmieniają.
+- **Narzędzia można zawęzić** w ustawieniach karty, które grupują je według tego,
+  na czym działają - tabele, zadania, workflowy, agenci, bazy wiedzy, skille,
+  projekty, automatyzacje, aplikacje, runy, połączenia i konto - a każde narzędzie,
+  które coś zmienia, oznaczają ikoną, która mówi o tym po najechaniu.
+- **Każde narzędzie działa bez pytania albo najpierw pyta.** Ustawienie grupy
+  zmienia wszystkie jej narzędzia, a tarcza obok narzędzia zmienia tylko je. Spec
+  przechowuje własne ustawienie narzędzia w `tool_approval` powiązania, pod nazwą
+  narzędzia; publikacja odrzuca nazwę, której platforma nie oferuje. Zgoda na
+  zmianę bez pytania dotyczy tylko tego narzędzia: domyślne ustawienie powiązania
+  pozostaje `writes` albo staje się `all`, gdy pytają wszystkie odczyty, więc
+  odczyt dodany później do platformy też pyta.
+- **Niektóre narzędzia zawsze pytają.** `invite_member` i
+  `update_proactivity_settings` zmieniają, kto ma uprawnienia w organizacji, a
+  działają z uprawnieniami osoby, dla której agent działa, nie jego autora - więc
+  agent opublikowany przez Buildera nie zaprosi Admina bez pytania w runie
+  Ownera. Ich tarczy nie da się wyłączyć, a publikacja odrzuca dla nich `never`.
 
 Szablon **AgenticOS** wiąże go właśnie tak, podobnie jak każdy agent tworzony od
 zera, więc agent od razu sięga do platformy - i ustawia rutynę albo przełącza język
@@ -1483,3 +1507,34 @@ konfigurację zależności, wydawanie agentów przez evale i środowiska oraz in
 sprawdzonych pakietów. Odkrywanie kontraktu 1 rozróżnia funkcje serwera od scopes.
 Referencje vaultu zwracają ID i metadane, bez wartości ani końcówek kluczy;
 sekrety wprowadza się w konsoli. Nowe operacje tylko dla asystenta wymagają OAuth.
+
+## Ograniczone wyniki i preferencje użytkownika { #bounded-results-and-personal-preferences }
+
+Kontrakt MCP 2 ogranicza kontekst: najpierw wyszukiwanie, domyślnie strony po 10
+rekordów i kontynuacja `next_skip`. Listy zwracają metadane. Osobne narzędzia
+szczegółów odczytują przypadek datasetu, treść Context, plik skilla, model,
+dostawcę, środowisko, węzeł workflow lub krok wykonania. `get_authoring_schema`
+udostępnia rozbudowane kontrakty na żądanie; API nadal waliduje pełne dane.
+Przed zastąpieniem grafu trzeba odczytać go w całości i zachować bindings.
+
+Udany wynik mieści się w 16 KiB. Duży odczyt wystawia pięciominutową
+`continuation` dla `read_platform_details`, powiązaną z konkretnym poświadczeniem
+i wcześniej autoryzowanym wywołaniem. Nie można zmienić jego argumentów ani
+wybrać innego narzędzia; każda część ponownie sprawdza dostęp w API. Najpierw
+sprawdź wskaźniki JSON, potem pobieraj fragmenty treści, zachowując `value_hash`
+jako `expected_hash`. Fragmenty JSON trzeba złożyć przed parsowaniem. Zmiana
+wyniku lub wygaśnięcie kontynuacji wymaga nowego autoryzowanego odczytu.
+Duży zapis zwraca identyfikator i status: odczytaj zasób z właściwym uprawnieniem,
+zamiast powtarzać zapis. Potwierdzenie żądania nie oznacza zakończenia zadania.
+
+`prepare_solution` zachowuje przegląd pakietu przez 24 godziny, tylko dla danej
+osoby i organizacji. `install_solution` przyjmuje `plan_id`, klucz instalacji i
+sprawdzony hash manifestu. Trwałe potwierdzenia instalacji przeżywają ten przegląd.
+
+`get_my_preferences` odczytuje motyw, styl i język osoby wywołującej.
+`set_my_preferences` zmienia tylko podane pola: motyw `light`, `dark`, `system`;
+styl `standard`, `glass`, `graphite`, `midnight`, `paper`; język z enumu narzędzia.
+W czacie zmiana działa od razu; inne otwarte konsole synchronizują preferencje mniej
+więcej co dziesięć sekund, gdy są widoczne. Ustawienia zapisują te same wybory na
+koncie. Migracja `0343_user_appearance.py` dodaje opcjonalne kolumny; dotychczasowe
+konta zachowują domyślny wygląd urządzenia, dopóki nie zapiszą wyboru.

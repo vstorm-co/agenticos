@@ -35,14 +35,23 @@ async def get_platform_context(request: Request, ctx: Auth) -> Any:
     caller = getattr(request.state, "api_key_caller", None)
     return PlatformContextRead(
         server_version=__version__,
-        mcp_contract_version=1,
+        mcp_contract_version=2,
         organization_id=ctx.organization_id,
         user_id=ctx.user_id,
         authentication=caller.surface if isinstance(caller, KeyCaller) else "session",
         granted_scopes=(
             sorted(perm.value for perm in ctx.key_scopes) if ctx.key_scopes is not None else None
         ),
-        features=["dependency_setup", "quality_lifecycle", "knowledge_sync", "solution_bundles"],
+        features=[
+            "dependency_setup",
+            "quality_lifecycle",
+            "knowledge_sync",
+            "solution_bundles",
+            "bounded_disclosure",
+            "prepared_solutions",
+            "account_preferences",
+            "platform_tool_policies",
+        ],
     )
 
 

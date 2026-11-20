@@ -2683,3 +2683,44 @@ def test_organization_speech_defaults_preserve_old_agents_and_run_destinations()
         assert result.returncode == 0, result.stderr
     finally:
         engine.dispose()
+
+
+def test_account_appearance_migration_preserves_existing_users_and_defaults() -> None:
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("downgrade", "0342_solution_installations")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    user_id = uuid4()
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO users (id, email, is_active, is_app_admin) VALUES (:id, :email, true, false)"
+                ),
+                {"id": user_id, "email": f"{user_id}@example.com"},
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.begin() as connection:
+            assert connection.execute(
+                text("SELECT theme, look FROM users WHERE id=:id"), {"id": user_id}
+            ).one() == (None, None)
+            connection.execute(
+                text("UPDATE users SET theme='system', look='glass' WHERE id=:id"), {"id": user_id}
+            )
+        result = _alembic("check")
+        assert result.returncode == 0, result.stderr + result.stdout
+        result = _alembic("downgrade", "0342_solution_installations")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT email FROM users WHERE id=:id"), {"id": user_id}
+                ).scalar_one()
+                == f"{user_id}@example.com"
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()

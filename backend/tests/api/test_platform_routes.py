@@ -61,7 +61,7 @@ _PATH_PARAM = re.compile(r"\{[^}]+\}")
 
 
 def _url(path: str, query: str = "") -> str:
-    return f"{settings.API_V1_STR}{_PATH_PARAM.sub(str(_SOME_ID), path)}{query}"
+    return f"{settings.API_V1_STR}{_PATH_PARAM.sub(str(_SOME_ID), path.replace('{installation_key}', 'trial'))}{query}"
 
 
 # -- callers ------------------------------------------------------------------
@@ -268,6 +268,23 @@ CALLS: tuple[Call, ...] = (
             },
         },
     ),
+    Call(
+        "POST",
+        "/solutions/prepare",
+        Perm.AGENTS_EDIT,
+        body={"name": "trial", "contexts": [{"key": "policy", "data": {"name": "Policy"}}]},
+    ),
+    Call(
+        "POST",
+        "/solutions/install-plan",
+        Perm.AGENTS_EDIT,
+        body={
+            "plan_id": "00000000-0000-4000-8000-000000000001",
+            "installation_key": "trial",
+            "expected_manifest_hash": "0" * 64,
+        },
+    ),
+    Call("GET", "/solutions/installations/{installation_key}", Perm.AGENTS_EDIT),
     Call("GET", "/approvals/consents", Perm.APPROVALS_DECIDE),
     Call("DELETE", "/approvals/{approval_id}/consent", Perm.APPROVALS_DECIDE),
     Call("GET", "/api-keys/scopes", Perm.API_KEYS_CREATE),

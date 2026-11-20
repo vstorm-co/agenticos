@@ -10,6 +10,7 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  accountPreferences: (userId: string | null) => ["account-preferences", userId] as const,
   personalModelKeys: {
     all: (scope: string) => ["personal-model-keys", scope] as const,
     agent: (scope: string, agentId: string | null) =>

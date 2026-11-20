@@ -1,5 +1,5 @@
 ---
-source_sha: "9e538473cdb9"
+source_sha: "1e5dec50f597"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -190,6 +190,14 @@ Null en cualquiera de los dos lados significa que desde ahí no se estrecha nada
 así que una vinculación que no nombra nada obtiene lo que la conexión permita, que
 es lo que hacía toda vinculación antes de que esto existiera.
 
+Así que el null de una vinculación también toma cada herramienta que el servidor
+gane después. En el Builder, **Añadir las herramientas que el servidor gane
+después** dice cuál de las dos es: encendido, es null; apagado, lista las
+herramientas de hoy y una añadida después queda fuera. Volver a marcar todas las
+herramientas tras acotar da la lista de hoy, nunca null, y el interruptor solo se
+enciende con todas marcadas - una vinculación no puede decir «estas, y lo que
+venga».
+
 El Builder lista las herramientas de un servidor a partir de su **último sondeo
 con éxito**, registrado en la conexión. Sondear marca hacia un tercero y está
 protegido por `connections:manage`; el autor de un agent tiene `agents:edit` y
@@ -239,7 +247,9 @@ vínculos con este servidor imponen al menos `writes`, incluso con `none`, porqu
 las herramientas actúan con los permisos de quien llama. Las lecturas, incluidas
 `get_project` y `read_conversation`, se ejecutan automáticamente con `writes`.
 Crear, actualizar, eliminar y otras operaciones que cambian el estado requieren
-aprobación. Usa `all` para exigir aprobación también en las lecturas.
+aprobación. Usa `all` para exigir aprobación también en las lecturas. Ese mínimo
+es solo el valor por defecto del vínculo: una herramienta concreta puede seguir
+ejecutándose sin preguntar, como en cualquier otro servidor.
 
 En el Builder, los ajustes de un servidor lo dicen por
 grupos: sus **lecturas** y las herramientas que **cambian cosas** se ejecutan sin
@@ -1409,8 +1419,25 @@ con los propios registros de la plataforma. En el Builder es la primera tarjeta 
   confirmación de una automatización persistente. `set_my_profile` también espera
   porque su contenido llega a futuras ejecuciones de agentes.
 
-- **Las herramientas se pueden acotar** en los ajustes de la tarjeta, que listan
-  cada herramienta y marcan las que cambian algo.
+- **Las herramientas se pueden acotar** en los ajustes de la tarjeta, que las
+  agrupan según sobre qué trabajan - tablas, tareas, workflows, agents, bases de
+  conocimiento, skills, proyectos, automatizaciones, apps, runs, conexiones y la
+  cuenta - y marcan cada herramienta que cambia algo con un icono que lo dice al
+  pasar el cursor.
+- **Cada herramienta se ejecuta libremente o pregunta antes.** El control de un
+  grupo fija todas sus herramientas, y el escudo junto a una herramienta fija solo
+  esa. La spec guarda el ajuste propio de una herramienta en el `tool_approval`
+  del vínculo, con el nombre de la herramienta; publicar rechaza un nombre que la
+  plataforma no ofrece. Dejar que un cambio se ejecute sin preguntar es una
+  decisión sobre esa herramienta sola: el valor por defecto del vínculo sigue
+  siendo `writes`, o `all` en cuanto todas las lecturas preguntan, de modo que
+  una lectura que la plataforma añada después también pregunta.
+- **Algunas herramientas siempre preguntan.** `invite_member` y
+  `update_proactivity_settings` cambian quién tiene autoridad en la organización,
+  y se ejecutan con la autoridad de la persona para la que trabaja el agent, no
+  de su autor - así que un agent publicado por un Builder no puede invitar a un
+  Admin sin preguntar en el run de un Owner. Su escudo no se puede desactivar, y
+  publicar rechaza `never` en cualquiera de las dos.
 
 La plantilla **AgenticOS** lo enlaza así, igual que cada agent creado desde cero,
 de modo que un agent consulta la plataforma desde el principio - y configura una
@@ -1528,3 +1555,35 @@ plugin, configurar dependencias, publicar agentes con evals y entornos e instala
 paquetes revisados. El contrato 1 distingue funciones del servidor y scopes.
 Las referencias del vault muestran IDs y metadatos, sin valores ni fragmentos;
 los secretos se introducen en la consola. Las nuevas operaciones del asistente requieren OAuth.
+
+## Resultados acotados y preferencias personales { #bounded-results-and-personal-preferences }
+
+El contrato MCP 2 reduce el contexto: buscar primero, usar páginas de 10 elementos
+por defecto y seguir `next_skip`. Las listas devuelven metadatos; herramientas de
+detalle leen un caso de dataset, contenido Context, archivo de skill, modelo,
+proveedor, entorno, nodo de workflow o paso ejecutado. `get_authoring_schema`
+expone contratos amplios bajo demanda; la API sigue validando entradas completas.
+Antes de sustituir un grafo, leerlo completo y conservar sus bindings.
+
+Los resultados correctos se limitan a 16 KiB. Las lecturas grandes emiten una
+`continuation` de cinco minutos para `read_platform_details`, vinculada a la
+credencial y a la lectura ya autorizada con sus argumentos originales. Cada parte
+vuelve a comprobar el acceso en la API. Inspeccionar punteros JSON, leer ventanas
+de contenido y pasar `value_hash` como `expected_hash`. Unir los fragmentos JSON
+antes de analizarlos. Los cambios o la caducidad exigen una nueva lectura
+autorizada. Las escrituras grandes devuelven identidad y estado: leer el recurso
+con su permiso de lectura en vez de repetir la escritura. El recibo no demuestra
+que un trabajo en segundo plano haya terminado.
+
+`prepare_solution` conserva una revisión durante 24 horas para esa persona y
+organización. `install_solution` acepta `plan_id`, clave de instalación y hash
+revisado. Los recibos permanentes sobreviven a la caducidad de la revisión.
+
+`get_my_preferences` lee tema, estilo e idioma de quien llama.
+`set_my_preferences` cambia solo los campos enviados: tema `light`, `dark`,
+`system`; estilo `standard`, `glass`, `graphite`, `midnight`, `paper`; idioma del
+enum de la herramienta. En el chat se aplica de inmediato; otras consolas visibles
+sincronizan las preferencias aproximadamente cada diez segundos. Ajustes escribe las
+mismas preferencias de cuenta. La migración `0343_user_appearance.py` añade columnas
+opcionales; las cuentas existentes conservan los valores del dispositivo hasta
+guardar una elección.

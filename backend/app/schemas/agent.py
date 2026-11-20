@@ -5,6 +5,7 @@ import json
 import unicodedata
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import Any, Literal
 from uuid import UUID
 
@@ -876,9 +877,30 @@ class McpCatalog(BaseSchema):
     )
 
 
+class PlatformToolGroup(StrEnum):
+    """What a platform tool works on, as the Builder groups the tools.
+
+    Declared order is the order the Builder shows the groups in.
+    """
+
+    TABLES = "tables"
+    TASKS = "tasks"
+    WORKFLOWS = "workflows"
+    AGENTS = "agents"
+    KNOWLEDGE = "knowledge"
+    SKILLS = "skills"
+    PROJECTS = "projects"
+    AUTOMATIONS = "automations"
+    APPS = "apps"
+    RUNS = "runs"
+    CONNECTIONS = "connections"
+    ACCOUNT = "account"
+
+
 class PlatformMcpTool(BaseSchema):
     name: str = Field(description="The tool's name on the platform's MCP server")
     description: str = Field(description="The first line of what the model reads")
+    group: PlatformToolGroup = Field(description="What the tool works on")
     writes: bool = Field(
         description="Whether it changes something - held for approval under `approval: writes`"
     )
@@ -887,6 +909,13 @@ class PlatformMcpTool(BaseSchema):
         description=(
             "Whether it runs without approval under every policy - a write that changes "
             "only the caller's own preference, such as the console's language"
+        ),
+    )
+    always_asks: bool = Field(
+        default=False,
+        description=(
+            "Whether every binding asks before it, whatever the binding or the tool's own "
+            "approval says - a write that widens who has authority in the organization"
         ),
     )
     held: bool = Field(

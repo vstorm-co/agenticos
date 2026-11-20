@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+from app.schemas.agent import PlatformToolGroup
+
 MAX_ROUTINE_ACTIONS = 1000
 
 ActionName = Annotated[str, StringConstraints(min_length=1, max_length=128)]
@@ -28,6 +30,19 @@ class RoutineMcpActionKey(BaseModel):
     tool_id: Annotated[str, StringConstraints(min_length=1, max_length=1000)]
 
 
+class RoutinePlatformActionKey(BaseModel):
+    """One of this platform's own MCP tools, by its name on the platform's server.
+
+    It has no account to name: the routine's runs call the platform as its
+    creator, the only person who can review its consent.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal["platform"]
+    tool_id: ActionName
+
+
 class ConsentIdentity(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -46,8 +61,12 @@ class RoutineMcpActionConsent(RoutineMcpActionKey, ConsentIdentity):
     pass
 
 
-type RoutineAction = RoutineActionKey | RoutineMcpActionKey
-type RoutineConsent = RoutineActionConsent | RoutineMcpActionConsent
+class RoutinePlatformActionConsent(RoutinePlatformActionKey, ConsentIdentity):
+    pass
+
+
+type RoutineAction = RoutineActionKey | RoutineMcpActionKey | RoutinePlatformActionKey
+type RoutineConsent = RoutineActionConsent | RoutineMcpActionConsent | RoutinePlatformActionConsent
 
 
 class RoutineActions(BaseModel):
@@ -59,6 +78,9 @@ class RoutineActions(BaseModel):
 
 class RoutineActionOption(RoutineActionKey):
     name: str
+    capability_name: str | None = Field(
+        default=None, description="The capability's name, which the review groups its actions under"
+    )
     consented: bool
     previously_consented: bool = Field(
         default=False,
@@ -79,7 +101,18 @@ class RoutineMcpActionOption(RoutineMcpActionKey):
     waivable: bool
 
 
-type RoutineOption = RoutineActionOption | RoutineMcpActionOption
+class RoutinePlatformActionOption(RoutinePlatformActionKey):
+    name: str
+    group: PlatformToolGroup = Field(description="What the tool works on, as the Builder groups it")
+    consented: bool
+    previously_consented: bool = Field(
+        default=False,
+        description="Previously selected by this owner; not current authority or automatic consent.",
+    )
+    waivable: bool
+
+
+type RoutineOption = RoutineActionOption | RoutineMcpActionOption | RoutinePlatformActionOption
 
 
 type RoutineReviewChange = Literal["version", "intent", "instructions", "actions"]
