@@ -73,6 +73,30 @@ beforeEach(() => {
  * a name too short, a cap below what the month has spent - is something a form
  * can put beside a field. The others toast and swallow.
  */
+describe("useOrganizations list state", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns both organizations of an owner without flagging a failure", async () => {
+    const owned = [org({ id: "org-a", name: "Alpha" }), org({ id: "org-b", name: "Beta" })];
+    vi.mocked(apiClient.get).mockResolvedValue({ items: owned, total: 2 });
+    const { result } = renderHook(() => useOrganizations(), { wrapper });
+    await waitFor(() => expect(result.current.orgs).toHaveLength(2));
+    expect(result.current.listFailed).toBe(false);
+  });
+
+  it("tells a failed request apart from an account with no organizations", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("500"));
+    const failed = renderHook(() => useOrganizations(), { wrapper });
+    await waitFor(() => expect(failed.result.current.listFailed).toBe(true));
+    expect(failed.result.current.orgs).toEqual([]);
+
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const empty = renderHook(() => useOrganizations(), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+    expect(empty.result.current.listFailed).toBe(false);
+  });
+});
+
 describe("preferredOrg", () => {
   it("prefers the caller's personal organization", () => {
     expect(preferredOrg([org({ id: "a" }), org({ id: "b", is_personal: true })])?.id).toBe("b");
