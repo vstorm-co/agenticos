@@ -1860,7 +1860,6 @@ function ChatUI({
                           costs the row a button. */}
                           <ChatInput
                             composerDraft={composerDraft}
-                            pixelActions={showDailyBriefing}
                             autoFocus={!compact && !onCall}
                             focusRequest={composerFocusRequest}
                             onSend={sendMessage}

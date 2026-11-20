@@ -205,7 +205,6 @@ interface ChatInputProps {
    * an empty box offers a call and a written one sends it (#2301).
    */
   idleSlot?: ReactNode;
-  pixelActions?: boolean;
   /**
    * The socket is down: the box says it is reconnecting where it would ask for a
    * message - the one place a person looks when they cannot send (#2301).
@@ -291,7 +290,6 @@ export function ChatInput({
   onTyping,
   onDraftChange,
   composerDraft,
-  pixelActions = false,
   projects,
   onPickProject,
 }: ChatInputProps) {
@@ -939,25 +937,6 @@ export function ChatInput({
   const primaryLabel =
     primary === "mic" ? micLabel : primary === "stop" ? t("stopGenerating") : t("send");
   const sendDisabled = disabled || isUploading || !hasDraft;
-  const sendIcon = pixelActions ? (
-    <svg viewBox="0 0 12 12" className="size-4" aria-hidden="true">
-      <path fill="currentColor" d="M5 1h2v2h2v2h2v2H9V5H7v6H5V5H3v2H1V5h2V3h2z" />
-    </svg>
-  ) : (
-    <Send className="size-4" />
-  );
-  const micIcon = pixelActions ? (
-    <svg
-      viewBox="0 0 12 12"
-      className={cn("size-4", !minimal && "text-muted-foreground")}
-      aria-hidden="true"
-    >
-      <path fill="currentColor" d="M5 1h2v1h1v4H7v1H5V6H4V2h1z" />
-      <path fill="currentColor" d="M2 5h1v2h1v1h4V7h1V5h1v3H9v1H7v2H5V9H3V8H2z" />
-    </svg>
-  ) : (
-    <Mic className={minimal ? undefined : "text-muted-foreground"} />
-  );
 
   return (
     <form
@@ -1144,10 +1123,10 @@ export function ChatInput({
                 aria-hidden
               >
                 <span className="composer-action-icon" data-active={primary === "mic"}>
-                  {isListening ? <MicOff /> : micIcon}
+                  {isListening ? <MicOff /> : <Mic />}
                 </span>
                 <span className="composer-action-icon" data-active={primary === "send"}>
-                  {sendIcon}
+                  <Send />
                 </span>
                 {primary === "stop" && <span className="size-3 rounded-[3px] bg-current" />}
                 {primary === "busy" && <Spinner className="size-4" />}
@@ -1167,7 +1146,7 @@ export function ChatInput({
               {isListening ? (
                 <MicOff className="text-destructive motion-safe:animate-pulse" />
               ) : (
-                micIcon
+                <Mic className="text-muted-foreground" />
               )}
             </Button>
           )}
@@ -1201,7 +1180,7 @@ export function ChatInput({
                   }
                 >
                   <span className={PRIMARY_ACTION_FACE} aria-hidden>
-                    {isProcessing ? <Spinner className="size-4" /> : sendIcon}
+                    {isProcessing ? <Spinner className="size-4" /> : <Send className="size-4" />}
                   </span>
                   <span className="sr-only">{t("send")}</span>
                 </Button>
