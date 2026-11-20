@@ -1,5 +1,5 @@
 ---
-source_sha: "36237a38facf"
+source_sha: "1a74a11db7e0"
 ---
 
 # Konfiguracja { #configuration }
@@ -1678,13 +1678,20 @@ logowania w wolumenie `subscription_accounts`.
 | `SUBSCRIPTION_GATEWAY_IDLE_SECONDS` | brama | Jak długo proces osoby może być bezczynny, zanim się zatrzyma. Domyślnie 600. |
 | `SUBSCRIPTION_GATEWAY_MAX_PROCESSES` | brama | Ile procesów osób może działać naraz. Domyślnie 64; powyżej tej liczby zatrzymuje się najdawniej używany bezczynny proces. |
 
-`docker-compose.yml` uruchamia bramę domyślnie ze stałym lokalnym tokenem, więc
-dla każdego wdrożenia, do którego dostęp mają inni, ustaw własny
-`SUBSCRIPTION_GATEWAY_TOKEN` w `.env`. W `docker-compose-prod.yml` i
-`docker-compose-dev.yml` usługa jest w profilu `subscriptions`.
-`scripts/deploy.sh` włącza ten profil i ustawia `SUBSCRIPTION_GATEWAY_URL`, gdy
-`backend/.env` zawiera `SUBSCRIPTION_GATEWAY_TOKEN`. Wygeneruj go poleceniem
-`openssl rand -hex 32`.
+Token powstaje sam. `make dev` i `scripts/deploy.sh` przy pierwszym uruchomieniu
+zapisują losowy `SUBSCRIPTION_GATEWAY_TOKEN` w `backend/.env` i potem go
+zachowują; `make dev` przekazuje go do `docker-compose.yml`. Aby wybrać własny,
+wpisz go tam wcześniej (`openssl rand -hex 32`).
+
+W `docker-compose-prod.yml` i `docker-compose-dev.yml` usługa jest w profilu
+`subscriptions`. `scripts/deploy.sh` i aktualizator hosta włączają ten profil i
+ustawiają `SUBSCRIPTION_GATEWAY_URL`, gdy `backend/.env` zawiera token, więc
+serwer domyślnie uruchamia bramę. Aby ją wyłączyć, zostaw w `backend/.env` pustą
+linię: `SUBSCRIPTION_GATEWAY_TOKEN=`.
+
+`docker-compose.yml` uruchomiony samodzielnie, bez klonu repozytorium, używa
+stałego lokalnego tokenu. Dla każdego takiego wdrożenia, do którego dostęp mają
+inni, ustaw własny `SUBSCRIPTION_GATEWAY_TOKEN` w `.env`.
 
 ## GitHub Copilot OAuth { #github-copilot-oauth }
 

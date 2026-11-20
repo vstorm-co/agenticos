@@ -1646,12 +1646,20 @@ sign-ins in the `subscription_accounts` volume.
 | `SUBSCRIPTION_GATEWAY_IDLE_SECONDS` | gateway | How long a person's process may stay idle before it stops. Default 600. |
 | `SUBSCRIPTION_GATEWAY_MAX_PROCESSES` | gateway | How many people's processes may run at once. Default 64; past it, the least recently used idle one stops. |
 
-`docker-compose.yml` starts the gateway by default with a fixed local token, so
-set your own `SUBSCRIPTION_GATEWAY_TOKEN` in `.env` for any deployment other
-people reach. In `docker-compose-prod.yml` and `docker-compose-dev.yml` the
-service is in the `subscriptions` profile. `scripts/deploy.sh` enables the
-profile and sets `SUBSCRIPTION_GATEWAY_URL` when `backend/.env` holds a
-`SUBSCRIPTION_GATEWAY_TOKEN`. Generate one with `openssl rand -hex 32`.
+The token is generated for you. `make dev` and `scripts/deploy.sh` each write a
+random `SUBSCRIPTION_GATEWAY_TOKEN` into `backend/.env` the first time they run
+and keep it afterwards; `make dev` hands it to `docker-compose.yml`. To choose
+your own, write it there first (`openssl rand -hex 32`).
+
+In `docker-compose-prod.yml` and `docker-compose-dev.yml` the service is in the
+`subscriptions` profile. `scripts/deploy.sh` and the host updater enable that
+profile and set `SUBSCRIPTION_GATEWAY_URL` whenever `backend/.env` holds a
+token, so a server runs the gateway by default. To keep it off, leave the line
+in `backend/.env` empty: `SUBSCRIPTION_GATEWAY_TOKEN=`.
+
+`docker-compose.yml` started on its own, without a clone, falls back to a fixed
+local token. Set your own `SUBSCRIPTION_GATEWAY_TOKEN` in `.env` for any such
+deployment other people reach.
 
 ## GitHub Copilot OAuth { #github-copilot-oauth }
 

@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- To offer subscription accounts on a server deployed with `docker-compose-prod.yml`, add `SUBSCRIPTION_GATEWAY_TOKEN` (32 or more characters, for example `openssl rand -hex 32`) to `backend/.env`. `scripts/deploy.sh` then starts the `subscriptions` profile and points the API and worker at it. Without the token nothing changes. `docker-compose.yml` starts the gateway by default; set your own token there too.
+- Subscription accounts are on by default. The next `scripts/deploy.sh` run (or `make dev`) generates `SUBSCRIPTION_GATEWAY_TOKEN` into `backend/.env`, starts the `subscriptions` profile and points the API and worker at the gateway; the host updater keeps the profile running. To keep the gateway off on a server, add an empty `SUBSCRIPTION_GATEWAY_TOKEN=` line to `backend/.env` before deploying. `docker-compose.yml` started without a clone uses a fixed local token; set your own in `.env` there.
 
 - Apply `0346_personal_model_generations.py` before running this version. It adds credential-free connection revisions that prevent an older OAuth sign-in from recreating a deleted personal connection.
 

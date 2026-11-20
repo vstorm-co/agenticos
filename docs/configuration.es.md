@@ -1,5 +1,5 @@
 ---
-source_sha: "36237a38facf"
+source_sha: "1a74a11db7e0"
 ---
 
 # Configuración { #configuration }
@@ -1708,13 +1708,20 @@ ningún puerto y guarda los inicios de sesión en el volumen
 | `SUBSCRIPTION_GATEWAY_IDLE_SECONDS` | pasarela | Cuánto puede estar inactivo el proceso de una persona antes de detenerse. Por defecto 600. |
 | `SUBSCRIPTION_GATEWAY_MAX_PROCESSES` | pasarela | Cuántos procesos de personas pueden ejecutarse a la vez. Por defecto 64; por encima, se detiene el proceso inactivo usado hace más tiempo. |
 
-`docker-compose.yml` arranca la pasarela por defecto con un token local fijo, así
-que define tu propio `SUBSCRIPTION_GATEWAY_TOKEN` en `.env` para cualquier
-despliegue al que lleguen otras personas. En `docker-compose-prod.yml` y
-`docker-compose-dev.yml` el servicio está en el perfil `subscriptions`.
-`scripts/deploy.sh` activa el perfil y define `SUBSCRIPTION_GATEWAY_URL` cuando
-`backend/.env` contiene un `SUBSCRIPTION_GATEWAY_TOKEN`. Genéralo con
-`openssl rand -hex 32`.
+El token se genera solo. `make dev` y `scripts/deploy.sh` escriben un
+`SUBSCRIPTION_GATEWAY_TOKEN` aleatorio en `backend/.env` la primera vez que se
+ejecutan y lo conservan después; `make dev` se lo pasa a `docker-compose.yml`.
+Para elegir el tuyo, escríbelo ahí antes (`openssl rand -hex 32`).
+
+En `docker-compose-prod.yml` y `docker-compose-dev.yml` el servicio está en el
+perfil `subscriptions`. `scripts/deploy.sh` y el actualizador del host activan
+ese perfil y definen `SUBSCRIPTION_GATEWAY_URL` cuando `backend/.env` contiene un
+token, así que un servidor ejecuta la pasarela por defecto. Para mantenerla
+apagada, deja la línea vacía en `backend/.env`: `SUBSCRIPTION_GATEWAY_TOKEN=`.
+
+`docker-compose.yml` arrancado por sí solo, sin un clon, usa un token local
+fijo. Define tu propio `SUBSCRIPTION_GATEWAY_TOKEN` en `.env` para cualquier
+despliegue así al que lleguen otras personas.
 
 ## GitHub Copilot OAuth { #github-copilot-oauth }
 

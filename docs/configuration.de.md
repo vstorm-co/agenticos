@@ -1,5 +1,5 @@
 ---
-source_sha: "36237a38facf"
+source_sha: "1a74a11db7e0"
 ---
 
 # Konfiguration { #configuration }
@@ -1775,13 +1775,20 @@ keinen Port und hält die Anmeldungen im Volume `subscription_accounts`.
 | `SUBSCRIPTION_GATEWAY_IDLE_SECONDS` | Gateway | Wie lange der Prozess einer Person im Leerlauf bleiben darf, bevor er stoppt. Standard 600. |
 | `SUBSCRIPTION_GATEWAY_MAX_PROCESSES` | Gateway | Wie viele Prozesse von Personen gleichzeitig laufen dürfen. Standard 64; darüber stoppt der am längsten unbenutzte Prozess im Leerlauf. |
 
-`docker-compose.yml` startet das Gateway standardmäßig mit einem festen lokalen
-Token; setze für jedes Deployment, das andere erreichen, ein eigenes
-`SUBSCRIPTION_GATEWAY_TOKEN` in `.env`. In `docker-compose-prod.yml` und
-`docker-compose-dev.yml` liegt der Dienst im Profil `subscriptions`.
-`scripts/deploy.sh` aktiviert das Profil und setzt `SUBSCRIPTION_GATEWAY_URL`,
-wenn `backend/.env` ein `SUBSCRIPTION_GATEWAY_TOKEN` enthält. Erzeuge es mit
-`openssl rand -hex 32`.
+Das Token entsteht von selbst. `make dev` und `scripts/deploy.sh` schreiben beim
+ersten Lauf ein zufälliges `SUBSCRIPTION_GATEWAY_TOKEN` in `backend/.env` und
+behalten es danach; `make dev` reicht es an `docker-compose.yml` weiter. Für ein
+eigenes trage es vorher dort ein (`openssl rand -hex 32`).
+
+In `docker-compose-prod.yml` und `docker-compose-dev.yml` liegt der Dienst im
+Profil `subscriptions`. `scripts/deploy.sh` und der Host-Updater aktivieren das
+Profil und setzen `SUBSCRIPTION_GATEWAY_URL`, sobald `backend/.env` ein Token
+enthält; ein Server betreibt das Gateway also standardmäßig. Um es abzuschalten,
+lass die Zeile in `backend/.env` leer: `SUBSCRIPTION_GATEWAY_TOKEN=`.
+
+`docker-compose.yml` allein gestartet, ohne Klon, greift auf ein festes lokales
+Token zurück. Setze für jedes solche Deployment, das andere erreichen, ein
+eigenes `SUBSCRIPTION_GATEWAY_TOKEN` in `.env`.
 
 ## GitHub Copilot OAuth { #github-copilot-oauth }
 

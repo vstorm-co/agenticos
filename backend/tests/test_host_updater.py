@@ -350,6 +350,28 @@ def test_sandbox_compose_receives_the_host_docker_socket_group(host, instance, m
         updater.compose.env()
 
 
+def test_a_gateway_token_keeps_the_subscription_gateway_running(host, instance, monkeypatch):
+    updater, _ = instance
+    env_file = updater.config.app_dir / "backend/.env"
+    monkeypatch.delenv("SUBSCRIPTION_GATEWAY_URL", raising=False)
+    env_file.write_text("POSTGRES_PASSWORD=x\n")
+    assert "subscriptions" not in updater.compose.args()
+    assert "SUBSCRIPTION_GATEWAY_URL" not in updater.compose.env()
+
+    env_file.write_text("SUBSCRIPTION_GATEWAY_TOKEN=" + "t" * 64 + "\n")
+    args = updater.compose.args()
+    assert args[args.index("subscriptions") - 1] == "--profile"
+    assert "subscriptions" not in updater.compose.args(frontend=True)
+    assert updater.compose.env()["SUBSCRIPTION_GATEWAY_URL"] == "http://subscription-gateway:8400"
+
+    env_file.write_text(
+        "SUBSCRIPTION_GATEWAY_TOKEN="
+        + "t" * 64
+        + "\nSUBSCRIPTION_GATEWAY_URL=http://elsewhere:8400\n"
+    )
+    assert updater.compose.env()["SUBSCRIPTION_GATEWAY_URL"] == "http://elsewhere:8400"
+
+
 def test_stale_dependency_health_is_retried_once_but_other_failures_are_not(
     host, instance, monkeypatch
 ):
