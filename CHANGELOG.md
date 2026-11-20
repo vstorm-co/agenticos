@@ -56,6 +56,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Give short personal memories and longer notes separate tabs. With Memory enabled, private conversations get a bounded overview automatically, with a separate switch in the Builder.
 
+- Show the agent's avatar beside its name in personal memory lists and details.
+
 - Review changes to customized AgenticOS and Architect defaults before applying them. Bundled Context updates use the existing Context proposal review.
 
 - Give AgenticOS a shorter default prompt with better guidance for full source reading, personal memory, Skills, Context and routines. Delegate only on request or when the user accepts a specific offer.

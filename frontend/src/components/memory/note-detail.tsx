@@ -20,15 +20,19 @@ import { DIALOG_WIDE, DIALOG_COLUMN, DIALOG_BODY } from "@/lib/dialog-sizes";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { MemoryNote } from "@/lib/memory-api";
+import type { AgentUsage } from "@/types/agents";
+import { MemoryAgentAvatar } from "./memory-agent-avatar";
 
 export function NoteDetail({
   note,
+  agent,
   onClose,
   setActive,
   remove,
   update,
 }: {
   note: MemoryNote;
+  agent?: AgentUsage;
   onClose: () => void;
   setActive: (id: string, active: boolean) => Promise<boolean>;
   remove: (id: string) => Promise<boolean>;
@@ -71,11 +75,14 @@ export function NoteDetail({
           </DialogHeader>
           <div className={`${DIALOG_BODY} space-y-4`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-muted-foreground text-xs">
-                {t("writtenBy", {
-                  agent: note.agent_name ?? t("anAgent"),
-                  when: stamp ? format.dateTime(new Date(stamp), { dateStyle: "medium" }) : "",
-                })}
+              <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+                <MemoryAgentAvatar agent={agent} />
+                <span className="min-w-0 wrap-anywhere">
+                  {t("writtenBy", {
+                    agent: note.agent_name ?? t("anAgent"),
+                    when: stamp ? format.dateTime(new Date(stamp), { dateStyle: "medium" }) : "",
+                  })}
+                </span>
               </p>
               {note.deactivated_at && <Badge variant="outline">{t("suppressed")}</Badge>}
             </div>

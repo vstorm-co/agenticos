@@ -16,16 +16,20 @@ import {
 } from "@/components/ui";
 import { DIALOG_WIDE, DIALOG_COLUMN, DIALOG_BODY } from "@/lib/dialog-sizes";
 import type { MemoryClaim, DecisionEpisode } from "@/lib/memory-api";
+import type { AgentUsage } from "@/types/agents";
 import { DecisionEvidence } from "./decision-evidence";
 import { ClaimEditor } from "./claim-editor";
+import { MemoryAgentAvatar } from "./memory-agent-avatar";
 
 export function ClaimDetail({
   claim,
+  agent,
   onClose,
   correct,
   retract,
 }: {
   claim: MemoryClaim;
+  agent?: AgentUsage;
   onClose: () => void;
   correct: (
     id: string,
@@ -84,7 +88,8 @@ export function ClaimDetail({
                   <UsersRound className="size-3.5" aria-hidden />
                   {view("scopeLabel")}
                 </dt>
-                <dd>
+                <dd className="flex min-w-0 items-center gap-1.5 wrap-anywhere">
+                  {claim.scope === "agent" && <MemoryAgentAvatar agent={agent} />}
                   {claim.scope === "profile"
                     ? t("scopeProfile")
                     : t("scopeAgent", { agent: claim.agent_name ?? t("anAgent") })}

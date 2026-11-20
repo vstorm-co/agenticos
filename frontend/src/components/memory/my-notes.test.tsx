@@ -61,7 +61,12 @@ function mount(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <MyNotes />
+      <MyNotes
+        agents={[
+          { id: "other-agent", slug: "other-playground", name: note.agent_name ?? "" },
+          { id: note.agent_id, slug: "playground", name: note.agent_name ?? "" },
+        ]}
+      />
     </QueryClientProvider>,
   );
 }
@@ -73,9 +78,13 @@ beforeEach(() => {
 it("opens one note at a time instead of expanding every file inline", async () => {
   mount();
   expect(screen.queryByText("Checklist content")).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: /checklist.md/ }));
+  const row = screen.getByRole("button", { name: /checklist\.md/ });
+  expect(within(row).getByText("Playground")).toBeVisible();
+  expect(row.querySelector('[data-agent-avatar="a-1"]')).toBeVisible();
+  await userEvent.click(row);
   expect(await screen.findByText("Checklist content")).toBeVisible();
   expect(screen.getByText("writtenBy:Playground|4 Nov 2026")).toBeVisible();
+  expect(screen.getByRole("dialog").querySelector('[data-agent-avatar="a-1"]')).toBeVisible();
 });
 it("suppresses and restores a note without deleting it", async () => {
   mount({ deactivated_at: "2026-11-04T12:00:00Z" });
