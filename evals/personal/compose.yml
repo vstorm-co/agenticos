@@ -15,7 +15,11 @@ services:
       args:
         EXTRAS: "--extra browser"
     ports: !override ["127.0.0.1:18080:8000"]
+    volumes:
+      - ./evals/personal/run.py:/personal-eval/run.py:ro
+      - ./evals/personal/datasets:/personal-eval/datasets:ro
     environment:
+      AGENTICOS_PERSONAL_EVAL: "1"
       ARTIFACT_RENDER_CDP_URL: http://artifact-render:9222
       BROWSER_EGRESS_PROXY: ""
   worker:

@@ -1,4 +1,4 @@
-"""Check the personal assistant corpus, export native datasets, or score a model."""
+"""Validate and run the local personal assistant evaluations."""
 
 import argparse
 import asyncio
@@ -22,27 +22,34 @@ from pydantic_ai import Agent
 from pydantic_ai.messages import ModelResponse
 from pydantic_ai.usage import UsageLimits
 
-# As in evals/retrieval: use the platform's locked dependencies and schemas.
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
+# On the host the app lives next to evals. In Compose it is installed in /app.
+BACKEND = Path(__file__).resolve().parent.parent.parent / "backend"
+if BACKEND.is_dir():
+    sys.path.insert(0, str(BACKEND))
 
+from app.agents.isolation import RunIsolation
+from app.agents.spec import AgentSpec
+from app.db.models.agent_run import RunStatus, RunSurface
+from app.db.session import get_db_context
+from app.repositories import agent_repo, credential_repo, intercepted_tool_call_repo
 from app.schemas.agent import AgentRunResult
 from app.schemas.conversation import MessageList, ToolCallRead
-from app.schemas.dataset import CaseMessage, DatasetCaseContent, DatasetVersionRead
-from app.schemas.eval_run import (
-    EvalAttemptRead,
-    EvalCaseList,
-    EvalRunEstimate,
-    EvalRunRead,
-    EvalRunRequest,
-)
+from app.schemas.dataset import CaseMessage, DatasetCaseContent
+from app.schemas.eval_run import EvalCallRead
 from app.schemas.memory import MemoryClaimList
 from app.schemas.scoring import ExpectedToolCall
+from app.services.agent_runner import AgentRunnerService
+from app.services.api_key import job_context
 from app.services.dataset_files import parse
+from app.services.eval_run_worker import trajectory
 from app.services.memory import extraction
+from app.services.message_history import HistoryMessage, build_message_history
 from app.services.proactive import _nightly as nightly
 from app.services.role_packs import PACKS
+from app.services.shipped_agents import ShippedAgentService
+from app.services.transcript import RecordedToolCall
 
-ROOT = Path(__file__).resolve().parent
+DATASETS = Path(__file__).resolve().parent / "datasets"
 Suite = Literal["memory", "briefing", "agenticos"]
 SUITES: tuple[Suite, ...] = ("memory", "briefing", "agenticos")
 BASE_DATE = date(2026, 11, 16)
@@ -101,14 +108,14 @@ def tool_name(name: str) -> str:
 
 
 def authored_history() -> dict[str, list[CaseMessage]]:
-    raw = json.loads((ROOT / "history.json").read_text())
+    raw = json.loads((DATASETS / "history.json").read_text())
     return {key: [CaseMessage.model_validate(turn) for turn in turns] for key, turns in raw.items()}
 
 
 def load(suite: Suite) -> list[Scenario]:
     histories = authored_history()
     scenarios = []
-    with (ROOT / f"{suite}.tsv").open() as file:
+    with (DATASETS / f"{suite}.tsv").open() as file:
         rows = csv.reader(file, delimiter="|", quoting=csv.QUOTE_NONE)
         for key, *fields in rows:
             if key.startswith("#"):
@@ -197,6 +204,7 @@ class Evidence(BaseModel):
     cost_usd: Decimal | None = None
     cost_is_partial: bool = True
     attempt: UUID | None = None
+    agent_version: UUID | None = None
 
 
 def response_cost(messages: Iterable[object]) -> Decimal | None:
@@ -207,24 +215,22 @@ def response_cost(messages: Iterable[object]) -> Decimal | None:
     return sum((Decimal(str(cost)) for cost in costs), start=Decimal(0))
 
 
-def trace_errors(scenario: Scenario, attempt: EvalAttemptRead) -> list[str]:
-    if attempt.status != "done":
-        return [attempt.error or f"attempt {attempt.status}"]
-    if not (attempt.answer or "").strip():
+def trace_errors(scenario: Scenario, *, answer: str, calls: list[EvalCallRead]) -> list[str]:
+    if not answer.strip():
         return ["no final answer"]
     errors = [
         f"forbidden call: {name}"
-        for name in sorted({call.tool for call in attempt.calls} & set(scenario.forbidden))
+        for name in sorted({call.tool for call in calls} & set(scenario.forbidden))
     ]
     for expected in scenario.case.expected_tool_calls or []:
         if not any(
             call.tool == expected.tool
             and call.outcome != "divergent"
             and all(call.args.get(key) == value for key, value in (expected.args or {}).items())
-            for call in attempt.calls
+            for call in calls
         ):
             errors.append(f"missing expected call: {expected.tool}")
-    if scenario.id == "natural-hello" and attempt.calls:
+    if scenario.id == "natural-hello" and calls:
         errors.append("greeting called tools")
     return errors
 
@@ -448,45 +454,107 @@ async def run_background(model: str, scenarios: Iterable[Scenario]) -> int:
     return int(failed > 0)
 
 
-def native_report(client: httpx.Client, run_id: UUID) -> int:
-    path = f"/eval-runs/{run_id}"
-    run = EvalRunRead.model_validate(client.get(path).raise_for_status().json())
+async def run_agenticos(args: argparse.Namespace, scenarios: list[Scenario]) -> int:
+    if os.getenv("AGENTICOS_PERSONAL_EVAL") != "1":
+        raise SystemExit("Run AgenticOS through the isolated personal eval Compose stack.")
+    org = args.organization_id
+    async with get_db_context() as db:
+        ctx = await job_context(db, organization_id=org, user_id=args.user_id, api_key_id=None)
+        if ctx is None:
+            raise SystemExit("The eval user must be an active member of the test organization.")
+        agent = await agent_repo.get_shipped_starter(db, organization_id=org)
+        if agent is None or agent.current_version_id is None:
+            raise SystemExit("Bootstrap a published AgenticOS in the eval stack first.")
+        version = await agent_repo.get_version(db, agent.current_version_id, organization_id=org)
+        if version is None:
+            raise SystemExit("The AgenticOS publication is missing.")
+        agent_id, version_id = agent.id, version.id
+        update = await ShippedAgentService(db).review_update(ctx, agent_id)
+        if any(change.version == "published" for change in update.changes):
+            raise SystemExit(
+                "The published AgenticOS differs from the code. Bootstrap a fresh eval tenant."
+            )
+        spec = AgentSpec.model_validate(version.spec)
+        profile_id = args.model_profile or spec.model_profile_id
+        if profile_id is None:
+            raise SystemExit("Provide a model profile in the eval organization.")
+        profile = await credential_repo.get_profile(db, profile_id, organization_id=org)
+        if profile is None:
+            raise SystemExit("The selected model profile is unavailable in the eval organization.")
+        model = f"{profile.provider}:{profile.model}"
     print(
-        run.model_dump_json(include={"id", "status", "cost_usd", "cost_is_partial"}),
+        json.dumps(
+            {
+                "model": model,
+                "agent_version": str(version_id),
+                "cases": [item.id for item in scenarios],
+                "max_usd": str(args.max_usd) if args.max_usd is not None else None,
+            }
+        ),
         file=sys.stderr,
     )
-    expected = {item.id: item for item in load("agenticos")}
-    models = {arm.id: arm.model_label for arm in run.arms}
-    verdicts = []
-    for skip in range(0, run.cases, 100):
-        page = EvalCaseList.model_validate(
-            client.get(path + "/cases", params={"skip": skip, "limit": 100})
-            .raise_for_status()
-            .json()
+    if args.max_usd is None:
+        return 0
+
+    spent = Decimal(0)
+    failed = False
+    for item in scenarios:
+        remaining = args.max_usd - spent
+        if remaining <= 0:
+            print("Stopped before the next case: eval budget exhausted.", file=sys.stderr)
+            return 1
+        calls: list[RecordedToolCall] = []
+        history = build_message_history(
+            [HistoryMessage(role=turn.role, content=turn.content) for turn in item.case.history]
         )
-        for case in page.items:
-            scenario = next((expected[tag] for tag in case.tags if tag in expected), None)
-            if scenario is None:
-                continue
-            for attempt in case.attempts:
-                errors = trace_errors(scenario, attempt)
-                verdicts.append(not errors)
-                print(
-                    Evidence(
-                        case=scenario.id,
-                        model=models[attempt.arm_id],
-                        attempt=attempt.id,
-                        errors=errors,
-                        output=attempt.answer,
-                        calls=[call.model_dump(mode="json") for call in attempt.calls],
-                        input_tokens=attempt.input_tokens,
-                        output_tokens=attempt.output_tokens,
-                        latency_ms=attempt.latency_ms,
-                        cost_usd=attempt.cost_usd,
-                        cost_is_partial=attempt.cost_is_partial or attempt.cost_usd is None,
-                    ).model_dump_json()
-                )
-    return int(run.status != "completed" or not verdicts or not all(verdicts))
+        started = perf_counter()
+        async with get_db_context() as db:
+            answer, run = await AgentRunnerService(db).execute(
+                ctx,
+                agent_id,
+                item.case.input,
+                surface=RunSurface.EVAL,
+                version_id=version_id,
+                model_profile_id=profile_id,
+                message_history=history,
+                isolation=RunIsolation(),
+                tool_calls=calls,
+                run_limit_usd=remaining,
+                reports_failure=True,
+            )
+            intercepted = await intercepted_tool_call_repo.list_for_run(
+                db, run_id=run.id, organization_id=org
+            )
+            trace = [EvalCallRead.model_validate(row) for row in trajectory(calls, intercepted)]
+            status = run.status
+            errors = (
+                trace_errors(item, answer=answer, calls=trace)
+                if status == RunStatus.COMPLETED.value
+                else [f"run {status}"]
+            )
+            evidence = Evidence(
+                case=item.id,
+                model=model,
+                agent_version=version_id,
+                attempt=run.id,
+                errors=errors,
+                output=answer if status == RunStatus.COMPLETED.value else "",
+                calls=[call.model_dump(mode="json") for call in trace],
+                input_tokens=run.input_tokens,
+                output_tokens=run.output_tokens,
+                latency_ms=round((perf_counter() - started) * 1000),
+                cost_usd=run.cost_usd,
+                cost_is_partial=run.cost_is_partial,
+            )
+        print(evidence.model_dump_json(), flush=True)
+        spent += evidence.cost_usd or Decimal(0)
+        failed |= bool(errors)
+        if status == RunStatus.BUDGET_EXCEEDED.value or evidence.cost_is_partial:
+            print(
+                "Stopped: the run budget was exceeded or the cost is incomplete.", file=sys.stderr
+            )
+            return 1
+    return int(failed)
 
 
 def live_turn(
@@ -618,80 +686,39 @@ def live_memory(client: httpx.Client, agent_id: UUID, model: str) -> int:
     return int(failed)
 
 
-def run_native(args: argparse.Namespace) -> int:
+def run_live(args: argparse.Namespace) -> int:
     token = os.getenv("AGENTICOS_EVAL_TOKEN")
     if not token:
-        raise SystemExit("Set AGENTICOS_EVAL_TOKEN to a test workspace member access token.")
-    headers = {"Authorization": f"Bearer {token}"}
-    if args.organization_id is not None:
-        headers["X-Organization-Id"] = str(args.organization_id)
+        raise SystemExit("Set AGENTICOS_EVAL_TOKEN to a test stack member access token.")
+    headers = {"Authorization": f"Bearer {token}", "X-Organization-Id": str(args.organization_id)}
     with httpx.Client(
         base_url=args.api_url.rstrip("/") + "/api/v1",
         headers=headers,
         timeout=30,
     ) as client:
+        model = args.model or str(args.agent_id)
         if args.live_memory:
-            return live_memory(client, args.agent_id, args.model or str(args.agent_id))
-        if args.live_case:
-            return live_report(
-                client, args.agent_id, args.live_case, args.model or str(args.agent_id)
-            )
-        if args.report_run is not None:
-            return native_report(client, args.report_run)
-        if args.import_into is not None:
-            payload = jsonl(load(args.suite)).encode()
-            response = client.post(
-                f"/datasets/{args.import_into}/import",
-                files={"file": (f"{args.suite}.jsonl", payload, "application/jsonl")},
-            ).raise_for_status()
-            version = DatasetVersionRead.model_validate(response.json())
-            print(version.model_dump_json())
-            return 0
-        request = EvalRunRequest(
-            model_profile_ids=args.model_profile,
-            dataset_id=args.dataset_id,
-            dataset_version=args.dataset_version,
-            environment_id=args.environment_id,
-            reruns=0,
-        ).model_dump(mode="json", exclude_none=True)
-        path = f"/agents/{args.agent_id}/eval-runs"
-        estimate = EvalRunEstimate.model_validate(
-            client.post(path + "/estimate", json=request).raise_for_status().json()
-        )
-        print(estimate.model_dump_json(), flush=True)
-        if args.max_usd is None:
-            return 0
-        if estimate.judge_model_profile_id is not None:
-            raise SystemExit(
-                "Disable the dataset's native judge before submitting a trace-first run."
-            )
-        if not estimate.affordable or estimate.total_usd > args.max_usd:
-            raise SystemExit("Estimate exceeds the configured ceiling or platform budget.")
-        result = client.post(path, json=request).raise_for_status().json()
-        print(json.dumps({"eval_run_id": result["id"], "status": result["status"]}))
-    return 0
+            return live_memory(client, args.agent_id, model)
+        return live_report(client, args.agent_id, args.live_case, model)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--suite", choices=SUITES)
     parser.add_argument(
-        "--export", type=Path, help="Write native JSONL datasets to this directory."
+        "--export", type=Path, help="Write portable JSONL datasets to this directory."
     )
     parser.add_argument(
         "--model", help="Run a paid production-prompt replay for one background suite."
     )
     parser.add_argument("--limit", type=int, help="Required upper bound on paid background cases.")
     parser.add_argument("--case", action="append", help="Select case IDs in a background replay.")
-    parser.add_argument(
-        "--api-url",
-        help="Estimate or submit an imported dataset via the platform eval API.",
-    )
+    parser.add_argument("--api-url", help="Local API base URL for live probes only.")
     parser.add_argument("--organization-id", type=UUID)
-    parser.add_argument("--dataset-id", type=UUID)
-    parser.add_argument("--dataset-version", type=int)
-    parser.add_argument("--environment-id", type=UUID)
-    parser.add_argument("--agent-id", type=UUID)
+    parser.add_argument(
+        "--user-id", type=UUID, help="Test member for the in-container AgenticOS suite."
+    )
+    parser.add_argument("--agent-id", type=UUID, help="Published starter for live probes.")
     parser.add_argument(
         "--live-case",
         action="append",
@@ -703,56 +730,51 @@ def main() -> int:
         action="store_true",
         help="Write, correct and recall one synthetic preference across three test conversations.",
     )
-    parser.add_argument("--model-profile", type=UUID, action="append", default=[])
+    parser.add_argument(
+        "--model-profile", type=UUID, help="Override only the candidate model profile."
+    )
     parser.add_argument("--judge-model", help="Optionally grade an existing deterministic report.")
     parser.add_argument("--judge-report", type=Path, help="JSONL from a completed candidate run.")
     parser.add_argument(
-        "--import-into",
-        type=UUID,
-        help="Append the selected suite to an existing test dataset.",
-    )
-    parser.add_argument(
-        "--report-run",
-        type=UUID,
-        help="Score tool traces from a native AgenticOS eval.",
-    )
-    parser.add_argument(
-        "--max-usd",
-        type=Decimal,
-        help="Passing a positive amount submits the native run.",
+        "--max-usd", type=Decimal, help="AgenticOS suite budget. Omit for a free runtime preflight."
     )
     args = parser.parse_args()
     if args.judge_model or args.judge_report:
         if not args.judge_model or not args.judge_report or not args.limit or args.limit < 1:
             parser.error("judge mode requires --judge-model, --judge-report and positive --limit")
         return asyncio.run(judge_report(args.judge_model, args.judge_report, args.limit))
-    if args.api_url:
-        if urlsplit(args.api_url).hostname not in {"localhost", "127.0.0.1", "::1"}:
-            parser.error("native eval routes are restricted to a local test stack")
-        live = bool(args.live_case or args.live_memory)
-        live_required = 3 if args.live_memory else len(args.live_case or [])
-        if live and (
-            args.agent_id is None or args.limit is None or not 1 <= live_required <= args.limit
-        ):
-            parser.error("Live probes require --agent-id and --limit covering the planned calls")
+    if args.live_case or args.live_memory:
+        if not args.api_url or urlsplit(args.api_url).hostname not in {
+            "localhost",
+            "127.0.0.1",
+            "::1",
+        }:
+            parser.error("live probes require a loopback --api-url")
         if args.live_case and args.live_memory:
             parser.error("Select either the live tool probes or the live memory probe")
-        if live and (args.report_run is not None or args.import_into is not None):
-            parser.error("--live-case is separate from native dataset submission and reporting")
-        if args.import_into is not None and args.suite is None:
-            parser.error("--import-into requires --suite")
-        if (
-            not live
-            and args.report_run is None
-            and args.import_into is None
-            and (args.agent_id is None or args.dataset_id is None or args.dataset_version is None)
-        ):
-            parser.error("--api-url requires --agent-id, --dataset-id and --dataset-version")
-        if args.max_usd is not None and (not args.max_usd.is_finite() or args.max_usd <= 0):
-            parser.error("--max-usd must be finite and positive")
-        return run_native(args)
-    if args.live_case or args.live_memory:
-        parser.error("live probes require --api-url")
+        required = 3 if args.live_memory else len(args.live_case)
+        if not args.organization_id or not args.agent_id or not args.limit or args.limit < required:
+            parser.error(
+                "Live probes require --organization-id, --agent-id and --limit covering the calls"
+            )
+        return run_live(args)
+    if args.api_url or args.agent_id:
+        parser.error("--api-url and --agent-id are reserved for live probes")
+    runtime = args.organization_id is not None or args.user_id is not None
+    if runtime and (args.suite != "agenticos" or not args.organization_id or not args.user_id):
+        parser.error(
+            "The AgenticOS runtime requires --suite agenticos, --organization-id and --user-id"
+        )
+    if runtime and args.model:
+        parser.error("Use --model-profile to override the AgenticOS model")
+    if args.max_usd is not None and (
+        not runtime or not args.max_usd.is_finite() or args.max_usd <= 0
+    ):
+        parser.error("--max-usd requires the AgenticOS runtime and a finite positive amount")
+    if args.model_profile and not runtime:
+        parser.error("--model-profile requires the AgenticOS runtime")
+    if args.limit is not None and args.limit < 1:
+        parser.error("--limit must be positive")
     scenarios = []
     for suite in (args.suite,) if args.suite else SUITES:
         items = load(suite)
@@ -774,14 +796,19 @@ def main() -> int:
     ids = [item.id for item in scenarios]
     if len(ids) != len(set(ids)):
         raise SystemExit("Duplicate case IDs")
+    if args.case:
+        if missing := set(args.case) - set(ids):
+            parser.error(f"Unknown cases: {', '.join(sorted(missing))}")
+        scenarios = [item for item in scenarios if item.id in args.case]
+    selected = scenarios[: args.limit]
+    if runtime:
+        if args.limit is None:
+            parser.error("The AgenticOS runtime requires a positive --limit")
+        return asyncio.run(run_agenticos(args, selected))
     if args.model:
-        if args.suite not in ("memory", "briefing") or args.limit is None or args.limit < 1:
+        if args.suite not in ("memory", "briefing") or args.limit is None:
             parser.error("--model requires --suite memory/briefing and a positive --limit")
-        if args.case:
-            if missing := set(args.case) - set(ids):
-                parser.error(f"Unknown cases: {', '.join(sorted(missing))}")
-            scenarios = [item for item in scenarios if item.id in args.case]
-        return asyncio.run(run_background(args.model, scenarios[: args.limit]))
+        return asyncio.run(run_background(args.model, selected))
     return 0
 
 

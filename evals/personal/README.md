@@ -1,104 +1,104 @@
 # AgenticOS local evaluations
 
-Three datasets contain **150 synthetic conversations**, with stable IDs and authored multi-turn context. The cases use no production data.
+The three suites share **150 synthetic multi-turn conversations** in [datasets/](datasets/). Run them from the CLI with the repository's locked dependencies. The runner creates no entries in the platform's Datasets or Evals views.
 
-| Dataset | Cases | What it measures |
+| Suite | Cases | Path exercised |
 | --- | ---: | --- |
-| Memory | 50 | Durable preferences, exact user evidence, new and superseded claims, paraphrase deduplication, ownership, and bounded transcripts |
-| Daily briefing and suggestions | 50 | Distinct chats and days, recurring goals, existing routines, withdrawn or dismissed proposals, connected sources, and grounded profile or starter suggestions |
-| AgenticOS | 50 | Direct responses, full-source reading, tool selection and arguments, memory, Tasks, Skills, Context, routines versus watches, delegation consent, Sandbox, charts, visuals and Apps |
+| AgenticOS | 50 | Published shipped starter, conversation history, tool routing and arguments, answers |
+| Memory | 50 | Production extraction model, durable facts, corrections, provenance, duplicate intent |
+| Briefing and suggestions | 50 | Production nightly reading model, recurring intent, connected sources and existing or dismissed proposals |
 
-`history.json` supplies extended histories. The runner validates and exports the production dataset schema. Each scenario grades an authored outcome. Expected answers and tool assertions stay outside the candidate's conversation.
+The background suites exercise their production instructions and output schemas using synthetic packets. Database-level tests separately cover persistence, supersession and scope, and morning inbox delivery. The morning delivery pass does not call a model.
 
-## Run the local stack
+## Validate without spending
 
-From the repository root, copy `evals/personal/.env.example` to `evals/personal/.env`. Set a random `SANDBOXD_TOKEN` and an OpenRouter key with a dedicated spend limit. Compose scopes Postgres, Redis and media volumes to this project. The API is exposed only at `127.0.0.1:18080`. Sandboxd and the App render service use the same pinned definitions as the development platform.
+From the repository root:
+
+```sh
+make eval-personal
+cd backend
+uv run python -m unittest discover -s ../evals/personal
+```
+
+Validation checks all three corpora. `--export /tmp/agenticos-personal` writes portable JSONL files locally.
+
+## Run AgenticOS in Docker
+
+Copy `evals/personal/.env.example` to `evals/personal/.env`. Use a dedicated OpenRouter key with a spend limit and a random `SANDBOXD_TOKEN`. Use test fixtures and unused messaging destinations. The stack uses separate database, Redis and media volumes and binds its API to loopback at port 18080.
 
 ```sh
 mkdir -p /tmp/agenticos-personal-eval-workspaces
 chmod 1777 /tmp/agenticos-personal-eval-workspaces
 evals/personal/stack.sh build app
 evals/personal/stack.sh up -d app worker sandboxd artifact-render
-evals/personal/stack.sh ps
 evals/personal/stack.sh exec -T app sh -c '
   BOOTSTRAP_API_KEY="$OPENROUTER_API_KEY" exec agenticos cmd bootstrap \
-    --org "AgenticOS Local Eval" --provider openrouter --model moonshotai/kimi-k2.6
+    --org "AgenticOS Local Eval" --provider openrouter --model deepseek/deepseek-v4-flash-0731
 '
 ```
 
-If you customize `SANDBOX_WORKSPACE_ROOT`, create that path on the Docker host and give the sandbox service access to it. The built image is shared by API, worker and migrations. Rebuild it after editing the starter. Browser use and computer use are outside the required suite. The headless renderer is used for App previews.
+Bootstrap installs AgenticOS and its dependencies through the production shipped-template path. It preserves an existing installation, including the previous model. For a clean comparison, use a fresh eval database or explicitly configure an eval model profile and pass its ID with `--model-profile`. Rebuild the Docker image after changing backend code or bundled resources. The preflight refuses a published starter whose managed configuration differs from the image. Start clean to get the current bundled Skill and Context contents as well.
 
-Use `POST /api/v1/auth/login` with the bootstrap account on this stack and export the returned access token as `AGENTICOS_EVAL_TOKEN`. Take the organization and published AgenticOS IDs from the test stack. Keep the tenant disposable with synthetic fixtures and unused mail or messaging destinations. Stop it with `evals/personal/stack.sh down` when done.
-
-## Validate for free
+Use the bootstrap organization and user IDs as `ORG_ID` and `USER_ID`. If you use the default bootstrap email and the organization above, read both IDs from the eval database:
 
 ```sh
-cd backend
-uv run python ../evals/personal/run.py --export /tmp/agenticos-personal
-uv run python -m unittest discover -s ../evals/personal
-uv run pytest -q tests/test_memory_claims_tools.py tests/test_memory_claim_mutations.py \
-  tests/test_briefing.py tests/test_proactive.py tests/integration/test_proactivity.py \
-  tests/integration/test_memory_runtime.py tests/integration/test_shipped_agents.py
+evals/personal/stack.sh exec -T db sh -c '
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"
+' -- "SELECT o.id, u.id FROM organizations o
+JOIN organization_members m ON m.organization_id = o.id
+JOIN users u ON u.id = m.user_id
+WHERE o.slug = 'agenticos-local-eval' AND u.email = 'admin@example.com'"
 ```
 
-The integration tests verify actual memory storage, scope and correction. They also verify proposal persistence and morning briefing delivery. Morning delivery has no model call. It consumes eligible, unbriefed findings and marks them delivered, so the next sweep skips them.
+This preflight confirms the source, candidate model and selected case IDs without calling a model:
 
-## Measure candidate behavior without a judge
+```sh
+evals/personal/stack.sh run --rm --no-deps -T app /app/.venv/bin/python /personal-eval/run.py \
+  --suite agenticos --organization-id "$ORG_ID" --user-id "$USER_ID" \
+  --limit 3 --case natural-hello --case inbox-direct --case sandbox-file
+```
 
-For a background replay, load credentials from the dedicated env file. Examples from `backend/`:
+Add `--max-usd 0.25` for the three-case trace run, or use `--limit 50 --max-usd 1` and omit the case selectors to run all 50. Redirect stdout to an appropriately named JSONL under [results/](results/). The runner passes the remaining budget into the production budget guard and stops after an incomplete cost. The platform uses its bundled price catalog when there is no verified provider cost. A provider key spend limit also covers pricing uncertainty and work outside this guard.
+
+The trace runner gives the production service the authored history and scores its recorded tools, argument subsets and forbidden attempts before any judge call. The production isolation guard holds side-effecting actions. Use live probes to verify effects. Seed synthetic Inbox items, task state and connections for positive-path cases that need them.
+
+## Background replay
+
+From `backend/`:
 
 ```sh
 uv run --env-file ../evals/personal/.env python ../evals/personal/run.py \
-  --suite memory --model openrouter:deepseek/deepseek-v3.2 --limit 3 \
-  --case changed-hours --case already-brief --case long-audit > memory.jsonl
+  --suite memory --model openrouter:deepseek/deepseek-v4-flash-0731 --limit 50 \
+  > ../evals/personal/results/2026-11-20-deepseek-v4-flash-0731-memory.jsonl
 uv run --env-file ../evals/personal/.env python ../evals/personal/run.py \
-  --suite briefing --model openrouter:z-ai/glm-5.1 --limit 3 \
-  --case release-notion --case dismissed-notion --case role-from-claim > briefing.jsonl
+  --suite briefing --model openrouter:deepseek/deepseek-v4-flash-0731 --limit 50 \
+  > ../evals/personal/results/2026-11-20-deepseek-v4-flash-0731-briefing.jsonl
 ```
 
-These replays call the production model instructions and schemas with test packets. They evaluate model extraction and proposals while leaving application state alone. The checks cover evidence provenance, expected changes, repeated intent, duplicate proposals and unsupported profile claims. The run logs tokens, latency and provider-reported USD when available. Missing cost is recorded as `null`.
+Use repeated `--case` with `--limit 3` for a smoke run. These modes and the judge also accept other Pydantic AI model identifiers. Provider-reported USD is recorded when available.
 
-For AgenticOS, create a native dataset with deterministic scoring and **disable its native judge**. Append the corpus with `--suite agenticos --import-into "$DATASET_ID"`, then pin the imported version. Seed any positive-path Inbox, memory, connection and task fixtures inside this eval workspace. Cases without those fixtures can still test how the agent handles missing resources, but cannot validate the corresponding positive-path output.
+## Live probes
 
-```sh
-uv run python ../evals/personal/run.py --api-url http://127.0.0.1:18080 \
-  --organization-id "$ORG_ID" --agent-id "$AGENT_ID" --dataset-id "$DATASET_ID" \
-  --dataset-version "$DATASET_VERSION" --model-profile "$MODEL_PROFILE_ID"
-```
-
-Repeat with `--max-usd 1` to submit if the estimate and budget permit it. The estimate is an admission threshold. Set a spend limit on the API key for a provider-side cap. Repeat `--model-profile` to compare several deployed profiles on identical cases. Once the worker finishes, get the actual evidence:
-
-```sh
-uv run python ../evals/personal/run.py --api-url http://127.0.0.1:18080 \
-  --organization-id "$ORG_ID" --report-run "$RUN_ID" > agenticos.jsonl
-```
-
-The report checks expected tool names and argument subsets, forbidden attempts and completion. It distinguishes executed, blocked, replayed and divergent calls. A blocked write may meet the trajectory expectation, but cannot demonstrate its effect. Use separate live probes for those effects.
-
-## Check real local effects
-
-The live commands use disposable chats in the eval tenant. The four tool probes use fixed synthetic inputs and expect completed Sandbox, chart, visual and private App operations. App output needs an actual renderer preview. The memory probe uses three distinct conversations and the claims API to verify a new preference, a superseding correction and subsequent recall.
+Live probes use the published starter on the isolated stack. Set `AGENTICOS_EVAL_TOKEN` to a test account's access token and `AGENT_ID` to the published starter ID. Run from `backend/`:
 
 ```sh
 uv run python ../evals/personal/run.py --api-url http://127.0.0.1:18080 \
   --organization-id "$ORG_ID" --agent-id "$AGENT_ID" --limit 4 \
   --live-case sandbox-file --live-case report-chart-real \
-  --live-case diagram-approval --live-case app-private-preview > live-tools.jsonl
+  --live-case diagram-approval --live-case app-private-preview
 uv run python ../evals/personal/run.py --api-url http://127.0.0.1:18080 \
-  --organization-id "$ORG_ID" --agent-id "$AGENT_ID" \
-  --limit 3 --live-memory > live-memory.jsonl
+  --organization-id "$ORG_ID" --agent-id "$AGENT_ID" --limit 3 --live-memory
 ```
 
-The runner leaves real approvals in place. Unexpected approval, refusal or failed execution stays visible in the report. The live probe uses the model pinned to the agent's published version.
+These verify actual Sandbox, chart, visual and private App outputs and write, correct and recall a synthetic preference across three conversations. Approval gates are active. Browser use and computer use are outside the suite. App preview uses the headless artifact renderer. Stop the stack with `evals/personal/stack.sh down`.
 
-## Apply an optional LLM judge
+## Optional judge
+
+From `backend/`, after inspecting the deterministic report:
 
 ```sh
 uv run --env-file ../evals/personal/.env python ../evals/personal/run.py \
-  --judge-model 'openrouter:<judge-model-id>' --judge-report agenticos.jsonl \
-  --limit 10 > judgments.jsonl
+  --judge-model openrouter:z-ai/glm-5.3 --judge-report "$REPORT_PATH" --limit 10
 ```
 
-The judge uses Pydantic AI structured output and sees only cases that passed deterministic checks. It checks correctness, proportional brevity, supported claims and honesty about actual tool outcomes. It logs its own spend, tokens and latency separately. Keep the same judge and evidence limits across candidate runs. The background and judge runners also accept other Pydantic AI model identifiers with their provider's credentials.
-
-Use fixed versions, selected cases and fixture state for comparisons. Suggested candidate profiles are [Kimi K2.6](https://openrouter.ai/moonshotai/kimi-k2.6), [DeepSeek V3.2](https://openrouter.ai/deepseek/deepseek-v3.2) and [GLM 5.1](https://openrouter.ai/z-ai/glm-5.1). Compare tool accuracy, correctness, cost per pass and p50/p95 latency against a pinned Sonnet or Opus baseline before choosing a replacement. Rates and routing may change.
+The judge grades only rows that passed deterministic checks. Keep its model fixed across candidate comparisons and log its cost separately. Compare tool accuracy, judged correctness, cost per passing case, p50/p95 latency and incomplete-cost rows. The [design and cost assumptions](DESIGN.md) specify the initial model and expected spend.
