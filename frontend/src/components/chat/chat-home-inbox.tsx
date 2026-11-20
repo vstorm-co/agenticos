@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, MessageSquare, ShieldCheck } from "lucide-react";
+import { MessageSquare, ShieldCheck } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -86,23 +86,18 @@ export function ChatHomeInbox({
                       {format.dateTime(new Date(item.created_at), {
                         day: "numeric",
                         month: "short",
-                        hour: "numeric",
-                        minute: "2-digit",
                       })}
                     </time>
                   )}
                   <Link href={`/inbox#suggestion-${item.id}`} className="chat-home-inbox-topic">
                     <SuggestionMark suggestion={item} className="chat-home-inbox-source" />
                     <span className="chat-home-inbox-copy">
-                      <span className="chat-home-inbox-meta">
-                        <span>{sourceOf(item)?.name ?? inbox(`source.${item.kind}`)}</span>
-                        {item.urgent && (
-                          <span className="chat-home-inbox-urgent">{t("urgent")}</span>
-                        )}
+                      <span className="sr-only">
+                        {sourceOf(item)?.name ?? inbox(`source.${item.kind}`)}
                       </span>
                       <span className="chat-home-inbox-title">{item.title}</span>
+                      {item.urgent && <span className="chat-home-inbox-urgent">{t("urgent")}</span>}
                     </span>
-                    <ArrowUpRight className="chat-home-inbox-arrow size-3.5" aria-hidden />
                   </Link>
                   <button
                     type="button"
@@ -111,7 +106,7 @@ export function ChatHomeInbox({
                     title={discussLabel}
                     onClick={() => onDiscuss(inbox("discussPrompt", { id: item.id }))}
                   >
-                    <MessageSquare className="size-4" aria-hidden />
+                    <MessageSquare className="size-[18px]" aria-hidden />
                   </button>
                 </li>
               ))}

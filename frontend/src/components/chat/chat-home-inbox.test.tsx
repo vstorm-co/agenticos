@@ -97,6 +97,7 @@ it("shows real Inbox entries in chronological order and composes a question abou
   if (!latest || !older) throw new Error("Expected two timeline entries");
   expect(within(latest).getByRole("link")).toHaveAttribute("href", "/inbox#suggestion-latest");
   expect(latest.querySelector("time")).toHaveAttribute("datetime", "2026-11-20T10:15:00Z");
+  expect(latest.querySelector("time")).toHaveTextContent(/^Nov 20$/);
   expect(older).toHaveTextContent("Topic urgent");
   const action = within(latest).getByRole("button", { name: "Discuss with agent" });
   expect(action).not.toHaveTextContent("Discuss with agent");

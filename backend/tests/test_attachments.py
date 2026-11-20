@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
+import httpx
 import pytest
 from pydantic_ai import Agent
 from pydantic_ai.messages import BinaryContent
@@ -24,6 +25,7 @@ from app.agents.capabilities.guardrails import (
     input_screen,
 )
 from app.agents.capabilities.sandbox._capped import CappedStateBackend
+from app.core.exceptions import ExternalServiceError
 from app.repositories import chat_file as chat_file_repo
 from app.services import attachments as attachments_module
 from app.services.attachments import AttachmentRouter, safe_name, workspace_path
@@ -890,6 +892,44 @@ class TestWhenTheWorkspaceWillNotTakeAWrite:
     `data:` URI, then three workarounds offered to the person, across two turns
     and 57k tokens (#1046).
     """
+
+    @pytest.mark.parametrize("operation", ["exists", "write_bytes"])
+    @pytest.mark.parametrize("error_type", [httpx.ConnectError, ExternalServiceError])
+    async def test_a_sandbox_connection_failure_still_passes_the_image_to_the_model(
+        self, storage, monkeypatch, operation: str, error_type: type[Exception]
+    ):
+        workspace = document_workspace(_document())
+        monkeypatch.setattr(
+            workspace, operation, AsyncMock(side_effect=error_type("Sandbox offline"))
+        )
+        image = _file(filename="image.png", file_type="image", mime_type="image/png", size=len(PNG))
+
+        prompt = await AttachmentRouter(workspace).build_prompt("what is this?", [image])
+
+        assert isinstance(prompt, list)
+        assert prompt[1:] == [BinaryContent(data=PNG, media_type="image/png")]
+        assert "would not accept a write this turn" in prompt[0]
+        assert "could not be processed" not in prompt[0]
+
+    async def test_an_unavailable_sandbox_does_not_extend_the_inline_image_budget(
+        self, storage, monkeypatch
+    ):
+        workspace = document_workspace(_document())
+        monkeypatch.setattr(
+            workspace, "exists", AsyncMock(side_effect=ExternalServiceError("Sandbox offline"))
+        )
+        monkeypatch.setattr(attachments_module.settings, "CHAT_TURN_INLINE_MAX_BYTES", len(PNG))
+        files = [
+            _file(filename=name, file_type="image", mime_type="image/png", size=len(PNG))
+            for name in ("first.png", "second.png")
+        ]
+
+        prompt = await AttachmentRouter(workspace).build_prompt("compare", files)
+
+        assert isinstance(prompt, list)
+        assert len(prompt) == 2
+        assert "second.png" in prompt[0]
+        assert "not shown inline: this turn has already reached the limit" in prompt[0]
 
     async def test_the_turn_is_told_the_workspace_is_unavailable(self, storage):
         chat_file = _file()
