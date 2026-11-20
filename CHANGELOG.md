@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- An agent's **Evals** and **Knowledge gaps** tabs carry the attention dot Improve wears
+  when they hold something waiting: answers rated down, failed runs, a failing suite or
+  an Improve session waiting for you, and open knowledge gaps. The tab says why to a
+  screen reader and on hover. An agent marked **Needs attention** on the agent list or
+  the dashboard opens on its **Evals** tab.
+
 ## [1.87.0] - 2026-11-20
 
 ### Added

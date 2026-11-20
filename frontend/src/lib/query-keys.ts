@@ -458,6 +458,7 @@ export const qk = {
     usageByHour: (scope: string, from: string, to: string, filter?: unknown) =>
       ["stats", "usage", "hour", scope, from, to, filter ?? null] as const,
     attention: (from: string, to: string) => ["stats", "attention", from, to] as const,
+    attentionAll: () => ["stats", "attention"] as const,
   },
   ratings: {
     summary: (scope: string, from: string, to: string) =>

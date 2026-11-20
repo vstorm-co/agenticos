@@ -4,7 +4,7 @@ import { canonicalJson, sameJson } from "@/lib/canonical-json";
 import { MoreOptions } from "@/components/ui/more-options";
 
 import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
-import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { use, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -64,6 +64,7 @@ import { StartersPanel } from "@/components/agents/starters-panel";
 import { runsAgents, usableForAgents } from "@/lib/model-profiles";
 import { glideOrJump } from "@/lib/motion";
 import { insertVariable } from "@/lib/variable-completion";
+import { useAgentTabAttention } from "@/hooks/use-agent-tab-attention";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { AssistantStrip } from "@/components/authoring/assistant-strip";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
@@ -113,6 +114,7 @@ import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcu
 import { VersionHistory } from "@/components/agents/version-history";
 import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
 import { gapStatus } from "@/lib/knowledge-gap-status";
+import { AttentionDot } from "@/components/agents/attention-dot";
 import { ImproveButton, ImproveLink } from "@/components/agents/improve-link";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -259,6 +261,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tAgents = useTranslations("agents");
   const tErrors = useTranslations("errors");
   const tGaps = useTranslations("knowledgeGaps");
+  const tAttention = useTranslations("attention");
   const tAnswer = useTranslations("answerFormat");
   const { id } = use(params);
   // A link from an eval run lands on the tab it names: its Evals, the History
@@ -493,6 +496,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const couldStartEvals = !isSystem && agent?.can_run === true;
   const runsADataset = useRunsADataset({ enabled: couldStartEvals && (canViewRuns || canEdit) });
   const canStartEvals = canViewRuns && couldStartEvals && runsADataset;
+  // Said by a description rather than a label: the tab keeps its own name.
+  const tabAttention = useAgentTabAttention(id, {
+    enabled: canViewRuns && agent !== undefined && !isSystem,
+    canEdit,
+  });
+  const evalsWhy = useId();
+  const gapsWhy = useId();
+  const evalsReason =
+    tabAttention.evals.length > 0
+      ? tAttention("tabLabel", { reasons: tabAttention.evals.join(", ") })
+      : undefined;
+  const gapsReason =
+    tabAttention.gaps > 0 ? tAttention("gapsLabel", { count: tabAttention.gaps }) : undefined;
   // Testing the draft runs it - the editors' work in progress - on a dataset.
   const canTestDraft = canStartEvals && canEdit;
   const [testingDraft, setTestingDraft] = useState(false);
@@ -1649,6 +1665,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </div>
         )}
 
+        {evalsReason && (
+          <span id={evalsWhy} className="sr-only">
+            {evalsReason}
+          </span>
+        )}
+        {gapsReason && (
+          <span id={gapsWhy} className="sr-only">
+            {gapsReason}
+          </span>
+        )}
         <Tabs value={tab} onValueChange={setTab} className="flex flex-1 flex-col">
           <TabsList>
             <TabsTrigger value="build" data-tour="agent-tab-build">
@@ -1676,14 +1702,30 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </TabsTrigger>
             }
             {(canViewRuns || tab === "evals") && (
-              <TabsTrigger value="evals" data-tour="agent-tab-evals">
-                <FlaskConical className="mr-1.5 size-4 shrink-0" aria-hidden />
+              <TabsTrigger
+                value="evals"
+                data-tour="agent-tab-evals"
+                aria-describedby={evalsReason ? evalsWhy : undefined}
+                title={evalsReason}
+              >
+                <span className="relative mr-1.5 inline-flex shrink-0" aria-hidden>
+                  <FlaskConical className="size-4" />
+                  {evalsReason && <AttentionDot testId="evals-attention" />}
+                </span>
                 {t("evals")}
               </TabsTrigger>
             )}
             {canViewRuns && (
-              <TabsTrigger value="gaps" data-tour="agent-tab-gaps">
-                <SearchX className="mr-1.5 size-4 shrink-0" aria-hidden />
+              <TabsTrigger
+                value="gaps"
+                data-tour="agent-tab-gaps"
+                aria-describedby={gapsReason ? gapsWhy : undefined}
+                title={gapsReason}
+              >
+                <span className="relative mr-1.5 inline-flex shrink-0" aria-hidden>
+                  <SearchX className="size-4" />
+                  {gapsReason && <AttentionDot testId="gaps-attention" />}
+                </span>
                 {tGaps("tab")}
               </TabsTrigger>
             )}

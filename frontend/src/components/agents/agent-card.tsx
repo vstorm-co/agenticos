@@ -110,7 +110,11 @@ export function AgentCard({
         )}
       >
         <Link
-          href={ROUTES.AGENT_DETAIL(agent.id)}
+          href={
+            attention && !isSystemAgent(agent.kind)
+              ? `${ROUTES.AGENT_DETAIL(agent.id)}?tab=evals`
+              : ROUTES.AGENT_DETAIL(agent.id)
+          }
           className="focus-visible:ring-ring absolute inset-0 rounded-xl outline-none focus-visible:ring-2"
           aria-label={tc("openNamed", { name: agent.name })}
         />
@@ -280,7 +284,7 @@ function IconAction({
   );
 }
 
-/** Describes the signal; opening any part of the card still opens the builder. */
+/** Describes the signal; opening any part of the card goes where it points. */
 function AttentionBadge({ attention }: { attention: AgentAttention }) {
   const tAttention = useTranslations("attention");
   return (
