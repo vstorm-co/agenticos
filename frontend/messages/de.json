@@ -993,7 +993,8 @@
       "drafter": "Lücken-Entwerfer",
       "generator": "Fallgenerator",
       "classifier": "Lücken-Klassifizierer",
-      "improver": "Authoring-Assistent"
+      "improver": "Authoring-Assistent",
+      "extractor": "Schlüssel-Extraktor"
     },
     "productionOn": "Produktion auf v{version}",
     "productionWaiting": "Produktion auf v{version} (wartet auf Evals)",
@@ -1021,7 +1022,9 @@
       "classifier": "Standard-Lücken-Klassifizierer",
       "classifierHint": "Liest die Antworten für die Lücken jeder Wissensdatenbank.",
       "improver": "Standard-Authoring-Assistent",
-      "improverHint": "Schlägt die Verbesserungen vor, die jedem Agent angeboten werden."
+      "improverHint": "Schlägt die Verbesserungen vor, die jedem Agent angeboten werden.",
+      "extractor": "Standard-Schlüssel-Extraktor",
+      "extractorHint": "Listet die Fakten der Referenzantworten jedes Datasets für ihre Schlüssel-Prüfungen auf."
     },
     "judgeUnused": "Noch kein Dataset nutzt diesen Bewerter.",
     "judgeDatasets": "Datasets",
@@ -1055,7 +1058,7 @@
       "cancel": "Abbrechen"
     },
     "publishedSpec": "Veröffentlichte Spec",
-    "systemAgentBadge": "{kind, select, judge {Systemagent · Bewerter} drafter {Systemagent · Lücken-Entwerfer} generator {Systemagent · Fallgenerator} classifier {Systemagent · Lücken-Klassifizierer} improver {Systemagent · Authoring-Assistent} other {Systemagent}}",
+    "systemAgentBadge": "{kind, select, judge {Systemagent · Bewerter} drafter {Systemagent · Lücken-Entwerfer} generator {Systemagent · Fallgenerator} classifier {Systemagent · Lücken-Klassifizierer} improver {Systemagent · Authoring-Assistent} extractor {Systemagent · Schlüssel-Extraktor} other {Systemagent}}",
     "systemAgentBadgeHint": "Die Plattform führt ihn für die ganze Organisation aus; niemand chattet mit ihm.",
     "systemAgentSharedOnly": "Angeboten wird nur, was mit der ganzen Organisation geteilt ist: Die Plattform führt diesen Agent für alle aus.",
     "systemAgentSkillsUnused": "Ein Klassifizierer liest keine Skills, daher lässt sich hier keiner hinzufügen. Wählen Sie die ab, die er noch hat, oder nehmen Sie mit seinem Schalter alle auf einmal weg.",
@@ -15083,6 +15086,20 @@
       "add": "Schlüssel hinzufügen",
       "keyPlaceholder": "Rechnungsnummer",
       "valuePlaceholder": "RE-2024-0042"
+    },
+    "keyDraft": {
+      "start": "Schlüssel aus der Referenzantwort auflisten",
+      "retry": "Erneut versuchen",
+      "running": "Die Fakten der Referenzantwort werden aufgelistet…",
+      "none": "Die Referenzantwort nennt keine Fakten, die sich prüfen lassen.",
+      "found": "{count, plural, =1 {1 Schlüssel} other {# Schlüssel}} gefunden: {names}{more, plural, =0 {} other { und # weitere}}.",
+      "use": "Diese Schlüssel verwenden",
+      "dismiss": "Verwerfen",
+      "failed": "Die Schlüssel konnten nicht aufgelistet werden: {error}",
+      "noReference": "Speichern Sie eine Referenzantwort, um ihre Schlüssel aufzulisten.",
+      "saveFirst": "Speichern Sie zuerst die Referenzantwort: Die Schlüssel werden aus der gespeicherten aufgelistet.",
+      "failedToStart": "Die Schlüssel konnten nicht angefordert werden",
+      "failedToDismiss": "Die aufgelisteten Schlüssel konnten nicht verworfen werden"
     },
     "visibility": {
       "private": "Privat",

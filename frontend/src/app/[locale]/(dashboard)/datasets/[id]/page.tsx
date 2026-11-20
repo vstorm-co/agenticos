@@ -483,6 +483,11 @@ export default function DatasetPage({ params }: PageProps) {
             ...new Set(cases.cases.flatMap((item) => item.expected_tool_calls.map((c) => c.tool))),
           ]}
           onSave={editable && !editing.item?.masked ? save : undefined}
+          keyDraft={
+            editable && editing.item && !editing.item.masked
+              ? { datasetId: id, caseId: editing.item.case_id }
+              : undefined
+          }
           startFrom={editing.startFrom}
           remote={
             editing.item && version === null
