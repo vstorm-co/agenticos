@@ -1,5 +1,5 @@
 ---
-source_sha: "1897e92263bc"
+source_sha: "3b306d28e24d"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -461,6 +461,8 @@ nicht das gemeinsame Urteil des Versuchs.
 ### Der Verbessern-Assistent { #the-improve-wizard }
 
 Öffnen Sie **Verbessern** in der Werkzeugleiste des Agententabs **Evals**, über das Abzeichen **Braucht Aufmerksamkeit** in der Agentenliste, über die Dashboard-Karte oder über **Wissenslücken**. Hatte die aktuelle veröffentlichte Version in den letzten 30 Tagen negativ bewertete Antworten oder fehlgeschlagene Runs, trägt Verbessern einen Hinweispunkt. Die Dashboard-Karte **Verbesserungen, die auf Sie warten** zeigt Sitzungen, die auf eine Entscheidung warten.
+
+Derselbe Punkt markiert die Tabs des Agenten, in denen etwas auf Sie wartet. **Evals** trägt ihn aus diesen Gründen, bei einer durchgefallenen Suite oder einer Verbessern-Sitzung, die auf Sie wartet, und **Wissenslücken** bei offenen Lücken; den Grund nennen der Hinweis beim Überfahren des Tabs und der Screenreader. Ein Agent mit **Braucht Aufmerksamkeit** in der Agentenliste oder auf der Dashboard-Karte öffnet sich im Tab **Evals**.
 
 Jedes **Verbessern** öffnet die offene Sitzung des Agents - laufend, auf Sie wartend, beim Ergebnis oder angehalten oder fehlgeschlagen - und startet eine neue, sobald diese Sitzung als Entwurf behalten, veröffentlicht, verworfen, abgebrochen oder geschlossen wurde; sie bleibt dann im [Verbesserungsverlauf](#improvement-history) des Agents. **Beenden und eine neue starten** neben einer offenen Sitzung beendet sie zuerst.
 
