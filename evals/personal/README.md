@@ -32,7 +32,7 @@ Copy `evals/personal/.env.example` to `evals/personal/.env`. Use a dedicated Ope
 mkdir -p /tmp/agenticos-personal-eval-workspaces
 chmod 1777 /tmp/agenticos-personal-eval-workspaces
 evals/personal/stack.sh build app
-evals/personal/stack.sh up -d app worker sandboxd artifact-render
+evals/personal/stack.sh up -d app worker sandboxd artifact-render eval-notion
 evals/personal/stack.sh exec -T app sh -c '
   BOOTSTRAP_API_KEY="$OPENROUTER_API_KEY" exec agenticos cmd bootstrap \
     --org "AgenticOS Local Eval DeepSeek Baseline" --provider openrouter --model "$AGENTICOS_EVAL_MODEL"
@@ -79,19 +79,20 @@ The terminal shows the current case, a heartbeat after each 15 seconds of waitin
 
 Use `--max-usd 0.25` with the preflight selection for a paid three-case smoke run. The runner passes the remaining budget into the production budget guard and stops when cost is incomplete. The platform uses its bundled price catalog when there is no verified provider cost. A provider key spend limit also covers pricing uncertainty and work outside this guard.
 
-The trace runner starts each case in a fresh private test chat with the authored history. It scores the recorded tools, argument subsets and forbidden attempts before any judge call. The production isolation guard holds side-effecting actions. Use live probes to verify effects. Seed synthetic Inbox items, task state and connections for positive-path cases that need them.
+The trace runner starts each case in a fresh private test chat with the authored history. It scores the recorded tools, argument subsets and forbidden attempts before any judge call. The production isolation guard holds side-effecting actions. Use live probes to verify effects. The Notion watch case uses the local, read-only `eval-notion` MCP service. The runner connects it as a synthetic personal account for that case and removes the connection after the case. The separate published watch agent has only that fixture binding. Watch creation remains an isolated tool attempt. Seed synthetic Inbox items, task state and other connections for positive-path cases that need them.
 
 ## Background replay
 
-From `backend/`:
+Run from the repository root with the configured `evals/personal/.env`.
 
 ```sh
-uv run --env-file ../evals/personal/.env python ../evals/personal/run.py \
-  --suite memory --model openrouter:deepseek/deepseek-v4-flash-0731 --limit 50 \
-  > ../evals/personal/results/2026-11-20-deepseek-v4-flash-0731-memory.jsonl
-uv run --env-file ../evals/personal/.env python ../evals/personal/run.py \
-  --suite briefing --model openrouter:deepseek/deepseek-v4-flash-0731 --limit 50 \
-  > ../evals/personal/results/2026-11-20-deepseek-v4-flash-0731-briefing.jsonl
+for suite in memory briefing; do
+  report="evals/personal/results/$(date +%F-%H%M%S)-deepseek-v4-flash-0731-$suite.jsonl"
+  uv run --directory backend --env-file ../evals/personal/.env sh -c '
+    exec python ../evals/personal/run.py --suite "$1" \
+      --model "openrouter:$AGENTICOS_EVAL_MODEL" --limit 50
+  ' sh "$suite" > "$report"
+done
 ```
 
 Use repeated `--case` with `--limit 3` for a smoke run. These modes and the judge also accept other Pydantic AI model identifiers. Provider-reported USD is recorded when available.

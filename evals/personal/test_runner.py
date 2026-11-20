@@ -48,6 +48,62 @@ class TraceTests(unittest.TestCase):
             ],
         )
 
+    def test_sandbox_accepts_the_requested_csv_without_a_shell_call(self):
+        scenario = next(item for item in runner.load("agenticos") if item.id == "sandbox-file")
+        call = EvalCallRead(
+            tool="write_file",
+            args={"path": "/workspace/counts.csv", "content": "category,count\nA,5\nB,8\nC,13\n"},
+            outcome="blocked",
+        )
+        self.assertEqual(runner.trace_errors(scenario, answer="Write blocked.", calls=[call]), [])
+        wrong = call.model_copy(
+            update={"args": {"path": "counts.csv", "content": "category,count\nA,4"}}
+        )
+        self.assertEqual(
+            runner.trace_errors(scenario, answer="Write blocked.", calls=[wrong]),
+            ["missing expected call: execute"],
+        )
+
+    def test_context_reuse_checks_the_title_from_history(self):
+        scenario = next(item for item in runner.load("agenticos") if item.id == "context-reuse")
+        self.assertEqual(runner.trace_errors(scenario, answer="Pilot", calls=[]), [])
+        self.assertEqual(
+            runner.trace_errors(scenario, answer="I do not recall the title.", calls=[]),
+            ["expected the title Pilot from conversation history"],
+        )
+
+    def test_watch_attempt_matches_the_fixture_agent_and_source(self):
+        scenario = next(item for item in runner.load("agenticos") if item.id == "check-then-watch")
+        agent_id, connection_id = uuid4(), uuid4()
+        calls = [
+            EvalCallRead(tool="agenticos_list_watches", args={}, outcome="executed"),
+            EvalCallRead(tool="agenticos_list_my_connections", args={}, outcome="executed"),
+            EvalCallRead(
+                tool="agenticos_create_watch",
+                args={
+                    "agent_id": str(agent_id),
+                    "connection_id": str(connection_id),
+                    "every_minutes": 30,
+                },
+                outcome="blocked",
+            ),
+        ]
+        self.assertEqual(
+            runner.trace_errors(
+                scenario,
+                answer="Watch blocked.",
+                calls=calls,
+                watch_source=(agent_id, connection_id),
+            ),
+            [],
+        )
+        self.assertEqual(
+            runner.trace_errors(
+                scenario, answer="Watch blocked.", calls=calls, watch_source=(agent_id, uuid4())
+            ),
+            ["watch did not target the test source and agent at 30-minute cadence"],
+        )
+
     def test_judge_evidence_captures_a_bounded_official_release_excerpt(self):
         payload = json.dumps(
             {

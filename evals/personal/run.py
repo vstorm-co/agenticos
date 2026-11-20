@@ -9,10 +9,11 @@ import os
 import re
 import sys
 from collections.abc import AsyncIterator, Iterable, Iterator
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import AsyncExitStack, asynccontextmanager, contextmanager
 from dataclasses import replace
 from datetime import date, timedelta
 from decimal import Decimal
+from io import StringIO
 from pathlib import Path
 from time import perf_counter
 from typing import Literal, NamedTuple, TypedDict
@@ -334,7 +335,28 @@ def public_source_evidence(case_id: str, calls: list[RecordedToolCall]) -> list[
     return releases
 
 
-def trace_errors(scenario: Scenario, *, answer: str, calls: list[EvalCallRead]) -> list[str]:
+def sandbox_csv_attempt(calls: list[EvalCallRead]) -> bool:
+    for call in calls:
+        content = call.args.get("content")
+        if (
+            call.tool == "write_file"
+            and call.outcome in {"executed", "blocked", "replayed"}
+            and call.args.get("path") in ("counts.csv", "./counts.csv", "/workspace/counts.csv")
+            and isinstance(content, str)
+            and list(csv.reader(StringIO(content)))
+            == [["category", "count"], ["A", "5"], ["B", "8"], ["C", "13"]]
+        ):
+            return True
+    return False
+
+
+def trace_errors(
+    scenario: Scenario,
+    *,
+    answer: str,
+    calls: list[EvalCallRead],
+    watch_source: tuple[UUID, UUID] | None = None,
+) -> list[str]:
     if not answer.strip():
         return ["no final answer"]
     errors = [
@@ -342,6 +364,12 @@ def trace_errors(scenario: Scenario, *, answer: str, calls: list[EvalCallRead]) 
         for name in sorted({call.tool for call in calls} & set(scenario.forbidden))
     ]
     for expected in scenario.case.expected_tool_calls or []:
+        if (
+            scenario.id == "sandbox-file"
+            and expected.tool == "execute"
+            and sandbox_csv_attempt(calls)
+        ):
+            continue
         inbox_read = expected.tool == "agenticos_list_inbox_items"
         if not any(
             call.tool == expected.tool
@@ -350,6 +378,20 @@ def trace_errors(scenario: Scenario, *, answer: str, calls: list[EvalCallRead]) 
             for call in calls
         ):
             errors.append(f"missing expected call: {expected.tool}")
+    if watch_source is not None:
+        agent_id, connection_id = watch_source
+        if not any(
+            call.tool == "agenticos_create_watch"
+            and call.outcome != "divergent"
+            and call.args.get("agent_id") == str(agent_id)
+            and call.args.get("connection_id") == str(connection_id)
+            and call.args.get("every_minutes") == 30
+            and call.args.get("report_mode", "changes") == "changes"
+            for call in calls
+        ):
+            errors.append("watch did not target the test source and agent at 30-minute cadence")
+    if scenario.id == "context-reuse" and answer.strip() != "Pilot":
+        errors.append("expected the title Pilot from conversation history")
     if scenario.id == "natural-hello" and calls:
         errors.append("greeting called tools")
     return errors
@@ -701,49 +743,59 @@ async def evaluate_agenticos(
         )
         started = perf_counter()
         with progress.case(item.id):
-            conversation_id = await open_eval_conversation(ctx, item.id)
-            async with get_db_context() as db:
-                answer, run = await AgentRunnerService(db).execute(
-                    ctx,
-                    agent_id,
-                    item.case.input,
-                    surface=RunSurface.WEB,
-                    conversation_id=conversation_id,
-                    acts_for_sender=True,
-                    version_id=version_id,
-                    model_profile_id=profile_id,
-                    message_history=history,
-                    isolation=RunIsolation(),
-                    tool_calls=calls,
-                    run_limit_usd=remaining,
-                    reports_failure=True,
-                )
-                intercepted = await intercepted_tool_call_repo.list_for_run(
-                    db, run_id=run.id, organization_id=ctx.organization_id
-                )
-                trace = [EvalCallRead.model_validate(row) for row in trajectory(calls, intercepted)]
-                status = run.status
-                errors = (
-                    trace_errors(item, answer=answer, calls=trace)
-                    if status == RunStatus.COMPLETED.value
-                    else [f"run {status}"]
-                )
-                latency_ms = round((perf_counter() - started) * 1000)
-                evidence = Evidence(
-                    case=item.id,
-                    model=model,
-                    agent_version=version_id,
-                    attempt=run.id,
-                    errors=errors,
-                    output=answer if status == RunStatus.COMPLETED.value else "",
-                    calls=[call.model_dump(mode="json") for call in trace],
-                    source_evidence=public_source_evidence(item.id, calls),
-                    input_tokens=run.input_tokens,
-                    output_tokens=run.output_tokens,
-                    latency_ms=latency_ms,
-                    cost_usd=run.cost_usd,
-                    cost_is_partial=run.cost_is_partial,
-                )
+            async with AsyncExitStack() as fixtures:
+                watch_source = None
+                if item.id == "check-then-watch":
+                    from watch_fixture import notion_watch_source
+
+                    watch_source = await fixtures.enter_async_context(
+                        notion_watch_source(ctx, profile_id)
+                    )
+                conversation_id = await open_eval_conversation(ctx, item.id)
+                async with get_db_context() as db:
+                    answer, run = await AgentRunnerService(db).execute(
+                        ctx,
+                        agent_id,
+                        item.case.input,
+                        surface=RunSurface.WEB,
+                        conversation_id=conversation_id,
+                        acts_for_sender=True,
+                        version_id=version_id,
+                        model_profile_id=profile_id,
+                        message_history=history,
+                        isolation=RunIsolation(),
+                        tool_calls=calls,
+                        run_limit_usd=remaining,
+                        reports_failure=True,
+                    )
+                    intercepted = await intercepted_tool_call_repo.list_for_run(
+                        db, run_id=run.id, organization_id=ctx.organization_id
+                    )
+                    trace = [
+                        EvalCallRead.model_validate(row) for row in trajectory(calls, intercepted)
+                    ]
+                    status = run.status
+                    errors = (
+                        trace_errors(item, answer=answer, calls=trace, watch_source=watch_source)
+                        if status == RunStatus.COMPLETED.value
+                        else [f"run {status}"]
+                    )
+                    latency_ms = round((perf_counter() - started) * 1000)
+                    evidence = Evidence(
+                        case=item.id,
+                        model=model,
+                        agent_version=version_id,
+                        attempt=run.id,
+                        errors=errors,
+                        output=answer if status == RunStatus.COMPLETED.value else "",
+                        calls=[call.model_dump(mode="json") for call in trace],
+                        source_evidence=public_source_evidence(item.id, calls),
+                        input_tokens=run.input_tokens,
+                        output_tokens=run.output_tokens,
+                        latency_ms=latency_ms,
+                        cost_usd=run.cost_usd,
+                        cost_is_partial=run.cost_is_partial,
+                    )
         print(evidence.model_dump_json(), flush=True)
         progress.result(
             passed=not errors,
