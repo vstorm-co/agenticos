@@ -121,7 +121,7 @@ export function useOrganizations() {
   const setActiveOrgId = useOrgStore((s) => s.setActiveOrgId);
   const refusedOrgIds = useOrgStore((s) => s.refusedOrgIds);
 
-  const { data: orgs = [] } = useOrganizationList();
+  const { data: orgs = [], isError: listFailed } = useOrganizationList();
 
   // Default the active org once the list loads and nothing is selected yet -
   // preserves the behavior that used to live inside fetchOrgs, and is also what
@@ -317,6 +317,8 @@ export function useOrganizations() {
 
   return {
     orgs,
+    /** The `/orgs` request failed and nothing is cached: `orgs` is empty, not the caller's real list. */
+    listFailed: listFailed && orgs.length === 0,
     activeOrgId,
     activeOrg,
     fetchOrgs,

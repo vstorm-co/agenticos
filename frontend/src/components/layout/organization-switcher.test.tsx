@@ -16,6 +16,7 @@ const PERSONAL = { ...ACME, id: "personal", name: "Ada's organization", is_perso
 const organization = {
   orgs: [ACME, PERSONAL],
   activeOrg: ACME as typeof ACME | null,
+  listFailed: false,
   fetchOrgs: vi.fn(),
   switchOrg: vi.fn(),
 };
@@ -40,10 +41,19 @@ vi.mock("@/lib/locale-navigation", () => ({
 beforeEach(() => {
   organization.orgs = [ACME, PERSONAL];
   organization.activeOrg = ACME;
+  organization.listFailed = false;
   vi.clearAllMocks();
 });
 
 describe("OrganizationSwitcher", () => {
+  it("says the list could not load rather than asking to select from nothing", () => {
+    organization.orgs = [];
+    organization.activeOrg = null;
+    organization.listFailed = true;
+    render(<OrganizationSwitcher />);
+    expect(screen.getByRole("button", { name: "Organizations could not be loaded" })).toBeVisible();
+  });
+
   it("refreshes organizations each time its menu opens", async () => {
     const user = userEvent.setup();
     render(<OrganizationSwitcher />);
