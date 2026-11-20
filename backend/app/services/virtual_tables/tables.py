@@ -261,10 +261,14 @@ class TableOperations(Operations):
             columns=await self._columns(table, deadline=deadline),
         )
 
-    async def list_schema_versions(self, ctx: AuthContext, table_id: UUID) -> SchemaVersionList:
-        """Every schema version the table has had, oldest first."""
+    async def list_schema_versions(
+        self, ctx: AuthContext, table_id: UUID, *, version: int | None = None
+    ) -> SchemaVersionList:
+        """Schema history, optionally restricted to one exact version."""
         table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
-        versions = await virtual_table_repo.list_schema_versions(self.db, table_id=table.id)
+        versions = await virtual_table_repo.list_schema_versions(
+            self.db, table_id=table.id, version=version
+        )
         return SchemaVersionList(
             items=[SchemaVersionRead.model_validate(version) for version in versions]
         )

@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useOrgStore } from "@/stores";
 import { ActionConsentsDialog } from "./action-consents-dialog";
 import type { RoutineActionOptions } from "@/lib/routine-actions-api";
 import type { Trigger } from "@/types/triggers";
@@ -10,6 +11,7 @@ vi.mock("./source-consents-panel", () => ({ SourceConsentsPanel: () => null }));
 const state = vi.hoisted(() => ({
   data: {
     can_waive: true,
+    waive_blocked_reason: null as "permission" | "organization" | null,
     review_token: "review-1",
     items: [
       {
@@ -71,6 +73,7 @@ describe("routine action consent", () => {
     state.error = null;
     state.loading = false;
     state.data.can_waive = true;
+    state.data.waive_blocked_reason = null;
     state.data.review_token = "review-1";
     state.data.items = initialActions.map((item) => ({ ...item, consented: false }));
     state.data.unavailable_sources = [];
@@ -83,6 +86,25 @@ describe("routine action consent", () => {
     await userEvent.click(screen.getByRole("checkbox", { name: "execute" }));
     await userEvent.click(screen.getByRole("button", { name: "Save consent" }));
     expect(state.save).toHaveBeenCalledWith([{ capability_id: "sandbox", tool_id: "execute" }]);
+  });
+  it("says the organization turned standing consent off, and where to turn it on", () => {
+    useOrgStore.setState({ activeOrgId: "org-1" });
+    state.data.can_waive = false;
+    state.data.waive_blocked_reason = "organization";
+    render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+    expect(screen.getByText(/Your organization has turned off standing consent/)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open approval settings" })).toHaveAttribute(
+      "href",
+      "/orgs/org-1/members?tab=governance",
+    );
+  });
+  it("says the caller lacks the permission, with no settings link they could not use", () => {
+    useOrgStore.setState({ activeOrgId: "org-1" });
+    state.data.can_waive = false;
+    state.data.waive_blocked_reason = "permission";
+    render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+    expect(screen.getByText(/You don't have permission to decide approvals/)).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Open approval settings" })).toBeNull();
   });
   it("can revoke all while organization policy disallows new consent", async () => {
     state.data.can_waive = false;

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
 import { ESTIMATE, attempt, evalCase, evalRun } from "@/test-utils/eval-runs";
 import {
   isLive,
@@ -182,6 +183,31 @@ describe("useEvalComparison", () => {
 });
 
 describe("useEvalComparison while the run is live", () => {
+  it.each([true, false])("honors Retry-After before retrying, with live=%s", async (live) => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.mocked(apiClient.get)
+        .mockRejectedValueOnce(new ApiError(429, "Busy", undefined, "20"))
+        .mockResolvedValue({ verdict: "worse" });
+      const { result, unmount } = renderHook(() => useEvalComparison("run-1", { live }), {
+        wrapper,
+      });
+      await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(1));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      expect(apiClient.get).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      await waitFor(() => expect(result.current.comparison?.verdict).toBe("worse"));
+      expect(apiClient.get).toHaveBeenCalledTimes(2);
+      unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("reads the verdict again until the run finishes, so it does not freeze early", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {

@@ -312,6 +312,12 @@ the dataset to add other questions to.
 - At least one agent must get **better**.
 - A difference the check could not confirm is **within noise**: a warning, not a
   block.
+- An agent no whole question moved for, but with a criterion its re-asks
+  confirmed better and none worse, is **better on criteria**; one with a
+  criterion confirmed worse is **worse on criteria**. Neither moves the rule
+  above, which is about whole questions: they count with the better and the
+  worse agents in the bar, and the agent's details list each criterion with its
+  passes before and after.
 - An agent that could not be checked - no questions, questions nothing can grade
   or all taken from the change's own conversations, no access, no budget left, no
   published version, a run that failed, a check that was stopped - is
@@ -828,8 +834,8 @@ budget left, no published version, or a run that could not grade every answer.
 Agents you cannot see are counted.
 
 The result opens with a bar that counts the agents that came out better, with no
-change, worse, or not known. Under it is a row for each agent: better, no change,
-within noise, worse or unknown, with the agents to look at first on top. Each row
+change, worse, or not known. Under it is a row for each agent: better, better on
+criteria, no change, within noise, worse on criteria, worse or unknown, with the agents to look at first on top. Each row
 has a small bar of the questions it fixed against the ones it broke.
 
 A whole row opens to its details, by a click anywhere on it or by Enter or Space:

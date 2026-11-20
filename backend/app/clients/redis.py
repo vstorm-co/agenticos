@@ -17,6 +17,13 @@ end
 return 0
 """
 
+_EXPIRE_IF_EQUALS = """
+if redis.call("get", KEYS[1]) == ARGV[1] then
+  return redis.call("expire", KEYS[1], ARGV[2])
+end
+return 0
+"""
+
 _DELETE_IF_EQUAL = (
     "if redis.call('get', KEYS[1]) == ARGV[1] then "
     "return redis.call('del', KEYS[1]) else return 0 end"
@@ -355,6 +362,10 @@ class RedisClient:
             raise RuntimeError("Redis client not connected")
         deleted = await self.client.eval(_DELETE_IF_EQUALS, 1, key, value)
         return bool(deleted)
+
+    async def expire_if_equals(self, key: str, value: str, ttl: int) -> bool:
+        """Extend a lease only while its holder token still matches, atomically."""
+        return bool(await self.raw.eval(_EXPIRE_IF_EQUALS, 1, key, value, ttl))
 
     async def getdel(self, key: str) -> str | None:
         """Read a key and delete it in one atomic step (Redis GETDEL).

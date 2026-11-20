@@ -12,7 +12,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 
 from app.agents.spec import AgentSpec
-from app.api.deps import Auth, EvalRunSvc, require
+from app.api.deps import Auth, EvalRunSvc, limit_eval_comparison, require
 from app.api.public_api import ASSISTANT
 from app.core.permissions import Perm
 from app.schemas.eval_run import (
@@ -138,7 +138,7 @@ async def list_eval_run_cases(
 @router.get(
     "/eval-runs/{eval_run_id}/comparison",
     response_model=EvalComparisonRead,
-    dependencies=[ASSISTANT],
+    dependencies=[ASSISTANT, Depends(limit_eval_comparison, scope="function")],
 )
 async def compare_eval_run(
     eval_run_id: UUID,
@@ -149,7 +149,10 @@ async def compare_eval_run(
         None, description="Compare with this run instead of the default baseline"
     ),
 ) -> Any:
-    """A candidate arm against its baseline: the verdict, the flips and both axes."""
+    """A candidate arm against its baseline, with shared per-person and organization work limits.
+
+    Refuses excess or concurrent organization reads with 429 and Retry-After.
+    """
     return await service.compare(ctx, eval_run_id, arm_id=arm_id, baseline_run_id=baseline_run_id)
 
 

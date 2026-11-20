@@ -26,6 +26,93 @@ Two things are versioned separately from this file and worth knowing about:
 - Open chat visuals in a resizable side panel with Preview and Code views, preserving interactive state through expansion and closing.
 - Download SVG visuals as sharp PNG images from chat or full screen, with local conversion, preparation feedback and a retryable error message.
 
+## [1.85.1] - 2026-11-20
+
+### Fixed
+
+- The Nginx deployment template now forwards WebSocket upgrades on every API
+  path and accepts uploads up to the default 50 MiB file limit on both hosts.
+  Console authentication and ordinary JSON keep the 1 MiB limit. The deployment
+  guide states the Nginx 1.25.1 minimum and how to adapt 1.24.
+- The bundled Traefik now reads all static settings from Compose command arguments,
+  so the configured ACME email is used. A custom `TRAEFIK_NETWORK` also applies
+  to the proxy itself. Docker smoke tests cover both proxies and Compose variants.
+- Scripted deployments wait for the background worker to be healthy before
+  recording the release as healthy or advancing its rollback image pins.
+- Frontend image builds exclude every `.env.*` file except `.env.example`,
+  including `.env.production`, `.env.development` and `.env.test`.
+
+## [1.85.0] - 2026-11-19
+
+### Added
+
+- Judge an Improve attempt criterion by criterion when no whole question flips. A question passes only when every criterion passes, so an attempt that fixed one criterion while others still failed was reported as no change. It is now **Better on criteria** and is offered for accepting like a better attempt: the result names each criterion with its passes before and after on the held-out questions, then the criteria still failing, with the skill the helper attributed each one to. A criterion that got worse with no question broken is **Worse on criteria**. `better` and `regression` keep their whole-question meaning. A criterion counts only when asking again confirmed it, so an eval run now also re-asks a case where only a criterion flipped. The attempt row, the Accept step, notifications, the Architect's Improve tools and a skill check's agents show the same criteria. Eval comparisons expose `criteria`, at most 200 with the ones that moved first, and `skill_check_agents` gains a `criteria` column.
+
+- **Pinned test data beside Test draft.** A compact pin and count next to **Test draft** opens the names of steps that will hand on pinned test data instead of running, including when testing is blocked.
+- **Connected to this agent filter.** The agent builder's MCP server picker filters by **Organization connections** (formerly **Connected only**) and, separately, by servers **Connected to this agent**.
+- **Why standing consent is unavailable.** A routine's action consent dialog says whether the caller lacks `approvals:decide` or the organization turned standing consent off, and links an approver to the setting. `GET …/action-consents` returns this as `waive_blocked_reason`.
+
+### Changed
+
+- **Workflow tables follow their schema.** When a table's schema changes, the workflow editor moves each step bound to it onto the new schema by itself as long as every column the step reads still exists with the same type. When one was removed or retyped, the step shows a problem and **Update to the current schema** - on the step and in the toolbar's problem list - fixes every such step at once, keeping the chosen columns that still exist. Test runs and publishing no longer fail on a schema change the step never read. A run or publish refused over a table, or coming back to the editor's tab, makes the editor read its tables again at once, with no reload. A step adding or updating a record also drops values bound to a column archived since, which its form no longer shows and every run refused with `UNKNOWN_COLUMN`.
+- **Plainer workflow conflict banner.** A draft edited in two places offers **Keep my changes** and **Load their version** instead of **Overwrite** and **Reload**.
+- **Wide tables scroll sideways from anywhere.** A table that grows with the page keeps its horizontal scrollbar pinned to the bottom of the screen, so you no longer scroll to its last row to move sideways.
+- **Recognizable MCP steps.** Workflow steps use the MCP logo instead of a generic plug, and keep known service logos while their catalog metadata loads.
+
+### Fixed
+
+- Send the desktop stop signal when a run is cancelled during command dispatch, and bound cancellation-safe Redis channel cleanup.
+
+- Validate Draft-07 tuple-form output schemas locally instead of retaining an incompatible strict provider grammar.
+
+- Keep an Improve attempt with a confirmed whole-question change and a falling pass rate from being offered as **Better on criteria**. Criterion-only verdicts require no confirmed whole-question movement.
+
+- Preserve original skill IDs in stored Improve criterion evidence and reject name-only attributions when checking access. Resolve label-keyed record bindings to the same stable column before automatically rebinding a workflow to a newer table schema.
+
+- Keep persisted criterion notifications bound to original skill IDs across renames, deletion and name reuse. Workflow column labels now use the server’s exact Unicode case folding.
+
+- Recheck dataset and skill access for stored criterion-bearing notifications in the inbox and before delayed delivery, including after permissions are revoked.
+
+- Preserve record-writer bindings keyed by live labels, including escaped keys, and retain a result headline when criterion evidence is hidden.
+
+- Skip paid confirmation reruns when scoring settings or judge pins make the baseline incomparable.
+
+- Admit eval-backed verdict writes through the shared comparison budget before changing scores or cached results.
+
+- Skip criterion aggregation for invalid comparisons and retain scorer labels when notification details are shortened.
+
+- Keep criterion text, grades and skill attributions private when the reader cannot open their source datasets or named skills, including Improve read/list responses, skill checks and result notifications.
+
+- Distinguish equal criterion names by scorer in result tables and sentences. Select criterion-only improvements by their normalized confirmed movement over all graded pairs, before response and evidence detail limits.
+
+- Authorize comparison readers before shared metering and renew active comparison claims. Keep workflow schema warnings until dependent filters, sort columns and value bindings are edited. Preserve scorer identity in MCP criterion exports and name the selected attempt correctly in notifications.
+
+- Keep busy comparison refusals outside the per-minute read quotas. Price replacement answers from each model's frozen estimate, including grading, instead of averaging cheap and expensive models; older checks without those prices retain incomplete answers.
+
+- Bound interactive comparison reads with shared caller and organization rate budgets and one in-flight comparison per organization. Preserve confirmed regressions in truncated evidence, apply net pass counts consistently when naming gains, keep scorer identity in retry prompts, and accumulate tokens and latency across replacement answers.
+
+- Stream paired criterion grades in bounded batches before aggregation, including worker rerun detection, and keep scratch I/O off the API event loop.
+- Include filter, sort and record-write columns when checking safe workflow table rebinding.
+- Handle boolean free-value output schemas in strict-tool fallback, report criterion gains consistently through MCP, and exclude unconfirmed criterion noise from retry prompts.
+
+- Bound criterion aggregation in temporary scratch storage before selecting results, preserve current-agent training answers, cap earlier-attempt prompt excerpts, include criterion-only gains in fork defaults, and keep skill attribution within the judge namespace. Workflow rebinding requests only the schema versions it needs, and saved MCP connections resolve catalog keys to their compiled service logos.
+
+- Preserve every criterion when a literal name already uses a duplicate's numbered suffix, so its confirmed improvement or regression is still counted.
+
+- **Improve proposals on Anthropic models through OpenRouter.** The Improve helper's **Changes** step failed with HTTP 400, because the answer tool was sent strict and a proposal's free JSON value has no type in its schema. An answer schema a strict tool cannot express (a free JSON value, numeric or length bounds, `minItems` above one) now goes through a non-strict tool, still checked against the schema and sent back when it breaks it; any other schema keeps the provider's default, so Gemini still validates every call (#3146).
+
+- **Improve's Try again after a rejected attempt.** The next attempt read the rejected attempt's answers as if they were the agent's, so a fix that attempt had made looked done although the draft never got it, and it was not told what the earlier attempt changed. It now learns from the draft's own answers and reads each earlier attempt's change, verdict, the criteria that moved on its learning questions, and how many held-out questions it fixed and broke.
+
+- **Adding a capability in an Improve proposal.** A helper that named an addition `capabilities/<id>`, the way the prompt lists a bound capability, had it refused as not a target; it is now read as adding that capability.
+
+- **An Improve check that lost a few answers to timeouts.** An answer the model provider timed out on or failed left its question incomplete, so the comparison came out invalid and the session ran the whole check again at its full price. The check now asks just those answers once more before confirming the flips, when the session's budget still covers them; an answer that fails again leaves the check inconclusive as before.
+
+### Upgrading
+
+- Comparison clients must honor HTTP 429 and `Retry-After`: the console and API share 30 reads per person and 60 per organization per minute, with one comparison executing per organization. Manual verdict updates for eval-backed scores use the same shared allowance.
+
+- Migration `backend/alembic/versions/0342_criterion_verdicts.py` widens the improvement verdict, stop reason and skill-check agent state constraints and adds `skill_check_agents.criteria`. Its downgrade reads the new verdicts and states as `no_change`.
+
 ## [1.84.0] - 2026-11-18
 
 ### Added
@@ -22099,7 +22186,9 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.84.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.85.1...HEAD
+[1.85.1]: https://github.com/vstorm-co/agenticos/compare/v1.85.0...v1.85.1
+[1.85.0]: https://github.com/vstorm-co/agenticos/compare/v1.84.0...v1.85.0
 [1.84.0]: https://github.com/vstorm-co/agenticos/compare/v1.83.0...v1.84.0
 [1.83.0]: https://github.com/vstorm-co/agenticos/compare/v1.82.2...v1.83.0
 [1.82.2]: https://github.com/vstorm-co/agenticos/compare/v1.82.1...v1.82.2
