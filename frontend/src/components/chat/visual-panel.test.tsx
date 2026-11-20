@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -361,6 +361,37 @@ describe("TurnVisuals", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Image copied", {}));
     fireEvent.click(screen.getByRole("button", { name: "Copy as image" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+
+  it("keeps delayed copy and PNG feedback in the initiating chat workspace", async () => {
+    const copied = Promise.withResolvers<void>();
+    copySvgImage.mockReturnValueOnce(copied.promise);
+    const user = userEvent.setup();
+    const first = show([call()]);
+    const second = show([call({ id: "d2" })], { conversationId: "c2" });
+    fireEvent.click(within(second.container).getByRole("button", { name: "Copy as image" }));
+    await user.click(within(first.container).getByRole("button", { name: "Open side panel" }));
+    await user.click(within(second.container).getByRole("button", { name: "Open side panel" }));
+    const own = within(second.container).getByRole("region", { name: "Visual: Flow" });
+
+    await act(async () => copied.resolve());
+    expect(toast.success).toHaveBeenCalledWith("Image copied", { toasterId: own.id });
+
+    downloadSvgPng.mockRejectedValueOnce(new Error("No PNG"));
+    await user.click(within(own).getByRole("button", { name: "Download" }));
+    await user.click(screen.getByRole("menuitem", { name: "PNG — image for slides" }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("The PNG could not be downloaded. Try again.", {
+        toasterId: own.id,
+      }),
+    );
+
+    await user.click(within(own).getByRole("button", { name: "Close visual" }));
+    copySvgImage.mockRejectedValueOnce(new Error("No clipboard"));
+    fireEvent.click(within(second.container).getByRole("button", { name: "Copy as image" }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("The image could not be copied", {}),
+    );
   });
 
   it("downloads a PNG from the full-screen visual", async () => {

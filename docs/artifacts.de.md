@@ -1,5 +1,5 @@
 ---
-source_sha: "1733b0ef5881"
+source_sha: "f5258338362b"
 ---
 
 # Apps { #artifacts }
@@ -1010,8 +1010,9 @@ Visual-Vorschauen mit
 gespeicherten Bildern blockieren ebenfalls Kacheln: Koordinaten könnten die
 eingebetteten Bilddaten weitergeben. Nur Visuals ohne Bilder und Datenbindungen
 können den konfigurierten Kachelproxy nutzen. Erlaubte Kacheln werden parallel
-durch einen begrenzten Worker-Pool geladen; Anfragen über dem Warteschlangenlimit
-werden blockiert und im Bericht aufgeführt.
+durch einen begrenzten Worker-Pool geladen, mit höchstens 256 zugelassenen
+Kachelanfragen pro Vorschau. Weitere Anfragen werden blockiert und im Bericht
+aufgeführt, auch wenn frühere Anfragen bereits abgeschlossen sind.
 
 Das Bild braucht einen Browser, den der Betreiber bereitstellt, benannt durch
 [`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), und das Extra

@@ -337,6 +337,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
   const saved = useSavedVisualsStore((state) => state.saved);
   const [code, setCode] = useState(false);
   const workspace = useVisualWorkspace(call.id);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState(1);
   const [fullZoom, setFullZoom] = useState(1);
   const [saving, setSaving] = useState(false);
@@ -421,9 +422,9 @@ function VisualPanel({ call }: { call: ToolCall }) {
   const copyImage = async () => {
     try {
       await copySvgImage(content);
-      toast.success(t("imageCopied"), visualToastOptions());
+      toast.success(t("imageCopied"), visualToastOptions(workspaceRef.current));
     } catch {
-      toast.error(t("copyImageFailed"), visualToastOptions());
+      toast.error(t("copyImageFailed"), visualToastOptions(workspaceRef.current));
     }
   };
 
@@ -441,7 +442,14 @@ function VisualPanel({ call }: { call: ToolCall }) {
           <Copy className="size-3.5" />
         </IconButton>
       )}
-      {done && <VisualDownload title={shown.title} kind={shown.kind} content={content} />}
+      {done && (
+        <VisualDownload
+          title={shown.title}
+          kind={shown.kind}
+          content={content}
+          workspaceRef={workspaceRef}
+        />
+      )}
       {done && conversationId !== null && (
         <SaveToApps update={app !== undefined} onSave={() => setSaving(true)} />
       )}
@@ -469,6 +477,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
     // its state, what can be done with it - is a quiet line underneath.
     <div data-tour="chat-visual" className="group/visual w-full min-w-0">
       <VisualWorkspace
+        layerRef={workspaceRef}
         visualId={call.id}
         title={shown.title}
         content={shown.content}
@@ -476,7 +485,14 @@ function VisualPanel({ call }: { call: ToolCall }) {
         onCodeChange={setCode}
         actions={
           <>
-            {done && <VisualDownload title={shown.title} kind={shown.kind} content={content} />}
+            {done && (
+              <VisualDownload
+                title={shown.title}
+                kind={shown.kind}
+                content={content}
+                workspaceRef={workspaceRef}
+              />
+            )}
             {done && conversationId !== null && (
               <SaveToApps update={app !== undefined} onSave={() => setSaving(true)} />
             )}
@@ -492,6 +508,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
               visualId={call.id}
               title={shown.title}
               updates={app?.name ?? null}
+              workspaceRef={workspaceRef}
             />
           )
         }

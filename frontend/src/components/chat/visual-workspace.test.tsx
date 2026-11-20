@@ -146,24 +146,35 @@ describe("a visual workspace", () => {
     render(
       <>
         <ConsoleToaster closeLabel="Close global toast" />
-        <Harness />
+        <section aria-label="Main chat">
+          <Harness />
+        </section>
+        <section aria-label="Assistant chat">
+          <Harness conversationId="assistant" />
+        </section>
       </>,
     );
-    await user.click(screen.getByRole("button", { name: "Open one" }));
-    const workspace = screen.getByRole("region", { name: "Visual: one" });
+    const main = within(screen.getByRole("region", { name: "Main chat" }));
+    const assistant = within(screen.getByRole("region", { name: "Assistant chat" }));
+    await user.click(main.getByRole("button", { name: "Open one" }));
+    await user.click(assistant.getByRole("button", { name: "Open one" }));
+    const otherWorkspace = main.getByRole("region", { name: "Visual: one" });
+    const workspace = assistant.getByRole("region", { name: "Visual: one" });
     const openApp = vi.fn();
     act(() => {
       toast.success("Saved visual", {
-        ...visualToastOptions(),
+        ...visualToastOptions(workspace),
         action: { label: "Open app", onClick: openApp },
       });
-      toast.error("Failed visual", visualToastOptions());
+      toast.error("Failed visual", visualToastOptions(workspace));
     });
     expect(workspace).toContainElement(await screen.findByText("Saved visual"));
     expect(workspace).toContainElement(await screen.findByText("Failed visual"));
+    expect(otherWorkspace).not.toContainElement(screen.getByText("Saved visual"));
+    expect(otherWorkspace).not.toContainElement(screen.getByText("Failed visual"));
     await user.click(screen.getByRole("button", { name: "Open app" }));
     expect(openApp).toHaveBeenCalledOnce();
-    expect(screen.getByRole("region", { name: "Visual: one" })).toBe(workspace);
+    expect(assistant.getByRole("region", { name: "Visual: one" })).toBe(workspace);
   });
 
   it("only marks the open workspace as a popover while retaining the inline document", async () => {

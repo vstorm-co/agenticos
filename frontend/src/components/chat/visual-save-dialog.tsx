@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useState, type RefObject } from "react";
 import { toast } from "sonner";
 
 import {
@@ -31,6 +31,7 @@ interface VisualSaveDialogProps {
   title: string;
   /** The app an earlier version of this visual was saved as, which this updates. */
   updates: string | null;
+  workspaceRef?: RefObject<HTMLDivElement | null>;
 }
 
 /**
@@ -48,6 +49,7 @@ export function VisualSaveDialog({
   visualId,
   title: initialTitle,
   updates,
+  workspaceRef,
 }: VisualSaveDialogProps) {
   const t = useTranslations("chat.visuals");
   const tErrors = useTranslations("errors");
@@ -73,7 +75,7 @@ export function VisualSaveDialog({
       toast.success(
         app.unchanged ? t("savedUnchanged") : t("savedToast", { version: app.version }),
         {
-          ...visualToastOptions(),
+          ...visualToastOptions(workspaceRef?.current),
           action: { label: t("openApp"), onClick: () => router.push(app.url) },
         },
       );
@@ -85,7 +87,7 @@ export function VisualSaveDialog({
         tErrors,
       );
       setErrors(failure.fields);
-      if (failure.toast) toast.error(failure.toast, visualToastOptions());
+      if (failure.toast) toast.error(failure.toast, visualToastOptions(workspaceRef?.current));
     }
   }
 

@@ -85,7 +85,8 @@ MAX_RENDERS = 2
 browser's CPU is not, and a page may spin."""
 TILE_WORKERS = 8
 MAX_QUEUED_TILES = 32
-"""Per render: concurrent tile fetches and requests waiting for a worker."""
+MAX_TILE_REQUESTS = 256
+"""Per render: concurrent fetches, queued requests and total tile admissions."""
 MAX_NOTES = 10
 """How many of each kind of problem a render keeps."""
 _NOTE_CHARS = 300
@@ -326,6 +327,7 @@ class _Render:
         self.loaded = asyncio.Event()
         self.heard: asyncio.Queue[tuple[str, CdpPayload, str | None]] = asyncio.Queue()
         self.tiles: asyncio.Queue[tuple[CdpPayload, str | None]] = asyncio.Queue(MAX_QUEUED_TILES)
+        self.tile_requests = 0
         self.frames: list[tuple[str | None, int]] = []
         """The default execution context of every frame but the host's, newest last."""
 
@@ -515,10 +517,11 @@ class _Render:
             request = params.get("request") or {}
             url = str(request.get("url", ""))
             if request.get("method") == "GET" and self._allows_tile(url):
-                try:
-                    self.tiles.put_nowait((params, session_id))
-                except asyncio.QueueFull:
+                if self.tile_requests >= MAX_TILE_REQUESTS or self.tiles.full():
                     await self._refuse(params, session_id, url)
+                else:
+                    self.tiles.put_nowait((params, session_id))
+                    self.tile_requests += 1
             else:
                 await self._answer(params, session_id)
         elif method == "Target.attachedToTarget":

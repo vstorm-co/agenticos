@@ -522,6 +522,56 @@ class TestTheRender:
 
 
 class TestConcurrentTiles:
+    @pytest.mark.security
+    @pytest.mark.parametrize("body", [b"tile", None])
+    async def test_successive_tile_batches_cannot_exhaust_the_shared_allowance(
+        self, body: bytes | None, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.services import visual_render
+
+        monkeypatch.setattr(renderer, "MAX_TILE_REQUESTS", 3)
+        monkeypatch.setattr(renderer, "MAX_QUEUED_TILES", 2)
+        proxy = AsyncMock(return_value=visual_render.Answer(body=body))
+        monkeypatch.setattr(visual_render, "answer", proxy)
+
+        def successive_batches() -> TileBrowser:
+            browser = TileBrowser(6)
+            events = browser.events[-6:]
+            browser.events = [*browser.events[:-6], *events[:2]]
+            remaining = iter(events[2:])
+            send = browser.send
+
+            async def next_tile(
+                method: str, params: CdpPayload | None = None, *, session_id: str | None = None
+            ) -> CdpPayload:
+                result = await send(method, params, session_id=session_id)
+                if (
+                    method in ("Fetch.fulfillRequest", "Fetch.failRequest")
+                    and params
+                    and str(params["requestId"]).startswith("tile-")
+                ):
+                    event = next(remaining, None)
+                    if event is not None:
+                        name, payload, session = event
+                        browser.handlers[name](payload, session)
+                return result
+
+            monkeypatch.setattr(browser, "send", next_tile)
+            return browser
+
+        # A second render gets its own budget; each queue drains between batches.
+        for _ in range(2):
+            browser = successive_batches()
+            proxy.reset_mock()
+
+            drawn = await _render(browser, bindings=None, allow_tiles=True)
+
+            assert drawn.image == b"jpeg-bytes"
+            assert browser.remaining_tiles == 0
+            assert proxy.await_count == 3
+            assert all(browser.answered()[f"tile-{i}"] == "failRequest" for i in range(3, 6))
+            assert all(f"{renderer.tile_source()}6/0/{i}" in drawn.blocked for i in range(3, 6))
+
     async def test_slow_tiles_load_together_before_the_picture_is_taken(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

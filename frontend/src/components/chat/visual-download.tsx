@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type RefObject } from "react";
 import { Download, FileCode, FileImage } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -20,10 +20,11 @@ interface VisualDownloadProps {
   title: string;
   kind: VisualKind;
   content: string;
+  workspaceRef?: RefObject<HTMLDivElement | null>;
 }
 
 /** SVGs offer a PNG beside their source; other drawings keep their existing download. */
-export function VisualDownload({ title, kind, content }: VisualDownloadProps) {
+export function VisualDownload({ title, kind, content, workspaceRef }: VisualDownloadProps) {
   const t = useTranslations("chat.visuals");
   const { artifactUrl } = usePublicConfig();
   const [pending, setPending] = useState(false);
@@ -43,7 +44,7 @@ export function VisualDownload({ title, kind, content }: VisualDownloadProps) {
       await downloadSvgPng(title, content);
     } catch {
       setFailed(true);
-      toast.error(t("pngDownloadFailed"), visualToastOptions());
+      toast.error(t("pngDownloadFailed"), visualToastOptions(workspaceRef?.current));
     } finally {
       setPending(false);
     }

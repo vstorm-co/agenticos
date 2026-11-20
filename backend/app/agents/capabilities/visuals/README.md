@@ -63,7 +63,8 @@ endpoint supplied by an agent. A fresh isolated context, the frame's sandbox,
 and the bundled libraries bound what can run. Only image-free previews enable
 the configured tile proxy: page-selected coordinates could disclose inlined
 image bytes to the provider. Permitted tiles use a bounded concurrent pool;
-overflow is blocked and reported, and pending fetches stop before browser disposal.
+at most 256 tile requests are admitted per preview, overflow is blocked and
+reported, and pending fetches stop before browser disposal.
 The tool never inspects or resets the person's live page.
 
 Viewport width is bounded to 240-1600 CSS pixels, with light or dark appearance.

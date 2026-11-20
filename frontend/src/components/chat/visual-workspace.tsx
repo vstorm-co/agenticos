@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useCallback,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { Code2, Maximize2, Minimize2, Shapes, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -22,6 +30,7 @@ export function VisualWorkspace({
   onCodeChange,
   actions,
   dialogs,
+  layerRef,
   children,
 }: {
   visualId: string;
@@ -31,6 +40,7 @@ export function VisualWorkspace({
   onCodeChange: (code: boolean) => void;
   actions: ReactNode;
   dialogs?: ReactNode;
+  layerRef?: RefObject<HTMLDivElement | null>;
   children: ReactNode;
 }) {
   const t = useTranslations("chat.visuals");
@@ -43,10 +53,14 @@ export function VisualWorkspace({
       : inlineId;
   const layer = useRef<HTMLDivElement | null>(null);
   const [portal, setPortal] = useState<HTMLDivElement | null>(null);
-  const ref = useCallback((node: HTMLDivElement | null) => {
-    layer.current = node;
-    setPortal(node);
-  }, []);
+  const ref = useCallback(
+    (node: HTMLDivElement | null) => {
+      layer.current = node;
+      if (layerRef) layerRef.current = node;
+      setPortal(node);
+    },
+    [layerRef],
+  );
   const { bounds, inlineHeight, dismiss } = useVisualWorkspaceLayout(
     layer,
     workspace.slot,

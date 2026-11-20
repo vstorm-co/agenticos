@@ -1,5 +1,5 @@
 ---
-source_sha: "1733b0ef5881"
+source_sha: "f5258338362b"
 ---
 
 # Aplikacje { #artifacts }
@@ -911,8 +911,9 @@ wybrane przez stronę mogłyby ujawnić te rekordy dostawcy map.
 Podglądy wizualizacji zawierających zapisane obrazy również blokują kafelki:
 współrzędne mogłyby ujawnić bajty osadzonych obrazów. Z proxy kafelków wdrożenia
 mogą korzystać tylko wizualizacje bez obrazów i powiązań danych. Dozwolone kafelki
-ładują się równolegle w ograniczonej puli zadań; żądania przekraczające limit
-kolejki są blokowane i uwzględniane w raporcie.
+ładują się równolegle w ograniczonej puli zadań, z limitem 256 przyjętych żądań
+kafelków na podgląd. Nadmiarowe żądania są blokowane i uwzględniane w raporcie,
+nawet gdy wcześniejsze partie zostały już obsłużone.
 
 Obraz wymaga przeglądarki uruchomionej przez operatora, wskazanej w
 [`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), i dodatku

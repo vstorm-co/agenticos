@@ -7,9 +7,9 @@ const MEDIA: Record<VisualKind, string> = {
   mermaid: "text/plain",
 };
 
-/** Resolve on completion so asynchronous actions follow the currently open workspace. */
-export function visualToastOptions(): { toasterId?: string } {
-  const id = document.querySelector<HTMLElement>("[data-visual-workspace][popover]")?.id;
+/** Resolve the initiating workspace on completion, including closes while an action waited. */
+export function visualToastOptions(workspace?: HTMLElement | null): { toasterId?: string } {
+  const id = workspace?.isConnected && workspace.hasAttribute("popover") ? workspace.id : undefined;
   return id ? { toasterId: id } : {};
 }
 

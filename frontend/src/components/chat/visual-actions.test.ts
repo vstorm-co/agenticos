@@ -11,20 +11,31 @@ import {
 
 const BASE = "https://content.example.com/api/v1/artifact-content/";
 
-it("routes completed actions to the active workspace and falls back after it closes", () => {
+it("routes completed actions only to their own workspace and falls back after it closes", () => {
   expect(visualToastOptions()).toEqual({});
+  const other = document.createElement("div");
+  other.dataset.visualWorkspace = "docked";
+  other.id = "other-chat";
+  other.setAttribute("popover", "manual");
   const layer = document.createElement("div");
   layer.dataset.visualWorkspace = "docked";
   layer.id = "first";
   layer.setAttribute("popover", "manual");
-  document.body.append(layer);
+  document.body.append(other, layer);
   try {
-    expect(visualToastOptions()).toEqual({ toasterId: "first" });
+    expect(visualToastOptions(layer)).toEqual({ toasterId: "first" });
     layer.id = "second";
-    expect(visualToastOptions()).toEqual({ toasterId: "second" });
+    expect(visualToastOptions(layer)).toEqual({ toasterId: "second" });
     layer.removeAttribute("popover");
-    expect(visualToastOptions()).toEqual({});
+    expect(visualToastOptions(layer)).toEqual({});
+    layer.setAttribute("popover", "manual");
+    layer.id = "";
+    expect(visualToastOptions(layer)).toEqual({});
+    layer.id = "second";
+    layer.remove();
+    expect(visualToastOptions(layer)).toEqual({});
   } finally {
+    other.remove();
     layer.remove();
   }
 });
