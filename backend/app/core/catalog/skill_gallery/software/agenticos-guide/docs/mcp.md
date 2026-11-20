@@ -1338,7 +1338,9 @@ named after this deployment; switching it on binds it as
   change who has authority in the organization, and they run with the authority
   of the person the agent runs for, not of its author - so an agent a Builder
   publishes cannot invite an Admin through an Owner's run unasked. Their shield
-  cannot be switched off, and publishing refuses `never` on either.
+  cannot be switched off, and publishing refuses `never` on either. Each call
+  waits for its own answer: neither **Approve all** nor a remembered decision
+  lets one run.
 
 The **AgenticOS** template binds it this way, and so does every agent created from
 scratch, so an agent can look the platform up - and set up a routine, or switch the
