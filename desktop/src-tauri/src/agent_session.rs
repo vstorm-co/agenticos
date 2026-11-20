@@ -277,7 +277,7 @@ fn cline_environment(
 }
 
 /// Account mode never sees a key; key mode never falls back to the saved Google sign-in.
-pub(crate) fn antigravity_environment(
+fn antigravity_environment(
     command: &mut tokio::process::Command,
     api_key_mode: bool,
     key: Option<&std::ffi::OsStr>,
@@ -299,6 +299,80 @@ pub(crate) fn antigravity_environment(
         command.env("GEMINI_API_KEY", key);
     }
     Ok(())
+}
+
+/// The credential environment a provider's sessions get; the model catalog uses the same one.
+pub(crate) fn provider_environment(
+    command: &mut tokio::process::Command,
+    provider: crate::external_agents::Provider,
+) -> Result<(), Refusal> {
+    if matches!(
+        provider,
+        crate::external_agents::Provider::Antigravity | crate::external_agents::Provider::AntigravityApiKey
+    ) {
+        let key = std::env::var_os("GEMINI_API_KEY");
+        antigravity_environment(
+            command,
+            provider == crate::external_agents::Provider::AntigravityApiKey,
+            key.as_deref(),
+        )?;
+    }
+    if matches!(
+        provider,
+        crate::external_agents::Provider::Cline | crate::external_agents::Provider::ClineApiKey
+    ) {
+        let key = std::env::var_os("CLINE_API_KEY");
+        cline_environment(
+            command,
+            provider == crate::external_agents::Provider::ClineApiKey,
+            key.as_deref(),
+        )?;
+    }
+    if provider == crate::external_agents::Provider::MuseApiKey {
+        let key = std::env::var_os("META_API_KEY");
+        muse_key_environment(command, key.as_deref())?;
+    }
+    if provider == crate::external_agents::Provider::QwenSubscription {
+        qwen_subscription_environment(command);
+    }
+    if provider == crate::external_agents::Provider::Grok {
+        grok_account_environment(command);
+    }
+    if provider == crate::external_agents::Provider::MistralVibe {
+        vibe_environment(command);
+    }
+    if provider == crate::external_agents::Provider::Cursor {
+        cursor_account_environment(command);
+    }
+    Ok(())
+}
+
+/// The ACP login each template enforces before a session; `None` keeps the CLI's own choice.
+pub(crate) fn login_method(provider: crate::external_agents::Provider) -> Option<&'static str> {
+    match provider {
+        crate::external_agents::Provider::Antigravity => Some("oauth-personal"),
+        crate::external_agents::Provider::AntigravityApiKey => Some("gemini-api-key"),
+        crate::external_agents::Provider::Cursor => Some("cursor_login"),
+        crate::external_agents::Provider::Cline => Some("cline"),
+        crate::external_agents::Provider::MistralVibe => Some("browser-auth"),
+        crate::external_agents::Provider::Grok => Some("cached_token"),
+        crate::external_agents::Provider::Kimi => Some("login"),
+        crate::external_agents::Provider::Devin => Some("devin-browser"),
+        crate::external_agents::Provider::Muse => Some("muse-cli"),
+        crate::external_agents::Provider::MuseApiKey => Some("muse-api-key"),
+        _ => None,
+    }
+}
+
+/// CLIs that persist session model changes as user defaults choose their model themselves.
+pub(crate) fn cli_managed_models(provider: crate::external_agents::Provider) -> bool {
+    matches!(
+        provider,
+        crate::external_agents::Provider::MistralVibe
+            | crate::external_agents::Provider::Kimi
+            | crate::external_agents::Provider::QwenSubscription
+            | crate::external_agents::Provider::Devin
+    )
 }
 
 fn cursor_account_environment(command: &mut tokio::process::Command) {
@@ -372,44 +446,7 @@ fn spawn_with_bridge(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    if matches!(
-        provider,
-        crate::external_agents::Provider::Antigravity | crate::external_agents::Provider::AntigravityApiKey
-    ) {
-        let key = std::env::var_os("GEMINI_API_KEY");
-        antigravity_environment(
-            &mut command,
-            provider == crate::external_agents::Provider::AntigravityApiKey,
-            key.as_deref(),
-        )?;
-    }
-    if matches!(
-        provider,
-        crate::external_agents::Provider::Cline | crate::external_agents::Provider::ClineApiKey
-    ) {
-        let key = std::env::var_os("CLINE_API_KEY");
-        cline_environment(
-            &mut command,
-            provider == crate::external_agents::Provider::ClineApiKey,
-            key.as_deref(),
-        )?;
-    }
-    if provider == crate::external_agents::Provider::MuseApiKey {
-        let key = std::env::var_os("META_API_KEY");
-        muse_key_environment(&mut command, key.as_deref())?;
-    }
-    if provider == crate::external_agents::Provider::QwenSubscription {
-        qwen_subscription_environment(&mut command);
-    }
-    if provider == crate::external_agents::Provider::Grok {
-        grok_account_environment(&mut command);
-    }
-    if provider == crate::external_agents::Provider::MistralVibe {
-        vibe_environment(&mut command);
-    }
-    if provider == crate::external_agents::Provider::Cursor {
-        cursor_account_environment(&mut command);
-    }
+    provider_environment(&mut command, provider)?;
     if let Some(path_env) = path_env {
         command.env("PATH", path_env);
     }
@@ -1009,29 +1046,9 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     let id = uuid::Uuid::new_v4().simple().to_string();
     sessions.map.lock().await.insert(id.clone(), session);
     drop(slot);
-    let auth_method = external.as_ref().and_then(|item| match item.provider {
-        crate::external_agents::Provider::Antigravity => Some("oauth-personal"),
-        crate::external_agents::Provider::AntigravityApiKey => Some("gemini-api-key"),
-        crate::external_agents::Provider::Cursor => Some("cursor_login"),
-        crate::external_agents::Provider::Cline => Some("cline"),
-        crate::external_agents::Provider::MistralVibe => Some("browser-auth"),
-        crate::external_agents::Provider::Grok => Some("cached_token"),
-        crate::external_agents::Provider::Kimi => Some("login"),
-        crate::external_agents::Provider::Devin => Some("devin-browser"),
-        crate::external_agents::Provider::Muse => Some("muse-cli"),
-        crate::external_agents::Provider::MuseApiKey => Some("muse-api-key"),
-        _ => None,
-    });
+    let auth_method = external.as_ref().and_then(|item| login_method(item.provider));
     let runtime_name = external.as_ref().map(|item| item.name.as_str());
-    let configuration_policy = if external.as_ref().is_some_and(|item| {
-        matches!(
-            item.provider,
-            crate::external_agents::Provider::MistralVibe
-                | crate::external_agents::Provider::Kimi
-                | crate::external_agents::Provider::QwenSubscription
-                | crate::external_agents::Provider::Devin
-        )
-    }) {
+    let configuration_policy = if external.as_ref().is_some_and(|item| cli_managed_models(item.provider)) {
         "cli"
     } else {
         "session"

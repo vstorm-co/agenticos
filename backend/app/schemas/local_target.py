@@ -44,7 +44,7 @@ class RoutineLocalScope(BaseModel):
     operations: LocalOperations
 
 
-type NativeHarness = Literal["codex", "claude_code", "antigravity"]
+type NativeHarness = Literal["codex", "claude_code", "external"]
 
 
 class NativeConversationTarget(BaseModel):
@@ -58,18 +58,18 @@ class NativeConversationTarget(BaseModel):
     model_id: str | None = Field(default=None, pattern=r"^[^\x00-\x20\x7f]{1,256}$")
     timeout_minutes: int = Field(default=15, ge=1, le=60)
     registration_id: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9_-]{0,47}$")
-    """The Desktop ACP registration that runs Antigravity; builtin harnesses have none."""
+    """The Desktop ACP registration an external runtime launches; builtin harnesses have none."""
 
     @model_validator(mode="after")
     def _registration_matches_harness(self) -> Self:
-        if self.harness == "antigravity":
+        if self.harness == "external":
             if self.registration_id is None:
-                raise ValueError("Antigravity requires its Desktop registration")
+                raise ValueError("An external runtime requires its Desktop registration")
             if self.access != "edit":
-                # Its CLI documents no read-only mode, so none is promised.
-                raise ValueError("Antigravity runs with its own tool access; choose edit")
+                # Registered CLIs promise no read-only confinement, so none is offered.
+                raise ValueError("An external runtime runs with its own tool access; choose edit")
         elif self.registration_id is not None:
-            raise ValueError("Only an Antigravity runtime names a Desktop registration")
+            raise ValueError("Only an external runtime names a Desktop registration")
         return self
 
 

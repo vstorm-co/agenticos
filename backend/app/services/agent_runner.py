@@ -4348,7 +4348,7 @@ class AgentRunnerService:
             if not {
                 "codex": settings.CODEX_NATIVE_CONVERSATION_ENABLED,
                 "claude_code": settings.CLAUDE_NATIVE_CONVERSATION_ENABLED,
-                "antigravity": settings.ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED,
+                "external": settings.EXTERNAL_NATIVE_CONVERSATION_ENABLED,
             }[local.conversation_runtime.harness]:
                 raise BadRequestError(
                     message="The operator has not enabled an eligible deployment for this primary conversation runtime"

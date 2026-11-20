@@ -63,7 +63,7 @@ the active primary CLI session. Hosted/API/voice/scheduled execution and team
 callers cannot borrow the Desktop owner's account. This is a deliberate surface
 contract, not a claim that every platform feature is a native CLI feature.
 
-`CODEX_NATIVE_CONVERSATION_ENABLED` defaults to false. The operator enables it only for an eligible local/open-source deployment or an approved use; App Server authentication is not permitted for commercial or hosted services without the applicable approval. The switch is advertised by the provider catalog and enforced before credential/profile resolution. Account changes through Desktop stop and await only that builtin runtime, clear its saved continuations and consent, and serialize new launches against the account operation. Manual changes outside Desktop require a reset.
+`CODEX_NATIVE_CONVERSATION_ENABLED` defaults to true and lets an operator withhold the runtime. Each person uses their own CLI account and answers for its terms; App Server authentication is not permitted for commercial or hosted services without the applicable approval, and the picker states that the provider may limit or suspend an account. The switch is advertised by the provider catalog and enforced before credential/profile resolution. Account changes through Desktop stop and await only that builtin runtime, clear its saved continuations and consent, and serialize new launches against the account operation. Manual changes outside Desktop require a reset.
 
 The account's subscription/API/cloud choice and provider eligibility belong to
 the CLI and its operator. Using an unmodified CLI does not establish subscription
@@ -78,18 +78,22 @@ required; account and legal acceptance remain explicit PR follow-up conditions.
 - [Claude Code legal conditions](https://code.claude.com/docs/en/legal-and-compliance) require an unmodified binary, user-owned authentication and direct user billing; SDK/deployment eligibility must be verified separately.
 - `desktop/runtime/package.json` and its lockfile record the ACP/SDK versions actually shipped by this implementation.
 
-`CLAUDE_NATIVE_CONVERSATION_ENABLED` also defaults to false and is enforced independently. The SDK documentation requires prior approval to offer claude.ai login or consumer rate limits in a third-party product. Verify API/cloud credential eligibility or obtain that approval before enabling; never disable authentication methods inside the vendor binary. The feature is named “Claude Agent” under the SDK branding rules.
+`CLAUDE_NATIVE_CONVERSATION_ENABLED` also defaults to true and is enforced independently. The SDK documentation requires prior approval to offer claude.ai login or consumer rate limits in a third-party product; that risk belongs to the person's account, as the picker states. Never disable authentication methods inside the vendor binary. The feature is named “Claude Agent” under the SDK branding rules.
 
-## Antigravity runtime decision
+## Registered agent runtime decision
 
-Antigravity reuses the same model and receipt contract through a Desktop ACP
-registration rather than a managed builtin harness. The target names the
-registration; the server admits only a session whose Desktop reports one of the two
-Antigravity login methods (`oauth-personal` or `gemini-api-key`), so an arbitrary
-custom registration cannot be relabelled as Antigravity. The registration ID is part
-of the native scope. Its CLI documents no read-only mode, so only edit access is
-offered rather than an unenforced read-only promise. Desktop reads the account's
-model catalog with the registration's own login, without a model turn.
+Registered Desktop ACP agents reuse the same model and receipt contract instead of
+a managed builtin harness, so every template that speaks ACP is selectable once and
+gains no per-vendor runtime code. The target names the registration, which is part
+of the native scope; Desktop supplies the template's enforced login, environment
+and model constraints exactly as for delegated tasks, and Hermes receives the same
+private-conversation scope. The server refuses a registration whose Desktop session
+is not ACP (Pi's RPC templates) before any prompt. Registered CLIs promise no
+read-only confinement, so only edit access is offered. Desktop reads the model
+catalog with the registration's own login and environment, without a model turn,
+except for CLIs that choose their model themselves.
+`EXTERNAL_NATIVE_CONVERSATION_ENABLED` defaults to true and lets an operator
+withhold the runtime.
 
 Google's maintainer stated in [antigravity-cli#1493](https://github.com/google-antigravity/antigravity-cli/issues/1493)
 that consumer `oauth-personal` sign-in is limited to sessions a person drives
@@ -99,8 +103,7 @@ Whether a platform wrapping each typed turn counts was asked and is unanswered.
 Other clients, including T3 Code, offer the same sign-in. The account and its
 risk belong to the person, so the console states the restriction and requires an
 explicit risk acceptance before registering the personal template, and the chat
-picker repeats it. `ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED` defaults to true and
-lets an operator withhold the runtime. The separate Gemini API key template
+picker repeats it. The separate Gemini API key template
 (`gemini-api-key`, Desktop-inherited `GEMINI_API_KEY`, no sign-in fallback) avoids
 the restriction. Neither the switch nor the acceptance is evidence of Google's
 permission.

@@ -1,5 +1,5 @@
 ---
-source_sha: "d5b32aacf0c4"
+source_sha: "540b1f4e65db"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -848,27 +848,33 @@ Google beschränkt einige Drittanbietermodelle auf benannte Clients; AgenticOS
 identifiziert sich als AgenticOS und verspricht keinen Zugriff über den eigenen
 angekündigten Katalog hinaus.
 
-### Antigravity als Gesprächslaufzeit { #antigravity-runtime }
+### Registrierte Agenten als Gesprächslaufzeit { #external-runtime }
 
-Antigravity kann das Gespräch auch selbst beantworten, anstelle des Modellprofils
-des Agenten, nach [demselben Vertrag](#codex-conversation) wie Codex und Claude
-Agent. Wähle **Dieser Computer** mit Vollzugriff und dann **Gesprächslaufzeit →
-Antigravity · dieser Computer**. Bei mehreren Antigravity-Registrierungen wähle die
-gewünschte. Desktop liest die Modelle dieser Registrierung mit ihrer eigenen
-Anmeldung und ohne Modellturn und listet sie unter **Antigravity-Modell** auf.
-**Kontostandard** behält die Auswahl der CLI. Ein fehlgeschlagenes Lesen zeigt die
-Ablehnung der CLI und **Modelle erneut lesen**. Ein aufgeführtes Modell belegt weder
-Berechtigung noch verbleibendes Kontingent.
+Jeder unter **Externe ACP-Agenten** registrierte Agent kann das Gespräch auch selbst
+beantworten, anstelle des Modellprofils des Agenten, nach [demselben
+Vertrag](#codex-conversation) wie Codex und Claude Agent: Antigravity in beiden
+Modi, Cursor, Cline, Grok, Kimi, Qwen, Devin, Mistral Vibe, OpenCode und Go, Hermes,
+Muse und eigene ACP-Programme. Pi-Vorlagen sprechen RPC statt ACP und übernehmen nur
+delegierte Aufgaben.
+
+Wähle **Dieser Computer** mit Vollzugriff und dann **Gesprächslaufzeit → Externer
+Agent · dieser Computer**; bei mehreren Registrierungen wähle die gewünschte. Desktop
+liest die Modelle dieser Registrierung mit ihrer eigenen Anmeldung und ohne
+Modellturn und listet sie unter **Modell** auf; **Agentenstandard** behält die
+Auswahl der CLI. Mistral Vibe, Kimi, Qwen, Devin, Hermes und Muse wählen ihr Modell
+in den eigenen Einstellungen, daher wird keine Liste gelesen. Ein fehlgeschlagenes
+Lesen zeigt die Ablehnung der CLI und **Modelle erneut lesen**. Ein aufgeführtes
+Modell belegt weder Berechtigung noch verbleibendes Kontingent.
 
 Die Laufzeit ist verfügbar, solange der Betreiber nicht
-`ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED=false` setzt. Bei einer Registrierung mit
-persönlicher Google-Anmeldung wiederholt die Auswahl das bei der Registrierung
-akzeptierte Kontorisiko. Antigravity hat keinen
-dokumentierten Nur-Lese-Modus, daher läuft die Laufzeit immer mit eigenem
+`EXTERNAL_NATIVE_CONVERSATION_ENABLED=false` setzt. Registrierte CLIs versprechen
+keine Nur-Lese-Beschränkung, daher läuft die Laufzeit immer mit eigenem
 Werkzeugzugriff, und AgenticOS-Plattformwerkzeuge behalten die Freigaberichtlinie
-des Agenten. Der Server lehnt eine Registrierung, die Desktop nicht als eine der
-beiden Antigravity-Vorlagen meldet, vor jedem Prompt ab. Ein Wechsel von
-Registrierung oder Modell startet eine neue native Sitzung.
+des Agenten. Hermes erhält dasselbe private Zuhause pro Gespräch wie bei delegierten
+Aufgaben. Eine Registrierung, die kein ACP spricht, wird vor jedem Prompt abgelehnt,
+und ein Wechsel von Registrierung oder Modell startet eine neue native Sitzung. Bei
+einer persönlichen Antigravity-Anmeldung wiederholt die Auswahl das bei der
+Registrierung akzeptierte Kontorisiko.
 
 Anmeldung mit echtem Konto, Berechtigung, Kontingent, Widerruf und Fortsetzung nach
 einem Neustart erfordern weiterhin Abnahmetests. Unterstützte
@@ -1061,9 +1067,9 @@ Inception-Chat-IDs, Kontext-/Ausgabelimits und Preise stammen aus dem aktuellen 
 
 Private Sitzungsdateien sind auf Person, Agent, Chat, Ordner, Registrierung und Schlüsselrevision beschränkt. Temporäre Konfiguration wird mit dem eigenen Prozess entfernt. Entfernen oder erneutes Registrieren widerruft Fortsetzungen. Echte Schlüsseltests prüfen Streaming, 401/402, Kontingente, Neustart/Wiederaufnahme und Stop. Plattformwerkzeuge sind eine [ausdrückliche Option](#runtime-platform-tools). Siehe [Pi-Anbietererweiterungen](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) und [Inception-Modelle](https://www.inceptionlabs.ai/models).
 
-Der Betreiber darf `CODEX_NATIVE_CONVERSATION_ENABLED=true` nur für eine berechtigte lokale/Open-Source-Bereitstellung oder mit Genehmigung des Anbieters setzen. Der Schalter bestätigt keine Kontoberechtigung. App-Server-Authentifizierung ist ohne entsprechende Genehmigung für kommerzielle oder gehostete Dienste nicht zulässig. Ein Kontowechsel in Desktop beendet die Prozesse dieser Laufzeit und löscht ihre gespeicherten Fortsetzungen; setzen Sie die native Sitzung danach zurück. Auch manuelle Kontowechsel außerhalb von Desktop erfordern einen Reset.
+Codex und Claude Agent sind verfügbar, solange der Betreiber nicht `CODEX_NATIVE_CONVERSATION_ENABLED=false` oder `CLAUDE_NATIVE_CONVERSATION_ENABLED=false` setzt. Jede Person verwendet ihr eigenes CLI-Konto und verantwortet dessen Bedingungen. OpenAI erlaubt die App-Server-Authentifizierung für kommerzielle oder gehostete Dienste nicht ohne Genehmigung, und Anthropic verlangt eine vorherige Genehmigung, um claude.ai-Anmeldung oder Verbraucherlimits in einem SDK-Produkt eines Drittanbieters anzubieten; die Auswahl weist darauf hin, dass der Anbieter ein Konto einschränken oder sperren kann. Die Schalter belegen weder Berechtigung noch Genehmigung. Ein Anmeldewechsel über Desktop beendet die aktiven Prozesse dieser Laufzeit und löscht ihre gespeicherten Fortsetzungen; setze die native Sitzung vor dem Fortfahren zurück. Manuelle Kontowechsel außerhalb von Desktop erfordern ebenfalls ein ausdrückliches Zurücksetzen.
 
-Claude Agent verwendet den vorhandenen Claude-Code-ACP-Adapter als primäre Gesprächslaufzeit. Es gelten dieselben Regeln für private Sitzungen, Streaming, Werkzeuge und Wiederherstellung wie bei Codex. `CLAUDE_NATIVE_CONVERSATION_ENABLED` ist standardmäßig deaktiviert. Der Betreiber muss die Agent-SDK-Berechtigung und die gewählte API-/Cloud-Authentifizierung prüfen. Das Anbieten von claude.ai-Anmeldungen oder Verbraucherkontingenten in einem SDK-Produkt Dritter erfordert eine vorherige Genehmigung von Anthropic; der Schalter ersetzt diese nicht. Anbieterprogramm und Authentifizierungsmethoden bleiben unverändert. Die Oberfläche verwendet den erlaubten Namen „Claude Agent“.
+Claude Agent verwendet den vorhandenen, gepinnten Claude-Code-ACP-Adapter als primäre Gesprächslaufzeit, mit demselben Vertrag für private Sitzungen, Streaming, Werkzeugrichtlinie und Wiederherstellung wie Codex. Die Binärdatei des Anbieters und ihre Authentifizierungsmethoden bleiben unverändert. Die Oberfläche verwendet den zulässigen Namen „Claude Agent“.
 
 ## Hermes im eigenen Prozess {#hermes-runtime}
 

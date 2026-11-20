@@ -20,10 +20,10 @@ from tests.test_runtime_tools import bridge
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
-@pytest.mark.parametrize("harness", ["codex", "claude_code", "antigravity"])
+@pytest.mark.parametrize("harness", ["codex", "claude_code", "external"])
 async def test_primary_streaming_resumes_the_exact_native_receipt_and_sends_only_new_context(
     monkeypatch: pytest.MonkeyPatch,
-    harness: Literal["codex", "claude_code", "antigravity"],
+    harness: Literal["codex", "claude_code", "external"],
 ) -> None:
     context = _ctx(_local_workspace(), [])
     from app.agents.audience import RunAudience
@@ -35,8 +35,8 @@ async def test_primary_streaming_resumes_the_exact_native_receipt_and_sends_only
     context.tool_manager = tools._ctx.tool_manager
     sessions: dict[str, str] = {}
     prompts: list[dict[str, object]] = []
-    registration = "agy" if harness == "antigravity" else None
-    launched = "custom" if harness == "antigravity" else harness
+    registration = "agy" if harness == "external" else None
+    launched = "custom" if harness == "external" else harness
 
     class Pipe:
         def __init__(
@@ -47,13 +47,16 @@ async def test_primary_streaming_resumes_the_exact_native_receipt_and_sends_only
             resume_key: str,
             platform_tools: bool,
             custom_agent_id: str | None,
+            state_scope: str | None,
         ) -> None:
-            assert platform_tools
+            assert platform_tools and state_scope is not None
             assert (acp_harness, custom_agent_id) == (launched, registration)
             self.scope = resume_key
             self.session_id = None
             self.auth_method = "gemini-api-key" if registration else None
             self.configuration_policy = "session"
+            self.model_prefix = None
+            self.protocol = "acp"
 
         async def open(self) -> None:
             self.session_id = sessions.get(self.scope)
@@ -280,16 +283,16 @@ def test_operator_eligibility_is_separate_from_a_native_account(
     assert not native_runtime_availability().codex
     monkeypatch.setattr(settings, "CODEX_NATIVE_CONVERSATION_ENABLED", True)
     assert native_runtime_availability().codex
-    monkeypatch.setattr(settings, "ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED", False)
-    assert not native_runtime_availability().antigravity
-    monkeypatch.setattr(settings, "ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED", True)
-    assert native_runtime_availability().antigravity
+    monkeypatch.setattr(settings, "EXTERNAL_NATIVE_CONVERSATION_ENABLED", False)
+    assert not native_runtime_availability().external
+    monkeypatch.setattr(settings, "EXTERNAL_NATIVE_CONVERSATION_ENABLED", True)
+    assert native_runtime_availability().external
 
 
-async def test_an_antigravity_runtime_refuses_a_registration_without_google_personal_login(
+async def test_an_external_runtime_refuses_a_registration_that_does_not_speak_acp(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A registration id is the person's label; Desktop's login method proves the template."""
+    """Pi registrations take delegated tasks over RPC; a primary turn needs ACP."""
     context = _ctx(_local_workspace(), [])
     from app.agents.audience import RunAudience
 
@@ -303,7 +306,7 @@ async def test_an_antigravity_runtime_refuses_a_registration_without_google_pers
     class Pipe:
         def __init__(self, *_args, **_kwargs) -> None:
             self.session_id = None
-            self.auth_method = None
+            self.protocol = "pi_rpc"
 
         async def open(self) -> None:
             pass
@@ -315,11 +318,9 @@ async def test_an_antigravity_runtime_refuses_a_registration_without_google_pers
     monkeypatch.setattr(native, "DevicePipe", Pipe)
     monkeypatch.setattr(native, "run_task", run)
     model = NativeConversationModel(
-        harness="antigravity", epoch=str(uuid4()), access="edit", registration_id="custom-acp"
+        harness="external", epoch=str(uuid4()), access="edit", registration_id="pi-deepseek"
     )
-    with pytest.raises(
-        native.AcpError, match="not an Antigravity account or Gemini API key template"
-    ):
+    with pytest.raises(native.AcpError, match="does not speak ACP"):
         async with model.request_stream(
             [ModelRequest.user_text_prompt("hello")], None, ModelRequestParameters(), context
         ) as stream:
@@ -328,26 +329,26 @@ async def test_an_antigravity_runtime_refuses_a_registration_without_google_pers
     assert closed == [True]
 
 
-def test_only_antigravity_names_a_registration_and_it_never_claims_read_only() -> None:
+def test_only_an_external_runtime_names_a_registration_and_it_never_claims_read_only() -> None:
     from app.schemas.local_target import NativeConversationTarget
 
     epoch = uuid4()
     chosen = NativeConversationTarget(
-        harness="antigravity", session_epoch=epoch, access="edit", registration_id="agy"
+        harness="external", session_epoch=epoch, access="edit", registration_id="agy"
     )
     assert chosen.registration_id == "agy"
     with pytest.raises(ValidationError, match="requires its Desktop registration"):
-        NativeConversationTarget(harness="antigravity", session_epoch=epoch, access="edit")
+        NativeConversationTarget(harness="external", session_epoch=epoch, access="edit")
     with pytest.raises(ValidationError, match="choose edit"):
-        NativeConversationTarget(harness="antigravity", session_epoch=epoch, registration_id="agy")
-    with pytest.raises(ValidationError, match="Only an Antigravity runtime"):
+        NativeConversationTarget(harness="external", session_epoch=epoch, registration_id="agy")
+    with pytest.raises(ValidationError, match="Only an external runtime"):
         NativeConversationTarget(harness="codex", session_epoch=epoch, registration_id="agy")
     with pytest.raises(ValidationError):
         NativeConversationTarget(
-            harness="antigravity", session_epoch=epoch, access="edit", registration_id="../agy"
+            harness="external", session_epoch=epoch, access="edit", registration_id="../agy"
         )
     with pytest.raises(native.AcpError, match="Desktop registration"):
-        NativeConversationModel(harness="antigravity", epoch=str(epoch), access="edit")
+        NativeConversationModel(harness="external", epoch=str(epoch), access="edit")
     with pytest.raises(native.AcpError, match="Desktop registration"):
         NativeConversationModel(
             harness="codex", epoch=str(epoch), access="edit", registration_id="agy"

@@ -381,11 +381,11 @@ export interface LocalTarget {
   coding_model?: string | null;
   coding_effort?: string | null;
   conversation_runtime?: {
-    harness: "codex" | "claude_code" | "antigravity";
+    harness: "codex" | "claude_code" | "external";
     session_epoch: string;
     access: "read_only" | "edit";
     model_id?: string | null;
-    /** The Desktop registration running Antigravity; builtin harnesses have none. */
+    /** The Desktop ACP registration an external runtime launches; builtin harnesses have none. */
     registration_id?: string | null;
   } | null;
   model_service?: string | null;
@@ -627,7 +627,7 @@ export async function getLocalCodingOptions(id: LocalAgent["id"]): Promise<Local
   return parseLocalCodingOptions(await invokeShell("local_agent_options", { id }));
 }
 
-/** The signed-in Antigravity account's models, read by Desktop without a model turn. */
+/** A registered ACP agent's models under its own sign-in, read without a model turn. */
 export async function getExternalAgentOptions(id: string): Promise<LocalCodingOptions> {
   return parseLocalCodingOptions(await invokeShell("external_agent_options", { id }));
 }

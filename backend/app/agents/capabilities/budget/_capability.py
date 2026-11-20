@@ -173,7 +173,7 @@ def price_request(
         "openai-chatgpt",
         "native-codex",
         "native-claude_code",
-        "native-antigravity",
+        "native-external",
     }:
         # Subscription allowances have no verified per-token USD contract.
         return None

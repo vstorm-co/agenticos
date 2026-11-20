@@ -27,7 +27,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Choose an Antigravity registration as the primary Desktop conversation runtime, with the signed-in account's models read by Desktop, an `ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED` switch (on by default) to withhold it, and refusal of non-Antigravity registrations (#3177).
+- Choose any registered Desktop ACP agent, including Antigravity, Cursor, Cline, Grok, OpenCode and Hermes, as the conversation runtime, with the models of its own sign-in read by Desktop and an `EXTERNAL_NATIVE_CONVERSATION_ENABLED` switch (on by default) to withhold it (#3177).
+
+- Codex and Claude Agent conversation runtimes are now available by default; each person answers for their own CLI account's terms, which the picker states. Operators can still withhold them with `CODEX_NATIVE_CONVERSATION_ENABLED=false` or `CLAUDE_NATIVE_CONVERSATION_ENABLED=false`.
 
 - Add an Antigravity Gemini API key template that uses only the Desktop-inherited `GEMINI_API_KEY` and never falls back to the saved Google sign-in. Registering the personal sign-in template now requires accepting the risk that Google limits or suspends the account.
 

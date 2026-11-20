@@ -11,7 +11,7 @@ import { WorkOn } from "./work-on";
 
 vi.mock("@/hooks/use-model-providers", () => ({
   useProviderCatalog: () => ({
-    data: { native_runtimes: { codex: true, claude_code: true, antigravity: true } },
+    data: { native_runtimes: { codex: true, claude_code: true, external: true } },
   }),
 }));
 
@@ -524,11 +524,11 @@ it("keeps native primary selection distinct from local model services and clears
   expect(useWorkOnStore.getState().targetFor("chat")?.conversation_runtime?.harness).toBe("codex");
   await userEvent.selectOptions(
     screen.getByRole("combobox", { name: "Conversation runtime" }),
-    "antigravity",
+    "external",
   );
   expect(useWorkOnStore.getState().targetFor("chat")?.conversation_runtime).toMatchObject({
-    harness: "antigravity",
-    registration_id: "agy",
+    harness: "external",
+    registration_id: "other",
   });
   await userEvent.selectOptions(
     screen.getByRole("combobox", { name: "Model for this chat" }),

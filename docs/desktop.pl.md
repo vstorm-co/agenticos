@@ -1,5 +1,5 @@
 ---
-source_sha: "d5b32aacf0c4"
+source_sha: "540b1f4e65db"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -806,26 +806,31 @@ platformy AgenticOS. Użycie nie jest wyceniane w AgenticOS. Google ogranicza cz
 modeli firm trzecich do wskazanych klientów; AgenticOS przedstawia się jako
 AgenticOS i nie obiecuje dostępu poza katalogiem, który sam ogłasza.
 
-### Antigravity jako środowisko rozmowy { #antigravity-runtime }
+### Zarejestrowani agenci jako środowisko rozmowy { #external-runtime }
 
-Antigravity może też samo odpowiadać w rozmowie zamiast profilu modelu agenta,
-na [tych samych zasadach](#codex-conversation) co Codex i Claude Agent. Wybierz
-**Ten komputer** z **Pełnym dostępem**, a potem **Środowisko prowadzące rozmowę → Antigravity ·
-ten komputer**. Przy kilku rejestracjach Antigravity wybierz właściwą. Aplikacja
-desktopowa odczytuje modele tej rejestracji jej własnym logowaniem, bez tury modelu,
-i pokazuje je w polu **Model Antigravity**. **Domyślny dla konta** zachowuje wybór CLI.
-Nieudany odczyt pokazuje odmowę CLI i przycisk **Odczytaj modele ponownie**. Model na liście
-nie dowodzi uprawnień ani pozostałego limitu.
+Każdy agent zarejestrowany w **Zewnętrznych agentach ACP** może też sam odpowiadać
+w rozmowie zamiast profilu modelu agenta, na [tych samych zasadach](#codex-conversation)
+co Codex i Claude Agent: Antigravity w obu trybach, Cursor, Cline, Grok, Kimi, Qwen,
+Devin, Mistral Vibe, OpenCode i Go, Hermes, Muse oraz własne programy ACP. Szablony
+Pi używają RPC zamiast ACP i przyjmują tylko delegowane zadania.
+
+Wybierz **Ten komputer** z **Pełnym dostępem**, a potem **Środowisko prowadzące
+rozmowę → Zewnętrzny agent · ten komputer**; przy kilku rejestracjach wskaż właściwą.
+Aplikacja desktopowa odczytuje modele tej rejestracji jej własnym logowaniem, bez
+tury modelu, i pokazuje je w polu **Model**; **Domyślny agenta** zachowuje wybór CLI.
+Mistral Vibe, Kimi, Qwen, Devin, Hermes i Muse wybierają model we własnych
+ustawieniach, więc lista nie jest odczytywana. Nieudany odczyt pokazuje odmowę CLI
+i przycisk **Odczytaj modele ponownie**. Model na liście nie dowodzi uprawnień ani
+pozostałego limitu.
 
 Środowisko jest dostępne, chyba że operator ustawi
-`ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED=false`. Przy rejestracji z osobistym
-logowaniem Google lista wyboru przypomina o ryzyku zaakceptowanym przy rejestracji.
-Antigravity nie ma udokumentowanego
-trybu tylko do odczytu, więc środowisko zawsze działa z własnym dostępem do narzędzi,
-a narzędzia platformy AgenticOS zachowują politykę zatwierdzania agenta. Serwer
-odrzuca rejestrację, której aplikacja desktopowa nie zgłasza jako jednego z dwóch
-szablonów Antigravity, zanim wyśle jakikolwiek prompt. Zmiana rejestracji lub
-modelu rozpoczyna nową sesję natywną.
+`EXTERNAL_NATIVE_CONVERSATION_ENABLED=false`. Zarejestrowane CLI nie obiecują trybu
+tylko do odczytu, więc środowisko zawsze działa z własnym dostępem do narzędzi,
+a narzędzia platformy AgenticOS zachowują politykę zatwierdzania agenta. Hermes
+dostaje ten sam prywatny katalog domowy na rozmowę co przy delegowanych zadaniach.
+Rejestracja, która nie mówi ACP, jest odrzucana przed wysłaniem promptu, a zmiana
+rejestracji lub modelu rozpoczyna nową sesję natywną. Przy osobistym logowaniu
+Antigravity lista wyboru przypomina o ryzyku zaakceptowanym przy rejestracji.
 
 Logowanie na prawdziwym koncie, uprawnienia, limity, odwołanie dostępu i wznowienie
 po restarcie nadal wymagają testów akceptacyjnych. Obsługiwane metody
@@ -1010,9 +1015,9 @@ Identyfikatory modeli czatu Inception, limity kontekstu i odpowiedzi oraz ceny p
 
 Prywatne pliki sesji są ograniczone do osoby, agenta, czatu, folderu, rejestracji i wersji wybranego klucza. Konfiguracja tymczasowa znika wraz z własnym procesem. Usuń lub zarejestruj ponownie wpis natywny, aby cofnąć wznowienia. Testy prawdziwego klucza obejmują strumieniowanie, 401/402, limity, restart/wznowienie i Stop. Przekazywanie narzędzi platformy jest [osobną opcją](#runtime-platform-tools). Zobacz [rozszerzenia dostawców Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) i [modele Inception](https://www.inceptionlabs.ai/models).
 
-Operator może ustawić `CODEX_NATIVE_CONVERSATION_ENABLED=true` wyłącznie dla uprawnionego wdrożenia lokalnego/open source lub po uzyskaniu zgody dostawcy. Przełącznik nie potwierdza uprawnień konta. Uwierzytelnianie App Server nie jest dozwolone w usługach komercyjnych ani hostowanych bez odpowiedniej zgody. Zmiana logowania w aplikacji zatrzymuje procesy tego środowiska i usuwa zapisane wznowienia; przed kontynuacją zresetuj sesję natywną. Ręczna zmiana konta poza aplikacją również wymaga resetu.
+Codex i Claude Agent są dostępne, chyba że operator ustawi `CODEX_NATIVE_CONVERSATION_ENABLED=false` lub `CLAUDE_NATIVE_CONVERSATION_ENABLED=false`. Każda osoba używa własnego konta CLI i odpowiada za jego warunki. OpenAI nie pozwala na uwierzytelnianie App Server w usługach komercyjnych lub hostowanych bez zgody, a Anthropic wymaga uprzedniej zgody na oferowanie logowania claude.ai lub limitów konsumenckich w produkcie SDK firmy trzeciej; lista wyboru informuje, że dostawca może ograniczyć lub zawiesić konto. Przełączniki nie potwierdzają ani uprawnień, ani zgody. Zmiana logowania przez aplikację desktopową zatrzymuje aktywne procesy tego środowiska i czyści zapisane kontynuacje; przed kontynuacją zresetuj sesję natywną. Ręczna zmiana konta poza aplikacją desktopową także wymaga jawnego resetu.
 
-Claude Agent korzysta z istniejącego adaptera ACP Claude Code jako głównego środowiska rozmowy. Obowiązują te same zasady prywatnej sesji, strumieniowania, narzędzi i odzyskiwania co dla Codexa. Osobny przełącznik `CLAUDE_NATIVE_CONVERSATION_ENABLED` jest domyślnie wyłączony. Operator musi sprawdzić uprawnienia do wdrożenia Agent SDK oraz wybraną metodę uwierzytelniania API/cloud. Oferowanie logowania claude.ai lub limitów planu konsumenckiego w cudzym produkcie SDK wymaga wcześniejszej zgody Anthropic; przełącznik jej nie zapewnia. Program dostawcy i metody logowania pozostają niezmienione. Interfejs używa dozwolonej nazwy „Claude Agent”.
+Claude Agent korzysta z istniejącego, przypiętego adaptera ACP Claude Code jako głównego środowiska rozmowy, z tymi samymi zasadami prywatnej sesji, strumieniowania, polityki narzędzi i odzyskiwania co Codex. Plik binarny dostawcy i jego metody uwierzytelniania pozostają niezmienione. Interfejs używa dozwolonej nazwy „Claude Agent”.
 
 ## Hermes w osobnym procesie {#hermes-runtime}
 

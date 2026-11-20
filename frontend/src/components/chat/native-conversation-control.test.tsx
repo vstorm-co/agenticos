@@ -1,7 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ExternalAgent, LocalTarget } from "@/lib/desktop/commands";
-import { NativeConversationControl } from "./native-conversation-control";
+import {
+  conversationRegistrations,
+  NativeConversationControl,
+} from "./native-conversation-control";
 
 const options = vi.hoisted(() => ({
   current: {} as Record<string, unknown>,
@@ -166,48 +169,48 @@ describe("native primary conversation choice", () => {
     expect(changed.mock.lastCall?.[0].conversation_runtime?.session_epoch).not.toBe("original");
   });
 
-  it("is unavailable until the operator enables it and Desktop has a registration", () => {
+  it("keeps external agents unavailable until enabled and registered", () => {
     const { rerender } = render(
       <NativeConversationControl
         claudeEnabled
         codexEnabled
         target={base}
-        antigravityRegistrations={[agy("agy", "Antigravity")]}
+        registrations={[agy("agy", "Antigravity")]}
         onChange={vi.fn()}
       />,
     );
-    expect(screen.getByRole("option", { name: "Antigravity · this computer" })).toBeDisabled();
+    expect(screen.getByRole("option", { name: "External agent · this computer" })).toBeDisabled();
     rerender(
       <NativeConversationControl
         claudeEnabled
         codexEnabled
-        antigravityEnabled
+        externalEnabled
         target={base}
         onChange={vi.fn()}
       />,
     );
-    expect(screen.getByRole("option", { name: "Antigravity · this computer" })).toBeDisabled();
-    expect(screen.getByText(/Register the Antigravity CLI/)).toBeVisible();
+    expect(screen.getByRole("option", { name: "External agent · this computer" })).toBeDisabled();
+    expect(screen.getByText(/Register an ACP agent/)).toBeVisible();
   });
 
-  it("selects Antigravity on its first registration with its own tool access", () => {
+  it("selects an external agent on its first registration with its own tool access", () => {
     const changed = vi.fn<(target: LocalTarget) => void>();
     render(
       <NativeConversationControl
         claudeEnabled
         codexEnabled
-        antigravityEnabled
-        antigravityRegistrations={[agy("agy", "Antigravity"), agy("agy-work", "Work account")]}
+        externalEnabled
+        registrations={[agy("agy", "Antigravity"), agy("agy-work", "Work account")]}
         target={{ ...base, model_service: "local-model" }}
         onChange={changed}
       />,
     );
     fireEvent.change(screen.getByRole("combobox", { name: "Conversation runtime" }), {
-      target: { value: "antigravity" },
+      target: { value: "external" },
     });
     expect(changed.mock.lastCall?.[0]).toMatchObject({
       model_service: null,
-      conversation_runtime: { harness: "antigravity", access: "edit", registration_id: "agy" },
+      conversation_runtime: { harness: "external", access: "edit", registration_id: "agy" },
     });
   });
 
@@ -218,7 +221,7 @@ describe("native primary conversation choice", () => {
     const chosen: LocalTarget = {
       ...base,
       conversation_runtime: {
-        harness: "antigravity",
+        harness: "external",
         session_epoch: "original",
         access: "edit",
         registration_id: "agy",
@@ -228,8 +231,8 @@ describe("native primary conversation choice", () => {
       <NativeConversationControl
         claudeEnabled
         codexEnabled
-        antigravityEnabled
-        antigravityRegistrations={[agy("agy", "Antigravity"), agy("agy-work", "Work account")]}
+        externalEnabled
+        registrations={[agy("agy", "Antigravity"), agy("agy-work", "Work account")]}
         target={chosen}
         onChange={changed}
       />,
@@ -237,15 +240,15 @@ describe("native primary conversation choice", () => {
     expect(options.requested).toContain("agy");
     expect(screen.queryByRole("combobox", { name: "Runtime tool access" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Native model ID (optional)" })).toBeNull();
-    expect(screen.getByRole("option", { name: "Account default (gemini-3-pro)" })).toBeVisible();
+    expect(screen.getByRole("option", { name: "Agent default (gemini-3-pro)" })).toBeVisible();
     expect(screen.getByText(/uses your Google personal sign-in/)).toBeVisible();
-    fireEvent.change(screen.getByRole("combobox", { name: "Antigravity model" }), {
+    fireEvent.change(screen.getByRole("combobox", { name: "Model" }), {
       target: { value: "gemini-3-flash" },
     });
     const picked = changed.mock.lastCall?.[0].conversation_runtime;
     expect(picked).toMatchObject({ model_id: "gemini-3-flash", registration_id: "agy" });
     expect(picked?.session_epoch).not.toBe("original");
-    fireEvent.change(screen.getByRole("combobox", { name: "Antigravity registration" }), {
+    fireEvent.change(screen.getByRole("combobox", { name: "Agent" }), {
       target: { value: "agy-work" },
     });
     expect(changed.mock.lastCall?.[0].conversation_runtime).toMatchObject({
@@ -267,14 +270,12 @@ describe("native primary conversation choice", () => {
       <NativeConversationControl
         claudeEnabled
         codexEnabled
-        antigravityEnabled
-        antigravityRegistrations={[
-          { ...agy("agy", "Antigravity"), provider: "antigravity_api_key" },
-        ]}
+        externalEnabled
+        registrations={[{ ...agy("agy", "Antigravity"), provider: "antigravity_api_key" }]}
         target={{
           ...base,
           conversation_runtime: {
-            harness: "antigravity",
+            harness: "external",
             session_epoch: "original",
             access: "edit",
             registration_id: "agy",
@@ -285,8 +286,8 @@ describe("native primary conversation choice", () => {
     );
     expect(screen.getByRole("alert")).toHaveTextContent(/Google personal login/);
     expect(screen.queryByText(/uses your Google personal sign-in/)).toBeNull();
-    expect(screen.getByRole("combobox", { name: "Antigravity model" })).toBeDisabled();
-    expect(screen.queryByRole("combobox", { name: "Antigravity registration" })).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Model" })).toBeDisabled();
+    expect(screen.queryByRole("combobox", { name: "Agent" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Read models again" }));
     expect(refetch).toHaveBeenCalled();
   });
@@ -296,7 +297,7 @@ describe("native primary conversation choice", () => {
     const target: LocalTarget = {
       ...base,
       conversation_runtime: {
-        harness: "antigravity",
+        harness: "external",
         session_epoch: "original",
         access: "edit",
         registration_id: "agy",
@@ -306,14 +307,14 @@ describe("native primary conversation choice", () => {
       <NativeConversationControl
         claudeEnabled
         codexEnabled
-        antigravityEnabled
-        antigravityRegistrations={[agy("agy", "Antigravity")]}
+        externalEnabled
+        registrations={[agy("agy", "Antigravity")]}
         target={target}
         onChange={vi.fn()}
       />,
     );
     expect(screen.getByText(/Reading the models/)).toBeVisible();
-    expect(screen.getByRole("option", { name: "Account default" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Agent default" })).toBeInTheDocument();
     options.current = {
       isSuccess: false,
       isPending: false,
@@ -325,12 +326,51 @@ describe("native primary conversation choice", () => {
       <NativeConversationControl
         claudeEnabled
         codexEnabled
-        antigravityEnabled
-        antigravityRegistrations={[agy("agy", "Antigravity")]}
+        externalEnabled
+        registrations={[agy("agy", "Antigravity")]}
         target={target}
         onChange={vi.fn()}
       />,
     );
-    expect(screen.getByRole("alert")).toHaveTextContent(/Could not read this account's models/);
+    expect(screen.getByRole("alert")).toHaveTextContent(/Could not read this agent's models/);
+  });
+
+  it("leaves the model to agents that choose it themselves and states the account terms", () => {
+    options.requested.length = 0;
+    render(
+      <NativeConversationControl
+        claudeEnabled
+        codexEnabled
+        externalEnabled
+        registrations={[{ ...agy("kimi", "Kimi Code"), provider: "kimi" }]}
+        target={{
+          ...base,
+          conversation_runtime: {
+            harness: "external",
+            session_epoch: "original",
+            access: "edit",
+            registration_id: "kimi",
+          },
+        }}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("This agent chooses its model in its own settings.")).toBeVisible();
+    expect(screen.queryByRole("combobox", { name: "Model" })).toBeNull();
+    expect(options.requested).toEqual([]);
+    expect(screen.getByText(/that risk is yours/)).toBeVisible();
+  });
+
+  it("offers every registration that speaks ACP and keeps Pi for delegation", () => {
+    const registrations = [
+      agy("agy", "Antigravity"),
+      { ...agy("pi", "Pi"), provider: "pi" as const },
+      { ...agy("pi-deepseek", "Pi · DeepSeek"), provider: "pi_deepseek" as const },
+      { ...agy("cursor", "Cursor"), provider: "cursor" as const },
+    ];
+    expect(conversationRegistrations(registrations).map((item) => item.id)).toEqual([
+      "agy",
+      "cursor",
+    ]);
   });
 });

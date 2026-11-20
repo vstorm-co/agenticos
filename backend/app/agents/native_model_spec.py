@@ -17,7 +17,7 @@ from app.schemas.local_target import NativeConversationTarget, NativeHarness
 NATIVE_RUNTIME_LABELS: Mapping[NativeHarness, str] = {
     "codex": "Codex",
     "claude_code": "Claude Agent",
-    "antigravity": "Antigravity",
+    "external": "External agent",
 }
 """Display names; "Claude Agent" is the name the SDK branding rules permit."""
 

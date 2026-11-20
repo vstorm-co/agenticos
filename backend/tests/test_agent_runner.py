@@ -9095,8 +9095,8 @@ class TestPerRunLocalServices:
         [
             ("codex", True, None),
             ("claude_code", True, None),
-            ("antigravity", True, None),
-            ("antigravity", False, "has not enabled"),
+            ("external", True, None),
+            ("external", False, "has not enabled"),
             ("codex", True, "plain text output"),
         ],
     )
@@ -9108,7 +9108,7 @@ class TestPerRunLocalServices:
         from app.schemas.local_target import LocalTarget, NativeConversationTarget
         from app.services import device_hub
 
-        for name in ("CODEX", "CLAUDE", "ANTIGRAVITY"):
+        for name in ("CODEX", "CLAUDE", "EXTERNAL"):
             monkeypatch.setattr(settings, f"{name}_NATIVE_CONVERSATION_ENABLED", enabled)
         ctx = _ctx()
         session = uuid.uuid4()
@@ -9117,7 +9117,7 @@ class TestPerRunLocalServices:
             session_epoch=uuid.uuid4(),
             access="edit",
             model_id="account-model",
-            registration_id="agy" if harness == "antigravity" else None,
+            registration_id="agy" if harness == "external" else None,
         )
         target = LocalTarget(folder="/approved", mode="full_access", conversation_runtime=runtime)
         assert ctx.user_id is not None

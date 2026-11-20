@@ -35,7 +35,12 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RequestUsage
 
 from app.agents.capabilities.budget import assert_ambient_budget, record_ambient_usage
-from app.agents.capabilities.coding_agent._acp import AcpError, DevicePipe, run_task
+from app.agents.capabilities.coding_agent._acp import (
+    AcpError,
+    DevicePipe,
+    private_state_scope,
+    run_task,
+)
 from app.agents.capabilities.coding_agent._harness import Access, AcpHarness, LiveItem, Said
 from app.agents.capabilities.coding_agent._narration import Narration
 from app.agents.deps import AgentDeps
@@ -47,9 +52,6 @@ from app.schemas.local_target import NativeHarness
 from app.services.device_hub import DeviceWorkspace
 
 _RECEIPT = "agenticos_native_conversation"
-
-ANTIGRAVITY_LOGINS = frozenset({"oauth-personal", "gemini-api-key"})
-"""What Desktop enforces for its two Antigravity templates, and for no other registration."""
 
 
 class NativeReceipt(BaseModel):
@@ -136,8 +138,8 @@ class NativeConversationModel(Model):
         registration_id: str | None = None,
     ) -> None:
         super().__init__()
-        if (harness == "antigravity") != (registration_id is not None):
-            raise AcpError("Only an Antigravity runtime runs through a Desktop registration")
+        if (harness == "external") != (registration_id is not None):
+            raise AcpError("Only an external runtime runs through a Desktop registration")
         self.registration_id = registration_id
         self.harness = harness
         self.epoch = epoch
@@ -311,13 +313,15 @@ class NativeConversationModel(Model):
         tools = RuntimeTools(
             ctx, readonly_tools=(self.readonly_tools or {}) if self.access == "read_only" else None
         )
-        acp_harness: AcpHarness = "custom" if self.harness == "antigravity" else self.harness
+        acp_harness: AcpHarness = "custom" if self.harness == "external" else self.harness
         pipe = DevicePipe(
             workspace,
             acp_harness,
             resume_key=scope,
             platform_tools=True,
             custom_agent_id=self.registration_id,
+            # Hermes keeps one home per private conversation; other runtimes ignore it.
+            state_scope=private_state_scope(deps),
         )
         narration = Narration.for_call(deps, f"primary-runtime-{uuid4()}", acp_harness)
         said: list[str] = []
@@ -343,9 +347,9 @@ class NativeConversationModel(Model):
         settled = False
         try:
             await pipe.open()
-            if self.harness == "antigravity" and pipe.auth_method not in ANTIGRAVITY_LOGINS:
+            if pipe.protocol != "acp":
                 raise AcpError(
-                    "This Desktop registration is not an Antigravity account or Gemini API key template. No prompt was sent."
+                    "This Desktop registration does not speak ACP and can only take delegated tasks. No prompt was sent."
                 )
             if pipe.session_id != (previous.session_id if previous is not None else None):
                 raise AcpError(
@@ -363,6 +367,7 @@ class NativeConversationModel(Model):
                 previous_session=pipe.session_id,
                 auth_method=pipe.auth_method,
                 configuration_policy=pipe.configuration_policy,
+                model_prefix=pipe.model_prefix,
                 remember=pipe.remember,
                 runtime_questions=deps.runtime_questions,
                 platform_tools=tools,

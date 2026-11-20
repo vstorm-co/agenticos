@@ -50,14 +50,14 @@ def find_env_file() -> Path | None:
 class Settings(BaseSettings):
     """Application settings."""
 
-    CLAUDE_NATIVE_CONVERSATION_ENABLED: bool = False
-    """Enable only after verifying SDK deployment and selected credential eligibility."""
+    CLAUDE_NATIVE_CONVERSATION_ENABLED: bool = True
+    """Disable to withhold Claude Agent; each person answers for their own account's terms."""
 
-    ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED: bool = True
-    """Disable to withhold Antigravity; each person accepts Google's account risk at registration."""
+    EXTERNAL_NATIVE_CONVERSATION_ENABLED: bool = True
+    """Disable to withhold registered Desktop ACP agents as conversation runtimes."""
 
-    CODEX_NATIVE_CONVERSATION_ENABLED: bool = False
-    """Enable only for an eligible local/open-source or provider-approved deployment."""
+    CODEX_NATIVE_CONVERSATION_ENABLED: bool = True
+    """Disable to withhold Codex; each person answers for their own account's terms."""
 
     OPENAI_CHATGPT_PLAN_USAGE_ENABLED: bool = False
     OPENAI_CHATGPT_HOST_ID: UUID | None = None

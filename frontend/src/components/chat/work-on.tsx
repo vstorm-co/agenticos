@@ -30,7 +30,10 @@ import { useWorkOnStore, type LocalTarget } from "@/stores/work-on-store";
 import { LocalSkillsControl } from "./local-skills-control";
 import { LocalCodingControl } from "./local-coding-control";
 import { useProviderCatalog } from "@/hooks/use-model-providers";
-import { NativeConversationControl } from "./native-conversation-control";
+import {
+  conversationRegistrations,
+  NativeConversationControl,
+} from "./native-conversation-control";
 
 /** The last part of a path, which is what a person recognises a folder by. */
 function folderName(path: string): string {
@@ -168,10 +171,7 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
   const { state, pick, revoke } = useLocalFolders();
   const services = useLocalServices().state.data ?? [];
   const nativeRuntimes = useProviderCatalog().data?.native_runtimes;
-  const antigravityRegistrations = (useExternalAgents().state.data ?? []).filter(
-    (registration) =>
-      registration.provider === "antigravity" || registration.provider === "antigravity_api_key",
-  );
+  const registrations = conversationRegistrations(useExternalAgents().state.data ?? []);
   const conversationId = useConversationStore((store) => store.currentConversationId);
   const target = useWorkOnStore((store) => store.targetFor(conversationId));
   const setTarget = useWorkOnStore((store) => store.set);
@@ -447,8 +447,8 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
               <NativeConversationControl
                 codexEnabled={nativeRuntimes?.codex === true}
                 claudeEnabled={nativeRuntimes?.claude_code === true}
-                antigravityEnabled={nativeRuntimes?.antigravity === true}
-                antigravityRegistrations={antigravityRegistrations}
+                externalEnabled={nativeRuntimes?.external === true}
+                registrations={registrations}
                 target={target}
                 onChange={(next) => setTarget(conversationId, next)}
               />

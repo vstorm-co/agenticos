@@ -796,26 +796,31 @@ Usage is unpriced in AgenticOS. Google restricts some third-party models to name
 clients; AgenticOS identifies itself as AgenticOS and promises no access beyond
 its own advertised catalog.
 
-### Antigravity as the conversation runtime { #antigravity-runtime }
+### Registered agents as the conversation runtime { #external-runtime }
 
-Antigravity can also answer the conversation itself, instead of the agent's model
-profile, under the [same contract](#codex-conversation) that
-Codex and Claude Agent use. Choose **This computer** with full access, then
-**Conversation runtime → Antigravity · this computer**. With more than one
-Antigravity registration, pick the registration. Desktop reads that registration's
-models with its own login and no model turn, and lists them under **Antigravity
-model**. **Account default** keeps the CLI's selection. A failed read shows the
-CLI's refusal and **Read models again**. A listed model is not proof of
-entitlement or remaining quota.
+Any agent registered under **External ACP agents** can also answer the
+conversation itself, instead of the agent's model profile, under the
+[same contract](#codex-conversation) as Codex and Claude Agent: Antigravity in either
+mode, Cursor, Cline, Grok, Kimi, Qwen, Devin, Mistral Vibe, OpenCode and Go,
+Hermes, Muse and custom ACP programs. Pi templates speak RPC rather than ACP and
+take delegated tasks only.
+
+Choose **This computer** with full access, then **Conversation runtime → External
+agent · this computer**, and pick the registration when there is more than one.
+Desktop reads that registration's models with its own login and no model turn and
+lists them under **Model**; **Agent default** keeps the CLI's selection. Mistral
+Vibe, Kimi, Qwen, Devin, Hermes and Muse choose their model in their own settings,
+so no list is read. A failed read shows the CLI's refusal and **Read models again**.
+A listed model is not proof of entitlement or remaining quota.
 
 The runtime is available unless the operator sets
-`ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED=false`. With a personal sign-in
-registration, the picker repeats the account risk you accepted when registering it.
-Antigravity has no documented read-only mode, so the runtime always
-runs with its own tool access, and AgenticOS platform tools keep the agent's
-approval policy. The server refuses a registration that Desktop does not report as
-one of the two Antigravity templates before any prompt is sent. Changing the
-registration or model starts a new native session.
+`EXTERNAL_NATIVE_CONVERSATION_ENABLED=false`. Registered CLIs promise no read-only
+confinement, so the runtime always runs with its own tool access, and AgenticOS
+platform tools keep the agent's approval policy. Hermes gets the same private
+per-conversation home as for delegated tasks. A registration that does not speak
+ACP is refused before any prompt is sent, and changing the registration or model
+starts a new native session. With an Antigravity personal sign-in, the picker
+repeats the account risk you accepted when registering it.
 
 Real-account login, entitlement, quota, revocation and resume after restart still
 require acceptance testing. See the [official ACP guide](https://antigravity.google/docs/ide/extensions/acp)
@@ -1000,9 +1005,9 @@ Inception chat model IDs, context/output limits and prices come from its current
 
 Private native session files remain scoped to the caller, agent, chat, folder, registration and selected-key revision. Temporary configuration is removed with the owned process. Remove or re-register the native entry to revoke its continuations. Account/key smoke tests cover streamed work, 401/402, quotas, restart/resume and Stop. Platform-tool forwarding is an explicit option described [above](#runtime-platform-tools). See [Pi provider extensions](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) and [Inception models](https://www.inceptionlabs.ai/models).
 
-The operator must set `CODEX_NATIVE_CONVERSATION_ENABLED=true` only for an eligible local/open-source deployment or with provider approval. This switch does not establish account entitlement. App Server authentication is not permitted for commercial or hosted services without the applicable approval. Changing login through Desktop stops that runtime’s active processes and clears its saved continuations; reset the native session before continuing. Manual account changes outside Desktop also require an explicit reset.
+Codex and Claude Agent are available unless the operator sets `CODEX_NATIVE_CONVERSATION_ENABLED=false` or `CLAUDE_NATIVE_CONVERSATION_ENABLED=false`. Each person uses their own CLI account and answers for its terms. OpenAI does not permit App Server authentication for commercial or hosted services without approval, and Anthropic requires prior approval to offer claude.ai login or consumer rate limits in a third-party SDK product; the picker states that the provider may limit or suspend an account. The switches establish neither entitlement nor approval. Changing login through Desktop stops that runtime’s active processes and clears its saved continuations; reset the native session before continuing. Manual account changes outside Desktop also require an explicit reset.
 
-Claude Agent uses the existing pinned Claude Code ACP adapter as the primary conversation runtime, with the same private-session, streaming, tool-policy and recovery contract as Codex. It has its own `CLAUDE_NATIVE_CONVERSATION_ENABLED` switch, disabled by default. The operator must verify Agent SDK deployment eligibility and the selected API/cloud credential method. Offering claude.ai login or consumer rate limits in a third-party SDK product requires prior Anthropic approval; enabling the switch does not supply that approval. The vendor binary and its authentication methods remain unmodified. The interface uses the permitted “Claude Agent” name.
+Claude Agent uses the existing pinned Claude Code ACP adapter as the primary conversation runtime, with the same private-session, streaming, tool-policy and recovery contract as Codex. The vendor binary and its authentication methods remain unmodified. The interface uses the permitted “Claude Agent” name.
 
 ## Hermes foreground runtime {#hermes-runtime}
 

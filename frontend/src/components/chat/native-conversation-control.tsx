@@ -9,26 +9,49 @@ import type { ExternalAgent, LocalTarget } from "@/lib/desktop/commands";
 
 type Runtime = NonNullable<LocalTarget["conversation_runtime"]>;
 
+/** Pi speaks RPC, not ACP, so it only takes delegated tasks. */
+const PI_PROVIDERS: ExternalAgent["provider"][] = [
+  "pi",
+  "pi_inception",
+  "pi_deepseek",
+  "pi_openrouter",
+];
+/** These choose their model themselves; Desktop cannot list it without a session of theirs. */
+const SELF_CHOSEN_MODELS: ExternalAgent["provider"][] = [
+  "mistral_vibe",
+  "kimi",
+  "qwen_subscription",
+  "devin",
+  "hermes",
+  "muse",
+  "muse_api_key",
+];
+
+/** Registrations that can answer a conversation, not only take delegated tasks. */
+export function conversationRegistrations(registrations: ExternalAgent[]): ExternalAgent[] {
+  return registrations.filter((registration) => !PI_PROVIDERS.includes(registration.provider));
+}
+
 export function NativeConversationControl({
   target,
   onChange,
   codexEnabled,
   claudeEnabled,
-  antigravityEnabled = false,
-  antigravityRegistrations = [],
+  externalEnabled = false,
+  registrations = [],
 }: {
   target: LocalTarget;
   codexEnabled: boolean;
   claudeEnabled: boolean;
-  antigravityEnabled?: boolean;
-  /** Antigravity registrations on this Desktop; the runtime needs one to launch. */
-  antigravityRegistrations?: ExternalAgent[];
+  externalEnabled?: boolean;
+  /** ACP registrations on this Desktop that can answer a conversation. */
+  registrations?: ExternalAgent[];
   onChange: (target: LocalTarget) => void;
 }) {
   const t = useTranslations("chat.controls.workOn");
   if (target.mode !== "full_access") return null;
   const runtime = target.conversation_runtime;
-  const firstRegistration = antigravityRegistrations[0]?.id;
+  const firstRegistration = registrations[0]?.id;
   // Any choice starts a new native session: identity includes harness, model and registration.
   const choose = (next: Runtime | null) =>
     onChange({ ...target, conversation_runtime: next, model_service: null });
@@ -44,7 +67,7 @@ export function NativeConversationControl({
             const harness = event.target.value;
             if (harness === "codex" || harness === "claude_code")
               choose({ harness, session_epoch: crypto.randomUUID(), access: "read_only" });
-            else if (harness === "antigravity" && firstRegistration !== undefined)
+            else if (harness === "external" && firstRegistration !== undefined)
               choose({
                 harness,
                 session_epoch: crypto.randomUUID(),
@@ -61,31 +84,29 @@ export function NativeConversationControl({
           <option value="claude_code" disabled={!claudeEnabled}>
             {t("nativeClaude")}
           </option>
-          <option
-            value="antigravity"
-            disabled={!antigravityEnabled || firstRegistration === undefined}
-          >
-            {t("nativeAntigravity")}
+          <option value="external" disabled={!externalEnabled || firstRegistration === undefined}>
+            {t("nativeExternal")}
           </option>
         </NativeSelect>
       </label>
-      {(!codexEnabled || !claudeEnabled || !antigravityEnabled) && (
+      {(!codexEnabled || !claudeEnabled || !externalEnabled) && (
         <p className="text-muted-foreground text-xs">{t("primaryRuntimeDisabled")}</p>
       )}
-      {antigravityEnabled && firstRegistration === undefined && (
-        <p className="text-muted-foreground text-xs">{t("antigravityNotRegistered")}</p>
+      {externalEnabled && firstRegistration === undefined && (
+        <p className="text-muted-foreground text-xs">{t("externalNotRegistered")}</p>
       )}
-      {runtime?.harness === "antigravity" && (
-        <AntigravityChoices
+      {runtime?.harness === "external" && (
+        <ExternalChoices
           runtime={runtime}
-          registrations={antigravityRegistrations}
+          registrations={registrations}
           onChange={(next) => choose({ ...next, session_epoch: crypto.randomUUID() })}
         />
       )}
       {runtime && (
         <>
           <p className="text-muted-foreground text-xs">{t("primaryRuntimeHelp")}</p>
-          {runtime.harness !== "antigravity" && (
+          <p className="text-xs text-amber-700 dark:text-amber-400">{t("primaryRuntimeTerms")}</p>
+          {runtime.harness !== "external" && (
             <label className="block text-xs">
               {t("primaryRuntimeAccess")}
               <NativeSelect
@@ -110,7 +131,7 @@ export function NativeConversationControl({
               </NativeSelect>
             </label>
           )}
-          {runtime.harness !== "antigravity" && (
+          {runtime.harness !== "external" && (
             <label className="block text-xs">
               {t("primaryRuntimeModel")}
               <Input
@@ -150,8 +171,8 @@ export function NativeConversationControl({
   );
 }
 
-/** Which registration, and which of its signed-in account's models, answer this chat. */
-function AntigravityChoices({
+/** Which registration, and which of its sign-in's models, answer this chat. */
+function ExternalChoices({
   runtime,
   registrations,
   onChange,
@@ -161,19 +182,17 @@ function AntigravityChoices({
   onChange: (runtime: Runtime) => void;
 }) {
   const t = useTranslations("chat.controls.workOn");
-  const options = useExternalAgentOptions(runtime.registration_id ?? null);
-  const models = options.data?.models ?? [];
-  const personal = registrations.some(
-    (registration) =>
-      registration.id === runtime.registration_id && registration.provider === "antigravity",
+  const selected = registrations.find(
+    (registration) => registration.id === runtime.registration_id,
   );
+  const listed = selected !== undefined && !SELF_CHOSEN_MODELS.includes(selected.provider);
   return (
     <div className="space-y-2">
       {registrations.length > 1 && (
         <label className="block text-xs">
-          {t("antigravityRegistration")}
+          {t("externalRegistration")}
           <NativeSelect
-            aria-label={t("antigravityRegistration")}
+            aria-label={t("externalRegistration")}
             className="mt-1"
             value={runtime.registration_id ?? ""}
             onChange={(event) =>
@@ -188,10 +207,36 @@ function AntigravityChoices({
           </NativeSelect>
         </label>
       )}
+      {listed ? (
+        <ExternalModels runtime={runtime} onChange={onChange} />
+      ) : (
+        <p className="text-muted-foreground text-xs">{t("externalCliModels")}</p>
+      )}
+      {selected?.provider === "antigravity" && (
+        <p className="text-xs text-amber-700 dark:text-amber-400">{t("antigravityPersonalRisk")}</p>
+      )}
+      <p className="text-muted-foreground text-xs">{t("externalHelp")}</p>
+    </div>
+  );
+}
+
+/** The models the selected registration's own sign-in offers, read without a model turn. */
+function ExternalModels({
+  runtime,
+  onChange,
+}: {
+  runtime: Runtime;
+  onChange: (runtime: Runtime) => void;
+}) {
+  const t = useTranslations("chat.controls.workOn");
+  const options = useExternalAgentOptions(runtime.registration_id ?? null);
+  const models = options.data?.models ?? [];
+  return (
+    <>
       <label className="block text-xs">
-        {t("antigravityModel")}
+        {t("externalModel")}
         <NativeSelect
-          aria-label={t("antigravityModel")}
+          aria-label={t("externalModel")}
           className="mt-1"
           disabled={!options.isSuccess}
           value={runtime.model_id ?? ""}
@@ -199,8 +244,8 @@ function AntigravityChoices({
         >
           <option value="">
             {options.data?.current_model
-              ? t("antigravityAccountDefault", { model: options.data.current_model })
-              : t("antigravityAccountDefaultUnknown")}
+              ? t("externalAccountDefault", { model: options.data.current_model })
+              : t("externalAccountDefaultUnknown")}
           </option>
           {models.map((model) => (
             <option key={model.value} value={model.value}>
@@ -209,23 +254,19 @@ function AntigravityChoices({
           ))}
         </NativeSelect>
       </label>
-      {options.isPending && runtime.registration_id && (
-        <p className="text-muted-foreground text-xs">{t("antigravityModelsLoading")}</p>
+      {options.isPending && (
+        <p className="text-muted-foreground text-xs">{t("externalModelsLoading")}</p>
       )}
       {options.isError && (
         <div className="space-y-1">
           <p role="alert" className="text-destructive text-xs">
-            {options.error instanceof Error ? options.error.message : t("antigravityModelsFailed")}
+            {options.error instanceof Error ? options.error.message : t("externalModelsFailed")}
           </p>
           <Button type="button" size="sm" variant="outline" onClick={() => options.refetch()}>
-            {t("antigravityModelsRetry")}
+            {t("externalModelsRetry")}
           </Button>
         </div>
       )}
-      {personal && (
-        <p className="text-xs text-amber-700 dark:text-amber-400">{t("antigravityPersonalRisk")}</p>
-      )}
-      <p className="text-muted-foreground text-xs">{t("antigravityHelp")}</p>
-    </div>
+    </>
   );
 }

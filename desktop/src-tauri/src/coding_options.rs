@@ -222,20 +222,30 @@ async fn request(
     Err("The coding agent sent too many messages while checking its settings.".into())
 }
 
-/// Whose choices are read: a managed builtin harness, or a registered Antigravity CLI.
+/// Whose choices are read: a managed builtin harness, or a registered ACP CLI.
 #[derive(Clone, Copy)]
 enum Target<'a> {
     Builtin(&'a crate::coding_runtime::Runtime, AgentId),
-    Antigravity(&'a crate::external_agents::Registration),
+    External(&'a crate::external_agents::Registration),
 }
 
-/// The catalog after the same login a session of this registration is held to.
-fn antigravity_login_method(provider: crate::external_agents::Provider) -> &'static str {
-    if provider == crate::external_agents::Provider::AntigravityApiKey {
-        "gemini-api-key"
-    } else {
-        "oauth-personal"
-    }
+/// Registrations whose catalog this probe can read like a session would.
+///
+/// Pi and Muse speak their own protocols, Hermes keeps a home per private
+/// conversation, and some CLIs choose their model themselves.
+fn readable_catalog(provider: crate::external_agents::Provider) -> bool {
+    use crate::external_agents::Provider;
+    !crate::agent_session::cli_managed_models(provider)
+        && !matches!(
+            provider,
+            Provider::Hermes
+                | Provider::Pi
+                | Provider::PiInception
+                | Provider::PiDeepseek
+                | Provider::PiOpenrouter
+                | Provider::Muse
+                | Provider::MuseApiKey
+        )
 }
 
 async fn probe(target: Target<'_>, directory: &Path) -> Result<Options, String> {
@@ -254,18 +264,13 @@ async fn probe(target: Target<'_>, directory: &Path) -> Result<Options, String> 
             command.args(prefix).arg("app-server");
             command
         }
-        Target::Antigravity(registration) => {
+        Target::External(registration) => {
             let program = Path::new(&registration.program);
             let mut command = tokio::process::Command::new(program);
             command.args(&registration.args);
             // The catalog must describe the same credential a session of this registration uses.
-            let key = std::env::var_os("GEMINI_API_KEY");
-            crate::agent_session::antigravity_environment(
-                &mut command,
-                registration.provider == crate::external_agents::Provider::AntigravityApiKey,
-                key.as_deref(),
-            )
-            .map_err(|refusal| refusal.message)?;
+            crate::agent_session::provider_environment(&mut command, registration.provider)
+                .map_err(|refusal| refusal.message)?;
             if let Some(path) = crate::agent_session::path_with(program) {
                 command.env("PATH", path);
             }
@@ -294,13 +299,25 @@ async fn probe(target: Target<'_>, directory: &Path) -> Result<Options, String> 
     );
     let result = tokio::time::timeout(Duration::from_secs(45), async {
         match target {
-            Target::Antigravity(registration) => {
-                let method = antigravity_login_method(registration.provider);
+            Target::External(registration) => {
                 let initialized = request(&mut input, &mut output, 1, "initialize", json!({"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"agenticos-settings","version":"1"}})).await?;
-                antigravity_login(&initialized, method)?;
-                request(&mut input, &mut output, 2, "authenticate", json!({"methodId":method})).await?;
+                if let Some(method) = crate::agent_session::login_method(registration.provider) {
+                    advertised_login(&initialized, method)?;
+                    let mut parameters = json!({"methodId":method});
+                    if method == "cached_token" {
+                        parameters["_meta"] = json!({"headless": true});
+                    }
+                    request(&mut input, &mut output, 2, "authenticate", parameters).await?;
+                } else if initialized["protocolVersion"] != 1 {
+                    return Err("This agent did not negotiate ACP protocol version 1.".into());
+                }
                 let session = request(&mut input, &mut output, 3, "session/new", json!({"cwd":working_directory,"mcpServers":[]})).await?;
-                claude_options(&session)
+                if choices(&session, "model")?.0.is_some() {
+                    claude_options(&session)
+                } else {
+                    // Some CLIs announce their catalog in an update right after the session opens.
+                    claude_options(&config_update(&mut output).await?)
+                }
             }
             Target::Builtin(_, AgentId::ClaudeCode) => {
                 request(&mut input, &mut output, 1, "initialize", json!({"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"agenticos-settings","version":"1"}})).await?;
@@ -326,19 +343,54 @@ async fn probe(target: Target<'_>, directory: &Path) -> Result<Options, String> 
 }
 
 /// Refuse a CLI that does not advertise the login this registration's sessions enforce.
-fn antigravity_login(initialized: &Value, method: &str) -> Result<(), String> {
+fn advertised_login(initialized: &Value, method: &str) -> Result<(), String> {
     if initialized["protocolVersion"] != 1 {
-        return Err("This Antigravity CLI did not negotiate ACP protocol version 1.".into());
+        return Err("This agent did not negotiate ACP protocol version 1.".into());
     }
     let advertised = initialized["authMethods"]
         .as_array()
         .is_some_and(|methods| methods.iter().any(|advertised| advertised["id"] == method));
     if !advertised {
         return Err(format!(
-            "This Antigravity CLI does not offer the {method} login. Update it; no other account or billing mode was selected."
+            "This agent does not offer the {method} login. Check its version and sign-in; no other account or billing mode was selected."
         ));
     }
+    if method == "cached_token"
+        && initialized["authMethods"]
+            .as_array()
+            .is_some_and(|methods| methods.iter().any(|advertised| advertised["id"] == "xai.api_key"))
+    {
+        return Err("Grok account mode requires API-key authentication to be disabled; no models were read.".into());
+    }
     Ok(())
+}
+
+/// The first catalog update after a session opens, bounded in time and size.
+async fn config_update(output: &mut (impl AsyncBufRead + Unpin)) -> Result<Value, String> {
+    let unavailable = || "This agent did not announce model choices. Check its sign-in and refresh.".to_owned();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        for _ in 0..256 {
+            let mut line = Vec::new();
+            let count = (&mut *output)
+                .take(1024 * 1024 + 1)
+                .read_until(b'\n', &mut line)
+                .await
+                .map_err(|_| unavailable())?;
+            if count == 0 || count > 1024 * 1024 {
+                return Err(unavailable());
+            }
+            let Ok(message) = serde_json::from_slice::<Value>(&line) else {
+                continue;
+            };
+            let update = &message["params"]["update"];
+            if message["method"] == "session/update" && update["sessionUpdate"] == "config_option_update" {
+                return Ok(json!({"configOptions": update["configOptions"].clone()}));
+            }
+        }
+        Err(unavailable())
+    })
+    .await
+    .map_err(|_| unavailable())?
 }
 
 #[tauri::command]
@@ -347,7 +399,7 @@ pub async fn local_agent_options(app: AppHandle, id: AgentId) -> Result<Options,
     in_scratch(&app, Target::Builtin(&runtime, id)).await
 }
 
-/// The signed-in account's models for a registered Antigravity CLI, without a model turn.
+/// A registered ACP CLI's models under its own login, without a model turn.
 #[tauri::command]
 pub async fn external_agent_options(app: AppHandle, id: String) -> Result<Options, String> {
     let registration = crate::settings::current(&app)
@@ -355,13 +407,10 @@ pub async fn external_agent_options(app: AppHandle, id: String) -> Result<Option
         .into_iter()
         .find(|item| item.id == id)
         .ok_or("That ACP registration no longer exists.")?;
-    if !matches!(
-        registration.provider,
-        crate::external_agents::Provider::Antigravity | crate::external_agents::Provider::AntigravityApiKey
-    ) {
-        return Err("Only Antigravity registrations list account models here.".into());
+    if !readable_catalog(registration.provider) {
+        return Err("This agent chooses its model itself; select it in the agent's own settings.".into());
     }
-    in_scratch(&app, Target::Antigravity(&registration)).await
+    in_scratch(&app, Target::External(&registration)).await
 }
 
 async fn in_scratch(app: &AppHandle, target: Target<'_>) -> Result<Options, String> {
@@ -395,24 +444,66 @@ mod tests {
     use super::*;
 
     #[test]
-    fn antigravity_options_require_the_registrations_login_and_protocol_one() {
-        use crate::external_agents::Provider;
-        let account = antigravity_login_method(Provider::Antigravity);
-        let keyed = antigravity_login_method(Provider::AntigravityApiKey);
-        assert_eq!((account, keyed), ("oauth-personal", "gemini-api-key"));
-        let login = json!({"protocolVersion":1,"authMethods":[{"id":"gemini-api-key"},{"id":"oauth-personal"}]});
-        assert!(antigravity_login(&login, account).is_ok() && antigravity_login(&login, keyed).is_ok());
+    fn external_options_require_the_registrations_login_and_protocol_one() {
+        let both = json!({"protocolVersion":1,"authMethods":[{"id":"gemini-api-key"},{"id":"oauth-personal"}]});
+        assert!(advertised_login(&both, "oauth-personal").is_ok());
+        assert!(advertised_login(&both, "gemini-api-key").is_ok());
         let key_only = json!({"protocolVersion":1,"authMethods":[{"id":"gemini-api-key"}]});
-        assert!(antigravity_login(&key_only, account)
+        assert!(advertised_login(&key_only, "oauth-personal")
             .unwrap_err()
             .contains("no other account"));
-        assert!(antigravity_login(&key_only, keyed).is_ok());
-        assert!(antigravity_login(
+        assert!(advertised_login(
             &json!({"protocolVersion":2,"authMethods":[{"id":"oauth-personal"}]}),
-            account
+            "oauth-personal"
         )
         .is_err());
-        assert!(antigravity_login(&json!({"protocolVersion":1}), account).is_err());
+        assert!(advertised_login(&json!({"protocolVersion":1}), "login").is_err());
+        let grok = json!({"protocolVersion":1,"authMethods":[{"id":"cached_token"},{"id":"xai.api_key"}]});
+        assert!(advertised_login(&grok, "cached_token").unwrap_err().contains("API-key"));
+    }
+
+    #[test]
+    fn only_acp_registrations_with_session_models_are_probed() {
+        use crate::external_agents::Provider;
+        for provider in [
+            Provider::Custom,
+            Provider::Antigravity,
+            Provider::Cursor,
+            Provider::Cline,
+            Provider::Grok,
+            Provider::OpenCode,
+        ] {
+            assert!(readable_catalog(provider), "{provider:?}");
+        }
+        for provider in [
+            Provider::Hermes,
+            Provider::Pi,
+            Provider::PiDeepseek,
+            Provider::Muse,
+            Provider::Kimi,
+            Provider::Devin,
+        ] {
+            assert!(!readable_catalog(provider), "{provider:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_catalog_update_after_the_session_opens_is_read() {
+        let stream = concat!(
+            "not json\n",
+            r#"{"jsonrpc":"2.0","method":"session/update","params":{"update":{"sessionUpdate":"agent_message_chunk"}}}"#,
+            "\n",
+            r#"{"jsonrpc":"2.0","method":"session/update","params":{"update":{"sessionUpdate":"config_option_update","configOptions":[{"category":"model","currentValue":"a","options":[{"value":"a","name":"A"}]}]}}}"#,
+            "\n",
+        );
+        let mut reader = BufReader::new(stream.as_bytes());
+        let options = claude_options(&config_update(&mut reader).await.unwrap()).unwrap();
+        assert_eq!(options.models[0].value, "a");
+        let mut empty = BufReader::new(&b""[..]);
+        assert!(config_update(&mut empty)
+            .await
+            .unwrap_err()
+            .contains("did not announce"));
     }
 
     #[test]
