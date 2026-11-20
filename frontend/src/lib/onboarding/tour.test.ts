@@ -348,6 +348,7 @@ describe("stepsForPage", () => {
       "chat-team-composer",
       "chat-room-thread",
       "chat-room-thread-panel",
+      "chat-room-thread-context",
       "chat-local-skills",
       "chat-coding-accounts",
       "chat-local-coding",

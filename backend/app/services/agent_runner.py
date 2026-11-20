@@ -306,7 +306,7 @@ from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 from app.core.tool_identity import ToolIdentity
 from app.core.update_gate import require_admission
-from app.db.locks import LockScope, try_hold_subject
+from app.db.locks import LockScope, hold_subject, try_hold_subject
 from app.db.models.agent import Agent, AgentKind, AgentStatus
 from app.db.models.agent_environment import ConnectionKind
 from app.db.models.agent_exposure import AgentExposure
@@ -351,6 +351,9 @@ from app.repositories import (
     skill_usage_repo,
     user_repo,
     voice_call_repo,
+)
+from app.repositories import (
+    room_thread as room_thread_repo,
 )
 from app.repositories.agent_run import AgentSpendRow, RunFilters
 from app.repositories.voice_call import VoiceChain
@@ -466,6 +469,21 @@ if TYPE_CHECKING:
     from app.services.run_stream import RunFrames
 
 logger = logging.getLogger(__name__)
+
+
+def room_context_event_payload(
+    kind: str, payload: Mapping[str, object]
+) -> dict[str, object] | None:
+    """Keep only empty status or identifier fields on cross-room live events."""
+    if kind in {"model_request_start", "call_tools_start", "complete"}:
+        return {}
+    fields = {
+        "background_task_turn": ("agent_id", "resumed_run_id"),
+        "message_saved": ("message_id", "run_id", "run_status"),
+    }.get(kind)
+    if fields is None:
+        return None
+    return {key: payload[key] for key in fields if key in payload}
 
 
 def _skills_with_content_overrides(
@@ -7859,6 +7877,8 @@ class AgentRunnerService:
         decision_model: bool = False,
         on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
         check_model_request: Callable[[AsyncSession], Awaitable[None]] | None = None,
+        result_authority_check: Callable[[AsyncSession], Awaitable[None]] | None = None,
+        result_context_conversation_ids: Sequence[UUID] = (),
         on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
         room_lead: RoomLeadPlanning | None = None,
     ) -> tuple[str, AgentRun]:
@@ -7873,6 +7893,13 @@ class AgentRunnerService:
         `check_model_request` validates additional trusted context before every
         provider request, including nested models. It receives a fresh, short-lived
         session and must not retain it or write through it.
+
+        `result_authority_check` is the final authorization fence for a run that
+        used selected context from another room. It runs after the provider returns
+        and before the answer or its tool results are processed for persistence.
+        `result_context_conversation_ids` are locked in stable order through the
+        terminal commit so room audience or context mutations cannot race that
+        final check.
 
 
         The non-streaming path, used by the API and chat channels. Surfaces that
@@ -8040,6 +8067,8 @@ class AgentRunnerService:
                 deferred_tool_results=None,
                 on_run_open=on_run_open,
                 check_model_request=check_model_request,
+                result_authority_check=result_authority_check,
+                result_context_conversation_ids=result_context_conversation_ids,
                 on_segment=on_segment,
                 stream=stream,
             )
@@ -8120,7 +8149,11 @@ class AgentRunnerService:
 
     @asynccontextmanager
     async def _resume_stream(
-        self, prepared: PreparedRun, *, live_surface: LiveRunSurface | None = None
+        self,
+        prepared: PreparedRun,
+        *,
+        live_surface: LiveRunSurface | None = None,
+        suppress_room_payloads: bool = False,
     ) -> AsyncGenerator[RunFrames | None]:
         """Publish web continuations through the same trace as socket turns.
 
@@ -8142,6 +8175,11 @@ class AgentRunnerService:
             return
 
         async def emit(kind: str, payload: dict[str, Any]) -> None:
+            if suppress_room_payloads:
+                safe_payload = room_context_event_payload(kind, payload)
+                if safe_payload is None:
+                    return
+                payload = safe_payload
             root_id = prepared.admitted_as.thread_root_message_id
             payload = {
                 **payload,
@@ -8269,6 +8307,9 @@ class AgentRunnerService:
             )
         state = PausedRunState.model_validate(run.paused_state)
         execution_ctx = ctx
+        result_authority_check: Callable[[AsyncSession], Awaitable[None]] | None = None
+        result_context_conversation_ids: tuple[UUID, ...] = ()
+        bound_room_context = False
         if state.admitted_as.audience_room_key in {
             f"room:project:{run.conversation_id}",
             f"room:conversation:{run.conversation_id}",
@@ -8280,6 +8321,9 @@ class AgentRunnerService:
             )
             assert room_ctx is not None, "required room authority supplies its requester"
             assert run.conversation_id is not None, "room authority requires its conversation"
+            bound_room_context = await conversation_repo.has_imported_thread_context(
+                self.db, run.conversation_id
+            )
             current_root = await conversation_repo.room_thread_for_run(
                 self.db,
                 run_id=run.id,
@@ -8288,6 +8332,25 @@ class AgentRunnerService:
             )
             if current_root != state.admitted_as.thread_root_message_id:
                 raise BadRequestError(message="This room request changed its subthread")
+            source_conversation_id: UUID | None = None
+            if current_root is not None:
+                thread = await room_thread_repo.get_thread(
+                    self.db,
+                    organization_id=run.organization_id,
+                    conversation_id=run.conversation_id,
+                    root_message_id=current_root,
+                )
+                source_conversation_id = (
+                    None if thread is None else thread.context_source_conversation_id
+                )
+                if source_conversation_id == run.conversation_id:
+                    source_conversation_id = None
+            if bound_room_context:
+                result_context_conversation_ids = (
+                    (run.conversation_id, source_conversation_id)
+                    if source_conversation_id is not None
+                    else (run.conversation_id,)
+                )
             execution_ctx = room_ctx
             prior_check = check_model_request
 
@@ -8299,6 +8362,8 @@ class AgentRunnerService:
                     await prior_check(db)
 
             check_model_request = check_room_authority
+            if bound_room_context:
+                result_authority_check = check_model_request
 
         can_ask = state.admitted_as.can_ask_questions or (
             "can_ask_questions" not in state.admitted_as.model_fields_set
@@ -8491,7 +8556,7 @@ class AgentRunnerService:
         if can_ask:
             prepared.built.deps.ask_questions = park_the_question
             prepared.built.deps.parks_questions = True
-        if live_surface is not None:
+        if live_surface is not None and not bound_room_context:
             prepared.built.deps.ask_user = live_surface.ask_user
             prepared.built.deps.ask_questions = live_surface.ask_questions
             prepared.built.deps.parks_questions = False
@@ -8530,7 +8595,11 @@ class AgentRunnerService:
         await agent_run_repo.mark_running(self.db, run=run)
 
         try:
-            async with self._resume_stream(prepared, live_surface=live_surface) as frames:
+            async with self._resume_stream(
+                prepared,
+                live_surface=live_surface,
+                suppress_room_payloads=bound_room_context,
+            ) as frames:
                 segment = await self._run(
                     prepared,
                     # A resume continues the approved call without another user turn.
@@ -8544,6 +8613,8 @@ class AgentRunnerService:
                     on_segment=on_segment,
                     on_run_open=opened,
                     check_model_request=check_model_request,
+                    result_authority_check=result_authority_check,
+                    result_context_conversation_ids=result_context_conversation_ids,
                     stream=frames.drive if frames is not None else None,
                 )
                 if frames is not None and segment.message_id is not None:
@@ -9373,6 +9444,8 @@ class AgentRunnerService:
         stream: RunStream | None = None,
         on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
         check_model_request: Callable[[AsyncSession], Awaitable[None]] | None = None,
+        result_authority_check: Callable[[AsyncSession], Awaitable[None]] | None = None,
+        result_context_conversation_ids: Sequence[UUID] = (),
         on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
     ) -> RunSegment:
         """Execute the agent and account for it, however it ends.
@@ -9490,6 +9563,19 @@ class AgentRunnerService:
                     deferred_tool_results=deferred_tool_results,
                     stream=stream,
                 )
+            if result_authority_check is not None:
+                try:
+                    for conversation_id in sorted(set(result_context_conversation_ids), key=str):
+                        await hold_subject(self.db, LockScope.CONVERSATION_TURN, conversation_id)
+                    async with get_db_context() as fresh:
+                        await result_authority_check(fresh)
+                except Exception:
+                    # The provider may have answered from imported context. Any
+                    # failed recheck is deliberately reported without source
+                    # identifiers, content, or an implementation exception.
+                    raise AuthorizationError(
+                        message="This room request can no longer use its selected context"
+                    ) from None
             # `new_messages`, not `all_messages`: a resumed run is handed
             # everything up to the park as history, and the wider list would
             # write the first attempt's calls again under the same run.
@@ -9628,6 +9714,24 @@ class AgentRunnerService:
                     # is measured against - see `build_message_history`.
                     context_used_tokens=prepared.built.context.latest,
                 )
+                if (
+                    result_authority_check is not None
+                    and message_id is not None
+                    and prepared.run.conversation_id is not None
+                    and prepared.admitted_as.thread_root_message_id is not None
+                    and status
+                    in {
+                        RunStatus.COMPLETED,
+                        RunStatus.AWAITING_APPROVAL,
+                        RunStatus.AWAITING_ANSWER,
+                    }
+                ):
+                    from app.services.room_thread import RoomThreadService
+
+                    RoomThreadService(self.db)._announce_thread_changed(
+                        prepared.run.conversation_id,
+                        prepared.admitted_as.thread_root_message_id,
+                    )
                 # After the rows, because what is stored beside a summary is how
                 # far it reaches: recorded before them it would stop short of this
                 # turn and replay it twice. A channel thread is long-lived and

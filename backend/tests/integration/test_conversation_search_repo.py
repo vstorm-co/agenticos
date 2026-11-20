@@ -342,6 +342,24 @@ class TestWhoMayFindIt:
 
         assert await _search(db, organization, stranger, "pricing") == []
 
+    async def test_a_workflow_run_log_is_not_searchable_even_by_its_owner(self, db):
+        organization = await _org(db)
+        owner = await _user(db)
+        thread = await _thread(db, organization, owner, title="scheduled run")
+        thread.origin = "workflow"
+        await _say(db, thread, "pricing from a scheduled run")
+
+        assert await _search(db, organization, owner, "pricing") == []
+        assert (
+            await search_repo.readable_conversation(
+                db,
+                conversation_id=thread.id,
+                organization_id=organization.id,
+                readable=search_repo.readable_by(owner.id, ()),
+            )
+            is None
+        )
+
     async def test_a_conversation_shared_with_them_is(self, db):
         organization = await _org(db)
         owner = await _user(db)

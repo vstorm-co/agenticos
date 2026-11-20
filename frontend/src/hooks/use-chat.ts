@@ -109,6 +109,19 @@ interface PendingCompactionRequest {
   scopeKey: string;
 }
 
+interface ThreadPersistenceScope {
+  conversationId: string;
+  threadRootMessageId: string | null;
+  selectionVersion: number;
+  accountId: string | null;
+  organizationId: string | null;
+}
+
+export interface SavedTurnScope extends ThreadPersistenceScope {
+  /** Re-read the current main-room transcript when no optimistic bubble was saved. */
+  refreshMainTranscript: boolean;
+}
+
 interface UseChatOptions {
   /** Read only at submission; queued turns retain their own detached snapshot. */
   pageContext?: () => AssistantPageContext | null;
@@ -121,7 +134,7 @@ interface UseChatOptions {
    * the turns stored in it - so this is the first moment a listing fetched
    * before the answer can be told who gave it.
    */
-  onTurnSaved?: () => void;
+  onTurnSaved?: (scope?: SavedTurnScope) => void;
   /**
    * The socket came back after dropping mid-answer.
    *
@@ -278,6 +291,14 @@ export function useChat(options: UseChatOptions = {}) {
   // and keep action scopes separate from whichever turn starts next.
   const turnThreadRootRef = useRef<string | null>(null);
   const runThreadRootsRef = useRef(new Map<string, string | null>());
+  // A saved answer may arrive after its reader has switched rooms. Keep the
+  // selection identity captured when its scoped frame was followed, so
+  // message_saved can refresh only the room the reader is still authorized to
+  // view. Bounded and keyed by the run id when an early frame carries one.
+  const threadPersistenceScopesRef = useRef(new Map<string, ThreadPersistenceScope>());
+  // Some early status frames intentionally carry only conversation/thread
+  // scope. Hold that snapshot until the saved receipt supplies its run id.
+  const unkeyedThreadPersistenceScopeRef = useRef<ThreadPersistenceScope | null>(null);
   const [turnThreadScope, setTurnThreadScope] = useState<{
     conversationId: string | null;
     root: string | null;
@@ -804,7 +825,41 @@ export function useChat(options: UseChatOptions = {}) {
         const root = frame.thread_root_message_id ?? null;
         turnThreadRootRef.current = root;
         const runId = frame.run_id ?? frame.resumed_run_id;
-        if (runId) runThreadRootsRef.current.set(runId, root);
+        const beginsPersistenceScope =
+          wsEvent.type === "turn_attached" ||
+          wsEvent.type === "model_request_start" ||
+          wsEvent.type === "call_tools_start" ||
+          wsEvent.type === "background_task_turn" ||
+          wsEvent.type === "turn_prompt" ||
+          wsEvent.type === "user_prompt";
+        const selection = conversationApi.getState();
+        const persistenceScope: ThreadPersistenceScope | null =
+          typeof frameConversation === "string" &&
+          (selection.currentConversationId ?? activeConversationId) === frameConversation
+            ? {
+                conversationId: frameConversation,
+                threadRootMessageId: root,
+                selectionVersion: selection.selectionVersion,
+                accountId: useAuthStore.getState().user?.id ?? null,
+                organizationId: useOrgStore.getState().activeOrgId,
+              }
+            : null;
+        if (runId) {
+          runThreadRootsRef.current.set(runId, root);
+          if (
+            beginsPersistenceScope &&
+            persistenceScope !== null &&
+            !threadPersistenceScopesRef.current.has(runId)
+          ) {
+            threadPersistenceScopesRef.current.set(runId, persistenceScope);
+            if (threadPersistenceScopesRef.current.size > 50) {
+              const oldestRunId = threadPersistenceScopesRef.current.keys().next().value;
+              if (oldestRunId) threadPersistenceScopesRef.current.delete(oldestRunId);
+            }
+          }
+        } else if (beginsPersistenceScope && persistenceScope !== null) {
+          unkeyedThreadPersistenceScopeRef.current = persistenceScope;
+        }
         setTurnThreadScope((current) =>
           current?.conversationId === frameConversation && current.root === root
             ? current
@@ -1140,11 +1195,52 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "message_saved": {
-          const { message_id, run_id, run_status } = wsEvent.data as {
-            message_id: string;
-            run_id?: string;
-            run_status?: string;
-          };
+          const { message_id, run_id, run_status, conversation_id, thread_root_message_id } =
+            wsEvent.data as {
+              message_id: string;
+              run_id?: string;
+              run_status?: string;
+              conversation_id?: string;
+              thread_root_message_id?: string | null;
+            };
+          const unkeyedScope = unkeyedThreadPersistenceScopeRef.current;
+          const matchesPersistenceEvent = (scope: ThreadPersistenceScope) =>
+            (conversation_id === undefined || conversation_id === scope.conversationId) &&
+            (thread_root_message_id === undefined
+              ? turnThreadRootRef.current === scope.threadRootMessageId
+              : (thread_root_message_id ?? null) === scope.threadRootMessageId);
+          const savedThreadScope =
+            (run_id ? threadPersistenceScopesRef.current.get(run_id) : undefined) ??
+            (unkeyedScope !== null && matchesPersistenceEvent(unkeyedScope)
+              ? unkeyedScope
+              : undefined);
+          const selected = conversationApi.getState();
+          const selectedConversationId = selected.currentConversationId ?? activeConversationId;
+          const accountId = useAuthStore.getState().user?.id ?? null;
+          const organizationId = useOrgStore.getState().activeOrgId;
+          const savedScopeIsCurrent = Boolean(
+            savedThreadScope &&
+            matchesPersistenceEvent(savedThreadScope) &&
+            selectedConversationId === savedThreadScope.conversationId &&
+            selected.selectionVersion === savedThreadScope.selectionVersion &&
+            accountId === savedThreadScope.accountId &&
+            organizationId === savedThreadScope.organizationId &&
+            turnThreadRootRef.current === savedThreadScope.threadRootMessageId,
+          );
+          if (savedScopeIsCurrent && savedThreadScope) {
+            announceRoomChange({
+              conversationId: savedThreadScope.conversationId,
+              accountId: savedThreadScope.accountId ?? undefined,
+              organizationId: savedThreadScope.organizationId,
+            });
+          }
+          if (run_id && savedThreadScope) {
+            runThreadRootsRef.current.set(run_id, savedThreadScope.threadRootMessageId);
+          }
+          if (run_id) threadPersistenceScopesRef.current.delete(run_id);
+          if (unkeyedScope !== null && matchesPersistenceEvent(unkeyedScope)) {
+            unkeyedThreadPersistenceScopeRef.current = null;
+          }
           if (run_id && run_status && run_status !== "awaiting_approval") {
             setPendingApproval((current) => (current?.runId === run_id ? null : current));
           }
@@ -1162,7 +1258,12 @@ export function useChat(options: UseChatOptions = {}) {
             }
           }
           const target = currentMessageIdRef.current ?? stoppedMessageIdRef.current;
-          if (target) {
+          const messages = chatApi.getState().messages;
+          let optimisticBubbleFound = false;
+          const mayReconcileOptimisticBubble =
+            savedThreadScope === undefined || savedScopeIsCurrent;
+          if (mayReconcileOptimisticBubble && target && messages.some((msg) => msg.id === target)) {
+            optimisticBubbleFound = true;
             setParkedQuestion((question) =>
               question?.messageId === target ? { ...question, messageId: message_id } : question,
             );
@@ -1181,9 +1282,8 @@ export function useChat(options: UseChatOptions = {}) {
             // to nothing, so it appeared only after a reload fetched it from the row.
             if (currentMessageIdRef.current) setCurrentMessageId(message_id);
             if (stoppedMessageIdRef.current === target) stoppedMessageIdRef.current = message_id;
-          } else {
+          } else if (mayReconcileOptimisticBubble) {
             // This handles cases where currentMessageId was already cleared
-            const messages = chatApi.getState().messages;
             const lastTemp = [...messages]
               .reverse()
               .find(
@@ -1193,6 +1293,7 @@ export function useChat(options: UseChatOptions = {}) {
                   (msg.threadRootMessageId ?? null) === turnThreadRootRef.current,
               );
             if (lastTemp) {
+              optimisticBubbleFound = true;
               updateMessage(lastTemp.id, (msg) => ({
                 ...msg,
                 id: message_id,
@@ -1205,7 +1306,15 @@ export function useChat(options: UseChatOptions = {}) {
           }
           // Whichever branch renamed the bubble, the row exists now - and with
           // it the only record of which agent answered here.
-          onTurnSaved?.();
+          onTurnSaved?.(
+            savedScopeIsCurrent && savedThreadScope
+              ? {
+                  ...savedThreadScope,
+                  refreshMainTranscript:
+                    savedThreadScope.threadRootMessageId === null && !optimisticBubbleFound,
+                }
+              : undefined,
+          );
           break;
         }
 

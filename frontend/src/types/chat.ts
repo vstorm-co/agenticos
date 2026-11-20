@@ -83,6 +83,8 @@ export interface ChatMessage {
   /** A saved bubble still addressed by its local id while deltas arrive. */
   persistedId?: string;
   id: string;
+  /** Stable position in a persisted conversation; absent on older servers and live turns. */
+  ordinal?: number | null;
   role: MessageRole;
   content: string;
   timestamp: Date;

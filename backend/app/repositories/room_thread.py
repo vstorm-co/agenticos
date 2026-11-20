@@ -1,14 +1,21 @@
 """Persistence helpers for room thread lifecycle and per-reader state."""
 
+from collections.abc import Collection
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import ColumnElement, and_, any_, case, func, literal, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased, selectinload
+from sqlalchemy.orm.util import AliasedClass
 
-from app.db.models.conversation import Message
+from app.db.models.agent_run import AgentRun
+from app.db.models.chat_file import ChatFile
+from app.db.models.conversation import Conversation, Message
+from app.db.models.conversation_task import ConversationTask, ConversationTurnClaim
+from app.db.models.room_submission import RoomSubmission
 from app.db.models.room_thread import RoomThread, RoomThreadFollow, RoomThreadRead
 
 
@@ -19,6 +26,376 @@ class ThreadReaderSummary:
     state: str
     following: bool
     unread: int
+
+
+def is_context_message(
+    message: type[Message] | AliasedClass[Message],
+) -> ColumnElement[bool]:
+    """Whether a moved range row is part of its exact saved context snapshot.
+
+    The expression accepts ``Message`` itself or an ORM alias, so history and
+    aggregate queries can exclude moved context without loading its IDs first.
+    """
+    return (
+        select(literal(True))
+        .where(
+            RoomThread.conversation_id == message.conversation_id,
+            RoomThread.root_message_id == message.thread_root_message_id,
+            RoomThread.context_moved.is_(True),
+            message.id == any_(RoomThread.context_message_ids),
+        )
+        .exists()
+        .correlate(message)
+    )
+
+
+async def is_context_message_id(
+    db: AsyncSession, *, conversation_id: UUID, message_id: UUID
+) -> bool:
+    """Check one known message's current placement against the moved snapshot."""
+    return bool(
+        await db.scalar(
+            select(is_context_message(Message)).where(
+                Message.conversation_id == conversation_id,
+                Message.id == message_id,
+            )
+        )
+    )
+
+
+async def context_messages(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    source_conversation_id: UUID,
+    message_ids: Collection[UUID],
+) -> list[Message]:
+    """Load saved context rows in stable transcript order with read relationships."""
+    if not message_ids:
+        return []
+    result = await db.scalars(
+        select(Message)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Conversation.organization_id == organization_id,
+            Message.conversation_id == source_conversation_id,
+            Message.id.in_(message_ids),
+        )
+        .options(
+            selectinload(Message.tool_calls),
+            selectinload(Message.files).load_only(
+                ChatFile.message_id,
+                ChatFile.filename,
+                ChatFile.mime_type,
+                ChatFile.file_type,
+                raiseload=True,
+            ),
+        )
+        .order_by(Message.ordinal.asc())
+        .execution_options(populate_existing=True)
+    )
+    return list(result.all())
+
+
+async def context_candidates(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    source_conversation_id: UUID,
+    first_ordinal: int,
+    last_ordinal: int,
+    root_message_id: UUID,
+    message_ids: Collection[UUID],
+    limit: int = 1000,
+) -> list[Message]:
+    """Load eligible range rows, including this thread's own moved snapshot only."""
+    own_moved_row = and_(
+        RoomThread.conversation_id == source_conversation_id,
+        RoomThread.root_message_id == root_message_id,
+        RoomThread.context_moved.is_(True),
+        Message.thread_root_message_id == root_message_id,
+        Message.id.in_(message_ids),
+    )
+    own_moved = select(literal(True)).where(own_moved_row).exists().correlate(Message)
+    context_marker = (
+        select(literal(True))
+        .where(
+            RoomThread.conversation_id == source_conversation_id,
+            RoomThread.root_message_id == Message.id,
+            RoomThread.context_source_conversation_id.is_not(None),
+        )
+        .exists()
+        .correlate(Message)
+    )
+    result = await db.scalars(
+        select(Message)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Conversation.organization_id == organization_id,
+            Message.conversation_id == source_conversation_id,
+            Message.ordinal.between(first_ordinal, last_ordinal),
+            Message.role.in_(("user", "assistant")),
+            or_(Message.thread_root_message_id.is_(None), own_moved),
+            ~context_marker,
+        )
+        .options(
+            selectinload(Message.tool_calls),
+            selectinload(Message.files).load_only(
+                ChatFile.message_id,
+                ChatFile.filename,
+                ChatFile.mime_type,
+                ChatFile.file_type,
+                raiseload=True,
+            ),
+        )
+        .order_by(Message.ordinal.asc())
+        .limit(limit)
+        .execution_options(populate_existing=True)
+    )
+    return list(result.all())
+
+
+def _context_marker(message: type[Message]) -> ColumnElement[bool]:
+    """Whether a top-level message is already a range thread's marker."""
+    return (
+        select(literal(True))
+        .where(
+            RoomThread.conversation_id == message.conversation_id,
+            RoomThread.root_message_id == message.id,
+            RoomThread.context_source_conversation_id.is_not(None),
+        )
+        .exists()
+        .correlate(message)
+    )
+
+
+def _context_range_placement(
+    *, own_root_message_id: UUID | None, own_message_ids: Collection[UUID]
+) -> ColumnElement[bool]:
+    """Top-level rows plus only the current thread's exact moved snapshot."""
+    if own_root_message_id is None or not own_message_ids:
+        return Message.thread_root_message_id.is_(None)
+    return or_(
+        Message.thread_root_message_id.is_(None),
+        and_(
+            Message.thread_root_message_id == own_root_message_id,
+            Message.id.in_(own_message_ids),
+        ),
+    )
+
+
+async def context_range_boundaries(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    source_conversation_id: UUID,
+    boundary_message_ids: Collection[UUID],
+    own_root_message_id: UUID | None = None,
+    own_message_ids: Collection[UUID] = (),
+) -> list[Message]:
+    """Load requested boundaries only when they are eligible in the source room."""
+    if not boundary_message_ids:
+        return []
+    result = await db.scalars(
+        select(Message)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Conversation.organization_id == organization_id,
+            Message.conversation_id == source_conversation_id,
+            Message.id.in_(boundary_message_ids),
+            Message.role.in_(("user", "assistant")),
+            _context_range_placement(
+                own_root_message_id=own_root_message_id,
+                own_message_ids=own_message_ids,
+            ),
+            ~_context_marker(Message),
+        )
+    )
+    return list(result.all())
+
+
+async def context_range_candidates(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    source_conversation_id: UUID,
+    first_ordinal: int,
+    last_ordinal: int,
+    own_root_message_id: UUID | None = None,
+    own_message_ids: Collection[UUID] = (),
+    limit: int = 1001,
+) -> list[Message]:
+    """Load ordered, eligible messages in a normalized range window."""
+    result = await db.scalars(
+        select(Message)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Conversation.organization_id == organization_id,
+            Message.conversation_id == source_conversation_id,
+            Message.ordinal.between(first_ordinal, last_ordinal),
+            Message.role.in_(("user", "assistant")),
+            _context_range_placement(
+                own_root_message_id=own_root_message_id,
+                own_message_ids=own_message_ids,
+            ),
+            ~_context_marker(Message),
+        )
+        .order_by(Message.ordinal.asc())
+        .limit(limit)
+    )
+    return list(result.all())
+
+
+async def has_nested_replies(
+    db: AsyncSession, *, conversation_id: UUID, message_ids: Collection[UUID]
+) -> bool:
+    """Whether any selected top-level message already has ordinary thread replies."""
+    if not message_ids:
+        return False
+    return bool(
+        await db.scalar(
+            select(Message.id)
+            .where(
+                Message.conversation_id == conversation_id,
+                Message.thread_root_message_id.in_(message_ids),
+            )
+            .limit(1)
+        )
+    )
+
+
+async def has_context_history(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    conversation_id: UUID,
+    root_message_id: UUID,
+) -> bool:
+    """Whether replies or accepted runs still depend on this thread's source."""
+    replies = (
+        select(Message.id)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.thread_root_message_id == root_message_id,
+            ~is_context_message(Message),
+        )
+        .exists()
+    )
+    requests = (
+        select(RoomSubmission.id)
+        .where(
+            RoomSubmission.organization_id == organization_id,
+            RoomSubmission.conversation_id == conversation_id,
+            RoomSubmission.thread_root_message_id == root_message_id,
+        )
+        .exists()
+    )
+    used = (
+        select(RoomThread.root_message_id)
+        .where(
+            RoomThread.organization_id == organization_id,
+            RoomThread.conversation_id == conversation_id,
+            RoomThread.root_message_id == root_message_id,
+            RoomThread.context_used.is_(True),
+        )
+        .exists()
+    )
+    return bool(await db.scalar(select(or_(replies, requests, used))))
+
+
+async def change_context_placement(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    root_message_id: UUID,
+    message_ids: Collection[UUID],
+    old_root_message_id: UUID | None,
+    new_root_message_id: UUID | None,
+) -> set[UUID]:
+    """Update only selected rows at the expected prior placement and return changed IDs."""
+    if not message_ids:
+        return set()
+    placement = (
+        Message.thread_root_message_id.is_(None)
+        if old_root_message_id is None
+        else Message.thread_root_message_id == old_root_message_id
+    )
+    result = await db.execute(
+        update(Message)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.id.in_(message_ids),
+            Message.id != root_message_id,
+            placement,
+        )
+        .values(thread_root_message_id=new_root_message_id)
+        .returning(Message.id)
+    )
+    return set(result.scalars().all())
+
+
+async def has_context_work(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    conversation_ids: Collection[UUID],
+) -> bool:
+    """Whether a room has queued or resumable work that can observe its context."""
+    if not conversation_ids:
+        return False
+    active = ("queued", "running", "awaiting_approval", "awaiting_answer")
+    if await db.scalar(
+        select(literal(True))
+        .select_from(RoomSubmission)
+        .where(
+            RoomSubmission.organization_id == organization_id,
+            RoomSubmission.conversation_id.in_(conversation_ids),
+            RoomSubmission.status.in_(active),
+        )
+        .limit(1)
+    ):
+        return True
+    if await db.scalar(
+        select(literal(True))
+        .select_from(AgentRun)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.conversation_id.in_(conversation_ids),
+            AgentRun.status.in_(active[1:]),
+        )
+        .limit(1)
+    ):
+        return True
+    if await db.scalar(
+        select(literal(True))
+        .select_from(ConversationTask)
+        .where(
+            ConversationTask.organization_id == organization_id,
+            or_(
+                ConversationTask.source_conversation_id.in_(conversation_ids),
+                ConversationTask.conversation_id.in_(conversation_ids),
+            ),
+            or_(
+                ConversationTask.status.in_(active),
+                ConversationTask.delivery.in_(("pending", "running")),
+            ),
+        )
+        .limit(1)
+    ):
+        return True
+    return bool(
+        await db.scalar(
+            select(literal(True))
+            .select_from(ConversationTurnClaim)
+            .join(Conversation, Conversation.id == ConversationTurnClaim.conversation_id)
+            .where(
+                Conversation.organization_id == organization_id,
+                ConversationTurnClaim.conversation_id.in_(conversation_ids),
+                ConversationTurnClaim.expires_at > datetime.now(UTC),
+            )
+            .limit(1)
+        )
+    )
 
 
 async def get_thread(
@@ -179,6 +556,7 @@ async def summaries_for_roots(
             reply.thread_root_message_id == root.id,
             reply.role == "user",
             reply.author_user_id == user_id,
+            ~is_context_message(reply),
         )
         .correlate(root)
         .exists()
@@ -202,6 +580,7 @@ async def summaries_for_roots(
             reply.thread_root_message_id == root.id,
             reply.ordinal > func.coalesce(cursor, root.ordinal),
             reply.role.in_(("user", "assistant")),
+            ~is_context_message(reply),
             or_(reply.author_user_id.is_(None), reply.author_user_id != user_id),
         )
         .correlate(root)
@@ -274,6 +653,7 @@ async def follower_ids(
                 reply.thread_root_message_id == root_message_id,
                 reply.role == "user",
                 reply.author_user_id.is_not(None),
+                ~is_context_message(reply),
                 ~explicit_false.where(RoomThreadFollow.user_id == reply.author_user_id).exists(),
             )
         )

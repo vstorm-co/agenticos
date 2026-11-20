@@ -3424,6 +3424,98 @@
       "unarchiveThread": "Unarchive thread",
       "actionFailed": "Thread update could not be saved. Check the current thread and try again."
     },
+    "roomThreadContext": {
+      "selectContext": "Select context",
+      "moveIntoThread": "Move into thread",
+      "returnToRoom": "Return to room",
+      "create": {
+        "title": "Create thread from context",
+        "description": "This creates a thread marker without sending a message or starting an agent."
+      },
+      "source": {
+        "label": "Source conversation",
+        "selected": "Selected conversation",
+        "choose": "Choose source conversation",
+        "closePicker": "Close conversation picker",
+        "search": "Search conversations",
+        "searchPlaceholder": "Search by conversation title",
+        "results": "Source conversation results",
+        "currentConversation": "Current conversation",
+        "searching": "Searching conversations…",
+        "searchHint": "Search conversations, shared chats, and rooms. Access is checked when the context is saved.",
+        "empty": "No readable conversations match that search.",
+        "untitled": "Untitled conversation",
+        "publicRoom": "Public room",
+        "projectRoom": "Project or private room",
+        "sharedConversation": "Shared conversation",
+        "conversation": "Conversation",
+        "loadMore": "Load more conversations",
+        "loadingMore": "Loading more conversations…",
+        "noMatchesYet": "No matches in the conversations loaded so far.",
+        "retry": "Retry search",
+        "searchFailed": "Conversations could not be searched. Try again."
+      },
+      "range": {
+        "instructions": "Choose a message range from {source}. Set the start and end, then exclude messages that should stay out.",
+        "loadEarlier": "Load earlier messages",
+        "loadingEarlier": "Loading earlier messages…",
+        "loadingMessages": "Loading source messages…",
+        "noEligibleMessages": "There are no eligible messages in this conversation.",
+        "chooseBoundaries": "Choose a start and end message.",
+        "emptySelection": "Include at least one message in the range.",
+        "limitExceeded": "A context can include at most {count} messages.",
+        "exclusionLimitExceeded": "A context can exclude at most {count} messages.",
+        "selectedCount": "{count, plural, one {# message selected} other {# messages selected}}",
+        "setStart": "Set start",
+        "setEnd": "Set end",
+        "setStartFor": "Set range start at: {message}",
+        "setEndFor": "Set range end at: {message}",
+        "exclude": "Exclude",
+        "include": "Include",
+        "excludeFor": "Exclude message: {message}",
+        "includeFor": "Include message: {message}",
+        "title": "Thread title",
+        "titlePlaceholder": "Optional title",
+        "userMessage": "User message",
+        "assistantMessage": "Assistant message",
+        "attachmentOnly": "Attachment-only message",
+        "cancel": "Cancel",
+        "createThread": "Create thread marker",
+        "saveContext": "Save context",
+        "saving": "Saving…"
+      },
+      "context": {
+        "title": "Thread context",
+        "range": "{count, plural, one {# message included} other {# messages included}}",
+        "openSource": "Open source conversation",
+        "openSourceNamed": "Open source conversation: {title}",
+        "referenceOnly": "This source stays in its conversation and is referenced here.",
+        "returnMovedRangeOnSave": "Saving a different source will return the current moved messages to the room.",
+        "stale": "Some saved messages are no longer available. Choose and save a replacement range before using this context.",
+        "edit": "Edit context",
+        "empty": "The saved context messages are unavailable.",
+        "saved": "Thread context updated.",
+        "moved": "Selected messages moved into the thread.",
+        "returned": "Selected messages returned to the room.",
+        "saving": "Saving…"
+      },
+      "errors": {
+        "readFailed": "Context messages could not be read. Check your access and try again.",
+        "actionFailed": "Thread context could not be changed. Check the current thread and try again.",
+        "roomBusy": "The room is busy with another context change. Try again shortly.",
+        "nestedReplies": "The selected range includes a reply thread. Choose only top-level messages.",
+        "staleContext": "This context changed elsewhere. Reopen it to review the latest version.",
+        "archivedThread": "This thread is archived and its context cannot be changed.",
+        "invalidRange": "The selected messages are no longer a valid range. Choose the range again.",
+        "crossRoomMove": "Context from another conversation can be referenced, but cannot be moved between conversations.",
+        "contextSourceInUse": "This thread already has replies or agent requests. Start a new thread to use another source conversation."
+      },
+      "stub": {
+        "untitled": "Thread context",
+        "open": "Open thread context for {title}",
+        "detail": "{count, plural, one {# message moved to this thread} other {# messages moved to this thread}}"
+      }
+    },
     "roomRouting": {
       "askLead": "Ask lead",
       "askLeadNamed": "Ask lead: {name}",
@@ -7111,6 +7203,10 @@
       "chat-room-thread-panel": {
         "title": "Replies with their own context",
         "body": "The original message stays above the replies. Everyone in the room can read the thread. Choose an agent when you want help here, or close the thread to return to the room."
+      },
+      "chat-room-thread-context": {
+        "title": "Select context",
+        "body": "Choose a range of messages from this room or another conversation to create a thread without starting an agent."
       },
       "chat-message-pins": {
         "title": "Keep important messages",

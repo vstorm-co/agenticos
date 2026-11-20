@@ -10,6 +10,7 @@ import { apiClient } from "@/lib/api-client";
 import * as invalidation from "@/lib/coalesced-invalidation";
 import { qk } from "@/lib/query-keys";
 import type { ConversationMessagesResponse, User } from "@/types";
+import type { RoomThreadMovedStub } from "@/types/room-thread-context";
 import {
   useAgentSelectionStore,
   useAuthStore,
@@ -2497,3 +2498,129 @@ it.each(["new", "delete"] as const)(
     expect(new URLSearchParams(window.location.search).get("thread")).toBeNull();
   },
 );
+
+describe("moved thread context stubs", () => {
+  const owner: User = {
+    id: "stub-owner",
+    email: "stub-owner@example.com",
+    is_active: true,
+    created_at: "2026-11-01T00:00:00Z",
+  };
+  let previousUser: User | null;
+
+  beforeEach(() => {
+    previousUser = useAuthStore.getState().user;
+    useAuthStore.setState({ user: owner });
+    useOrgStore.setState({ activeOrgId: null });
+    useConversationStore.getState().reset();
+  });
+
+  afterEach(() => useAuthStore.setState({ user: previousUser }));
+
+  function stub(rootMessageId: string, title: string, firstOrdinal: number): RoomThreadMovedStub {
+    return {
+      root_message_id: rootMessageId,
+      source_conversation_id: "c-1",
+      first_ordinal: firstOrdinal,
+      last_ordinal: firstOrdinal + 1,
+      message_count: 2,
+      title,
+    };
+  }
+
+  function message(id: string) {
+    return {
+      id,
+      conversation_id: "c-1",
+      role: "user" as const,
+      content: id,
+      created_at: "2026-11-01T00:00:00Z",
+    };
+  }
+
+  function transcript(
+    items: ReturnType<typeof message>[],
+    movedThreadStubs?: RoomThreadMovedStub[],
+  ): ConversationMessagesResponse {
+    return {
+      items,
+      total: items.length,
+      cost: null,
+      ...(movedThreadStubs === undefined ? {} : { moved_thread_stubs: movedThreadStubs }),
+    };
+  }
+
+  const list = { items: [conversation("c-1")], total: 1 };
+
+  it("replaces same-owner stubs on reread so returned or edited ranges disappear", async () => {
+    const moved = stub("thread-root", "Moved context", 12);
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.includes("/messages") ? transcript([message("m-1")], [moved]) : list,
+    );
+    const result = await hook();
+    await act(async () => result.current.selectConversation("c-1"));
+    expect(useConversationStore.getState().currentMovedThreadStubs).toEqual([moved]);
+
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.includes("/messages") ? transcript([message("m-1")], []) : list,
+    );
+    await act(async () => result.current.rereadConversation("c-1"));
+    expect(useConversationStore.getState().currentMovedThreadStubs).toEqual([]);
+  });
+
+  it("merges earlier-page stubs by root and keeps the current stub over duplicates", async () => {
+    const current = stub("thread-root", "Current title", 40);
+    const oldPageCopy = stub("thread-root", "Outdated page title", 40);
+    const earlier = stub("earlier-thread", "Earlier thread", 15);
+    const newestItems = Array.from({ length: 101 }, (_, index) => message(`new-${index}`));
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.includes("before=")) {
+        return transcript(
+          Array.from({ length: 101 }, (_, index) => message(`old-${index}`)),
+          [oldPageCopy, earlier],
+        );
+      }
+      return path.includes("/messages") ? transcript(newestItems, [current]) : list;
+    });
+
+    const result = await hook();
+    await act(async () => result.current.selectConversation("c-1"));
+    await act(async () => result.current.loadEarlierMessages());
+
+    expect(useConversationStore.getState().currentMovedThreadStubs).toEqual([earlier, current]);
+  });
+
+  it("drops an earlier page after a newer same-owner reread replaces its stubs", async () => {
+    const oldStub = stub("thread-root", "Old context", 12);
+    const newestItems = Array.from({ length: 101 }, (_, index) => message(`new-${index}`));
+    let finishEarlier!: (response: ConversationMessagesResponse) => void;
+    vi.mocked(apiClient.get).mockImplementation((path: string) => {
+      if (path.includes("before="))
+        return new Promise((resolve) => {
+          finishEarlier = resolve;
+        });
+      if (path.includes("/messages")) return Promise.resolve(transcript(newestItems, [oldStub]));
+      return Promise.resolve(list);
+    });
+
+    const result = await hook();
+    await act(async () => result.current.selectConversation("c-1"));
+    let earlier!: Promise<void>;
+    act(() => {
+      earlier = result.current.loadEarlierMessages();
+    });
+    await waitFor(() => expect(finishEarlier).toBeDefined());
+
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.includes("/messages") ? transcript([message("fresh")], []) : list,
+    );
+    await act(async () => result.current.rereadConversation("c-1"));
+    expect(useConversationStore.getState().currentMovedThreadStubs).toEqual([]);
+
+    await act(async () => {
+      finishEarlier(transcript([message("old-0")], [oldStub]));
+      await earlier;
+    });
+    expect(useConversationStore.getState().currentMovedThreadStubs).toEqual([]);
+  });
+});

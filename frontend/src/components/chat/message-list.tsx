@@ -11,9 +11,11 @@ import { buildAssistantParts } from "@/lib/conversation-to-chat";
 import { dayLabel, startsADay } from "@/lib/day-separator";
 import type { AskedBefore } from "@/components/datasets/follows-on";
 import type { ChatMessage, TurnUsage, Delegation, MessageReply } from "@/types";
+import type { RoomThreadMovedStub } from "@/types/room-thread-context";
 import type { PinnedPrompts } from "./chat-container";
 import type { ConversationSideThreadActions } from "./conversation-side-threads";
 import { MessageItem } from "./message-item";
+import { RoomThreadContextStub } from "./room-thread-context-stub";
 
 export interface MessagePinActions {
   pendingMessageId: string | null;
@@ -37,6 +39,8 @@ interface MessageListProps {
   canReactToRoomMessages?: boolean;
   /** The test panel's pinned questions; a question here can be pinned or taken off. */
   pins?: PinnedPrompts;
+  /** Placeholders for ranges currently moved into same-room threads. */
+  movedThreadStubs?: RoomThreadMovedStub[];
 }
 
 /**
@@ -255,6 +259,7 @@ export function MessageList({
   roomReactionsEnabled = false,
   canReactToRoomMessages = false,
   pins,
+  movedThreadStubs = [],
 }: MessageListProps) {
   const messages = useMemo(() => coalesceActivity(sourceMessages), [sourceMessages]);
   // Agents are resolved here rather than stamped onto the message, so a renamed
@@ -267,6 +272,25 @@ export function MessageList({
   const router = useRouter();
 
   const layout = useMemo(() => layoutMessages(messages), [messages]);
+  const stubPositions = useMemo(() => {
+    const byIndex = new Map<number, RoomThreadMovedStub[]>();
+    const after: RoomThreadMovedStub[] = [];
+    const ordered = [...movedThreadStubs].sort(
+      (left, right) => left.first_ordinal - right.first_ordinal,
+    );
+    const hasOrdinals = messages.some((message) => typeof message.ordinal === "number");
+    for (const stub of ordered) {
+      const index = hasOrdinals
+        ? messages.findIndex(
+            (message) =>
+              typeof message.ordinal === "number" && message.ordinal >= stub.first_ordinal,
+          )
+        : -1;
+      if (index < 0) after.push(stub);
+      else byIndex.set(index, [...(byIndex.get(index) ?? []), stub]);
+    }
+    return { byIndex, after };
+  }, [messages, movedThreadStubs]);
 
   // Only allow regenerating the most recent assistant message - older ones
   // would diverge the transcript in a confusing way.
@@ -311,6 +335,16 @@ export function MessageList({
     <div className="space-y-0" onClickCapture={onClickCapture}>
       {layout.map(({ message, ...row }, index) => (
         <Fragment key={message.renderKey ?? message.id}>
+          {onOpenThread &&
+            stubPositions.byIndex
+              .get(index)
+              ?.map((stub) => (
+                <RoomThreadContextStub
+                  key={stub.root_message_id}
+                  stub={stub}
+                  onOpen={onOpenThread}
+                />
+              ))}
           {/* Never inside a turn: a run that crossed midnight is still one answer. */}
           {!row.continuesTurn && startsADay(timestamps, index, now) && (
             <DaySeparator at={message.timestamp} now={now} />
@@ -347,6 +381,10 @@ export function MessageList({
           />
         </Fragment>
       ))}
+      {onOpenThread &&
+        stubPositions.after.map((stub) => (
+          <RoomThreadContextStub key={stub.root_message_id} stub={stub} onOpen={onOpenThread} />
+        ))}
     </div>
   );
 }

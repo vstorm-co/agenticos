@@ -60,6 +60,8 @@ async def _client(
     )
     app.dependency_overrides[deps.get_active_organization] = lambda: organization
     app.dependency_overrides[deps.get_conversation_service] = lambda: service
+    contexts = MagicMock(moved_stubs=AsyncMock(return_value=[]))
+    app.dependency_overrides[deps.get_room_thread_context_read_service] = lambda: contexts
     app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
     # The read routes now carry the caller's context too, so a trigger's run-log
     # can resolve against its agent. Stubbed: these tests assert on what the

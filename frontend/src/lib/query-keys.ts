@@ -57,6 +57,68 @@ export const qk = {
       root: string | null,
     ) => ["room-threads", account, tenant, conversation, root] as const,
   },
+  roomThreadContext: {
+    conversations: (
+      account: string | undefined,
+      organization: string | null,
+      tenant: string | null,
+      term: string,
+    ) => ["room-thread-context", "conversations", account, organization, tenant, term] as const,
+    sourceConversation: (
+      account: string | undefined,
+      organization: string | null,
+      tenant: string | null,
+      conversation: string | null,
+    ) =>
+      [
+        "room-thread-context",
+        "source-conversation",
+        account,
+        organization,
+        tenant,
+        conversation,
+      ] as const,
+    source: (
+      account: string | undefined,
+      organization: string | null,
+      tenant: string | null,
+      conversation: string | null,
+    ) => ["room-thread-context", "source", account, organization, tenant, conversation] as const,
+    candidates: (
+      account: string | undefined,
+      organization: string | null,
+      tenant: string | null,
+      conversation: string | null,
+      root: string | null,
+    ) =>
+      [
+        "room-thread-context",
+        "candidates",
+        account,
+        organization,
+        tenant,
+        conversation,
+        root,
+      ] as const,
+    candidate: (
+      account: string | undefined,
+      organization: string | null,
+      tenant: string | null,
+      conversation: string | null,
+      root: string | null,
+      revision: number | null,
+    ) =>
+      [
+        "room-thread-context",
+        "candidates",
+        account,
+        organization,
+        tenant,
+        conversation,
+        root,
+        revision,
+      ] as const,
+  },
   roomRequests: {
     list: (account: string | undefined, tenant: string | null, conversation: string | null) =>
       ["room-requests", account, tenant, conversation] as const,

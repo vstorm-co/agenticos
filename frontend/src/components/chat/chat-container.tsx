@@ -29,7 +29,7 @@ import {
   useWorkflowChat,
   useWorkflows,
 } from "@/hooks";
-import type { ChatTesting, SteerDraft } from "@/hooks/use-chat";
+import type { ChatTesting, SavedTurnScope, SteerDraft } from "@/hooks/use-chat";
 import type { AssistantPageContext } from "@/lib/assistant-page-context";
 import { AgentPicker, isChattable } from "./agent-picker";
 import { ChatApprovalSelector } from "./chat-approval-selector";
@@ -44,6 +44,7 @@ import { TeamRoomHeader, TeamRoomEmpty } from "./team-room-header";
 import { RoomRoutingPanel } from "./room-routing-panel";
 import { TeamRoomComposer } from "./team-room-composer";
 import { RoomThreadPanel } from "./room-thread-panel";
+import { RoomThreadContextPanel } from "./room-thread-context-panel";
 import { useRoomRequests, useRoomSync } from "@/hooks/use-room";
 import { TypingIndicator } from "./typing-indicator";
 import { useProjectMentions } from "@/hooks/use-project-mentions";
@@ -484,9 +485,23 @@ export function ChatContainer({
   // in it, because at that moment nobody had: `agents` is derived from the turns
   // stored in the thread. Nothing else asked again, so the face of the agent you
   // are talking to arrived on the next full page load and not before.
-  const handleTurnSaved = useCallback(() => {
-    void refreshConversations();
-  }, [refreshConversations]);
+  const handleTurnSaved = useCallback(
+    (savedScope?: SavedTurnScope) => {
+      void refreshConversations();
+      if (savedScope?.refreshMainTranscript !== true || savedScope.threadRootMessageId !== null)
+        return;
+      const selected = useConversationStore.getState();
+      if (
+        selected.currentConversationId !== savedScope.conversationId ||
+        selected.selectionVersion !== savedScope.selectionVersion ||
+        (useAuthStore.getState().user?.id ?? null) !== savedScope.accountId ||
+        useOrgStore.getState().activeOrgId !== savedScope.organizationId
+      )
+        return;
+      void rereadConversation(savedScope.conversationId);
+    },
+    [refreshConversations, rereadConversation],
+  );
 
   useEffect(() => {
     let refresh: ReturnType<typeof setTimeout> | undefined;
@@ -1741,6 +1756,7 @@ function ChatUI({
   const directDraftRef = useRef<DirectChatDraft | null>(null);
   const createdRoomDraftHandoffRef = useRef<CreatedRoomDraftHandoff | null>(null);
   const conversationApi = useConversationStore.useApi();
+  const currentMovedThreadStubs = useConversationStore((state) => state.currentMovedThreadStubs);
   const selectionVersion = useConversationStore((state) => state.selectionVersion);
   const composerFocusRequest = useConversationStore((state) => state.composerFocusRequest);
   const t = useTranslations("chat");
@@ -2339,9 +2355,20 @@ function ChatUI({
                   className="sticky top-2 z-20 mb-3"
                 />
               )}
+              {isRoom && canStartThread && conversationId && !isLoadingConversation && (
+                <RoomThreadContextPanel
+                  key={`${activeOrgId}:${authUser?.id}:${conversationId}:create-context`}
+                  mode="create"
+                  destinationConversationId={conversationId}
+                  destinationTitle={conversation?.title ?? ""}
+                  onCreated={(rootId) => onOpenThread?.(rootId)}
+                />
+              )}
               {isLoadingConversation ? (
                 <ConversationSkeleton />
-              ) : messages.length === 0 && voice.call.phase === "idle" ? (
+              ) : messages.length === 0 &&
+                currentMovedThreadStubs.length === 0 &&
+                voice.call.phase === "idle" ? (
                 <div className={cn("flex h-full items-center", !emptyState && "chat-empty-state")}>
                   {isRoom ? (
                     <TeamRoomEmpty />
@@ -2402,6 +2429,7 @@ function ChatUI({
                       onOpenThread={onOpenThread}
                       canStartThread={canStartThread}
                       allowReply={!readOnly && (!isRoom || canStartThread)}
+                      movedThreadStubs={currentMovedThreadStubs}
                     />
                   </ConversationVisualsProvider>
                 </LiveBrowsesProvider>
@@ -2914,6 +2942,7 @@ function ChatUI({
         <RoomThreadPanel
           key={`${activeOrgId}:${authUser?.id}:${conversationId}:${threadRootId}`}
           conversationId={conversationId}
+          conversationTitle={conversation?.title ?? ""}
           isRoom={isRoom}
           projectId={roomProjectId}
           roomReactionsEnabled={isRoom}

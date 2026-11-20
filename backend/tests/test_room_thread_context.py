@@ -1,7 +1,7 @@
 """Subthreads cannot inherit another discussion's working state or resume scope."""
 
 from collections.abc import AsyncIterator, Iterator
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -25,6 +25,7 @@ from app.agents.spec import AgentSpec
 from app.agents.subagent_events import SubagentTextDelta
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext
+from app.db.locks import LockScope
 from app.db.models.agent import AgentKind
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.services import live_turn
@@ -236,6 +237,14 @@ async def test_subthread_resume_keeps_saved_messages_and_plan_on_original_room_a
         patch(
             "app.services.agent_runner.conversation_repo.room_thread_for_run",
             AsyncMock(return_value=root),
+        ),
+        patch(
+            "app.services.agent_runner.conversation_repo.has_imported_thread_context",
+            AsyncMock(return_value=False),
+        ),
+        patch(
+            "app.services.agent_runner.room_thread_repo.get_thread",
+            AsyncMock(return_value=None),
         ),
         patch(
             "app.services.room_submission.RoomSubmissionService.resume_authority",
@@ -478,3 +487,180 @@ async def test_resumed_frames_retain_server_scope_on_socket_and_shared_trace(
     assert delivered[2][1]["content"] == "Continued reply"
     assert delivered[3][1]["delta"] == "Found the source"
     assert [(call.args[1], call.args[2]) for call in publish.await_args_list] == delivered
+
+
+async def test_cross_room_resume_publishes_only_status_and_saved_identifiers() -> None:
+    prepared = _prepared(conversation_id=uuid4())
+    prepared.run.surface = RunSurface.WEB.value
+    prepared.run.user_id = uuid4()
+    prepared.built.deps = AgentDeps()
+    root = uuid4()
+    prepared.admitted_as.thread_root_message_id = root
+    emit = AsyncMock()
+    surface = LiveRunSurface(ask_user=AsyncMock(), ask_questions=AsyncMock(), emit=emit)
+    turn = object()
+    message_id, run_id = uuid4(), prepared.run.id
+    with (
+        patch.object(live_turn, "begin", AsyncMock(return_value=turn)),
+        patch.object(live_turn, "publish", AsyncMock()) as publish,
+        patch.object(live_turn, "end", AsyncMock()),
+        patch("app.services.chat_room.turn_begun", AsyncMock()),
+    ):
+        async with AgentRunnerService(_db())._resume_stream(
+            prepared,
+            live_surface=surface,
+            suppress_room_payloads=True,
+        ) as frames:
+            assert frames is not None
+            for kind, payload in (
+                ("user_prompt_processed", {"prompt": "private prompt"}),
+                ("text_delta", {"content": "private answer"}),
+                ("tool_result", {"content": "private tool result"}),
+                ("subagent_text_delta", {"delta": "private delegation"}),
+                (
+                    "message_saved",
+                    {
+                        "message_id": str(message_id),
+                        "run_id": str(run_id),
+                        "run_status": "completed",
+                        "content": "private answer",
+                    },
+                ),
+            ):
+                await frames.emit(kind, payload)
+
+    delivered = [call.args for call in emit.await_args_list]
+    assert [kind for kind, _payload in delivered] == [
+        "background_task_turn",
+        "model_request_start",
+        "message_saved",
+    ]
+    assert delivered[0][1] == {
+        "agent_id": str(prepared.run.agent_id),
+        "resumed_run_id": str(prepared.run.id),
+        "conversation_id": str(prepared.run.conversation_id),
+        "thread_root_message_id": str(root),
+    }
+    assert delivered[1][1] == {
+        "conversation_id": str(prepared.run.conversation_id),
+        "thread_root_message_id": str(root),
+    }
+    assert delivered[2][1] == {
+        "message_id": str(message_id),
+        "run_id": str(run_id),
+        "run_status": "completed",
+        "conversation_id": str(prepared.run.conversation_id),
+        "thread_root_message_id": str(root),
+    }
+    assert [(call.args[1], call.args[2]) for call in publish.await_args_list] == delivered
+
+
+async def test_cross_room_worker_live_suppresses_prompt_and_model_payloads() -> None:
+    from app.worker.tasks.room_tasks import _live
+
+    conversation_id, accepted_root_id, display_root_id = uuid4(), uuid4(), uuid4()
+    submission = SimpleNamespace(
+        conversation_id=conversation_id,
+        requester_id=uuid4(),
+        agent_id=uuid4(),
+        thread_root_message_id=accepted_root_id,
+    )
+    message = SimpleNamespace(
+        id=uuid4(),
+        client_message_id="client-message",
+        content="visible saved user prompt",
+        room_mentions=[],
+        files=[],
+        sender=None,
+        reply_to=None,
+        thread_root_message_id=display_root_id,
+    )
+    turn = object()
+    with (
+        patch.object(live_turn, "begin", AsyncMock(return_value=turn)),
+        patch.object(live_turn, "publish", AsyncMock()) as publish,
+        patch.object(live_turn, "end", AsyncMock()),
+        patch("app.services.chat_room.turn_begun", AsyncMock()),
+    ):
+        async with _live(submission, message, suppress_room_payloads=True) as frames:
+            await frames.emit("model_request_start", {"prompt": "private prompt"})
+            await frames.emit("text_delta", {"content": "private answer"})
+            await frames.emit("tool_call", {"args": "private args"})
+            await frames.emit(
+                "message_saved",
+                {
+                    "message_id": str(uuid4()),
+                    "run_id": str(uuid4()),
+                    "run_status": "completed",
+                    "content": "private answer",
+                },
+            )
+
+    delivered = [call.args for call in publish.await_args_list]
+    assert [kind for _turn, kind, _payload in delivered] == [
+        "model_request_start",
+        "message_saved",
+        "complete",
+    ]
+    assert delivered[0][2] == {
+        "conversation_id": str(conversation_id),
+        "thread_root_message_id": str(accepted_root_id),
+    }
+    assert delivered[1][2]["run_status"] == "completed"
+    assert "content" not in delivered[1][2]
+    assert delivered[2][2] == {
+        "conversation_id": str(conversation_id),
+        "thread_root_message_id": str(accepted_root_id),
+    }
+
+
+async def test_cross_room_final_authority_refusal_saves_failure_without_answer() -> None:
+    service = AgentRunnerService(_db())
+    destination_id, source_id = uuid4(), uuid4()
+    prepared = _prepared(conversation_id=destination_id)
+    prepared.admitted_as.thread_root_message_id = uuid4()
+    sequence: list[tuple[str, UUID | None]] = []
+
+    async def take_lock(_db: object, scope: LockScope, conversation_id: UUID) -> None:
+        assert scope is LockScope.CONVERSATION_TURN
+        sequence.append(("lock", conversation_id))
+
+    @asynccontextmanager
+    async def fresh_session() -> AsyncIterator[object]:
+        yield object()
+
+    async def revoked(_db: object) -> None:
+        sequence.append(("check", None))
+        raise RuntimeError("private source conversation and body")
+
+    with (
+        patch.object(service, "_answer", AsyncMock(return_value=None)),
+        patch.object(service, "finish", AsyncMock()) as finish,
+        patch.object(service.transcript, "record", AsyncMock(return_value=None)) as record,
+        patch("app.services.agent_runner.hold_subject", new=AsyncMock(side_effect=take_lock)),
+        patch(
+            "app.services.agent_runner.get_db_context",
+            return_value=fresh_session(),
+        ),
+        pytest.raises(AuthorizationError) as raised,
+    ):
+        await service._run(
+            prepared,
+            user_prompt=None,
+            said=None,
+            message_history=None,
+            deferred_tool_results=None,
+            result_authority_check=revoked,
+            result_context_conversation_ids=(source_id, destination_id),
+        )
+
+    expected_locks = sorted((source_id, destination_id), key=str)
+    assert sequence == [("lock", expected_locks[0]), ("lock", expected_locks[1]), ("check", None)]
+    assert str(raised.value) == "This room request can no longer use its selected context"
+    assert raised.value.__cause__ is None
+    assert raised.value.__suppress_context__
+    finish.assert_awaited_once()
+    assert finish.await_args.kwargs["status"] is RunStatus.FAILED
+    record.assert_awaited_once()
+    assert record.await_args.kwargs["answer"] == ""
+    assert record.await_args.kwargs["tool_calls"] == []

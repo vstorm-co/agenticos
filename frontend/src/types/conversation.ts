@@ -7,6 +7,7 @@ import {
 } from "./chat";
 import type { RatingsByDay } from "./stats";
 import type { RoomMessageReactionSummary } from "./room-message-reaction";
+import type { RoomThreadMovedStub } from "./room-thread-context";
 
 /**
  * An agent that answered in a conversation.
@@ -129,6 +130,8 @@ export interface ConversationMessage {
   reactions?: RoomMessageReactionSummary[];
   id: string;
   conversation_id: string;
+  /** Stable position in the persisted conversation, or null on older servers. */
+  ordinal?: number | null;
   role: "user" | "assistant" | "system";
   content: string;
   thinking?: string | null;
@@ -213,6 +216,8 @@ export interface ConversationListResponse {
 export interface ConversationMessagesResponse {
   items: ConversationMessage[];
   total: number;
+  /** Current placeholders for context moved out of this transcript. */
+  moved_thread_stubs?: RoomThreadMovedStub[];
   /** What the whole thread cost, summed server-side. Null when nothing was measured. */
   cost: ConversationCost | null;
 }

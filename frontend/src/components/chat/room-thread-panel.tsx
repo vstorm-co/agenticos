@@ -31,6 +31,7 @@ import { MessageItem } from "./message-item";
 import { PlanStrip } from "./plan-strip";
 import { RoomComposer } from "./team-room-composer";
 import { RoomRoutingPanel } from "./room-routing-panel";
+import { RoomThreadContextPanel } from "./room-thread-context-panel";
 
 const OVERLAY_QUERY = "(max-width: 1023px)";
 
@@ -42,6 +43,7 @@ function subscribeOverlay(onChange: () => void): () => void {
 
 export function RoomThreadPanel({
   conversationId,
+  conversationTitle = "",
   isRoom: roomMode,
   roomReactionsEnabled,
   projectId = null,
@@ -57,6 +59,7 @@ export function RoomThreadPanel({
   onOpenPinnedMessage,
 }: {
   conversationId: string;
+  conversationTitle?: string;
   /** Explicit room mode also covers standalone rooms without a project id. */
   isRoom?: boolean;
   /** Whether room reaction controls belong on this transcript. */
@@ -462,6 +465,19 @@ export function RoomThreadPanel({
                     />
                   )}
                 </section>
+                {isRoom && page.context && (
+                  <RoomThreadContextPanel
+                    mode="thread"
+                    destinationConversationId={conversationId}
+                    destinationTitle={conversationTitle}
+                    rootMessageId={rootId}
+                    threadTitle={root.content}
+                    context={page.context}
+                    contextMessages={page.context_messages ?? []}
+                    canManage={canManageThread}
+                    threadState={threadState}
+                  />
+                )}
                 <p className="text-muted-foreground mb-3 text-xs">
                   {t("replies", { count: page.total })}
                 </p>

@@ -7,9 +7,10 @@ title with `contains_ci`; this one matches *what was said* against
 a `tsquery` rather than a `LIKE` over a column.
 
 Every query here takes `readable` - the predicate saying which conversations the
-caller may see - and none of them builds it. Who may read a thread is a decision
-with four ways in and one of them costs a call to Slack; it belongs to
-`app.services.conversation_search`, which resolves it once and hands it down.
+caller may see - and none of them builds it. Who may read a thread is a policy
+decision, including access that must be checked against the chat platform; it
+belongs to `app.services.conversation_search`, which resolves it once and hands it
+down.
 """
 
 from collections.abc import Collection
@@ -41,17 +42,25 @@ is Markdown."""
 
 
 def readable_by(
-    user_id: UUID, participant_ids: Collection[UUID], project_ids: Collection[UUID] = ()
+    user_id: UUID,
+    participant_ids: Collection[UUID],
+    project_ids: Collection[UUID] = (),
+    *,
+    private_room_ids: Collection[UUID] = (),
+    active_organization_member: bool = False,
 ) -> ColumnElement[bool]:
     """Which conversations this person may read, as one predicate.
 
-    Three of the four ways in from `ConversationService._may_read`: the owner,
-    anybody it was explicitly shared with, and a participant of a room whose
-    membership the *caller* has already confirmed against the platform - vetted
-    before it arrives here, exactly as `_reachable_by` takes it, because having
-    spoken in a channel is a claim and not access (#641).
+    The direct access paths from `ConversationService._may_read_direct`: the
+    owner, anybody it was explicitly shared with, a participant of a room whose
+    membership the *caller* has already confirmed against the platform, a member
+    of a standalone private room, and an active organization member in a public
+    standalone room. Channel participation is vetted before it arrives here,
+    exactly as `_reachable_by` takes it, because having spoken in a channel is a
+    claim and not access (#641). Explicit room IDs are likewise tenant-scoped by
+    the caller and still constrained to standalone private rooms below.
 
-    The fourth - a trigger's run-log - is deliberately absent. It is a transcript
+    A trigger's run-log is deliberately absent. It is a transcript
     of runs made under somebody else's authority, gated on `runs:view` plus the
     trigger's agent, and an agent searching on a person's behalf carries no
     permission of theirs to check it with.
@@ -74,10 +83,20 @@ def readable_by(
         .exists(),
     ]
     if participant_ids:
-        ways_in.append(Conversation.id.in_(participant_ids))
+        ways_in.append(and_(outside_projects, Conversation.id.in_(participant_ids)))
+    if private_room_ids:
+        ways_in.append(
+            and_(
+                outside_projects,
+                Conversation.room_visibility == "private",
+                Conversation.id.in_(private_room_ids),
+            )
+        )
+    if active_organization_member:
+        ways_in.append(and_(outside_projects, Conversation.room_visibility == "public"))
     if project_ids:
         ways_in.append(Conversation.project_id.in_(project_ids))
-    return or_(*ways_in)
+    return and_(Conversation.origin.is_distinct_from("workflow"), or_(*ways_in))
 
 
 _LENGTH_NORMALISATION = 1

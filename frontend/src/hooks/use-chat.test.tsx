@@ -177,6 +177,7 @@ describe("room persistence events", () => {
       accountId: undefined,
       organizationId: null,
     });
+    expect(useChatStore.getState().messages).toEqual([]);
     unsubscribe();
   });
 
@@ -7998,6 +7999,161 @@ describe("explicit room thread stream scope", () => {
     });
     expect(result.current.activeThreadRootId).toBeNull();
   });
+
+  it("announces a saved thread answer only for its still selected run scope", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    const changed = vi.fn();
+    const unsubscribe = onRoomChange(changed);
+
+    receive("model_request_start", scope("root-a", { run_id: "run-current" }));
+    receive(
+      "message_saved",
+      scope("root-a", { message_id: "saved-current", run_id: "run-current" }),
+    );
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(changed).toHaveBeenLastCalledWith({
+      conversationId: "c-1",
+      accountId: undefined,
+      organizationId: null,
+    });
+
+    receive("model_request_start", scope("root-a", { run_id: "run-stale" }));
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+      useConversationStore.getState().setCurrentConversationId("c-1");
+    });
+    receive("message_saved", scope("root-a", { message_id: "saved-stale", run_id: "run-stale" }));
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(useChatStore.getState().messages[0]?.id).toBe("saved-current");
+    unsubscribe();
+  });
+
+  it("recovers the thread scope when the run id first arrives with the saved answer", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const onTurnSaved = vi.fn();
+    renderHook(() => useChat({ conversationId: "c-1", onTurnSaved }), { wrapper });
+    const changed = vi.fn();
+    const unsubscribe = onRoomChange(changed);
+
+    receive("model_request_start", scope("root-a"));
+    receive(
+      "message_saved",
+      scope("root-a", {
+        message_id: "saved-id-only-run",
+        run_id: "run-first-named-on-save",
+        run_status: "completed",
+      }),
+    );
+
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(onTurnSaved).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: "c-1",
+        threadRootMessageId: "root-a",
+        selectionVersion: useConversationStore.getState().selectionVersion,
+        refreshMainTranscript: false,
+      }),
+    );
+    expect(useChatStore.getState().messages[0]).toMatchObject({
+      id: "saved-id-only-run",
+      isTemporaryId: false,
+      threadRootMessageId: "root-a",
+    });
+    unsubscribe();
+  });
+
+  it("asks the selected main room to reread a saved answer when no bubble streamed", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const onTurnSaved = vi.fn();
+    renderHook(() => useChat({ conversationId: "c-1", onTurnSaved }), { wrapper });
+    const changed = vi.fn();
+    const unsubscribe = onRoomChange(changed);
+
+    receive("turn_attached", scope(null));
+    receive(
+      "message_saved",
+      scope(null, {
+        message_id: "saved-main-without-bubble",
+        run_id: "main-run-first-named-on-save",
+        run_status: "completed",
+      }),
+    );
+
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(onTurnSaved).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: "c-1",
+        threadRootMessageId: null,
+        selectionVersion: useConversationStore.getState().selectionVersion,
+        refreshMainTranscript: true,
+      }),
+    );
+    unsubscribe();
+  });
+
+  it.each(["selection", "account", "organization"] as const)(
+    "does not use an unkeyed save scope after its %s identity changes",
+    (boundary) => {
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      const onTurnSaved = vi.fn();
+      renderHook(() => useChat({ conversationId: "c-1", onTurnSaved }), { wrapper });
+      const changed = vi.fn();
+      const unsubscribe = onRoomChange(changed);
+      receive("turn_attached", scope("root-a"));
+
+      act(() => {
+        if (boundary === "selection") {
+          useConversationStore.getState().setCurrentConversationId("c-2");
+          useConversationStore.getState().setCurrentConversationId("c-1");
+        } else if (boundary === "account") {
+          useAuthStore.setState({
+            user: { id: "another-account", email: "other@example.com" } as never,
+          });
+        } else {
+          useOrgStore.setState({ activeOrgId: "another-org" });
+        }
+      });
+      receive(
+        "message_saved",
+        scope("root-a", {
+          message_id: `stale-${boundary}`,
+          run_id: `run-stale-${boundary}`,
+        }),
+      );
+
+      expect(changed).not.toHaveBeenCalled();
+      expect(onTurnSaved).toHaveBeenCalledWith(undefined);
+      unsubscribe();
+    },
+  );
+
+  it.each(["account", "organization"] as const)(
+    "does not refresh a saved thread after its %s scope changes",
+    (boundary) => {
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+      const changed = vi.fn();
+      const unsubscribe = onRoomChange(changed);
+      receive("model_request_start", scope("root-a", { run_id: `run-${boundary}` }));
+
+      act(() => {
+        if (boundary === "account")
+          useAuthStore.setState({
+            user: { id: "another-account", email: "other@example.com" } as never,
+          });
+        else useOrgStore.setState({ activeOrgId: "another-org" });
+      });
+      receive(
+        "message_saved",
+        scope("root-a", { message_id: `saved-${boundary}`, run_id: `run-${boundary}` }),
+      );
+
+      expect(changed).not.toHaveBeenCalled();
+      unsubscribe();
+    },
+  );
 
   it("can recover scope from model_request_start and rejects late frames from another conversation", () => {
     useConversationStore.getState().setCurrentConversationId("c-1");

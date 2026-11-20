@@ -10,6 +10,7 @@ from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
 from app.db.models.conversation import Conversation, Message
+from app.db.models.room_thread import RoomThread
 from app.repositories import (
     conversation as conversation_repo,
 )
@@ -19,9 +20,18 @@ from app.repositories import (
 from app.repositories import (
     room_thread as room_thread_repo,
 )
-from app.schemas.room_thread import RoomThreadActionRead, RoomThreadSummary
+from app.schemas.conversation import MessageCreate
+from app.schemas.room_thread import (
+    RoomThreadActionRead,
+    RoomThreadContextActionRead,
+    RoomThreadContextRead,
+    RoomThreadContextUpdate,
+    RoomThreadRangeCreate,
+    RoomThreadSummary,
+)
 from app.services.conversation import ConversationService
 from app.services.room_participant import RoomParticipantService
+from app.services.room_thread_context_access import RoomThreadContextAccessService
 
 
 class RoomThreadService:
@@ -31,6 +41,7 @@ class RoomThreadService:
         self.db = db
         self.conversations = ConversationService(db)
         self.participants = RoomParticipantService(db)
+        self.context_access = RoomThreadContextAccessService(db)
 
     def _announce_thread_changed(self, conversation_id: UUID, root_message_id: UUID) -> None:
         """Invalidate the saved root after this transaction commits."""
@@ -100,6 +111,625 @@ class RoomThreadService:
             unread=summary.unread if summary else 0,
             can_manage=manager,
         )
+
+    @staticmethod
+    def context_read(row: RoomThread) -> RoomThreadContextRead:
+        """Convert a persisted context snapshot into its public, stable shape."""
+        if (
+            row.context_source_conversation_id is None
+            or row.context_start_message_id is None
+            or row.context_end_message_id is None
+            or row.context_first_ordinal is None
+            or row.context_last_ordinal is None
+            or not row.context_message_ids
+            or row.context_revision < 1
+        ):
+            raise ConflictError(
+                message="This thread's saved context is unavailable.",
+                details={"reason": "stale_context"},
+            )
+        return RoomThreadContextRead(
+            source_conversation_id=row.context_source_conversation_id,
+            start_message_id=row.context_start_message_id,
+            end_message_id=row.context_end_message_id,
+            first_ordinal=row.context_first_ordinal,
+            last_ordinal=row.context_last_ordinal,
+            excluded_message_ids=list(row.context_excluded_message_ids),
+            message_ids=list(row.context_message_ids),
+            message_count=len(row.context_message_ids),
+            moved=row.context_moved,
+            revision=row.context_revision,
+        )
+
+    async def _context_action(
+        self,
+        ctx: AuthContext,
+        conversation: Conversation,
+        root: Message,
+        organization_id: UUID,
+        user_id: UUID,
+        row: RoomThread,
+    ) -> RoomThreadContextActionRead:
+        summary = await self._summary(ctx, conversation, root, organization_id, user_id)
+        return RoomThreadContextActionRead(
+            **summary.model_dump(),
+            context=self.context_read(row),
+        )
+
+    async def _fresh_authorized_destination(
+        self, ctx: AuthContext, conversation_id: UUID
+    ) -> Conversation:
+        """Recheck the destination audience and reload mutable room state."""
+        await self.participants._conversation(ctx, conversation_id)
+        conversation = await conversation_repo.get_conversation_by_id(
+            self.db, conversation_id, fresh=True
+        )
+        if conversation is None or conversation.organization_id != ctx.organization_id:
+            raise NotFoundError(message="Room not found")
+        return conversation
+
+    async def _managed_context_thread(
+        self,
+        ctx: AuthContext,
+        conversation_id: UUID,
+        root_message_id: UUID,
+        *,
+        lock: bool,
+    ) -> tuple[Conversation, Message, UUID, UUID, RoomThread]:
+        """Reload and authorize one saved context thread after its advisory lock."""
+        conversation, root, organization_id, user_id = await self._conversation_and_root(
+            ctx, conversation_id, root_message_id
+        )
+        fresh = await conversation_repo.get_conversation_by_id(self.db, conversation.id, fresh=True)
+        if fresh is None or fresh.organization_id != organization_id:
+            raise NotFoundError(message="Room thread not found")
+        if fresh.is_archived:
+            raise ConflictError(
+                message="Archived threads are read-only",
+                details={"reason": "archived_thread"},
+            )
+        if not await self._can_manage(ctx, fresh, root, user_id):
+            raise AuthorizationError(
+                message="Only the thread starter or a room manager may change its context"
+            )
+        row = await room_thread_repo.get_thread(
+            self.db,
+            organization_id=organization_id,
+            conversation_id=fresh.id,
+            root_message_id=root.id,
+            lock=lock,
+        )
+        if row is None or row.context_source_conversation_id is None:
+            raise NotFoundError(message="This room thread has no saved context")
+        if row.state == "archived":
+            raise ConflictError(
+                message="Archived threads are read-only",
+                details={"reason": "archived_thread"},
+            )
+        return fresh, root, organization_id, user_id, row
+
+    async def _lock_context_conversations(self, conversation_ids: set[UUID]) -> None:
+        """Take every affected room lock in UUID order before reading mutable context."""
+        for conversation_id in sorted(conversation_ids, key=str):
+            await hold_subject(self.db, LockScope.CONVERSATION_TURN, conversation_id)
+
+    async def _context_source(
+        self,
+        *,
+        destination: Conversation,
+        source_conversation_id: UUID,
+        actor: AuthContext,
+    ) -> Conversation:
+        """Load a same-tenant source and prove its current audience fits the destination."""
+        if source_conversation_id == destination.id:
+            source = destination
+        else:
+            source = await conversation_repo.get_conversation_by_id(
+                self.db, source_conversation_id, fresh=True
+            )
+        if source is None or source.organization_id != destination.organization_id:
+            raise NotFoundError(message="Thread context source not found")
+        await self.context_access.assert_visible(
+            destination=destination,
+            source=source,
+            actor=actor,
+        )
+        return source
+
+    async def _ensure_context_room_writable(
+        self, ctx: AuthContext, conversation: Conversation
+    ) -> None:
+        if conversation.project_id is None and conversation.room_visibility is None:
+            raise NotFoundError(message="Room thread not found")
+        if conversation.is_archived:
+            raise ConflictError(
+                message="Archived rooms are read-only",
+                details={"reason": "archived_thread"},
+            )
+        if not await self.participants._can_post(ctx, conversation):
+            raise AuthorizationError(message="Room posting access is required")
+
+    async def _ensure_context_idle(
+        self,
+        *,
+        organization_id: UUID,
+        conversation_ids: set[UUID],
+    ) -> None:
+        if await room_thread_repo.has_context_work(
+            self.db,
+            organization_id=organization_id,
+            conversation_ids=conversation_ids,
+        ):
+            raise ConflictError(
+                message="Wait for room work to finish before changing thread context",
+                details={"reason": "room_busy"},
+            )
+
+    async def _resolve_context_range(
+        self,
+        *,
+        organization_id: UUID,
+        source: Conversation,
+        start_message_id: UUID,
+        end_message_id: UUID,
+        excluded_message_ids: list[UUID],
+        own_context: RoomThread | None = None,
+    ) -> tuple[UUID, UUID, int, int, list[UUID], list[UUID]]:
+        """Normalize and snapshot an eligible range without counting hidden rows."""
+        own_ids = (
+            list(own_context.context_message_ids)
+            if own_context is not None
+            and own_context.context_moved
+            and own_context.context_source_conversation_id == source.id
+            else []
+        )
+        own_root_id = own_context.root_message_id if own_context is not None else None
+        boundaries = await room_thread_repo.context_range_boundaries(
+            self.db,
+            organization_id=organization_id,
+            source_conversation_id=source.id,
+            boundary_message_ids={start_message_id, end_message_id},
+            own_root_message_id=own_root_id,
+            own_message_ids=own_ids,
+        )
+        boundary_by_id = {message.id: message for message in boundaries}
+        if set(boundary_by_id) != {start_message_id, end_message_id}:
+            raise ConflictError(
+                message="Choose live top-level user or assistant messages in the saved room",
+                details={"reason": "invalid_range"},
+            )
+
+        start = boundary_by_id[start_message_id]
+        end = boundary_by_id[end_message_id]
+        first, last = (start, end) if start.ordinal <= end.ordinal else (end, start)
+        ordered = await room_thread_repo.context_range_candidates(
+            self.db,
+            organization_id=organization_id,
+            source_conversation_id=source.id,
+            first_ordinal=first.ordinal,
+            last_ordinal=last.ordinal,
+            own_root_message_id=own_root_id,
+            own_message_ids=own_ids,
+            limit=1001,
+        )
+        eligible_ids = {message.id for message in ordered}
+        exclusions = set(excluded_message_ids)
+        if (
+            len(ordered) > 1000
+            or len(exclusions) > 500
+            or not {start_message_id, end_message_id}.issubset(eligible_ids)
+            or not exclusions.issubset(eligible_ids)
+        ):
+            raise ConflictError(
+                message="Select a valid range of up to 500 messages and 500 exclusions",
+                details={"reason": "invalid_range"},
+            )
+        message_ids = [message.id for message in ordered if message.id not in exclusions]
+        normalized_exclusions = [message.id for message in ordered if message.id in exclusions]
+        if not message_ids or len(message_ids) > 500:
+            raise ConflictError(
+                message="A saved context range must contain between 1 and 500 messages",
+                details={"reason": "invalid_range"},
+            )
+        return first.id, last.id, first.ordinal, last.ordinal, normalized_exclusions, message_ids
+
+    async def _ensure_no_nested_replies(
+        self, *, conversation_id: UUID, message_ids: list[UUID]
+    ) -> None:
+        if await room_thread_repo.has_nested_replies(
+            self.db, conversation_id=conversation_id, message_ids=message_ids
+        ):
+            raise ConflictError(
+                message="Return replies to selected messages before moving their context",
+                details={"reason": "nested_replies"},
+            )
+
+    async def _change_context_placement(
+        self,
+        *,
+        conversation_id: UUID,
+        root_message_id: UUID,
+        message_ids: list[UUID],
+        old_root_message_id: UUID | None,
+        new_root_message_id: UUID | None,
+    ) -> None:
+        """Change only the exact snapshotted rows and refuse a partial result."""
+        if not message_ids:
+            raise ConflictError(
+                message="This thread's saved context is unavailable.",
+                details={"reason": "stale_context"},
+            )
+        changed_ids = await room_thread_repo.change_context_placement(
+            self.db,
+            conversation_id=conversation_id,
+            root_message_id=root_message_id,
+            message_ids=message_ids,
+            old_root_message_id=old_root_message_id,
+            new_root_message_id=new_root_message_id,
+        )
+        if changed_ids != set(message_ids):
+            raise ConflictError(
+                message="This thread's saved context changed. Select the context again.",
+                details={"reason": "stale_context"},
+            )
+
+    @staticmethod
+    def _check_context_revision(row: RoomThread, expected_revision: int) -> None:
+        if row.context_revision != expected_revision:
+            raise ConflictError(
+                message="This thread's context changed. Refresh it before continuing.",
+                details={"reason": "stale_context"},
+            )
+
+    async def create_context(
+        self,
+        ctx: AuthContext,
+        conversation_id: UUID,
+        body: RoomThreadRangeCreate,
+    ) -> RoomThreadContextActionRead:
+        """Create a context-only range thread with a marker and no agent dispatch."""
+        organization_id, user_id = self.participants._principal(ctx)
+        await self.participants._conversation(ctx, conversation_id)
+        source_id = body.source_conversation_id or conversation_id
+        await self._lock_context_conversations({conversation_id, source_id})
+        async with self.db.begin_nested():
+            destination = await self._fresh_authorized_destination(ctx, conversation_id)
+            await self._ensure_context_room_writable(ctx, destination)
+            source = await self._context_source(
+                destination=destination,
+                source_conversation_id=source_id,
+                actor=ctx,
+            )
+            affected = {destination.id, source.id}
+            await self._ensure_context_idle(
+                organization_id=organization_id,
+                conversation_ids=affected,
+            )
+            (
+                first_id,
+                last_id,
+                first_ordinal,
+                last_ordinal,
+                excluded_ids,
+                message_ids,
+            ) = await self._resolve_context_range(
+                organization_id=organization_id,
+                source=source,
+                start_message_id=body.start_message_id,
+                end_message_id=body.end_message_id,
+                excluded_message_ids=body.excluded_message_ids,
+            )
+            first_message = await conversation_repo.get_message_by_id(self.db, message_ids[0])
+            if first_message is None:
+                raise ConflictError(
+                    message="This thread's saved context changed. Select the context again.",
+                    details={"reason": "stale_context"},
+                )
+            default_title = (
+                first_message.content if source.id == destination.id else "Shared context"
+            )
+            marker_title = " ".join((body.title or default_title).split())[:255]
+            if not marker_title:
+                marker_title = "Shared context"
+            root = await self.conversations.add_message(
+                destination.id,
+                MessageCreate(role="user", content=marker_title),
+                organization_id=organization_id,
+                user_id=user_id,
+            )
+            row = await room_thread_repo.ensure_thread(
+                self.db,
+                organization_id=organization_id,
+                conversation_id=destination.id,
+                root_message_id=root.id,
+            )
+            row.context_source_conversation_id = source.id
+            row.context_start_message_id = first_id
+            row.context_end_message_id = last_id
+            row.context_first_ordinal = first_ordinal
+            row.context_last_ordinal = last_ordinal
+            row.context_excluded_message_ids = excluded_ids
+            row.context_message_ids = message_ids
+            row.context_moved = False
+            row.context_revision = 1
+            self.db.add(row)
+            await self.db.flush()
+            await conversation_repo.invalidate_thread_context_history(
+                self.db, conversation_ids=affected
+            )
+            result = await self._context_action(
+                ctx, destination, root, organization_id, user_id, row
+            )
+        self._announce_thread_changed(destination.id, root.id)
+        return result
+
+    async def update_context(
+        self,
+        ctx: AuthContext,
+        conversation_id: UUID,
+        root_message_id: UUID,
+        body: RoomThreadContextUpdate,
+    ) -> RoomThreadContextActionRead:
+        """Replace a range, atomically returning or moving its selected rows as needed."""
+        _, _, _, _, initial = await self._managed_context_thread(
+            ctx, conversation_id, root_message_id, lock=False
+        )
+        self._check_context_revision(initial, body.expected_context_revision)
+        old_source_id = initial.context_source_conversation_id
+        if old_source_id is None:
+            raise ConflictError(
+                message="This thread's saved context is unavailable.",
+                details={"reason": "stale_context"},
+            )
+        target_source_id = body.source_conversation_id or old_source_id
+        await self._lock_context_conversations({conversation_id, old_source_id, target_source_id})
+        async with self.db.begin_nested():
+            destination, root, organization_id, user_id, row = await self._managed_context_thread(
+                ctx, conversation_id, root_message_id, lock=True
+            )
+            self._check_context_revision(row, body.expected_context_revision)
+            if row.context_source_conversation_id != old_source_id:
+                raise ConflictError(
+                    message="This thread's context changed. Refresh it before continuing.",
+                    details={"reason": "stale_context"},
+                )
+            target_source_id = body.source_conversation_id or old_source_id
+            should_move = row.context_moved if body.move is None else body.move
+            if should_move and target_source_id != destination.id:
+                raise ConflictError(
+                    message="Context from another room cannot be moved into this thread",
+                    details={"reason": "cross_room_move"},
+                )
+            target_source = await self._context_source(
+                destination=destination,
+                source_conversation_id=target_source_id,
+                actor=ctx,
+            )
+            affected = {destination.id, old_source_id, target_source.id}
+            await self._ensure_context_idle(
+                organization_id=organization_id,
+                conversation_ids=affected,
+            )
+            if target_source_id != old_source_id and await room_thread_repo.has_context_history(
+                self.db,
+                organization_id=organization_id,
+                conversation_id=destination.id,
+                root_message_id=root.id,
+            ):
+                raise ConflictError(
+                    message=(
+                        "This thread already has replies or accepted requests. "
+                        "Start a new thread to use context from another room."
+                    ),
+                    details={"reason": "context_source_in_use"},
+                )
+            (
+                first_id,
+                last_id,
+                first_ordinal,
+                last_ordinal,
+                excluded_ids,
+                message_ids,
+            ) = await self._resolve_context_range(
+                organization_id=organization_id,
+                source=target_source,
+                start_message_id=body.start_message_id,
+                end_message_id=body.end_message_id,
+                excluded_message_ids=body.excluded_message_ids,
+                own_context=row,
+            )
+            unchanged = (
+                target_source_id == old_source_id
+                and first_id == row.context_start_message_id
+                and last_id == row.context_end_message_id
+                and first_ordinal == row.context_first_ordinal
+                and last_ordinal == row.context_last_ordinal
+                and excluded_ids == list(row.context_excluded_message_ids)
+                and message_ids == list(row.context_message_ids)
+                and should_move == row.context_moved
+            )
+            if unchanged:
+                result = await self._context_action(
+                    ctx, destination, root, organization_id, user_id, row
+                )
+            else:
+                if row.context_moved:
+                    if old_source_id != destination.id:
+                        raise ConflictError(
+                            message="Context from another room cannot be returned from this thread",
+                            details={"reason": "cross_room_move"},
+                        )
+                    await self._change_context_placement(
+                        conversation_id=destination.id,
+                        root_message_id=root.id,
+                        message_ids=list(row.context_message_ids),
+                        old_root_message_id=root.id,
+                        new_root_message_id=None,
+                    )
+                if should_move:
+                    if target_source.id != destination.id:
+                        raise ConflictError(
+                            message="Context from another room cannot be moved into this thread",
+                            details={"reason": "cross_room_move"},
+                        )
+                    await self._ensure_no_nested_replies(
+                        conversation_id=destination.id,
+                        message_ids=message_ids,
+                    )
+                    await self._change_context_placement(
+                        conversation_id=destination.id,
+                        root_message_id=root.id,
+                        message_ids=message_ids,
+                        old_root_message_id=None,
+                        new_root_message_id=root.id,
+                    )
+                row.context_source_conversation_id = target_source.id
+                row.context_start_message_id = first_id
+                row.context_end_message_id = last_id
+                row.context_first_ordinal = first_ordinal
+                row.context_last_ordinal = last_ordinal
+                row.context_excluded_message_ids = excluded_ids
+                row.context_message_ids = message_ids
+                row.context_moved = should_move
+                row.context_revision += 1
+                self.db.add(row)
+                await self.db.flush()
+                await conversation_repo.invalidate_thread_context_history(
+                    self.db,
+                    conversation_ids=affected,
+                )
+                result = await self._context_action(
+                    ctx, destination, root, organization_id, user_id, row
+                )
+        if not unchanged:
+            self._announce_thread_changed(conversation_id, root_message_id)
+        return result
+
+    async def move_context(
+        self,
+        ctx: AuthContext,
+        conversation_id: UUID,
+        root_message_id: UUID,
+        expected_context_revision: int,
+    ) -> RoomThreadContextActionRead:
+        """Move only the exact saved IDs beneath their thread marker."""
+        _, _, _, _, initial = await self._managed_context_thread(
+            ctx, conversation_id, root_message_id, lock=False
+        )
+        self._check_context_revision(initial, expected_context_revision)
+        source_id = initial.context_source_conversation_id
+        if source_id is None or source_id != conversation_id:
+            raise ConflictError(
+                message="Context from another room cannot be moved into this thread",
+                details={"reason": "cross_room_move"},
+            )
+        await self._lock_context_conversations({conversation_id, source_id})
+        changed = False
+        async with self.db.begin_nested():
+            destination, root, organization_id, user_id, row = await self._managed_context_thread(
+                ctx, conversation_id, root_message_id, lock=True
+            )
+            self._check_context_revision(row, expected_context_revision)
+            if row.context_source_conversation_id != destination.id:
+                raise ConflictError(
+                    message="Context from another room cannot be moved into this thread",
+                    details={"reason": "cross_room_move"},
+                )
+            if row.context_moved:
+                result = await self._context_action(
+                    ctx, destination, root, organization_id, user_id, row
+                )
+            else:
+                await self._ensure_context_idle(
+                    organization_id=organization_id,
+                    conversation_ids={destination.id},
+                )
+                await self._ensure_no_nested_replies(
+                    conversation_id=destination.id,
+                    message_ids=list(row.context_message_ids),
+                )
+                await self._change_context_placement(
+                    conversation_id=destination.id,
+                    root_message_id=root.id,
+                    message_ids=list(row.context_message_ids),
+                    old_root_message_id=None,
+                    new_root_message_id=root.id,
+                )
+                row.context_moved = True
+                row.context_revision += 1
+                self.db.add(row)
+                await self.db.flush()
+                await conversation_repo.invalidate_thread_context_history(
+                    self.db, conversation_ids={destination.id}
+                )
+                changed = True
+                result = await self._context_action(
+                    ctx, destination, root, organization_id, user_id, row
+                )
+        if changed:
+            self._announce_thread_changed(conversation_id, root_message_id)
+        return result
+
+    async def return_context(
+        self,
+        ctx: AuthContext,
+        conversation_id: UUID,
+        root_message_id: UUID,
+        expected_context_revision: int,
+    ) -> RoomThreadContextActionRead:
+        """Return only the saved context IDs to the room's top level."""
+        _, _, _, _, initial = await self._managed_context_thread(
+            ctx, conversation_id, root_message_id, lock=False
+        )
+        self._check_context_revision(initial, expected_context_revision)
+        source_id = initial.context_source_conversation_id
+        if source_id is None or source_id != conversation_id:
+            raise ConflictError(
+                message="Context from another room cannot be returned from this thread",
+                details={"reason": "cross_room_move"},
+            )
+        await self._lock_context_conversations({conversation_id, source_id})
+        changed = False
+        async with self.db.begin_nested():
+            destination, root, organization_id, user_id, row = await self._managed_context_thread(
+                ctx, conversation_id, root_message_id, lock=True
+            )
+            self._check_context_revision(row, expected_context_revision)
+            if row.context_source_conversation_id != destination.id:
+                raise ConflictError(
+                    message="Context from another room cannot be returned from this thread",
+                    details={"reason": "cross_room_move"},
+                )
+            if not row.context_moved:
+                result = await self._context_action(
+                    ctx, destination, root, organization_id, user_id, row
+                )
+            else:
+                await self._ensure_context_idle(
+                    organization_id=organization_id,
+                    conversation_ids={destination.id},
+                )
+                await self._change_context_placement(
+                    conversation_id=destination.id,
+                    root_message_id=root.id,
+                    message_ids=list(row.context_message_ids),
+                    old_root_message_id=root.id,
+                    new_root_message_id=None,
+                )
+                row.context_moved = False
+                row.context_revision += 1
+                self.db.add(row)
+                await self.db.flush()
+                await conversation_repo.invalidate_thread_context_history(
+                    self.db, conversation_ids={destination.id}
+                )
+                changed = True
+                result = await self._context_action(
+                    ctx, destination, root, organization_id, user_id, row
+                )
+        if changed:
+            self._announce_thread_changed(conversation_id, root_message_id)
+        return result
 
     async def summaries_for_messages(
         self,
@@ -306,6 +936,12 @@ class RoomThreadService:
             ctx, conversation_id, root_message_id
         )
         message = await conversation_repo.get_message_by_id(self.db, through_message_id)
+        if message is not None and await room_thread_repo.is_context_message_id(
+            self.db,
+            conversation_id=conversation.id,
+            message_id=message.id,
+        ):
+            raise NotFoundError(message="Thread read cursor message not found")
         if (
             message is None
             or message.role not in {"user", "assistant"}
@@ -379,11 +1015,17 @@ class RoomThreadService:
             root_message_id=root_message_id,
         )
         reply = await conversation_repo.get_message_by_id(self.db, reply_message_id)
+        reply_is_context = reply is not None and await room_thread_repo.is_context_message_id(
+            self.db,
+            conversation_id=conversation_id,
+            message_id=reply.id,
+        )
         if (
             conversation is None
             or conversation.organization_id != organization_id
             or root is None
             or reply is None
+            or reply_is_context
             or reply.conversation_id != conversation_id
             or reply.thread_root_message_id != root_message_id
         ):
@@ -398,6 +1040,9 @@ class RoomThreadService:
         )
         if row is not None and row.state == "archived":
             raise ConflictError(message="Archived threads are read-only")
+        if row is not None and row.context_source_conversation_id is not None:
+            row.context_used = True
+            self.db.add(row)
         if row is not None and row.state == "closed":
             row.state = "open"
             row.closed_by_user_id = None

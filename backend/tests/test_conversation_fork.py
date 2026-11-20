@@ -33,6 +33,7 @@ def _conversation(
         user_id=user_id,
         organization_id=ORG_ID,
         project_id=project_id,
+        room_visibility=None,
         title="Source",
         plan_items=None,
         forked_from_conversation_id=forked_from,
@@ -60,6 +61,20 @@ def service(monkeypatch: pytest.MonkeyPatch) -> ConversationService:
 
     monkeypatch.setattr("app.services.conversation.lock_wait_within", no_lock_wait)
     service = ConversationService(AsyncMock())
+    monkeypatch.setattr(
+        "app.repositories.room_thread_context_access.external_context_edges",
+        AsyncMock(return_value=[]),
+    )
+    monkeypatch.setattr(
+        conversation_repo, "has_imported_thread_context", AsyncMock(return_value=False)
+    )
+    monkeypatch.setattr(
+        "app.repositories.room_participant.user_ids_in_conversations",
+        AsyncMock(return_value=set()),
+    )
+    monkeypatch.setattr(
+        "app.services.conversation.member_repo.get_active", AsyncMock(return_value=None)
+    )
     monkeypatch.setattr(conversation_repo, "owned_titles", AsyncMock(return_value={}))
     monkeypatch.setattr(conversation_repo, "run_ids_through", AsyncMock(return_value=set()))
     monkeypatch.setattr(conversation_repo, "run_outcomes", AsyncMock(return_value={}))

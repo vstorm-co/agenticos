@@ -14,7 +14,7 @@ from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.mention import MentionKind
 from app.schemas.room_participant import RoomMentionRead
 from app.schemas.room_reaction import RoomMessageReactionRead
-from app.schemas.room_thread import RoomThreadSummary
+from app.schemas.room_thread import RoomThreadMovedStubRead, RoomThreadSummary
 
 if TYPE_CHECKING:
     from app.db.models.user import User
@@ -448,6 +448,9 @@ class MessageRead(MessageBase, TimestampSchema):
 
     id: UUID
     conversation_id: UUID
+    ordinal: int | None = Field(
+        default=None, description="Stable transcript order for persisted messages"
+    )
     room_mentions: list[RoomMentionRead] = Field(default_factory=list)
     reactions: list[RoomMessageReactionRead] = Field(
         default_factory=list,
@@ -886,6 +889,7 @@ class MessageList(BaseSchema):
 
     items: list[MessageRead]
     total: int
+    moved_thread_stubs: list[RoomThreadMovedStubRead] = Field(default_factory=list)
     cost: ConversationCost | None = Field(
         default=None,
         description=(

@@ -305,6 +305,10 @@ class AgentSession:
         # Until when the room this socket is in was last found readable - see
         # `ROOM_READS_FOR_SECONDS`.
         self._reads_until = float("-inf")
+        # True when this room's transcript depends on another room's access
+        # rules. Unknown is treated like True so a failed lookup never enables
+        # the short positive cache for imported content.
+        self._room_has_imported_thread_context: bool | None = None
         # When this socket last told its room the person is typing - see `typing`.
         self._typed_at = float("-inf")
         # Set by `shutdown`. A room joined or a turn followed after it - by a turn
@@ -2041,6 +2045,7 @@ class AgentSession:
         self._room = conversation_id
         # Found readable for the last room, not this one.
         self._reads_until = float("-inf")
+        await self._refresh_room_context_access(conversation_id)
         await chat_room.join(conversation_id, self.user.id, self._socket)
         if self._closed or self._room != conversation_id:
             # `shutdown` - or another room - came in while joining, and its leave
@@ -2052,6 +2057,8 @@ class AgentSession:
     async def _leave_room(self) -> None:
         room, task = self._room, self._room_task
         self._room, self._room_task = None, None
+        self._room_has_imported_thread_context = None
+        self._reads_until = float("-inf")
         # Wound down before anything else: its heartbeat, cancelled and not
         # awaited, could count this socket back in after the leave below, and its
         # listener, still running, could start a new follower for this room
@@ -2104,10 +2111,14 @@ class AgentSession:
         """Pass on the room's news until it ends or this person may no longer read it."""
         await self._send_presence(conversation_id)
         async for event in chat_room.events(conversation_id):
-            if event["type"] == chat_room.ROOM_PARTICIPANTS:
+            if event["type"] in (chat_room.ROOM_PARTICIPANTS, chat_room.ROOM_THREAD):
                 # A removal must invalidate a recent successful access check,
-                # including the live follower sharing this session's cache.
+                # including the live follower sharing this session's cache. A
+                # thread change can make imported source access part of this
+                # room's read policy, so it invalidates the same exact-room cache.
                 self._reads_until = float("-inf")
+            if event["type"] == chat_room.ROOM_THREAD:
+                await self._refresh_room_context_access(conversation_id)
             if not await self._reads_lately(conversation_id):
                 await self._stop_following()
                 self._room = self._room_task = None
@@ -2154,13 +2165,32 @@ class AgentSession:
                 await self._follow_if_running(conversation_id)
 
     async def _reads_lately(self, conversation_id: str) -> bool:
-        """`_still_reads`, answered from the last time it said yes when that was lately."""
-        if time.monotonic() < self._reads_until:
+        """Use the short positive cache only for rooms without imported context."""
+        if self._room_has_imported_thread_context is False and time.monotonic() < self._reads_until:
             return True
         if not await self._still_reads(conversation_id):
             return False
-        self._reads_until = time.monotonic() + ROOM_READS_FOR_SECONDS
+        if self._room_has_imported_thread_context is False:
+            self._reads_until = time.monotonic() + ROOM_READS_FOR_SECONDS
+        else:
+            self._reads_until = float("-inf")
         return True
+
+    async def _refresh_room_context_access(self, conversation_id: str) -> None:
+        """Refresh whether transcript reads inherit an external room's ACL.
+
+        This is read once when the socket enters a room and again when a
+        `ROOM_THREAD` event changes its context. Unknown is fail-safe: `_reads_lately`
+        then runs the canonical access check on every room event.
+        """
+        self._room_has_imported_thread_context = None
+        try:
+            async with get_db_context() as db:
+                self._room_has_imported_thread_context = (
+                    await conversation_repo.has_imported_thread_context(db, UUID(conversation_id))
+                )
+        except Exception:
+            logger.warning("room_thread_context_access_lookup_failed", exc_info=True)
 
     async def _still_reads(self, conversation_id: str) -> bool:
         """Whether this person may still read the conversation, as of now.

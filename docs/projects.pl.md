@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "12f1799aa872"
+source_sha: "24e2df11cc74"
 ---
 
 # Projekty { #projects }
@@ -322,7 +322,7 @@ wątku, także gdy run jest wznawiany po pytaniu lub zatwierdzeniu. Główny pok
 jego wątki korzystają z jednej kolejki żądań agentów; oczekujący run zatrzymuje
 późniejsze żądania w kolejce.
 
-Kontekst rozmowy agenta daje pierwszeństwo pierwotnej wiadomości i odpowiedziom
+Bez wybranego zakresu kontekstu agent daje pierwszeństwo pierwotnej wiadomości i odpowiedziom
 wątku. Pozostałe miejsce w historii może zawierać wiadomości głównego pokoju
 sprzed pierwotnej wiadomości. Odpowiedzi z innych wątków i późniejsze wiadomości
 głównego pokoju są wykluczone. Nadal obowiązują instrukcje projektu, wspólne
@@ -353,6 +353,41 @@ Po odłączeniu czatu od projektu istniejące wątki pozostają widoczne dla os�
 które nadal mają dostęp do tego czatu. Odpowiedzi w wątkach są tylko do odczytu,
 chyba że właściciel jawnie przekształci czat w samodzielny pokój. Samo wcześniejsze
 członkostwo w projekcie nie daje już dostępu.
+
+### Wybrany kontekst wątku { #selected-thread-context }
+
+Użyj **Select context**, aby wybrać pierwszą i ostatnią zapisaną wiadomość dla
+nowego wątku. Przed utworzeniem możesz wykluczyć pojedyncze wiadomości. Wybór
+zawiera 1–500 wiadomości w kolejności transkrypcji. Nowy wątek ma własny tytuł
+i pokazuje kontekst oddzielnie od odpowiedzi. Utworzenie go nie prosi agenta o odpowiedź.
+
+**Move into thread** przenosi wybrane wiadomości z głównej osi czasu, zostawiając
+tytuł i licznik prowadzący do wątku. **Return to room** przywraca tylko przeniesione
+wiadomości; odpowiedzi zostają w wątku. Tożsamość, autorzy, załączniki, reakcje
+i pierwotna kolejność wiadomości pozostają zachowane. Przeniesiony wybór można
+edytować bezpośrednio: stary zakres wraca, a nowy przenosi się w jednej operacji.
+
+Możesz wskazać inny pokój źródłowy, aby odwołać się do jego wiadomości bez ich
+przenoszenia. Źródło musi należeć do tej samej organizacji i być dostępne dla
+każdego bieżącego czytelnika pokoju docelowego. Źródła prywatne i projektowe
+wymagają też zgodnego członkostwa agentów. Pokój docelowy z publicznym linkiem
+udostępniania nie może importować kontekstu. Dostęp jest sprawdzany ponownie
+przy odczycie i przed użyciem przez agenta.
+
+Czytelnicy muszą zachować dostęp do każdego powiązanego źródła, aby otworzyć
+pokój docelowy, jego pliki lub wyniki wyszukiwania. Udostępnienie celu nie
+udostępnia źródła. Publiczne linki i odgałęzienia zawierające importowany kontekst
+są niedostępne. Po użyciu kontekstu w żądaniu lub odpowiedzi jego źródło i znacznik
+wątku pozostają powiązane, nawet po usunięciu odpowiedzi. Nadal możesz edytować
+wybór w tym samym źródle. Odpowiedzi pojawiają się po zapisaniu i ponownym
+sprawdzeniu dostępu; tekst pochodzący ze źródła nie jest strumieniowany.
+
+Osoba rozpoczynająca wątek lub zarządzający pokojem może zmieniać kontekst, gdy
+oba pokoje są bezczynne. Najpierw zakończ pracę w kolejce, trwającą lub wstrzymaną.
+Archiwalne wątki są tylko do odczytu, a wybór zawierający inny wątek nie może być
+przeniesiony. Kontekst nie zwiększa liczby odpowiedzi ani nieprzeczytanych
+wiadomości. Wykluczenia nie trafiają do wybranej historii agenta, także przez automatyczne cytaty.
+
 
 ## Usuwanie projektu { #deleting-a-project }
 

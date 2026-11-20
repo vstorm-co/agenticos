@@ -406,6 +406,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "chat-room-thread-context",
+    page: ROUTES.CHAT,
+    target: "chat-room-thread-context",
+    optional: true,
+  },
+  {
     id: "chat-local-skills",
     page: ROUTES.CHAT,
     target: "chat-local-skills",

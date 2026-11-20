@@ -22,6 +22,7 @@ from app.core.permissions import AuthContext
 from app.db.models.conversation import Conversation, Message
 from app.db.models.room_submission import RoomSubmission
 from app.db.models.user import User
+from app.repositories import room_thread_context_access as context_access_repo
 from app.schemas.room_participant import RoomParticipantRead, RoomParticipantRef
 from app.schemas.room_submission import RoomMessageCreate
 from app.services import room_submission as module
@@ -63,6 +64,11 @@ def room(monkeypatch: pytest.MonkeyPatch):
     )
     db = MagicMock(info={})
     service = module.RoomSubmissionService(db)
+    monkeypatch.setattr(
+        context_access_repo,
+        "external_context_edges",
+        AsyncMock(return_value=[]),
+    )
     get_room = AsyncMock(return_value=topic)
     add_message = AsyncMock(return_value=message)
     monkeypatch.setattr(service.conversations, "get_conversation", get_room)
@@ -871,6 +877,7 @@ async def test_archiving_a_thread_revokes_an_already_queued_agents_reply(room, m
     row = pending(room)
     root_id = uuid4()
     room.message.thread_root_message_id = root_id
+    row.thread_root_message_id = root_id
     row.fingerprint = module.fingerprint(
         request(agent_id=row.agent_id, thread_root_message_id=root_id)
     )

@@ -19,6 +19,7 @@ from app.api.deps import (
     RoomParticipantSvc,
     RoomRoutingSvc,
     RoomSubmissionSvc,
+    RoomThreadContextReadSvc,
     RoomThreadSvc,
     VisualSvc,
     WorkspaceSvc,
@@ -86,6 +87,7 @@ from app.schemas.room_submission import (
     RoomAgentRequestRead,
     RoomMessageCreate,
     RoomMessageRead,
+    RoomThreadContextCandidatesRead,
     RoomThreadRead,
 )
 from app.schemas.room_thread import RoomThreadActionRead, RoomThreadReadCursor
@@ -276,6 +278,20 @@ async def read_room_thread(
         latest=latest,
         before=before,
     )
+
+
+@router.get(
+    "/{conversation_id}/room-threads/{root_message_id}/context/candidates",
+    response_model=RoomThreadContextCandidatesRead,
+)
+async def read_room_thread_context_candidates(
+    conversation_id: UUID,
+    root_message_id: UUID,
+    service: RoomThreadContextReadSvc,
+    ctx: Auth,
+) -> Any:
+    """Read editable range rows after rechecking the current source audience."""
+    return await service.candidates(ctx, conversation_id, root_message_id)
 
 
 @router.post(
@@ -992,6 +1008,7 @@ async def unfavourite_conversation(
 async def list_messages(
     conversation_id: UUID,
     conversation_service: ConversationSvc,
+    context_service: RoomThreadContextReadSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
     ctx: Auth,
@@ -1034,7 +1051,23 @@ async def list_messages(
         user_id=current_user.id,
         ctx=ctx,
     )
-    return MessageList(items=items, total=total, cost=cost)  # ty: ignore[invalid-argument-type]
+    stubs = (
+        await context_service.moved_stubs(
+            ctx,
+            conversation_id,
+            page_message_ids=[item.id for item in items],
+            before=before,
+            latest=latest,
+        )
+        if top_level_only
+        else []
+    )
+    return MessageList(
+        items=[MessageRead.model_validate(item) for item in items],
+        total=total,
+        cost=cost,
+        moved_thread_stubs=stubs,
+    )
 
 
 @router.put(

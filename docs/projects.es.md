@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "12f1799aa872"
+source_sha: "24e2df11cc74"
 ---
 
 # Proyectos { #projects }
@@ -337,7 +337,7 @@ respuesta pertenece a ese hilo, incluso si el run se reanuda después de una
 pregunta o aprobación. La sala principal y sus hilos comparten una cola de
 solicitudes a agents; un run en espera mantiene las solicitudes posteriores en cola.
 
-El contexto de conversación del agent prioriza el mensaje original y las
+Sin un rango de contexto seleccionado, el agent prioriza el mensaje original y las
 respuestas del hilo. El espacio restante del historial puede incluir mensajes de
 la sala principal anteriores al mensaje original. Se excluyen las respuestas de
 otros hilos y los mensajes posteriores de la sala principal. Siguen aplicándose
@@ -368,6 +368,45 @@ Si el chat se separa del proyecto, sus hilos existentes siguen siendo legibles
 para quienes conservan acceso al chat. Las respuestas de los hilos pasan a ser de
 solo lectura, salvo que el propietario convierta explícitamente el chat en una
 sala independiente. Haber sido miembro del proyecto ya no concede acceso por sí solo.
+
+### Contexto seleccionado del hilo { #selected-thread-context }
+
+Usa **Select context** para elegir el primer y el último mensaje guardado de un
+nuevo hilo. Puedes excluir mensajes concretos antes de crearlo. La selección
+contiene entre 1 y 500 mensajes en el orden de la transcripción. El nuevo hilo
+tiene su propio título y muestra el contexto separado de las respuestas.
+Crearlo no solicita una respuesta a un agent.
+
+**Move into thread** retira los mensajes seleccionados de la conversación
+principal y deja un título y un recuento que enlazan con el hilo.
+**Return to room** devuelve solo los mensajes trasladados; las respuestas
+permanecen en el hilo. Se conservan identidades, autores, adjuntos, reacciones
+y orden original. Puedes editar directamente una selección trasladada:
+el rango anterior vuelve y el nuevo se traslada en una misma operación.
+
+Elige otra sala de origen para referenciar sus mensajes sin trasladarlos.
+Debe pertenecer a la misma organización y ser legible para todos los lectores
+actuales del destino. Las fuentes privadas y de proyecto también requieren
+participación compatible de agents. Un destino con un enlace público compartido
+no puede importar contexto. El acceso se comprueba al leerlo y antes de que
+un agent lo utilice.
+
+Los lectores deben conservar acceso a cada fuente vinculada para abrir la sala
+de destino, sus archivos o sus resultados de búsqueda. Compartir el destino no
+comparte la fuente. No se permiten enlaces públicos ni bifurcaciones que incluyan
+contexto importado. Cuando una solicitud o respuesta ya lo ha utilizado, su
+fuente y el marcador del hilo permanecen vinculados aunque se borren las
+respuestas. Puedes seguir editando la selección dentro de esa fuente. Las
+respuestas aparecen después de guardarse y comprobar de nuevo el acceso;
+el texto derivado de la fuente no se transmite en directo.
+
+Quien inició el hilo o un responsable de la sala puede cambiar el contexto
+cuando ambas salas estén inactivas. Finaliza primero el trabajo en cola,
+en curso o pausado. Los hilos archivados son de solo lectura y no se puede
+trasladar una selección que contenga otro hilo. El contexto no aumenta
+los recuentos de respuestas o de mensajes sin leer. Las exclusiones no entran
+en el historial seleccionado del agent, tampoco mediante citas automáticas.
+
 
 ## Borrar un proyecto { #deleting-a-project }
 

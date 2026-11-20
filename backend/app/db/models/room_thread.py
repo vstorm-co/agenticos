@@ -11,10 +11,12 @@ from sqlalchemy import (
     ForeignKey,
     ForeignKeyConstraint,
     Index,
+    Integer,
     String,
     UniqueConstraint,
+    text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -37,6 +39,21 @@ class RoomThread(Base, TimestampMixin):
             ondelete="CASCADE",
             name="fk_room_thread_root",
         ),
+        ForeignKeyConstraint(
+            ["organization_id", "context_source_conversation_id"],
+            ["conversations.organization_id", "conversations.id"],
+            name="fk_room_thread_context_source",
+        ),
+        ForeignKeyConstraint(
+            ["context_source_conversation_id", "context_start_message_id"],
+            ["messages.conversation_id", "messages.id"],
+            name="fk_room_thread_context_start_message",
+        ),
+        ForeignKeyConstraint(
+            ["context_source_conversation_id", "context_end_message_id"],
+            ["messages.conversation_id", "messages.id"],
+            name="fk_room_thread_context_end_message",
+        ),
         CheckConstraint("state IN ('open', 'closed', 'archived')", name="ck_room_thread_state"),
         CheckConstraint(
             "closed_by_user_id IS NULL OR closed_at IS NOT NULL",
@@ -46,7 +63,40 @@ class RoomThread(Base, TimestampMixin):
             "archived_by_user_id IS NULL OR archived_at IS NOT NULL",
             name="ck_room_thread_archived_actor_time",
         ),
+        CheckConstraint("context_revision >= 0", name="ck_room_thread_context_revision"),
+        CheckConstraint(
+            "(context_source_conversation_id IS NULL "
+            "AND context_start_message_id IS NULL "
+            "AND context_end_message_id IS NULL "
+            "AND context_first_ordinal IS NULL "
+            "AND context_last_ordinal IS NULL "
+            "AND cardinality(context_excluded_message_ids) = 0 "
+            "AND cardinality(context_message_ids) = 0 "
+            "AND context_moved IS FALSE "
+            "AND context_used IS FALSE "
+            "AND context_revision = 0) OR "
+            "(context_source_conversation_id IS NOT NULL "
+            "AND context_start_message_id IS NOT NULL "
+            "AND context_end_message_id IS NOT NULL "
+            "AND context_first_ordinal IS NOT NULL "
+            "AND context_last_ordinal IS NOT NULL "
+            "AND context_first_ordinal >= 0 "
+            "AND context_last_ordinal >= context_first_ordinal "
+            "AND cardinality(context_excluded_message_ids) <= 500 "
+            "AND cardinality(context_message_ids) BETWEEN 1 AND 500 "
+            "AND context_revision > 0 "
+            "AND (context_moved IS FALSE OR context_source_conversation_id = conversation_id))",
+            name="ck_room_thread_context_shape",
+        ),
         Index("ix_room_threads_conversation_state", "organization_id", "conversation_id", "state"),
+        Index(
+            "ix_room_threads_context_source_range",
+            "organization_id",
+            "context_source_conversation_id",
+            "context_first_ordinal",
+            "context_last_ordinal",
+            postgresql_where=text("context_source_conversation_id IS NOT NULL"),
+        ),
     )
 
     organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -63,6 +113,32 @@ class RoomThread(Base, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    context_source_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    context_start_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    context_end_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    context_first_ordinal: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    context_last_ordinal: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    context_excluded_message_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(UUID(as_uuid=True)), nullable=False, default=list, server_default=text("'{}'::uuid[]")
+    )
+    context_message_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(UUID(as_uuid=True)), nullable=False, default=list, server_default=text("'{}'::uuid[]")
+    )
+    context_moved: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    context_used: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    context_revision: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
 
 
 class RoomThreadFollow(Base, TimestampMixin):
