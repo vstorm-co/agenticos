@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+from pydantic import ValidationError
 from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
@@ -32,6 +33,7 @@ from app.db.models.suggestion import SuggestionKind
 from app.repositories.conversation import PersonRequest
 from app.repositories.member import SweepCandidate
 from app.schemas.user import WorkingHours
+from app.services.memory import extraction
 from app.services.proactive import _role_pack, _thinker, _welcome
 from app.services.proactive._nightly import (
     NightlyLook,
@@ -811,6 +813,18 @@ def _request(content: str, *, thread=None) -> PersonRequest:
     return PersonRequest(message, None)
 
 
+def test_maintenance_output_rejects_two_values_for_one_normalized_subject() -> None:
+    with pytest.raises(ValidationError, match="one claim per subject"):
+        extraction._Extraction.model_validate(
+            {
+                "claims": [
+                    {"subject": "Team role", "statement": "Reviewer", "evidence": "Reviewer"},
+                    {"subject": "team_role", "statement": "Editor", "evidence": "Editor"},
+                ]
+            }
+        )
+
+
 class TestTheNightlyLook:
     @staticmethod
     def _patches(
@@ -990,6 +1004,30 @@ class TestTheNightlyLook:
         assert made == 0
         mocks["propose"].assert_not_awaited()
 
+    def test_output_rejects_duplicate_jobs_and_requires_the_right_schedule(self) -> None:
+        repeat = RepeatedRequest(
+            intent="check-atlas-specs",
+            evidence=[1, 3, 4],
+            title="Atlas",
+            why="Repeated three times",
+            prompt="Review Atlas specs",
+            cron="0 16 * * *",
+            as_agent=False,
+        )
+        duplicate = repeat.model_copy(update={"as_agent": True, "cron": None})
+        with pytest.raises(ValidationError, match="one proposal per job"):
+            NightlyReading(repeats=[repeat, duplicate])
+        renamed = duplicate.model_copy(
+            update={"intent": "read-atlas-specs", "prompt": "Check for meaningful Atlas changes"}
+        )
+        with pytest.raises(ValidationError, match="overlapping evidence"):
+            NightlyReading(repeats=[repeat, renamed])
+        for cron in (None, "invalid"):
+            with pytest.raises(ValidationError, match="valid UTC cron"):
+                NightlyReading(repeats=[repeat.model_copy(update={"cron": cron})])
+        with pytest.raises(ValidationError, match="agent must have cron=null"):
+            NightlyReading(repeats=[repeat.model_copy(update={"as_agent": True})])
+
     async def test_what_it_read_becomes_first_messages_and_proposals_in_their_language(self):
         reading = NightlyReading(
             repeats=[
@@ -1082,7 +1120,6 @@ class TestTheNightlyLook:
             "wording",
             "same-thread",
             "unknown-evidence",
-            "no-cron",
             "no-service",
         ],
     )
@@ -1094,7 +1131,7 @@ class TestTheNightlyLook:
             title="Podsumowanie",
             why="Powtarza się",
             prompt="Podsumuj aktualizacje!",
-            as_agent=duplicate != "no-cron",
+            as_agent=True,
             intent="summarize-updates",
             evidence=[1, 2, 4] if duplicate == "unknown-evidence" else [1, 2, 3],
             required_services=["Notion"] if duplicate == "no-service" else [],

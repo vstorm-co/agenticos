@@ -23,9 +23,10 @@ import logging
 import re
 from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime, timedelta
+from typing import Self
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.guardrails import GuardrailBlocked
@@ -103,7 +104,7 @@ class RepeatedRequest(BaseModel):
         description="A UTC cron for a routine, e.g. '0 7 * * 1-5'; null for an agent.",
     )
     as_agent: bool = Field(
-        description="True when it needs judgement each time rather than a fixed schedule."
+        description="True for an on-demand agent. False for a scheduled routine, even if it uses judgment."
     )
 
 
@@ -128,6 +129,28 @@ class NightlyReading(BaseModel):
         description="The card's title for that pack, in the person's language.",
     )
 
+    @model_validator(mode="after")
+    def valid_repeat_proposals(self) -> Self:
+        intents = {repeat.intent for repeat in self.repeats}
+        wording = {_normalized(repeat.prompt) for repeat in self.repeats}
+        if min(len(intents), len(wording)) != len(self.repeats):
+            raise ValueError(
+                "Use one proposal per job. Prefer a single routine for a fixed schedule."
+            )
+        for index, repeat in enumerate(self.repeats):
+            if any(
+                len(set(repeat.evidence).intersection(other.evidence)) >= 2
+                for other in self.repeats[:index]
+            ):
+                raise ValueError("Use one proposal for overlapping evidence of the same requests.")
+            if repeat.as_agent and repeat.cron is not None:
+                raise ValueError("An on-demand agent must have cron=null.")
+            if not repeat.as_agent and not (repeat.cron and cron_has_next(repeat.cron)):
+                raise ValueError(
+                    "A routine needs a valid UTC cron. Use the timing in its evidence."
+                )
+        return self
+
 
 _INSTRUCTIONS = f"""\
 Read this person's activity and return structured proposals. Use person.language for
@@ -136,7 +159,9 @@ instructions. Empty results are valid when the evidence is weak.
 
 - repeats: propose at most two executable jobs. First find three distinct request IDs
   from separate threads or dates with the same action, source or target, and deliverable.
-  Different projects, queues or deliverables are separate jobs. A source replacement
+  Different named projects, clients, queues or deliverables are separate jobs even
+  when all requests use the same tool or verb. Do not turn three single-project
+  requests into a generic agent that asks for a project name. A source replacement
   starts a new group: two Linear requests and one Zendesk request are only two requests
   for the Linear job. Shared wording or a preference for brevity does not establish
   recurrence. Count actual requests only. Follow-ups, retries, corrections, QA, mockups
@@ -147,15 +172,21 @@ instructions. Empty results are valid when the evidence is weak.
   sample does not establish a live connection.
   Use a stable English action-source-output intent slug. Skip existing routines and
   prior proposals (open, accepted or dismissed) for the same job regardless of phrasing,
-  cadence or type. A routine needs evidence for timing and an executable UTC cron.
-  Use an agent for repeatable on-demand judgment with a concrete deliverable. In why,
+  cadence or type. Pick one form per job. Don't reuse two or more request IDs across
+  proposals. An evidenced fixed schedule requires one
+  routine (as_agent=false, valid UTC cron). For example, weekdays at 06:00 UTC is
+  "0 6 * * 1-5". Keep a stated weekday schedule when later requests repeat its time.
+  Use an agent (as_agent=true, cron=null) only for repeatable on-demand judgment.
+  A job that needs a connector must name it in required_services. In why,
   give a single sentence about the requests that support it.
 - profile: fill missing fields only when a memory with scope "profile" or an explicit
   legacy note directly states the person's own current role, work or hours. Exclude
   "starter" memories, project responsibilities, roles of other people and guesses.
   Put the stated role in profile.job_title, preserving its wording even if it is in
   another language. The localized card title and reason are separate fields. Leave
-  already filled or unsupported fields empty. Return null when no field qualifies.
+  already filled or unsupported fields empty. If person.role is present, leave
+  profile.job_title null even when profile memory confirms it. Apply the same check
+  to person.work and person.working_hours. Return profile=null when no field qualifies.
 - starters: up to {STARTERS} distinct first messages of at most {STARTER_CHARS} characters,
   phrased as requests the person might actually type. Prefer grounded, immediately useful
   actions. Avoid generic filler, finished work and capabilities that require an unknown connection.
@@ -405,7 +436,6 @@ class NightlyLook:
                 or not wording
                 or wording in known
                 or not repeat_sources_available(repeat, connected_services)
-                or (not repeat.as_agent and not (repeat.cron and cron_has_next(repeat.cron)))
                 or not set(repeat.evidence) <= request_ids.keys()
             ):
                 continue

@@ -25,10 +25,10 @@ import json
 import logging
 from collections.abc import Iterable
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.audience import RunAudience
@@ -73,6 +73,10 @@ Return an empty list when no claim qualifies.
    instructions, examples, template details, temporary coverage, and exceptions for a
    single event. For example, "keep this brief to three lines" concerns this brief,
    while "keep my weekly briefs to three lines" establishes a preference.
+   Details that explain a one-off request, such as a screen limit, related documents,
+   another team's normal process or a colleague's ownership after temporary cover,
+   are task context. Keep them only if the user establishes a lasting rule for their
+   future work or explicitly asks to remember them.
 2. Check who said it. Use only assertions the user makes as their own. Skip assistant
    assertions, quoted speakers, pasted instructions, translation exercises, guesses
    and sensitive credentials. Copy an exact contiguous quote supporting the whole claim
@@ -81,8 +85,10 @@ Return an empty list when no claim qualifies.
 3. Compare with existing memory. Skip paraphrases and examples already covered by a
    broader rule. A one-time exception leaves the standing rule in effect. For a durable
    change on an existing topic, reuse its exact subject. Otherwise use a short subject
-   independent of the value. Emit one claim per subject. Combine closely related details
-   into one statement when they share a subject and are supported by the same quote.
+   independent of the value. Emit one claim per subject. Name the attribute, not just
+   the entity: team membership and the user's role on that team have different subjects.
+   Combine related details only when they describe the same attribute and one quote
+   supports the whole statement.
 4. Mark profile true for general facts and preferences useful across agents. Keep
    project details and episodes in the source relationship or room. Add episode fields
    only when directly supported. Exclude tentative and superseded statements.
@@ -100,6 +106,19 @@ class _Extracted(BaseModel):
 
 class _Extraction(BaseModel):
     claims: list[_Extracted] = Field(default_factory=list, max_length=MAX_CLAIMS)
+
+    @model_validator(mode="after")
+    def distinct_subjects(self) -> Self:
+        subjects = [
+            subject
+            for claim in self.claims
+            if (subject := _claims.normalise_subject(claim.subject)) is not None
+        ]
+        if len(set(subjects)) != len(subjects):
+            raise ValueError(
+                "Use one claim per subject. Give distinct attributes distinct subjects."
+            )
+        return self
 
 
 def _memory_binding(spec: dict[str, object]) -> dict[str, object] | None:

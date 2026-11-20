@@ -25,6 +25,20 @@ The starter provides stable product routing and completion rules. Longer procedu
 
 An inline specialist is available on an explicit request or acceptance of a specific conversational offer. The capability's `auto` mode only chooses how a submitted delegation executes. Consent is a model instruction backed by positive and negative trajectory cases. Resource mutations continue through the platform's normal authorization and approval gates.
 
+## AgenticOS coverage and next usability checks
+
+The shipped assistant already covers research, drafting and analysis, scoped memory, work tracking, routines and watches, and artifact production. It can discover more of the current installation through Platform MCP and use built-in skills for longer procedures. The first 50 cases retain the baseline selection. The 60 added cases test everyday work and platform operations that depend on choosing a safe, specific next action.
+
+| User intent | Available behavior | What would make it easier to get right |
+| --- | --- | --- |
+| “Why did it fail, and what did it cost?” | Activity exposes a run, bounded transcript and individual tool results. Spend exposes actual charges. | Route a run link straight to its metadata, then fetch the smallest relevant trace window. Verify the failed version before suggesting a retry. |
+| “Help my team reuse this.” | Projects organize ongoing work. Context carries stable rules, Skills carry procedures, and Knowledge retrieves from a corpus. | Choose from the user's audience and source of truth. Reuse a verified resource and ask one question when publishing scope is ambiguous. |
+| “Track this and tell me when it changes.” | Tasks and Tables store structured work. Watches report source changes, and Agent routines run a scheduled job. | Infer the right feature from the expected output and inspect existing items in the intended scope. For recurrence, pin the source, timing and destination. |
+| “Can I use this here?” | The platform exposes personal and org connections, bound tools, permissions, and published versions. | Explain which prerequisite is missing and link to its setup screen. Catalog presence, a configured connection and a successful data read each establish different facts. |
+| “Draft it, export it, or show it to a colleague.” | Chat, the sandbox, inline charts and Apps cover different deliverables. App sharing and public links have separate controls. | Pick the least expansive operation that satisfies the request. Prefer previews, exact output links and a clear account of what was actually saved or shared. |
+
+Start with the expanded checks before changing the shipped starter. Its first high-value improvement would be better routing for link-based operational requests, followed by clearer recovery when an account, resource, or permission is missing. Positive-path cases that require a populated workspace should use explicit fixtures, alongside the existing absence and approval tests.
+
 ## Cost, long history and duplicates
 
 1. Keep frequently used instructions short. Retrieve relevant Context, skills, claims and sources per task. Use a full-source reader when the user asks for complete coverage.
@@ -41,17 +55,17 @@ An inline specialist is available on an explicit request or acceptance of a spec
 
 ## Candidate and cost forecast
 
-Start with the pinned DeepSeek V4 Flash 0731 snapshot for all three suites. It supports tool calling and structured outputs, and the platform has prices for its model ID in the bundled catalog. The newer V4.1 Flash 1017 snapshot produced partial cost in the local runtime probe. Use GLM 5.3 as an optional independent judge. Whether the candidate matches a stronger reference is an empirical question for these cases. OpenRouter lists $0.06 input and $0.18 output per million tokens for DeepSeek, and $0.0699/$1.40 for GLM, checked 2026-11-20. Routing changes the actual rate. The local platform catalog uses $0.14/$0.28 for the candidate, which would book about $0.41 at the same volume. [DeepSeek pricing](https://openrouter.ai/deepseek/deepseek-v4-flash-0731), [GLM pricing](https://openrouter.ai/z-ai/glm-5.3)
+Start with the pinned DeepSeek V4 Flash 0731 snapshot for all three suites. It supports tool calling and structured outputs, and the platform has prices for its model ID in the bundled catalog. The newer V4.1 Flash 1017 snapshot produced partial cost in the local runtime probe. Use GLM 5.3 as an optional independent judge. Whether the candidate matches a stronger reference is an empirical question for these cases. OpenRouter lists $0.06 input and $0.18 output per million tokens for DeepSeek, and $0.0699/$1.40 for GLM, checked 2026-11-20. Routing changes the actual rate. The local platform catalog uses $0.14/$0.28 for the candidate, which would book about $0.82 at the same volume. [DeepSeek pricing](https://openrouter.ai/deepseek/deepseek-v4-flash-0731), [GLM pricing](https://openrouter.ai/z-ai/glm-5.3)
 
 | Stage | Assumed input / output tokens across the suite | Listed rate | Higher-rate scenario |
 | --- | ---: | ---: | ---: |
-| AgenticOS, 50 cases | 2.00M / 0.20M | $0.156 | $0.60 |
+| AgenticOS, 110 cases | 4.40M / 0.44M | $0.343 | $1.32 |
 | Memory, 50 cases | 0.15M / 0.04M | $0.016 | $0.07 |
 | Briefing, 50 cases | 0.20M / 0.06M | $0.023 | $0.10 |
-| **Candidate subtotal** | **2.35M / 0.30M** | **$0.195** | **$0.77** |
-| Judge, at most 150 cases | 0.525M / 0.075M | $0.142 | $0.67 |
+| **Candidate subtotal** | **4.75M / 0.54M** | **$0.383** | **$1.49** |
+| Judge, at most 210 cases | 0.735M / 0.105M | $0.198 | $0.94 |
 
-This is a planning estimate based on summed input across model calls, including repeated tool schemas, and billed output including reasoning. It assumes uncached input. The higher-rate scenario uses $0.20/$1.00 for DeepSeek and $0.70/$4.00 for GLM per million tokens. Extra live probes and non-model tool charges are outside the table. Use a dedicated $2 OpenRouter key limit for the first comparison. Replace the token assumptions with measured use after three representative cases per suite.
+This is a planning estimate based on summed input across model calls, including repeated tool schemas, and billed output including reasoning. It assumes uncached input and scales the 50-case workload assumptions linearly. The higher-rate scenario uses $0.20/$1.00 for DeepSeek and $0.70/$4.00 for GLM per million tokens. Extra live probes and non-model tool charges are outside the table. Replace the token assumptions with measured use after three representative cases per suite.
 
 ## Memory research to test against a baseline
 

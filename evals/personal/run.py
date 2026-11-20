@@ -11,7 +11,7 @@ import sys
 from collections.abc import AsyncIterator, Iterable, Iterator
 from contextlib import AsyncExitStack, asynccontextmanager, contextmanager
 from dataclasses import replace
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from io import StringIO
 from pathlib import Path
@@ -21,7 +21,7 @@ from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
 import httpx
-from pydantic import BaseModel, JsonValue
+from pydantic import BaseModel, JsonValue, TypeAdapter
 from pydantic_ai import Agent, capture_run_messages
 from pydantic_ai.exceptions import (
     ModelAPIError,
@@ -40,6 +40,7 @@ if BACKEND.is_dir():
 
 from app.agents.isolation import RunIsolation
 from app.agents.spec import AgentSpec
+from app.core.cron import cron_has_next, cron_next
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.session import get_db_context
@@ -65,6 +66,7 @@ from app.services.transcript import RecordedToolCall
 DATASETS = Path(__file__).resolve().parent / "datasets"
 Suite = Literal["memory", "briefing", "agenticos"]
 SUITES: tuple[Suite, ...] = ("memory", "briefing", "agenticos")
+CASE_COUNTS: dict[Suite, int] = {"memory": 50, "briefing": 50, "agenticos": 110}
 BASE_DATE = date(2026, 11, 16)
 LIVE_CASES = (
     "sandbox-file",
@@ -112,12 +114,16 @@ def tool_name(name: str) -> str:
         "delegate",
         "task",
         "read_skill",
+        "read_memory",
         "execute",
         "draw",
         "create_chart",
         "publish_artifact",
         "preview_artifact",
         "share_artifact",
+        "export_artifact",
+        "read_artifact",
+        "list_artifacts",
     }:
         return name
     return "agenticos_" + name.removeprefix("agenticos_")
@@ -142,9 +148,10 @@ def load(suite: Suite) -> list[Scenario]:
             if suite == "memory":
                 first, answer, prompt, existing, operation, cue = fields
                 state = settings(existing)
+                description = cue.replace("~", " or ").replace(";", " and ")
                 reference = {
-                    "add": f"Extract a supported, durable memory about {cue}, with a direct user quote.",
-                    "update": f"Recognize the change to {cue} and reuse the existing memory subject.",
+                    "add": f"Extract a supported, durable memory about {description}, with a direct user quote.",
+                    "update": f"Recognize the change to {description} and reuse the existing memory subject.",
                     "none": "Leave current memory unchanged. The conversation has no new durable claim.",
                 }[operation]
             elif suite == "briefing":
@@ -175,10 +182,15 @@ def load(suite: Suite) -> list[Scenario]:
                 if "delegate" in forbidden and "task" not in tools.split(","):
                     forbidden = (*forbidden, "task")
                 if tools != "-":
+                    arguments = (
+                        TypeAdapter(dict[str, JsonValue]).validate_json(args)
+                        if args.startswith("{")
+                        else dict[str, JsonValue](settings(args))
+                    )
                     kwargs["expected_tool_calls"] = [
                         ExpectedToolCall(
                             tool=tool_name(tool),
-                            args=dict[str, JsonValue](settings(args)),
+                            args=arguments,
                         )
                         for tool in tools.split(",")
                     ]
@@ -567,13 +579,33 @@ def memory_errors(scenario: Scenario, found: extraction._Extraction) -> list[str
     if scenario.operation == "none":
         return errors + (["unexpected claim"] if found.claims else [])
     matching = [
-        claim for claim in found.claims if scenario.cue.casefold() in claim.statement.casefold()
+        claim
+        for claim in found.claims
+        if all(
+            any(choice.casefold() in claim.statement.casefold() for choice in group.split("~"))
+            for group in scenario.cue.split(";")
+        )
     ]
     if len(matching) != 1:
         errors.append("missing expected claim or duplicate claims")
     elif scenario.operation == "update" and matching[0].subject not in scenario.state:
         errors.append("correction did not reuse the existing subject")
     return errors
+
+
+def same_test_schedule(actual: str | None, expected: str) -> bool:
+    """Compare the next two weeks of daily or weekday occurrences in these fixtures."""
+    if actual is None or not cron_has_next(actual):
+        return False
+    start = datetime(BASE_DATE.year, BASE_DATE.month, BASE_DATE.day, tzinfo=UTC)
+    end = start + timedelta(weeks=2)
+    at = start
+    while at < end:
+        expected_at = cron_next(expected, now=at)
+        if cron_next(actual, now=at) != expected_at:
+            return False
+        at = expected_at
+    return True
 
 
 def briefing_errors(scenario: Scenario, found: nightly.NightlyReading) -> list[str]:
@@ -589,6 +621,10 @@ def briefing_errors(scenario: Scenario, found: nightly.NightlyReading) -> list[s
         not nightly.repeat_sources_available(item, connected_services) for item in found.repeats
     ):
         errors.append("proposal requires an unavailable service")
+    if (expected_cron := scenario.state.get("cron")) and any(
+        item.as_agent or not same_test_schedule(item.cron, expected_cron) for item in found.repeats
+    ):
+        errors.append("proposal did not use the requested routine schedule")
     valid_ids = {1, 3, 4} if "same-thread" not in scenario.state else set()
     if any(set(item.evidence) != valid_ids for item in found.repeats):
         errors.append("invalid evidence for recurrence")
@@ -745,7 +781,7 @@ async def run_agenticos(args: argparse.Namespace, scenarios: list[Scenario]) -> 
     console(f"AgenticOS · {model} · {len(scenarios)} cases · {mode}")
     console(f"Published version {version_id}")
     if args.max_usd is None:
-        if len(scenarios) < 50:
+        if len(scenarios) <= 10:
             console("Selected cases: " + ", ".join(item.id for item in scenarios))
         console("Add --max-usd to run the model.")
         return 0
@@ -1021,7 +1057,9 @@ def main() -> int:
     parser.add_argument(
         "--model", help="Run a paid production-prompt replay for one background suite."
     )
-    parser.add_argument("--limit", type=int, help="Case limit. AgenticOS defaults to all 50 cases.")
+    parser.add_argument(
+        "--limit", type=int, help="Case limit. AgenticOS defaults to the full suite."
+    )
     parser.add_argument("--case", action="append", help="Select case IDs in a background replay.")
     parser.add_argument("--api-url", help="Local API base URL for live probes only.")
     parser.add_argument("--organization-id", type=UUID)
@@ -1089,8 +1127,8 @@ def main() -> int:
     for suite in (args.suite,) if args.suite else SUITES:
         items = load(suite)
         output = jsonl(items)
-        if len(items) != 50:
-            raise SystemExit(f"{suite}: expected 50 cases, got {len(items)}")
+        if len(items) != CASE_COUNTS[suite]:
+            raise SystemExit(f"{suite}: expected {CASE_COUNTS[suite]} cases, got {len(items)}")
         if len(parse(output.encode(), "jsonl")) != len(items):
             raise SystemExit(f"{suite}: export dropped cases")
         for item in items:

@@ -1,5 +1,6 @@
 """Run with the backend's virtual environment: python -m unittest discover -s evals/personal."""
 
+import inspect
 import json
 import tempfile
 import unittest
@@ -18,12 +19,43 @@ from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RequestUsage
+from starlette.applications import Starlette
 
 from app.core.permissions import AuthContext, OrgRoleName
 from app.schemas.eval_run import EvalCallRead
+from app.services.platform_mcp._api import PlatformApi
+from app.services.platform_mcp._tools import platform_tools
 
 
 class TraceTests(unittest.TestCase):
+    def test_authored_platform_tools_and_argument_names_exist(self) -> None:
+        api = PlatformApi(Starlette(), token=lambda: None, on_refusal=lambda reason: reason)
+        tools = {f"agenticos_{tool.name}": tool.function for tool in platform_tools(api)}
+        for scenario in runner.load("agenticos"):
+            for tool_name in scenario.forbidden:
+                if tool_name.startswith("agenticos_"):
+                    self.assertIn(tool_name, tools, scenario.id)
+            for expected in scenario.case.expected_tool_calls or []:
+                if expected.tool.startswith("agenticos_"):
+                    self.assertIn(expected.tool, tools, scenario.id)
+                    self.assertLessEqual(
+                        set(expected.args or {}),
+                        inspect.signature(tools[expected.tool]).parameters.keys(),
+                        scenario.id,
+                    )
+
+    def test_trace_checks_typed_arguments(self) -> None:
+        case = next(
+            item for item in runner.load("agenticos") if item.id == "activity-seven-day-spend"
+        )
+        call = EvalCallRead(tool="agenticos_get_spend", args={"days": 7}, outcome="executed")
+        self.assertEqual(runner.trace_errors(case, answer="Spent $0.02.", calls=[call]), [])
+        wrong = call.model_copy(update={"args": {"days": 30}})
+        self.assertEqual(
+            runner.trace_errors(case, answer="Spent $0.02.", calls=[wrong]),
+            ["missing expected call: agenticos_get_spend"],
+        )
+
     def test_tools_use_normalized_arguments_and_record_blocked_attempts(self):
         scenario = next(item for item in runner.load("agenticos") if item.id == "inbox-direct")
         call = EvalCallRead(
@@ -183,7 +215,71 @@ class JudgeTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(second["verdict"]["passed"])
 
 
+class BackgroundOutputTests(unittest.TestCase):
+    def test_memory_accepts_both_inflections_but_requires_the_full_schedule(self) -> None:
+        case = next(item for item in runner.load("memory") if item.id == "working-hours")
+        quote = case.case.input
+        for statement in (
+            quote,
+            "Stały grafik to wtorek\N{EN DASH}sobota, 10:00\N{EN DASH}18:00, Warszawa.",
+        ):
+            with self.subTest(statement=statement):
+                found = runner.extraction._Extraction(
+                    claims=[runner.extraction._Extracted(statement=statement, evidence=quote)]
+                )
+                self.assertEqual(runner.memory_errors(case, found), [])
+        wrong = runner.extraction._Extraction(
+            claims=[
+                runner.extraction._Extracted(
+                    statement="Grafik to wtorek\N{EN DASH}sobota, 10:00\N{EN DASH}17:00, Warszawa.",
+                    evidence=quote,
+                )
+            ]
+        )
+        self.assertEqual(
+            runner.memory_errors(case, wrong), ["missing expected claim or duplicate claims"]
+        )
+
+    def test_briefing_compares_schedule_occurrences(self) -> None:
+        self.assertTrue(runner.same_test_schedule("0 6 * * MON-FRI", "0 6 * * 1-5"))
+        self.assertFalse(runner.same_test_schedule("0 6 * * *", "0 6 * * 1-5"))
+        self.assertFalse(runner.same_test_schedule("0 7 * * 1-5", "0 6 * * 1-5"))
+
+
 class BackgroundTests(unittest.IsolatedAsyncioTestCase):
+    async def test_briefing_can_repair_duplicate_output_in_one_retry(self) -> None:
+        case = next(item for item in runner.load("briefing") if item.id == "curated-hours")
+        scheduled = runner.nightly.RepeatedRequest(
+            intent="review-staged-pages",
+            evidence=[1, 3, 4],
+            title="Staging digest",
+            why="3 requests",
+            prompt="Read Notion website staging changes",
+            required_services=["Notion"],
+            cron="0 6 * * 1-5",
+            as_agent=False,
+        ).model_dump(mode="json")
+        candidate_outputs = iter(
+            [
+                {"repeats": [scheduled, {**scheduled, "as_agent": True, "cron": None}]},
+                {"repeats": [scheduled]},
+            ]
+        )
+
+        def respond(_messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            return ModelResponse(
+                parts=[ToolCallPart(info.output_tools[0].name, next(candidate_outputs))]
+            )
+
+        def build_agent(_model: str, **kwargs: object):
+            return Agent(FunctionModel(respond), **kwargs)
+
+        with (
+            patch.object(runner, "Agent", side_effect=build_agent),
+            patch.object(runner, "print", create=True),
+        ):
+            self.assertEqual(await runner.run_background("fixture", [case]), 0)
+
     async def test_memory_continues_after_a_token_limit(self) -> None:
         await self._assert_token_limit_isolated("memory", "one-off-brief")
 
