@@ -136,6 +136,7 @@ def test_history_filters_accept_native_matrix_user_identifiers() -> None:
 @pytest.mark.parametrize(
     "url", ["https://user:secret@matrix.example.org", "https://matrix.example.org?token=secret"]
 )
+@pytest.mark.security
 def test_matrix_refuses_secret_bearing_homeserver_urls(url: str) -> None:
     with pytest.raises(ValidationError):
         ChannelBotCreate(platform="matrix", name="bot", token="token", api_base_url=url)
@@ -144,6 +145,7 @@ def test_matrix_refuses_secret_bearing_homeserver_urls(url: str) -> None:
 
 
 @pytest.mark.parametrize("allowed", [True, False])
+@pytest.mark.security
 def test_group_allowlists_use_the_native_room_even_with_a_scoped_key(allowed: bool) -> None:
     from app.core.exceptions import AuthorizationError
     from app.services.channels.base import IncomingMessage

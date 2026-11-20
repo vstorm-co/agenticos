@@ -9,6 +9,8 @@ from app.repositories.channel_identity import require_identity_scope
 from app.services.channels.identity_scope import canonical_matrix_server, identity_scope
 from app.services.channels.matrix_protocol import audience_of, room_key, server_fingerprint
 
+pytestmark = pytest.mark.security
+
 
 @pytest.mark.parametrize(
     "url", ["https://MATRIX.example.org:443/", "https://matrix.example.org///"]

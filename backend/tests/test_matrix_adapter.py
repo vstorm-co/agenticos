@@ -207,6 +207,7 @@ class TestSync:
             await adapter._run_stream(BOT, "tok")
         redis.set.assert_not_awaited()
 
+    @pytest.mark.security
     async def test_a_room_encrypted_after_joining_admits_no_plaintext(
         self, adapter: MatrixAdapter, server: _Homeserver
     ) -> None:
@@ -244,6 +245,7 @@ class TestSync:
             await adapter.update_reply("tok", _out("confidential result"), handle)
         assert len(server.sent()) == before
 
+    @pytest.mark.security
     async def test_an_unreadable_encryption_state_never_posts_plaintext(
         self, adapter: MatrixAdapter, server: _Homeserver
     ) -> None:
@@ -1308,6 +1310,7 @@ class TestFailureBoundaries:
         assert [(method, path) for method, path, _ in server.calls] == [("GET", path)]
 
 
+@pytest.mark.security
 class TestPrivateAudience:
     @pytest.mark.parametrize(
         "method", ["send", "begin", "update", "upload", "prompt", "reaction", "ack"]
@@ -1440,6 +1443,7 @@ class TestPrivateAudience:
 
 @pytest.mark.parametrize("private", [False, True])
 @pytest.mark.parametrize("file", [False, True])
+@pytest.mark.security
 async def test_a_queued_destination_cannot_send_on_another_homeserver(
     adapter: MatrixAdapter, server: _Homeserver, private: bool, file: bool
 ) -> None:
@@ -1456,6 +1460,7 @@ async def test_a_queued_destination_cannot_send_on_another_homeserver(
 @pytest.mark.parametrize(
     "operation", ["member", "members", "details", "history", "files", "reaction"]
 )
+@pytest.mark.security
 async def test_directory_calls_never_reinterpret_a_room_on_another_server(
     adapter: MatrixAdapter, server: _Homeserver, operation: str
 ) -> None:
@@ -1478,6 +1483,7 @@ async def test_directory_calls_never_reinterpret_a_room_on_another_server(
     assert server.calls == []
 
 
+@pytest.mark.security
 def test_an_old_sync_stream_cannot_assert_the_new_connections_authority(
     adapter: MatrixAdapter,
 ) -> None:
@@ -1492,6 +1498,7 @@ def test_an_old_sync_stream_cannot_assert_the_new_connections_authority(
 
 @pytest.mark.parametrize("upload", [False, True])
 @pytest.mark.parametrize("changed", ["members", "encryption"])
+@pytest.mark.security
 async def test_rate_limit_retries_revalidate_private_disclosure(
     adapter: MatrixAdapter, server: _Homeserver, upload: bool, changed: str
 ) -> None:
