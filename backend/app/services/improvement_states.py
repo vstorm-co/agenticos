@@ -60,8 +60,12 @@ STEP_TIMEOUT: dict[ImprovementStage, timedelta] = {
     ImprovementStage.FILTERING: timedelta(minutes=2),
     ImprovementStage.EVALUATING: timedelta(hours=12),
     ImprovementStage.JUDGING: timedelta(minutes=2),
+    ImprovementStage.SEARCHING: timedelta(minutes=15),
 }
 """How long a step may run without progress: the job timeout of whatever runs it."""
+
+SEARCH_CHOICES = 3
+"""How many of a search's best variants a person may bring to Changes."""
 
 WAIT_LIMIT = timedelta(days=7)
 """How long a session waits for a person - for its next step or a decision - before it ends."""
