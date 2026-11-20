@@ -79,6 +79,8 @@ export interface VisualFrameProps {
   aspect?: number | null;
   /** Fill the parent rather than fit the drawing - full screen. */
   fill?: boolean;
+  /** Keep a hidden preview's throttled heartbeat from being treated as a stall. */
+  watchdogPaused?: boolean;
   /** How far the person zoomed in, 1 being the drawing fitted to its box. */
   zoom?: number;
   onError?: (message: string) => void;
@@ -113,6 +115,7 @@ export function VisualFrame({
   height,
   aspect = null,
   fill = false,
+  watchdogPaused = false,
   zoom = 1,
   onError,
   onRendered,
@@ -224,7 +227,7 @@ export function VisualFrame({
   // than left to hold the tab. Only while the tab is visible - a hidden one has
   // its timers throttled, and that is not a stall.
   useEffect(() => {
-    if (!done) return;
+    if (!done || watchdogPaused) return;
     alive.current = Date.now();
     const check = setInterval(() => {
       if (document.visibilityState !== "visible") {
@@ -237,7 +240,7 @@ export function VisualFrame({
       }
     }, 2000);
     return () => clearInterval(check);
-  }, [done]);
+  }, [done, watchdogPaused]);
 
   // An SVG redraws itself at any size, so it is zoomed by laying it out larger;
   // a page would only reflow wider, so it is laid out once and scaled.

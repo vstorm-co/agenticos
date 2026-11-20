@@ -220,6 +220,7 @@ export function WorkspaceFiles({
           <button
             ref={toggle}
             type="button"
+            data-tour="chat-workspace-open"
             aria-label={
               visible ? t("title") : count === 0 ? t("show") : t("showWithCount", { count })
             }

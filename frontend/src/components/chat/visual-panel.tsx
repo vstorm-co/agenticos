@@ -55,7 +55,7 @@ import {
   useVisualStreamStore,
 } from "@/stores/visual-stream-store";
 import type { ChatMessage, ToolCall } from "@/types";
-import { copySvgImage, svgPng } from "./visual-actions";
+import { copySvgImage, svgPng, visualToastOptions } from "./visual-actions";
 import { VisualDownload } from "./visual-download";
 import { ViewportVisualFrame } from "./viewport-visual-frame";
 import { VisualSaveDialog } from "./visual-save-dialog";
@@ -421,9 +421,9 @@ function VisualPanel({ call }: { call: ToolCall }) {
   const copyImage = async () => {
     try {
       await copySvgImage(content);
-      toast.success(t("imageCopied"));
+      toast.success(t("imageCopied"), visualToastOptions());
     } catch {
-      toast.error(t("copyImageFailed"));
+      toast.error(t("copyImageFailed"), visualToastOptions());
     }
   };
 
@@ -518,6 +518,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
           >
             <ViewportVisualFrame
               active={workspace.open}
+              watchdogPaused={code}
               key={frameKey}
               kind={shown.kind}
               title={shown.title}

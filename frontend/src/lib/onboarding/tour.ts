@@ -402,6 +402,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "chat-workspace-tabs",
     page: ROUTES.CHAT,
     target: "chat-workspace-tabs",
+    activate: "chat-workspace-open",
     optional: true,
   },
   {

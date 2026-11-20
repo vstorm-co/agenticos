@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { IconButton, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { PortalContainerContext } from "@/components/ui/portal-container";
+import { ConsoleToaster } from "@/components/ui/console-toaster";
 import { cn } from "@/lib/utils";
 import { ChatPanelResize } from "./chat-panel-resize";
 import { useVisualWorkspace } from "./chat-workspace-context";
@@ -33,6 +34,7 @@ export function VisualWorkspace({
   children: ReactNode;
 }) {
   const t = useTranslations("chat.visuals");
+  const common = useTranslations("common");
   const workspace = useVisualWorkspace(visualId);
   const inlineId = useId();
   const id =
@@ -82,6 +84,7 @@ export function VisualWorkspace({
           )}
         >
           {workspace.open && <ChatWorkspaceTabs panel="visuals" />}
+          {workspace.open && <ConsoleToaster id={id} closeLabel={common("close")} />}
           {docked && (
             <ChatPanelResize
               label={t("resizeWorkspace")}

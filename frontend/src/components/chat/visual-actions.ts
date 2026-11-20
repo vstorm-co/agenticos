@@ -7,6 +7,12 @@ const MEDIA: Record<VisualKind, string> = {
   mermaid: "text/plain",
 };
 
+/** Resolve on completion so asynchronous actions follow the currently open workspace. */
+export function visualToastOptions(): { toasterId?: string } {
+  const id = document.querySelector<HTMLElement>("[data-visual-workspace][popover]")?.id;
+  return id ? { toasterId: id } : {};
+}
+
 /**
  * What a downloaded page may do, opened from disk: what the chat's frame lets it.
  *

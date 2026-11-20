@@ -69,7 +69,13 @@ const { copySvgImage, downloadSvgPng, downloadVisual, svgPng } = vi.hoisted(() =
   downloadVisual: vi.fn(),
   svgPng: vi.fn(),
 }));
-vi.mock("./visual-actions", () => ({ copySvgImage, downloadSvgPng, downloadVisual, svgPng }));
+vi.mock("./visual-actions", async (original) => ({
+  ...(await original<typeof import("./visual-actions")>()),
+  copySvgImage,
+  downloadSvgPng,
+  downloadVisual,
+  svgPng,
+}));
 
 const { getVisualImage, putVisualThumbnail } = vi.hoisted(() => ({
   getVisualImage: vi.fn(),
@@ -92,7 +98,7 @@ vi.mock("./visual-save-dialog", () => ({
 }));
 
 const { toast } = vi.hoisted(() => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("sonner", () => ({ toast }));
+vi.mock("sonner", async (original) => ({ ...(await original<typeof import("sonner")>()), toast }));
 
 // Saving publishes an app, which `artifacts:edit` decides.
 const canPublish = vi.fn(() => true);
@@ -227,8 +233,12 @@ describe("TurnVisuals", () => {
 
   it("offers no zoom over the code", () => {
     show([call()]);
+    expect(lastFrame().watchdogPaused).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Show code" }));
     expect(screen.queryByRole("button", { name: "Zoom in" })).toBeNull();
+    expect(lastFrame().watchdogPaused).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Show visual" }));
+    expect(lastFrame().watchdogPaused).toBe(false);
   });
 
   it("shows nothing for a call that failed", () => {
@@ -348,7 +358,7 @@ describe("TurnVisuals", () => {
       "http://localhost:8000/api/v1/artifact-content/",
     );
     fireEvent.click(screen.getByRole("button", { name: "Copy as image" }));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Image copied"));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Image copied", {}));
     fireEvent.click(screen.getByRole("button", { name: "Copy as image" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });

@@ -110,7 +110,7 @@ describe("VisualSaveDialog", () => {
     mutateAsync.mockRejectedValue(new ApiError(500, "Server fell over"));
     open();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Server fell over"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Server fell over", {}));
   });
 
   it("marks a refused title", async () => {

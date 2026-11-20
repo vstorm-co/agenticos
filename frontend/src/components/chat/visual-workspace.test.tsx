@@ -9,9 +9,12 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
+import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui";
+import { ConsoleToaster } from "@/components/ui/console-toaster";
+import { visualToastOptions } from "./visual-actions";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { VisualDownload } from "./visual-download";
 import { VisualFrame } from "./visual-frame";
@@ -121,7 +124,10 @@ beforeEach(() => {
     return new DOMRect(0, 40, 1260, 700);
   });
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  act(() => toast.dismiss());
+  vi.restoreAllMocks();
+});
 
 // Popovers have no top-layer implementation in jsdom. The live browser check
 // exercises showPopover/hidePopover with a script-backed calculator as well.
@@ -135,6 +141,31 @@ Object.defineProperty(HTMLElement.prototype, "hidePopover", {
 });
 
 describe("a visual workspace", () => {
+  it("keeps success actions and error feedback inside the open workspace", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <ConsoleToaster closeLabel="Close global toast" />
+        <Harness />
+      </>,
+    );
+    await user.click(screen.getByRole("button", { name: "Open one" }));
+    const workspace = screen.getByRole("region", { name: "Visual: one" });
+    const openApp = vi.fn();
+    act(() => {
+      toast.success("Saved visual", {
+        ...visualToastOptions(),
+        action: { label: "Open app", onClick: openApp },
+      });
+      toast.error("Failed visual", visualToastOptions());
+    });
+    expect(workspace).toContainElement(await screen.findByText("Saved visual"));
+    expect(workspace).toContainElement(await screen.findByText("Failed visual"));
+    await user.click(screen.getByRole("button", { name: "Open app" }));
+    expect(openApp).toHaveBeenCalledOnce();
+    expect(screen.getByRole("region", { name: "Visual: one" })).toBe(workspace);
+  });
+
   it("only marks the open workspace as a popover while retaining the inline document", async () => {
     const user = userEvent.setup();
     render(<Harness />);
@@ -187,7 +218,7 @@ describe("a visual workspace", () => {
     render(<Harness />);
     const frame = screen.getByTitle("one");
     fireEvent.click(screen.getByRole("button", { name: "Open one" }));
-    const workspace = screen.getByRole("region");
+    const workspace = screen.getByRole("region", { name: /^Visual:/ });
     expect(workspace).toHaveAttribute("data-visual-workspace", "fullscreen");
     expect(screen.queryByRole("separator")).toBeNull();
     wide = true;
@@ -223,18 +254,18 @@ describe("a visual workspace", () => {
     const user = userEvent.setup();
     render(<Harness />);
     await user.click(screen.getByRole("button", { name: "Open one" }));
-    const workspace = screen.getByRole("region");
+    const workspace = screen.getByRole("region", { name: /^Visual:/ });
     await user.click(screen.getByRole("button", { name: "Download" }));
     expect(workspace).toContainElement(screen.getByRole("menu"));
     await user.keyboard("{Escape}");
-    expect(screen.getByRole("region")).toBe(workspace);
+    expect(screen.getByRole("region", { name: /^Visual:/ })).toBe(workspace);
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(workspace).toContainElement(screen.getByRole("dialog"));
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.getByRole("region")).toBe(workspace);
+    expect(screen.getByRole("region", { name: /^Visual:/ })).toBe(workspace);
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("region")).toBeNull();
+    expect(screen.queryByRole("region", { name: /^Visual:/ })).toBeNull();
   });
 
   it("selects one visual at a time while retaining the previous document", async () => {
@@ -243,7 +274,7 @@ describe("a visual workspace", () => {
     const first = screen.getByTitle("one");
     await user.click(screen.getByRole("button", { name: "Open one" }));
     await user.click(screen.getByRole("button", { name: "Open two" }));
-    expect(screen.getAllByRole("region")).toHaveLength(1);
+    expect(screen.getAllByRole("region", { name: /^Visual:/ })).toHaveLength(1);
     expect(screen.getByRole("region", { name: "Visual: two" })).toBeInTheDocument();
     expect(screen.getByTitle("one")).toBe(first);
     expect(showPopover).toHaveBeenCalledTimes(2);
@@ -254,9 +285,9 @@ describe("a visual workspace", () => {
     const view = render(<Harness conversationId={null} />);
     fireEvent.click(screen.getByRole("button", { name: "Open one" }));
     view.rerender(<Harness conversationId="created" />);
-    expect(screen.getByRole("region")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: /^Visual:/ })).toBeInTheDocument();
     view.rerender(<Harness conversationId="another" />);
-    expect(screen.queryByRole("region")).toBeNull();
+    expect(screen.queryByRole("region", { name: /^Visual:/ })).toBeNull();
     expect(view.container.querySelector("[data-visual-workspace-slot]")).toBeNull();
   });
 
@@ -265,9 +296,9 @@ describe("a visual workspace", () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Open one" }));
     expect(useBrowserPanelStore.getState().openCallId).toBe("browse");
-    expect(screen.getByRole("region")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: /^Visual:/ })).toBeInTheDocument();
     act(() => useBrowserPanelStore.getState().open("next-browse"));
-    expect(screen.queryByRole("region")).toBeNull();
+    expect(screen.queryByRole("region", { name: /^Visual:/ })).toBeNull();
   });
 
   it("supports standalone transcripts with no docking slot", () => {
@@ -277,9 +308,14 @@ describe("a visual workspace", () => {
       </ChatWorkspaceBoundary>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Open one" }));
-    expect(screen.getByRole("region")).toHaveAttribute("data-visual-workspace", "fullscreen");
+    expect(screen.getByRole("region", { name: /^Visual:/ })).toHaveAttribute(
+      "data-visual-workspace",
+      "fullscreen",
+    );
     expect(
-      within(screen.getByRole("region")).getByRole("tab", { name: "Preview" }),
+      within(screen.getByRole("region", { name: /^Visual:/ })).getByRole("tab", {
+        name: "Preview",
+      }),
     ).toBeInTheDocument();
   });
 
@@ -294,9 +330,9 @@ describe("a visual workspace", () => {
   it("releases side space when the selected drawing is removed", () => {
     const view = render(<Harness two />);
     fireEvent.click(screen.getByRole("button", { name: "Open one" }));
-    expect(screen.getByRole("region")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: /^Visual:/ })).toBeInTheDocument();
     view.rerender(<Harness two visible={false} />);
-    expect(screen.queryByRole("region")).toBeNull();
+    expect(screen.queryByRole("region", { name: /^Visual:/ })).toBeNull();
     expect(view.container.querySelector("[data-visual-workspace-slot]")).toBeNull();
     expect(screen.getByTitle("two")).toBeInTheDocument();
   });
@@ -309,7 +345,7 @@ describe("a visual workspace", () => {
     dialog.setAttribute("role", "dialog");
     dialog.setAttribute("data-state", "open");
     document.body.append(dialog);
-    await waitFor(() => expect(screen.queryByRole("region")).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("region", { name: /^Visual:/ })).toBeNull());
     expect(screen.getByTitle("one")).toBe(frame);
     dialog.remove();
   });

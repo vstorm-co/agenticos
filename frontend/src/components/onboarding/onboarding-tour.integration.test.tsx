@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { OnboardingTour } from "./onboarding-tour";
+import { WorkspaceFiles } from "@/components/chat/workspace-files";
+import { ChatWorkspaceProvider } from "@/components/chat/chat-workspace-context";
 import { RestartTourButton } from "./restart-tour-button";
 import { pulse, waitForElement } from "@/components/onboarding/spotlight";
 import { activateTab } from "@/lib/activate-tab";
@@ -156,6 +158,47 @@ beforeEach(() => {
 });
 
 describe("OnboardingTour", () => {
+  it("opens Files before spotlighting workspace tabs from a closed chat workspace", async () => {
+    servePermissions(OWNER);
+    nav.pathname = "/chat";
+    useOnboardingStore.setState({
+      isOpen: true,
+      mode: "page",
+      index: stepsForPage(ROUTES.CHAT, () => true).findIndex(
+        (step) => step.id === "chat-workspace-tabs",
+      ),
+    });
+    vi.mocked(waitForElement).mockImplementation(async (selector) =>
+      waitFor(() => {
+        const target = document.querySelector(selector);
+        if (!target) throw new Error("Tour target has not rendered");
+        return target;
+      }),
+    );
+    vi.mocked(activateTab).mockImplementationOnce((trigger) => trigger.click());
+    try {
+      render(
+        <ChatWorkspaceProvider shared>
+          <WorkspaceFiles
+            buttonSlot={document.body}
+            conversationId={null}
+            attachments={[]}
+            revision={0}
+          />
+          <OnboardingTour />
+        </ChatWorkspaceProvider>,
+        { wrapper },
+      );
+      expect(await screen.findByRole("tabpanel", { name: "Files" })).toBeVisible();
+      const tabs = screen.getByRole("tablist", { name: "Workspace" });
+      await waitFor(() => expect(light.focus).toHaveBeenCalledWith(tabs));
+      expect(screen.getByRole("tab", { name: "Files" })).toHaveAttribute("aria-selected", "true");
+    } finally {
+      vi.mocked(waitForElement).mockImplementation(async () => ({}) as Element);
+      vi.mocked(activateTab).mockReset();
+    }
+  });
+
   it("opens the requested tour and welcomes the reader", async () => {
     servePermissions(OWNER);
     if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();

@@ -14,7 +14,7 @@ import {
 } from "@/components/ui";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { visualContentBase, type VisualKind } from "@/lib/visuals";
-import { downloadSvgPng, downloadVisual } from "./visual-actions";
+import { downloadSvgPng, downloadVisual, visualToastOptions } from "./visual-actions";
 
 interface VisualDownloadProps {
   title: string;
@@ -43,7 +43,7 @@ export function VisualDownload({ title, kind, content }: VisualDownloadProps) {
       await downloadSvgPng(title, content);
     } catch {
       setFailed(true);
-      toast.error(t("pngDownloadFailed"));
+      toast.error(t("pngDownloadFailed"), visualToastOptions());
     } finally {
       setPending(false);
     }

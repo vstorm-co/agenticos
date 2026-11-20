@@ -6,9 +6,28 @@ import {
   downloadVisual,
   inertSvg,
   sealedPage,
+  visualToastOptions,
 } from "./visual-actions";
 
 const BASE = "https://content.example.com/api/v1/artifact-content/";
+
+it("routes completed actions to the active workspace and falls back after it closes", () => {
+  expect(visualToastOptions()).toEqual({});
+  const layer = document.createElement("div");
+  layer.dataset.visualWorkspace = "docked";
+  layer.id = "first";
+  layer.setAttribute("popover", "manual");
+  document.body.append(layer);
+  try {
+    expect(visualToastOptions()).toEqual({ toasterId: "first" });
+    layer.id = "second";
+    expect(visualToastOptions()).toEqual({ toasterId: "second" });
+    layer.removeAttribute("popover");
+    expect(visualToastOptions()).toEqual({});
+  } finally {
+    layer.remove();
+  }
+});
 
 /** Download one visual and hand back the file the browser was given. */
 async function downloaded(kind: "svg" | "html" | "mermaid", content: string) {

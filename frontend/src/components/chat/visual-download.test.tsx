@@ -9,7 +9,11 @@ const { downloadSvgPng, downloadVisual, error } = vi.hoisted(() => ({
   downloadVisual: vi.fn(),
   error: vi.fn(),
 }));
-vi.mock("./visual-actions", () => ({ downloadSvgPng, downloadVisual }));
+vi.mock("./visual-actions", async (original) => ({
+  ...(await original<typeof import("./visual-actions")>()),
+  downloadSvgPng,
+  downloadVisual,
+}));
 vi.mock("sonner", () => ({ toast: { error } }));
 
 const SVG = '<svg viewBox="0 0 100 50"><rect/></svg>';
@@ -58,7 +62,7 @@ describe("VisualDownload", () => {
     await user.click(screen.getByRole("button", { name: "Download" }));
     await user.click(screen.getByRole("menuitem", { name: "PNG — image for slides" }));
     await waitFor(() =>
-      expect(error).toHaveBeenCalledWith("The PNG could not be downloaded. Try again."),
+      expect(error).toHaveBeenCalledWith("The PNG could not be downloaded. Try again.", {}),
     );
     await user.click(screen.getByRole("button", { name: "Download" }));
     await user.click(screen.getByRole("menuitem", { name: "PNG — image for slides" }));

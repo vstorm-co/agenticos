@@ -21,6 +21,7 @@ import { useRouter } from "@/lib/locale-navigation";
 import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 import { appName } from "@/lib/visuals";
 import { rememberSavedVisual } from "@/stores/visual-stream-store";
+import { visualToastOptions } from "./visual-actions";
 
 interface VisualSaveDialogProps {
   open: boolean;
@@ -71,7 +72,10 @@ export function VisualSaveDialog({
       });
       toast.success(
         app.unchanged ? t("savedUnchanged") : t("savedToast", { version: app.version }),
-        { action: { label: t("openApp"), onClick: () => router.push(app.url) } },
+        {
+          ...visualToastOptions(),
+          action: { label: t("openApp"), onClick: () => router.push(app.url) },
+        },
       );
       onOpenChange(false);
     } catch (error) {
@@ -81,7 +85,7 @@ export function VisualSaveDialog({
         tErrors,
       );
       setErrors(failure.fields);
-      if (failure.toast) toast.error(failure.toast);
+      if (failure.toast) toast.error(failure.toast, visualToastOptions());
     }
   }
 
