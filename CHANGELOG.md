@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.86.0] - 2026-11-20
+
 ### Added
 
 - MCP administration with searchable actions and on-demand schemas for organization settings, AI Architect, system agents, retention, members and groups, plus installation settings and updates. Global access requires explicit external OAuth `deployment:admin` consent and live application-admin authority; internal agents and routines never inherit it. Configuration reads do not install resources; secret entry and binary branding use secure console handoffs.
@@ -22205,7 +22207,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.85.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.86.0...HEAD
+[1.86.0]: https://github.com/vstorm-co/agenticos/compare/v1.85.1...v1.86.0
 [1.85.1]: https://github.com/vstorm-co/agenticos/compare/v1.85.0...v1.85.1
 [1.85.0]: https://github.com/vstorm-co/agenticos/compare/v1.84.0...v1.85.0
 [1.84.0]: https://github.com/vstorm-co/agenticos/compare/v1.83.0...v1.84.0
