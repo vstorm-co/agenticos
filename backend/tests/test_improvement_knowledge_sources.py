@@ -6,6 +6,7 @@ classifier read them so.
 """
 
 import uuid
+from dataclasses import replace
 from types import SimpleNamespace
 from typing import Literal
 from unittest.mock import AsyncMock, MagicMock
@@ -17,7 +18,11 @@ from app.repositories import knowledge_base_repo, knowledge_gap_repo
 from app.schemas.knowledge_gap import GapCause
 from app.services import improvement_pipeline
 from app.services.authoring_evidence import EvidencePack, PackedRun
-from app.services.improvement_pipeline import ImprovementPipelineService, KnowledgeSources
+from app.services.improvement_pipeline import (
+    UNHELD_KEYS,
+    ImprovementPipelineService,
+    KnowledgeSources,
+)
 from app.services.knowledge_gaps import KnowledgeGapService
 
 pytestmark = pytest.mark.anyio
@@ -182,3 +187,15 @@ def test_each_source_example_says_where_its_fix_belongs(
         )
         == expected
     )
+
+
+def test_an_answer_missing_only_keys_no_source_holds_is_missing_knowledge() -> None:
+    item = replace(_run("train_eval"), knowledge_only=True, uncovered_keys=("Due date",))
+
+    assert ImprovementPipelineService._evidence_branch(item, {}, {}, {}) == (
+        "missing_knowledge",
+        UNHELD_KEYS,
+    )
+    assert ImprovementPipelineService._evidence_branch(
+        item, {}, {}, {item.run_id: ("missing_knowledge", "why")}
+    ) == ("missing_knowledge", "why")

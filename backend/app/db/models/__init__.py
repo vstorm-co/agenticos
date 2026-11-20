@@ -171,6 +171,7 @@ from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
 from app.db.models.case_generation import CaseGeneration, CaseProposal
 from app.db.models.case_key_draft import CaseKeyDraft
+from app.db.models.key_coverage_report import KeyCoverageReport
 from app.db.models.knowledge_gap import (
     KnowledgeGapClassification,
     KnowledgeGapEvalClassification,
@@ -255,6 +256,7 @@ __all__ = [
     "ArtifactVersion",
     "CaseGeneration",
     "CaseKeyDraft",
+    "KeyCoverageReport",
     "CaseProposal",
     "CaseScore",
     "Dataset",

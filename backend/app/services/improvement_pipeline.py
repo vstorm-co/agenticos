@@ -179,6 +179,8 @@ ANSWER_TIME_WINDOW = timedelta(days=30)
 """How far back the agent's answers are read to time a session's checks."""
 
 _AWAITING_PERSON = (Status.WAITING.value, Status.READY.value)
+
+UNHELD_KEYS = "The answer misses only keys none of the agent's sources holds."
 """Statuses a session waits in for a person to take the next step or decide."""
 
 
@@ -933,14 +935,17 @@ class ImprovementPipelineService:
         """Where one source example's fix belongs, and the classifier's reason.
 
         A training answer from an eval is the agent's unless its verdict found
-        missing knowledge: the eval graded it a failure, so even a refusal it read
-        there is the agent's to look at.
+        missing knowledge, or the only checks it failed ask for keys none of the
+        agent's sources holds: the eval graded it a failure, so even a refusal it
+        read there is the agent's to look at.
         """
         if item.evidence_kind == "train_eval":
             branch, reason = answered.get(item.run_id, ("agent", None))
-            return (
-                ("missing_knowledge", reason) if branch == "missing_knowledge" else ("agent", None)
-            )
+            if branch == "missing_knowledge":
+                return "missing_knowledge", reason
+            if item.knowledge_only:
+                return "missing_knowledge", UNHELD_KEYS
+            return "agent", None
         if item.rating > 0:
             return "not_a_problem", None
         cause = causes.get(messages[item.run_id]) if item.run_id in messages else None

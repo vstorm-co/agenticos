@@ -43,6 +43,7 @@ from app.services.scorers import (
     holds,
     judge_criteria,
     judge_prompt,
+    missing_keys,
     not_graded,
     repeats,
     restates,
@@ -1299,3 +1300,20 @@ class TestKeysCheck:
     def test_a_malformed_keys_check_is_refused(self, check) -> None:
         with pytest.raises(ValidationError):
             CHECK.validate_python(check)
+
+
+def test_the_keys_an_answer_misses_are_listed_by_label() -> None:
+    checks = [
+        {"type": "contains", "value": "INV"},
+        {"type": "keys", "keys": "broken"},
+        {
+            "type": "keys",
+            "keys": [
+                {"key": "Invoice number", "value": "INV-7"},
+                {"key": "Total", "value": "1 234,50"},
+            ],
+        },
+    ]
+
+    assert missing_keys(checks, "Invoice INV-7, total 1234,50") == []
+    assert missing_keys(checks, "Invoice INV-70") == ["Invoice number", "Total"]
