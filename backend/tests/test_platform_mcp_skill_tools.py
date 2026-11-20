@@ -230,7 +230,7 @@ class TestReadingASkill:
             }
         )
 
-        skill = await _call(server, "get_skill", skill_id=SKILL)
+        skill = await _call(server, "get_skill", skill_id=SKILL, detailed=True)
 
         assert [agent["uses"] for agent in skill["agents"]] == [
             "v3 · main",
@@ -288,7 +288,7 @@ class TestReadingASkill:
             }
         )
 
-        skill = await _call(server, "get_skill", skill_id=SKILL)
+        skill = await _call(server, "get_skill", skill_id=SKILL, detailed=True)
 
         assert skill["agents"][0]["uses"] == 'Fork "Wholesale" · from v1 · 3 changes'
         assert skill["can_edit"] is False
@@ -297,7 +297,7 @@ class TestReadingASkill:
 
     @pytest.mark.parametrize(
         ("fork_id", "params"),
-        [(None, {"limit": 20, "skip": 0}), (FORK, {"limit": 20, "skip": 0, "fork_id": FORK})],
+        [(None, {"limit": 10, "skip": 0}), (FORK, {"limit": 10, "skip": 0, "fork_id": FORK})],
     )
     async def test_a_line_s_history_names_what_made_each_version(
         self, server: FastMCP, api: MagicMock, fork_id: str | None, params: dict[str, Any]
@@ -348,7 +348,7 @@ class TestReadingASkill:
 
         history = await _call(server, "list_skill_versions", skill_id=SKILL, skip=2)
 
-        assert _sent(api, "GET", f"{BASE}/versions") == {"limit": 20, "skip": 2}
+        assert _sent(api, "GET", f"{BASE}/versions") == {"limit": 10, "skip": 2}
         assert history["next_skip"] is None
 
     async def test_one_version_reads_with_its_text_and_file_names(
@@ -414,7 +414,7 @@ class TestReadingSessions:
         listed = await _call(server, "list_skill_improvements", skill_id=SKILL)
 
         [newest] = listed["items"]
-        assert listed["earlier_sessions"] == 1
+        assert listed["has_more_history"] is True
         assert newest["waiting_for"] == {
             "after": "Understand",
             "next_step": "propose changes",
@@ -452,26 +452,35 @@ class TestReadingSessions:
         line: dict[str, Any],
         params: dict[str, Any],
     ) -> None:
-        """A skill with more sessions than one page holds still counts them all."""
-        first = [
+        """A selected line reads one bounded API page, not its complete history."""
+        older = [
             {**_session("cancelled"), "id": str(uuid.uuid4()), "created_at": "2026-10-01T08:00:00Z"}
             for _ in range(100)
         ]
-        last = [_session("waiting", next_step="propose")]
+        ordered = [_session("waiting", next_step="propose"), *older]
 
         async def respond(method: str, path: str, **kwargs: Any) -> Any:
             if path == SESSIONS:
-                return first if kwargs["params"]["skip"] == 0 else last
+                query = kwargs["params"]
+                return ordered[query["skip"] : query["skip"] + query["limit"]]
             return QUOTE
 
         api.request = AsyncMock(side_effect=respond)
-
         listed = await _call(server, "list_skill_improvements", skill_id=SKILL, **line)
-
-        assert listed["earlier_sessions"] == 100
+        assert listed["has_more_history"] and listed["next_skip"] == 1
         assert listed["items"][0]["status"] == "waiting"
         pages = [c.kwargs["params"] for c in api.request.await_args_list if c.args[1] == SESSIONS]
-        assert pages == [{**params, "limit": 100, "skip": 0}, {**params, "limit": 100, "skip": 100}]
+        assert pages == [{**params, "limit": 2, "skip": 0}]
+        history = await _call(
+            server,
+            "list_skill_improvements",
+            skill_id=SKILL,
+            history=True,
+            skip=1,
+            limit=10,
+            **line,
+        )
+        assert len(history["items"]) == 10 and history["next_skip"] == 11
 
     async def test_a_skill_with_no_sessions_lists_none(
         self, server: FastMCP, api: MagicMock
@@ -480,7 +489,8 @@ class TestReadingSessions:
 
         assert await _call(server, "list_skill_improvements", skill_id=SKILL) == {
             "items": [],
-            "earlier_sessions": 0,
+            "has_more_history": False,
+            "next_skip": None,
         }
 
     async def test_a_check_with_a_worse_agent_offers_pinning_it_or_a_fork_for_the_others(
@@ -1806,6 +1816,11 @@ class TestCatchingUp:
 
 
 READS = {
+    "read_skill_content",
+    "get_skill_resource",
+    "list_skill_agents",
+    "list_skill_forks",
+    "list_skill_resources",
     "list_skills_behind_main",
     "estimate_skill_update_check",
     "estimate_skill_catch_up",

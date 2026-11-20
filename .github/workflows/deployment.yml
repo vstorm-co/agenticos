@@ -1,0 +1,58 @@
+name: Deployment smoke
+
+on:
+  pull_request:
+    paths:
+      - "docker-compose*.yml"
+      - "**/Dockerfile*"
+      - ".dockerignore"
+      - "**/.dockerignore"
+      - "Makefile"
+      - "nginx/**"
+      - "traefik/**"
+      - "scripts/deploy.sh"
+      - "scripts/server-init.sh"
+      - "scripts/deployment/**"
+      - "backend/.python-version"
+      - ".github/workflows/deployment.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docker-compose*.yml"
+      - "**/Dockerfile*"
+      - ".dockerignore"
+      - "**/.dockerignore"
+      - "Makefile"
+      - "scripts/deploy.sh"
+      - "scripts/server-init.sh"
+      - "backend/.python-version"
+      - "nginx/**"
+      - "traefik/**"
+      - "scripts/deployment/**"
+      - ".github/workflows/deployment.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deployment-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proxies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        nginx: ["nginx:1.25.1-alpine", "nginx:stable-alpine"]
+    env:
+      NGINX_IMAGE: ${{ matrix.nginx }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - name: Test real proxies and render Compose variants
+        run: make test-deployment

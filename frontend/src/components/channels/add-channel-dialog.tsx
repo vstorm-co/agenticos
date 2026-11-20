@@ -351,7 +351,13 @@ export function AddChannelDialog({
                   <SelectContent>
                     {PLATFORMS.map((option) => (
                       <SelectItem key={option} value={option}>
-                        {PLATFORM_LABEL[option]}
+                        <span className="flex items-center gap-2">
+                          <ChannelPlatformIcon
+                            platform={option}
+                            className="h-5 w-5 bg-transparent"
+                          />
+                          {PLATFORM_LABEL[option]}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>

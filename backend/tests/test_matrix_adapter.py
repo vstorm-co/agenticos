@@ -5,6 +5,7 @@ asserted is the request the homeserver would receive: the room and thread it
 goes to, whether it can notify anybody, and what an edit or a reaction is.
 """
 
+import asyncio
 import json
 from contextlib import asynccontextmanager
 from typing import Any
@@ -15,6 +16,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
+from app.agents.capabilities.channel_tools import ChannelDirectoryUnsupported
 from app.services.channels import matrix
 from app.services.channels.base import (
     ChannelChoice,
@@ -178,6 +180,105 @@ class TestReading:
 
 
 class TestSync:
+    async def test_failed_admission_keeps_the_last_seen_boundary_for_gap_recovery(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        key = f"{BOT}:{DM}"
+        adapter._last_seen[key] = 100
+        server.answer(
+            "GET",
+            _room_path(DM, "joined_members"),
+            httpx.Response(200, json={"joined": {OWN: {}, USER: {}}}),
+        )
+        with (
+            patch(
+                "app.services.channels.ingress.admit_message",
+                AsyncMock(side_effect=RuntimeError("unavailable")),
+            ),
+            pytest.raises(RuntimeError, match="unavailable"),
+        ):
+            await adapter._on_room(
+                BOT,
+                "tok",
+                BASE,
+                adapter._accounts[BOT],
+                DM,
+                {"timeline": {"events": [_event()]}},
+                backlog=False,
+            )
+        assert adapter._last_seen[key] == 100
+
+    async def test_a_room_encrypted_after_joining_admits_no_plaintext(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        server.answer(
+            "GET",
+            _room_path(DM, "state", "m.room.encryption", ""),
+            httpx.Response(200, json={"algorithm": "m.megolm.v1.aes-sha2"}),
+        )
+        admitted = AsyncMock()
+        with patch("app.services.channels.ingress.admit_message", admitted):
+            await adapter._on_sync(
+                BOT,
+                "tok",
+                BASE,
+                adapter._accounts[BOT],
+                {"rooms": {"join": {DM: {"timeline": {"events": [_event()]}}}}},
+                backlog=False,
+            )
+        admitted.assert_not_awaited()
+
+    async def test_encryption_enabled_during_a_run_stops_its_reply(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        from app.agents.capabilities.channel_tools import ChannelDirectoryUnsupported
+
+        handle = await adapter.begin_reply("tok", _out("working"))
+        assert handle is not None
+        server.answer(
+            "GET",
+            _room_path(ROOM, "state", "m.room.encryption", ""),
+            httpx.Response(200, json={"algorithm": "m.megolm.v1.aes-sha2"}),
+        )
+        before = len(server.sent())
+        with pytest.raises(ChannelDirectoryUnsupported, match="encrypted"):
+            await adapter.update_reply("tok", _out("confidential result"), handle)
+        assert len(server.sent()) == before
+
+    async def test_an_unreadable_encryption_state_never_posts_plaintext(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        server.answer(
+            "GET", _room_path(ROOM, "state", "m.room.encryption", ""), httpx.Response(503)
+        )
+        with pytest.raises(httpx.HTTPStatusError):
+            await adapter.send_message("tok", _out("confidential result"))
+        assert server.sent() == []
+
+    async def test_a_malformed_file_does_not_stop_the_next_message_in_a_batch(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        server.answer(
+            "GET",
+            _room_path(DM, "joined_members"),
+            httpx.Response(200, json={"joined": {OWN: {}, USER: {}}}),
+        )
+        bad = _event(
+            "file", msgtype="m.file", url="mxc://example.org/file", info={"size": "invalid"}
+        )
+        admitted = AsyncMock()
+        with patch("app.services.channels.ingress.admit_message", admitted):
+            await adapter._on_sync(
+                BOT,
+                "tok",
+                BASE,
+                adapter._accounts[BOT],
+                {"rooms": {"join": {DM: {"timeline": {"events": [bad, _event("next")]}}}}},
+                backlog=False,
+            )
+        assert admitted.await_count == 1
+        assert admitted.await_args.args[0].text == "next"
+
     async def test_the_first_sync_skips_the_backlog_and_a_later_one_admits_messages(
         self, adapter: MatrixAdapter, server: _Homeserver
     ):
@@ -464,6 +565,36 @@ class TestAnswering:
         await adapter.update_reply("tok", _out("short"), handle)
         assert any(method == "PUT" and "/redact/" in path for method, path, _ in server.calls)
 
+    async def test_failed_redaction_remains_pending_for_the_next_update(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        handle = await adapter.begin_reply("tok", _out("working"))
+        assert handle is not None
+        await adapter.update_reply("tok", _out("x" * (MESSAGE_LIMIT + 20)), handle)
+        reply = adapter._replies.get(handle)
+        assert reply is not None
+        stale = reply.ids[-1]
+        redact_path = _room_path(ROOM, "redact", stale) + "/"
+        original = adapter._call
+        failed = False
+
+        async def call(method: str, url: str, token: str, **kwargs: Any) -> httpx.Response:
+            nonlocal failed
+            if "/redact/" in url and not failed:
+                failed = True
+                return httpx.Response(503, request=httpx.Request(method, url))
+            return await original(method, url, token, **kwargs)
+
+        with patch.object(adapter, "_call", call):
+            with pytest.raises(httpx.HTTPStatusError):
+                await adapter.update_reply("tok", _out("safe"), handle)
+            assert stale in reply.ids
+            await adapter.update_reply("tok", _out("safe"), handle)
+        assert stale not in reply.ids
+        assert any(
+            method == "PUT" and path.startswith(redact_path) for method, path, _ in server.calls
+        )
+
     async def test_an_edit_from_another_worker_finds_its_room_from_the_chat(
         self, adapter: MatrixAdapter, server: _Homeserver
     ):
@@ -728,3 +859,362 @@ class TestHistoryAndFiles:
         assert not await adapter.is_channel_member(
             "tok", room_key(ROOM), "@eve:example.org", api_base_url=BASE
         )
+
+
+class TestFailureBoundaries:
+    async def test_redis_can_be_withdrawn_and_a_stream_without_it_has_no_cursor(self) -> None:
+        matrix.configure(None)
+        assert await MatrixAdapter._load_since(BOT, OWN) is None
+        await MatrixAdapter._store_since(BOT, OWN, "s1")
+
+    async def test_stream_lifecycle_starts_once_and_cancels_before_shutdown(
+        self, adapter: MatrixAdapter
+    ) -> None:
+        entered = asyncio.Event()
+
+        async def session(bot_id: str, token: str) -> None:
+            assert (bot_id, token) == (BOT, "tok")
+            entered.set()
+            await asyncio.Event().wait()
+
+        with patch.object(adapter, "_run_stream", session):
+            await adapter.start_polling(BOT, "tok")
+            await entered.wait()
+            task = adapter._sync_tasks[BOT]
+            await adapter.start_polling(BOT, "tok")
+            assert adapter._sync_tasks[BOT] is task
+            await adapter.stop_polling(BOT)
+            assert task.cancelled()
+            assert BOT not in adapter._accounts
+            await adapter.stop_polling(BOT)
+        await adapter.aclose()
+
+    async def test_completed_stream_can_be_replaced(self, adapter: MatrixAdapter) -> None:
+        task = asyncio.create_task(asyncio.sleep(0))
+        await task
+        adapter._sync_tasks[BOT] = task
+        with patch.object(adapter, "_supervise", AsyncMock()):
+            await adapter.start_polling(BOT, "tok")
+            replacement = adapter._sync_tasks[BOT]
+            await replacement
+            assert replacement is not task
+            await adapter.stop_polling(BOT)
+
+    async def test_unsupported_webhooks_are_always_refused(self, adapter: MatrixAdapter) -> None:
+        assert not await adapter.register_webhook("tok", "https://example.org", "secret")
+        assert not await adapter.delete_webhook("tok")
+        assert not adapter.verify_webhook_signature({}, "secret", "body")
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {},
+            {"room_id": ROOM, "event": {}},
+            {"room_id": ROOM, "event": _event("", **{"m.mentions": {}})},
+            {"room_id": ROOM, "event": {**_event(), "sender": OWN}},
+        ],
+    )
+    def test_incomplete_empty_and_own_events_do_not_become_questions(
+        self, adapter: MatrixAdapter, payload: dict[str, Any]
+    ) -> None:
+        assert adapter.parse_incoming(payload, BOT) is None
+        assert adapter.parse_incoming(payload, "unknown-bot") is None
+
+    async def test_directory_refuses_missing_server_or_non_room(
+        self, adapter: MatrixAdapter
+    ) -> None:
+        with pytest.raises(ChannelDirectoryUnsupported, match="homeserver"):
+            await adapter.channel_details("tok", room_key(ROOM), api_base_url=None)
+        with pytest.raises(ChannelDirectoryUnsupported, match="room"):
+            await adapter.channel_details("tok", "general", api_base_url=BASE)
+        assert await adapter._homeserver(BOT) == BASE
+
+    @pytest.mark.parametrize("status", [403, 503])
+    async def test_unavailable_membership_is_not_invented(
+        self, adapter: MatrixAdapter, server: _Homeserver, status: int
+    ) -> None:
+        server.answer("GET", f"{API}/account/whoami", httpx.Response(200, json={"user_id": OWN}))
+        server.answer("GET", _room_path(ROOM, "joined_members"), httpx.Response(status))
+        error = ChannelDirectoryUnsupported if status == 403 else httpx.HTTPStatusError
+        with pytest.raises(error):
+            await adapter.channel_members("tok", room_key(ROOM), api_base_url=BASE, limit=10)
+
+    async def test_room_details_and_bounded_members_use_the_homeserver_state(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        server.answer("GET", f"{API}/account/whoami", httpx.Response(200, json={"user_id": OWN}))
+        server.answer(
+            "GET",
+            _room_path(ROOM, "joined_members"),
+            httpx.Response(
+                200, json={"joined": {OWN: {}, USER: {"display_name": "Ada"}, "@bob:x": None}}
+            ),
+        )
+        for kind, content in [
+            ("m.room.name", {"name": "Support"}),
+            ("m.room.topic", {"topic": "Refunds"}),
+            ("m.room.join_rules", {"join_rule": "public"}),
+        ]:
+            server.answer(
+                "GET", _room_path(ROOM, "state", kind, ""), httpx.Response(200, json=content)
+            )
+        details = await adapter.channel_details("tok", room_key(ROOM), api_base_url=BASE)
+        assert (details.name, details.topic, details.is_private, details.member_count) == (
+            "Support",
+            "Refunds",
+            False,
+            3,
+        )
+        members = await adapter.channel_members("tok", room_key(ROOM), api_base_url=BASE, limit=2)
+        assert [(m.user_id, m.is_bot, m.display_name) for m in members] == [
+            (OWN, True, None),
+            (USER, False, "Ada"),
+        ]
+        members = await adapter.channel_members("tok", room_key(ROOM), api_base_url=BASE, limit=3)
+        assert members[-1].display_name is None
+
+    async def test_absent_state_has_safe_room_defaults(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        for kind in ["m.room.name", "m.room.topic", "m.room.join_rules"]:
+            server.answer("GET", _room_path(ROOM, "state", kind, ""), httpx.Response(404))
+        details = await adapter.channel_details("tok", room_key(ROOM), api_base_url=BASE)
+        assert (details.name, details.topic, details.is_private, details.member_count) == (
+            ROOM,
+            None,
+            True,
+            0,
+        )
+        server.answer(
+            "GET", _room_path(ROOM, "state", "m.room.name", ""), httpx.Response(200, json=[])
+        )
+        assert await adapter._state(BASE, "tok", ROOM, "m.room.name") == {}
+        server.answer("GET", _room_path(ROOM, "state", "m.room.name", ""), httpx.Response(403))
+        with pytest.raises(ChannelDirectoryUnsupported):
+            await adapter.channel_details("tok", room_key(ROOM), api_base_url=BASE)
+
+    async def test_reactions_validate_names_and_room_before_posting(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        incoming = IncomingMessage(
+            platform="matrix",
+            bot_id=BOT,
+            platform_user_id=USER,
+            platform_chat_id=room_key(ROOM),
+            chat_type="group",
+            text="hi",
+        )
+        await adapter.acknowledge_message("tok", incoming, "unknown")
+        incoming.message_id = "$question"
+        with pytest.raises(ValueError, match="reaction"):
+            await adapter.acknowledge_message("tok", incoming, "unknown")
+        with pytest.raises(ChannelDirectoryUnsupported, match="emoji"):
+            await adapter.react_to_message(
+                "tok", room_key(ROOM), "$question", "unknown", api_base_url=BASE
+            )
+        server.answer(
+            "GET",
+            _room_path(ROOM, "event", "$question"),
+            httpx.Response(200, json={"room_id": ROOM}),
+        )
+        await adapter.react_to_message(
+            "tok", room_key(ROOM), "$question", "eyes", api_base_url=BASE
+        )
+        assert server.sent("m.reaction")[-1][1]["m.relates_to"]["event_id"] == "$question"
+
+    async def test_typing_failure_is_visible_and_does_not_lose_the_reply(
+        self, adapter: MatrixAdapter, server: _Homeserver, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        await adapter.begin_reply("tok", _out("working"))
+        server.answer("GET", f"{API}/account/whoami", httpx.Response(503))
+        await adapter.typing(BOT, _out("working"))
+        assert "matrix_typing_failed" in caplog.text
+
+    @pytest.mark.parametrize("handle,size", [("", 0), (f"{BASE}/file", 100)])
+    async def test_missing_or_claimed_oversized_files_are_not_downloaded(
+        self, adapter: MatrixAdapter, server: _Homeserver, handle: str, size: int
+    ) -> None:
+        with patch.object(matrix.settings, "CHAT_MAX_UPLOAD_SIZE_MB", 0), pytest.raises(ValueError):
+            await adapter.download_attachment(
+                "tok", IncomingAttachment("a", "text/plain", size, handle)
+            )
+        assert server.calls == []
+
+    @pytest.mark.parametrize("status", [403, 503])
+    async def test_thread_history_refuses_unreadable_rooms(
+        self, adapter: MatrixAdapter, server: _Homeserver, status: int
+    ) -> None:
+        server.answer("GET", _relations(ROOM, "$root"), httpx.Response(status))
+        error = ChannelDirectoryUnsupported if status == 403 else httpx.HTTPStatusError
+        with pytest.raises(error):
+            await adapter.channel_history(
+                "tok", room_key(ROOM), api_base_url=BASE, limit=5, thread_id="$root"
+            )
+
+    @pytest.mark.parametrize("status", [404, 503])
+    async def test_thread_root_missing_is_distinct_from_server_failure(
+        self, adapter: MatrixAdapter, server: _Homeserver, status: int
+    ) -> None:
+        server.answer("GET", _relations(ROOM, "$root"), httpx.Response(200, json={"chunk": []}))
+        server.answer("GET", _room_path(ROOM, "event", "$root"), httpx.Response(status))
+        if status == 503:
+            with pytest.raises(httpx.HTTPStatusError):
+                await adapter.channel_history(
+                    "tok", room_key(ROOM), api_base_url=BASE, limit=5, thread_id="$root"
+                )
+        else:
+            assert (
+                await adapter.channel_history(
+                    "tok", room_key(ROOM), api_base_url=BASE, limit=5, thread_id="$root"
+                )
+                == []
+            )
+
+    @pytest.mark.parametrize("status", [200, 403, 503])
+    async def test_room_history_is_chronological_and_refuses_remote_errors(
+        self, adapter: MatrixAdapter, server: _Homeserver, status: int
+    ) -> None:
+        server.answer(
+            "GET",
+            _room_path(ROOM, "messages"),
+            httpx.Response(
+                status, json={"chunk": [_event("new"), _event("old"), {"type": "m.reaction"}]}
+            ),
+        )
+        if status != 200:
+            with pytest.raises(
+                ChannelDirectoryUnsupported if status == 403 else httpx.HTTPStatusError
+            ):
+                await adapter.channel_history("tok", room_key(ROOM), api_base_url=BASE, limit=5)
+        else:
+            posts = await adapter.channel_history("tok", room_key(ROOM), api_base_url=BASE, limit=5)
+            assert [p.text for p in posts] == ["old", "new"]
+
+    async def test_account_is_cached_per_token_and_room_departure_resets_membership(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        server.answer("GET", f"{API}/account/whoami", httpx.Response(200, json={"user_id": OWN}))
+        first = await adapter._account(BASE, "tok")
+        assert await adapter._account(BASE, "tok") is first
+        key = f"{BOT}:{ROOM}"
+        adapter._direct.put(key, True)
+        adapter._last_seen[key] = 10
+        await adapter._on_sync(
+            BOT, "tok", BASE, first, {"rooms": {"leave": {ROOM: {}}}}, backlog=False
+        )
+        assert adapter._direct.get(key) is None and key not in adapter._last_seen
+
+    async def test_sync_token_rejection_stops_instead_of_retrying_forever(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        server.answer(
+            "GET", f"{API}/sync", httpx.Response(401, json={"errcode": "M_UNKNOWN_TOKEN"})
+        )
+        with pytest.raises(ChannelNotConfigured):
+            await adapter._sync(BASE, "tok", None)
+
+    async def test_missing_and_failed_invitations_do_not_stop_other_rooms(
+        self, adapter: MatrixAdapter, server: _Homeserver, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        await adapter._on_invite(BOT, "tok", BASE, adapter._accounts[BOT], ROOM, {})
+        server.answer("POST", _room_path(ROOM, "join"), httpx.Response(503))
+        invitation = {
+            "invite_state": {
+                "events": [
+                    {"type": "m.room.member", "state_key": OWN, "sender": USER, "content": {}}
+                ]
+            }
+        }
+        with patch("app.services.channels.ingress.invite_admitted", AsyncMock(return_value=True)):
+            await adapter._on_invite(BOT, "tok", BASE, adapter._accounts[BOT], ROOM, invitation)
+        assert "matrix_invite_unanswered" in caplog.text
+
+    async def test_an_inaccessible_thread_root_never_counts_as_an_address(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        event = _event(**{"m.relates_to": {"rel_type": "m.thread", "event_id": "$root"}})
+        server.answer("GET", _room_path(ROOM, "event", "$root"), httpx.Response(403))
+        assert not await adapter._in_bot_thread(
+            BOT, "tok", BASE, adapter._accounts[BOT], ROOM, event
+        )
+
+    async def test_a_gap_past_one_page_is_reported(
+        self, adapter: MatrixAdapter, server: _Homeserver, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        adapter._last_seen[f"{BOT}:{ROOM}"] = 1
+        server.answer(
+            "GET", _room_path(ROOM, "messages"), httpx.Response(200, json={"chunk": [_event()]})
+        )
+        assert len(await adapter._gap(BOT, "tok", BASE, ROOM, {"prev_batch": "before"})) == 1
+        assert "matrix_timeline_gap_exceeds_page" in caplog.text
+
+    async def test_empty_or_nonhuman_room_events_do_not_reach_admission(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        server.answer(
+            "GET",
+            _room_path(ROOM, "joined_members"),
+            httpx.Response(200, json={"joined": {OWN: {}, USER: {}}}),
+        )
+        events = [{"type": "m.reaction"}, {**_event(), "sender": OWN}, _event("")]
+        with patch("app.services.channels.ingress.admit_message", AsyncMock()) as admit:
+            await adapter._on_room(
+                BOT,
+                "tok",
+                BASE,
+                adapter._accounts[BOT],
+                ROOM,
+                {"timeline": {"events": events}},
+                backlog=False,
+            )
+            admit.assert_not_awaited()
+        await adapter._on_room(BOT, "tok", BASE, adapter._accounts[BOT], ROOM, {}, backlog=False)
+
+    async def test_chart_only_reply_uploads_a_file_without_an_empty_message(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        adapter.prepare_connection("unused", api_base_url=None, app_token=None)
+        server.answer(
+            "POST",
+            "/_matrix/media/v3/upload",
+            httpx.Response(200, json={"content_uri": "mxc://example.org/chart"}),
+        )
+        msg = OutgoingMessage(
+            platform_chat_id=room_key(ROOM), text="", image_png=b"png", api_base_url=BASE
+        )
+        await adapter.send_message("tok", msg)
+        assert len(server.sent()) == 1
+        assert server.sent()[0][1]["msgtype"] == "m.image"
+        assert "m.relates_to" not in server.sent()[0][1]
+
+    async def test_text_in_thread_is_not_a_file(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        server.answer("GET", f"{API}/account/whoami", httpx.Response(200, json={"user_id": OWN}))
+        server.answer(
+            "GET",
+            _relations(ROOM, "$root"),
+            httpx.Response(200, json={"chunk": [_event("plain text")]}),
+        )
+        server.answer("GET", _room_path(ROOM, "event", "$root"), httpx.Response(404))
+        assert (
+            await adapter.thread_attachments(
+                "tok", room_key(ROOM), thread_id="$root", api_base_url=BASE, limit=5
+            )
+            == []
+        )
+
+    async def test_encrypted_room_refuses_file_bytes_before_upload(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        server.answer(
+            "GET",
+            _room_path(ROOM, "state", "m.room.encryption", ""),
+            httpx.Response(200, json={"algorithm": "m.megolm.v1.aes-sha2"}),
+        )
+        msg = OutgoingMessage(
+            platform_chat_id=room_key(ROOM), text="", image_png=b"confidential", api_base_url=BASE
+        )
+        with pytest.raises(ChannelDirectoryUnsupported, match="encrypted"):
+            await adapter.send_message("tok", msg)
+        assert not any(method == "POST" for method, _, _ in server.calls)

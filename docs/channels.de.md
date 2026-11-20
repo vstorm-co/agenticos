@@ -1,5 +1,5 @@
 ---
-source_sha: "1c54b1b4f7ff"
+source_sha: "78e6b079e715"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1905,7 +1905,9 @@ eines Kontos überspringt er den Verlauf des Raums, statt darauf zu antworten.
     einen verschlüsselten Raum oder Direktchat lehnt er mit einer Begründung ab,
     die die einladende Person sieht, und in einem Raum, dessen Verschlüsselung
     später eingeschaltet wird, bleibt er stumm. Verschlüsselung ist die zweite
-    Stufe von #2081.
+    Stufe von #2081. Der Adapter prüft den aktuellen Verschlüsselungsstatus
+    vor der Annahme von Nachrichten und vor Antworten, Änderungen oder
+    Reaktionen. Ist der Status nicht lesbar, sendet er keinen Klartext.
 
 1. Legen Sie auf dem Homeserver ein Konto für den Bot an, zum Beispiel `@agent:example.org`.
 2. Besorgen Sie dafür ein **Access-Token**:

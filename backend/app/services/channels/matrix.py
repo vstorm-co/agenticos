@@ -251,6 +251,8 @@ class MatrixAdapter(ChannelAdapter):
         self, base_url: str, token: str, room_id: str, event_type: str, content: dict[str, Any]
     ) -> str:
         """Send one event and return its id. The transaction id makes a retry idempotent."""
+        if await self._encrypted(base_url, token, room_id):
+            raise ChannelDirectoryUnsupported(_ENCRYPTED_DECLINED)
         response = await self._call(
             "PUT",
             f"{base_url}{CLIENT_API}/rooms/{_segment(room_id)}/send/{event_type}/{uuid4().hex}",
@@ -260,7 +262,11 @@ class MatrixAdapter(ChannelAdapter):
         response.raise_for_status()
         return str(response.json()["event_id"])
 
-    async def _upload(self, base_url: str, token: str, item: OutgoingAttachment) -> str:
+    async def _upload(
+        self, base_url: str, token: str, room_id: str, item: OutgoingAttachment
+    ) -> str:
+        if await self._encrypted(base_url, token, room_id):
+            raise ChannelDirectoryUnsupported(_ENCRYPTED_DECLINED)
         response = await self._call(
             "POST",
             f"{base_url}{MEDIA_UPLOAD}",
@@ -372,7 +378,7 @@ class MatrixAdapter(ChannelAdapter):
                 ),
             )
         for item in files:
-            uri = await self._upload(base_url, bot_token, item)
+            uri = await self._upload(base_url, bot_token, room_id, item)
             sent = await self._send(
                 base_url,
                 bot_token,
@@ -435,8 +441,7 @@ class MatrixAdapter(ChannelAdapter):
                 )
                 reply.shown.append(piece)
         while len(reply.ids) > len(pieces):
-            stale = reply.ids.pop()
-            reply.shown.pop()
+            stale = reply.ids[-1]
             response = await self._call(
                 "PUT",
                 f"{base_url}{CLIENT_API}/rooms/{_segment(reply.room_id)}/redact/"
@@ -445,6 +450,8 @@ class MatrixAdapter(ChannelAdapter):
                 body={},
             )
             response.raise_for_status()
+            reply.ids.pop()
+            reply.shown.pop()
 
     async def send_prompt(self, bot_token: str, prompt: PromptMessage) -> None:
         """An approval or a question as numbered lines, answered by replying with a number.
@@ -633,6 +640,15 @@ class MatrixAdapter(ChannelAdapter):
         response.raise_for_status()
         body = response.json()
         return body if isinstance(body, dict) else {}
+
+    async def _encrypted(self, base_url: str, token: str, room_id: str) -> bool:
+        """Read current state; a room may enable encryption during an agent run.
+
+        Do not cache the refusal boundary: neither a sync filter nor a previous
+        plaintext message proves the room still accepts plaintext replies.
+        """
+        content = await self._state(base_url, token, room_id, "m.room.encryption")
+        return "algorithm" in content
 
     async def channel_details(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None
@@ -901,10 +917,10 @@ class MatrixAdapter(ChannelAdapter):
         if backlog:
             self._last_seen[key] = newest
             return
+        if await self._encrypted(base_url, token, room_id):
+            return
         if timeline.get("limited"):
             events = [*await self._gap(bot_id, token, base_url, room_id, timeline), *events]
-        if newest:
-            self._last_seen[key] = max(newest, self._last_seen.get(key, 0))
         for event in events:
             if event.get("type") != "m.room.message" or event.get("sender") == account.user_id:
                 continue
@@ -922,6 +938,8 @@ class MatrixAdapter(ChannelAdapter):
             )
             if incoming is not None:
                 await admit_message(incoming)
+        if newest:
+            self._last_seen[key] = max(newest, self._last_seen.get(key, 0))
 
     async def _gap(
         self, bot_id: str, token: str, base_url: str, room_id: str, timeline: dict[str, Any]

@@ -138,6 +138,13 @@ class TestReading:
         )
         assert attachment.author_id == "@ada:example.org"
 
+    @pytest.mark.parametrize("size", ["not-a-number", {}, [], -1, True, 1.5, None])
+    def test_malformed_file_sizes_are_ignored(self, size: object) -> None:
+        event = _event(
+            {"msgtype": "m.file", "url": "mxc://example.org/file", "info": {"size": size}}
+        )
+        assert read_message(event) is None
+
     def test_a_voice_note_says_how_long_it_is(self):
         message = read_message(
             _event(
@@ -286,3 +293,14 @@ class TestErrors:
         assert retry_after(httpx.Response(429, json={"retry_after_ms": 1500})) == 1.5
         assert retry_after(httpx.Response(429, headers={"Retry-After": "3"}, text="")) == 3.0
         assert retry_after(httpx.Response(429, text="")) == 1.0
+
+
+@pytest.mark.parametrize(
+    "event", [{"type": "m.reaction"}, _event({}, sender=None), {**_event({}), "content": None}]
+)
+def test_non_message_or_malformed_event_is_not_admitted(event: dict[str, Any]) -> None:
+    assert read_message(event) is None
+
+
+def test_messages_without_a_thread_do_not_invent_a_relation() -> None:
+    assert "m.relates_to" not in text_content("hello", root=None)

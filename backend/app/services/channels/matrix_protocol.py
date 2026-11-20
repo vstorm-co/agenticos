@@ -255,11 +255,16 @@ def read_message(event: dict[str, Any]) -> Message | None:
             return None
         info = content.get("info") if isinstance(content.get("info"), dict) else {}
         name = content.get("filename") if isinstance(content.get("filename"), str) else body
+        size = info.get("size", 0)
         duration = info.get("duration")
+        # Event content is chosen by the sender, not validated by the homeserver.
+        # Ignore a malformed file without poisoning the bot's sync position.
+        if type(size) is not int or size < 0:
+            return None
         attachment = (
             name or "attachment",
             str(info.get("mimetype") or ""),
-            int(info.get("size") or 0),
+            size,
             uri,
             duration / 1000 if isinstance(duration, int | float) else None,
         )

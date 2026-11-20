@@ -1,5 +1,5 @@
 ---
-source_sha: "1c54b1b4f7ff"
+source_sha: "78e6b079e715"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1774,7 +1774,9 @@ pokoju, zamiast na nią odpowiadać.
     Bot czyta pokoje bez szyfrowania end-to-end. Zaproszenie do zaszyfrowanego
     pokoju lub czatu bezpośredniego odrzuca z powodem, który widzi zapraszający,
     a w pokoju, w którym szyfrowanie włączono później, milczy. Szyfrowanie to
-    drugi etap #2081.
+    drugi etap #2081. Adapter sprawdza aktualny stan szyfrowania przed
+    przyjęciem wiadomości i przed wysłaniem odpowiedzi, edycji lub reakcji.
+    Jeśli nie może odczytać stanu, nie wysyła tekstu jawnego.
 
 1. Utwórz na homeserverze konto dla bota, na przykład `@agent:example.org`.
 2. Zdobądź dla niego **token dostępu** (access token):

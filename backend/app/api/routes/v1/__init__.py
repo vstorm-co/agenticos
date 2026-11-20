@@ -363,3 +363,8 @@ from app.api.routes.v1 import personal_model_keys
 v1_router.include_router(
     personal_model_keys.router, prefix="/personal-model-keys", tags=["personal-model-keys"]
 )
+
+
+from app.api.routes.v1 import solutions
+
+v1_router.include_router(solutions.router, prefix="/solutions", tags=["solutions"])

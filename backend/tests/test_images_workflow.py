@@ -57,6 +57,14 @@ _IMAGE_LINE = re.compile(
 )
 
 
+def _image_lines(text: str) -> list[tuple[str, str]]:
+    return _IMAGE_LINE.findall(
+        text.replace(
+            "${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}", "ghcr.io/vstorm-co/agenticos"
+        )
+    )
+
+
 @pytest.fixture(scope="module")
 def workflow() -> dict[str, Any]:
     with WORKFLOW.open() as handle:
@@ -193,14 +201,16 @@ class TestEveryPackagePageHasADescription:
 
 class TestTheComposeFilesPullWhatTheWorkflowPublishes:
     def test_the_workflow_names_every_published_image(self, workflow: dict[str, Any]) -> None:
-        prefix = workflow["env"]["IMAGE_PREFIX"]
+        assert "github.repository" in workflow["env"]["IMAGE_PREFIX"]
+        assert "vars.AGENTICOS_IMAGE_PREFIX" in workflow["env"]["IMAGE_PREFIX"]
+        prefix = "ghcr.io/vstorm-co/agenticos"
         images = workflow["jobs"]["publish"]["strategy"]["matrix"]["image"]
         assert {f"{prefix}-{image}" for image in images} == PUBLISHED
 
     @pytest.mark.parametrize("name", PULLING_COMPOSE_FILES)
     def test_every_pulled_application_image_is_a_published_one(self, name: str) -> None:
         text = (REPO_ROOT / name).read_text()
-        pulled = _IMAGE_LINE.findall(text)
+        pulled = _image_lines(text)
         assert pulled, f"{name} pulls no agenticos image at all"
         for image, tag in pulled:
             assert image in PUBLISHED, f"{name} pulls {image}, which images.yml does not publish"
@@ -212,7 +222,7 @@ class TestTheComposeFilesPullWhatTheWorkflowPublishes:
     def test_the_base_file_pulls_both_halves_of_the_product(self) -> None:
         """`docker compose up` on the one file has to be the whole product, console included (#1545)."""
         text = (REPO_ROOT / "docker-compose.yml").read_text()
-        assert {image for image, _ in _IMAGE_LINE.findall(text)} == PUBLISHED
+        assert {image for image, _ in _image_lines(text)} == PUBLISHED
 
     def test_the_override_builds_rather_than_pulls(self) -> None:
         override = yaml.safe_load((REPO_ROOT / "docker-compose.override.yml").read_text())
