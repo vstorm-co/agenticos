@@ -9,8 +9,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0343_chatgpt_registrations"
-down_revision: str = "0342_personal_model_generations"
+revision: str = "0346_chatgpt_registrations"
+down_revision: str = "0345_personal_model_generations"
 branch_labels: None = None
 depends_on: None = None
 

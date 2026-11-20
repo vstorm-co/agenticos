@@ -21,9 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- Apply `0343_chatgpt_registrations.py` for durable official ChatGPT application registrations. Official plan usage remains disabled until the operator verifies deployment eligibility and configures a stable host UUID.
+- Apply `0346_chatgpt_registrations.py` for durable official ChatGPT application registrations. Official plan usage remains disabled until the operator verifies deployment eligibility and configures a stable host UUID.
 
-- Apply `0342_personal_model_generations.py` before running this version. It adds credential-free connection revisions that prevent an older OAuth sign-in from recreating a deleted personal connection.
+- Apply `0345_personal_model_generations.py` before running this version. It adds credential-free connection revisions that prevent an older OAuth sign-in from recreating a deleted personal connection.
 
 ### Added
 
