@@ -91,6 +91,16 @@ Two things are versioned separately from this file and worth knowing about:
 - Z.AI model profiles accept explicit GLM Coding Plan endpoints, with authenticated model catalogs isolated from the ordinary API and other accounts.
 - Find unanswered web-chat questions in Inbox and return to their original question cards, including older conversations.
 
+### Fixed
+
+- Show the missing provider marks and gateway icons in model pickers and the vault.
+
+## [1.88.0] - 2026-11-21
+
+### Added
+
+- Find unanswered web-chat questions in Inbox and return to their original question cards, including older conversations.
+
 - Configure custom OpenAI-compatible and Anthropic-compatible model endpoints, with explicit authenticated model discovery.
 
 - Mark agent Evals and Knowledge gaps tabs with accessible attention reasons and open attention cards on Evals.
@@ -208,8 +218,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Show the missing provider marks and gateway icons in model pickers and the vault.
-
 - Honor the configured MCP workflow timeout for transport reads while retaining a separate three-second connection limit (#3214). Ambiguous writes are not replayed.
 
 - Retry an OpenRouter reasoning-refusal response once without altering recorded reasoning or retrying an already-started stream.
@@ -277,8 +285,6 @@ Two things are versioned separately from this file and worth knowing about:
 - **LLMTR as a model provider.** `llmtr` takes an API key and runs on Chat Completions at `https://llmtr.com/v1`. The model picker reads only Chat Completions entries from LLMTR's live list, where `llmtr/...` ids are models hosted in Turkey and the others are routed to their vendors. Models without a known price cannot run under an active dollar ceiling; uncapped runs keep explicitly partial costs.
 
 ### Fixed
-
-- Refuse external model overrides for CLIs that persist session picker changes as user defaults, including safe behavior with older Mistral Vibe Desktop replies (#3108).
 
 - Keep the model library and its anchor stable while a new chat loads. Teach the shipped AgenticOS to reuse existing automations, choose the right monitoring mode and ask about responsibilities when they affect priorities.
 
@@ -22502,7 +22508,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.87.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.88.0...HEAD
+[1.88.0]: https://github.com/vstorm-co/agenticos/compare/v1.87.1...v1.88.0
 [1.87.1]: https://github.com/vstorm-co/agenticos/compare/v1.87.0...v1.87.1
 [1.87.0]: https://github.com/vstorm-co/agenticos/compare/v1.86.2...v1.87.0
 [1.86.2]: https://github.com/vstorm-co/agenticos/compare/v1.86.1...v1.86.2
