@@ -1,15 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   Button,
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
+  FormField,
   Input,
-  Label,
   Select,
   SelectContent,
   SelectItem,
@@ -18,7 +20,8 @@ import {
   Switch,
 } from "@/components/ui";
 import { useEventSourceWrites } from "@/hooks/use-event-sources";
-import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { cn } from "@/lib/utils";
 import type {
   EventSource,
   EventSourceCreated,
@@ -51,36 +54,35 @@ export function SourceCredentialsFields({
     <div className="space-y-3">
       {method === "basic" ? (
         <>
-          <Label htmlFor="source-username">{t("username")}</Label>
-          <Input
-            id="source-username"
-            autoComplete="off"
-            value={value.username ?? ""}
-            onChange={(e) => onChange({ ...value, username: e.target.value })}
-          />
-          <Label htmlFor="source-password">{t("password")}</Label>
-          <Input
-            id="source-password"
-            type="password"
-            autoComplete="new-password"
-            value={value.password ?? ""}
-            onChange={(e) => onChange({ ...value, password: e.target.value })}
-          />
+          <FormField htmlFor="source-username" label={t("username")}>
+            <Input
+              autoComplete="off"
+              value={value.username ?? ""}
+              onChange={(e) => onChange({ ...value, username: e.target.value })}
+            />
+          </FormField>
+          <FormField htmlFor="source-password" label={t("password")}>
+            <Input
+              type="password"
+              autoComplete="new-password"
+              value={value.password ?? ""}
+              onChange={(e) => onChange({ ...value, password: e.target.value })}
+            />
+          </FormField>
         </>
       ) : (
-        <>
-          <Label htmlFor="source-secret">{t("secret")}</Label>
+        <FormField
+          htmlFor="source-secret"
+          label={t("secret")}
+          description={generate ? t("secretHelp") : t("credentialHelp")}
+        >
           <Input
-            id="source-secret"
             type="password"
             autoComplete="new-password"
             value={value.secret ?? ""}
             onChange={(e) => onChange({ secret: e.target.value })}
           />
-          <p className="text-muted-foreground text-xs">
-            {generate ? t("secretHelp") : t("credentialHelp")}
-          </p>
-        </>
+        </FormField>
       )}
     </div>
   );
@@ -92,31 +94,12 @@ interface SourceFormProps {
   onCancel: () => void;
 }
 
-export function SourceForm(props: SourceFormProps) {
+export function SourceForm({ source, onSaved, onCancel }: SourceFormProps) {
   const t = useTranslations("eventSources");
+  const common = useTranslations("common");
   const writes = useEventSourceWrites();
   const pending = writes.create.isPending || writes.update.isPending;
-  return (
-    <Dialog open onOpenChange={(open) => !open && !pending && props.onCancel()}>
-      <DialogContent className={`${DIALOG_FORM} ${DIALOG_COLUMN}`} dismissible={!pending}>
-        <DialogHeader>
-          <DialogTitle>{props.source ? t("edit") : t("createNew")}</DialogTitle>
-        </DialogHeader>
-        <fieldset disabled={pending} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-          <SourceFormFields {...props} writes={writes} />
-        </fieldset>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function SourceFormFields({
-  source,
-  onSaved,
-  onCancel,
-  writes,
-}: SourceFormProps & { writes: ReturnType<typeof useEventSourceWrites> }) {
-  const t = useTranslations("eventSources");
+  const formId = useId();
   const [name, setName] = useState(source?.name ?? "");
   const [provider, setProvider] = useState<SourceProvider>(source?.provider ?? "webhook");
   const [auth, setAuth] = useState<SourceAuth>(
@@ -131,6 +114,16 @@ function SourceFormFields({
   const [deliveryHeader, setDeliveryHeader] = useState(source?.delivery_id_header ?? "");
   const [credentials, setCredentials] = useState<SourceCredentials>({});
   const supportsCustomDeliveryId = auth.method !== "standard_webhooks";
+  const changesAuth = !!source && source.auth.method !== auth.method;
+  const needsCredentials = !source || changesAuth;
+  const hasCredentials =
+    auth.method === "basic"
+      ? !!credentials.username && !!credentials.password
+      : !!credentials.secret;
+  const canSave =
+    !!name.trim() &&
+    (!(changesAuth || (!source && (auth.method === "provider" || auth.method === "basic"))) ||
+      hasCredentials);
   const save = () => {
     const input = {
       name: name.trim(),
@@ -142,107 +135,118 @@ function SourceFormFields({
       writes.update.mutate(
         {
           id: source.id,
-          input: { ...input, ...(auth.method !== source.auth.method ? { credentials } : {}) },
+          input: { ...input, ...(changesAuth ? { credentials } : {}) },
         },
         { onSuccess: onSaved },
       );
     else writes.create.mutate({ ...input, provider, credentials }, { onSuccess: onSaved });
   };
   return (
-    <div className="space-y-4" data-tour="event-source-form">
-      <div className="space-y-1.5">
-        <Label htmlFor="source-name">{t("name")}</Label>
-        <Input id="source-name" value={name} onChange={(e) => setName(e.target.value)} />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="source-provider">{t("provider")}</Label>
-        <Select
-          value={provider}
-          disabled={!!source}
-          onValueChange={(value) => {
-            setProvider(value as SourceProvider);
-            setAuth(
-              value === "webhook"
-                ? {
-                    method: "hmac",
-                    header_name: "X-Webhook-Signature",
-                    signature_prefix: "sha256=",
-                    encoding: "hex",
-                  }
-                : { method: "provider" },
-            );
-            setCredentials({});
-          }}
-        >
-          <SelectTrigger id="source-provider">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SOURCE_PROVIDERS.map((value) => (
-              <SelectItem key={value} value={value}>
-                {t(`providers.${value}`)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-muted-foreground text-xs">{t("manualSetup")}</p>
-      </div>
-      {provider === "webhook" && <SourceAuthFields auth={auth} onChange={setAuth} />}
-      {(!source || source.auth.method !== auth.method) && (
-        <SourceCredentialsFields
-          method={auth.method}
-          generate={!source && auth.method !== "provider"}
-          value={credentials}
-          onChange={setCredentials}
-        />
-      )}
-      <div className="space-y-1.5">
-        <Label htmlFor="source-visibility">{t("visibility")}</Label>
-        <Select
-          value={visibility}
-          onValueChange={(value) => setVisibility(value as "private" | "org")}
-        >
-          <SelectTrigger id="source-visibility">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="private">{t("private")}</SelectItem>
-            <SelectItem value="org">{t("organization")}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      {supportsCustomDeliveryId && (
-        <div className="space-y-1.5">
-          <Label htmlFor="source-delivery-header">{t("deliveryHeader")}</Label>
-          <Input
-            id="source-delivery-header"
-            value={deliveryHeader}
-            onChange={(e) => setDeliveryHeader(e.target.value)}
-          />
-          <p className="text-muted-foreground text-xs">{t("deliveryHelp")}</p>
+    <Dialog open onOpenChange={(open) => !open && !pending && onCancel()}>
+      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)} dismissible={!pending}>
+        <DialogHeader>
+          <DialogTitle>
+            {source ? common("editNamed", { name: source.name }) : t("createNew")}
+          </DialogTitle>
+          <DialogDescription>{t("manualSetup")}</DialogDescription>
+        </DialogHeader>
+        <div className={DIALOG_BODY}>
+          <form
+            id={formId}
+            data-tour="event-source-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (canSave && !pending) save();
+            }}
+          >
+            <fieldset disabled={pending} className="min-w-0 space-y-4">
+              <FormField htmlFor="source-name" label={t("name")}>
+                <Input
+                  required
+                  data-initial-focus
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </FormField>
+              <Select
+                value={provider}
+                disabled={!!source}
+                onValueChange={(value) => {
+                  setProvider(value as SourceProvider);
+                  setAuth(
+                    value === "webhook"
+                      ? {
+                          method: "hmac",
+                          header_name: "X-Webhook-Signature",
+                          signature_prefix: "sha256=",
+                          encoding: "hex",
+                        }
+                      : { method: "provider" },
+                  );
+                  setCredentials({});
+                }}
+              >
+                <FormField htmlFor="source-provider" label={t("provider")}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                </FormField>
+                <SelectContent>
+                  {SOURCE_PROVIDERS.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {t(`providers.${value}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {provider === "webhook" && <SourceAuthFields auth={auth} onChange={setAuth} />}
+              {needsCredentials && (
+                <SourceCredentialsFields
+                  method={auth.method}
+                  generate={!source && auth.method !== "provider"}
+                  value={credentials}
+                  onChange={setCredentials}
+                />
+              )}
+              <Select
+                value={visibility}
+                onValueChange={(value) => setVisibility(value as "private" | "org")}
+              >
+                <FormField htmlFor="source-visibility" label={t("visibility")}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                </FormField>
+                <SelectContent>
+                  <SelectItem value="private">{t("private")}</SelectItem>
+                  <SelectItem value="org">{t("organization")}</SelectItem>
+                </SelectContent>
+              </Select>
+              {supportsCustomDeliveryId && (
+                <FormField
+                  htmlFor="source-delivery-header"
+                  label={t("deliveryHeader")}
+                  description={t("deliveryHelp")}
+                >
+                  <Input
+                    value={deliveryHeader}
+                    onChange={(e) => setDeliveryHeader(e.target.value)}
+                  />
+                </FormField>
+              )}
+            </fieldset>
+          </form>
         </div>
-      )}
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={onCancel}>
-          {t("cancel")}
-        </Button>
-        <Button
-          type="button"
-          disabled={
-            !name.trim() ||
-            (((!source && auth.method === "provider") ||
-              (source && source.auth.method !== auth.method && auth.method !== "basic")) &&
-              !credentials.secret) ||
-            ((!source || source.auth.method !== auth.method) &&
-              auth.method === "basic" &&
-              (!credentials.username || !credentials.password))
-          }
-          onClick={save}
-        >
-          {source ? t("save") : t("create")}
-        </Button>
-      </div>
-    </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onCancel} disabled={pending}>
+            {t("cancel")}
+          </Button>
+          <Button type="submit" form={formId} loading={pending} disabled={!canSave || pending}>
+            {source ? t("save") : t("create")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -255,8 +259,7 @@ function SourceAuthFields({
 }) {
   const t = useTranslations("eventSources");
   return (
-    <div className="space-y-3">
-      <Label htmlFor="source-auth">{t("authentication")}</Label>
+    <div className="space-y-4">
       <Select
         value={auth.method}
         onValueChange={(value) =>
@@ -274,9 +277,15 @@ function SourceAuthFields({
           })
         }
       >
-        <SelectTrigger id="source-auth">
-          <SelectValue />
-        </SelectTrigger>
+        <FormField
+          htmlFor="source-auth"
+          label={t("authentication")}
+          description={auth.method === "standard_webhooks" ? t("standardHelp") : undefined}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+        </FormField>
         <SelectContent>
           {(["hmac", "basic", "api_key", "standard_webhooks"] as const).map((value) => (
             <SelectItem key={value} value={value}>
@@ -287,32 +296,33 @@ function SourceAuthFields({
       </Select>
       {(auth.method === "hmac" || auth.method === "api_key") && (
         <>
-          <Label htmlFor="source-header">{t("header")}</Label>
-          <Input
-            id="source-header"
-            value={auth.header_name ?? ""}
-            onChange={(e) => onChange({ ...auth, header_name: e.target.value })}
-          />
-          <Label htmlFor="source-prefix">{t("prefix")}</Label>
-          <Input
-            id="source-prefix"
-            value={auth.signature_prefix ?? ""}
-            onChange={(e) => onChange({ ...auth, signature_prefix: e.target.value })}
-          />
+          <FormField htmlFor="source-header" label={t("header")}>
+            <Input
+              value={auth.header_name ?? ""}
+              onChange={(e) => onChange({ ...auth, header_name: e.target.value })}
+            />
+          </FormField>
+          <FormField htmlFor="source-prefix" label={t("prefix")}>
+            <Input
+              value={auth.signature_prefix ?? ""}
+              onChange={(e) => onChange({ ...auth, signature_prefix: e.target.value })}
+            />
+          </FormField>
         </>
       )}
       {auth.method === "hmac" && (
         <>
-          <Label htmlFor="source-encoding">{t("encoding")}</Label>
           <Select
             value={auth.encoding ?? "hex"}
             onValueChange={(value) =>
               onChange({ ...auth, encoding: value as SourceAuth["encoding"] })
             }
           >
-            <SelectTrigger id="source-encoding">
-              <SelectValue />
-            </SelectTrigger>
+            <FormField htmlFor="source-encoding" label={t("encoding")}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+            </FormField>
             <SelectContent>
               {(["hex", "base64", "base64url"] as const).map((value) => (
                 <SelectItem key={value} value={value}>
@@ -321,18 +331,13 @@ function SourceAuthFields({
               ))}
             </SelectContent>
           </Select>
-          <div className="flex items-center gap-2">
+          <FormField htmlFor="source-legacy" label={t("legacy")} layout="switch">
             <Switch
-              id="source-legacy"
               checked={auth.legacy ?? false}
               onCheckedChange={(legacy) => onChange({ ...auth, legacy })}
             />
-            <Label htmlFor="source-legacy">{t("legacy")}</Label>
-          </div>
+          </FormField>
         </>
-      )}
-      {auth.method === "standard_webhooks" && (
-        <p className="text-muted-foreground text-xs">{t("standardHelp")}</p>
       )}
     </div>
   );

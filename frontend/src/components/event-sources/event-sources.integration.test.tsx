@@ -136,8 +136,10 @@ describe("event source management", () => {
     render(<SourceManager />, { wrapper });
     expect(await screen.findByText("Issues")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Create new source" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Delete source" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit Issues" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "More actions for Issues" }),
+    ).not.toBeInTheDocument();
   });
   it("keeps the current source visible after use permission is revoked", async () => {
     permissions = ["event_sources:view"];
@@ -195,8 +197,13 @@ describe("event source management", () => {
     subscribers = 1;
     render(<SourceManager />, { wrapper });
     expect(await screen.findByText(/Triage/)).toBeVisible();
-    expect(screen.getByRole("button", { name: "Delete source" })).toBeDisabled();
-    await userEvent.click(screen.getByRole("button", { name: "Pause source" }));
+    await userEvent.click(screen.getByRole("button", { name: "More actions for Issues" }));
+    expect(screen.getByRole("menuitem", { name: "Delete source" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(screen.getByText(/before deleting this source/)).toBeVisible();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Pause source" }));
     expect(apiClient.patch).toHaveBeenCalledWith("/event-sources/s1", { is_active: false });
   });
 
@@ -207,9 +214,11 @@ describe("event source management", () => {
       .mockResolvedValueOnce(undefined);
     render(<SourceManager />, { wrapper });
 
-    await user.click(await screen.findByRole("button", { name: "Replace credentials" }));
-    await user.type(screen.getByLabelText("Secret"), "replacement");
-    const submit = screen.getAllByRole("button", { name: "Replace credentials" })[1]!;
+    await user.click(await screen.findByRole("button", { name: "More actions for Issues" }));
+    await user.click(screen.getByRole("menuitem", { name: "Replace credentials" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Replace credentials" }));
+    await user.type(dialog.getByLabelText("Secret"), "replacement");
+    const submit = dialog.getByRole("button", { name: "Replace credentials" });
     await user.click(submit);
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Credential replacement refused"));
     expect(screen.getByLabelText("Secret")).toHaveValue("replacement");
@@ -228,8 +237,9 @@ describe("event source management", () => {
     });
     render(<SourceManager />, { wrapper });
 
-    const deletion = await screen.findByRole("button", { name: "Delete source" });
-    await waitFor(() => expect(deletion).toBeEnabled());
+    await screen.findByText("No subscribers");
+    await user.click(screen.getByRole("button", { name: "More actions for Issues" }));
+    const deletion = screen.getByRole("menuitem", { name: "Delete source" });
     await user.click(deletion);
     expect(apiClient.delete).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Confirm deletion" }));
