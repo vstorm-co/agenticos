@@ -21149,7 +21149,6 @@
     "model": "Model",
     "chooseModel": "Wybierz model dostępny dla tego konta",
     "useModel": "Użyj tego modelu",
-    "advanced": "Pokaż zaawansowane połączenia",
     "noModels": "To konto nie udostępniło jeszcze listy modeli. Spróbuj ponownie po zakończeniu logowania."
   },
   "agentDelegation": {

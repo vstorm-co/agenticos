@@ -1,8 +1,6 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -47,7 +45,8 @@ export function modelSourceOptions(
           group: "subscriptions" as const,
         }))
       : []),
-    ...providers
+    ...[...providers]
+      .sort((a, b) => a.label.localeCompare(b.label))
       .filter((provider) => provider.id !== "subscription_accounts")
       .map((provider) => ({
         ...provider,
@@ -75,8 +74,6 @@ export function ModelSourceSelect({
 }) {
   const t = useTranslations();
   const options = modelSourceOptions(providers, subscriptions, t);
-  const [advanced, setAdvanced] = useState(false);
-  const showCustom = advanced || CUSTOM.has(value);
   return (
     <div className="space-y-1.5">
       <Select value={value} onValueChange={onChange} disabled={disabled}>
@@ -84,40 +81,25 @@ export function ModelSourceSelect({
           <SelectValue placeholder={t("agents.chooseProvider")} />
         </SelectTrigger>
         <SelectContent className="max-h-80">
-          {(["subscriptions", "organization", "custom"] as const).map(
-            (group) =>
-              (group !== "custom" || showCustom) && (
-                <SelectGroup key={group}>
-                  {options.some((entry) => entry.group === group) && (
-                    <SelectLabel>{t(`modelSources.${group}`)}</SelectLabel>
-                  )}
-                  {options
-                    .filter((entry) => entry.group === group)
-                    .map((entry) => (
-                      <SelectItem key={entry.id} value={entry.id} textValue={entry.label}>
-                        <ProviderRow provider={entry.mark} name={entry.label} />
-                      </SelectItem>
-                    ))}
-                </SelectGroup>
-              ),
-          )}
+          {(["subscriptions", "organization", "custom"] as const).map((group) => (
+            <SelectGroup key={group}>
+              {options.some((entry) => entry.group === group) && (
+                <SelectLabel>{t(`modelSources.${group}`)}</SelectLabel>
+              )}
+              {options
+                .filter((entry) => entry.group === group)
+                .map((entry) => (
+                  <SelectItem key={entry.id} value={entry.id} textValue={entry.label}>
+                    <ProviderRow provider={entry.mark} name={entry.label} />
+                  </SelectItem>
+                ))}
+            </SelectGroup>
+          ))}
           {value === "subscription_accounts" && (
             <SelectItem value={value}>{t("modelSources.allSubscriptions")}</SelectItem>
           )}
         </SelectContent>
       </Select>
-      {!showCustom && options.some((entry) => entry.group === "custom") && (
-        <Button
-          type="button"
-          variant="link"
-          size="sm"
-          className="h-auto p-0 text-xs"
-          disabled={disabled}
-          onClick={() => setAdvanced(true)}
-        >
-          {t("modelSources.advanced")}
-        </Button>
-      )}
     </div>
   );
 }

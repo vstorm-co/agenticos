@@ -115,7 +115,7 @@ it("keeps saved models in the catalog and marks the active one", async () => {
   expect(screen.getByRole("option", { name: /My Claude/ })).toBeVisible();
 });
 
-it("shows familiar subscriptions before API keys and keeps custom gateways folded", async () => {
+it("shows familiar subscriptions before API keys and lists custom gateways immediately", async () => {
   const p = props();
   render(
     <ChatModelLibrary
@@ -135,11 +135,7 @@ it("shows familiar subscriptions before API keys and keeps custom gateways folde
   );
   const subscription = screen.getByRole("button", { name: "Claude Code" });
   expect(providerMarkIn(subscription)).toBe("anthropic");
-  const custom = screen
-    .getByText("Advanced / custom endpoint", { selector: "summary" })
-    .closest("details");
-  expect(custom).not.toHaveAttribute("open");
-  await userEvent.click(screen.getByText("Advanced / custom endpoint", { selector: "summary" }));
+  expect(screen.getByText("Advanced / custom endpoint")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Custom gateway" }));
   expect(p.onProviderChange).toHaveBeenCalledWith("cliproxyapi");
 });

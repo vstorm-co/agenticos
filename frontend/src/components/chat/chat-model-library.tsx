@@ -13,7 +13,6 @@ import type { ModelProfile } from "@/types/providers";
 import { modelIdIsWellFormed } from "@/components/agents/add-model";
 import { catalogModelName, modelName } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
-import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
 interface LibraryProvider {
   id: string;
@@ -135,28 +134,18 @@ export function ChatModelLibrary(props: ChatModelLibraryProps) {
           ["subscriptions", true, false, null, "custom"]
             .filter((group) => sorted.some((entry) => inGroup(entry, group)))
             .map((connected) => (
-              <ProviderGroup
-                key={String(connected)}
-                advanced={connected === "custom"}
-                active={
-                  connected === "custom" &&
-                  sorted.some((entry) => entry.group === "custom" && entry.id === props.providerId)
-                }
-                title={sources("custom")}
-              >
-                {connected !== "custom" && (
-                  <p className="text-muted-foreground px-2 py-2 text-[10px] font-medium">
-                    {connected === "subscriptions"
-                      ? sources(connected)
-                      : t(
-                          connected === null
-                            ? "provider"
-                            : connected
-                              ? "connectedProviders"
-                              : "providersWithoutKey",
-                        )}
-                  </p>
-                )}
+              <div key={String(connected)} className="mb-3">
+                <p className="text-muted-foreground px-2 py-2 text-[10px] font-medium">
+                  {connected === "subscriptions" || connected === "custom"
+                    ? sources(connected)
+                    : t(
+                        connected === null
+                          ? "provider"
+                          : connected
+                            ? "connectedProviders"
+                            : "providersWithoutKey",
+                      )}
+                </p>
                 {sorted
                   .filter((entry) => inGroup(entry, connected))
                   .map((entry) => (
@@ -187,7 +176,7 @@ export function ChatModelLibrary(props: ChatModelLibraryProps) {
                       )}
                     </button>
                   ))}
-              </ProviderGroup>
+              </div>
             ))
         )}
       </div>
@@ -321,26 +310,5 @@ export function ChatModelLibrary(props: ChatModelLibraryProps) {
         )}
       </div>
     </div>
-  );
-}
-
-function ProviderGroup({
-  advanced,
-  active,
-  title,
-  children,
-}: {
-  advanced: boolean;
-  active: boolean;
-  title: string;
-  children: ReactNode;
-}) {
-  return advanced ? (
-    <NativeDisclosure className="mb-3" open={active || undefined}>
-      <summary className="text-muted-foreground cursor-pointer px-2 py-2 text-xs">{title}</summary>
-      {children}
-    </NativeDisclosure>
-  ) : (
-    <div className="mb-3">{children}</div>
   );
 }

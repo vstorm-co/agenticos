@@ -153,7 +153,7 @@ def create_app(supervisor: Supervisor, token: str, *, reap_seconds: float = 60) 
             headers={
                 key: value
                 for key, value in upstream.headers.items()
-                if key.lower() not in _HOP | {"content-length", "content-encoding"}
+                if key.lower() not in _HOP | {"content-length"}
             },
             background=BackgroundTask(held.aclose),
         )

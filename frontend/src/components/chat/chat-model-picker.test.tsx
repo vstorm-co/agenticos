@@ -951,3 +951,35 @@ it.each(["form", "library"] as const)(
     expect(screen.queryByText(/could not be loaded/)).toBeNull();
   },
 );
+
+it.each([
+  ["ChatGPT (Codex)", "codex", "gpt-6-sol"],
+  ["Google Antigravity", "antigravity", "claude-sonnet-4-6"],
+])("opens the active %s subscription instead of the aggregate gateway", (label, source, model) => {
+  const active = {
+    ...profile("personal", "subscription_accounts", model),
+    label: `${label} · ${model}`,
+    secret_id: null,
+  };
+  listedProfiles.mockReturnValue([active]);
+  providerCatalog.push({
+    id: "subscription_accounts",
+    name: "Subscriptions",
+    personal_gateway: true,
+    secret_kind: "api_key",
+    supports_base_url: false,
+    keyless: true,
+    apis: [],
+    native_api: null,
+  });
+  render(
+    <ChatModelPicker
+      presentation="library"
+      value="personal"
+      agentModel={null}
+      onChange={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("button", { name: label })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByTestId("connection-form")).toHaveTextContent(`subscription:${source}`);
+});

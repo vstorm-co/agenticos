@@ -116,7 +116,13 @@ export function ChatModelPicker({
     model: string;
   } | null>(null);
   const edited = draft?.source === sourceKey ? draft : null;
-  const providerId = edited?.providerId ?? current?.provider ?? "";
+  const currentSource =
+    current?.provider === "subscription_accounts"
+      ? (modelSourceOptions([], true, tRoot).find((entry) =>
+          current.label.startsWith(`${entry.label} · `),
+        )?.id ?? current.provider)
+      : current?.provider;
+  const providerId = edited?.providerId ?? currentSource ?? "";
   const subscription = subscriptionFromChoice(providerId);
   const personalSource = subscription !== undefined || providerId === "subscription_accounts";
   const model = edited?.model ?? current?.model ?? "";
@@ -347,6 +353,7 @@ export function ChatModelPicker({
         <AddModel
           key={providerId}
           fixedProviderId={providerId}
+          selected={personalSource && currentSource === providerId ? currentProfile : undefined}
           purpose="chat"
           onCreated={(profile) => onChange(profile.id)}
         />

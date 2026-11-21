@@ -1,5 +1,5 @@
 ---
-source_sha: "990f03fc2f6a"
+source_sha: "b4b4c51a04c2"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -462,6 +462,8 @@ Wähle den Vault-Schlüssel und bestätige das Ziel, bevor du Modelle lädst. Ei
 ### Abonnement-Konten { #subscription-accounts }
 
 Beginne im Agenteneditor und in der Modellauswahl des Chats mit **Deine Abonnements**, wähle einen bekannten Anbieter wie **Claude Code (Pro, Max)** oder **ChatGPT (Codex)** und klicke auf **Verbinden**. Die Anmeldung öffnet sich direkt dort und führt zur Modellauswahl zurück. Die Liste stammt aus den verbundenen Konten dieses Anbieters, nicht aus Vermutungen anhand von Modellnamen. Nicht verfügbare Konten bieten eine erneute Anmeldung. Konten lassen sich weiterhin im Profil verwalten und trennen. API-Schlüssel der Organisation bilden eine eigene Gruppe; manuell konfigurierte Gateways und Endpoints stehen unter **Erweitert / eigener Endpoint**. Bestehende Profile mit `subscription_accounts` und `cliproxyapi` behalten ihre API-IDs.
+
+Alle Verbindungsgruppen sind sofort sichtbar. Verbundene Abonnements zeigen ein Statusabzeichen und die Kontoidentität; ein weiteres Konto hinzuzufügen ist eine sekundäre Aktion. Beim erneuten Öffnen stellt die Auswahl die Abonnementquelle und das Modell aus dem gespeicherten Abonnementprofil wieder her.
 
 Abonnementmodelle nutzen die Anweisungen und Werkzeuge von AgenticOS in der Laufzeit von Pydantic AI. Sie starten weder Claude Code noch einen anderen Coding-Harness. Unter Capabilities vereint **An Agenten delegieren** die Subagenten, **Claude Code und Codex** und **Weitere installierte Agenten**. Coding Agent bleibt in der Standardvorlage von AgenticOS aktiviert. Die Gruppen folgen täglicher Arbeit, Wissen, Recherche, Ergebnissen, Delegation, Automatisierung und Kanälen; erweiterte Einstellungen stehen eingeklappt am Ende. Innerhalb jeder Gruppe stehen aktivierte Capabilities zuerst, danach empfohlene.
 

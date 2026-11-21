@@ -42,7 +42,7 @@ let failModels = false;
 const selected = vi.fn();
 const pending = vi.fn();
 let models = ["claude-via-google"];
-function mount() {
+function mount(initialModel?: string) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -50,6 +50,7 @@ function mount() {
     <QueryClientProvider client={client}>
       <SubscriptionModelForm
         provider="antigravity"
+        initialModel={initialModel}
         onCreated={selected}
         onPendingChange={pending}
       />
@@ -177,4 +178,12 @@ it("offers a retry when a just-connected account has not registered its models",
   await userEvent.click(await screen.findByRole("button", { name: "Retry" }));
   expect(screen.getByText(/has not advertised any models/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Use this model" })).toBeDisabled();
+});
+
+it("opens on the current subscription model and emphasizes the connected status", async () => {
+  mount("claude-via-google");
+  const combo = await screen.findByRole("combobox", { name: "Model" });
+  await waitFor(() => expect(combo).toHaveTextContent("claude-via-google"));
+  expect(await screen.findByText("Connected")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Add account" })).toHaveClass("h-auto");
 });

@@ -2,7 +2,8 @@
 
 import { useId, useState, useRef, useLayoutEffect } from "react";
 import { useTranslations } from "next-intl";
-import { Button, FormField } from "@/components/ui";
+import { Badge, Button, FormField } from "@/components/ui";
+import { CircleCheck } from "lucide-react";
 import { ErrorState } from "@/components/states";
 import { ModelCombobox } from "./model-combobox";
 import { SubscriptionSignInDialog } from "@/components/settings/subscription-accounts";
@@ -16,11 +17,13 @@ import type { ModelProfile } from "@/types/providers";
 /** A subscription supplies models to AgenticOS; it does not enable a separate harness. */
 export function SubscriptionModelForm({
   provider,
+  initialModel = "",
   onCreated,
   disabled,
   onPendingChange,
 }: {
   provider: SubscriptionProvider;
+  initialModel?: string;
   onCreated: (profile: ModelProfile) => void;
   disabled?: boolean;
   onPendingChange?: (pending: boolean) => void;
@@ -34,7 +37,7 @@ export function SubscriptionModelForm({
   const listing = useSubscriptionModels(provider);
   const { createProfile, profiles } = useModelProviders();
   const [connecting, setConnecting] = useState(false);
-  const [model, setModel] = useState("");
+  const [model, setModel] = useState(initialModel);
   const [failure, setFailure] = useState<string | null>(null);
   const active = useRef(true);
   useLayoutEffect(() => {
@@ -85,19 +88,39 @@ export function SubscriptionModelForm({
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <p role="status" className="text-muted-foreground text-xs">
-              {actions.accounts.isLoading
-                ? t("loading")
-                : connected
-                  ? t("connected")
-                  : own.length
-                    ? t("reconnect")
-                    : accountsCopy("notConnected")}
-            </p>
+            <div role="status" className="flex flex-wrap items-center gap-2 text-xs">
+              {connected ? (
+                <>
+                  <Badge variant="success" className="gap-1.5">
+                    <CircleCheck aria-hidden className="size-3.5" />
+                    {t("connected")}
+                  </Badge>
+                  {own
+                    .filter(
+                      (account) =>
+                        !account.disabled &&
+                        !account.unavailable &&
+                        (account.email || account.label),
+                    )
+                    .map((account) => (
+                      <span key={account.name} className="text-muted-foreground">
+                        {account.email ?? account.label}
+                      </span>
+                    ))}
+                </>
+              ) : actions.accounts.isLoading ? (
+                t("loading")
+              ) : own.length ? (
+                t("reconnect")
+              ) : (
+                accountsCopy("notConnected")
+              )}
+            </div>
             <Button
               type="button"
               size="sm"
-              variant="outline"
+              variant={connected ? "link" : "outline"}
+              className={connected ? "h-auto p-0 text-xs" : undefined}
               disabled={
                 disabled || !actions.ready || actions.accounts.isLoading || !!actions.accounts.error
               }

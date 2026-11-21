@@ -122,6 +122,17 @@ async def test_two_scopes_never_share_a_process_or_keys(supervisor: Supervisor) 
         assert supervisor._running[ALICE].management_key != supervisor._running[BOB].management_key
 
 
+async def test_compressed_model_responses_remain_decodable(supervisor: Supervisor) -> None:
+    async with gateway(supervisor) as client:
+        response = await client.post(
+            f"/scopes/{ALICE}/v1/chat/completions",
+            json={"model": "compressed-test", "stream": True},
+        )
+        assert response.headers["content-encoding"] == "gzip"
+        assert '"text":"Cześć"' in response.text
+        assert "[DONE]" in response.text
+
+
 async def test_sign_in_answers_carry_only_what_the_console_needs(supervisor: Supervisor) -> None:
     async with gateway(supervisor) as client:
         started = await client.post(f"/scopes/{ALICE}/logins", json={"provider": "antigravity"})

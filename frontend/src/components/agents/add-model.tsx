@@ -670,6 +670,7 @@ export function AddModel({
           <SubscriptionModelForm
             key={subscription}
             provider={subscription}
+            initialModel={selected?.model}
             disabled={disabled}
             onCreated={onCreated}
             onPendingChange={onCreationPendingChange}

@@ -1,5 +1,5 @@
 ---
-source_sha: "990f03fc2f6a"
+source_sha: "b4b4c51a04c2"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -442,6 +442,8 @@ Selecciona la clave del almacén y confirma el destino antes de cargar modelos. 
 ### Cuentas de suscripción { #subscription-accounts }
 
 En el editor del agente y el selector de modelos del chat, empieza por **Your subscriptions**, elige un proveedor conocido como **Claude Code (Pro, Max)** o **ChatGPT (Codex)** y pulsa **Connect**. El inicio de sesión se abre allí mismo y vuelve al selector; la lista procede de las cuentas conectadas de ese proveedor, sin deducirla de los nombres de modelos. Las cuentas no disponibles permiten volver a iniciar sesión. Puedes seguir administrando y desconectando cuentas desde tu perfil. Las claves API de la organización tienen un grupo separado; los gateways y endpoints configurados manualmente están en **Advanced / custom endpoint**. Los perfiles existentes `subscription_accounts` y `cliproxyapi` conservan sus identificadores API.
+
+Todos los grupos de conexiones se muestran inmediatamente. Las suscripciones conectadas muestran un indicador de estado y la identidad de la cuenta; añadir otra cuenta es una acción secundaria. Al volver a abrir el selector se recuperan el origen de la suscripción y el modelo del perfil de suscripción guardado.
 
 Los modelos de suscripción utilizan las instrucciones y herramientas de AgenticOS en el runtime de Pydantic AI. No inician Claude Code ni otro harness de programación. En Capabilities, **Delegate to agents** agrupa subagentes, **Claude Code & Codex** y **Other installed agents**. Coding Agent sigue activado en la plantilla predeterminada de AgenticOS. Los grupos siguen trabajo diario, conocimiento, investigación, resultados, delegación, automatización y canales; los ajustes avanzados quedan plegados al final. En cada grupo aparecen primero las capabilities activadas y después las recomendadas.
 

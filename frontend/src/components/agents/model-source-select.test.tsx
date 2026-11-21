@@ -30,7 +30,7 @@ it("offers individual subscriptions while preserving real provider IDs", () => {
   expect(subscriptionFromChoice("openrouter")).toBeUndefined();
 });
 
-it("hides custom endpoints until expanded and supports keyboard selection", async () => {
+it("lists all sources immediately and supports keyboard selection", async () => {
   const change = vi.fn();
   render(
     <>
@@ -47,10 +47,7 @@ it("hides custom endpoints until expanded and supports keyboard selection", asyn
   const trigger = screen.getByRole("combobox", { name: "Source" });
   await userEvent.click(trigger);
   expect(screen.getByRole("option", { name: "Claude Code (Pro, Max)" })).toBeInTheDocument();
-  expect(screen.queryByRole("option", { name: /gateway/i })).toBeNull();
-  await userEvent.keyboard("{Escape}");
-  await userEvent.click(screen.getByRole("button", { name: "Show advanced connections" }));
-  await userEvent.click(trigger);
+  expect(screen.getByRole("option", { name: /gateway/i })).toBeInTheDocument();
   await userEvent.click(
     screen.getByRole("option", { name: "Subscription gateway (custom endpoint)" }),
   );

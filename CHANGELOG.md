@@ -95,6 +95,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep compressed subscription model responses decodable instead of failing with a UTF-8 error in chat.
+- Open the model picker on the active subscription and model, emphasize connected accounts, show all connection groups immediately and recognize model-family icons in subscription catalogs.
 - Show the missing provider marks and gateway icons in model pickers and the vault.
 
 ## [1.88.0] - 2026-11-21

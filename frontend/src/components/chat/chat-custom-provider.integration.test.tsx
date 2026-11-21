@@ -114,13 +114,9 @@ async function mount(presentation: "form" | "library", provider: ProviderInfo) {
   );
   if (presentation === "form") {
     await userEvent.click(await screen.findByRole("button", { name: "Change model" }));
-    await userEvent.click(screen.getByRole("button", { name: "Show advanced connections" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Provider" }));
     await userEvent.click(await screen.findByRole("option", { name: provider.name }));
   } else {
-    await userEvent.click(
-      await screen.findByText("Advanced / custom endpoint", { selector: "summary" }),
-    );
     await userEvent.click(
       await screen.findByRole("button", {
         name: provider.name,

@@ -4,6 +4,7 @@ Run as `python subscription_gateway_fake.py --config <path>`; it reads the
 port and keys the supervisor wrote, like the real binary does.
 """
 
+import gzip
 import json
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -46,6 +47,15 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if url.path == "/v1/models":
                 self._send(200, {"data": [{"id": "gemini-test", "port": config["server"]["port"]}]})
+                return
+            if body and body.get("model") == "compressed-test":
+                data = gzip.compress('data: {"text":"Cześć"}\n\ndata: [DONE]\n\n'.encode())
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Content-Encoding", "gzip")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
                 return
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")

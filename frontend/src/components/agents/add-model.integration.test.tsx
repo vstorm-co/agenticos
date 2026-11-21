@@ -193,8 +193,6 @@ function mount(props: Partial<Parameters<typeof AddModel>[0]> = {}) {
 }
 
 async function pickProvider(label: string) {
-  if (label === "Ollama")
-    await userEvent.click(screen.getByRole("button", { name: "Show advanced connections" }));
   await userEvent.click(screen.getByLabelText("Provider"));
   await userEvent.click(screen.getByRole("option", { name: new RegExp(label) }));
 }

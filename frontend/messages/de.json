@@ -21062,7 +21062,6 @@
     "model": "Modell",
     "chooseModel": "Ein Modell dieses Kontos auswählen",
     "useModel": "Dieses Modell verwenden",
-    "advanced": "Erweiterte Verbindungen anzeigen",
     "noModels": "Dieses Konto hat noch keine Modelle gemeldet. Versuche es nach Abschluss der Anmeldung erneut."
   },
   "agentDelegation": {

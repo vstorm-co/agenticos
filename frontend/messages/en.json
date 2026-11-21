@@ -21376,7 +21376,6 @@
     "model": "Model",
     "chooseModel": "Choose a model from this account",
     "useModel": "Use this model",
-    "advanced": "Show advanced connections",
     "noModels": "This account has not advertised any models yet. Retry after sign-in finishes."
   },
   "agentDelegation": {

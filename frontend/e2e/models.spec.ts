@@ -217,12 +217,6 @@ test.describe("Models", () => {
 /** Choose a provider, which is what decides every field below it. */
 async function pickProvider(page: Page, label: string): Promise<void> {
   const provider = page.locator('[id$="-add-model-provider"]:visible');
-  if (label === "Ollama") {
-    const advanced = provider
-      .locator("..")
-      .getByRole("button", { name: "Show advanced connections", exact: true });
-    if (await advanced.isVisible()) await advanced.click();
-  }
   await provider.click();
   await page.getByRole("option", { name: label, exact: true }).click();
 }
