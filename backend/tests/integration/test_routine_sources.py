@@ -1680,9 +1680,16 @@ async def test_switching_mode_cannot_consent_to_an_account_changed_after_its_tok
 
 
 @pytest.mark.security
-async def test_follow_agent_cannot_borrow_new_event_authorization_after_a_mailbox_read(db):
-    ctx, trigger, _, account = await world(db, mcp=True)
+@pytest.mark.parametrize("tool_binding", [True, False])
+async def test_follow_agent_cannot_borrow_new_event_authorization_after_a_mailbox_read(
+    db: AsyncSession, tool_binding: bool
+) -> None:
+    ctx, trigger, spec, account = await world(db, mcp=True)
     assert account is not None
+    if not tool_binding:
+        version = await db.get(AgentVersion, trigger.pinned_version_id)
+        assert version is not None
+        version.spec = spec.model_copy(update={"mcp_servers": []}).model_dump(mode="json")
     trigger.connection_id = account.id
     await db.flush()
     service = RoutineSourceService(db)
