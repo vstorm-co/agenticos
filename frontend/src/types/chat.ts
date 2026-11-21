@@ -310,6 +310,7 @@ export type WSEventType =
   | "ask_user"
   | "runtime_question_closed"
   | "user_question_required"
+  | "ask_user_answered"
   | "run_answer_result"
   | "steer_applied"
   | "steer_unapplied"

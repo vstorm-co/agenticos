@@ -16,13 +16,10 @@ interface ComposerAction {
 export function ChatComposerMenu({
   actions,
   disabled,
-  withVoice = false,
   children,
 }: {
   actions: readonly ComposerAction[];
   disabled?: boolean;
-  /** Offer dictation here, for when a draft has turned the composer's mic into Send. */
-  withVoice?: boolean;
   children?: ReactNode;
 }) {
   const input = useTranslations("chat.input");
@@ -45,7 +42,7 @@ export function ChatComposerMenu({
         tabIndex={-1}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
-          panel.current?.focus();
+          panel.current?.focus({ preventScroll: true });
         }}
         data-chat-popover
         aria-label={input("addToMessage")}
@@ -63,22 +60,20 @@ export function ChatComposerMenu({
             event.preventDefault();
         }}
       >
-        {actions
-          .filter((action) => withVoice || action.key !== "voice")
-          .map((action) => (
-            <button
-              type="button"
-              key={action.key}
-              className="hover:bg-muted focus-visible:bg-muted flex min-h-10 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm outline-none"
-              onClick={() => {
-                setOpen(false);
-                action.run();
-              }}
-            >
-              <action.icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
-              {action.label}
-            </button>
-          ))}
+        {actions.map((action) => (
+          <button
+            type="button"
+            key={action.key}
+            className="hover:bg-muted focus-visible:bg-muted flex min-h-10 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm outline-none"
+            onClick={() => {
+              setOpen(false);
+              action.run();
+            }}
+          >
+            <action.icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
+            {action.label}
+          </button>
+        ))}
         {children && <div className="border-border mt-1 border-t pt-1">{children}</div>}
       </PopoverContent>
     </Popover>

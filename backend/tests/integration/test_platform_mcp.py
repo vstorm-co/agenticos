@@ -273,7 +273,7 @@ async def test_an_agent_bound_to_the_platform_reaches_it_in_process_as_the_asker
     db: AsyncSession, served: None
 ) -> None:
     """The AI Architect's binding: the real MCP protocol to this deployment's own
-    `/mcp`, with no network, and its writes marked for approval (#2063, #2060)."""
+    `/mcp`, with no network, preserving draft defaults and consequential gates."""
     from pydantic_ai import Agent as PydanticAgent
     from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart, ToolReturnPart
     from pydantic_ai.models.function import FunctionModel
@@ -307,13 +307,15 @@ async def test_an_agent_bound_to_the_platform_reaches_it_in_process_as_the_asker
         result = await agent.run("who am I?")
         tools = await toolset.get_tools(_run_context())
 
-    assert tools["agenticos_create_project"].tool_def.metadata[NEEDS_APPROVAL] is True
+    assert tools["agenticos_create_project"].tool_def.metadata[NEEDS_APPROVAL] is False
     assert tools["agenticos_list_projects"].tool_def.metadata[NEEDS_APPROVAL] is False
     assert tools["agenticos_get_project"].tool_def.metadata[NEEDS_APPROVAL] is False
     assert str(organization.id) in result.output
     assert tools["agenticos_whoami"].tool_def.metadata[NEEDS_APPROVAL] is False
-    assert tools["agenticos_create_agent_draft"].tool_def.metadata[NEEDS_APPROVAL] is True
-    assert tools["agenticos_update_agent_draft"].tool_def.metadata[NEEDS_APPROVAL] is True
+    assert tools["agenticos_create_agent_draft"].tool_def.metadata[NEEDS_APPROVAL] is False
+    assert tools["agenticos_update_agent_draft"].tool_def.metadata[NEEDS_APPROVAL] is False
+    assert tools["agenticos_publish_agent"].tool_def.metadata[NEEDS_APPROVAL] is True
+    assert tools["agenticos_run_agent"].tool_def.metadata[NEEDS_APPROVAL] is True
     assert tools["agenticos_list_sandbox_connections"].tool_def.metadata[NEEDS_APPROVAL] is False
     assert tools["agenticos_list_org_connections"].tool_def.metadata[NEEDS_APPROVAL] is False
 
@@ -364,16 +366,19 @@ async def test_nobody_to_act_as_leaves_the_platform_out(db: AsyncSession) -> Non
 
 
 @pytest.mark.parametrize(
-    ("decision", "drafts_after"),
-    [("pending", 0), ("rejected", 0), ("granted", 1)],
+    ("policy", "decision", "drafts_after"),
+    [("default", "not_needed", 1)]
+    + [
+        (policy, decision, count)
+        for policy in ("all", "required")
+        for decision, count in (("pending", 0), ("rejected", 0), ("granted", 1))
+    ],
 )
-async def test_a_draft_the_assistant_proposes_waits_for_a_person(
-    db: AsyncSession, served: None, decision: str, drafts_after: int
+@pytest.mark.security
+async def test_draft_creation_honors_default_free_and_explicit_confirmation(
+    db: AsyncSession, served: None, policy: str, decision: str, drafts_after: int
 ) -> None:
-    """#2060 end to end: the platform server's write, reached in process, goes
-    through the same gate as a capability's tool. Waiting parks the run, a
-    rejection creates nothing, and approval creates exactly one draft - with the
-    write's own audit entry."""
+    """Drafts run by default; explicit all/required still park, refuse or audit the write."""
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
 
@@ -392,7 +397,13 @@ async def test_a_draft_the_assistant_proposes_waits_for_a_person(
     resolved = await build_toolsets_for_agent(
         db,
         organization_id=organization.id,
-        refs=[PlatformMcpServerRef(account="platform", approval="writes")],
+        refs=[
+            PlatformMcpServerRef(
+                account="platform",
+                approval="all" if policy == "all" else "writes",
+                tool_approval={"create_agent_draft": "required"} if policy == "required" else {},
+            )
+        ],
         platform_credential=key,
     )
     [toolset] = resolved.toolsets
@@ -410,6 +421,7 @@ async def test_a_draft_the_assistant_proposes_waits_for_a_person(
         )
 
     answer = {
+        "not_needed": ApprovalPending(),
         "pending": ApprovalPending(),
         "rejected": ApprovalRejected(note="not now"),
         "granted": ApprovalGranted(tool_args=proposed),
@@ -432,9 +444,12 @@ async def test_a_draft_the_assistant_proposes_waits_for_a_person(
         ["agenticos_create_agent_draft"] if decision == "pending" else []
     )
 
-    [request] = [call.args[0] for call in ask.await_args_list]
-    assert request.tool_name == "agenticos_create_agent_draft"
-    assert request.tool_args == proposed
+    if policy == "default":
+        ask.assert_not_awaited()
+    else:
+        [request] = [call.args[0] for call in ask.await_args_list]
+        assert request.tool_name == "agenticos_create_agent_draft"
+        assert request.tool_args == proposed
     drafts = (
         (await db.execute(select(Agent).where(Agent.organization_id == organization.id)))
         .scalars()

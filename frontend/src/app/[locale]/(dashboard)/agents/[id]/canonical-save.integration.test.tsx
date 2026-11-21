@@ -417,3 +417,16 @@ it("disables Publish while an autosave is pending", async () => {
   expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
   expect(saveDraft).not.toHaveBeenCalled();
 });
+
+it("keeps credential details folded while showing the effective access choice", async () => {
+  await mount();
+  const access = screen.getByRole("button", { name: /Model access.*Use the organization/ });
+  expect(access).toHaveAttribute("aria-expanded", "false");
+  expect(screen.queryByRole("radio", { name: "Each user connects their own key" })).toBeNull();
+  await userEvent.click(access);
+  expect(screen.getByRole("radio", { name: "Use the organization’s key" })).toBeChecked();
+  expect(screen.getByRole("radio", { name: "Each user connects their own key" })).toBeEnabled();
+  await userEvent.click(access);
+  expect(access).toHaveAttribute("aria-expanded", "false");
+  expect(saveDraft).not.toHaveBeenCalled();
+});

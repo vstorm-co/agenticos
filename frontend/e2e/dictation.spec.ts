@@ -111,15 +111,10 @@ async function readyComposer(page: Page) {
  * mic into Send - from the "+" menu.
  */
 async function startDictating(page: Page): Promise<void> {
-  const mic = page.getByRole("button", { name: "Voice input" });
-  if (await mic.isVisible()) {
-    await mic.click();
-    return;
-  }
   await page.getByRole("button", { name: "Add to message" }).click();
   await page
     .getByRole("dialog", { name: "Add to message" })
-    .getByRole("button", { name: "Voice input" })
+    .getByRole("button", { name: "Voice input", exact: true })
     .click();
 }
 

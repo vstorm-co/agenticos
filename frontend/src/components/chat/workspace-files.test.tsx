@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WorkspaceFiles } from "./workspace-files";
+import { useChatPanelStore } from "@/stores/chat-panel-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import { useWorkOnStore } from "@/stores/work-on-store";
 const localInvoke = vi.hoisted(() => vi.fn());
@@ -18,6 +19,8 @@ import { ApiError } from "@/lib/api-error";
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), raw: vi.fn() },
 }));
+
+vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => false }) }));
 
 vi.mock("@/components/chat/markdown-content", () => ({
   MarkdownContent: ({ content }: { content: string }) => (
@@ -76,6 +79,38 @@ beforeEach(() => {
  * has a copy of is one file rather than two.
  */
 describe("the workspace panel", () => {
+  it("docks with the narrow Sources profile and releases temporary list pressure on close", async () => {
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        revision={0}
+        attachments={[]}
+      />,
+    );
+    await openPanel();
+    expect(screen.getByRole("complementary")).toHaveStyle({
+      "--browser-panel-width": "min(400px, 38%)",
+    });
+    expect(useChatPanelStore.getState().filesOpen).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Close the file panel" }));
+    expect(useChatPanelStore.getState().filesOpen).toBe(false);
+  });
+
+  it("keeps an embedded overlay from folding the main conversation list", async () => {
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        revision={0}
+        attachments={[]}
+        overlay
+      />,
+    );
+    await openPanel();
+    expect(useChatPanelStore.getState().filesOpen).toBe(false);
+  });
+
   it("does not open or fetch files before the first message", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const view = render(
@@ -111,7 +146,7 @@ describe("the workspace panel", () => {
   });
 
   it("draws its button only once the composer has a place for it", () => {
-    draw(<WorkspaceFiles buttonSlot={null} conversationId="c1" attachments={[]} revision={0} />);
+    draw(<WorkspaceFiles buttonSlot={null} conversationId="c1" revision={0} attachments={[]} />);
 
     expect(screen.queryByRole("button", { name: /^Show the files/ })).toBeNull();
   });
@@ -329,9 +364,10 @@ describe("the workspace panel", () => {
     );
     await openPanel();
 
-    await waitFor(() =>
-      expect(screen.getByText("The sandbox service is unreachable")).toBeVisible(),
-    );
+    expect(await screen.findByText("Could not load these files")).toBeVisible();
+    expect(screen.getByText("The sandbox service is unreachable")).not.toBeVisible();
+    await userEvent.click(screen.getByText("Technical details"));
+    expect(screen.getByText("The sandbox service is unreachable")).toBeVisible();
   });
 
   it("re-reads when a turn ends", async () => {
@@ -683,7 +719,9 @@ describe("the workspace panel", () => {
     );
     await openPanel();
 
-    await waitFor(() => expect(screen.getByText(/No workspace root/)).toBeVisible());
+    expect(await screen.findByText("Files are not available right now")).toBeVisible();
+    await userEvent.click(screen.getByText("Technical details"));
+    expect(screen.getByText(/No workspace root/)).toBeVisible();
     expect(screen.queryByText(/Nothing yet/)).toBeNull();
   });
 
@@ -1070,7 +1108,7 @@ it("groups duplicate file names under their actual folders and opens the full pa
       : workspace({ items: entries }),
   );
   draw(
-    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" attachments={[]} revision={0} />,
+    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" revision={0} attachments={[]} />,
   );
   await openPanel();
   const folder = await screen.findByRole("button", { name: "site" });
@@ -1089,7 +1127,7 @@ it("groups duplicate file names under their actual folders and opens the full pa
 
 it("switches between files and sources without keeping both panels open", async () => {
   draw(
-    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" attachments={[]} revision={0} />,
+    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" revision={0} attachments={[]} />,
   );
   await openPanel();
   act(() =>
@@ -1100,4 +1138,37 @@ it("switches between files and sources without keeping both panels open", async 
   await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
   await openPanel();
   expect(useSourcesPanelStore.getState().isOpen).toBe(false);
+});
+
+it("closes the old file selection when navigating to another conversation", async () => {
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+    path.includes("/file")
+      ? { path: "/report.csv", content: "month,total", truncated: false }
+      : workspace(),
+  );
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const content = (id: string) => (
+    <QueryClientProvider client={client}>
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId={id}
+        attachments={[]}
+        revision={0}
+      />
+    </QueryClientProvider>
+  );
+  const view = render(content("c1"));
+  await openPanel();
+  await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
+  await waitFor(() =>
+    expect(vi.mocked(apiClient.get).mock.calls.map(([url]) => url)).toContain(
+      "/conversations/c1/workspace/file?path=%2Freport.csv",
+    ),
+  );
+  view.rerender(content("c2"));
+  expect(screen.queryByRole("complementary")).toBeNull();
+  await openPanel();
+  expect(vi.mocked(apiClient.get).mock.calls.map(([url]) => url)).not.toContain(
+    "/conversations/c2/workspace/file?path=%2Freport.csv",
+  );
 });

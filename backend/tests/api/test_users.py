@@ -200,6 +200,8 @@ async def test_what_agents_are_told_is_saved_and_nothing_else(
         ("PUT", "/users/me/locale"),
         ("GET", "/users/me/preferences"),
         ("PATCH", "/users/me/preferences"),
+        ("GET", "/users/me/console-experience"),
+        ("PATCH", "/users/me/console-experience"),
         ("PATCH", "/users/me/agent-context"),
         ("GET", "/me/mcp-connections"),
     ],

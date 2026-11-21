@@ -1,6 +1,6 @@
 import { expect, test } from "./fixtures";
 
-import { AUTH_STATE } from "./helpers";
+import { AUTH_STATE, SEEDED_AGENT_NAME } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
 
@@ -24,8 +24,21 @@ test.describe("Chat on a phone", () => {
     const size = await input.evaluate((element) => parseFloat(getComputedStyle(element).fontSize));
     expect(size).toBeGreaterThanOrEqual(16);
 
+    await expect(
+      page.getByRole("button", { name: `Agent: ${SEEDED_AGENT_NAME}`, exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("region", { name: "Daily briefing" })).toHaveAttribute(
+      "aria-busy",
+      "false",
+    );
     await input.tap();
+    await expect(page.getByTestId("composer-hints")).toBeVisible();
+    const composer = page.locator(".composer-box");
+    const before = await composer.boundingBox();
+    if (!before) throw new Error("Expected the live composer on screen");
     await input.pressSequentially("one");
+    await expect(page.locator("[data-chat-welcome-hints]")).toBeHidden();
+    expect((await composer.boundingBox())?.y).toBeCloseTo(before.y, 0);
     await input.press("Enter");
     await input.pressSequentially("two");
     // A rich editor: the newline is a <br>, which only innerText reads.

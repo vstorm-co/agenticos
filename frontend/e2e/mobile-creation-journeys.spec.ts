@@ -56,6 +56,7 @@ test("phone project creation preserves refusal and leads to stored instructions 
     await page.getByRole("button", { name: "New project", exact: true }).first().click();
     const form = page.getByRole("dialog");
     await form.getByLabel("Name", { exact: true }).fill(name);
+    await form.getByRole("button", { name: "Instructions and defaults", exact: true }).click();
     await form.getByLabel("Description", { exact: true }).fill("Review customer policy questions.");
     await form.getByLabel("Instructions", { exact: true }).fill("Always include the next action.");
     await form.getByRole("button", { name: "Cancel", exact: true }).click();

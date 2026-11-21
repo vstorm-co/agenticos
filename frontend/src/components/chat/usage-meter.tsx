@@ -149,8 +149,10 @@ export function UsageMeter({
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="border-border bg-popover w-[300px] rounded-xl border p-1.5 shadow-md"
+        aria-label={t("label")}
+        className="border-border bg-popover max-h-[var(--radix-popover-content-available-height)] w-[min(21rem,calc(100vw-1.5rem))] overflow-y-auto overscroll-contain rounded-2xl border p-3 shadow-md"
       >
+        <h2 className="text-muted-foreground mb-2 px-2 text-xs font-medium">{t("label")}</h2>
         {empty && <p className="text-muted-foreground px-2 py-1.5 text-xs">{t("empty")}</p>}
         <dl className="text-xs">
           {context !== null && (

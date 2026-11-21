@@ -1,11 +1,13 @@
 import type { OptionColor } from "@/types/tables";
 
-/** Stronger accents for dataset steps, controls and option chips. */
+const NEUTRAL = "bg-muted/45 text-muted-foreground ring-border/60";
+
+/** Dataset categories use neutral labels; red remains reserved for an actual refusal. */
 export const DATASET_TONES: Record<OptionColor, string> = {
-  gray: "bg-muted text-muted-foreground ring-border",
-  blue: "bg-dataset-blue text-dataset-blue-foreground ring-dataset-blue-foreground/20",
-  green: "bg-dataset-green text-dataset-green-foreground ring-dataset-green-foreground/20",
-  yellow: "bg-dataset-yellow text-dataset-yellow-foreground ring-dataset-yellow-foreground/20",
-  purple: "bg-dataset-purple text-dataset-purple-foreground ring-dataset-purple-foreground/20",
-  red: "bg-dataset-red text-dataset-red-foreground ring-dataset-red-foreground/20",
+  gray: NEUTRAL,
+  blue: NEUTRAL,
+  green: NEUTRAL,
+  yellow: NEUTRAL,
+  purple: NEUTRAL,
+  red: "bg-destructive/10 text-destructive-ink ring-destructive/20",
 };

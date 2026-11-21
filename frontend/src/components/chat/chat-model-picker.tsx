@@ -165,6 +165,8 @@ export function ChatModelPicker({
     !createProfile.isPending &&
     !loadingProfiles &&
     profilesStatus !== "failed" &&
+    !loadingSecrets &&
+    !secretReadError &&
     (!loadingModels || hasCustomEndpoint);
 
   const apply = async (selectedModel = model) => {
@@ -172,7 +174,9 @@ export function ChatModelPicker({
       provider === undefined ||
       createProfile.isPending ||
       loadingProfiles ||
-      profilesStatus === "failed"
+      profilesStatus === "failed" ||
+      loadingSecrets ||
+      secretReadError
     )
       return;
     const modelId = selectedModel.trim();
@@ -442,14 +446,17 @@ export function ChatModelPicker({
               id={panelId}
               className="animate-in fade-in space-y-4 pt-5 duration-150 motion-reduce:animate-none"
             >
-              {profilesStatus === "failed" && (
+              {(profilesStatus === "failed" || secretReadError) && (
                 <p role="alert" className="text-destructive text-xs">
                   {t("profilesUnavailable")}{" "}
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => void refetchProfiles()}
+                    onClick={() => {
+                      void refetchProfiles();
+                      void refetchSecrets();
+                    }}
                   >
                     {tRoot("common.retry")}
                   </Button>

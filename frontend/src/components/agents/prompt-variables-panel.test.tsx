@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render as renderBase, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -17,7 +17,7 @@ function mount(overrides: Partial<Parameters<typeof PromptVariablesPanel>[0]> = 
     onTimeZoneChange: vi.fn(),
     ...overrides,
   };
-  render(<PromptVariablesPanel {...props} />);
+  renderEditor(<PromptVariablesPanel {...props} />);
   return props;
 }
 
@@ -109,7 +109,7 @@ describe("PromptVariablesPanel", () => {
   });
 });
 
-it("starts open and preserves a draft when reopened", async () => {
+it("preserves a draft when closed and reopened", async () => {
   mount({ custom: [] });
   expect(screen.getByText("{{user_name}}")).toBeVisible();
   await userEvent.type(screen.getByLabelText("Name"), "draft_name");
@@ -119,4 +119,33 @@ it("starts open and preserves a draft when reopened", async () => {
   await userEvent.click(screen.getByText("Variables"));
   expect(screen.getByLabelText("Name")).toHaveValue("draft_name");
   expect(screen.getByLabelText("Value")).toHaveValue("Draft value");
+});
+
+/** Existing editing cases open the same native section a person opens first. */
+function renderEditor(...args: Parameters<typeof renderBase>) {
+  const view = renderBase(...args);
+  for (const summary of view.container.querySelectorAll<HTMLElement>(
+    "details[data-focus-frame] > summary",
+  )) {
+    fireEvent.click(summary);
+  }
+  return view;
+}
+
+it("starts with a readable summary, leaving variables available on request", () => {
+  renderBase(
+    <PromptVariablesPanel
+      system={SYSTEM}
+      custom={[]}
+      timeZone="system"
+      disabled={false}
+      onInsert={vi.fn()}
+      onCustomChange={vi.fn()}
+      onTimeZoneChange={vi.fn()}
+    />,
+  );
+  expect(screen.getByText("System variables")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "{{user_name}}" })).not.toBeVisible();
+  fireEvent.click(screen.getByText("Variables"));
+  expect(screen.getByRole("button", { name: "{{user_name}}" })).toBeVisible();
 });

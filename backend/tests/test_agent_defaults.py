@@ -116,3 +116,25 @@ def test_refresh_recognizes_a_legacy_capabilities_hash_including_thinking() -> N
         name="Assistant", capabilities=[{"id": "thinking"}, {"id": "memory_files"}]
     )
     assert merge_defaults(customized, target, previous).capabilities == customized.capabilities
+
+
+@pytest.mark.security
+def test_proactive_starter_update_preserves_customized_instructions_and_model() -> None:
+    from app.services import agent_templates
+
+    template = agent_templates.get(STARTER)
+    assert template is not None
+    old = AgentSpec(name="AgenticOS", instructions="Old managed instructions")
+    target = old.model_copy(update={"instructions": template.instructions})
+    previous = baseline(STARTER, old)
+    assert merge_defaults(old, target, previous).instructions == template.instructions
+    personal_model = uuid4()
+    custom = old.model_copy(
+        update={
+            "instructions": "Only act when asked; no greeting lookup.",
+            "model_profile_id": personal_model,
+        }
+    )
+    merged = merge_defaults(custom, target, previous)
+    assert merged.instructions == custom.instructions
+    assert merged.model_profile_id == personal_model

@@ -80,6 +80,7 @@ The connected server is the authority: if a tool here is missing from the connec
 | `list_task_boards`, `list_tasks`, `get_task` | `tables:view` | no |
 | `ensure_task_board` | `tables:create` on first use | yes, when the board is missing |
 | `create_task`, `update_task` | `tables:edit` on the scope | yes |
+| `list_inbox_items` | the signed-in person in an unshared private chat or console session; refused for an external MCP client | no, at most 30 summaries; use `item_id` for one card |
 | `list_inbox_cases`, `settle_inbox_case` | the person's own chat or console session; refused for an external MCP client | no / yes |
 | `list_inbox_items` | the person's own chat or console session | no |
 
@@ -194,6 +195,8 @@ new body windows support up to 2000 chars.
 | `get_solution_installation` | `agents:edit`; only the caller's receipt in this organization | no |
 | `get_my_preferences` | the caller's own account, `agents:run` for keys | no |
 | `set_my_preferences` | the caller's own account, `agents:run` for keys | yes, theme/style/language only |
+| `get_my_console_experience` | active personal membership, `agents:run` for keys | no, reads presentation availability, defaults and effective preferences |
+| `set_my_console_experience` | active personal membership, `agents:run` for keys | yes, own chat-home and setup-reminder overrides only; omitted fields stay, null inherits |
 
 Use `get_authoring_schema` for solution, agent, workflow or workflow-preparation
 contracts rather than loading those schemas into every tool definition. The API

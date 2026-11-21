@@ -401,8 +401,7 @@ describe("the compact settings panel", () => {
   it("explains available permission modes before they are selected", async () => {
     open();
     await userEvent.click(trigger());
-    const askHint =
-      "Ask before every tool this agent can use, including the ones it does not normally gate.";
+    const askHint = "Ask before every tool call.";
     expect(screen.getByText(askHint)).not.toBeVisible();
     await userEvent.click(screen.getByRole("tab", { name: "Preferences" }));
     expect(screen.getByText(askHint)).toBeVisible();

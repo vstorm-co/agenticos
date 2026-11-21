@@ -333,6 +333,7 @@ export function ModelProfilePicker({
       <AddModel
         key={`${selected?.id ?? "none"}:${selectionVersion}`}
         selected={selected}
+        collapseConnection
         purpose={purpose}
         disabled={disabled}
         onCreationPendingChange={onCreationPendingChange}

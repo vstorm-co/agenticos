@@ -1,11 +1,19 @@
 ---
-source_sha: "1a74a11db7e0"
+source_sha: "b67c12b7a802"
 ---
 
 # Konfiguracja { #configuration }
 
-Cała konfiguracja jest zarządzana przez zmienne środowiskowe, wczytywane z
+Konfiguracja usług jest zarządzana przez zmienne środowiskowe, wczytywane z
 `backend/.env` przy użyciu [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
+
+Wygląd konsoli i terminy komunikatów są zapisywane w bazie danych przez interfejs.
+Dostępność instalacji ogranicza elementy ekranu nowego czatu i przypomnienia,
+a ustawienia organizacji i osobiste preferencje członkostwa wybierają spośród
+dostępnych elementów. Odroczenie przypomnienia trwa 1, 3 lub 7 dni. Wygaśnięcie
+ogłoszenia egzekwuje serwer, natomiast planowany koniec prac ma charakter
+informacyjny i nie otwiera instalacji. Kontrolki i zasady dziedziczenia opisuje
+[Wygląd i zachowanie konsoli](console.pl.md#console-experience).
 
 Ustawienia są zdefiniowane w `app/core/config.py` i dostępne przez globalny
 obiekt `settings`:

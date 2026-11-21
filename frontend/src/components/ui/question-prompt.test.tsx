@@ -185,6 +185,43 @@ describe("QuestionPrompt", () => {
     expect(screen.getByRole("button", { name: "Dismiss questions" })).toBeDisabled();
     fireEvent.keyDown(screen.getByRole("group"), { key: "1" });
   });
+  it("does not submit the Enter used to finish IME composition", () => {
+    const onComplete = vi.fn();
+    render(<QuestionPrompt questions={[FREE]} onComplete={onComplete} autoFocus={false} />);
+    const input = screen.getByPlaceholderText("Type your answer…");
+    fireEvent.change(input, { target: { value: "日本語" } });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    expect(onComplete).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onComplete).toHaveBeenCalledWith([{ answer: "日本語", skipped: false }]);
+  });
+  it("keeps keyboard navigation in the review without scrolling the transcript", () => {
+    render(
+      <QuestionPrompt questions={[AUDIENCE, AUDIENCE]} onComplete={vi.fn()} autoFocus={false} />,
+    );
+    fireEvent.keyDown(screen.getByRole("group"), { key: "1" });
+    expect(screen.getByRole("group")).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("group"), { key: "1" });
+    expect(
+      screen.getByRole("button", { name: "Send answers" }).parentElement?.parentElement,
+    ).toHaveFocus();
+  });
+  it("does not restart inline-question focus when tabbing between options", async () => {
+    render(<QuestionPrompt questions={[AUDIENCE]} onComplete={vi.fn()} autoFocus={false} />);
+    const first = screen.getByRole("button", { name: /Everyone/ });
+    first.focus();
+    await userEvent.tab();
+    expect(screen.getByRole("button", { name: /My team/ })).toHaveFocus();
+    await userEvent.tab({ shift: true });
+    expect(first).toHaveFocus();
+  });
+  it("lets Shift+Tab leave a custom input without autofocus pulling it back", async () => {
+    render(<QuestionPrompt questions={[FREE]} onComplete={vi.fn()} autoFocus={false} />);
+    screen.getByPlaceholderText("Type your answer…").focus();
+    await userEvent.tab({ shift: true });
+    expect(screen.getByRole("button", { name: "Dismiss questions" })).toHaveFocus();
+  });
 });
 
 it("keeps native editor whitespace and permits an explicit empty replacement", async () => {

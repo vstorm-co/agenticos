@@ -261,6 +261,8 @@ async def list_platform_mcp_tools() -> Any:
             writes=tool.writes,
             ungated=tool.ungated,
             always_asks=tool.always_asks,
+            default_approval_free=tool.default_approval_free,
+            conditional_approval=tool.conditional_approval,
         )
         for tool in platform_tool_catalog()
     ]

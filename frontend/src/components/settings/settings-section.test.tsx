@@ -70,3 +70,13 @@ it("retains a settings draft when its section folds and excludes it from focus",
   view.rerender(<Fields open />);
   expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Draft name");
 });
+
+it("does not animate a static settings section as an opening disclosure", () => {
+  const view = render(
+    <SettingsSection title="Monthly spending limit">
+      <input aria-label="Limit" />
+    </SettingsSection>,
+  );
+  expect(screen.getByRole("textbox", { name: "Limit" })).toBeVisible();
+  expect(view.container.querySelector(".disclosure-content")).toBeNull();
+});

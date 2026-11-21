@@ -17,6 +17,39 @@ test.use({ storageState: AUTH_STATE });
  * them dresses a failed request as "no rows".
  */
 test.describe("Dashboard", () => {
+  test("slides one selection underline between dashboard views", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto("/dashboard?view=me");
+    const strip = page.getByRole("group", { name: "Dashboard view" });
+    await expect(strip).toHaveAttribute("data-indicator-ready");
+    const transition = strip.evaluate(
+      (element) =>
+        new Promise<boolean>((resolve) => {
+          const finish = (started: boolean) => {
+            window.clearTimeout(timer);
+            element.removeEventListener("transitionrun", onTransition);
+            resolve(started);
+          };
+          const onTransition = (event: Event) => {
+            if (
+              event instanceof TransitionEvent &&
+              event.pseudoElement === "::before" &&
+              event.propertyName === "transform"
+            )
+              finish(true);
+          };
+          const timer = window.setTimeout(() => finish(false), 5_000);
+          element.addEventListener("transitionrun", onTransition);
+        }),
+    );
+    await strip.getByRole("button", { name: "Organization", exact: true }).click();
+    expect(await transition).toBe(true);
+    await expect(strip.getByRole("button", { name: "Organization", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
   test("keeps the scope switcher fixed below the greeting across views", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     for (const width of [1440, 390]) {

@@ -550,6 +550,22 @@ class TestWhatADocumentBecomes:
         assert isinstance(fetched, BinaryContent)
         assert fetched.media_type == "image/png"
 
+    @pytest.mark.parametrize("offset", [0, 100])
+    async def test_images_do_not_offer_a_second_text_page(
+        self, monkeypatch: pytest.MonkeyPatch, offset: int
+    ) -> None:
+        _serving(monkeypatch, "image/png", b"\x89PNG\r\n\x1a\n")
+        tool = _local_tool(_built())
+        ctx = _context()
+        ctx.max_retries = 1
+        if offset:
+            with pytest.raises(ModelRetry, match="image does not have another text page"):
+                await tool.function(ctx, url="https://example.com/chart.png", offset=offset)
+        else:
+            fetched = await tool.function(ctx, url="https://example.com/chart.png", offset=offset)
+            assert isinstance(fetched, BinaryContent)
+            assert fetched.media_type == "image/png"
+
     async def test_a_binary_with_no_text_is_a_retry_naming_what_came_back(
         self, monkeypatch: pytest.MonkeyPatch
     ):

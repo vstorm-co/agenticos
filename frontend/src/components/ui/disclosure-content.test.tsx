@@ -46,8 +46,10 @@ describe("DisclosureContent", () => {
     );
     const { rerender } = render(view(true));
     screen.getByRole("textbox").focus();
+    const focus = vi.spyOn(screen.getByRole("button"), "focus");
     rerender(view(false));
     expect(screen.getByRole("button")).toHaveFocus();
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
   });
 
   it("does not steal focus from elsewhere, including a missing trigger", () => {

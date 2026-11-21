@@ -17,6 +17,7 @@ services:
     ports: !override ["127.0.0.1:18080:8000"]
     volumes:
       - ./evals/personal/run.py:/personal-eval/run.py:ro
+      - ./evals/personal/greeting_fixture.py:/personal-eval/greeting_fixture.py:ro
       - ./evals/personal/watch_fixture.py:/personal-eval/watch_fixture.py:ro
       - ./evals/personal/datasets:/personal-eval/datasets:ro
     environment:

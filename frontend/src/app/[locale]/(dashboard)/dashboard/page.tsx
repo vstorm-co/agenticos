@@ -85,7 +85,6 @@ export default function DashboardPage() {
   const t = useTranslations("dashboard");
   const { can, role, isAppAdmin, isLoading } = usePermissions();
   const { storedEntries, isLoading: layoutLoading, save, reset } = useDashboardLayout();
-  const { presets, savePreset, removePreset } = useDashboardPresets();
   const searchParams = useSearchParams();
   const periodParam = searchParams.get("period");
   const period = useMemo(() => parsePeriodParam(periodParam), [periodParam]);
@@ -111,6 +110,7 @@ export default function DashboardPage() {
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { groups, isLoading: groupsLoading } = useGroups(activeOrgId ?? "");
   const viewParam = searchParams.get("view");
+  const { presets, savePreset, removePreset } = useDashboardPresets(viewParam === "org");
   const groupParam = searchParams.get("group");
   const personal = viewParam === null || viewParam === "me";
   const start = useStart(personal);
@@ -126,10 +126,15 @@ export default function DashboardPage() {
   // A link to a group's view waits for the groups too: deciding without them
   // would open the organization's view for a moment and ask all of its
   // questions unnarrowed before the group arrived.
+  // Retain the header instance so resolving the layout does not close page help.
   if (isLoading || layoutLoading || (viewParam === "group" && groupsLoading)) {
     return (
       <div className="space-y-4">
-        <DashboardHeader description={t("views.me.description")} />
+        {personal ? (
+          <MeHeader period={period} canRun={!isLoading && can(Perm.agentsRun)} />
+        ) : (
+          <DashboardHeader description={t("views.me.description")} />
+        )}
         <div className="flex min-h-56 items-center justify-center">
           <div role="status" aria-busy="true" aria-label={t("states.loading")}>
             <Spinner className="text-muted-foreground size-5" aria-hidden />
@@ -414,7 +419,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <div>
+    <div className="flex min-h-0 flex-1 flex-col">
       {view === "me" ? (
         <MeHeader period={period} canRun={can(Perm.agentsRun)} actions={headerActions} />
       ) : (
@@ -442,7 +447,7 @@ export default function DashboardPage() {
       />
       <div
         key={`${view}:${view === "group" ? (group?.id ?? "") : ""}`}
-        className="tab-panel"
+        className="tab-panel flex flex-1 flex-col"
         data-state="active"
         data-dashboard-view={view}
       >

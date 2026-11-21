@@ -87,6 +87,11 @@ Two things are versioned separately from this file and worth knowing about:
 - Kimi Code, Alibaba Coding Plan, OpenCode Go and Ollama Cloud plan keys work as model profiles on their plans' OpenAI-compatible endpoints, with each key's own model catalog, regional endpoints and unpriced subscription usage.
 - MiniMax models accept vault API or M Plan keys through a separate OpenAI-compatible provider identity, with explicit regional endpoints and tool calling.
 - Z.AI model profiles accept explicit GLM Coding Plan endpoints, with authenticated model catalogs isolated from the ordinary API and other accounts.
+- Resume unfinished setup from the sidebar or personal settings, with a clear setup link, progress artwork and organization-scoped return to the last step. Configure reminder availability in deployment settings, defaults in the organization and personal 1/3/7-day snoozes; the default is one day.
+
+- Configure the new-chat Inbox, starter messages, greeting and feature hints independently. Deployment availability constrains organization defaults and each member's personal choices.
+
+- Give announcements an optional expiry time and maintenance notices an informational planned end. Maintenance remains active until an administrator turns it off.
 
 - Let deployment administrators send account recovery emails or copy a one-hour, single-use password reset link from the user inspector. Show users' last activity and active session counts.
 
@@ -94,7 +99,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Show the same approval cards in Inbox and Activity, with details and inline approval and rejection.
 
-- Let agent authors hide suggested first messages. The new-chat Inbox uses the extra space to show more items.
+- Let agent authors hide suggested first messages. Keep the new-chat Inbox preview bounded to two rows, with urgent items first.
 
 - Search readable chat message text as well as conversation titles, with highlighted excerpts, matching-message counts and keyboard navigation. Reuse the existing full-text index and transcript access checks.
 
@@ -111,6 +116,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Keep mobile chat actions within one context panel, with inline renaming, sharing with Back and independently scrolling search results. Refine shared field contrast, touch heights and overlay shadows; show Voice calls and Dictation in one Builder list.
+
+- Let authorized ordinary task and table-record edits, resource creation and draft authoring run without an extra MCP approval by default. Explicit author requirements can tighten these defaults. Execution, schema changes, automation, publication, deletion and administration still require a fresh per-call answer; task writes that can schedule agent work do too.
+
+- Guide AgenticOS to check the person's task board at an initial private greeting, offer structured tables for collected work and suggest routines for recurring questions. Keep creation and activation tied to an explicit request or accepted proposal.
+
+- Use generated Architect avatars consistently, preserving custom uploads. Move administration into the profile menu and use shared tabs for deployment settings. Keep both personal memory tabs and Kanban columns at the available page height, with a full-card drag preview.
+
+- Align urgency labels across Inbox, chat and the dashboard. Refine Agent Builder instruction controls, model-access disclosure and optional-section spacing, and keep all guided setup steps in the same layout.
+
+- Align primary tables with the available page height and keep pagination visible, including one-page lists. Preserve server pagination and embedded table layouts.
+
+- Simplify workflow templates and run feedback, resource cards and Dataset settings. Keep Agent Builder model configuration visible and optional settings in compact sections.
+
+- Standardize chat Files and Sources panels, compact permission/context/project controls, and keep tool diagnostics raw while showing produced outputs once. Group conversations by project in the default Workspace layout. Compare alternatives with `sidebar=compact` or `sidebar=comfortable`; `sidebar=workspace` explicitly selects the default.
+
+- Use neutral light surfaces and progressive disclosure in Agent Builder, onboarding and settings. Edit welcome content directly in its onboarding preview; retain clear loading, empty, permission and retry states throughout resource catalogs.
+
+- Keep chat work collapsed by default during execution and replay. Show questions inline with acknowledged answer receipts, preserve the reader’s viewport, and keep repeated tool frames from duplicating or reopening completed calls.
+
+- Simplify console typography and dark surfaces; use blue focus and links, green enabled switches, and concise authentication screens. Show current configuration in Agent Builder section summaries.
+
+- Keep the empty chat's `/` and `@` hint visible on focus. Hide starter prompts while typing without moving the composer; shorten the Inbox preview and keep a link to the full Inbox.
+
 - Preview agent avatars in the template catalog, including the artwork installed with bundled agents.
 
 - Lighten file editors and file selection in the light theme. Show Model by default in Activity, put background job lists behind paginated disclosures, and align Sandboxes and Channels with the Vault tables.
@@ -119,7 +148,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Move credential selection to a Key tab in the chat model picker and use single-line model labels across shared selectors.
 
-- Simplify Agent Builder section headers and open Variables, Voice, and First messages by default. Move name, description, categories, and tags to the Details dialog in the agent actions menu. Use the standard card surface for MCP servers in both the catalog and Builder.
+- Simplify Agent Builder section headers and fold Variables, Voice, and First messages behind current-configuration summaries. Move name, description, categories, and tags to the Details dialog in the agent actions menu. Use the standard card surface for MCP servers in both the catalog and Builder.
 
 - Keep Back and the primary action in a shared onboarding footer as users move through organization and member setup.
 
@@ -135,7 +164,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Give AgenticOS a shorter default prompt with better guidance for full source reading, personal memory, Skills, Context and routines. Delegate only on request or when the user accepts a specific offer.
 
-- Keep Discuss visible on Inbox items and put secondary actions in a menu. Highlight links to console resources and inline code in chat, and show compact approval cards aligned with the composer, including after reload.
+- Open suggested Inbox topics as editable chat drafts and put secondary Inbox actions in a menu. Highlight links to console resources and inline code in chat, and show compact approval cards aligned with the composer, including after reload.
 
 - Ground automatic memory updates in the user's words and give the daily briefing current memory and previous decisions. Check evidence for recurring suggestions and suppress repeats across suggestion types.
 
@@ -143,7 +172,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Tighten the chat greeting, MCP cards and model library. Keep history groups visible as the chat list grows, give nested fields a complete focus outline and let chat choose among a provider's available key profiles.
 
-- Show the active agent’s opening prompts above the new-chat composer and add the selected prompt to the draft. Show Daily briefing below the composer with priority items, a pending approval count and a link to Inbox. Keep the animated welcome avatar responsive to reduced motion.
+- Show the active agent’s opening prompts above the new-chat composer and add the selected prompt to the draft. Show Daily briefing above the composer with priority items, a pending approval count and a link to Inbox. Keep the animated welcome avatar responsive to reduced motion.
 
 - Share larger resource gallery cards across agents, tables, workflows, knowledge bases, projects, datasets, MCP, skills, context, Apps and groups. Use matching cards for the agent Builder settings, with Thinking and Answer format inside Model settings, visible default first messages, and Voice deep links.
 
@@ -162,6 +191,42 @@ Two things are versioned separately from this file and worth knowing about:
 - Align the shipped AgenticOS toolbox with the selected toolbox, including container Computer use, add Context and default personal cloud coding without a shared account. Include code-review and context-design skills; preserve customized agent specs during normal default refreshes. Cloud coding stays disabled on deployments that cannot provide a container.
 
 - Refine the default AgenticOS assistant’s guidance for economical specialist delegation, safe tool-error recovery, editable drafts and artifact verification. Keep media generation tied to available configured tools and preserve personal model, budget and prompt choices during normal default refreshes.
+
+### Fixed
+
+- Preserve URL chips when copying or cutting composer text. Keep question reveal buttons stable on phones, and give the model control a full row beside Send. Inbox preview rows now prepare an editable message without sending it.
+
+- Start navigation progress for button-driven routes, animate shared tab indicators, keep static settings still, and calculate Apps help steps before opening the tour.
+
+- Show retryable sharing and search failures explicitly and hide cached resource names after access is refused. Pause public chat following while reading older messages.
+
+- Keep Sources compact and restore the conversation list after closing them. Preserve question navigation when a chat mounts late, and keep dashboard sparkline tooltips inside their own column.
+
+- Use consistent Inbox rows, quieter agent and workflow statuses, and single-surface category and tag inputs. Support multiline messages in hosted chats and embedded widgets.
+
+- Align the queued-message panel with the chat composer. Link disabled approval modes to the active organization’s settings when the member may open them, and identify question steps by their subject.
+
+- Preserve IME text confirmation without sending a message, and associate invalid sign-in email feedback with its field.
+
+- Compress proxied API responses once so browsers can read populated organization, agent and conversation lists.
+
+- Update Next.js to 16.4.6 to address cache isolation, image validation and response-header security advisories.
+
+- Keep dictation available from Add to message while the main composer action sends an existing draft. Preserve insertion at the caret without sending the transcript.
+
+- Keep dashboard help open when the saved personal layout finishes loading.
+
+- Wait for a successful credential read before applying a model in chat settings, and let users retry a failed read.
+
+### Upgrading
+
+- Apply `0347_console_experience.py` and `0348_architect_generated_avatar.py` after the existing merge revisions. Nullable console overrides preserve existing presentation defaults. The avatar backfill clears only the recorded shipped Architect picture, retains uploaded replacements and does not delete picture files.
+
+- Review platform MCP approval defaults before upgrading. To retain confirmation for ordinary writes, set the affected tools to `required` or their platform binding to `all`. Always-confirmed operations cannot use Approve all or standing routine consent to skip their per-call decision.
+
+- Run `alembic upgrade head` to apply `0342_personal_coding_sessions.py`, `0343_bundled_context.py` and the merge revisions through `0346_merge_console_matrix.py`. Update API/workers together before using retained personal coding sessions. Existing workspace rows are unchanged. Sessions remain subject to provider idle expiry; failed tasks without confirmed safe retention are discarded.
+
+- Password reset links issued before this upgrade are invalidated. Request a new recovery email or have a deployment administrator issue a new link; new links are single-use and also expire after a password change.
 
 ## [1.87.0] - 2026-11-20
 

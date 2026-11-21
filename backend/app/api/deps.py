@@ -2575,3 +2575,13 @@ def get_solution_service(db: DBSession) -> SolutionService:
 
 
 SolutionSvc = Annotated[SolutionService, Depends(get_solution_service)]
+
+
+from app.services.console_experience import ConsoleExperienceService
+
+
+def get_console_experience_service(db: DBSession) -> ConsoleExperienceService:
+    return ConsoleExperienceService(db)
+
+
+ConsoleExperienceSvc = Annotated[ConsoleExperienceService, Depends(get_console_experience_service)]

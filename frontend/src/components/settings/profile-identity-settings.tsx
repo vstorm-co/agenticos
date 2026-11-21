@@ -70,7 +70,7 @@ export function ProfileIdentitySettings({
       if (email !== user.email) payload.email = email;
       if (name !== (user.full_name ?? "")) payload.full_name = name || null;
       if (Object.keys(payload).length === 0) {
-        toast.info(t("nothingChanged"));
+        if (!onContinue) toast.info(t("nothingChanged"));
         setSaving(false);
         return true;
       }

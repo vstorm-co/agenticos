@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 
+import { toast } from "sonner";
 import { ProfileIdentitySettings } from "./profile-identity-settings";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores";
@@ -150,4 +151,15 @@ it("uses the generated portrait after a failed image and retries a newly uploade
     "src",
     expect.stringContaining("/api/users/avatar/profile-user?v=2"),
   );
+});
+
+it("continues onboarding without a no-change toast or profile write", async () => {
+  const onContinue = vi.fn();
+  render(
+    <ProfileIdentitySettings section="identity" onContinue={onContinue} saveLabel="Continue" />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+  expect(onContinue).toHaveBeenCalledOnce();
+  expect(apiClient.patch).not.toHaveBeenCalled();
+  expect(toast.info).not.toHaveBeenCalled();
 });

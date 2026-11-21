@@ -125,6 +125,8 @@ test("a skill resource keeps a refused edit and saves before switching files", a
   await guard.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByRole("button", { name: "Save now", exact: true }).click();
   await expect(editor).toBeHidden();
+  // The closing animation can finish before Next commits the overlay URL.
+  await expect(page).not.toHaveURL(/[?&]skill=/);
   await page.reload();
   await page
     .getByRole("button", { name: new RegExp(name) })

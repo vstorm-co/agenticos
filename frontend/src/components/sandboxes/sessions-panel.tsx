@@ -276,7 +276,7 @@ export function SessionsPanel({ connections, loadingConnections = false }: Sessi
   if (connection === null && !loadingConnections)
     return (
       <Card className="overflow-hidden">
-        <CardContent className="p-0">
+        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           <ListCardEmpty
             icon={Activity}
             title={t("noContainerConnection")}
@@ -290,12 +290,12 @@ export function SessionsPanel({ connections, loadingConnections = false }: Sessi
 
   return (
     <Card
-      className="@container/sessions min-w-0 overflow-hidden"
+      className="@container/sessions flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
       role={loadingConnections ? "status" : undefined}
       aria-label={loadingConnections ? states("loading") : undefined}
       aria-busy={loadingConnections || undefined}
     >
-      <CardHeader className="flex-col gap-3 space-y-0 border-b px-4 py-4 sm:px-5 @3xl/sessions:flex-row @3xl/sessions:items-center @3xl/sessions:justify-between">
+      <CardHeader className="shrink-0 flex-col gap-3 space-y-0 border-b px-4 py-4 sm:px-5 @3xl/sessions:flex-row @3xl/sessions:items-center @3xl/sessions:justify-between">
         {loadingConnections ? (
           <div
             className="flex w-full flex-col gap-3 @3xl/sessions:flex-row @3xl/sessions:items-center @3xl/sessions:justify-between"
@@ -365,7 +365,7 @@ export function SessionsPanel({ connections, loadingConnections = false }: Sessi
           </>
         )}
       </CardHeader>
-      <CardContent className="p-0">
+      <CardContent className="flex min-h-0 flex-1 flex-col p-0">
         <ListCardControlsRow>
           {loadingConnections ? (
             <Skeleton aria-hidden="true" className="h-9 w-64 max-w-full" />
@@ -374,6 +374,8 @@ export function SessionsPanel({ connections, loadingConnections = false }: Sessi
           )}
         </ListCardControlsRow>
         <DataTable<SandboxSession>
+          clientPagination
+          fillHeight
           columns={columns}
           rows={visible}
           stackOnNarrow

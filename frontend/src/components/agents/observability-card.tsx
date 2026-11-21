@@ -1,11 +1,6 @@
 "use client";
 
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Input,
   Label,
   Select,
@@ -14,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { BuildSection } from "./build-section";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
@@ -75,15 +71,16 @@ export function ObservabilityCard({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <McpServerIcon icon={null} name="Logfire" url="https://logfire-us.pydantic.dev" />
-          {t("tracing")}
-        </CardTitle>
-        <CardDescription>{t("everyRunAlreadyTraced")}</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4 sm:grid-cols-3">
+    <BuildSection
+      title={t("tracing")}
+      description={t("everyRunAlreadyTraced")}
+      summary={t("buildSummary.tracing", {
+        project: selected ? "custom" : "deployment",
+        content: value?.content ?? "full",
+      })}
+      headerEnd={<McpServerIcon icon={null} name="Logfire" url="https://logfire-us.pydantic.dev" />}
+    >
+      <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="logfire-token">{t("writeToken")}</Label>
           <Select
@@ -167,7 +164,7 @@ export function ObservabilityCard({
           </Select>
           <p className="text-muted-foreground text-xs">{t("traceContentHint")}</p>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </BuildSection>
   );
 }

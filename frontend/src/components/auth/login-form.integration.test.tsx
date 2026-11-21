@@ -257,3 +257,12 @@ describe("credential refusal feedback", () => {
     },
   );
 });
+
+it("describes a malformed email with its field error", async () => {
+  mount();
+  const email = screen.getByRole("textbox", { name: "Email" });
+  await userEvent.type(email, "not-an-address");
+  await userEvent.tab();
+  expect(email).toHaveAttribute("aria-invalid", "true");
+  expect(email).toHaveAccessibleDescription("Please enter a valid email address");
+});

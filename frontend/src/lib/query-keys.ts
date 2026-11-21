@@ -10,6 +10,10 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  consoleExperience: {
+    all: () => ["console-experience"] as const,
+    member: (org: string | null, user: string | null) => ["console-experience", org, user] as const,
+  },
   accountPreferences: (userId: string | null) => ["account-preferences", userId] as const,
   personalModelKeys: {
     all: (scope: string) => ["personal-model-keys", scope] as const,

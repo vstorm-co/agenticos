@@ -132,7 +132,7 @@ export function WorkflowCreateDialog({
         if (!busy) onOpenChange(next);
       }}
     >
-      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
+      <DialogContent data-workflow-fields className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
         <DialogHeader>
           <DialogTitle>{t("createDialogTitle")}</DialogTitle>
           <DialogDescription>{agent("startsAsDraftNothing")}</DialogDescription>

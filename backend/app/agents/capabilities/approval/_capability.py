@@ -57,7 +57,13 @@ from app.agents.capabilities._registry import (
 from app.agents.code_checkpoint import CodeApprovalPause
 from app.agents.deps import AgentDeps
 from app.agents.durable_code import active_code
-from app.agents.mcp import ACCOUNT, ALWAYS_ASKS, NEEDS_APPROVAL
+from app.agents.mcp import (
+    ACCOUNT,
+    ALWAYS_ASKS,
+    CONDITIONAL_EXECUTION,
+    NEEDS_APPROVAL,
+    PLATFORM_TOOL,
+)
 from app.agents.routine_actions import RoutineToolDecision, RoutineToolPolicy
 from app.core.exceptions import AuthorizationError
 
@@ -181,12 +187,19 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
         that must not run on consent given in advance.
         """
         if tool_def.capability_id is None:
-            # Only `ApprovalMarked` writes this key, and only for this
-            # deployment's own server: a server cannot claim it.
-            return (tool_def.metadata or {}).get(ALWAYS_ASKS) is True
-        if tool_def.name in self.always_asking_tool_names:
-            return True
-        check = self.always_asking_checks.get(tool_def.name)
+            from app.agents.platform_approval import may_schedule_agent_work
+
+            metadata = tool_def.metadata or {}
+            if metadata.get(ALWAYS_ASKS) is True:
+                return True
+            condition = metadata.get(CONDITIONAL_EXECUTION)
+            if metadata.get(PLATFORM_TOOL) is not True or not isinstance(condition, str):
+                return False
+            check = partial(may_schedule_agent_work, condition)
+        else:
+            if tool_def.name in self.always_asking_tool_names:
+                return True
+            check = self.always_asking_checks.get(tool_def.name)
         if check is None:
             return False
         try:

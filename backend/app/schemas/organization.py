@@ -12,6 +12,7 @@ from app.core.permissions import OrgRoleName
 from app.db.models.organization import MembershipSourceLiteral, ProactiveTiming
 from app.db.models.watch import MIN_WATCH_MINUTES
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.console_experience import ChatHomeOverrides, OnboardingReminderOverrides
 from app.schemas.user import UserRead
 
 _ID = UUID
@@ -59,6 +60,8 @@ class OrganizationUpdate(BaseSchema):
     service keys on whether the client named the field rather than on its value.
     """
 
+    chat_home_defaults: ChatHomeOverrides | None = None
+    onboarding_reminders: OnboardingReminderOverrides | None = None
     name: str | None = Field(default=None, min_length=2, max_length=128)
     avatar_url: str | None = Field(default=None, max_length=500)
     avatar_color: int | None = Field(
@@ -210,6 +213,8 @@ class OrganizationUpdate(BaseSchema):
 
 
 class OrganizationRead(BaseSchema, TimestampSchema):
+    chat_home_defaults: ChatHomeOverrides | None = None
+    onboarding_reminders: OnboardingReminderOverrides | None = None
     id: _ID
     name: str
     slug: str

@@ -18,7 +18,7 @@ it("keeps the file action compact and closes after selection", async () => {
   );
   await userEvent.click(screen.getByRole("button", { name: "Add to message" }));
   const menu = screen.getByRole("dialog", { name: "Add to message" });
-  expect(within(menu).queryByRole("button", { name: "Voice input" })).toBeNull();
+  expect(within(menu).getByRole("button", { name: "Voice input" })).toBeVisible();
   await userEvent.click(within(menu).getByRole("button", { name: "Files" }));
   expect(attach).toHaveBeenCalledOnce();
   expect(voice).not.toHaveBeenCalled();
@@ -47,15 +47,17 @@ it("shows every secondary action in the first panel and restores focus on Escape
   expect(plus).toHaveFocus();
 });
 
-it("offers dictation once a draft has put Send where the mic was", async () => {
+it("keeps dictation reachable while the primary composer action sends a draft", async () => {
   const voice = vi.fn();
   render(
-    <ChatComposerMenu
-      withVoice
-      actions={[{ key: "voice", icon: Mic, label: "Voice input", run: voice }]}
-    />,
+    <ChatComposerMenu actions={[{ key: "voice", icon: Mic, label: "Voice input", run: voice }]} />,
   );
   await userEvent.click(screen.getByRole("button", { name: "Add to message" }));
-  await userEvent.click(screen.getByRole("button", { name: "Voice input" }));
+  await userEvent.click(
+    within(screen.getByRole("dialog", { name: "Add to message" })).getByRole("button", {
+      name: "Voice input",
+    }),
+  );
   expect(voice).toHaveBeenCalledOnce();
+  expect(screen.queryByRole("dialog")).toBeNull();
 });

@@ -558,7 +558,11 @@ class MatrixAdapter(ChannelAdapter):
         symbol = REACTION_EMOJI.get(reaction)
         if symbol is None:
             raise ValueError(f"'{reaction}' is not a reaction this bot can send on Matrix")
-        base_url = (api_base_url or await self._homeserver(incoming.bot_id)).rstrip("/")
+        base_url = (
+            self._base(api_base_url)
+            if api_base_url is not None
+            else await self._homeserver(incoming.bot_id)
+        )
         await self._send(
             base_url,
             bot_token,

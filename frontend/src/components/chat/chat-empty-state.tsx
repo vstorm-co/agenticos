@@ -75,15 +75,17 @@ export function useDefaultChatSuggestions(draws: boolean): WelcomeSuggestion[] {
 interface ChatEmptyStateProps {
   onPick: (prompt: string) => void;
   suggestionsSlot?: HTMLElement | null;
-  showArt?: boolean;
-  spotlight?: boolean;
+  showSuggestions?: boolean;
+  showGreeting?: boolean;
+  showDiscoveryHints?: boolean;
 }
 
 export function ChatEmptyState({
   onPick,
   suggestionsSlot,
-  showArt,
-  spotlight,
+  showSuggestions = true,
+  showGreeting = true,
+  showDiscoveryHints = true,
 }: ChatEmptyStateProps) {
   // Whoever will answer, so the page opens on them rather than on a generic
   // sparkle and a line about streaming and tool calls. The list is the one the
@@ -108,9 +110,10 @@ export function ChatEmptyState({
       starters={own.length ? own : agent?.slug === STARTER_SLUG ? (personal.data ?? []) : []}
       loading={waiting}
       suggestionsSlot={showStarters ? suggestionsSlot : null}
+      showSuggestions={showSuggestions}
+      showGreeting={showGreeting}
+      showDiscoveryHints={showDiscoveryHints}
       onPick={onPick}
-      showArt={showArt}
-      spotlight={spotlight}
     />
   );
 }
@@ -128,8 +131,9 @@ function Welcome({
   loading,
   onPick,
   suggestionsSlot,
-  showArt,
-  spotlight,
+  showSuggestions,
+  showGreeting,
+  showDiscoveryHints,
 }: WelcomeProps) {
   const t = useTranslations("chat.empty");
   const th = useTranslations("workspaceHome");
@@ -155,10 +159,11 @@ function Welcome({
   return (
     <ChatWelcome
       quiet
+      showGreeting={showGreeting}
+      showLead={!isStarter || showDiscoveryHints}
+      showSuggestions={showSuggestions}
       loading={loading}
       suggestionsSlot={suggestionsSlot}
-      showArt={showArt}
-      spotlight={spotlight}
       mark={
         agent ? (
           <AgentAvatar

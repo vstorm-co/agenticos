@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import { Building2, FlaskConical, Lock, Puzzle, Trash2, Users } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 
 import {
-  Badge,
   Button,
   ResourceCard,
   ResourceCardHeader,
@@ -13,9 +12,8 @@ import {
   ResourceCardFooter,
 } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
-import { DatasetChip, DatasetIcon } from "./dataset-chip";
+import { DatasetIcon } from "./dataset-chip";
 import { datasetNextStep } from "./dataset-journey";
-import { timeAgo } from "@/lib/utils";
 import type { Dataset } from "@/types/datasets";
 
 const VISIBILITY_ICON = { org: Building2, team: Users, private: Lock } as const;
@@ -33,14 +31,11 @@ interface DatasetCardProps {
 export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
   const t = useTranslations("datasets");
   const tc = useTranslations("common");
-  const tt = useTranslations("time");
-  const locale = useLocale();
   const VisibilityIcon = VISIBILITY_ICON[dataset.visibility];
   const next = datasetNextStep(dataset);
-  const edited = dataset.updated_at ?? dataset.created_at;
 
   return (
-    <ResourceCard>
+    <ResourceCard className="min-h-52">
       <Link
         href={ROUTES.DATASET_DETAIL(dataset.id)}
         data-tour="dataset-card-open"
@@ -62,24 +57,21 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
           </span>
         </div>
       </ResourceCardHeader>
-      <ResourceCardDescription className="pointer-events-none">
+      <ResourceCardDescription className="pointer-events-none my-4 line-clamp-2">
         {dataset.description}
       </ResourceCardDescription>
-      <ResourceCardFooter className="pointer-events-none text-xs">
+      <ResourceCardFooter className="pointer-events-none border-0 pt-0 text-xs">
         <span className="text-muted-foreground">
           {t("caseCount", { count: dataset.case_count })}
         </span>
-        <DatasetChip tone="gray">{t(`journey.status.${next}`)}</DatasetChip>
+        <span className="text-muted-foreground">{t(`journey.status.${next}`)}</span>
         {dataset.latest_version > 0 && (
-          <Badge variant="outline" className="text-muted-foreground font-normal">
+          <span className="text-muted-foreground">
             {t("versionNumber", { number: dataset.latest_version })}
-          </Badge>
+          </span>
         )}
       </ResourceCardFooter>
       <div className="text-muted-foreground relative mt-auto flex min-w-0 flex-wrap items-center gap-2 pt-3 text-xs">
-        <span className="pointer-events-none min-w-0 flex-1 break-words">
-          {t("editedWhen", { when: timeAgo(edited, tt, locale) })}
-        </span>
         {dataset.skill_id && (
           <Link
             href={`${ROUTES.SKILL_DETAIL(dataset.skill_id)}#test-questions`}

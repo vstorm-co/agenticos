@@ -36,6 +36,7 @@ export function MyClaims({ agents }: { agents: readonly AgentUsage[] }) {
   };
   return (
     <ListCard
+      fill
       title={view("memories")}
       namedByPage
       counted={isLoading || !page ? null : view("count", { count: page.total })}
@@ -64,11 +65,12 @@ export function MyClaims({ agents }: { agents: readonly AgentUsage[] }) {
       }
     >
       {isLoading ? (
-        <LoadingState variant="skeleton-list" rows={4} />
+        <LoadingState className="flex-1" variant="skeleton-list" rows={4} />
       ) : error || !page ? (
-        <ErrorState />
+        <ErrorState className="flex-1" />
       ) : page.items.length === 0 ? (
         <ListCardEmpty
+          className="flex-1"
           onClearFilters={narrowed ? reset : undefined}
           icon={narrowed ? SlidersHorizontal : Brain}
           title={view(narrowed ? "noMatches" : "emptyMemories")}
@@ -76,7 +78,7 @@ export function MyClaims({ agents }: { agents: readonly AgentUsage[] }) {
           {...(narrowed ? { cta: { label: view("clearFilters"), onClick: reset } } : {})}
         />
       ) : (
-        <ul className="divide-foreground/5 divide-y px-2">
+        <ul className="divide-foreground/5 min-h-0 flex-1 divide-y overflow-auto overscroll-contain px-2">
           {page.items.map((item) => (
             <MemoryRow
               key={item.id}

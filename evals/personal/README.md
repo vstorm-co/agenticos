@@ -1,10 +1,10 @@
 # AgenticOS local evaluations
 
-The three suites contain **214 synthetic multi-turn conversations** in [datasets/](datasets/). Run them from the CLI with the repository's locked dependencies. The runner creates no entries in the platform's Datasets or Evals views.
+The three suites contain **222 synthetic multi-turn conversations** in [datasets/](datasets/). Run them from the CLI with the repository's locked dependencies. The runner creates no entries in the platform's Datasets or Evals views.
 
 | Suite | Cases | Path exercised |
 | --- | ---: | --- |
-| AgenticOS | 114 | Published shipped starter, conversation history, scope, tool routing and arguments, answers |
+| AgenticOS | 122 | Published shipped starter, conversation history, scope, tool routing and arguments, answers |
 | Memory | 50 | Production extraction model, durable facts, corrections, provenance, duplicate intent |
 | Briefing and suggestions | 50 | Production nightly reading model, recurring intent, connected sources and existing or dismissed proposals |
 
@@ -62,6 +62,16 @@ evals/personal/stack.sh run --rm --no-deps -T app sh -c '
 '
 ```
 
+### An unpublished prompt candidate in an isolated local database
+
+`--candidate-agent <agent UUID>` explicitly selects an existing published agent's bindings and replaces only its instructions in memory with the bundled AgenticOS starter. It validates the candidate against the caller's access and uses the existing `UnpublishedCandidate` execution path. It does not install shipped resources, save a draft, change the agent's selected model or publish a version. Omit this flag to retain the managed-starter publication/review guard described above.
+
+Use this mode only with an explicitly isolated QA database. Set `AGENTICOS_PERSONAL_EVAL=1` and the target `POSTGRES_DB` in the command's environment while keeping the normal backend configuration local. Provide `--suite agenticos`, `--organization-id`, `--user-id`, `--candidate-agent`, and an authorized `--model-profile` override. Without `--max-usd`, the runner only performs the free preflight. Add `--max-usd 0.25` only for an approved paid smoke; the same remaining-budget and incomplete-cost safeguards apply. This mode still records synthetic conversations, run receipts and metered spend in the selected test database.
+
+If a source browser endpoint cannot pass deployment validation, the explicit QA-only `--candidate-without-browser` flag removes only `browser_use` from the in-memory candidate. It requires `--candidate-agent`; it does not change the allowlist or saved bindings. Receipts include the exact omitted capabilities and full candidate spec hash. Such a run cannot establish equivalence to the full published agent.
+
+Candidate results have no published `agent_version`. They record `source_agent_version` and `candidate_instructions_hash` instead, so changed instructions cannot receive credit as the existing publication. Retain the report outside the repository until its outputs have been reviewed for private data. A named QA model profile can use an existing authorized vault reference without changing any agent's model or printing the secret; profile creation is a separate explicit setup write, never performed by the runner.
+
 ### Run all AgenticOS cases
 
 ```sh
@@ -84,6 +94,10 @@ Use `--max-usd 0.25` with the preflight selection for a paid three-case smoke ru
 The trace runner starts each case in a fresh private test chat with the authored history. It scores the recorded tools, argument subsets and forbidden attempts before any judge call. The production isolation guard holds side-effecting actions. Use live probes to verify effects. The Notion watch case uses the local, read-only `eval-notion` MCP service. The runner connects it as a synthetic personal account for that case and removes the connection after the case. The separate published watch agent has only that fixture binding. Watch creation remains an isolated tool attempt. Seed synthetic Inbox items, task state and other connections for positive-path cases that need them.
 
 The 60 appended cases cover product choices, exact resource reads, approval boundaries, and ordinary requests. A synthetic resource ID tests routing to the correct reader and an honest unavailable result. Populate a matching resource separately to test a successful read against real state. The arguments column accepts a JSON object when a check needs numbers, booleans, arrays or nested values.
+
+The greeting policy cases deliberately replace the earlier strict no-tool `natural-hello` expectation. The first private greeting reads existing private boards; it offers rather than provisions. `natural-hello`, `hello-empty-board` and `hello-priorities` use controlled read-only `TaskService` responses for the selected eval account and organization. Other subjects and table IDs fall through to the real service. These fixtures make board states reproducible without creating or deleting tasks; they test model routing through the authenticated MCP path, not database access enforcement. Read-only fixture overrides are restored after each case.
+
+`hello-no-tools`, `hello-repeat` and `hello-shared-channel` require zero tool calls. They also hold an absent-board read fixture as a safety net: a violating lookup fails scoring without reading actual personal tasks. The channel case uses the production Slack group-history adapter without seeding the historical private tool calls used by the separate recall cases. Research and news cases check one structured Table or Routine proposal, while explicit one-off/no-tool requests keep initiative quiet. Proposal text still needs qualitative review; deterministic checks alone do not establish its usefulness or answer-first ordering.
 
 `table-query-exact` creates a private scratch table with six pending vendors and one approved vendor. The runner substitutes the real table ID into the conversation and checks the equality filter and five-record first page. It archives the table after the case.
 
@@ -131,7 +145,7 @@ From the repository root, after inspecting the deterministic report, keep the `r
 ```sh
 uv run --directory backend --env-file ../evals/personal/.env sh -c '
   exec python ../evals/personal/run.py --judge-model "$AGENTICOS_EVAL_JUDGE_MODEL" \
-    --judge-report "$1" --limit 114
+    --judge-report "$1" --limit 122
 ' sh "../$report" > "${report%.jsonl}-judge.jsonl"
 ```
 

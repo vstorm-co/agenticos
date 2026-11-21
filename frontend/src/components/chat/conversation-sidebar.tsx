@@ -3,8 +3,11 @@
 import { ProjectAvatar } from "@/components/projects/project-avatar";
 
 import {
+  createContext,
+  useContext,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -23,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  Label,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -40,6 +44,9 @@ import {
   useChatSidebarStore,
   useWorkingStore,
 } from "@/stores";
+import { useChatPanelStore } from "@/stores/chat-panel-store";
+import { useSourcesPanelStore } from "@/stores/sources-panel-store";
+import { useChanged } from "@/hooks/use-changed";
 import { DEFAULT_COLLAPSED_BANDS, LONG_LIST } from "@/stores/chat-sidebar-store";
 import { useFillChatBands } from "@/hooks/use-fill-chat-bands";
 import { useProjects } from "@/hooks/use-projects";
@@ -80,7 +87,17 @@ import { ShareDialog } from "./share-dialog";
 import { useTurnElapsed } from "./work-fold";
 import { formatElapsed } from "@/lib/elapsed";
 
+const ConversationSheetContext = createContext(false);
+
+type SidebarLayout = "compact" | "comfortable" | "workspace";
+function sidebarLayout(value: string | null): SidebarLayout {
+  return value === "compact" || value === "comfortable" || value === "workspace"
+    ? value
+    : "workspace";
+}
+
 interface ConversationItemProps {
+  layout?: SidebarLayout;
   conversation: Conversation;
   isActive: boolean;
   onSelect: () => void;
@@ -100,7 +117,63 @@ interface ConversationItemProps {
  *  its run: a turn that short is over by then, and the listing is right. */
 const HANDOFF_GRACE_MS = 20_000;
 
+function RenameConversationForm({
+  value,
+  originalTitle,
+  onChange,
+  onCancel,
+  onSubmit,
+}: {
+  value: string;
+  originalTitle: string;
+  onChange: (value: string) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+}) {
+  const t = useTranslations("chat");
+  const common = useTranslations("common");
+  return (
+    <form
+      data-conversation-rename
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          onCancel();
+        }
+      }}
+    >
+      <Label className="flex flex-col gap-2">
+        {t("conversationTitle")}
+        <Input
+          aria-label={t("rename")}
+          autoFocus
+          onFocus={(event) => event.currentTarget.select()}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          maxLength={255}
+          required
+        />
+      </Label>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          {common("cancel")}
+        </Button>
+        <Button type="submit" disabled={!value.trim() || value.trim() === originalTitle.trim()}>
+          {common("save")}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
 function ConversationItem({
+  layout = "workspace",
   conversation,
   isActive,
   onSelect,
@@ -115,13 +188,13 @@ function ConversationItem({
 }: ConversationItemProps) {
   const t = useTranslations("chat");
   const tTime = useTranslations("time");
-  const common = useTranslations("common");
+  const inSheet = useContext(ConversationSheetContext);
   const locale = useLocale();
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(conversation.title || "");
 
   const handleRename = () => {
-    if (editTitle.trim()) {
+    if (editTitle.trim() && editTitle.trim() !== (conversation.title ?? "").trim()) {
       onRename(editTitle.trim());
     }
     setIsEditing(false);
@@ -186,6 +259,13 @@ function ConversationItem({
 
   const renaming = useRef(false);
   const actionsButton = useRef<HTMLButtonElement>(null);
+  const returnToActions = useRef(false);
+  useLayoutEffect(() => {
+    if (!isEditing && returnToActions.current) {
+      returnToActions.current = false;
+      actionsButton.current?.focus({ preventScroll: true });
+    }
+  }, [isEditing]);
 
   const favouriteItem = (
     <DropdownMenuItem onSelect={() => onFavourite(conversation.is_favourite !== true)}>
@@ -194,13 +274,30 @@ function ConversationItem({
     </DropdownMenuItem>
   );
 
+  if (inSheet && isEditing)
+    return (
+      <div className="bg-card border-border space-y-3 rounded-xl border p-3">
+        <h3 className="text-sm font-medium">{t("rename")}</h3>
+        <RenameConversationForm
+          value={editTitle}
+          originalTitle={conversation.title ?? ""}
+          onChange={setEditTitle}
+          onCancel={() => setIsEditing(false)}
+          onSubmit={handleRename}
+        />
+      </div>
+    );
+
   return (
     <div
+      data-conversation-layout={layout}
       className={cn(
         // The open row is a fill, as the main sidebar's is - a hairline border
         // and a bar at its edge read as two thin lines around one choice.
         "group relative flex cursor-pointer items-center gap-2.5 rounded-xl px-2.5 py-2 transition-colors",
         isActive ? "bg-accent" : "hover:bg-foreground/5",
+        layout === "compact" && "gap-2 rounded-lg py-2",
+        layout === "comfortable" && "my-1 gap-3 rounded-xl py-3",
       )}
       onClick={onSelect}
     >
@@ -212,17 +309,23 @@ function ConversationItem({
       />
       {/* Agent faces identify who took part; the title leads the text. */}
       <span className="relative shrink-0">
-        {agents.length > 0 || conversation.coding_agents?.length ? (
-          <ConversationAgents
-            agents={agents}
-            codingAgents={conversation.coding_agents}
-            showName={false}
-            size="md"
-            unframed
-          />
+        {layout === "compact" ? (
+          <MessageSquare className="text-muted-foreground size-4" aria-hidden />
         ) : (
-          // A box the size of a face, so every title starts at the same x.
-          <span className="block size-9" aria-hidden />
+          <>
+            {agents.length > 0 || conversation.coding_agents?.length ? (
+              <ConversationAgents
+                agents={agents}
+                codingAgents={conversation.coding_agents}
+                showName={false}
+                size="md"
+                unframed
+              />
+            ) : (
+              // A box the size of a face, so every title starts at the same x.
+              <span className="block size-9" aria-hidden />
+            )}
+          </>
         )}
         {/* An answer arrived while the reader was elsewhere: a badge on the face,
             as a count sits on an app icon - part of the row's own mark rather
@@ -259,7 +362,8 @@ function ConversationItem({
                 weight is the second half of the mark, as in a mail client. */}
           <span
             className={cn(
-              "line-clamp-2 text-[13px] leading-5",
+              "text-[13px] leading-5",
+              layout === "compact" || layout === "workspace" ? "truncate" : "line-clamp-2",
               unread ? "text-foreground font-semibold" : "font-medium",
               !unread && (isActive ? "text-foreground" : "text-foreground/80"),
             )}
@@ -273,7 +377,12 @@ function ConversationItem({
             </span>
           )}
         </div>
-        <p className="text-muted-foreground mt-0.5 truncate text-xs leading-4">
+        <p
+          className={cn(
+            "text-muted-foreground mt-0.5 truncate text-xs leading-4",
+            layout === "compact" && !waiting && !runningSince && "hidden",
+          )}
+        >
           {/* At work, the line says so and for how long, in place of who and
                 when: beside the agent's name it was cut to nothing. The face
                 still says who. */}
@@ -296,6 +405,7 @@ function ConversationItem({
             variant="ghost"
             size="sm"
             ref={actionsButton}
+            data-conversation-actions={conversation.id}
             aria-label={t("conversationActions")}
             className={cn(
               // Reserve the action slot so revealing it never reflows the title,
@@ -339,6 +449,7 @@ function ConversationItem({
               <DropdownMenuItem
                 onSelect={() => {
                   renaming.current = true;
+                  returnToActions.current = inSheet;
                   setEditTitle(conversation.title ?? "");
                   setIsEditing(true);
                 }}
@@ -381,40 +492,25 @@ function ConversationItem({
       </DropdownMenu>
       <Dialog open={isEditing} onOpenChange={setIsEditing}>
         <DialogContent
+          mobilePresentation="sheet"
           className="sm:max-w-sm"
           aria-describedby={undefined}
           onClick={(event) => event.stopPropagation()}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            actionsButton.current?.focus();
+            actionsButton.current?.focus({ preventScroll: true });
           }}
         >
           <DialogHeader>
             <DialogTitle>{t("rename")}</DialogTitle>
           </DialogHeader>
-          <form
-            className="space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              handleRename();
-            }}
-          >
-            <Input
-              aria-label={t("rename")}
-              value={editTitle}
-              onChange={(event) => setEditTitle(event.target.value)}
-              maxLength={255}
-              required
-            />
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
-                {common("cancel")}
-              </Button>
-              <Button type="submit" disabled={!editTitle.trim()}>
-                {common("save")}
-              </Button>
-            </DialogFooter>
-          </form>
+          <RenameConversationForm
+            value={editTitle}
+            originalTitle={conversation.title ?? ""}
+            onChange={setEditTitle}
+            onCancel={() => setIsEditing(false)}
+            onSubmit={handleRename}
+          />
         </DialogContent>
       </Dialog>
     </div>
@@ -424,6 +520,7 @@ function ConversationItem({
 type ConversationView = "active" | "archived";
 
 interface ConversationListProps {
+  layout?: SidebarLayout;
   conversations: Conversation[];
   total: number;
   view: ConversationView;
@@ -562,6 +659,7 @@ function useBands(
   isArchivedView: boolean,
   datedOrder: boolean,
   shared: Conversation[] = [],
+  groupProjects = true,
 ): Band[] {
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
@@ -578,9 +676,10 @@ function useBands(
     const sharedRows = isArchivedView ? [] : shared;
     const sharedIds = new Set(sharedRows.map((conversation) => conversation.id));
     const visibleRows = conversations.filter((conversation) => !sharedIds.has(conversation.id));
-    const { inProjects, outside: listedRows } = isArchivedView
-      ? { inProjects: [], outside: visibleRows }
-      : byProject(visibleRows, names, ts("unnamedProject"));
+    const { inProjects, outside: listedRows } =
+      isArchivedView || !groupProjects
+        ? { inProjects: [], outside: visibleRows }
+        : byProject(visibleRows, names, ts("unnamedProject"));
     const unread = isArchivedView
       ? []
       : [...listedRows, ...sharedRows].filter(
@@ -635,7 +734,17 @@ function useBands(
           ? [{ key: "rest", heading: null, icon: null, rows: rest }]
           : []),
     ];
-  }, [conversations, currentConversationId, isArchivedView, datedOrder, shared, names, t, ts]);
+  }, [
+    conversations,
+    currentConversationId,
+    isArchivedView,
+    datedOrder,
+    shared,
+    names,
+    t,
+    ts,
+    groupProjects,
+  ]);
 }
 
 /**
@@ -684,6 +793,7 @@ function useBandFolds(bands: Band[], loaded: number, scroller: RefObject<HTMLEle
 }
 
 function ConversationList({
+  layout = "workspace",
   conversations = [],
   total,
   view,
@@ -707,6 +817,9 @@ function ConversationList({
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
   const [shareConversationId, setShareConversationId] = useState<string | null>(null);
+  const inSheet = useContext(ConversationSheetContext);
+  const savedScrollTop = useRef(0);
+  const sharedFrom = useRef<string | null>(null);
 
   const handleSelect = (id: string) => {
     onSelect(id);
@@ -714,9 +827,27 @@ function ConversationList({
   };
 
   const isArchivedView = view === "archived";
-  const bands = useBands(conversations, currentConversationId, isArchivedView, datedOrder, shared);
+  const bands = useBands(
+    conversations,
+    currentConversationId,
+    isArchivedView,
+    datedOrder,
+    shared,
+    layout === "workspace",
+  );
   const scrollerRef = useRef<HTMLDivElement>(null);
   const { isFolded, flip } = useBandFolds(bands, conversations.length, scrollerRef);
+  useLayoutEffect(() => {
+    if (!inSheet || shareConversationId !== null || !scrollerRef.current) return;
+    scrollerRef.current.scrollTop = savedScrollTop.current;
+    if (sharedFrom.current) {
+      const opener = Array.from(
+        scrollerRef.current.querySelectorAll<HTMLButtonElement>("[data-conversation-actions]"),
+      ).find((button) => button.dataset.conversationActions === sharedFrom.current);
+      opener?.focus({ preventScroll: true });
+      sharedFrom.current = null;
+    }
+  }, [inSheet, shareConversationId]);
   const foldedKeys = bands
     .filter((band) => isFolded(band.key))
     .map((band) => band.key)
@@ -751,6 +882,18 @@ function ConversationList({
       flip(band.key);
   }, [bands, currentConversationId, isFolded, flip]);
 
+  if (inSheet && shareConversationId)
+    return (
+      <ShareDialog
+        conversationId={shareConversationId}
+        open
+        embedded
+        onOpenChange={(open) => {
+          if (!open) setShareConversationId(null);
+        }}
+      />
+    );
+
   return (
     <>
       {/* Where the archive is said, since the switch to it now sits behind
@@ -777,6 +920,7 @@ function ConversationList({
         className="min-h-0 flex-1 scrollbar-thin overflow-y-auto px-3 pb-3"
         onScroll={(e) => {
           const el = e.currentTarget;
+          savedScrollTop.current = el.scrollTop;
           if (!isLoading && el.scrollHeight - el.scrollTop - el.clientHeight < 100) {
             onLoadMore?.();
           }
@@ -867,6 +1011,7 @@ function ConversationList({
                 {!(heading !== null && isFolded(key)) &&
                   rows.map((conversation) => (
                     <ConversationItem
+                      layout={layout}
                       key={conversation.id}
                       conversation={conversation}
                       isActive={conversation.id === currentConversationId}
@@ -876,7 +1021,10 @@ function ConversationList({
                       onUnarchive={() => onUnarchive(conversation.id)}
                       onFavourite={(favourite) => onFavourite(conversation.id, favourite)}
                       onRename={(title) => onRename(conversation.id, title)}
-                      onShare={() => setShareConversationId(conversation.id)}
+                      onShare={() => {
+                        sharedFrom.current = conversation.id;
+                        setShareConversationId(conversation.id);
+                      }}
                       shared={shared?.some((entry) => entry.id === conversation.id) === true}
                       onLeave={() => onLeaveShared?.(conversation.id)}
                     />
@@ -906,9 +1054,29 @@ interface ConversationSidebarProps {
 
 export function ConversationSidebar({ className }: ConversationSidebarProps) {
   const ts = useTranslations("chat.sidebar");
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [preferredCollapsed, setPreferredCollapsed] = useState(false);
+  const sourcesOpen = useSourcesPanelStore((state) => state.isOpen);
+  const filesOpen = useChatPanelStore((state) => state.filesOpen);
+  const panelOpen = sourcesOpen || filesOpen;
+  const [sourcesOverride, setSourcesOverride] = useState(false);
+  const [tight, setTight] = useState(false);
+  const sidebar = useRef<HTMLElement>(null);
+  if (useChanged(panelOpen)) setSourcesOverride(false);
+  useLayoutEffect(() => {
+    const container = sidebar.current?.parentElement;
+    if (!container) return;
+    const measure = () => {
+      const width = container.getBoundingClientRect().width;
+      setTight(window.innerWidth >= 768 && width > 0 && width < 1240);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+  const isCollapsed = preferredCollapsed || (panelOpen && tight && !sourcesOverride);
   const [searchOpen, setSearchOpen] = useState(false);
-  const collapse = () => setIsCollapsed(true);
+  const collapse = () => setPreferredCollapsed(true);
   const { isOpen, close } = useChatSidebarStore();
   // Seeded from the URL and written back to it, so a reload lands on the list
   // somebody was reading rather than on the default one. Written with
@@ -1029,7 +1197,9 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     changeHideApi(true);
   };
 
+  const layout = sidebarLayout(searchParams.get("sidebar"));
   const listProps = {
+    layout,
     conversations: rows,
     total: total + (view === "active" ? projectList.total : 0),
     view,
@@ -1142,7 +1312,10 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
         <CollapsedSidebar
           {...listProps}
           toolbar={toolbar(undefined, true)}
-          onExpand={() => setIsCollapsed(false)}
+          onExpand={() => {
+            setPreferredCollapsed(false);
+            setSourcesOverride(true);
+          }}
           className={className}
         />
       </>
@@ -1152,8 +1325,13 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   return (
     <>
       <aside
+        ref={sidebar}
+        data-conversation-sidebar={layout}
         className={cn(
           "bg-sidebar-secondary hidden min-h-0 w-64 shrink-0 flex-col md:flex xl:w-72",
+          layout === "compact" && "xl:w-64",
+          layout === "comfortable" && "w-72 xl:w-80",
+          layout === "workspace" && "w-72",
           className,
         )}
       >
@@ -1181,8 +1359,21 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
 
       {searchDialog}
 
-      <Sheet open={isOpen} onOpenChange={close}>
-        <SheetContent side="left" className="w-80 p-0">
+      <Sheet open={isOpen && !searchOpen} onOpenChange={close}>
+        <SheetContent
+          side="left"
+          className="w-80 p-0"
+          restoreFocus={!searchOpen}
+          onEscapeKeyDown={(event) => {
+            // Let the inline editor cancel before the parent sheet handles Escape.
+            if (
+              event.target instanceof HTMLElement &&
+              event.target.closest("[data-conversation-rename]")
+            ) {
+              event.preventDefault();
+            }
+          }}
+        >
           <SheetHeader className="h-12 px-4">
             <SheetTitle className="min-w-0 flex-1 truncate">{ts("title")}</SheetTitle>
             {toolbar(close)}
@@ -1190,7 +1381,9 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
           </SheetHeader>
           <div className="flex h-[calc(100%-48px)] flex-col">
             {sharedNotice}
-            <ConversationList {...listProps} onNavigate={close} />
+            <ConversationSheetContext.Provider value={true}>
+              <ConversationList {...listProps} onNavigate={close} />
+            </ConversationSheetContext.Provider>
           </div>
         </SheetContent>
       </Sheet>

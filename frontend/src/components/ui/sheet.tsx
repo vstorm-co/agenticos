@@ -19,6 +19,9 @@ interface SheetContentProps {
   side?: "left" | "right" | "bottom";
   /** Navigation opens on its container, without selecting a close control or opening a keyboard. */
   focusContent?: boolean;
+  /** A replacement dialog owns focus while this sheet closes. */
+  restoreFocus?: boolean;
+  onEscapeKeyDown?: React.ComponentProps<typeof DialogPrimitive.Content>["onEscapeKeyDown"];
 }
 
 export function Sheet({ open, onOpenChange, children }: SheetProps) {
@@ -34,6 +37,8 @@ export function SheetContent({
   className,
   side = "left",
   focusContent = false,
+  restoreFocus = true,
+  onEscapeKeyDown,
 }: SheetContentProps) {
   const opener = React.useRef<HTMLElement | null>(null);
   const content = React.useRef<HTMLDivElement>(null);
@@ -53,6 +58,7 @@ export function SheetContent({
             target.value
           )
             event.preventDefault();
+          onEscapeKeyDown?.(event);
         }}
         onOpenAutoFocus={(event) => {
           // Most sheets are controlled by actions outside a Radix trigger.
@@ -65,7 +71,8 @@ export function SheetContent({
         }}
         onCloseAutoFocus={(event) => {
           event.preventDefault();
-          if (opener.current?.isConnected) opener.current.focus({ preventScroll: true });
+          if (restoreFocus && opener.current?.isConnected)
+            opener.current.focus({ preventScroll: true });
         }}
         // A side panel runs the screen's full height: in the phone app that is
         // under the status bar and over the gesture bar, so it keeps clear of

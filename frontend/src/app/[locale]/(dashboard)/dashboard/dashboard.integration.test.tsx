@@ -556,6 +556,7 @@ describe("the view switcher", () => {
       expect(screen.getByRole("heading", { name: /dashboard\.greeting/ })).toBeInTheDocument();
       expect(screen.getByRole("group", { name: "dashboard.views.label" })).toBeInTheDocument();
       expect(document.querySelector(`[data-dashboard-view="${view}"]`)).not.toBeNull();
+      expect(callsTo("/me/dashboard-layout/presets")).toHaveLength(view === "org" ? 1 : 0);
       if (view !== "me")
         expect(screen.getByText(`dashboard.views.${view}.description`)).toBeInTheDocument();
     },
@@ -1146,4 +1147,18 @@ it("keeps Me free of quality-management cards and their requests", async () => {
   expect(qualityRequests).toEqual([]);
   expect(callsTo("/knowledge-gaps")).toHaveLength(0);
   expect(callsTo("/workflows/summary")).toHaveLength(0);
+});
+
+it("keeps requested help open when the personal dashboard layout finishes loading", async () => {
+  const pending = Promise.withResolvers<unknown>();
+  vi.mocked(apiClient.get).mockImplementation((path: string) =>
+    path === "/me/dashboard-layout" ? pending.promise : Promise.resolve(respond(path)),
+  );
+  render(<DashboardPage />, { wrapper });
+  await waitFor(() => expect(callsTo("/me/dashboard-layout")).toHaveLength(1));
+  await userEvent.click(screen.getByRole("button", { name: "common.moreInformation" }));
+  expect(screen.getByRole("button", { name: "onboarding.pageHelp" })).toBeVisible();
+  pending.resolve(null);
+  await screen.findByRole("group", { name: "dashboard.views.label" });
+  expect(screen.getByRole("button", { name: "onboarding.pageHelp" })).toBeVisible();
 });

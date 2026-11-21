@@ -22,6 +22,7 @@ export function MyNotes({ agents }: { agents: readonly AgentUsage[] }) {
   const note = page?.items.find((item) => item.id === selected);
   return (
     <ListCard
+      fill
       title={view("notes")}
       namedByPage
       counted={isLoading || !page ? null : view("noteCount", { count: page.total })}
@@ -57,18 +58,19 @@ export function MyNotes({ agents }: { agents: readonly AgentUsage[] }) {
         {view("notesHint")}
       </p>
       {isLoading ? (
-        <LoadingState variant="skeleton-list" rows={3} />
+        <LoadingState className="flex-1" variant="skeleton-list" rows={3} />
       ) : error || !page ? (
-        <ErrorState />
+        <ErrorState className="flex-1" />
       ) : page.items.length === 0 ? (
         <ListCardEmpty
+          className="flex-1"
           onClearFilters={Boolean(q) ? () => setQ("") : undefined}
           icon={FileText}
           title={view(q ? "noMatches" : "emptyNotes")}
           description={view(q ? "tryFilters" : "emptyNotesHint")}
         />
       ) : (
-        <ul className="divide-foreground/5 divide-y px-2">
+        <ul className="divide-foreground/5 min-h-0 flex-1 divide-y overflow-auto overscroll-contain px-2">
           {page.items.map((item) => (
             <MemoryRow
               key={item.id}

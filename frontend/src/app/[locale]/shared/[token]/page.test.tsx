@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 
 import { BackendApiError, backendFetch } from "@/lib/server-api";
-import SharedConversationPage from "./page";
+import SharedConversationPage, { metadata } from "./page";
 
 vi.mock("next-intl/server", async () => {
   const { createTranslator } = await import("next-intl");
@@ -76,4 +76,9 @@ it("renders an expired link after the server refuses the token", async () => {
   vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(404, "Not found", null));
   render(await open());
   expect(screen.getByRole("heading", { name: "Share link not found" })).toBeVisible();
+});
+
+it("keeps a secret conversation address out of search indexes and outbound referrers", () => {
+  expect(metadata.robots).toEqual({ index: false, follow: false });
+  expect(metadata.referrer).toBe("no-referrer");
 });

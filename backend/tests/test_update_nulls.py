@@ -89,6 +89,7 @@ from app.schemas.artifact import (
 from app.schemas.assistant import AssistantUpdate
 from app.schemas.channel_bot import ChannelBotUpdate
 from app.schemas.coding_account import CodingAccountUpdate
+from app.schemas.console_experience import ConsoleExperienceUpdate
 from app.schemas.context import ContextFileUpdate
 from app.schemas.conversation import ConversationUpdate
 from app.schemas.conversation_share import ConversationShareUpdate
@@ -148,12 +149,13 @@ from app.schemas.workflow_log_alert import WorkflowLogAlertUpdate
 # a schema-version row from a full column list rather than patching one.
 UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AgentDraftUpdate: None,
-    # A shipped-default refresh: a read-only diff, and the revision a person
-    # confirms before the service rewrites the agent's spec from the default.
+    # A diff response and a revision precondition, not partial row updates.
     ShippedAgentUpdate: None,
     ApplyShippedAgentUpdate: None,
     # Coding account and task updates merge credential/config or typed record cells, not row columns.
     CodingAccountUpdate: None,
+    # `preferences` and `reminders` merge/clear the member's nullable JSONB overrides.
+    ConsoleExperienceUpdate: OrganizationMember,
     TaskUpdate: None,
     NotificationRouteUpdate: NotificationRoute,
     # Sets `auto_consent` from `enabled`; `confirmed` is checked and audited, never stored.

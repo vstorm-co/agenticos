@@ -44,8 +44,6 @@ interface ComposerSheetProps {
    */
   phoneRows?: ReactNode;
   disabled?: boolean;
-  /** The composer's own mic is not on screen, so the main chat's menu offers it. */
-  voiceInMenu?: boolean;
 }
 
 interface Action {
@@ -72,7 +70,6 @@ export function ComposerSheet({
   onProject,
   phoneRows,
   disabled,
-  voiceInMenu = false,
 }: ComposerSheetProps) {
   const mainChat = useMainChat();
   const t = useTranslations("chat.input");
@@ -136,7 +133,7 @@ export function ComposerSheet({
 
   if (mainChat)
     return (
-      <ChatComposerMenu actions={actions} disabled={disabled} withVoice={voiceInMenu}>
+      <ChatComposerMenu actions={actions} disabled={disabled}>
         {phoneRows}
       </ChatComposerMenu>
     );

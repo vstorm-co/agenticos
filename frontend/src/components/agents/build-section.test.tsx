@@ -62,3 +62,48 @@ it("opens when a late deep-link default arrives", () => {
   );
   expect(screen.getByLabelText("Voice model").closest("details")).toHaveAttribute("open");
 });
+
+it("shows the current configuration while the editor is closed", () => {
+  render(
+    <BuildSection title="Model" summary="Sonnet · personal key">
+      <input aria-label="Model name" />
+    </BuildSection>,
+  );
+  expect(screen.getByText("Sonnet · personal key")).toBeVisible();
+  expect(screen.getByLabelText("Model name").closest("details")).not.toHaveAttribute("open");
+});
+
+it("keeps primary model settings visible without a disclosure and retains draft edits", async () => {
+  const view = render(
+    <BuildSection
+      title="Model"
+      summary="Current model"
+      framed={false}
+      collapsible={false}
+      description="The selected provider"
+      headerEnd={<span>Help</span>}
+    >
+      <input aria-label="Model id" defaultValue="current" />
+    </BuildSection>,
+  );
+  expect(screen.getByRole("heading", { name: "Model" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Model" })).toBeNull();
+  expect(screen.getByLabelText("Model id").closest("details")).toBeNull();
+  await userEvent.type(screen.getByRole("textbox"), "-draft");
+  view.rerender(
+    <BuildSection title="Model" summary="Current model" framed={false} collapsible={false}>
+      <input aria-label="Model id" defaultValue="current" />
+    </BuildSection>,
+  );
+  expect(screen.getByRole("textbox")).toHaveValue("current-draft");
+});
+
+it("keeps an optional inset row compact while retaining its configuration summary", () => {
+  render(
+    <BuildSection title="Variables" summary="2 custom variables" framed={false}>
+      <input aria-label="Variable value" />
+    </BuildSection>,
+  );
+  expect(screen.getByText("2 custom variables")).toBeVisible();
+  expect(screen.getByLabelText("Variable value")).not.toBeVisible();
+});

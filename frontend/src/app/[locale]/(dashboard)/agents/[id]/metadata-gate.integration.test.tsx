@@ -185,7 +185,6 @@ describe("the detail page's metadata editor gate", () => {
     allowed = new Set();
     await mount();
     await openDetails();
-
     expect(await screen.findByRole("textbox", { name: "Add a category" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Add a tag" })).toBeInTheDocument();
   });
@@ -219,9 +218,10 @@ describe("the detail page's metadata editor gate", () => {
     shown = AGENT;
     await mount();
 
-    // The details dialog opens for everyone; the editor inside it does not.
-    await openDetails();
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    // Details remain readable; resource access controls the editor inside them.
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Details" }));
+    expect(screen.getByRole("textbox", { name: "Name" })).toBeDisabled();
     expect(screen.queryByRole("textbox", { name: "Add a category" })).toBeNull();
   });
 });

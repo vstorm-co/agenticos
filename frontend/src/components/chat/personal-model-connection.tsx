@@ -18,6 +18,7 @@ export function PersonalModelConnection({
 }) {
   const t = useTranslations("personalModelKeys");
   const errors = useTranslations("errors");
+  const common = useTranslations("common");
   const id = useId();
   const [key, setKey] = useState("");
   const { status, save } = usePersonalModelKeys(agentId);
@@ -32,7 +33,15 @@ export function PersonalModelConnection({
         }
       : null;
   if (useChanged(`${agentId}|${JSON.stringify(destination)}`)) setKey("");
-  if (status.isError) return <p role="alert">{getErrorMessage(status.error, errors)}</p>;
+  if (status.isError)
+    return (
+      <div role="alert" className="space-y-2 text-sm">
+        <p>{getErrorMessage(status.error, errors)}</p>
+        <Button type="button" size="sm" variant="outline" onClick={() => void status.refetch()}>
+          {common("retry")}
+        </Button>
+      </div>
+    );
   if (!connection || !destination || !agentId || (connection.connected && !manage)) return null;
   if (destination.provider === "github_copilot")
     return (

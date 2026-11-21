@@ -1949,3 +1949,57 @@ async def test_agent_board_reuses_its_table_and_tracks_live_agent_access(db: Asy
     await service.purge_scope("agent", agent.id, organization_id=data.org.id)
     assert await service.boards(data.contexts[0]) == []
     assert (await tables.list_tables(data.contexts[0])).items == []
+
+
+async def test_approval_preflight_cannot_release_a_write_after_the_record_changes(
+    db: AsyncSession,
+) -> None:
+    from app.services.virtual_tables.exceptions import RevisionConflictError
+
+    data = await world(db)
+    service = TaskService(db)
+    task = await service.create(data.contexts[0], TaskCreate(title="Human review"))
+    board = await service.ensure_board(data.contexts[0], BoardEnsure())
+    values = {board.column_ids["description"]: "Edited notes"}
+    assert not await service.record_may_schedule_agent_work(
+        data.contexts[0],
+        board.table_id,
+        values,
+        operation="update",
+        record_id=task.id,
+        expected_revision=task.revision,
+    )
+    with pytest.raises(NotFoundError):
+        await service.record_may_schedule_agent_work(
+            data.contexts[1],
+            board.table_id,
+            values,
+            operation="update",
+            record_id=task.id,
+            expected_revision=task.revision,
+        )
+    tables = VirtualTableService(db)
+    await tables.update_record(
+        data.contexts[0],
+        board.table_id,
+        task.id,
+        RecordUpdate(
+            expected_revision=task.revision, values={board.column_ids["title"]: "Changed elsewhere"}
+        ),
+    )
+    assert await service.record_may_schedule_agent_work(
+        data.contexts[0],
+        board.table_id,
+        values,
+        operation="update",
+        record_id=task.id,
+        expected_revision=task.revision,
+    )
+    with pytest.raises(RevisionConflictError):
+        await tables.update_record(
+            data.contexts[0],
+            board.table_id,
+            task.id,
+            RecordUpdate(expected_revision=task.revision, values=values),
+        )
+    assert (await service.get(data.contexts[0], task.id)).description != "Edited notes"

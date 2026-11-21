@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   ArchiveRestore,
+  CircleAlert,
   Archive,
   Building2,
   Copy,
@@ -20,6 +21,13 @@ import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { SystemAgentBadge } from "@/components/agents/system-agent-badge";
 import {
   Badge,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
   ResourceCard,
   ResourceCardHeader,
   ResourceCardDescription,
@@ -137,7 +145,7 @@ export function AgentCard({
           {agent.description || t("noDescription")}
         </ResourceCardDescription>
         <ResourceCardFooter className="pointer-events-none">
-          <AgentStatusBadge status={agent.status} />
+          <AgentStatusBadge status={agent.status} compact />
           {attention && <AttentionBadge attention={attention} />}
           {isSystemAgent(agent.kind) &&
             (agent.system_key ? (
@@ -275,16 +283,42 @@ function IconAction({
   );
 }
 
-/** Describes the signal; opening any part of the card still opens the builder. */
+/** A small, keyboard- and touch-readable signal with the concrete reasons. */
 function AttentionBadge({ attention }: { attention: AgentAttention }) {
   const tAttention = useTranslations("attention");
+  const reasons = attentionParts(attention, tAttention).join(" · ");
+  const label = `${tAttention("badge")}: ${reasons}`;
+  const content = (
+    <>
+      <p className="font-medium">{tAttention("badge")}</p>
+      <p>{reasons}</p>
+    </>
+  );
   return (
-    <Badge
-      variant="warning"
-      className="font-normal"
-      title={attentionParts(attention, tAttention).join(" · ")}
-    >
-      {tAttention("badge")}
-    </Badge>
+    <TooltipProvider delayDuration={150}>
+      <Popover>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label={label}
+                title={reasons}
+                className="text-warning-ink focus-visible:outline-ring hover:bg-warning/10 pointer-events-auto relative inline-flex size-7 shrink-0 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                <CircleAlert className="size-4" aria-hidden />
+              </button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs space-y-1">{content}</TooltipContent>
+        </Tooltip>
+        <PopoverContent
+          className="max-w-[calc(100vw-2rem)] space-y-1 text-sm"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
+          {content}
+        </PopoverContent>
+      </Popover>
+    </TooltipProvider>
   );
 }

@@ -125,7 +125,7 @@ export function AssistantWindow({
       aria-label={name}
       className={cn(WINDOW_CLASSES, !open && "hidden")}
     >
-      <header className="border-border flex items-center gap-2 border-b px-3 py-2">
+      <header className="border-border flex items-center gap-0.5 border-b px-3 py-2">
         <AssistantFace assistant={assistant} agentId={agentId} size="sm" />
         <p className="min-w-0 flex-1 truncate text-sm font-semibold">{name}</p>
         <HeaderButton label={t("screenshot")} onClick={() => void screenshot()}>
@@ -215,7 +215,7 @@ function HeaderButton({
       title={label}
       aria-pressed={pressed}
       onClick={onClick}
-      className="text-muted-foreground hover:text-foreground hover:bg-foreground/[0.05] aria-pressed:text-foreground aria-pressed:bg-foreground/[0.06] rounded-md p-1.5"
+      className="text-muted-foreground hover:text-foreground hover:bg-control aria-pressed:text-foreground aria-pressed:bg-control focus-visible:ring-ring inline-flex size-11 shrink-0 items-center justify-center rounded-xl focus-visible:ring-2 focus-visible:outline-none"
     >
       {children}
     </button>

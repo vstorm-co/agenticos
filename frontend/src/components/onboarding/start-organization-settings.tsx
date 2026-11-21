@@ -3,6 +3,7 @@
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
 import Link from "next/link";
+import { ChevronDown, ShieldCheck, Bot, Mic, ArrowUpRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { rememberStartQuestion } from "./start-position";
@@ -59,6 +60,7 @@ export function StartOrganizationSettings({
     return <StartBudget org={org} onBack={onBack} onContinue={() => setBudgetDone(true)} />;
   return (
     <StartQuestion
+      stage="organization"
       index={can(Perm.budgetsManage) ? 1 : 0}
       total={can(Perm.budgetsManage) ? 2 : 1}
       title={t("workspaceReadyTitle")}
@@ -74,16 +76,38 @@ export function StartOrganizationSettings({
       <div className={styles.stack}>
         {(can(Perm.approvalsDecide) || can(Perm.orgSettings)) && (
           <NativeDisclosure className={styles.details}>
-            <summary>{t("advancedSafety")}</summary>
+            <summary>
+              <ShieldCheck size={18} aria-hidden />
+              <span>
+                <strong>{t("advancedSafety")}</strong>
+                <small>{t("advancedSafetyHint")}</small>
+              </span>
+              <ChevronDown size={16} aria-hidden />
+            </summary>
             <div>
               {can(Perm.approvalsDecide) && <OrgApprovalWaiver org={org} />}
               {can(Perm.orgSettings) && <OrgPublicLiveData org={org} />}
+              <Link
+                href={`/orgs/${org.id}/members?tab=governance`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t("openGovernanceSettings")}{" "}
+                <ArrowUpRight size={13} className="inline" aria-hidden />
+              </Link>
             </div>
           </NativeDisclosure>
         )}
         {(can(Perm.orgSettings) || can(Perm.budgetsManage)) && (
           <NativeDisclosure className={styles.details}>
-            <summary>{t("advancedAssistants")}</summary>
+            <summary>
+              <Bot size={18} aria-hidden />
+              <span>
+                <strong>{t("advancedAssistants")}</strong>
+                <small>{t("advancedAssistantsHint")}</small>
+              </span>
+              <ChevronDown size={16} aria-hidden />
+            </summary>
             <div>
               {can(Perm.orgSettings) && <OrgAssistant orgId={org.id} />}
               {can(Perm.budgetsManage) && (
@@ -92,25 +116,49 @@ export function StartOrganizationSettings({
                   <OrgProactivity org={org} />
                 </>
               )}
+              <Link
+                href={`/orgs/${org.id}/members?tab=assistant`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t("openAssistantSettings")}{" "}
+                <ArrowUpRight size={13} className="inline" aria-hidden />
+              </Link>
             </div>
           </NativeDisclosure>
         )}
         {can(Perm.orgSettings) && (
           <NativeDisclosure className={styles.details}>
-            <summary>{t("advancedVoice")}</summary>
+            <summary>
+              <Mic size={18} aria-hidden />
+              <span>
+                <strong>{t("advancedVoice")}</strong>
+                <small>{t("advancedVoiceHint")}</small>
+              </span>
+              <ChevronDown size={16} aria-hidden />
+            </summary>
             <div>
               <OrgVoiceSettings org={org} />
+              <Link
+                href={`/orgs/${org.id}/members?tab=voice`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t("openVoiceSettings")} <ArrowUpRight size={13} className="inline" aria-hidden />
+              </Link>
             </div>
           </NativeDisclosure>
         )}
-        <Link
-          href={`/orgs/${org.id}/members`}
-          className="text-muted-foreground text-sm underline underline-offset-4"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {t("openOrganizationSettings")}
-        </Link>
+        {can(Perm.orgSettings) && (
+          <Link
+            href={`/orgs/${org.id}/members?tab=profile`}
+            className="text-muted-foreground text-sm underline underline-offset-4"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t("openOrganizationSettings")}
+          </Link>
+        )}
       </div>
     </StartQuestion>
   );

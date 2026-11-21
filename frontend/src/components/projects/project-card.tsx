@@ -3,7 +3,7 @@
 import { ProjectAvatar } from "@/components/projects/project-avatar";
 
 import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 
 import { AudienceChip } from "@/components/sharing/audience-chip";
@@ -14,7 +14,6 @@ import {
   ResourceCardFooter,
 } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
-import { timeAgo } from "@/lib/utils";
 import type { Project } from "@/types/projects";
 
 /**
@@ -23,11 +22,8 @@ import type { Project } from "@/types/projects";
  */
 export function ProjectCard({ project }: { project: Project }) {
   const t = useTranslations("projects");
-  const tTime = useTranslations("time");
-  const locale = useLocale();
-  const active = project.last_active_at ?? project.updated_at ?? project.created_at;
   return (
-    <ResourceCard className="p-0">
+    <ResourceCard className="min-h-52 p-0">
       <Link
         href={ROUTES.PROJECT_DETAIL(project.id)}
         className="flex h-full flex-1 flex-col rounded-[inherit] p-5 focus-visible:outline-offset-[-2px]"
@@ -39,8 +35,10 @@ export function ProjectCard({ project }: { project: Project }) {
             <AudienceChip visibility={project.visibility} groups={project.shared_groups} />
           </div>
         </ResourceCardHeader>
-        <ResourceCardDescription>{project.description}</ResourceCardDescription>
-        <ResourceCardFooter className="text-muted-foreground text-xs">
+        <ResourceCardDescription className="my-4 line-clamp-2">
+          {project.description}
+        </ResourceCardDescription>
+        <ResourceCardFooter className="text-muted-foreground border-0 pt-0 text-xs">
           <span className="flex items-center gap-1">
             <MessageSquare className="size-3.5" aria-hidden />
             {t("chatCount", { count: project.chat_count })}
@@ -48,11 +46,6 @@ export function ProjectCard({ project }: { project: Project }) {
           {project.default_agent_name && (
             <span className="min-w-0 truncate">
               {t("startsWith", { agent: project.default_agent_name })}
-            </span>
-          )}
-          {active !== null && (
-            <span className="ml-auto">
-              {t("activeWhen", { when: timeAgo(active, tTime, locale) })}
             </span>
           )}
         </ResourceCardFooter>

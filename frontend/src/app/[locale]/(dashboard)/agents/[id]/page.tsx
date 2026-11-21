@@ -9,7 +9,8 @@ import { MoreOptions } from "@/components/ui/more-options";
 import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import {
   SlidersHorizontal,
   Wrench,
@@ -383,7 +384,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // From another tab the card mounts a render after the tab changes, so the
   // scroll waits for the card to attach rather than for the tab.
   const modelCard = useRef<HTMLDivElement | null>(null);
-  const [modelSectionOpen, setModelSectionOpen] = useState(true);
   const revealModel = useRef(false);
   const attachModelCard = useCallback((node: HTMLDivElement | null) => {
     modelCard.current = node;
@@ -393,7 +393,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
     }
   }, []);
   const goToModel = () => {
-    setModelSectionOpen(true);
     if (tab === "build" && modelCard.current) {
       modelCard.current.scrollIntoView({ behavior: glideOrJump(), block: "start" });
       return;
@@ -965,13 +964,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
   if (isLoading) return <BuilderSkeleton tab={tab} />;
   if (agentError instanceof ApiError && (agentError.status === 404 || agentError.status === 403))
     return (
-      <div role="alert" className="space-y-3">
-        <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />
-        <div className="flex justify-center">
-          <Button variant="outline" onClick={() => void refetchAgent()}>
-            {tAgents("retryLoad")}
-          </Button>
-        </div>
+      <div role="alert" className="flex min-h-0 flex-1 flex-col gap-3">
+        <ResourceUnavailable
+          back={ROUTES.AGENTS}
+          label={t("backToAgents")}
+          retry={{ label: tAgents("retryLoad"), onClick: () => void refetchAgent() }}
+        />
       </div>
     );
   if (!agent)
@@ -1148,36 +1146,33 @@ export default function AgentBuilderPage({ params }: PageProps) {
           />
         )}
         <PageHeader
+          icon={
+            <span className="group relative shrink-0">
+              <AgentAvatar
+                agentId={id}
+                slug={agent.slug}
+                hasAvatar={agent.has_avatar}
+                colorSlot={agent.avatar_color}
+                size="lg"
+                version={avatarVersion}
+              />
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => avatarInput.current?.click()}
+                  disabled={setAvatar.isPending}
+                  aria-label={agent.has_avatar ? t("replaceAvatar") : t("uploadAvatar")}
+                  title={t("squareImagesLookBest")}
+                  className="bg-background/70 text-foreground absolute inset-0 flex items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 disabled:cursor-not-allowed"
+                >
+                  <ImagePlus className="h-5 w-5" />
+                </button>
+              )}
+            </span>
+          }
           title={
-            <span className="flex min-w-0 items-center gap-3">
-              <span className="group relative shrink-0">
-                <AgentAvatar
-                  agentId={id}
-                  slug={agent.slug}
-                  hasAvatar={agent.has_avatar}
-                  colorSlot={agent.avatar_color}
-                  size="lg"
-                  version={avatarVersion}
-                />
-                {canEdit && (
-                  <button
-                    type="button"
-                    onClick={() => avatarInput.current?.click()}
-                    disabled={setAvatar.isPending}
-                    aria-label={agent.has_avatar ? t("replaceAvatar") : t("uploadAvatar")}
-                    title={t("squareImagesLookBest")}
-                    className="bg-background/70 text-foreground absolute inset-0 flex items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 disabled:cursor-not-allowed"
-                  >
-                    <ImagePlus className="h-5 w-5" />
-                  </button>
-                )}
-              </span>
-              {/* One line, whatever the width: the actions wrap under it before
-                the name is broken, and a name longer than the column ends in
-                an ellipsis with the whole of it on hover. */}
-              <span className="truncate" title={agent.name}>
-                {agent.name}
-              </span>
+            <span className="truncate" title={agent.name}>
+              {agent.name}
             </span>
           }
           badges={
@@ -1746,54 +1741,54 @@ export default function AgentBuilderPage({ params }: PageProps) {
         <Tabs value={tab} onValueChange={setTab} className="flex flex-1 flex-col">
           <TabsList>
             <TabsTrigger value="build" data-tour="agent-tab-build">
-              <SlidersHorizontal className="mr-1.5 size-4 shrink-0" aria-hidden />
+              <SlidersHorizontal className="size-4 shrink-0" aria-hidden />
               {t("build")}
             </TabsTrigger>
             <TabsTrigger value="toolbox" data-tour="agent-tab-toolbox">
-              <Wrench className="mr-1.5 size-4 shrink-0" aria-hidden />
+              <Wrench className="size-4 shrink-0" aria-hidden />
               {t("toolbox")}
             </TabsTrigger>
             {
               <TabsTrigger value="mcp" data-tour="agent-tab-mcp">
-                <Plug className="mr-1.5 size-4 shrink-0" aria-hidden />
+                <Plug className="size-4 shrink-0" aria-hidden />
                 {t("mcpServers")}
               </TabsTrigger>
             }
             <TabsTrigger value="limits" data-tour="agent-tab-limits">
-              <ShieldCheck className="mr-1.5 size-4 shrink-0" aria-hidden />
+              <ShieldCheck className="size-4 shrink-0" aria-hidden />
               {t("limits")}
             </TabsTrigger>
             {
               <TabsTrigger value="availability" data-tour="agent-tab-availability">
-                <Radio className="mr-1.5 size-4 shrink-0" aria-hidden />
+                <Radio className="size-4 shrink-0" aria-hidden />
                 {t("availability")}
               </TabsTrigger>
             }
             {(canViewRuns || tab === "evals") && (
               <TabsTrigger value="evals" data-tour="agent-tab-evals">
-                <FlaskConical className="mr-1.5 size-4 shrink-0" aria-hidden />
+                <FlaskConical className="size-4 shrink-0" aria-hidden />
                 {t("evals")}
               </TabsTrigger>
             )}
             {canViewRuns && (
               <TabsTrigger value="gaps" data-tour="agent-tab-gaps">
-                <SearchX className="mr-1.5 size-4 shrink-0" aria-hidden />
+                <SearchX className="size-4 shrink-0" aria-hidden />
                 {tGaps("tab")}
               </TabsTrigger>
             )}
             {isJudge && (
               <TabsTrigger value="datasets">
-                <Database className="mr-1.5 size-4 shrink-0" aria-hidden />
+                <Database className="size-4 shrink-0" aria-hidden />
                 {t("judgeDatasets")}
               </TabsTrigger>
             )}
             <TabsTrigger value="history" data-tour="agent-tab-history">
-              <History className="mr-1.5 size-4 shrink-0" aria-hidden />
+              <History className="size-4 shrink-0" aria-hidden />
               {t("history")}
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="build" className="mt-5 space-y-4 sm:mt-6">
+          <TabsContent value="build" className="mt-4 space-y-4">
             <Card data-tour="agent-instructions">
               <CardContent className="p-4 sm:p-5">
                 <InstructionsEditor
@@ -1812,7 +1807,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
                         </CardTitle>
                         <ContextHelp>{t("agentAposSBehaviour")}</ContextHelp>
                       </div>
-                      <MarkdownModeToggle mode={instructionsMode} onChange={setInstructionsMode} />
+                      <MarkdownModeToggle
+                        compact
+                        mode={instructionsMode}
+                        onChange={setInstructionsMode}
+                      />
                     </>
                   }
                   value={spec.instructions}
@@ -1832,26 +1831,29 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </CardContent>
             </Card>
 
-            <PromptVariablesPanel
-              system={promptVariables}
-              custom={spec.variables ?? []}
-              timeZone={spec.time_zone ?? "system"}
-              disabled={!canEdit}
-              onInsert={insertVariableAtCaret}
-              onCustomChange={(variables) => update({ variables })}
-              onTimeZoneChange={(time_zone) => update({ time_zone })}
-            />
-
-            <div data-agent-build-settings className="space-y-4">
+            <div
+              data-agent-build-settings
+              className="bg-card divide-border divide-y rounded-xl border"
+            >
               {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
               <BuildSection
                 ref={attachModelCard}
                 data-tour="agent-model"
                 title={t("model")}
-                description={t("howAgentAsksIts")}
-                open={modelSectionOpen}
-                onOpenChange={setModelSectionOpen}
+                summary={
+                  profilesStatus === "failed"
+                    ? tAgents("modelsCouldNotBeListed")
+                    : profilesStatus === "pending"
+                      ? tc("loading")
+                      : (profiles.find((profile) => profile.id === spec.model_profile_id)?.label ??
+                        (spec.model_profile_id
+                          ? t("namedMissing", { name: spec.model_profile_id })
+                          : t("organizationDefault")))
+                }
+                headerEnd={<ContextHelp>{t("howAgentAsksIts")}</ContextHelp>}
+                collapsible={false}
+                framed={false}
                 className="scroll-mt-4"
               >
                 <div className="space-y-4">
@@ -1882,26 +1884,34 @@ export default function AgentBuilderPage({ params }: PageProps) {
                       </p>
                     )}
                   </div>
-                  <fieldset className="space-y-2" data-tour="agent-model-credentials">
-                    <legend className="text-sm font-medium">{t("modelCredentialMode")}</legend>
-                    {(["organization", "personal"] as const).map((mode) => (
-                      <label key={mode} className="flex min-h-11 items-center gap-2 text-sm">
-                        <input
-                          type="radio"
-                          className={NATIVE_CHOICE}
-                          name="model-credential-mode"
-                          value={mode}
-                          checked={(spec.model_credential_mode ?? "organization") === mode}
-                          disabled={!canEdit}
-                          onChange={() => update({ model_credential_mode: mode })}
-                        />
-                        {t(mode === "organization" ? "organizationModelKey" : "personalModelKey")}
-                      </label>
-                    ))}
-                    {spec.model_credential_mode === "personal" && (
-                      <p className="text-muted-foreground text-xs">{t("personalModelLimits")}</p>
-                    )}
-                  </fieldset>
+                  <MoreOptions
+                    label={`${t("modelCredentialMode")} · ${t(spec.model_credential_mode === "personal" ? "personalModelKey" : "organizationModelKey")}`}
+                  >
+                    <fieldset className="space-y-2" data-tour="agent-model-credentials">
+                      <legend className="text-sm font-medium">{t("modelCredentialMode")}</legend>
+                      <div className="grid gap-1 sm:grid-cols-2">
+                        {(["organization", "personal"] as const).map((mode) => (
+                          <label key={mode} className="flex min-h-11 items-center gap-2 text-sm">
+                            <input
+                              type="radio"
+                              className={NATIVE_CHOICE}
+                              name="model-credential-mode"
+                              value={mode}
+                              checked={(spec.model_credential_mode ?? "organization") === mode}
+                              disabled={!canEdit}
+                              onChange={() => update({ model_credential_mode: mode })}
+                            />
+                            {t(
+                              mode === "organization" ? "organizationModelKey" : "personalModelKey",
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                      {spec.model_credential_mode === "personal" && (
+                        <p className="text-muted-foreground text-xs">{t("personalModelLimits")}</p>
+                      )}
+                    </fieldset>
+                  </MoreOptions>
                   <MoreOptions label={t("modelSettings")}>
                     <ModelSettingsForm
                       value={spec.model_settings}
@@ -1939,7 +1949,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 </div>
               </BuildSection>
 
+              <PromptVariablesPanel
+                framed={false}
+                system={promptVariables}
+                custom={spec.variables ?? []}
+                timeZone={spec.time_zone ?? "system"}
+                disabled={!canEdit}
+                onInsert={insertVariableAtCaret}
+                onCustomChange={(variables) => update({ variables })}
+                onTimeZoneChange={(time_zone) => update({ time_zone })}
+              />
+
               <VoiceCard
+                framed={false}
                 collapsible
                 value={spec.speech_to_text}
                 onChange={(speech_to_text) => update({ speech_to_text })}
@@ -1954,6 +1976,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 disabled={!canEdit}
               />
               <StartersPanel
+                framed={false}
                 draws={spec.capabilities.some(
                   (binding) => binding.id === VISUALS_ID && binding.enabled !== false,
                 )}
@@ -2011,7 +2034,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             outside the deployment for - and the picker embeds the whole server
             catalog, so it pushed the capability workbench off the top of the
             screen on any organization with more than a handful of servers. */}
-          <TabsContent value="mcp" className="mt-5 space-y-4">
+          <TabsContent value="mcp" className="mt-4 space-y-4">
             <Card data-tour="agent-mcp">
               {/* The passive tour points here rather than at the card: the picker
                 below embeds the whole server catalog, so the card runs well past
@@ -2302,7 +2325,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsContent>
 
           {
-            <TabsContent value="evals" className="mt-6 flex flex-1 flex-col gap-6">
+            <TabsContent value="evals" className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
               {canViewRuns ? (
                 <>
                   {canEdit && (
@@ -2336,13 +2359,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </TabsContent>
           }
           {isJudge && (
-            <TabsContent value="datasets" className="mt-6 flex flex-1 flex-col gap-6">
+            <TabsContent value="datasets" className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
               <JudgeDatasetsCard judgeId={id} />
             </TabsContent>
           )}
           {canViewRuns && (
-            <TabsContent value="gaps" className="mt-6 flex flex-1 flex-col">
-              <div data-tour="agent-gaps" className="flex flex-1 flex-col gap-4">
+            <TabsContent value="gaps" className="mt-4 flex min-h-0 flex-1 flex-col">
+              <div data-tour="agent-gaps" className="flex min-h-0 flex-1 flex-col gap-4">
                 {canEdit && (
                   <ImproveLink
                     agentId={id}

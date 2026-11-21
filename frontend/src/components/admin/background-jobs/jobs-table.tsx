@@ -175,11 +175,11 @@ export function JobsTable({
         empty={t("noJobs")}
         className="rounded-none border-0 bg-transparent [&_table]:min-w-0 sm:[&_table]:min-w-[40rem]"
       />
-      {(page > 0 || hasNext) && (
+      {!jobs.error && (
         <ListCardFootRow className="flex justify-end">
           <PageNavigation
             page={page}
-            pageCount={jobs.hasNextPage ? undefined : pages.length}
+            pageCount={jobs.hasNextPage ? undefined : Math.max(1, pages.length)}
             hasNext={hasNext}
             isLoading={jobs.isFetchingNextPage}
             onPage={(next) => void navigate(next)}

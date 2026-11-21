@@ -14,7 +14,7 @@ import { isRenderSafeImage } from "@/lib/file-kinds";
 import { getErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import { Button, Spinner } from "@/components/ui";
-import { Send, Mic, MicOff } from "lucide-react";
+import { ArrowUp, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 
 import { uploadFile, type FileUploadResponse } from "@/lib/file-api";
@@ -312,7 +312,7 @@ export function ChatInput({
     composerDraft?.consume();
   }, [composerDraft]);
   const [editing, setEditing] = useState(false);
-  const drafting = message.trim().length > 0;
+  const drafting = message.length > 0;
   useEffect(() => onDraftChange?.(drafting), [drafting, onDraftChange]);
   const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([]);
   const [pending, setPending] = useState<PendingUpload[]>([]);
@@ -376,11 +376,11 @@ export function ChatInput({
       )
     )
       return;
-    editorRef.current?.focus();
+    editorRef.current?.focus({ preventScroll: true });
   }, [disabled, focusRequest]);
   // Reply was just chosen on a message: the person goes on to type the answer.
   useEffect(() => {
-    if (replyTo) editorRef.current?.focus();
+    if (replyTo) editorRef.current?.focus({ preventScroll: true });
   }, [replyTo]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -439,7 +439,8 @@ export function ChatInput({
   useEffect(() => {
     const ended = wasDictating.current && !dictating;
     wasDictating.current = dictating;
-    if (ended && document.activeElement === document.body) editorRef.current?.focus();
+    if (ended && document.activeElement === document.body)
+      editorRef.current?.focus({ preventScroll: true });
   }, [dictating]);
 
   const startDictation = () => {
@@ -536,7 +537,13 @@ export function ChatInput({
   useEffect(() => {
     // Phones enter writing deliberately, rather than reopening the keyboard
     // on arrival or when a reply finishes while the person is reading.
-    if (!isProcessing && !isUploading && !touchKeyboard()) editorRef.current?.focus();
+    if (
+      !isProcessing &&
+      !isUploading &&
+      !touchKeyboard() &&
+      document.activeElement === document.body
+    )
+      editorRef.current?.focus({ preventScroll: true });
   }, [isProcessing, isUploading]);
 
   const runSlashCommand = useCallback(
@@ -670,7 +677,7 @@ export function ChatInput({
     recognitionRef.current?.stop();
     micRef.current?.stop();
     setIsListening(false);
-    if (minimal && !touchKeyboard()) editorRef.current?.focus();
+    if (minimal && !touchKeyboard()) editorRef.current?.focus({ preventScroll: true });
   }, [minimal]);
   useEffect(() => {
     onListeningChange?.(isListening ? stopListening : null);
@@ -805,7 +812,7 @@ export function ChatInput({
     if (incoming === null || attachedIncoming.current === incoming.id) return;
     attachedIncoming.current = incoming.id;
     void uploadFiles(incoming.files);
-    if (incoming.text) editorRef.current?.focus();
+    if (incoming.text) editorRef.current?.focus({ preventScroll: true });
   }, [incoming, uploadFiles]);
 
   // The phone app (#2097): a tile in "+" opens the app's own picker for it,
@@ -1022,7 +1029,7 @@ export function ChatInput({
             reply={replyTo}
             onCancel={() => {
               setReplyTo(null);
-              editorRef.current?.focus();
+              editorRef.current?.focus({ preventScroll: true });
             }}
           />
         </div>
@@ -1046,14 +1053,7 @@ export function ChatInput({
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder={offline ? t("reconnecting") : t("placeholder")}
-          idle={
-            hints && !disabled ? (
-              <ComposerHints
-                offered={offered.items}
-                commands={allCommands.map((command) => command.name)}
-              />
-            ) : undefined
-          }
+          idle={hints && !disabled ? <ComposerHints /> : undefined}
           disabled={disabled}
           readOnly={dictating}
           // What a phone's keyboard offers: a return key that reads as a line
@@ -1081,14 +1081,11 @@ export function ChatInput({
           // The agent's engine: the browser's recogniser, or a recording sent
           // to its provider.
           onVoice={server ? startDictation : toggleMic}
-          // A draft turns the minimal composer's mic into Send; dictating into
-          // that draft is still offered, from the menu.
-          voiceInMenu={minimal && primary !== "mic"}
           onCommand={
             slashContext
               ? () => {
                   setMessage("/");
-                  editorRef.current?.focus();
+                  editorRef.current?.focus({ preventScroll: true });
                 }
               : undefined
           }
@@ -1126,10 +1123,14 @@ export function ChatInput({
                 aria-hidden
               >
                 <span className="composer-action-icon" data-active={primary === "mic"}>
-                  {isListening ? <MicOff /> : <Mic />}
+                  {isListening ? (
+                    <MicOff className="composer-primary-glyph stroke-[2.25]" />
+                  ) : (
+                    <Mic className="composer-primary-glyph stroke-[2.25]" />
+                  )}
                 </span>
                 <span className="composer-action-icon" data-active={primary === "send"}>
-                  <Send />
+                  <ArrowUp className="composer-primary-glyph stroke-[2.5]" />
                 </span>
                 {primary === "stop" && <span className="size-3 rounded-[3px] bg-current" />}
                 {primary === "busy" && <Spinner className="size-4" />}
@@ -1183,7 +1184,11 @@ export function ChatInput({
                   }
                 >
                   <span className={PRIMARY_ACTION_FACE} aria-hidden>
-                    {isProcessing ? <Spinner className="size-4" /> : <Send className="size-4" />}
+                    {isProcessing ? (
+                      <Spinner className="size-4" />
+                    ) : (
+                      <ArrowUp className="composer-primary-glyph stroke-[2.5]" />
+                    )}
                   </span>
                   <span className="sr-only">{t("send")}</span>
                 </Button>

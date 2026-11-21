@@ -110,7 +110,6 @@ export function WorkFold({
   waiting,
   children,
   activity,
-  live = false,
 }: {
   /** Tool calls folded away; none means the turn only thought. */
   steps: number;
@@ -123,15 +122,12 @@ export function WorkFold({
   children: ReactNode;
   /** A short live action label, never a streaming thought or a nested tool card. */
   activity?: string;
-  /** Show progress in place until the run settles; finished history stays scrollable. */
-  live?: boolean;
 }) {
   const t = useTranslations("chat.steps");
   const tChat = useTranslations("chat");
-  // Status changes keep the same disclosure and its focus. Untouched live work
-  // folds when it settles; an explicit reader choice remains theirs.
-  const [chosenOpen, setChosenOpen] = useState<boolean | null>(null);
-  const open = chosenOpen ?? live;
+  // Status changes preserve the disclosure and the reader's explicit choice.
+  // Neither streaming nor replay auto-expands diagnostic output.
+  const [open, setOpen] = useState(false);
   const historyId = useId();
   const toggleId = useId();
   const duration = durationMs === null ? null : formatElapsed(durationMs, t);
@@ -165,7 +161,7 @@ export function WorkFold({
         id={toggleId}
         aria-controls={open ? historyId : undefined}
         aria-expanded={open}
-        onClick={() => setChosenOpen(!open)}
+        onClick={() => setOpen(!open)}
         className="group text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring flex min-h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1 text-left text-[13px] transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
       >
         <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden>
@@ -224,7 +220,7 @@ export function WorkFold({
           tabIndex={0}
           className={cn(
             "focus-visible:ring-ring mt-2 rounded-lg p-1 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
-            !live && "max-h-[min(24rem,50dvh)] scrollbar-thin overflow-y-auto overscroll-contain",
+            "max-h-[min(24rem,50dvh)] scrollbar-thin overflow-y-auto overscroll-contain",
           )}
         >
           <div data-chat-work-steps className="space-y-1.5">

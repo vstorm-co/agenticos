@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Pencil, ShieldCheck, Star, Trash2 } from "lucide-react";
 
 import { Badge, Button, DataTable, type Column } from "@/components/ui";
@@ -11,9 +11,11 @@ import { useTranslations } from "next-intl";
 interface ConnectionsTableProps {
   connections: readonly SandboxConnectionRecord[];
   loading?: boolean;
+  empty?: ReactNode;
   onEdit: (connection: SandboxConnectionRecord) => void;
   onInspect: (connection: SandboxConnectionRecord) => void;
   onDelete: (connection: SandboxConnectionRecord) => void;
+  canManage?: boolean;
 }
 
 /** What kind of host this is, in words rather than the stored string. The mark
@@ -47,9 +49,11 @@ function addressLabel(connection: SandboxConnectionRecord): string {
 export function ConnectionsTable({
   connections,
   loading = false,
+  empty,
   onEdit,
   onInspect,
   onDelete,
+  canManage = true,
 }: ConnectionsTableProps) {
   const t = useTranslations("sandboxes.table");
   const tc = useTranslations("common");
@@ -153,31 +157,38 @@ export function ConnectionsTable({
                 <span className="@max-[64rem]/table:hidden">{t("whatAllows")}</span>
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onEdit(connection)}
-              aria-label={tc("editNamed", { name: connection.name })}
-            >
-              <Pencil className="h-4 w-4" aria-hidden />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onDelete(connection)}
-              aria-label={tc("deleteNamed", { name: connection.name })}
-            >
-              <Trash2 className="h-4 w-4" aria-hidden />
-            </Button>
+            {canManage && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onEdit(connection)}
+                  aria-label={tc("editNamed", { name: connection.name })}
+                >
+                  <Pencil className="h-4 w-4" aria-hidden />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onDelete(connection)}
+                  aria-label={tc("deleteNamed", { name: connection.name })}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                </Button>
+              </>
+            )}
           </div>
         ),
       },
     ],
-    [t, tc, onEdit, onInspect, onDelete],
+    [t, tc, onEdit, onInspect, onDelete, canManage],
   );
 
   return (
     <DataTable<SandboxConnectionRecord>
+      clientPagination
+      empty={empty}
+      fillHeight
       columns={columns}
       rows={rows}
       loading={loading}

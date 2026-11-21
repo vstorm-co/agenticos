@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { z } from "zod";
 
 import type { TurnFileSource } from "@/types/chat";
 import { WorkspaceFileCard } from "./workspace";
@@ -20,34 +21,41 @@ import { CollapsibleBlock } from "../collapsible-block";
 import { MarkdownContent } from "../markdown-content";
 import { TaskChanges } from "./coding-changes";
 
-type StepKind = "read" | "search" | "edit" | "command" | "web" | "other";
+const optionalText = z
+  .string()
+  .nullish()
+  .transform((value) => value ?? undefined);
+const codingStep = z.object({
+  kind: z.enum(["read", "search", "edit", "command", "web", "other"]),
+  title: z.string(),
+  failed: z.boolean().optional(),
+});
 
-interface CodingStep {
-  kind: StepKind;
-  title: string;
-  failed?: boolean;
-}
+/** Owned fields of backend CodingReport, including reports stored before kind existed. */
+const codingReport = z.object({
+  kind: z.literal("coding_agent").default("coding_agent"),
+  harness: z.enum(["claude_code", "codex", "custom"]),
+  access: z.enum(["edit", "read_only"]),
+  outcome: z.enum(["completed", "failed", "timed_out"]),
+  answer: z.string(),
+  session_id: optionalText,
+  session_name: optionalText,
+  session_resumed: z
+    .boolean()
+    .nullish()
+    .transform((value) => value ?? undefined),
+  steps: z.array(codingStep).optional(),
+  files_changed: z.array(z.string()).optional(),
+  refused: z.array(z.string()).optional(),
+  changes_id: optionalText,
+  runtime_name: optionalText,
+  account_label: optionalText,
+  base_revision: optionalText,
+  result_archive: optionalText,
+});
 
-/** What `run_coding_agent` returns - `CodingReport` in the backend. */
-interface CodingReport {
-  kind: "coding_agent";
-  harness: "claude_code" | "codex" | "custom";
-  access: "edit" | "read_only";
-  outcome: "completed" | "failed" | "timed_out";
-  answer: string;
-  session_id?: string;
-  session_name?: string;
-  session_resumed?: boolean;
-  steps?: CodingStep[];
-  files_changed?: string[];
-  refused?: string[];
-  /** The change set the task left in the sandbox, read by `TaskChanges` (#2480). */
-  changes_id?: string;
-  runtime_name?: string;
-  account_label?: string;
-  base_revision?: string;
-  result_archive?: string;
-}
+type CodingReport = z.infer<typeof codingReport>;
+type StepKind = z.infer<typeof codingStep>["kind"];
 
 const STEP_ICON: Record<StepKind, LucideIcon> = {
   read: FileText,
@@ -71,13 +79,8 @@ export const HARNESS_NAME: Record<CodingReport["harness"], string> = {
 export function parseCodingReport(text: string): CodingReport | null {
   try {
     const parsed: unknown = JSON.parse(text);
-    if (typeof parsed !== "object" || parsed === null) return null;
-    if ("kind" in parsed) return parsed.kind === "coding_agent" ? (parsed as CodingReport) : null;
-    // Reports stored before `kind` reached the wire carry no kind at all: they
-    // are told apart by the two fields every report has.
-    if ("harness" in parsed && "outcome" in parsed) {
-      return { ...(parsed as Omit<CodingReport, "kind">), kind: "coding_agent" };
-    }
+    const report = codingReport.safeParse(parsed);
+    return report.success ? report.data : null;
   } catch {
     // A refusal - no sandbox, the harness not installed - is a sentence, not a report.
   }

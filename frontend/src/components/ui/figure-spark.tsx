@@ -49,7 +49,7 @@ export function FigureSpark({
         <Tooltip
           isAnimationActive={false}
           reverseDirection={{ y: true }}
-          allowEscapeViewBox={{ x: true, y: true }}
+          allowEscapeViewBox={{ x: false, y: true }}
           labelFormatter={(index) => labels?.[Number(index)] ?? ""}
           formatter={(value) =>
             typeof value === "number"

@@ -925,7 +925,7 @@ class PlatformMcpTool(BaseSchema):
     description: str = Field(description="The first line of what the model reads")
     group: PlatformToolGroup = Field(description="What the tool works on")
     writes: bool = Field(
-        description="Whether it changes something - held for approval under `approval: writes`"
+        description="Whether it changes persisted state; approval defaults are declared separately"
     )
     ungated: bool = Field(
         default=False,
@@ -934,11 +934,22 @@ class PlatformMcpTool(BaseSchema):
             "only the caller's own preference, such as the console's language"
         ),
     )
+    default_approval_free: bool = Field(
+        default=False,
+        description=(
+            "Whether an authorized write runs under the default writes policy without confirmation; "
+            "an explicit per-tool required or binding all policy still asks"
+        ),
+    )
+    conditional_approval: bool = Field(
+        default=False,
+        description="Whether a task write still asks when it may start or reschedule agent work",
+    )
     always_asks: bool = Field(
         default=False,
         description=(
             "Whether every binding asks before it, whatever the binding or the tool's own "
-            "approval says - a write that widens who has authority in the organization"
+            "approval says; every call requires a fresh human confirmation"
         ),
     )
     held: bool = Field(

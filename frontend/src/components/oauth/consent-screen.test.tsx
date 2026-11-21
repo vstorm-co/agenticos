@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "@/lib/api-error";
 import { ConsentScreen } from "./consent-screen";
 import type { OAuthConsentRequest } from "@/types/mcp-oauth";
 
@@ -39,6 +40,7 @@ function state(overrides: Record<string, unknown> = {}) {
     request: REQUEST,
     isLoading: false,
     error: null,
+    refetch: vi.fn(),
     approve: {
       mutateAsync: vi.fn().mockResolvedValue({ redirect_to: "http://cb?code=x" }),
       isPending: false,
@@ -102,7 +104,9 @@ describe("ConsentScreen", () => {
   });
 
   it("says an expired request has expired, and waits while loading", () => {
-    useConsentRequestMock.mockReturnValue(state({ request: null, error: new Error("404") }));
+    useConsentRequestMock.mockReturnValue(
+      state({ request: null, error: new ApiError(404, "Expired") }),
+    );
     const { rerender } = render(<ConsentScreen requestId="r1" />);
     expect(screen.getByText("This request has expired")).toBeInTheDocument();
 
@@ -177,4 +181,27 @@ it("permits a global-only grant and drops an old global selection when availabil
   });
   rerender(<ConsentScreen requestId="r1" />);
   expect(screen.getByRole("button", { name: "Allow" })).toBeDisabled();
+});
+
+it.each([429, 502, 403])(
+  "reports a %s read failure without falsely expiring the consent request",
+  async (status) => {
+    const current = state({ request: null, error: new ApiError(status, "Request unavailable") });
+    useConsentRequestMock.mockReturnValue(current);
+    render(<ConsentScreen requestId="r1" />);
+    expect(screen.queryByText("This request has expired")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Allow" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(current.refetch).toHaveBeenCalledOnce();
+    expect(current.approve.mutateAsync).not.toHaveBeenCalled();
+  },
+);
+
+it("keeps a network outage recoverable instead of claiming that the request expired", async () => {
+  const current = state({ request: null, error: new Error("Network unavailable") });
+  useConsentRequestMock.mockReturnValue(current);
+  render(<ConsentScreen requestId="r1" />);
+  expect(screen.queryByText("This request has expired")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(current.refetch).toHaveBeenCalledOnce();
 });

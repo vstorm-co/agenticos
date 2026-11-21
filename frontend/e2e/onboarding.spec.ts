@@ -1,11 +1,11 @@
 import { expect, test } from "./fixtures";
 
-import { AUTH_STATE, OWNER_EMAIL, pageHeading } from "./helpers";
+import { AUTH_STATE, DASHBOARD_GREETING, OWNER_EMAIL, pageHeading } from "./helpers";
 
 /**
  * Tours are requested help, independent of first-task activation. This spec
- * opens one from the shared start and verifies that closing it persists the
- * historical walkthrough preference on the server. Other journeys remain free
+ * opens page help from the header and verifies that dismissal does not
+ * complete the separate guided setup. Other journeys remain free
  * of automatic overlays, including accounts whose preference is still null.
  *
  * The popover uses driver.js classes because the library renders a div rather
@@ -15,6 +15,7 @@ test.use({ storageState: AUTH_STATE });
 
 const POPOVER = ".driver-popover";
 const TITLE = ".driver-popover-title";
+const NEXT = ".driver-popover-next-btn";
 const CLOSE = ".driver-popover-close-btn";
 const HELP = "Show tips for this page";
 
@@ -52,6 +53,28 @@ test.describe("Onboarding", () => {
     }
   });
 
+  test("opens requested dashboard tips without completing the guided setup", async ({ page }) => {
+    const reset = await page.request.patch("/api/users/me", {
+      data: { onboarding_completed_at: null },
+    });
+    expect(reset.ok(), `resetting onboarding answered ${reset.status()}`).toBe(true);
+    await page.goto("/dashboard");
+    await page.getByRole("button", { name: "More information" }).click();
+    await page.getByRole("button", { name: HELP }).click();
+    await expect(page.locator(TITLE)).toHaveText("Choose your organization");
+    await page.locator(NEXT).click();
+    await expect(page.locator(TITLE)).toHaveText("Slice the dashboard");
+    await page.locator(CLOSE).click();
+    await expect(page.locator(POPOVER)).toBeHidden();
+
+    await page.reload();
+    await expect(pageHeading(page, DASHBOARD_GREETING)).toBeVisible();
+    await expect(page.locator(POPOVER)).toBeHidden();
+    const me = await page.request.get("/api/auth/me");
+    expect(me.ok()).toBe(true);
+    expect((await me.json()).onboarding_completed_at).toBeNull();
+  });
+
   test("leaves a browser extension's prompt clickable, and the page under the tour not", async ({
     page,
   }) => {
@@ -60,12 +83,14 @@ test.describe("Onboarding", () => {
     // manager's save prompt sat on screen, unclosable, for the whole walk. The
     // prompt is stood in for the way those extensions build theirs - a custom
     // element under <body>, its button in a shadow root, stacked at the top.
-    // The page's own walk, from its "?": the first-run tour has no button of its own.
-    await page.goto("/agents");
-    await expect(pageHeading(page, "Agents")).toBeVisible();
+    const reset = await page.request.patch("/api/users/me", {
+      data: { onboarding_completed_at: null },
+    });
+    expect(reset.ok(), `resetting onboarding answered ${reset.status()}`).toBe(true);
+    await page.goto("/dashboard");
     await page.getByRole("button", { name: "More information" }).click();
     await page.getByRole("button", { name: HELP }).click();
-    await expect(page.locator(TITLE)).toHaveText("Start from a template");
+    await expect(page.locator(TITLE)).toHaveText("Choose your organization");
 
     await page.evaluate(() => {
       const host = document.createElement("extension-prompt");
@@ -111,13 +136,15 @@ test.describe("Onboarding", () => {
     // And inside the light's padding, beside the control it frames. driver's
     // overlay has a hole there, so only the tour's own shield stands between the
     // click and whatever sits next to the control.
-    const lit = page.locator(".driver-active-element");
+    await page.locator(NEXT).click();
+    await expect(page.locator(TITLE)).toHaveText("Slice the dashboard");
+    const lit = page.locator('.driver-active-element[data-tour="dashboard-filters"]');
     await expect(page.locator(".tour-spotlight-ring.is-visible")).toBeVisible();
     const control = await lit.boundingBox();
     expect(control, "the lit control is on screen").not.toBeNull();
     await page.mouse.click(control!.x - 4, control!.y + control!.height / 2);
     expect(await reachedPage(), "a click in the light's padding reached the page").toEqual([]);
-    await expect(page.locator(TITLE)).toHaveText("Start from a template");
+    await expect(page.locator(TITLE)).toHaveText("Slice the dashboard");
   });
 
   test("replays the current page's tips from the header ?, without re-onboarding", async ({

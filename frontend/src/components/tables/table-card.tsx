@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Building2, Lock, Users } from "lucide-react";
 import { ResourceIcon } from "@/components/ui/resource-icon";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 
 import {
   Badge,
@@ -13,7 +13,6 @@ import {
   ResourceCardFooter,
 } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
-import { timeAgo } from "@/lib/utils";
 import type { TaskBoard } from "@/lib/tasks-api";
 import type { TableListItem } from "@/types/tables";
 
@@ -27,13 +26,10 @@ export function TableCard({ table, taskBoard }: { table: TableListItem; taskBoar
   const t = useTranslations("pages.tables");
   const tasks = useTranslations("durableTasks");
   const tc = useTranslations("common");
-  const tt = useTranslations("time");
-  const locale = useLocale();
   const VisibilityIcon = VISIBILITY_ICON[table.visibility];
-  const edited = table.updated_at ?? table.created_at;
 
   return (
-    <ResourceCard>
+    <ResourceCard className="min-h-52">
       <Link
         href={ROUTES.TABLE_DETAIL(table.id)}
         className="focus-visible:ring-ring absolute inset-0 rounded-[inherit] outline-none focus-visible:ring-2"
@@ -54,10 +50,10 @@ export function TableCard({ table, taskBoard }: { table: TableListItem; taskBoar
           </span>
         </div>
       </ResourceCardHeader>
-      <ResourceCardDescription className="pointer-events-none">
+      <ResourceCardDescription className="pointer-events-none my-4 line-clamp-2">
         {table.description}
       </ResourceCardDescription>
-      <ResourceCardFooter className="text-muted-foreground pointer-events-none text-xs">
+      <ResourceCardFooter className="text-muted-foreground pointer-events-none border-0 pt-0 text-xs">
         {(table.archived_at !== null || !table.can_edit) && (
           <Badge variant="outline" className="font-normal">
             {table.archived_at !== null ? t("archivedBadge") : t("readOnly")}
@@ -70,7 +66,6 @@ export function TableCard({ table, taskBoard }: { table: TableListItem; taskBoar
             {taskBoard.scope_name && ` · ${taskBoard.scope_name}`}
           </span>
         )}
-        <span className="ml-auto">{t("editedWhen", { when: timeAgo(edited, tt, locale) })}</span>
       </ResourceCardFooter>
     </ResourceCard>
   );

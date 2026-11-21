@@ -31,11 +31,11 @@ export function GradingCard({
 }: GradingCardProps) {
   const t = useTranslations("datasets.scoring");
   return (
-    <section className="bg-card flex h-full min-w-0 flex-col overflow-hidden rounded-xl border">
-      <header className="flex items-start gap-3 border-b p-4 sm:p-5 xl:min-h-28">
+    <section className="bg-card flex min-w-0 flex-col overflow-hidden rounded-xl border">
+      <header className="flex items-start gap-3 border-b p-4 sm:p-5">
         <DatasetIcon tone={tone} icon={Icon} className="size-9" />
         <div className="min-w-0 flex-1 space-y-1">
-          <h2 className="text-sm font-semibold">{title}</h2>
+          <h3 className="text-sm font-medium">{title}</h3>
           <p className="text-muted-foreground text-xs leading-relaxed">{description}</p>
         </div>
         {dirty && (

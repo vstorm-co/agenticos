@@ -1,8 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ShareDialog, sharedPerson, toPermission } from "./share-dialog";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import type { OrganizationMember } from "@/types";
 
 const shareConversation = vi.fn();
@@ -242,6 +243,24 @@ describe("choosing who to share with", () => {
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(fetchMembers).toHaveBeenCalled();
+  });
+
+  it("holds recipient and permission choices while the current share is being saved", async () => {
+    let finish = () => {};
+    const saving = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    shareConversation.mockReturnValueOnce(saving);
+    renderDialog();
+    await pick(/Nina Vale/);
+    await userEvent.click(screen.getByRole("button", { name: /^Share$/ }));
+    expect(screen.getByRole("button", { name: "Nina Vale" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Access level" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Share$/ })).toBeDisabled();
+    await act(async () => {
+      finish();
+    });
+    expect(screen.getByRole("combobox", { name: "Access level" })).toBeEnabled();
   });
 
   it("shares with the id the picker holds, not an address", async () => {
@@ -545,4 +564,24 @@ it("shows loading rather than an empty access list while shares are being read",
   sharesLoading.mockReturnValue(true);
   renderDialog();
   expect(screen.getByRole("status")).toHaveTextContent("Loading");
+});
+
+it("replaces sheet content with sharing and returns without opening another dialog", async () => {
+  const user = userEvent.setup();
+  const onOpenChange = vi.fn();
+  render(
+    <Sheet open onOpenChange={vi.fn()}>
+      <SheetContent>
+        <SheetTitle>Chats</SheetTitle>
+        <ShareDialog conversationId="c1" open embedded onOpenChange={onOpenChange} />
+      </SheetContent>
+    </Sheet>,
+  );
+  const sheet = screen.getByRole("dialog", { name: "Chats" });
+  expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  expect(within(sheet).getByRole("heading", { name: "Share conversation" })).toBeVisible();
+  await user.click(within(sheet).getByRole("button", { name: "Back" }));
+  expect(onOpenChange).toHaveBeenCalledWith(false);
+  expect(shareConversation).not.toHaveBeenCalled();
+  expect(revokeShare).not.toHaveBeenCalled();
 });

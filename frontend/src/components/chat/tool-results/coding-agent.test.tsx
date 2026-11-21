@@ -241,3 +241,37 @@ it("shows the registered external runtime name in its result", () => {
   );
   expect(screen.getByText("Antigravity")).toBeInTheDocument();
 });
+
+it.each([
+  { harness: "unknown" },
+  { steps: [{ kind: "unknown", title: "read" }] },
+  { steps: [{ kind: "read", title: 42 }] },
+  { steps: [null] },
+  { steps: "read" },
+  { files_changed: [42] },
+  { refused: [null] },
+  { answer: { text: "answer" } },
+  { session_resumed: "yes" },
+])("rejects malformed owned report fields instead of crashing the conversation: %j", (patch) => {
+  const text = JSON.stringify({ ...REPORT, ...patch });
+  expect(parseCodingReport(text)).toBeNull();
+  render(<CodingAgentResult toolCall={call()} resultText={text} />);
+  expect(screen.getByText(text)).toBeVisible();
+});
+
+it("reads nullable backend metadata without fetching a null changes id", () => {
+  const text = JSON.stringify({
+    ...REPORT,
+    changes_id: null,
+    session_name: null,
+    session_resumed: null,
+    account_label: null,
+    base_revision: null,
+    result_archive: null,
+    session_id: null,
+  });
+  expect(parseCodingReport(text)?.changes_id).toBeUndefined();
+  render(<CodingAgentResult toolCall={call()} resultText={text} />);
+  expect(screen.getByText("Claude Code")).toBeVisible();
+  expect(screen.queryByText("changes null")).toBeNull();
+});

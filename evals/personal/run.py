@@ -63,6 +63,9 @@ from app.schemas.virtual_table import (
     RecordQuery,
     TableCreate,
 )
+from app.services import agent_templates
+from app.services.agent_defaults import digest, fingerprint
+from app.services.agent_registry import AgentRegistryService, UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import job_context
 from app.services.channels.base import IncomingMessage
@@ -82,10 +85,18 @@ from app.services.virtual_tables.facade import VirtualTableService
 DATASETS = Path(__file__).resolve().parent / "datasets"
 Suite = Literal["memory", "briefing", "agenticos"]
 SUITES: tuple[Suite, ...] = ("memory", "briefing", "agenticos")
-CASE_COUNTS: dict[Suite, int] = {"memory": 50, "briefing": 50, "agenticos": 114}
+CASE_COUNTS: dict[Suite, int] = {"memory": 50, "briefing": 50, "agenticos": 122}
 CHANNEL_REPLAYS = {
     "mattermost-room-recall": RunSurface.MATTERMOST,
     "slack-room-recall": RunSurface.SLACK,
+    "hello-shared-channel": RunSurface.SLACK,
+}
+CHANNEL_RECALLS = {"mattermost-room-recall", "slack-room-recall"}
+NO_TOOL_GREETINGS = {
+    "hello-no-tools",
+    "hello-repeat",
+    "hello-shared-channel",
+    "news-one-off-no-automation",
 }
 BASE_DATE = date(2026, 11, 16)
 LIVE_CASES = (
@@ -258,6 +269,10 @@ class Evidence(BaseModel):
     cost_is_partial: bool = True
     attempt: UUID | None = None
     agent_version: UUID | None = None
+    source_agent_version: UUID | None = None
+    candidate_instructions_hash: str | None = None
+    candidate_spec_hash: str | None = None
+    omitted_capabilities: list[str] = []
 
 
 def console(message: str) -> None:
@@ -415,7 +430,9 @@ def trace_errors(
         for name in sorted({call.tool for call in calls} & set(scenario.forbidden))
     ]
     if scenario.id in CHANNEL_REPLAYS:
-        if not all(nickname in answer.casefold() for nickname in ("mira", "teo")):
+        if scenario.id in CHANNEL_RECALLS and not all(
+            nickname in answer.casefold() for nickname in ("mira", "teo")
+        ):
             errors.append("missing channel author attribution")
         if "private_channel_fixture" in answer.casefold():
             errors.append("private tool data appeared in a channel answer")
@@ -465,8 +482,47 @@ def trace_errors(
         errors.append("expected the title Pilot from conversation history")
     if scenario.id == "new-connection" and len(calls) > 6:
         errors.append("watch proposal exceeded six tool calls")
-    if scenario.id == "natural-hello" and calls:
-        errors.append("greeting called tools")
+    if scenario.id in NO_TOOL_GREETINGS and calls:
+        errors.append("this greeting must not call tools")
+    if scenario.id in {"natural-hello", "hello-empty-board", "hello-priorities"}:
+        from greeting_fixture import TABLE_ID
+
+        allowed = {"agenticos_list_task_boards", "agenticos_list_tasks", "search_tools"}
+        if any(call.tool not in allowed for call in calls):
+            errors.append("greeting attempted an unrelated operation")
+        board_reads = [call for call in calls if call.tool == "agenticos_list_task_boards"]
+        task_reads = [call for call in calls if call.tool == "agenticos_list_tasks"]
+        if len(board_reads) != 1 or board_reads[0].outcome != "executed":
+            errors.append("first private greeting needs one successful board lookup")
+        if scenario.id == "natural-hello" and task_reads:
+            errors.append("absent board must not trigger task reads")
+        if scenario.id != "natural-hello" and (
+            len(task_reads) != 1
+            or task_reads[0].outcome != "executed"
+            or task_reads[0].args.get("table_id") != str(TABLE_ID)
+        ):
+            errors.append("greeting must read only the selected private board once")
+        if len(calls) > 6:
+            errors.append("greeting exceeded six tool calls")
+        if scenario.id == "hello-priorities" and not any(
+            token in answer for token in ("ORION", "LYRA")
+        ):
+            errors.append("greeting priorities are not grounded in observed tasks")
+    if scenario.id in {"research-working-table-offer", "news-routine-offer"} and any(
+        call.tool == "propose_setup" for call in calls
+    ):
+        errors.append("setup proposal requires acceptance before draft creation")
+    if scenario.id == "research-working-table-offer" and (
+        not re.search(r"table|tabel", answer, re.IGNORECASE)
+        or not re.search(r"\bagenticos\b", answer, re.IGNORECASE)
+    ):
+        errors.append("missing structured working table proposal")
+    if scenario.id == "news-routine-offer" and (
+        not re.search(r"routine|rutyn", answer, re.IGNORECASE)
+        or not re.search(r"inbox|skrzyn", answer, re.IGNORECASE)
+        or not re.search(r"weekday|daily|dni robocz|codzien|poniedzia", answer, re.IGNORECASE)
+    ):
+        errors.append("routine proposal needs a cadence and destination")
     return errors
 
 
@@ -835,7 +891,9 @@ async def serve_eval_mcp() -> AsyncIterator[None]:
 
 async def run_agenticos(args: argparse.Namespace, scenarios: list[Scenario]) -> int:
     if os.getenv("AGENTICOS_PERSONAL_EVAL") != "1":
-        raise SystemExit("Run AgenticOS through the isolated personal eval Compose stack.")
+        raise SystemExit(
+            "Run AgenticOS only in an explicitly isolated test database with AGENTICOS_PERSONAL_EVAL=1."
+        )
     org = args.organization_id
     async with get_db_context() as db:
         ctx = await job_context(db, organization_id=org, user_id=args.user_id, api_key_id=None)
@@ -844,19 +902,49 @@ async def run_agenticos(args: argparse.Namespace, scenarios: list[Scenario]) -> 
         # These scenarios stand for an explicit test member, not a scheduled job
         # borrowing the publisher's identity. Keep the membership checked above.
         ctx = replace(ctx, subject_is_publisher_fallback=False)
-        agent = await agent_repo.get_shipped_starter(db, organization_id=org)
+        agent = (
+            await agent_repo.get(db, args.candidate_agent, organization_id=org)
+            if args.candidate_agent is not None
+            else await agent_repo.get_shipped_starter(db, organization_id=org)
+        )
         if agent is None or agent.current_version_id is None:
             raise SystemExit("Bootstrap a published AgenticOS in the eval stack first.")
         version = await agent_repo.get_version(db, agent.current_version_id, organization_id=org)
         if version is None:
             raise SystemExit("The AgenticOS publication is missing.")
         agent_id, version_id = agent.id, version.id
-        update = await ShippedAgentService(db).review_update(ctx, agent_id)
-        if any(change.version == "published" for change in update.changes):
-            raise SystemExit(
-                "The published AgenticOS differs from the code. Bootstrap a fresh eval tenant."
-            )
         spec = AgentSpec.model_validate(version.spec)
+        candidate = None
+        omitted_capabilities: tuple[str, ...] = ()
+        if args.candidate_agent is not None:
+            template = agent_templates.get("general/agenticos")
+            if template is None:
+                raise SystemExit("The bundled AgenticOS starter is unavailable.")
+            candidate_spec = spec.model_copy(update={"instructions": template.instructions})
+            if args.candidate_without_browser:
+                omitted_capabilities = tuple(
+                    binding.id
+                    for binding in candidate_spec.capabilities
+                    if binding.id == "browser_use"
+                )
+                candidate_spec = candidate_spec.model_copy(
+                    update={
+                        "capabilities": [
+                            binding
+                            for binding in candidate_spec.capabilities
+                            if binding.id != "browser_use"
+                        ]
+                    }
+                )
+            candidate = UnpublishedCandidate(spec=candidate_spec)
+            # Validate the unpublished candidate through the same access contract as evals.
+            await AgentRegistryService(db).get_candidate_spec(ctx, agent_id, candidate)
+        else:
+            update = await ShippedAgentService(db).review_update(ctx, agent_id)
+            if any(change.version == "published" for change in update.changes):
+                raise SystemExit(
+                    "The published AgenticOS differs from the code. Bootstrap a fresh eval tenant."
+                )
         profile_id = args.model_profile or spec.model_profile_id
         if profile_id is None:
             raise SystemExit("Provide a model profile in the eval organization.")
@@ -866,7 +954,16 @@ async def run_agenticos(args: argparse.Namespace, scenarios: list[Scenario]) -> 
         model = f"{profile.provider}:{profile.model}"
     mode = "preflight, no model calls" if args.max_usd is None else f"${args.max_usd} budget"
     console(f"AgenticOS · {model} · {len(scenarios)} cases · {mode}")
-    console(f"Published version {version_id}")
+    if candidate is None:
+        console(f"Published version {version_id}")
+    else:
+        console(
+            f"Unpublished instructions candidate from {version_id} · {fingerprint(candidate.spec, 'instructions')}"
+        )
+    if candidate is not None:
+        console(
+            f"Candidate spec {digest(candidate.spec.model_dump(mode='json'))} · omitted capabilities: {', '.join(omitted_capabilities) or 'none'}"
+        )
     if args.max_usd is None:
         if len(scenarios) <= 10:
             console("Selected cases: " + ", ".join(item.id for item in scenarios))
@@ -875,7 +972,15 @@ async def run_agenticos(args: argparse.Namespace, scenarios: list[Scenario]) -> 
 
     async with serve_eval_mcp():
         return await evaluate_agenticos(
-            ctx, agent_id, version_id, profile_id, model, args.max_usd, scenarios
+            ctx,
+            agent_id,
+            version_id,
+            profile_id,
+            model,
+            args.max_usd,
+            scenarios,
+            candidate=candidate,
+            omitted_capabilities=omitted_capabilities,
         )
 
 
@@ -925,6 +1030,8 @@ async def channel_replay_fixture(
                     "update_virtual_table_record",
                     "update_virtual_table_record",
                 ]
+                if item.id in CHANNEL_RECALLS
+                else []
             )
         ]
         db.add_all(
@@ -1022,7 +1129,11 @@ async def evaluate_agenticos(
     model: str,
     budget: Decimal,
     scenarios: list[Scenario],
+    *,
+    candidate: UnpublishedCandidate | None = None,
+    omitted_capabilities: tuple[str, ...] = (),
 ) -> int:
+    expected_version = version_id if candidate is None else None
     progress = Progress("AgenticOS", len(scenarios))
     for item in scenarios:
         remaining = budget - progress.cost
@@ -1035,6 +1146,10 @@ async def evaluate_agenticos(
             async with AsyncExitStack() as fixtures:
                 watch_source = None
                 table_status_column = None
+                from greeting_fixture import GREETING_STATES, greeting_task_reads
+
+                if item.id in GREETING_STATES:
+                    fixtures.enter_context(greeting_task_reads(ctx, GREETING_STATES[item.id]))
                 if item.id == "check-then-watch":
                     from watch_fixture import notion_watch_source
 
@@ -1074,7 +1189,8 @@ async def evaluate_agenticos(
                             channel_author_context=channel_author_context,
                             conversation_id=conversation_id,
                             acts_for_sender=True,
-                            version_id=version_id,
+                            version_id=version_id if candidate is None else None,
+                            candidate=candidate,
                             model_profile_id=profile_id,
                             message_history=history,
                             isolation=RunIsolation(),
@@ -1093,7 +1209,7 @@ async def evaluate_agenticos(
                     if (
                         run is None
                         or run.conversation_id != conversation_id
-                        or run.agent_version_id != version_id
+                        or run.agent_version_id != expected_version
                         or run.status
                         not in (RunStatus.FAILED.value, RunStatus.BUDGET_EXCEEDED.value)
                     ):
@@ -1110,6 +1226,8 @@ async def evaluate_agenticos(
                     status = run.status
                     if failure is not None:
                         errors = [f"technical: {run.error or failure.code}"]
+                    elif run.agent_version_id != expected_version:
+                        errors = ["technical: unexpected candidate version attribution"]
                     elif status == RunStatus.COMPLETED.value:
                         errors = trace_errors(
                             item,
@@ -1124,7 +1242,15 @@ async def evaluate_agenticos(
                     evidence = Evidence(
                         case=item.id,
                         model=model,
-                        agent_version=version_id,
+                        agent_version=expected_version,
+                        source_agent_version=version_id if candidate is not None else None,
+                        candidate_instructions_hash=fingerprint(candidate.spec, "instructions")
+                        if candidate is not None
+                        else None,
+                        candidate_spec_hash=digest(candidate.spec.model_dump(mode="json"))
+                        if candidate is not None
+                        else None,
+                        omitted_capabilities=list(omitted_capabilities),
                         attempt=run.id,
                         errors=errors,
                         output=answer if status == RunStatus.COMPLETED.value else "",
@@ -1329,6 +1455,16 @@ def main() -> int:
     )
     parser.add_argument("--agent-id", type=UUID, help="Published starter for live probes.")
     parser.add_argument(
+        "--candidate-agent",
+        type=UUID,
+        help="Use this published agent's bindings with bundled starter instructions, without updating or publishing it.",
+    )
+    parser.add_argument(
+        "--candidate-without-browser",
+        action="store_true",
+        help="QA-only: omit browser_use from an unpublished candidate; record the binding difference.",
+    )
+    parser.add_argument(
         "--live-case",
         action="append",
         choices=LIVE_CASES,
@@ -1353,6 +1489,8 @@ def main() -> int:
             parser.error("judge mode requires --judge-model, --judge-report and positive --limit")
         return asyncio.run(judge_report(args.judge_model, args.judge_report, args.limit))
     if args.live_case or args.live_memory:
+        if args.candidate_agent:
+            parser.error("--candidate-agent is only for the isolated AgenticOS runtime")
         if not args.api_url or urlsplit(args.api_url).hostname not in {
             "localhost",
             "127.0.0.1",
@@ -1380,6 +1518,10 @@ def main() -> int:
         not runtime or not args.max_usd.is_finite() or args.max_usd <= 0
     ):
         parser.error("--max-usd requires the AgenticOS runtime and a finite positive amount")
+    if args.candidate_without_browser and not args.candidate_agent:
+        parser.error("--candidate-without-browser requires --candidate-agent")
+    if args.candidate_agent and not runtime:
+        parser.error("--candidate-agent requires the isolated AgenticOS runtime")
     if args.model_profile and not runtime:
         parser.error("--model-profile requires the AgenticOS runtime")
     if args.limit is not None and args.limit < 1:

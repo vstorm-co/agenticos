@@ -241,9 +241,10 @@ export default function AdminUsersPage() {
           className="rounded-none border-0 bg-transparent"
         />
 
-        {total > 0 && (
+        {!error && (
           <ListCardFootRow>
             <PaginationBar
+              showSinglePage
               page={page}
               pageSize={PAGE_SIZE}
               total={total}

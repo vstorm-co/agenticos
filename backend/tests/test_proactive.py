@@ -832,6 +832,24 @@ def test_maintenance_output_rejects_two_values_for_one_normalized_subject() -> N
         )
 
 
+@pytest.mark.parametrize("evidence", ["I am a reviewer", "I am", "    ", " rev ", "I am reviewer"])
+def test_memory_extraction_requires_one_verbatim_user_quote(evidence: str) -> None:
+    found = extraction._Extraction.model_validate(
+        {"claims": [{"statement": "Works as a reviewer", "evidence": evidence}]}
+    )
+    utterances = ["I am a reviewer", "The reviewer approved this"]
+    if evidence in {"I am a reviewer", "I am"}:
+        assert extraction.require_grounded_claims(found, utterances) is found
+    else:
+        with pytest.raises(ModelRetry, match="Copy evidence exactly"):
+            extraction.require_grounded_claims(found, utterances)
+
+
+def test_memory_extraction_accepts_an_empty_result() -> None:
+    found = extraction._Extraction()
+    assert extraction.require_grounded_claims(found, []) is found
+
+
 class TestTheNightlyLook:
     @staticmethod
     def _patches(

@@ -51,9 +51,10 @@ export function asksFirst(
   tool: McpToolInfo,
   approval: McpApproval,
   toolApproval: McpToolApproval,
+  defaultAllow = false,
 ): boolean {
   if (Object.hasOwn(toolApproval, tool.name)) return toolApproval[tool.name] === "required";
-  return approval === "all" || (approval === "writes" && tool.read_only !== true);
+  return approval === "all" || (approval === "writes" && tool.read_only !== true && !defaultAllow);
 }
 
 /** What a group's select says: one answer for all of its tools, or each their own. */

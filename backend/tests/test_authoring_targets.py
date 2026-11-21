@@ -148,8 +148,8 @@ def test_it_improves_an_agent_a_skill_or_a_context_file_and_nothing_else():
 def test_a_context_file_change_carries_only_the_file_s_description_and_body():
     """Whatever else a context file holds - its name, mode, visibility, whether it is
     on - is not something a proposal can hold, so applying one cannot change it."""
-    # `library_revision` on a proposal names the shipped revision it offers, so the
-    # same one is not offered twice; applying a proposal never copies it.
+    # The library revision records which bundled release was proposed; it is
+    # assigned by the installer, never supplied by the authoring model.
     bookkeeping = {"id", "organization_id", "created_at", "updated_at", "library_revision"}
     shared = set(ContextProposal.__table__.columns.keys()) & set(
         ContextFile.__table__.columns.keys()

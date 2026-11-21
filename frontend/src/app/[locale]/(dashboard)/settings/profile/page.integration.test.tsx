@@ -15,6 +15,9 @@ vi.mock("@/components/dashboard/active-sessions", () => ({ ActiveSessions: () =>
 vi.mock("@/components/settings/appearance-settings", () => ({
   AppearanceSettings: () => <h2>Appearance</h2>,
 }));
+vi.mock("@/components/settings/chat-home-preferences", () => ({
+  ChatHomePreferences: () => <h2>Chat home</h2>,
+}));
 vi.mock("@/components/settings/personal-model-keys", () => ({ PersonalModelKeys: () => null }));
 vi.mock("@/components/settings/coding-accounts", () => ({
   CodingAccounts: () => <h2>Coding accounts</h2>,
@@ -114,4 +117,10 @@ it("places connected accounts before appearance in reading and keyboard order", 
     headings.indexOf("Subscription accounts"),
   );
   expect(headings.indexOf("Subscription accounts")).toBeLessThan(headings.indexOf("Appearance"));
+});
+
+it("keeps a manual route into guided setup alongside appearance and chat preferences", () => {
+  render(<ProfileSettingsPage />);
+  expect(screen.getByRole("link", { name: "Open setup" })).toHaveAttribute("href", "/onboarding");
+  expect(screen.getByRole("heading", { name: "Guided setup" })).toBeVisible();
 });

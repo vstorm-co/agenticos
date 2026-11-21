@@ -6,10 +6,13 @@ import { useTranslations } from "next-intl";
 import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { StartActions, StartBack } from "./start-navigation";
+import { StartStageArtwork } from "./start-stage-artwork";
+import layout from "./administration.module.css";
 import { StartGuide } from "./start-guide";
 import styles from "./guided-start.module.css";
 
 export function StartQuestion({
+  stage,
   index,
   total,
   title,
@@ -20,6 +23,7 @@ export function StartQuestion({
   onContinue,
   onSkip,
 }: {
+  stage: "deployment" | "organization";
   index: number;
   total: number;
   title: string;
@@ -37,28 +41,31 @@ export function StartQuestion({
   }, [index]);
   return (
     <div className={styles.journey}>
+      <h2 ref={heading} tabIndex={-1} className={styles.questionTitle}>
+        {title}
+      </h2>
+      <div className={styles.questionMeta}>
+        <span>{t("question", { current: index + 1, total })}</span>
+        <span>{t("changeLater")}</span>
+      </div>
       <StartGuide message={message} />
-      <section key={index} className={styles.question} aria-label={title}>
-        <div className={styles.questionMeta}>
-          <span>{t("question", { current: index + 1, total })}</span>
-          <span>{t("changeLater")}</span>
-        </div>
-        <h2 ref={heading} tabIndex={-1}>
-          {title}
-        </h2>
-        <div className={styles.answer}>{children}</div>
-        <StartActions back={onBack && <StartBack onClick={onBack} disabled={pending} />}>
-          {onSkip && (
-            <Button variant="ghost" disabled={pending} onClick={onSkip}>
-              {t("keepCurrent")}
+      <div className={layout.stageStudio}>
+        <section key={index} className={styles.question} aria-label={title}>
+          <div className={styles.answer}>{children}</div>
+          <StartActions back={onBack && <StartBack onClick={onBack} disabled={pending} />}>
+            {onSkip && (
+              <Button variant="ghost" disabled={pending} onClick={onSkip}>
+                {t("keepCurrent")}
+              </Button>
+            )}
+            <Button disabled={pending} onClick={onContinue}>
+              {pending ? t("saving") : t("continue")}
+              <ArrowRight size={15} aria-hidden />
             </Button>
-          )}
-          <Button disabled={pending} onClick={onContinue}>
-            {pending ? t("saving") : t("continue")}
-            <ArrowRight size={15} aria-hidden />
-          </Button>
-        </StartActions>
-      </section>
+          </StartActions>
+        </section>
+        <StartStageArtwork stage={stage} />
+      </div>
     </div>
   );
 }
