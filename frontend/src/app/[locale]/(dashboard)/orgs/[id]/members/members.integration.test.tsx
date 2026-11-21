@@ -537,6 +537,12 @@ describe("organization settings tabs", () => {
       expect(header).not.toBeNull();
       headers.push(header!);
       expect(header!.querySelector('[data-slot="service-icon"] > svg')).not.toBeNull();
+      if (title === "AI Architect") {
+        expect(within(header!).getByRole("link", { name: "Open in Agent Builder" })).toBeVisible();
+        expect(within(header!).queryByRole("button", { name: title })).toBeNull();
+        expect(within(header!).getByRole("switch")).toBeVisible();
+        continue;
+      }
       const trigger = within(header!).getByRole("button", { name: title });
       const toggle = within(header!).getByRole("switch");
       expect(trigger).not.toContainElement(toggle);

@@ -3,7 +3,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { Maximize2, Minimize2, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { BrowserPanelFrame } from "./browser-panel-frame";
+import { BrowserPanelFrame, type PanelSizing } from "./browser-panel-frame";
 
 /** Files and citations use the same responsive, keyboard-resizable dock as browsing. */
 export function ChatSidePanel({
@@ -12,9 +12,11 @@ export function ChatSidePanel({
   contained,
   onClose,
   children,
+  sizing = "wide",
 }: {
   label: string;
   panelId?: string;
+  sizing?: PanelSizing;
   contained: boolean;
   onClose: () => void;
   children: (layout: { fullscreen: boolean; toggleFullscreen: () => void }) => ReactNode;
@@ -41,7 +43,13 @@ export function ChatSidePanel({
     };
   }, [onClose]);
   return (
-    <BrowserPanelFrame label={label} contained={contained} panelId={panelId} layout="sources">
+    <BrowserPanelFrame
+      label={label}
+      contained={contained}
+      panelId={panelId}
+      layout="sources"
+      sizing={sizing}
+    >
       {(layout) => (
         <div
           ref={content}

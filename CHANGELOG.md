@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Resume unfinished setup from the sidebar, with a one-day reminder snooze and a scoped return to the last setup step in the same browser.
+
 - Let deployment administrators send account recovery emails or copy a one-hour, single-use password reset link from the user inspector. Show users' last activity and active session counts.
 
 - Open an Inbox item in a new private chat with an editable question. The assistant can read the signed-in person's findings and suggestions and link back to them.
@@ -107,6 +109,10 @@ Two things are versioned separately from this file and worth knowing about:
 - Refine the default AgenticOS assistant’s guidance for economical specialist delegation, safe tool-error recovery, editable drafts and artifact verification. Keep media generation tied to available configured tools and preserve personal model, budget and prompt choices during normal default refreshes.
 
 ### Fixed
+
+- Keep Sources compact and restore the conversation list after closing them. Preserve question navigation when a chat mounts late, and keep dashboard sparkline tooltips inside their own column.
+
+- Use consistent Inbox rows, quieter agent and workflow statuses, and single-surface category and tag inputs. Support multiline messages in hosted chats and embedded widgets.
 
 - Align the queued-message panel with the chat composer. Link disabled approval modes to the active organization’s settings when the member may open them, and identify question steps by their subject.
 

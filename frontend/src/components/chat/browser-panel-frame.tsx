@@ -5,10 +5,11 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 
-const MIN_WIDTH = 35;
-const MAX_WIDTH = 65;
-const INITIAL_WIDTH = 55;
-const bounded = (width: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width));
+export type PanelSizing = "wide" | "sources";
+const WIDTHS = {
+  wide: { min: 35, max: 65, initial: 55, step: 2 },
+  sources: { min: 360, max: 420, initial: 400, step: 16 },
+} as const;
 
 /** Dock in the available chat width; narrow chats and explicit expansion use the full screen. */
 export function BrowserPanelFrame({
@@ -17,21 +18,25 @@ export function BrowserPanelFrame({
   contained = false,
   panelId,
   layout = "browser",
+  sizing = "wide",
 }: {
   children: (layout: { fullscreen: boolean; toggleFullscreen: () => void }) => ReactNode;
   label?: string;
   contained?: boolean;
   panelId?: string;
   layout?: "browser" | "sources";
+  sizing?: PanelSizing;
 }) {
   const t = useTranslations("chat");
   const id = useId();
   const panel = useRef<HTMLElement>(null);
-  const [width, setWidth] = useState(INITIAL_WIDTH);
+  const limits = WIDTHS[sizing];
+  const bounded = (width: number) => Math.min(limits.max, Math.max(limits.min, width));
+  const [width, setWidth] = useState<number>(limits.initial);
   const [fullscreen, setFullscreen] = useState(false);
   const [dragging, setDragging] = useState(false);
   const style: CSSProperties & { "--browser-panel-width": string } = {
-    "--browser-panel-width": `${width}%`,
+    "--browser-panel-width": sizing === "sources" ? `min(${width}px, 38%)` : `${width}%`,
   };
   return (
     <aside
@@ -57,8 +62,8 @@ export function BrowserPanelFrame({
           tabIndex={0}
           aria-label={t("browserResize")}
           aria-controls={panelId ?? id}
-          aria-valuemin={MIN_WIDTH}
-          aria-valuemax={MAX_WIDTH}
+          aria-valuemin={limits.min}
+          aria-valuemax={limits.max}
           aria-valuenow={Math.round(width)}
           className={cn(
             "hover:bg-foreground/10 focus-visible:bg-foreground/10 absolute inset-y-0 left-0 z-30 hidden w-3 -translate-x-1/2 cursor-col-resize touch-none bg-transparent focus-visible:outline-none",
@@ -71,10 +76,10 @@ export function BrowserPanelFrame({
             event.preventDefault();
             setWidth((current) =>
               event.key === "Home"
-                ? MIN_WIDTH
+                ? limits.min
                 : event.key === "End"
-                  ? MAX_WIDTH
-                  : bounded(current + (event.key === "ArrowLeft" ? 2 : -2)),
+                  ? limits.max
+                  : bounded(current + (event.key === "ArrowLeft" ? limits.step : -limits.step)),
             );
           }}
           onPointerDown={(event) => {
@@ -87,12 +92,18 @@ export function BrowserPanelFrame({
             if (!dragging) return;
             const bounds = panel.current?.parentElement?.getBoundingClientRect();
             if (bounds && bounds.width > 0)
-              setWidth(bounded(((bounds.right - event.clientX) / bounds.width) * 100));
+              setWidth(
+                bounded(
+                  sizing === "sources"
+                    ? bounds.right - event.clientX
+                    : ((bounds.right - event.clientX) / bounds.width) * 100,
+                ),
+              );
           }}
           onPointerUp={() => setDragging(false)}
           onPointerCancel={() => setDragging(false)}
           onLostPointerCapture={() => setDragging(false)}
-          onDoubleClick={() => setWidth(INITIAL_WIDTH)}
+          onDoubleClick={() => setWidth(limits.initial)}
         />
       )}
       {dragging && (

@@ -6986,7 +6986,8 @@
       "assistantServices": "Assistent und Gespräche",
       "assistantServicesHint": "Hilfe, Aktualisierungen und Sprachgespräche für Mitglieder einrichten.",
       "backgroundServices": "Hintergrunddienste",
-      "backgroundServicesHint": "Modelle und Budgets für die internen Aufgaben der Plattform."
+      "backgroundServicesHint": "Modelle und Budgets für die internen Aufgaben der Plattform.",
+      "workspaceSettings": "Einstellungen für diesen Arbeitsbereich"
     },
     "rag": {
       "active": "Aktiv",
@@ -8462,10 +8463,6 @@
       "statusLive": "Live",
       "statusLiveVersion": "Live · Version {version}",
       "statusUnpublishedChanges": "Unveröffentlichte Änderungen",
-      "cardStartsFrom": "{trigger} · {count, plural, one {# Schritt} other {# Schritte}}",
-      "cardNotRun": "Noch nicht gelaufen",
-      "cardNotRunEdited": "Noch nicht gelaufen · bearbeitet {when}",
-      "cardSteps": "{count, plural, =0 {Noch keine Schritte} one {# Schritt} other {# Schritte}}",
       "statusDraft": "Entwurf",
       "triggerFormLive": "Jeder mit dem Link füllt das Formular aus, und jede Antwort startet einen Lauf als das Mitglied, das es veröffentlicht hat. Pausieren Sie es, um die Seite zu schließen.",
       "formUrl": "Formular-Link",
@@ -17322,6 +17319,12 @@
     "jsonInvalid": "Gültiges JSON des erforderlichen Typs eingeben. Der letzte gültige Wert bleibt unverändert."
   },
   "start": {
+    "sidebarReminder": {
+      "title": "Einrichtung abschließen",
+      "hint": "Schließen Sie die geführte Einrichtung in Ihrem eigenen Tempo ab.",
+      "snooze": "Morgen erinnern",
+      "saveFailed": "Die Erinnerung konnte nicht ausgeblendet werden. Versuchen Sie es erneut."
+    },
     "administration": {
       "title": "Bereiten Sie die Organisation für Ihr Team vor",
       "intro": "Erstellen Sie eine Firmenorganisation, laden Sie Personen ein und konfigurieren Sie die Installation. Alle Einstellungen bleiben später verfügbar.",

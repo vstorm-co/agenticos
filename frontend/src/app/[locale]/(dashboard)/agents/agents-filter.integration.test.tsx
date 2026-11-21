@@ -133,11 +133,11 @@ describe("the agents gallery's attention badge", () => {
     ];
     render(<AgentsPage />, { wrapper });
 
-    expect(await screen.findByText("Needs attention")).toHaveAttribute(
+    expect(await screen.findByRole("button", { name: /^Needs attention:/ })).toHaveAttribute(
       "title",
       "2 answers rated down",
     );
-    expect(screen.getAllByText("Needs attention")).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /^Needs attention:/ })).toHaveLength(1);
     expect(vi.mocked(apiClient.get)).toHaveBeenCalledWith("/stats/attention", expect.anything());
   });
 });

@@ -904,9 +904,9 @@ WIDGET_JS = r"""(function () {
     ".aos-chip{border:1px solid var(--aos-line);background:var(--aos-bg);color:var(--aos-text);border-radius:999px;" +
       "padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}",
     ".aos-chip:hover{border-color:var(--aos-accent);color:var(--aos-accent)}",
-    ".aos-form{display:flex;gap:8px;align-items:center;padding:12px;border-top:1px solid var(--aos-line);background:var(--aos-bg)}",
+    ".aos-form{display:flex;gap:8px;align-items:flex-end;padding:12px;border-top:1px solid var(--aos-line);background:var(--aos-bg)}",
     ".aos-input{flex:1;min-width:0;border:1px solid var(--aos-line);background:var(--aos-soft);color:var(--aos-text);" +
-      "border-radius:12px;padding:11px 13px;font:inherit;outline:none}",
+      "border-radius:12px;padding:11px 13px;font:inherit;outline:none;resize:none;min-height:66px;max-height:160px;overflow-y:auto}",
     ".aos-input:focus{border-color:var(--aos-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--aos-accent) 18%,transparent)}",
     ".aos-send{border:0;border-radius:12px;width:42px;height:42px;flex:none;cursor:pointer;color:#fff;" +
       "background:var(--aos-accent);display:flex;align-items:center;justify-content:center}",
@@ -1587,7 +1587,8 @@ WIDGET_JS = r"""(function () {
     panel.appendChild(log);
 
     var form = el("form", "aos-form");
-    var input = el("input", "aos-input");
+    var input = el("textarea", "aos-input");
+    input.rows = 2;
     input.setAttribute("placeholder", config.placeholder);
     input.setAttribute("aria-label", config.placeholder);
     var send = el("button", "aos-send");
@@ -1852,9 +1853,21 @@ WIDGET_JS = r"""(function () {
       if (event.key === "Escape" && open) setOpen(false);
     });
 
+    input.oninput = function () {
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 160) + "px";
+    };
+    input.onkeydown = function (event) {
+      if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
+      event.preventDefault();
+      form.requestSubmit();
+    };
     form.onsubmit = function (event) {
       event.preventDefault();
-      if (ask(input.value.trim())) input.value = "";
+      if (ask(input.value.trim())) {
+        input.value = "";
+        input.style.height = "auto";
+      }
     };
   }
 

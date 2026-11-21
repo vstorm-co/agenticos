@@ -2973,7 +2973,8 @@
       "assistantServices": "Asistan ve konuşmalar",
       "assistantServicesHint": "Kullanıcı yardımı, güncellemeler ve sesli konuşmaları ayarlayın.",
       "backgroundServices": "Arka plan hizmetleri",
-      "backgroundServicesHint": "Platformun dahili işleri için modeller ve bütçeler."
+      "backgroundServicesHint": "Platformun dahili işleri için modeller ve bütçeler.",
+      "workspaceSettings": "Bu çalışma alanının ayarları"
     },
     "admin": {
       "activeSessions": "Etkin oturumlar",
@@ -4441,10 +4442,6 @@
       "statusLive": "Yayında",
       "statusLiveVersion": "Yayında · sürüm {version}",
       "statusUnpublishedChanges": "Yayımlanmamış değişiklikler",
-      "cardStartsFrom": "{trigger} · {count, plural, one {# adım} other {# adım}}",
-      "cardNotRun": "Henüz çalıştırılmadı",
-      "cardNotRunEdited": "Henüz çalıştırılmadı · düzenlendi {when}",
-      "cardSteps": "{count, plural, =0 {Henüz adım yok} one {# adım} other {# adım}}",
       "statusDraft": "Taslak",
       "triggerFormLive": "Bağlantıya sahip herkes formu doldurabilir; her yanıt yayımlayan üyenin yetkileriyle bir run başlatır. Sayfayı kapatmak için duraklatın.",
       "formUrl": "Form bağlantısı",
@@ -13553,6 +13550,12 @@
     "chatHelp": "Bu agent kodlama görevlerini kendi hesabınla özel bir bulut görevi olarak çalıştırır. Diğer üyeler bu hesabı kullanamaz."
   },
   "start": {
+    "sidebarReminder": {
+      "title": "Kurulumu tamamlayın",
+      "hint": "Rehberli kurulumu kendi hızınızda tamamlayın.",
+      "snooze": "Yarın hatırlat",
+      "saveFailed": "Hatırlatıcı gizlenemedi. Tekrar deneyin."
+    },
     "administration": {
       "title": "Organizasyonu ekibiniz için hazırlayın",
       "intro": "Şirket organizasyonu oluşturun, kişileri davet edin ve kurulumu yapılandırın. Her ayara daha sonra dönebilirsiniz.",

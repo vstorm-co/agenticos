@@ -1,10 +1,20 @@
 ---
-source_sha: "51bdfd333e72"
+source_sha: "fd54201aae3e"
 ---
 
 # Die Konsole { #the-console }
 
 Die Standarddesigns unterscheiden Seitenfläche, Seitenleiste, Karten und schwebende Panels. Blau kennzeichnet Links und Tastaturfokus; eingeschaltete Schalter sind grün. Navigationsbeschriftungen sind normal gewichtet, die aktive Beschriftung mittelstark. Zusammenfassungen im Builder zeigen Modell, Variablen, Sprachstatus und erste Nachrichten vor dem Öffnen der Editoren. Anmeldung und Kontowiederherstellung verwenden denselben knappen Überschriftenstil und ein statisches Markenpanel.
+
+Nutzungs- und Ausgabenaggregate des Dashboards verwenden dieselbe Antwort im Arbeitsspeicher für dasselbe Zeitfenster bis zu 30 Minuten lang. Sie sind keine Live-Zähler: Ausführungsereignisse aktualisieren diese Aggregate nicht nach jeder Ausführung. Ein vollständiges Neuladen des Browsers beginnt mit leerem Cache und fragt die API erneut ab. Gespeicherte Layout-Vorlagen werden nur in der Organisationsansicht geladen, in der die Anordnungssteuerung verfügbar ist.
+
+Ist das Onboarding Ihrer aktuellen Organisation noch nicht abgeschlossen, führt **Einrichtung abschließen** zur geführten Einrichtung zurück. **Morgen erinnern** blendet die Karte für 24 Stunden aus; ein unauffälliger Rückkehrlink bleibt erhalten. Abschluss und Aufschub werden für Ihre Mitgliedschaft auf dem Server gespeichert. Während des Ladens oder bei fehlgeschlagenen Fortschrittsabfragen wird die Einrichtung nicht als unvollständig bezeichnet. Sie kehren aus eigener Entscheidung zurück: Kein Rundgang startet automatisch. Im selben Browser merkt sich der Link den letzten zulässigen Schritt für dasselbe Konto und dieselbe Organisation, auch nach einem Neuladen. Formularwerte werden nicht gespeichert; auf einem anderen Gerät wird sicher der normale Einstieg geöffnet.
+
+Der Posteingang verwendet in Alle, Dringend, Routinen-Ergebnisse, Vorschläge und Erledigt denselben Listenrahmen, Zeilenabstand, dieselben Quellenmarkierungen, Titel- und Beschreibungsschriften sowie dieselbe responsive Anordnung der Aktionen. Erledigte Einträge behalten ihren Entscheidungsstatus und die Wiederherstellung abgelehnter Einträge; Quelle und Zeit bleiben auch auf dem Telefon sichtbar. Freigabeformulare verwenden denselben äußeren Abstand und behalten ihre Pflichtfelder und Berechtigungsprüfungen.
+
+Quellen öffnen sich in einem kompakten Panel mit veränderbarer Breite. Auf schmalen Desktopfenstern kann das Öffnen die Gesprächsliste vorübergehend einklappen; beim Schließen wird die frühere Auswahl wiederhergestellt, sofern Sie sie nicht manuell geändert haben. Ein Zitat scrollt nur die Quellenliste und lässt den Gesprächsverlauf an seiner Position. Öffentlicher Chat und eingebettetes Widget unterstützen mehrzeilige Nachrichten: Enter sendet, Umschalt+Enter fügt eine Zeile ein, und eine laufende IME-Zeicheneingabe sendet nicht vorzeitig.
+
+Agent-Galerien zeigen den Veröffentlichungsstatus mit Punkt und Text. Ein kleiner bernsteinfarbener Hinweis zeigt erforderliche Aufmerksamkeit an; sein Grund ist per Hover, Tastaturfokus oder Tippen erreichbar. Workflow-Karten konzentrieren sich auf Name, Beschreibung, Zugriff, Veröffentlichung und bestehende Aktionen. Auslöser, Knoten, Tags und Ausführungsstatistiken bleiben im Editor, in Filtern oder im Verlauf. Tags werden in einem Feld eingegeben; Tastatur- und Duplikatbehandlung bleiben erhalten.
 
 Ressourcenkataloge verwenden größere Karten mit Symbol, Titel, Beschreibung und einer separaten Fußzeile für Status und Aktionen. Agenten, Tabellen, Workflows, Wissensbasen, Projekte, Datensätze, MCP-Server, Skills, Kontextdateien, Apps und Gruppen teilen diesen Rahmen und behalten ihre eigenen Aktionen. Im Agent Builder stehen die Einstellungen in einheitlichen aufklappbaren Karten. Thinking und Answer format liegen in Model settings. First messages zeigt die eingebauten Vorschläge, wenn keine eigenen hinterlegt sind. Model ist anfangs geöffnet; das Schließen erhält die Editoren, und Voice-Links öffnen den passenden Abschnitt.
 
@@ -17,6 +27,8 @@ Der Anweisungseditor passt seine Höhe an das Fenster an und lässt sich für l�
 Beim Erstellen eines Projekts geben Sie zuerst Namen, Arbeitsbereich und Zielgruppe an. **Anweisungen und Voreinstellungen** enthält die optionale Beschreibung, Anweisungen und den Start-Agenten. Ein Validierungsfehler in einem dieser Felder öffnet den Bereich. Bei Tabellen mit vielen Spalten zeigt **Datensatz hinzufügen** die ersten Felder, Pflichtwerte, Dokumentinhalte und aus dem Raster vorbelegte Werte. Öffnen Sie **Weitere Felder**, um die übrigen optionalen Eigenschaften auszufüllen.
 
 Organisationen bietet eine Suche nach Namen und Slugs der Mitgliedschaften; die Trefferzahl steht in derselben Leiste. Leeren der Suche zeigt wieder alle Mitgliedschaften.
+
+Die Karte des aktiven Arbeitsbereichs zeigt je nach Ihren Berechtigungen in der aktuellen Organisation Verknüpfungen zu **KI und Dienste** sowie **Budget und Genehmigungen**. Die Karte AI Architect verlinkt neben dem Aktivierungsschalter direkt auf den Builder, ohne zusätzlichen aufklappbaren Bereich. Andere KI-Dienste behalten ihre aufklappbaren Einstellungsformulare.
 
 Die Me-Ansicht beginnt mit einer Zusammenfassung des Zeitraums als Karte, gefolgt von einem kompakten Briefing mit Titeln, Quellen und Aktionen. Vollständige Vorschläge bleiben im Posteingang.
 
@@ -1079,7 +1091,7 @@ ihren Assistenten nur zum Lesen, mit der Entscheidung im letzten Schritt; siehe
 
 Organisationsdetails haben drei Registerkarten: **Mitglieder**, **Budget und Freigaben** und **KI & Dienste**. Mitglieder bietet Namens-/E-Mail-Suche, Rollenfilter und die letzte erfasste Aktion in diesem Arbeitsbereich. Dies ist eine Audit-Aktion, kein Besuch oder Login; Aktionen durch Identitätsübernahme werden ausgeschlossen und fehlende Historie erscheint als Strich. **Arbeitsbereich bearbeiten** öffnet einen Dialog für Name, Avatar und Farbe mit Schutz ungespeicherter Änderungen. KI & Dienste zeigt einzelne Funktionskarten ohne übergeordnete Gruppen. Aufklappen erhält Entwürfe. Alle Steuerelemente behalten ihre Berechtigungsprüfungen. Alte Links mit `?tab=profile` öffnen den Arbeitsbereich-Dialog; `?tab=voice` und `?tab=proactivity` öffnen die passenden Einstellungen in KI & Dienste.
 
-Tägliches Briefing und Vorschläge sind ein Dienst mit gemeinsamen Einstellungen. Seine Karte zeigt auch Ausgaben und letzte Ausführungen. Die Speicherpflege hat ein eigenes Modell und Budget und beginnt ausgeschaltet. Wählen Sie vor dem Einschalten ein Modell. Beim KI-Architekten bleibt der Schalter sichtbar; der Agent-Builder-Link steht in der aufgeklappten Karte, ohne Begrüßungseditor. Alle sieben Funktionen verwenden denselben Kartenkopf, dasselbe Symbollayout und dieselben Aufklappschaltflächen.
+Tägliches Briefing und Vorschläge sind ein Dienst mit gemeinsamen Einstellungen. Seine Karte zeigt auch Ausgaben und letzte Ausführungen. Die Speicherpflege hat ein eigenes Modell und Budget und beginnt ausgeschaltet. Wählen Sie vor dem Einschalten ein Modell. Beim KI-Architekten bleiben Schalter und direkter Agent-Builder-Link ohne Begrüßungseditor oder zusätzliches Aufklappen sichtbar. Andere Dienste verwenden denselben Kartenkopf und dasselbe Symbollayout; sie lassen sich nur aufklappen, wenn sie bearbeitbare Einstellungen enthalten.
 
 Nach der Anmeldung erscheinen an die Konto-E-Mail adressierte Einladungen auch in Konsole und Onboarding, ohne den E-Mail-Link zu öffnen. Der Empfänger wählt eine Organisation und nimmt ausdrücklich an; Später lässt die Verknüpfung Einladungen verfügbar. Angezeigt werden nur gültige Einladungen an die aktuelle Konto-Adresse, ohne geteilte Links und bereits beigetretene Organisationen. Die Annahme wechselt zur gewählten Organisation und öffnet deren Begrüßung. Der Server gibt in diesem Posteingang keine Einladungstokens zurück.
 

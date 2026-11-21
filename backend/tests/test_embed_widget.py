@@ -294,3 +294,34 @@ def test_the_last_seconds_are_announced_once_and_counted_where_nothing_reads_the
     # The ticking count is the clock's, which is `aria-live="off"`.
     assert 'status.setAttribute("aria-live", "off");' in voice
     assert "status.textContent = left <= NEAR_LIMIT_SECONDS" in ticker
+
+
+def test_multiline_composer_sends_only_on_plain_enter():
+    """Pasting paragraphs, adding a newline or confirming IME text must not send a turn."""
+    node = shutil.which("node")
+    if node is None:  # pragma: no cover - CI includes node
+        pytest.skip("node is not installed")
+    handler = RENDERED.split("input.onkeydown = function (event) {", 1)[1].split("\n    };", 1)[0]
+    script = """
+const assert = require("node:assert/strict");
+let sent = 0;
+let prevented = 0;
+const form = { requestSubmit() { sent += 1; } };
+const keydown = function (event) { __HANDLER__ };
+function key(values) {
+  keydown({ key: "Enter", preventDefault() { prevented += 1; }, ...values });
+}
+key({ shiftKey: true });
+key({ isComposing: true });
+key({ keyCode: 229 });
+key({ key: "a" });
+assert.equal(sent, 0);
+assert.equal(prevented, 0);
+key({});
+assert.equal(sent, 1);
+assert.equal(prevented, 1);
+""".replace("__HANDLER__", handler)
+    result = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    assert 'el("textarea", "aos-input")' in RENDERED
+    assert "max-height:160px;overflow-y:auto" in RENDERED

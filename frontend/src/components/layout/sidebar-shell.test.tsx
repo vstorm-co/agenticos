@@ -11,6 +11,7 @@ import { version } from "../../../package.json";
  * full: a long nav that scrolls the organization out of reach, or pushes
  * signing out past the bottom of the screen.
  */
+vi.mock("@/components/onboarding/onboarding-reminder", () => ({ OnboardingReminder: () => null }));
 vi.mock("@/hooks/use-release-update", () => ({
   useReleaseUpdate: () => ({ data: { latest: null } }),
 }));

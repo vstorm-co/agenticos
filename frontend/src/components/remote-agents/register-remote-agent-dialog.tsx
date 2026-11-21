@@ -77,7 +77,6 @@ export function RegisterRemoteAgentDialog({
   };
 
   async function submit() {
-    if (pending || cardUrl.trim().length < 8) return;
     setPending(true);
     try {
       const created = await onSubmit({
@@ -111,8 +110,7 @@ export function RegisterRemoteAgentDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (pending) return;
-        if (!next) reset();
+        reset();
         onOpenChange(next);
       }}
     >

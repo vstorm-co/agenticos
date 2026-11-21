@@ -1,10 +1,20 @@
 ---
-source_sha: "51bdfd333e72"
+source_sha: "fd54201aae3e"
 ---
 
 # Konsola { #the-console }
 
 Domyślne motywy rozróżniają tło strony, sidebar, karty i panele pływające. Niebieski oznacza linki i fokus klawiatury, a włączone przełączniki są zielone. Nawigacja ma zwykłą grubość tekstu i mocniejszą etykietę aktywnej strony. Podsumowania sekcji Buildera pokazują bieżący model, zmienne, stan głosu i pierwsze wiadomości przed otwarciem edytorów. Logowanie i odzyskiwanie konta korzystają ze wspólnego, krótkiego nagłówka i statycznego panelu marki.
+
+Agregaty użycia i wydatków dashboardu korzystają z tej samej odpowiedzi w pamięci dla tego samego okresu przez maksymalnie 30 minut. Nie są licznikami na żywo: zdarzenia wykonań nie odświeżają agregatów po każdym wykonaniu. Pełne przeładowanie przeglądarki zaczyna od pustego cache i ponownie pyta API. Zapisane presety układu są pobierane wyłącznie w widoku organizacji, gdzie dostępne są kontrolki układu.
+
+Jeśli onboarding bieżącej organizacji nie został ukończony, **Dokończ konfigurację** prowadzi do konfiguracji z przewodnikiem. **Przypomnij mi jutro** ukrywa kartę na 24 godziny, pozostawiając spokojny link powrotu. Ukończenie i odroczenie są zapisane na serwerze dla twojego członkostwa; ładowanie lub błąd odczytu postępu nie oznacza konfiguracji jako nieukończonej. Wracasz z własnej inicjatywy: przewodnik nie uruchamia się automatycznie. W tej samej przeglądarce link pamięta ostatni dozwolony krok dla tego samego konta i organizacji, także po przeładowaniu. Nie zapisuje wartości formularza; na innym urządzeniu bezpiecznie otwiera domyślny początek.
+
+Inbox zachowuje tę samą ramę listy, odstępy wierszy, oznaczenia źródeł, typografię tytułów i opisów oraz responsywne położenie akcji w zakładkach Wszystkie, Pilne, Wyniki rutyn, Sugestie i Zakończone. Zakończone zachowują status decyzji i przywracanie odrzuconych wpisów; źródło i czas są widoczne także na telefonie. Formularze zgód mają zgodne zewnętrzne odstępy, zachowując wymagane pola i kontrolę uprawnień.
+
+Źródła otwierają się w zwartym panelu ze zmianą szerokości. Na wąskim desktopie jego otwarcie może tymczasowo zwinąć listę rozmów; zamknięcie przywraca poprzedni wybór, chyba że zmienisz go ręcznie. Kliknięcie cytatu przewija wyłącznie listę źródeł, pozostawiając konwersację na miejscu. Publiczny czat i osadzony widget obsługują wiadomości wielowierszowe: Enter wysyła, Shift+Enter dodaje wiersz, a składanie znaku przez IME nie wysyła wiadomości przedwcześnie.
+
+Galeria agentów pokazuje publikację jako kropkę i tekst. Potrzeba uwagi ma mały bursztynowy wskaźnik z powodem dostępnym po najechaniu, fokusie klawiatury lub dotknięciu. Karty workflow skupiają się na nazwie, opisie, dostępie, publikacji i dotychczasowych akcjach; triggery, węzły, tagi i statystyki wykonań pozostają w edytorze, filtrach lub historii. Wprowadzanie tagów używa jednego pola, zachowując obsługę klawiatury i duplikatów.
 
 Katalogi zasobów mają większe karty z ikoną, tytułem, opisem i osobną stopką statusu oraz akcji. Agenci, tabele, workflowy, bazy wiedzy, projekty, datasety, serwery MCP, skille, pliki kontekstu, Apps i grupy używają wspólnej ramki, zachowując własne akcje. W Builderze ustawienia są dostępne w spójnych, rozwijanych kartach. Thinking i Answer format są częścią Model settings. First messages pokazuje wbudowane podpowiedzi, gdy agent nie ma własnych. Model jest początkowo otwarty; zwinięcie zachowuje edytory, a linki Voice otwierają odpowiednią sekcję.
 
@@ -17,6 +27,8 @@ Edytor instrukcji dopasowuje wysokość do okna; do dłuższej edycji można go 
 Przy tworzeniu projektu najpierw podajesz nazwę, miejsce pracy i odbiorców. **Instrukcje i ustawienia domyślne** zawierają opcjonalny opis, instrukcje oraz początkowego agenta. Błąd takiego pola rozwija sekcję. W tabeli z wieloma kolumnami **Dodaj rekord** pokazuje pierwsze pola, wymagane wartości, treść dokumentu i wartości wpisane wcześniej w siatce. Rozwiń **Dodatkowe pola**, aby uzupełnić pozostałe opcjonalne właściwości.
 
 Organizacje mają wyszukiwanie po nazwie i slugu członkostwa, z liczbą wyników w tym samym pasku. Wyczyszczenie wyszukiwania przywraca pełną listę organizacji użytkownika.
+
+Karta aktywnego obszaru roboczego pokazuje skróty **AI i usługi** oraz **Budżet i zatwierdzenia** zgodnie z uprawnieniami w bieżącej organizacji. Karta AI Architect ma bezpośredni link do Buildera obok przełącznika, bez dodatkowego rozwijania. Pozostałe usługi AI zachowują rozwijane formularze, jeśli mają ustawienia do edycji.
 
 Widok Me zaczyna się od karty podsumowania okresu, a następnie zwartego Briefingu z tytułami, źródłami i akcjami. Pełne opisy propozycji pozostają w Inbox.
 
@@ -1005,7 +1017,7 @@ sesja otwiera kreator tylko do odczytu, z decyzją w ostatnim kroku; zobacz
 
 Szczegóły organizacji mają trzy zakładki: **Members**, **Budget and approvals** oraz **AI & services**. Members pozwala szukać po nazwie i e-mailu, filtrować role i sprawdzić ostatnie zapisane działanie w tym workspace. To działanie z audytu, nie wizyta ani logowanie; działania przez impersonację są pomijane, a brak historii pokazuje kreskę. **Edit workspace** otwiera okno nazwy, avatara i koloru z ochroną niezapisanych zmian. AI & services zawiera osobne karty funkcji bez nadrzędnych grup. Rozwijanie konfiguracji zachowuje szkice. Każda kontrolka zachowuje własne uprawnienia. Stare linki `?tab=profile` otwierają modal workspace, a `?tab=voice` i `?tab=proactivity` odpowiednie ustawienia w AI & services.
 
-Codzienny briefing i sugestie to jedna usługa, konfigurowana w jednym miejscu. Jej karta pokazuje też wydatki i ostatnie wykonania. Utrzymanie pamięci ma własny model i budżet oraz zaczyna jako wyłączone. Najpierw wybierz model, potem włącz usługę. AI Architect zachowuje widoczny przełącznik, a link do Agent Buildera udostępnia po rozwinięciu karty, bez edytora powitania. Wszystkie siedem funkcji ma wspólny nagłówek karty, układ ikon i przyciski rozwijania.
+Codzienny briefing i sugestie to jedna usługa, konfigurowana w jednym miejscu. Jej karta pokazuje też wydatki i ostatnie wykonania. Utrzymanie pamięci ma własny model i budżet oraz zaczyna jako wyłączone. Najpierw wybierz model, potem włącz usługę. AI Architect pokazuje przełącznik i bezpośredni link do Agent Buildera bez edytora powitania i dodatkowego rozwijania. Pozostałe usługi używają wspólnego nagłówka i układu ikon; rozwijają się tylko wtedy, gdy zawierają ustawienia do edycji.
 
 Po zalogowaniu zaproszenia wysłane na e-mail konta pojawiają się także w konsoli i onboardingu, bez otwierania linku z wiadomości. Odbiorca wybiera organizację i jawnie przyjmuje zaproszenie; Później zostawia dostępny skrót Zaproszenia. Lista zawiera tylko aktualne zaproszenia na bieżący adres konta, bez linków współdzielonych i organizacji, do których użytkownik już należy. Przyjęcie przełącza organizację i otwiera jej powitanie. Serwer nie zwraca tokenu zaproszenia w tej skrzynce.
 

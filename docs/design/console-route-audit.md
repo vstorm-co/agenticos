@@ -68,10 +68,10 @@ Rows marked pending or delegated are not completed reviews.
 | `/mcp-servers` | source reviewed / changed + targeted tests | Catalog/personal Retry, connection-specific tool search reset, actual setup link and pending draft locks. Targeted hook/picker tests; live OAuth and remote server probing require their runtime. |
 | `/orgs/[id]/directory` | source reviewed / changed | Add failed-list Retry. Keep membership/role gates and existing no-access/loading distinctions. |
 | `/orgs/[id]/groups` | source reviewed / retained | Retain readable member groups and permission-gated create/edit/delete/member management; empty guidance belongs to `GroupList`. |
-| `/orgs/[id]/members` | reviewed / changed | Assistant/conversation controls precede background models; noninteractive section headings keep each service switch/disclosure independent. Role and organization gates retained. |
+| `/orgs/[id]/members` | reviewed / changed | AI Architect exposes its Builder link beside the switch with no empty disclosure. Background-role errors now have a reason and query-owned Retry. Assistant/conversation controls precede background models; noninteractive section headings keep each service switch/disclosure independent. Role and organization gates retained. |
 | `/orgs/[id]/retention` | source reviewed / retained | Retain permission loading/refusal/failure distinctions, policy Retry and explicit save confirmation. |
 | `/orgs/[id]/roles` | source reviewed / retained | Retain searchable keyboard-reachable permission matrix, scoped permission labels and catalog-failure state. |
-| `/orgs` | source reviewed / changed | Replace local pseudo-loading and unconditional refresh with query-owned pending/error/retry states. |
+| `/orgs` | reviewed / changed | Membership search, query recovery and workspace switching retained. Only the active workspace exposes AI/services and governance shortcuts, derived from current-tenant permissions; no permission is assumed for other organizations. |
 | `/profile` | source reviewed / retained | Retain the compatibility redirect to `/settings/profile`; there is no duplicate profile editor. |
 | `/projects/[id]` | reviewed | Files, Chats, Apps and Instructions are independently addressable. Unsaved instruction guard and workspace-move gate retained. Child editor and file operations retain existing tests; browser comparison remains required. |
 | `/projects` | reviewed / changed | List distinguishes errors/empty/search; empty hint names realistic projects. Create dialog keeps workspace and audience visible, folds optional instructions/defaults and reveals field refusals. |
@@ -108,7 +108,7 @@ Rows marked pending or delegated are not completed reviews.
 | `/workflows/[id]` | reviewed / changed | Canvas, triggers and settings remain separate. Cold metadata/catalog failure has explicit recovery; cached canvas stays mounted during a refresh failure. Blank rename gets an inline explanation instead of silently failing to autosave. WorkflowSettingsForm already folds execution/history/limits. |
 | `/workflows/[id]/runs/[runId]` | reviewed / changed | Fixed permanent loading on failed run/steps/files/graph/workflow/catalog reads with explicit error and query-owner Retry. Existing read-only canvas, output/files tabs and guarded cancel/retry/resolve retained. |
 | `/workflows/[id]/runs` | source reviewed / retained | RunHistory has filters, pagination and Retry; optional statistics already folded. StartRunDialog preserves live-contract loading/refusal and test/live permissions. |
-| `/workflows` | reviewed | Gallery loading/error/filtered-empty states and templates inspected. New form already folds description/tags and makes trigger/audience choices explicit. |
+| `/workflows` | reviewed / changed | Gallery loading/error/filtered-empty states and templates inspected. Cards keep identity, description, access, publication and management/history actions; runtime, node counts and tags remain in the existing editor/history and filters instead of every card. Removed the gallery-only node-catalog read. New form already folds description/tags and makes trigger/audience choices explicit. |
 | `/workflows/runs` | source reviewed / retained | Shared RunHistory provides cross-workflow filters, pagination, failed-read Retry and workflow-specific row links. |
 | `/apps/[id]` | source reviewed / retained | ArtifactViewer separates unavailable, requestable access and transient failure with Retry; version pin, return route, isolated artifact rendering and request drawer retained. |
 | `/oauth/consent` | source reviewed / changed | Distinguish expired/missing request (404) from failed reads (including 403, 429 and 5xx). Failed reads offer Retry and no Allow control. An incomplete link no longer sends a request for an empty ID. Global deployment authority remains a separate unchecked opt-in. |
@@ -141,6 +141,7 @@ the root task delivery; no whole-directory suite or E2E run was performed locall
 
 ## Nested forms and configuration review
 
+- Shared ChipsInput uses one field surface with a transparent inline input; Unicode limits, suggestions, commit/remove controls remain and IME Enter cannot prematurely commit a candidate.
 - NewAgentDialog already folds optional description/category/tags; name, audience and
   handle remain primary. CapabilityWorkbench separates capability navigation from
   focused settings and resources. SchemaForm already groups `x-advanced` fields and

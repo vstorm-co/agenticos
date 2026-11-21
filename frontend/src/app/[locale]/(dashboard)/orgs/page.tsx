@@ -17,8 +17,9 @@ import {
   Skeleton,
   EntityAvatar,
 } from "@/components/ui";
-import { useOrganizations, useOrganizationList } from "@/hooks";
+import { useOrganizations, useOrganizationList, usePermissions } from "@/hooks";
 import { ErrorState } from "@/components/states";
+import { Perm } from "@/types/permissions";
 import { ROUTES } from "@/lib/constants";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
@@ -55,6 +56,9 @@ export default function OrgsPage() {
   const ui = useTranslations("ui");
   const [query, setQuery] = useState("");
   const { orgs, activeOrgId, switchOrg } = useOrganizations();
+  const { can } = usePermissions();
+  const canServices = can(Perm.orgSettings) || can(Perm.budgetsManage);
+  const canGovernance = canServices || can(Perm.approvalsDecide);
   const organizations = useOrganizationList();
   const isLoading = organizations.isPending;
   const [createOpen, setCreateOpen] = useState(false);
@@ -146,7 +150,7 @@ export default function OrgsPage() {
                   key={org.id}
                   className="peek-card border-border bg-card hover:border-foreground/30 relative flex flex-col gap-4 rounded-xl border p-5"
                 >
-                  {/* Whole-row link, under the one real control. The link is an
+                  {/* Whole-row link, under the explicit controls. The link is an
                       absolute overlay at z-10, so static content beneath it
                       clicks through to the detail page; the Switch button sits
                       in a z-20 wrapper above it and handles its own click - a
@@ -195,6 +199,30 @@ export default function OrgsPage() {
                       </p>
                     </div>
                   </div>
+
+                  {isActive && (canServices || canGovernance) && (
+                    <div className="relative z-20 space-y-2 border-t pt-3">
+                      <p className="text-muted-foreground text-xs">{t("workspaceSettings")}</p>
+                      <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                        {canServices && (
+                          <Link
+                            className="text-info focus-visible:outline-ring hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
+                            href={`${ROUTES.ORG_MEMBERS(org.id)}?tab=assistant`}
+                          >
+                            {t("tabAssistant")}
+                          </Link>
+                        )}
+                        {canGovernance && (
+                          <Link
+                            className="text-info focus-visible:outline-ring hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
+                            href={`${ROUTES.ORG_MEMBERS(org.id)}?tab=governance`}
+                          >
+                            {t("tabGovernance")}
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="relative z-20">
                     <Button

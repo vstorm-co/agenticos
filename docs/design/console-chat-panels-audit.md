@@ -264,3 +264,28 @@ Legacy reports without kind remain supported; nullable backend metadata normaliz
 to absent, so a null change-set id does not initiate a resource read. Native
 microphone, filesystem consent and remote browser control still require their
 actual runtime for visual verification.
+
+## Sources layout and embedded chat follow-up
+
+Sources now uses a preferred width of 400px, adjustable from 360px to 420px and
+capped at 38% of a docked conversation. Browser and Files retain their wider
+content-oriented profile. On a constrained desktop chat row, Sources temporarily
+folds the conversation list; closing Sources restores the prior explicit choice.
+Expanding the list manually overrides that automatic folding for the current
+Sources session. Resize observation responds to available chat width, without
+writing an automatic change into saved user preferences. Highlighted citations
+scroll their own Sources list instead of calling ancestor-scrolling
+`scrollIntoView`. Scoped tests cover preferred width, pointer and keyboard resize,
+container resize, restoration, explicit overrides and ancestor-scroll refusal.
+Browser verification of reading-position stability belongs to the parent pass.
+
+| Surface                             | Source and interaction review                                                                                                                       | Change or retained contract                                                                                                                                                                                                                                                 | Verification                                                                                |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Architect assistant window          | Shared ChatContainer, history, screenshot attachment, new conversation, tips and close                                                              | Header controls use 44px targets with visible keyboard focus; all actions retained. Its shared composer and turn pipeline already inherit console changes.                                                                                                                  | Assistant widget scoped suite; no child browser pass                                        |
+| Agent builder test chat             | Shared ChatContainer under testing context; pinned greeting, starter questions, agent/conversation reset and externally requested prompts           | Retained: shared composer and turn rendering preserve feature parity without exposing a separate conflicting control layout.                                                                                                                                                | Source interaction review; existing shared tests                                            |
+| Hosted public page `/e/[publicKey]` | Separate admitted public socket, attachments, reconnect, browser/server dictation, public voice and shared TurnParts                                | Multiline composer with bounded height and separate controls row. Enter sends; Shift+Enter adds a line; IME confirmation does not send. Public transport and admission remain unchanged.                                                                                    | Hosted suite, including keyboard/IME regressions                                            |
+| Public channel widget `WIDGET_JS`   | Scoped stylesheet, safe Markdown DOM, caller-side token, limited public frame vocabulary, sources gate, dictation, voice, Escape and reduced motion | Multiline textarea grows within 160px, then scrolls internally. Plain Enter submits; Shift+Enter and IME keep composing. Rejected/disconnected sends retain the draft. Widget remains its own restricted public renderer; it does not promise private console tool history. | Widget Python suite, real Node syntax/keyboard-handler execution, security-marker inventory |
+
+These are source and automated interaction checks. They do not establish visual
+approval in both themes, native microphone availability or a live public-channel
+end-to-end result; those require the parent browser/CI pass.

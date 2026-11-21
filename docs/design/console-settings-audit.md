@@ -164,3 +164,48 @@ output cards from that text-only contract. The injected widget uses its own
 small script and receives no tool-step/detail frames under its current visibility
 policy. Full live/history parity on these public transports therefore requires
 a separate, operator-filtered history contract; it is not claimed here.
+
+## Unfinished setup reminder
+
+The desktop sidebar and phone navigation reuse membership-scoped `useStart` state
+for a compact Finish setup card. Dismissing uses the existing server-owned
+24-hour snooze and leaves a quiet return link; loading, failure, wrong-organization
+and confirmed-completion states do not show an incomplete claim. The collapsed
+rail and dismissal controls retain named, touch-sized targets. No local completion
+or dismissal flag is introduced.
+
+A separate persisted navigation-only UI store remembers only a known
+step and optional known question under `/onboarding`, scoped by account and exact
+organization. The entry observer strips unrelated query values; the store and
+consumer validate the navigation again. Server-confirmed completion clears the
+hint. Reloads restore only sanitized navigation; another device safely begins at
+the default entry. This is not backend resume state. Existing organization-logo previews no longer draw a square
+background, border or shadow around their circular avatar. The standalone header retains its existing language control.
+
+Inbox now shares row grid, spacing, mark size, title/metadata/detail typography
+and responsive action alignment between open items and Done. The same page frame
+is retained when filtering. Approval forms inherit the common outer inset while
+keeping their fields, read-only/decision gates and contextual sizing. Done keeps
+decision badges and restore behavior, with readable source/time on phones.
+Scoped Inbox/approval tests pass without changing acceptance or filtering contracts.
+
+## Dashboard request/cache inspection
+
+The same usage query key/window is shared by MeHeader, summary and matching
+widgets, so multiple consumers do not imply duplicate HTTP requests. The page
+starts onboarding and Briefing reads before mounting the opening cards; those
+read the same cached queries. Permission/layout gating before the widget grid
+is retained deliberately, rather than requesting widgets the caller may not see.
+
+One confirmed unnecessary read was removed: layout presets were fetched on every
+view even though their controls exist only under organization arrangement. The
+hook now accepts `enabled`; the page enables it for the requested organization
+view. Actual request assertions cover zero preset reads on Me/Group/Deployment
+and one on Organization, plus existing save/remove behavior. This saves one
+cold request on those views; no first-paint speedup or timing benchmark is claimed.
+
+Dashboard aggregates retain the existing 30-minute RAM freshness. A normal-browser
+reload does not restore that query cache; run events do not invalidate usage
+aggregates on each completion. No polling, server TTL or arbitrary freshness
+change was introduced. Backend aggregate work and the static widget import graph
+remain separate performance questions requiring profiling before a refactor.

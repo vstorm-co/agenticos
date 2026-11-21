@@ -5,6 +5,7 @@ import { ProjectAvatar } from "@/components/projects/project-avatar";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -40,6 +41,8 @@ import {
   useChatSidebarStore,
   useWorkingStore,
 } from "@/stores";
+import { useSourcesPanelStore } from "@/stores/sources-panel-store";
+import { useChanged } from "@/hooks/use-changed";
 import { DEFAULT_COLLAPSED_BANDS, LONG_LIST } from "@/stores/chat-sidebar-store";
 import { useFillChatBands } from "@/hooks/use-fill-chat-bands";
 import { useProjects } from "@/hooks/use-projects";
@@ -952,9 +955,27 @@ interface ConversationSidebarProps {
 
 export function ConversationSidebar({ className }: ConversationSidebarProps) {
   const ts = useTranslations("chat.sidebar");
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [preferredCollapsed, setPreferredCollapsed] = useState(false);
+  const sourcesOpen = useSourcesPanelStore((state) => state.isOpen);
+  const [sourcesOverride, setSourcesOverride] = useState(false);
+  const [tight, setTight] = useState(false);
+  const sidebar = useRef<HTMLElement>(null);
+  if (useChanged(sourcesOpen)) setSourcesOverride(false);
+  useLayoutEffect(() => {
+    const container = sidebar.current?.parentElement;
+    if (!container) return;
+    const measure = () => {
+      const width = container.getBoundingClientRect().width;
+      setTight(window.innerWidth >= 768 && width > 0 && width < 1240);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+  const isCollapsed = preferredCollapsed || (sourcesOpen && tight && !sourcesOverride);
   const [searchOpen, setSearchOpen] = useState(false);
-  const collapse = () => setIsCollapsed(true);
+  const collapse = () => setPreferredCollapsed(true);
   const { isOpen, close } = useChatSidebarStore();
   // Seeded from the URL and written back to it, so a reload lands on the list
   // somebody was reading rather than on the default one. Written with
@@ -1190,7 +1211,10 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
         <CollapsedSidebar
           {...listProps}
           toolbar={toolbar(undefined, true)}
-          onExpand={() => setIsCollapsed(false)}
+          onExpand={() => {
+            setPreferredCollapsed(false);
+            setSourcesOverride(true);
+          }}
           className={className}
         />
       </>
@@ -1200,6 +1224,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   return (
     <>
       <aside
+        ref={sidebar}
         data-conversation-sidebar={layout}
         className={cn(
           "bg-sidebar-secondary hidden min-h-0 w-64 shrink-0 flex-col md:flex xl:w-72",

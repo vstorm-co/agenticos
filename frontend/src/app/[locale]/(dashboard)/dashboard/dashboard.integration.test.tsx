@@ -556,6 +556,7 @@ describe("the view switcher", () => {
       expect(screen.getByRole("heading", { name: /dashboard\.greeting/ })).toBeInTheDocument();
       expect(screen.getByRole("group", { name: "dashboard.views.label" })).toBeInTheDocument();
       expect(document.querySelector(`[data-dashboard-view="${view}"]`)).not.toBeNull();
+      expect(callsTo("/me/dashboard-layout/presets")).toHaveLength(view === "org" ? 1 : 0);
       if (view !== "me")
         expect(screen.getByText(`dashboard.views.${view}.description`)).toBeInTheDocument();
     },

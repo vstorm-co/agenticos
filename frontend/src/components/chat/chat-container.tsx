@@ -652,7 +652,7 @@ export function ChatContainer({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sentTurnSpacerRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
-  const { dockHeight, revealQuestion } = useChatViewport({
+  const { dockHeight, revealQuestion, bindScroller } = useChatViewport({
     conversationId: currentConversationId,
     messages,
     sentTurnId,
@@ -897,7 +897,7 @@ export function ChatContainer({
         onSendQueuedNow={sendQueuedNow}
         onMoveQueued={moveQueued}
         transcriptRef={transcriptRef}
-        scrollContainerRef={scrollContainerRef}
+        bindScroller={bindScroller}
         dockRef={dockRef}
         dockHeight={dockHeight}
         onRevealQuestion={revealQuestion}
@@ -1034,7 +1034,7 @@ interface ChatUIProps {
   steers?: SteerDraft[];
   /** The transcript's content, whose growth the scroller follows. */
   transcriptRef: React.RefObject<HTMLDivElement | null>;
-  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
+  bindScroller: (element: HTMLDivElement | null) => void;
   dockRef: React.RefObject<HTMLDivElement | null>;
   dockHeight: number;
   onRevealQuestion: () => void;
@@ -1113,7 +1113,7 @@ function ChatUI({
   onMoveQueued,
   steers = [],
   transcriptRef,
-  scrollContainerRef,
+  bindScroller,
   dockRef,
   dockHeight,
   onRevealQuestion,
@@ -1426,7 +1426,7 @@ function ChatUI({
           {!compact && <TurnRail entries={railEntries} />}
           <BrowserPanelAutoOpen browses={browses} />
           <div
-            ref={scrollContainerRef}
+            ref={bindScroller}
             data-chat-scroller
             className={cn(
               "flex-1 scrollbar-thin overflow-y-auto [overflow-anchor:none]",

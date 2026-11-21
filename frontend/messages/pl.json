@@ -2988,7 +2988,8 @@
       "assistantServices": "Asystent i rozmowy",
       "assistantServicesHint": "Ustaw pomoc dla użytkowników, aktualizacje i rozmowy głosowe.",
       "backgroundServices": "Usługi w tle",
-      "backgroundServicesHint": "Modele i budgety do wewnętrznych zadań platformy."
+      "backgroundServicesHint": "Modele i budgety do wewnętrznych zadań platformy.",
+      "workspaceSettings": "Ustawienia tego obszaru roboczego"
     },
     "rag": {
       "active": "Aktywne",
@@ -4259,10 +4260,6 @@
       "statusLive": "Aktywny",
       "statusLiveVersion": "Aktywny · wersja {version}",
       "statusUnpublishedChanges": "Nieopublikowane zmiany",
-      "cardStartsFrom": "{trigger} · {count, plural, one {# krok} few {# kroki} many {# kroków} other {# kroku}}",
-      "cardNotRun": "Jeszcze nie uruchomiony",
-      "cardNotRunEdited": "Jeszcze nie uruchomiony · edytowany {when}",
-      "cardSteps": "{count, plural, =0 {Jeszcze bez kroków} one {# krok} few {# kroki} many {# kroków} other {# kroku}}",
       "statusDraft": "Szkic",
       "triggerFormLive": "Każdy z linkiem wypełnia formularz, a każda odpowiedź uruchamia run jako członek, który go opublikował. Wstrzymaj go, żeby zamknąć stronę.",
       "formUrl": "Link do formularza",
@@ -17409,6 +17406,12 @@
     "jsonInvalid": "Wpisz poprawny JSON wymaganego typu. Ostatnia poprawna wartość pozostaje bez zmian."
   },
   "start": {
+    "sidebarReminder": {
+      "title": "Dokończ konfigurację",
+      "hint": "Dokończ konfigurację we własnym tempie.",
+      "snooze": "Przypomnij mi jutro",
+      "saveFailed": "Nie udało się ukryć przypomnienia. Spróbuj ponownie."
+    },
     "administration": {
       "title": "Przygotuj organizację dla swojego zespołu",
       "intro": "Utwórz organizację firmy, zaproś ludzi i skonfiguruj wdrożenie. Do każdego ustawienia możesz wrócić później.",

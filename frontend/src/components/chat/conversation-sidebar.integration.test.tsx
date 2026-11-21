@@ -19,6 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Conversation } from "@/types/conversation";
 import { ConversationSidebar } from "./conversation-sidebar";
 import { apiClient } from "@/lib/api-client";
+import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import { toast } from "sonner";
 import * as invalidation from "@/lib/coalesced-invalidation";
 import {
@@ -1224,5 +1225,99 @@ describe("sidebar layout previews", () => {
     mount();
     await within(list()).findByRole("button", { name: /^Quarterly numbers$/ });
     expect(list()).toHaveAttribute("data-conversation-sidebar", "workspace");
+  });
+});
+
+describe("making temporary room for Sources", () => {
+  it("temporarily collapses a narrow conversation list and restores its prior choice", async () => {
+    const bounds = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(0, 0, 1100, 800));
+    try {
+      mount();
+      await screen.findByRole("button", { name: "Collapse conversations sidebar" });
+      act(() => useSourcesPanelStore.getState().open([]));
+      expect(screen.getByRole("button", { name: "Expand conversations sidebar" })).toBeVisible();
+      act(() => useSourcesPanelStore.getState().close());
+      expect(screen.getByRole("button", { name: "Collapse conversations sidebar" })).toBeVisible();
+      await userEvent.click(screen.getByRole("button", { name: "Collapse conversations sidebar" }));
+      act(() => useSourcesPanelStore.getState().open([]));
+      act(() => useSourcesPanelStore.getState().close());
+      expect(screen.getByRole("button", { name: "Expand conversations sidebar" })).toBeVisible();
+    } finally {
+      act(() => useSourcesPanelStore.getState().close());
+      bounds.mockRestore();
+    }
+  });
+
+  it("respects an explicit expansion for this Sources session and resets only the temporary override", async () => {
+    const bounds = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(0, 0, 1100, 800));
+    try {
+      mount();
+      await screen.findByRole("button", { name: "Collapse conversations sidebar" });
+      act(() => useSourcesPanelStore.getState().open([]));
+      await userEvent.click(screen.getByRole("button", { name: "Expand conversations sidebar" }));
+      expect(screen.getByRole("button", { name: "Collapse conversations sidebar" })).toBeVisible();
+      act(() => useSourcesPanelStore.getState().close());
+      expect(screen.getByRole("button", { name: "Collapse conversations sidebar" })).toBeVisible();
+      act(() => useSourcesPanelStore.getState().open([]));
+      expect(screen.getByRole("button", { name: "Expand conversations sidebar" })).toBeVisible();
+    } finally {
+      act(() => useSourcesPanelStore.getState().close());
+      bounds.mockRestore();
+    }
+  });
+
+  it("responds to container resizing without losing an explicit list preference", async () => {
+    let width = 1500;
+    const resize: Array<() => void> = [];
+    const originalObserver = global.ResizeObserver;
+    class Observer implements ResizeObserver {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        if (target.querySelector("[data-conversation-sidebar]")) {
+          resize.push(() => this.callback([], this));
+        }
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    global.ResizeObserver = Observer;
+    const bounds = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockImplementation(() => new DOMRect(0, 0, width, 800));
+    try {
+      mount();
+      await screen.findByRole("button", { name: "Collapse conversations sidebar" });
+      act(() => useSourcesPanelStore.getState().open([]));
+      expect(screen.getByRole("button", { name: "Collapse conversations sidebar" })).toBeVisible();
+      width = 1100;
+      act(() => resize.forEach((notify) => notify()));
+      expect(screen.getByRole("button", { name: "Expand conversations sidebar" })).toBeVisible();
+      width = 1500;
+      act(() => resize.forEach((notify) => notify()));
+      expect(screen.getByRole("button", { name: "Collapse conversations sidebar" })).toBeVisible();
+    } finally {
+      act(() => useSourcesPanelStore.getState().close());
+      global.ResizeObserver = originalObserver;
+      bounds.mockRestore();
+    }
+  });
+
+  it("keeps the list expanded when the desktop chat has enough width", async () => {
+    const bounds = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(0, 0, 1500, 800));
+    try {
+      mount();
+      await screen.findByRole("button", { name: "Collapse conversations sidebar" });
+      act(() => useSourcesPanelStore.getState().open([]));
+      expect(screen.getByRole("button", { name: "Collapse conversations sidebar" })).toBeVisible();
+    } finally {
+      act(() => useSourcesPanelStore.getState().close());
+      bounds.mockRestore();
+    }
   });
 });

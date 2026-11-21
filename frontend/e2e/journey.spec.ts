@@ -470,6 +470,10 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   const projectDialog = page.getByRole("dialog");
   const projectName = `Journey project ${stamp}`;
   await projectDialog.getByRole("textbox", { name: "Name", exact: true }).fill(projectName);
+  await projectDialog
+    .getByRole("button", { name: "Instructions and defaults", exact: true })
+    .click();
+  await expect(projectDialog.getByLabel("Default agent", { exact: true })).toBeVisible();
   await projectDialog.getByLabel("Default agent", { exact: true }).click();
   await page.getByRole("option", { name: agentName, exact: true }).click();
   await submitDialog(page, {

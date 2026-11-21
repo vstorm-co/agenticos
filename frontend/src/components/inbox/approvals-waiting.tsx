@@ -13,6 +13,8 @@ import { ROUTES } from "@/lib/constants";
 import type { WorkflowApprovalRead } from "@/lib/workflows/types";
 import type { ToolApproval } from "@/types/runs";
 
+import styles from "./inbox-row.module.css";
+
 const SHOWN = 5;
 
 export function ApprovalsWaiting({
@@ -48,6 +50,7 @@ export function ApprovalsWaiting({
         {shownSteps.map((approval) => (
           <li key={approval.id}>
             <StepApprovalRow
+              className={styles.approvalRow}
               approval={approval}
               deciding={deciding}
               onDecide={(approved, final, choice) =>
@@ -58,6 +61,7 @@ export function ApprovalsWaiting({
         ))}
         {tools.slice(0, SHOWN - shownSteps.length).map((approval) => (
           <PendingApproval
+            className={styles.approvalRow}
             key={approval.id}
             approval={approval}
             deciding={deciding}

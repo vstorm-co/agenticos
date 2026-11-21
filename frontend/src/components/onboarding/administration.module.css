@@ -255,11 +255,14 @@
   align-items: center;
   gap: 8px;
 }
-.workspaceMonogram {
+.workspaceMonogram,
+.workspaceLogo {
   display: grid;
   place-items: center;
   width: 58px;
   height: 58px;
+}
+.workspaceMonogram {
   border-radius: 15px;
   background: var(--color-card);
   color: var(--color-brand);

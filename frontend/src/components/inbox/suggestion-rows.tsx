@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Suggestion } from "@/lib/suggestions-api";
+import styles from "./inbox-row.module.css";
 import { cn, timeAgo } from "@/lib/utils";
 
 /**
@@ -78,18 +79,21 @@ export function SuggestionRows({
               id={`suggestion-${suggestion.id}`}
               aria-label={suggestion.title}
               className={cn(
-                "hover:bg-muted/40 grid grid-cols-[2rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2 transition-colors",
                 dense
-                  ? "items-center px-1 py-2.5 @[48rem]/widget:grid-cols-[2rem_minmax(0,1fr)_auto]"
-                  : "px-4 py-5 sm:px-5 md:grid-cols-[2rem_minmax(0,1fr)_auto]",
+                  ? "hover:bg-muted/40 grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-1 py-2.5 transition-colors @[48rem]/widget:grid-cols-[2rem_minmax(0,1fr)_auto]"
+                  : styles.row,
               )}
             >
-              <SuggestionMark suggestion={suggestion} className="bg-muted shadow-none" />
+              <SuggestionMark
+                suggestion={suggestion}
+                className={cn("bg-muted shadow-none", !dense && styles.mark)}
+              />
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-baseline gap-2">
                   <p
                     className={cn(
-                      "min-w-0 text-sm font-semibold",
+                      "min-w-0",
+                      dense ? "text-sm font-medium" : styles.title,
                       dense ? "truncate" : "text-pretty",
                     )}
                   >
@@ -121,7 +125,9 @@ export function SuggestionRows({
                     </Badge>
                   )}
                 </div>
-                <span className={cn("text-muted-foreground mt-1 block text-xs")}>
+                <span
+                  className={dense ? "text-muted-foreground mt-1 block text-xs" : styles.metadata}
+                >
                   {waitingSource ? (
                     <Skeleton aria-hidden className="h-4 w-32" />
                   ) : (
@@ -134,7 +140,9 @@ export function SuggestionRows({
                 {showDetails && suggestion.detail && (
                   <p
                     className={cn(
-                      "text-muted-foreground mt-1 max-w-3xl text-sm leading-relaxed",
+                      dense
+                        ? "text-muted-foreground mt-1 max-w-3xl text-sm leading-relaxed"
+                        : styles.detail,
                       dense
                         ? "line-clamp-1 @[48rem]/widget:col-span-2"
                         : !expandedDetails && "line-clamp-2",
@@ -146,10 +154,9 @@ export function SuggestionRows({
               </div>
               <div
                 className={cn(
-                  "col-start-2 flex flex-wrap items-center gap-1.5",
                   dense
-                    ? "mt-0.5 @[48rem]/widget:col-start-3 @[48rem]/widget:row-start-1 @[48rem]/widget:self-center"
-                    : "md:col-start-3 md:row-start-1 md:self-center",
+                    ? "col-start-2 mt-0.5 flex flex-wrap items-center gap-1.5 @[48rem]/widget:col-start-3 @[48rem]/widget:row-start-1 @[48rem]/widget:self-center"
+                    : styles.actions,
                 )}
               >
                 {dense ? (

@@ -25,16 +25,18 @@ function Harness({
   messages = [old],
   sentTurnId,
   conversationId = "c",
+  mounted = true,
 }: {
   messages?: ChatMessage[];
   sentTurnId?: string;
   conversationId?: string | null;
+  mounted?: boolean;
 }) {
   const scroller = useRef<HTMLDivElement>(null),
     content = useRef<HTMLDivElement>(null),
     spacer = useRef<HTMLDivElement>(null),
     dock = useRef<HTMLDivElement>(null);
-  const { revealQuestion } = useChatViewport({
+  const { revealQuestion, bindScroller } = useChatViewport({
     conversationId,
     messages,
     sentTurnId,
@@ -44,9 +46,10 @@ function Harness({
     spacer,
     dock,
   });
+  if (!mounted) return <div>Loading transcript</div>;
   return (
     <>
-      <div ref={scroller} data-testid="scroll">
+      <div ref={bindScroller} data-testid="scroll">
         <div ref={content} data-testid="content">
           <div data-message-id="old" data-chat-message-key="old">
             <button>History control</button>
@@ -413,4 +416,16 @@ it("reveals below the phone toolbar's scroll inset", () => {
   view.getByTestId("scroll").style.scrollPaddingTop = "80px";
   fireEvent.click(view.getByText("Reveal"));
   expect(view.getByTestId("scroll").scrollTop).toBe(1180);
+});
+
+it("attaches the viewport when a suspended transcript mounts after the conversation", () => {
+  const view = render(<Harness mounted={false} />);
+  expect(view.queryByTestId("scroll")).toBeNull();
+  view.rerender(<Harness />);
+  const scrolling = view.getByTestId("scroll");
+  expect(scrolling.style.paddingBottom).toBe("144px");
+  expect(scrolling.scrollTop).toBe(744);
+  fireEvent.click(view.getByText("Reveal"));
+  expect(scrolling.scrollTop).toBe(questionTop - 24);
+  expect(view.getByRole("group")).toHaveFocus();
 });

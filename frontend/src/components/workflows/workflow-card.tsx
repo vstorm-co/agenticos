@@ -21,11 +21,9 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 
-import { WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
 import {
-  Badge,
   ConfirmDialog,
   DropdownMenu,
   DropdownMenuContent,
@@ -33,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
-import { cn, timeAgo } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { WorkflowRead } from "@/lib/workflows/types";
 
 const VISIBILITY_ICON = { org: Building2, team: Users, private: Lock } as const;
@@ -47,7 +45,6 @@ const VISIBILITY_ICON = { org: Building2, team: Users, private: Lock } as const;
  */
 export function WorkflowCard({
   workflow,
-  startsFrom,
   canCreate,
   canEdit,
   busy,
@@ -57,8 +54,6 @@ export function WorkflowCard({
   onDelete,
 }: {
   workflow: WorkflowRead;
-  /** What the draft's first step is called in the catalog - "Webhook" - once it is known. */
-  startsFrom: string | null;
   canCreate: boolean;
   /** Whether the member's role edits workflows: the menu to archive, restore or delete. */
   canEdit: boolean;
@@ -71,8 +66,6 @@ export function WorkflowCard({
 }) {
   const t = useTranslations("pages.workflows");
   const tc = useTranslations("common");
-  const tt = useTranslations("time");
-  const locale = useLocale();
   const [deleting, setDeleting] = useState(false);
   const archived = workflow.status === "archived";
   const live = workflow.current_version_id !== null;
@@ -80,7 +73,6 @@ export function WorkflowCard({
     workflow.visibility in VISIBILITY_ICON ? workflow.visibility : "private"
   ) as keyof typeof VISIBILITY_ICON;
   const VisibilityIcon = VISIBILITY_ICON[visibility];
-  const showsTrigger = workflow.trigger_active !== null && !archived;
 
   return (
     <div className="h-full rounded-xl">
@@ -112,60 +104,18 @@ export function WorkflowCard({
         <ResourceCardDescription className="pointer-events-none">
           {workflow.description || t("cardNoDescription")}
         </ResourceCardDescription>
-        <ResourceCardFooter className="pointer-events-none">
-          <Badge variant="outline" className="text-muted-foreground shrink-0 gap-1.5 font-normal">
+        <ResourceCardFooter className="pointer-events-none justify-between">
+          <span className="text-muted-foreground pointer-events-none inline-flex shrink-0 items-center gap-1.5 text-xs">
             <span
-              aria-hidden="true"
+              aria-hidden
               className={cn(
                 "size-1.5 rounded-full",
                 archived ? "bg-muted-foreground/50" : live ? "bg-success" : "bg-warning",
               )}
             />
             {archived ? t("statusArchived") : live ? t("statusLive") : t("statusDraft")}
-          </Badge>
-          <span className="text-muted-foreground text-xs">
-            {startsFrom === null
-              ? t("cardSteps", { count: workflow.step_count })
-              : t("cardStartsFrom", { trigger: startsFrom, count: workflow.step_count })}
           </span>
-          {showsTrigger && (
-            <Badge variant="outline" className="text-muted-foreground gap-1.5 font-normal">
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "size-1.5 rounded-full",
-                  workflow.trigger_active ? "bg-success" : "bg-muted-foreground/40",
-                )}
-              />
-              {workflow.trigger_active ? t("activeOn") : t("activeOff")}
-            </Badge>
-          )}
-          {workflow.tags.map((tag) => (
-            <Badge key={tag} variant="secondary" className="font-normal">
-              {tag}
-            </Badge>
-          ))}
-        </ResourceCardFooter>
-        <div className="relative mt-auto flex items-center justify-between gap-x-2 gap-y-1 pt-3">
-          <span className="text-muted-foreground pointer-events-none flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-            {workflow.last_run !== null ? (
-              <>
-                <WorkflowRunStatusBadge status={workflow.last_run.status} />
-                {workflow.last_run.created_at !== null && (
-                  <span className="truncate">
-                    {timeAgo(workflow.last_run.created_at, tt, locale)}
-                  </span>
-                )}
-              </>
-            ) : (
-              <span className="truncate">
-                {workflow.updated_at
-                  ? t("cardNotRunEdited", { when: timeAgo(workflow.updated_at, tt, locale) })
-                  : t("cardNotRun")}
-              </span>
-            )}
-          </span>
-          <div className="ml-auto flex items-center gap-1">
+          <div className="pointer-events-auto ml-auto flex items-center gap-1">
             <CardAction
               href={ROUTES.WORKFLOW_RUNS(workflow.id)}
               label={t("runsFor", { name: workflow.name })}
@@ -213,7 +163,7 @@ export function WorkflowCard({
               </DropdownMenu>
             )}
           </div>
-        </div>
+        </ResourceCardFooter>
       </ResourceCard>
       <ConfirmDialog
         open={deleting}

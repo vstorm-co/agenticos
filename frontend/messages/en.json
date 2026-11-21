@@ -6719,10 +6719,6 @@
       "statusLive": "Live",
       "statusLiveVersion": "Live · version {version}",
       "statusUnpublishedChanges": "Unpublished changes",
-      "cardStartsFrom": "{trigger} · {count, plural, one {# step} other {# steps}}",
-      "cardNotRun": "Not run yet",
-      "cardNotRunEdited": "Not run yet · edited {when}",
-      "cardSteps": "{count, plural, =0 {No steps yet} one {# step} other {# steps}}",
       "statusDraft": "Draft",
       "triggerFormLive": "Anyone with the link fills in the form, and each answer starts a run as the member who published it. Pause it to close the page.",
       "formUrl": "Form link",
@@ -7718,7 +7714,8 @@
       "assistantServices": "Assistant and conversations",
       "assistantServicesHint": "Choose how people get help, receive updates and use voice.",
       "backgroundServices": "Background services",
-      "backgroundServicesHint": "Models and budgets for the platform’s internal work."
+      "backgroundServicesHint": "Models and budgets for the platform’s internal work.",
+      "workspaceSettings": "Settings for this workspace"
     },
     "rag": {
       "active": "Active",
@@ -17636,6 +17633,12 @@
     "jsonInvalid": "Enter valid JSON of the required type. The last valid value is unchanged."
   },
   "start": {
+    "sidebarReminder": {
+      "title": "Finish setup",
+      "hint": "Complete your guided setup at your own pace.",
+      "snooze": "Remind me tomorrow",
+      "saveFailed": "Could not hide the reminder. Try again."
+    },
     "administration": {
       "title": "Prepare your organization for your team",
       "intro": "Create a company organization, invite people and configure the installation. You can come back to every setting later.",

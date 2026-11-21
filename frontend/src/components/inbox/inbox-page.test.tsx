@@ -311,7 +311,7 @@ describe("approvals waiting on the reader", () => {
     expect(section).toHaveTextContent(/Support wants to send email/i);
     expect(section).not.toHaveTextContent("send_email");
     expect(section).toHaveTextContent(/create lead/i);
-    expect(section.closest("[data-list-layout]")).not.toHaveClass("flex-1");
+    expect(section.closest("[data-list-layout]")).toHaveClass("flex-1");
     // A call whose agent the queue could not name still says where it came from.
     expect(section).toHaveTextContent("An agent");
     expect(screen.getByRole("link", { name: "Open approvals" })).toHaveAttribute(

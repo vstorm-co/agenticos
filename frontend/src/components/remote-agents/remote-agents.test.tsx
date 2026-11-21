@@ -97,6 +97,19 @@ describe("RemoteAgentList", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
+  it("closes the confirmation only after successful removal", async () => {
+    const removal = Promise.withResolvers<void>();
+    const onRemove = vi.fn().mockReturnValue(removal.promise);
+    render(<RemoteAgentList agents={[agent()]} onRefresh={vi.fn()} onRemove={onRemove} />);
+    await userEvent.click(screen.getByRole("button", { name: "Remove Contract Reviewer" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Remove$/ }));
+    expect(onRemove).toHaveBeenCalledWith("ea-1");
+    expect(screen.getByRole("dialog")).toBeVisible();
+    removal.resolve();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it("offers no controls on a registration this person may not change", () => {
     render(
       <RemoteAgentList
@@ -143,6 +156,39 @@ describe("RegisterRemoteAgentDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Register an agent" }));
 
     expect(onSubmit).toHaveBeenCalledWith({ card_url: "https://agents.example.com" });
+  });
+
+  it("can deliberately remove a chosen authentication key before registering", async () => {
+    const { onSubmit } = mount();
+    await userEvent.type(screen.getByLabelText("Agent card address"), "https://agents.example.com");
+    await userEvent.click(screen.getByText("Authentication and handle (optional)"));
+    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(screen.getByRole("option", { name: /Reviewer key/ }));
+    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(screen.getByRole("option", { name: "No key" }));
+    await userEvent.click(screen.getByRole("button", { name: "Register an agent" }));
+    expect(onSubmit).toHaveBeenCalledWith({ card_url: "https://agents.example.com" });
+  });
+
+  it("blocks editing, repeat submission and dismissal until its write settles", async () => {
+    const registration = Promise.withResolvers<ExternalAgent>();
+    const { onSubmit, onOpenChange } = mount(vi.fn().mockReturnValue(registration.promise));
+    await userEvent.type(screen.getByLabelText("Agent card address"), "https://agents.example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Register an agent" }));
+    expect(screen.getByLabelText("Agent card address")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    const reading = screen.getByRole("button", { name: "Reading the card…" });
+    expect(reading).toBeDisabled();
+    await userEvent.click(reading);
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(onSubmit).toHaveBeenCalledOnce();
+    registration.reject(new Error("Remote card unavailable"));
+    expect(await screen.findByText("Remote card unavailable")).toBeVisible();
+    expect(screen.getByLabelText("Agent card address")).toBeEnabled();
+    expect(screen.getByLabelText("Agent card address")).toHaveValue("https://agents.example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("puts a card that could not be read on the address field", async () => {

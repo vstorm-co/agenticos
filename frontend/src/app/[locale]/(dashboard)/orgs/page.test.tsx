@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import OrgsPage from "./page";
+import { Perm, type Permission } from "@/types/permissions";
 
 const state = vi.hoisted(() => ({
   fetchOrgs: vi.fn().mockResolvedValue(undefined),
@@ -10,6 +11,7 @@ const state = vi.hoisted(() => ({
   pending: false,
   error: null as Error | null,
   refetch: vi.fn(),
+  held: [] as Permission[],
 }));
 const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
@@ -18,6 +20,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/orgs",
 }));
 vi.mock("@/hooks", () => ({
+  usePermissions: () => ({ can: (permission: Permission) => state.held.includes(permission) }),
   useOrganizationList: () => ({
     isPending: state.pending,
     error: state.error,
@@ -40,6 +43,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.error = null;
   state.pending = false;
+  state.held = [];
 });
 
 it("filters memberships by name or slug without requesting other organizations", async () => {
@@ -97,4 +101,34 @@ it("refreshes memberships after the create dialog reports a new organization", a
   await userEvent.click(screen.getByRole("button", { name: "New organization" }));
   await userEvent.click(screen.getByRole("button", { name: "Finish organization creation" }));
   expect(state.refetch).toHaveBeenCalledOnce();
+});
+
+it("offers settings shortcuts only for the active organization and held permissions", () => {
+  state.held = [Perm.orgSettings];
+  render(<OrgsPage />);
+  expect(screen.getByRole("link", { name: "AI & services" })).toHaveAttribute(
+    "href",
+    "/orgs/personal/members?tab=assistant",
+  );
+  expect(screen.getByRole("link", { name: "Budget and approvals" })).toHaveAttribute(
+    "href",
+    "/orgs/personal/members?tab=governance",
+  );
+  expect(document.querySelector('a[href="/orgs/company/members?tab=assistant"]')).toBeNull();
+});
+
+it("does not show administrative shortcuts without permission", () => {
+  render(<OrgsPage />);
+  expect(screen.queryByText("Settings for this workspace")).toBeNull();
+  expect(screen.queryByRole("link", { name: "AI & services" })).toBeNull();
+});
+
+it("offers an approval-only user the governance route without AI configuration", () => {
+  state.held = [Perm.approvalsDecide];
+  render(<OrgsPage />);
+  expect(screen.getByRole("link", { name: "Budget and approvals" })).toHaveAttribute(
+    "href",
+    "/orgs/personal/members?tab=governance",
+  );
+  expect(screen.queryByRole("link", { name: "AI & services" })).toBeNull();
 });

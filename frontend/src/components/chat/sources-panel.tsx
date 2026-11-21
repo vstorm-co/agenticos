@@ -16,6 +16,7 @@ import {
   type SourceItem,
 } from "@/lib/chat-sources";
 import { cn } from "@/lib/utils";
+import { scrollWithin } from "@/lib/scroll-within";
 import { hostOf } from "@/lib/link-brands";
 
 import { MarkdownContent } from "./markdown-content";
@@ -38,7 +39,7 @@ function ScoreDot({ score }: { score: number }) {
 function useScrolledTo(highlighted: boolean) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (highlighted) ref.current?.scrollIntoView({ behavior: glideOrJump(), block: "nearest" });
+    if (highlighted && ref.current) scrollWithin(ref.current, "nearest", glideOrJump());
   }, [highlighted]);
   return ref;
 }
@@ -248,7 +249,12 @@ export function SourcesPanel({
   return (
     <>
       {isOpen && (
-        <ChatSidePanel label={t("sourcesHeading")} contained={contained} onClose={close}>
+        <ChatSidePanel
+          label={t("sourcesHeading")}
+          contained={contained}
+          onClose={close}
+          sizing="sources"
+        >
           {({ fullscreen, toggleFullscreen }) => (
             <>
               <ChatPanelHeader

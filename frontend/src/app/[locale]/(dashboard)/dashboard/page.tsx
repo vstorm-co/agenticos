@@ -85,7 +85,6 @@ export default function DashboardPage() {
   const t = useTranslations("dashboard");
   const { can, role, isAppAdmin, isLoading } = usePermissions();
   const { storedEntries, isLoading: layoutLoading, save, reset } = useDashboardLayout();
-  const { presets, savePreset, removePreset } = useDashboardPresets();
   const searchParams = useSearchParams();
   const periodParam = searchParams.get("period");
   const period = useMemo(() => parsePeriodParam(periodParam), [periodParam]);
@@ -111,6 +110,7 @@ export default function DashboardPage() {
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { groups, isLoading: groupsLoading } = useGroups(activeOrgId ?? "");
   const viewParam = searchParams.get("view");
+  const { presets, savePreset, removePreset } = useDashboardPresets(viewParam === "org");
   const groupParam = searchParams.get("group");
   const personal = viewParam === null || viewParam === "me";
   const start = useStart(personal);

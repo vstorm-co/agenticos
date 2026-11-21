@@ -1,10 +1,20 @@
 ---
-source_sha: "51bdfd333e72"
+source_sha: "fd54201aae3e"
 ---
 
 # La consola { #the-console }
 
 Los temas predeterminados distinguen el fondo, la barra lateral, las tarjetas y los paneles flotantes. El azul identifica enlaces y foco del teclado; los interruptores activados son verdes. Las etiquetas de navegación usan peso normal y la activa un peso medio. Los resúmenes del Builder muestran modelo, variables, estado de voz y primeros mensajes antes de abrir sus editores. El acceso y la recuperación de cuenta comparten un estilo de título conciso y un panel de marca estático.
+
+Los agregados de uso y gasto del dashboard reutilizan la misma respuesta en memoria para el mismo periodo durante un máximo de 30 minutos. No son contadores en directo: los eventos de ejecución no actualizan estos agregados después de cada ejecución. Una recarga completa del navegador parte de una caché vacía y consulta de nuevo la API. Los diseños guardados solo se solicitan en la vista de organización, donde están disponibles los controles de distribución.
+
+Si el onboarding de tu organización actual no está terminado, el enlace para completar la configuración vuelve a la guía. La acción para recordar mañana oculta la tarjeta durante 24 horas y mantiene un enlace discreto de regreso. La finalización y el aplazamiento se guardan en el servidor para tu pertenencia a la organización. Una consulta de progreso pendiente o fallida no presenta la configuración como incompleta. Vuelves por decisión propia: no se inicia ningún recorrido automáticamente. En el mismo navegador, el enlace recuerda el último paso permitido para la misma cuenta y organización, también tras recargar. No guarda valores del formulario; en otro dispositivo abre de forma segura el inicio predeterminado.
+
+Inbox mantiene el mismo marco de lista, espaciado de filas, marcas de origen, tipografía de títulos y detalles y alineación adaptable de acciones en Todas, Urgentes, Resultados de rutinas, Sugerencias y Terminadas. Las terminadas conservan el estado de la decisión y la acción de recuperar elementos descartados; origen y hora también se ven en el teléfono. Los formularios de aprobación mantienen el mismo margen exterior, sus campos obligatorios y controles de permisos.
+
+Las fuentes se abren en un panel compacto de ancho ajustable. En ventanas de escritorio estrechas, abrirlo puede contraer temporalmente la lista de conversaciones; al cerrarlo se recupera la elección anterior, salvo que la hayas cambiado manualmente. Una cita desplaza solo la lista de fuentes y conserva la posición de la conversación. El chat público y el widget integrado aceptan mensajes multilínea: Enter envía, Mayús+Enter añade una línea y la composición de caracteres con IME no envía antes de tiempo.
+
+Las galerías de agentes muestran la publicación mediante un punto y texto. Un indicador ámbar pequeño señala lo que requiere atención y permite consultar el motivo al pasar el cursor, enfocar con el teclado o tocar. Las tarjetas de workflow se centran en nombre, descripción, acceso, publicación y acciones existentes; los disparadores, nodos, etiquetas y estadísticas siguen en el editor, los filtros o el historial. Las etiquetas se introducen en un solo campo, conservando el teclado y la prevención de duplicados.
 
 Los catálogos de recursos usan tarjetas más grandes con icono, título, descripción y un pie separado para estado y acciones. Agentes, tablas, workflows, bases de conocimiento, proyectos, datasets, servidores MCP, skills, archivos de contexto, Apps y grupos comparten el marco y conservan sus propias acciones. En el Builder, los ajustes desde Model aparecen en tarjetas desplegables coherentes. Thinking y Answer format están en Model settings. First messages muestra las sugerencias integradas cuando no hay mensajes personalizados. Model comienza abierto; cerrar una sección conserva sus editores y los enlaces de Voice abren la sección correspondiente.
 
@@ -17,6 +27,8 @@ El editor de instrucciones adapta su altura a la ventana y puede ampliarse para 
 Al crear un proyecto, primero eliges nombre, espacio de trabajo y destinatarios. **Instrucciones y valores predeterminados** contiene la descripción, las instrucciones y el agente inicial opcionales. Un error de esos campos abre la sección. En tablas con muchas columnas, **Añadir registro** mantiene visibles los primeros campos, los obligatorios, el contenido de documentos y los valores rellenados desde la cuadrícula. Abre **Más campos** para completar las demás propiedades opcionales.
 
 Organizaciones permite buscar nombres y slugs de las membresías, con el número de coincidencias en la misma barra. Borrar la búsqueda restaura la lista completa de membresías.
+
+La tarjeta del espacio activo ofrece accesos a **IA y servicios** y **Presupuesto y aprobaciones** según sus permisos en la organización actual. La tarjeta AI Architect enlaza directamente al Builder junto al interruptor, sin una sección desplegable adicional. Los demás servicios de IA conservan formularios desplegables cuando tienen ajustes que editar.
 
 La vista Me empieza con una tarjeta de resumen del período, seguida de un Briefing compacto con títulos, fuentes y acciones. Los detalles completos siguen en Inbox.
 
@@ -1029,7 +1041,7 @@ abre su asistente solo para leer, con lo decidido en su último paso; consulte e
 
 Los detalles de organización tienen tres pestañas: **Miembros**, **Presupuesto y aprobaciones** e **IA y servicios**. Miembros ofrece búsqueda por nombre/correo, filtro de rol y la última acción registrada en este espacio. Es una acción de auditoría, no una visita ni un inicio de sesión; se excluyen las acciones por suplantación y se muestra un guion si no hay historial.
 
-El informe diario y las sugerencias son un servicio con una sola configuración. Su tarjeta también muestra gasto y ejecuciones recientes. El mantenimiento de memoria tiene modelo y presupuesto propios y comienza desactivado. Elige un modelo antes de activar el servicio. AI Architect mantiene visible el interruptor y muestra el enlace al Agent Builder al desplegar la tarjeta, sin editor de saludo. Las siete funciones comparten el encabezado, la disposición de iconos y los controles de despliegue de las tarjetas.
+El informe diario y las sugerencias son un servicio con una sola configuración. Su tarjeta también muestra gasto y ejecuciones recientes. El mantenimiento de memoria tiene modelo y presupuesto propios y comienza desactivado. Elige un modelo antes de activar el servicio. AI Architect mantiene visibles el interruptor y el enlace directo al Agent Builder, sin editor de saludo ni un despliegue adicional. Los demás servicios comparten el encabezado y la disposición de iconos; solo se despliegan cuando contienen ajustes editables.
 
 **Editar espacio** abre un diálogo para nombre, avatar y color que protege los cambios sin guardar. IA y servicios comienza con servicios en segundo plano, seguido del Arquitecto de IA, sugerencias y monitorización, y Voz. Desplegar la configuración conserva los borradores. Cada control mantiene sus permisos. Los enlaces antiguos `?tab=profile` abren el diálogo del espacio; `?tab=voice` y `?tab=proactivity` abren sus ajustes en IA y servicios.
 

@@ -19,10 +19,17 @@ type Mode = "following" | "reading" | "sent";
 /** One owner for following, intentional sends, reading anchors and dock resizing. */
 export function useChatViewport(options: ViewportOptions) {
   const [dockHeight, setDockHeight] = useState(0);
+  const [mountedScroller, setMountedScroller] = useState<HTMLDivElement | null>(null);
   const current = useRef(options);
   useLayoutEffect(() => {
     current.current = options;
   });
+  // A suspended child can attach its DOM after this hook's first layout effect.
+  // Ref attachment, rather than a conversation change, starts the controller.
+  const bindScroller = useCallback((element: HTMLDivElement | null) => {
+    current.current.scroller.current = element;
+    setMountedScroller(element);
+  }, []);
   const controller = useRef<{ sent: (id: string) => void; reveal: () => void } | null>(null);
   const previousSent = useRef<string | null>(null);
   const previousConversation = useRef(options.conversationId);
@@ -33,7 +40,7 @@ export function useChatViewport(options: ViewportOptions) {
     const transcript = content.current;
     const space = spacer.current;
     const docking = dock.current;
-    if (!scrolling || !transcript || !space || !docking) return;
+    if (!mountedScroller || !scrolling || !transcript || !space || !docking) return;
     const initialSent = current.current.sentTurnId;
     const oldConversation = previousConversation.current;
     const conversation = current.current.conversationId;
@@ -240,7 +247,7 @@ export function useChatViewport(options: ViewportOptions) {
       transcript.removeEventListener("click", onPointer, true);
       controller.current = null;
     };
-  }, [options.conversationId]);
+  }, [options.conversationId, mountedScroller]);
 
   useLayoutEffect(() => {
     if (!options.sentTurnId || previousSent.current === options.sentTurnId) return;
@@ -257,5 +264,5 @@ export function useChatViewport(options: ViewportOptions) {
   }, [options.messages, options.sentTurnId]);
 
   const revealQuestion = useCallback(() => controller.current?.reveal(), []);
-  return { dockHeight, revealQuestion };
+  return { dockHeight, revealQuestion, bindScroller };
 }

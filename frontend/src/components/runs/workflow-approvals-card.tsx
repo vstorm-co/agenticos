@@ -57,7 +57,9 @@ export function StepApprovalRow({
   approval,
   deciding,
   onDecide,
+  className,
 }: {
+  className?: string;
   approval: WorkflowApprovalRead;
   deciding: boolean;
   onDecide: (approved: boolean, final?: string, choice?: string) => void;
@@ -84,7 +86,7 @@ export function StepApprovalRow({
   const edit = approval.editable && draft !== original ? draft : undefined;
 
   return (
-    <div className="flex flex-col gap-3 px-5 py-4">
+    <div className={cn("flex flex-col gap-3 px-5 py-4", className)}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-1.5">
           <div className="flex items-center gap-2">

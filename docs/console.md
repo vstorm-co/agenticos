@@ -2,6 +2,16 @@
 
 The default themes distinguish the canvas, sidebar, cards and floating panels. Blue identifies links and keyboard focus; enabled switches use green. Navigation uses regular weight with a medium active label. Builder section summaries show the current model, variables, voice state and first messages before opening their editors. Sign-in and account recovery use the same concise heading style and a static identity panel.
 
+Dashboard usage and spending aggregates reuse the same in-memory answer for the same time window for up to 30 minutes. They are not live counters: run events do not refresh these aggregates after every run. A full browser reload starts with a cold cache and asks the API again. Saved layout presets are requested only in the organization view, where their arrangement controls are available.
+
+If your current organization’s onboarding is unfinished, **Finish setup** links back to the guided setup. **Remind me tomorrow** hides the card for 24 hours, while a quiet return link remains. Completion and snoozing follow your membership on the server; loading or failed progress checks never label setup incomplete. Returning is your choice: no tour starts automatically. In the same browser, the link remembers your last allowed step for the same account and organization, including after a reload. It stores no form values; another device safely uses the default entry.
+
+Inbox keeps the same list frame, row spacing, source marks, title/detail typography and responsive action alignment across All, Urgent, Routine results, Suggestions and Done. Done retains its decision badge and Bring back action for dismissed items, with source and time visible on phones too. Approval forms keep the same outer inset while retaining their required fields and permission checks.
+
+Sources opens in a compact resizable panel. On a narrow desktop, opening it can temporarily collapse the conversation list; closing it restores the earlier choice unless you changed it manually. Following a citation scrolls only the Sources list, keeping the transcript in place. Hosted public chat and the embedded widget accept multiline messages: Enter sends, Shift+Enter adds a line, and composing an IME character never sends early.
+
+Agent galleries show publication state as a dot and text. Needs attention uses a small amber indicator whose reason is available on hover, keyboard focus or tap. Workflow cards focus on name, description, access, publication and existing actions; triggers, nodes, tags and run statistics remain in their editor, filters or history. Tag entry uses one field and preserves keyboard and duplicate handling.
+
 Resource galleries share larger cards with an icon, title, description and a separate status/action footer. Agents, tables, workflows, knowledge bases, projects, datasets, MCP servers, skills, context files, Apps and groups use the same frame while retaining their own actions. In the agent Builder, settings use matching collapsible cards. Thinking and Answer format live within Model settings. First messages shows the built-in fallback suggestions when no custom messages are set. Model starts open; closing a section preserves its editors, and Voice links reveal the matching section.
 
 In Build, First messages previews cards with the icon, title and message. Open a card to edit it. Saving a built-in example as a custom message keeps the other examples in the draft. The Skills, Context and Knowledge search pickers in Toolbox use selectable rows. A saved chat model stays visible in Models as well as Saved models.
@@ -13,6 +23,8 @@ The inline instructions editor scales to the window height; expand it for longer
 Creating a project asks for its name, workspace and audience first. **Instructions and defaults** holds its optional description, instructions and starting agent; a refusal concerning one of those fields opens the section. In a table with many columns, **Add record** keeps the first fields, required values, document bodies and grid-prefilled values visible. Expand **More fields** to fill the remaining optional properties.
 
 Organizations has a search field for membership names and slugs, with the matching count in the same toolbar. Clearing the search restores the full membership list.
+
+The active workspace card offers **AI & services** and **Budget and approvals** shortcuts according to your current organization permissions. The AI Architect card links directly to its Builder beside the enable switch; it has no extra disclosure. Other AI services retain collapsible forms where there are settings to edit.
 
 The Me view starts with its period summary in a card, followed by a compact Briefing with titles, sources and actions. Full proposal details remain in Inbox.
 
@@ -974,7 +986,7 @@ opens its wizard to be read, with what was decided on its last step; see
 
 Organization details use three tabs: **Members**, **Budget and approvals**, and **AI & services**. Members has name/email search, a role filter and the latest recorded action in this workspace. This is an audited action, not a visit or sign-in; impersonated actions are excluded and missing history shows a dash. **Edit workspace** opens a guarded name, avatar and colour dialog. AI & services uses individual function cards without parent groups. Expand configuration without losing drafts. Controls retain their own permission gates. Old `?tab=profile` links open the workspace dialog; `?tab=voice` and `?tab=proactivity` open their settings in AI & services.
 
-Daily briefing & suggestions is one service, configured once rather than through duplicate controls. Its card also shows spending and recent executions. Memory maintenance has its own model and budget and starts off. Choose a model before enabling either service. AI Architect keeps its switch visible and opens the Agent Builder from its expanded card, without a greeting editor. All seven functions share the same card header, icon layout and disclosure controls.
+Daily briefing & suggestions is one service, configured once rather than through duplicate controls. Its card also shows spending and recent executions. Memory maintenance has its own model and budget and starts off. Choose a model before enabling either service. AI Architect keeps its switch and direct Agent Builder link visible, without a greeting editor or an extra disclosure. Other services use the same card header and icon layout, with disclosures only where they contain editable settings.
 
 After signing in, addressed email invitations also appear in the console and onboarding without opening the email link. The recipient chooses a workspace and accepts explicitly; Later keeps an Invitations shortcut available. Only live invitations to the account’s current email are shown, excluding shareable links and organizations already joined. Acceptance switches to the chosen organization and opens its welcome flow. The server never returns the invitation token through this inbox.
 

@@ -1,10 +1,32 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SourcesPanel } from "./sources-panel";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import type { SourceItem } from "@/lib/chat-sources";
+
+afterEach(() => vi.restoreAllMocks());
+
+function sourceScroll() {
+  const original = window.getComputedStyle;
+  vi.spyOn(window, "getComputedStyle").mockImplementation((element) => {
+    const style = original(element);
+    if (element.classList.contains("overflow-y-auto"))
+      Object.defineProperty(style, "overflowY", { value: "auto", configurable: true });
+    return style;
+  });
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+    return this.hasAttribute("data-highlighted")
+      ? new DOMRect(0, 240, 320, 80)
+      : new DOMRect(0, 100, 320, 100);
+  });
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(100);
+  return {
+    own: vi.spyOn(Element.prototype, "scrollTo"),
+    ancestors: vi.spyOn(Element.prototype, "scrollIntoView"),
+  };
+}
 
 const bases = [{ id: "kb-1", name: "Support handbook", collection_name: "support_aa" }];
 vi.mock("@/hooks/use-knowledge-bases", () => ({
@@ -144,31 +166,21 @@ describe("the sources panel", () => {
     expect(screen.getByTitle("Consumer rights")).toBeInTheDocument();
   });
 
-  it("marks the citation that was clicked, and scrolls it into view", () => {
-    // Clicking [2] in a long answer has to land on [2].
-    const scrollIntoView = vi.fn();
-    const original = Element.prototype.scrollIntoView;
-    Element.prototype.scrollIntoView = scrollIntoView;
-
+  it("marks the citation that was clicked and scrolls only the source list", () => {
+    const scrolling = sourceScroll();
     const { container } = open([rag(1), rag(2)], 2);
-
     const marked = container.querySelectorAll("[data-highlighted]");
     expect(marked).toHaveLength(1);
     expect(marked[0]).toHaveTextContent("2");
-    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "nearest" });
-
-    Element.prototype.scrollIntoView = original;
+    expect(scrolling.own).toHaveBeenCalledWith({ top: 120, behavior: "smooth" });
+    expect(scrolling.ancestors).not.toHaveBeenCalled();
   });
 
-  it("scrolls a highlighted web hit into view too", () => {
-    const scrollIntoView = vi.fn();
-    const original = Element.prototype.scrollIntoView;
-    Element.prototype.scrollIntoView = scrollIntoView;
-
+  it("scrolls a highlighted web hit only inside the source list", () => {
+    const scrolling = sourceScroll();
     open([web(1)], 1);
-
-    expect(scrollIntoView).toHaveBeenCalled();
-    Element.prototype.scrollIntoView = original;
+    expect(scrolling.own).toHaveBeenCalledWith({ top: 120, behavior: "smooth" });
+    expect(scrolling.ancestors).not.toHaveBeenCalled();
   });
 
   it("gathers a file's passages under the file, named by the base it is in", () => {
@@ -269,7 +281,7 @@ describe("where the panel opens", () => {
       "inset-0",
       "@min-[900px]/sources-layout:relative",
     );
-    expect(screen.getByRole("separator")).toHaveAttribute("aria-valuenow", "55");
+    expect(screen.getByRole("separator")).toHaveAttribute("aria-valuenow", "400");
   });
 });
 

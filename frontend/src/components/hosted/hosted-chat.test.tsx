@@ -217,6 +217,55 @@ describe("the hosted page", () => {
     expect(input).toHaveValue("");
   });
 
+  it("composes multiple lines with Shift+Enter and sends once with Enter", async () => {
+    render(<HostedChat config={config()} />);
+    const field = screen.getByRole("textbox", { name: "Ask a question…" });
+    expect(field.tagName).toBe("TEXTAREA");
+    await userEvent.type(field, "First line{Shift>}{Enter}{/Shift}Second line");
+    expect(field).toHaveValue("First line\nSecond line");
+    expect(socket().sent).toHaveLength(0);
+    await userEvent.keyboard("{Enter}");
+    expect(socket().sent).toHaveLength(1);
+    const message = socket().sent[0];
+    if (message === undefined) throw new Error("expected a sent turn");
+    expect(JSON.parse(message)).toMatchObject({
+      type: "message",
+      text: "First line\nSecond line",
+    });
+    expect(field).toHaveValue("");
+  });
+
+  it("does not send while confirming composed text or handling legacy IME Enter", () => {
+    render(<HostedChat config={config()} />);
+    const field = screen.getByRole("textbox");
+    fireEvent.change(field, { target: { value: "確認" } });
+    fireEvent.keyDown(field, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(field, { key: "Enter", keyCode: 229 });
+    expect(socket().sent).toHaveLength(0);
+    expect(field).toHaveValue("確認");
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(socket().sent).toHaveLength(1);
+  });
+
+  it("bounds a long draft and shrinks the field when its contents become shorter", () => {
+    let height = 360;
+    const scrollHeight = vi
+      .spyOn(HTMLTextAreaElement.prototype, "scrollHeight", "get")
+      .mockImplementation(() => height);
+    try {
+      render(<HostedChat config={config()} />);
+      const field = screen.getByRole("textbox");
+      fireEvent.change(field, { target: { value: "Long pasted message" } });
+      expect(field).toHaveStyle({ height: "192px" });
+      height = 64;
+      fireEvent.change(field, { target: { value: "Short" } });
+      expect(field).toHaveStyle({ height: "64px" });
+      expect(socket().sent).toHaveLength(0);
+    } finally {
+      scrollHeight.mockRestore();
+    }
+  });
+
   it("names itself with the title the operator chose", () => {
     render(<HostedChat config={config()} />);
 
