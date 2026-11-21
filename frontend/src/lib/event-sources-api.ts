@@ -42,6 +42,10 @@ export interface EventSample {
   body: Record<string, unknown>;
   delivery_id: string;
 }
+export interface SourceListenerTarget {
+  kind: "agent" | "workflow";
+  id: string;
+}
 export interface SourceListening {
   listener_id: string;
   expires_at: string;
@@ -87,7 +91,8 @@ export const eventSourcesApi = {
   credentials: (id: string, credentials: SourceCredentials) =>
     apiClient.post<void>(`${base}/${id}/credentials`, credentials),
   usage: (id: string) => apiClient.get<SourceUsage>(`${base}/${id}/usage`),
-  listen: (id: string) => apiClient.post<SourceListening>(`${base}/${id}/listen`, {}),
+  listen: (id: string, target: SourceListenerTarget) =>
+    apiClient.post<SourceListening>(`${base}/${id}/listen`, target),
   capture: (id: string, token: string) =>
     apiClient.get<SourceCapture>(`${base}/${id}/listen/${token}`),
   preview: (

@@ -10400,6 +10400,7 @@
     "copy": "Copy",
     "copied": "Copied",
     "createdTitle": "One more step",
+    "createdDescriptionShared": "This routine uses the event source’s existing URL and credentials. You don’t need to register another webhook with the provider.",
     "createdDescription": "Add this webhook URL to your provider, signed with the secret you set. Nothing fires until it delivers.",
     "createdDescriptionLinear": "Use this URL and the same signing secret to create a webhook in Linear. The Linear API accepts both when creating a webhook.",
     "createdSecretNote": "Copy it now - it is not shown again after this. The provider signs each delivery with it.",

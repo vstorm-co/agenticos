@@ -49,8 +49,10 @@ def verify_source(
         value = (
             f"{credentials.username.get_secret_value()}:{credentials.password.get_secret_value()}"
         )
-        expected = b"Basic " + base64.b64encode(value.encode())
-        return secrets.compare_digest(expected, headers.get("authorization", "").encode())
+        scheme, _, token = headers.get("authorization", "").encode().partition(b" ")
+        return scheme.lower() == b"basic" and secrets.compare_digest(
+            base64.b64encode(value.encode()), token.lstrip(b" ")
+        )
     if auth.method == "api_key":
         return secrets.compare_digest(
             (auth.signature_prefix + secret).encode(), headers.get(auth.header_name, "").encode()

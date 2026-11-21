@@ -25,7 +25,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- Apply `0349_reusable_event_sources.py` before starting the updated API and worker. It adds source, subscription, delivery and dispatch tables, structured queued routine input and template diagnostics. Existing webhook URLs and credentials stay valid.
+- Apply `0349_reusable_event_sources.py` before starting the updated API and worker. It adds source, subscription, delivery and dispatch tables, structured queued routine input and template diagnostics. Existing webhook URLs and credentials stay valid. Before downgrading, detach source subscribers, switch routine prompts back to literal, and finish pending deliveries and structured device waits. Let running source jobs finish. For routine jobs that still carry structured input, drain or cancel queued work and retry or expire dead jobs before downgrading.
 
 ## [1.88.0] - 2026-11-21
 

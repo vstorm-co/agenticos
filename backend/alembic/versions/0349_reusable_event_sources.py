@@ -332,7 +332,8 @@ def upgrade() -> None:
     op.create_check_constraint(
         op.f("routine_device_waits_ck_routine_device_wait_redacted_check"),
         "routine_device_waits",
-        "status IN ('waiting', 'failed') OR (event_context IS NULL AND event_body IS NULL)",
+        "(status = 'waiting' OR event_body IS NULL) AND "
+        "(status IN ('waiting', 'failed') OR event_context IS NULL)",
     )
     op.drop_constraint(
         op.f("trigger_attempts_ck_trigger_attempt_reason_check"), "trigger_attempts", type_="check"
@@ -360,6 +361,13 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Keep admissions, claims and scheduler ticks from changing what is safe
+    # to retire between the checks below and the transactional schema change.
+    op.execute(
+        "LOCK TABLE agent_triggers, workflow_exposures, routine_device_waits, event_dispatches "
+        "IN ACCESS EXCLUSIVE MODE"
+    )
+    op.execute("LOCK TABLE background_schedules, background_jobs IN SHARE ROW EXCLUSIVE MODE")
     outstanding = op.get_bind().scalar(
         sa.text(
             "SELECT EXISTS(SELECT 1 FROM agent_triggers WHERE source_id IS NOT NULL OR prompt_mode = 'template') "
@@ -372,6 +380,44 @@ def downgrade() -> None:
         raise RuntimeError(
             "Detach event sources, use literal routine prompts and settle pending source work before downgrade"
         )
+    retired_kinds = "('dispatch-source-event', 'source-delivery-retention')"
+    if op.get_bind().scalar(
+        sa.text(
+            f"SELECT EXISTS (SELECT 1 FROM background_jobs WHERE kind IN {retired_kinds} "
+            "AND status = 'running')"
+        )
+    ):
+        raise RuntimeError("Wait for running event source jobs to finish before downgrade")
+    # Dead fires can be retried from the queue. Do not discard their input, or
+    # that of a queued/running fire, to make it fit the previous worker schema.
+    if op.get_bind().scalar(
+        sa.text(
+            "SELECT EXISTS (SELECT 1 FROM background_jobs WHERE kind = 'fire-trigger' "
+            "AND status IN ('queued', 'running', 'dead') "
+            "AND (payload->>'event_body' IS NOT NULL OR payload->>'event_source_id' IS NOT NULL))"
+        )
+    ):
+        raise RuntimeError(
+            "Drain or cancel structured fire-trigger jobs, including retryable dead jobs, before downgrade"
+        )
+    # Even a literal or scheduled fire may have serialized the two optional
+    # fields as JSON null. The old worker rejects unknown fields, null or not.
+    op.execute(
+        "UPDATE background_jobs SET payload = payload - 'event_body' - 'event_source_id' "
+        "WHERE kind = 'fire-trigger' AND status IN ('queued', 'running', 'dead') "
+        "AND (payload ? 'event_body' OR payload ? 'event_source_id') "
+        "AND payload->>'event_body' IS NULL AND payload->>'event_source_id' IS NULL"
+    )
+    # No pending dispatch remains. Any queued or retryable job of these
+    # retired kinds would only find a deleted/settled dispatch or sweep tables
+    # that no longer exist. Keep its history without giving it to the old worker.
+    op.execute(
+        "UPDATE background_jobs SET status = 'cancelled', finished_at = coalesce(finished_at, now()), "
+        "settled_at = now(), last_error = coalesce(last_error, 'Event source job retired on downgrade') "
+        f"WHERE kind IN {retired_kinds} AND status IN ('queued', 'dead')"
+    )
+    op.execute("DELETE FROM background_schedules WHERE name = 'source-delivery-retention'")
+    op.execute(f"DELETE FROM background_task_kinds WHERE kind IN {retired_kinds}")
     op.execute(
         "UPDATE trigger_attempts SET reason = 'preparation_failed' WHERE reason = 'prompt_template_failed'"
     )

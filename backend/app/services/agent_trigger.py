@@ -1400,8 +1400,8 @@ class AgentTriggerService:
         An event trigger's *filter* is editable in place too: changing which issue
         actions fire is a filter edit, not a different trigger, so `event_config`
         is re-validated against the source's typed model and written - while the
-        dedicated source and secret stay immutable. A source-backed routine may
-        select another reusable source, rechecking access and its typed filters.
+        dedicated source and secret stay immutable. Selecting another reusable
+        source pauses the routine until its creator reviews the new source.
         """
         trigger = await self._owned(ctx, agent_id, trigger_id, for_update=True)
         changes = writable(data, over=AgentTrigger)
@@ -1440,9 +1440,14 @@ class AgentTriggerService:
             source = await EventSourceService(self.db).require_use(
                 ctx, changes["source_id"], lock=True
             )
-            if source.id != trigger.source_id and not trigger.setup_required:
+            if source.id != trigger.source_id:
                 # Moving back to a former source must not revive its earlier consent.
-                changes["approved_sources"] = None
+                changes["is_active"] = False
+                if not trigger.setup_required:
+                    changes["approved_sources"] = {
+                        "pending_review": True,
+                        "unavailable_sources": [],
+                    }
             changes["event_source"] = source.provider
             changes["event_config"] = self._merged_source_config(
                 source.provider, changes.get("event_config", trigger.event_config)
@@ -2327,10 +2332,6 @@ class AgentTriggerService:
             if connection is not None and policy.input_connection_id != connection.id:
                 return None
             await self.sources.require_current(ctx, trigger, expected_id=policy.id)
-            if trigger.source_id is not None:
-                from app.services.event_sources import EventSourceService
-
-                await EventSourceService(self.db).require_use(ctx, trigger.source_id)
         except AuthorizationError, NotFoundError, BadRequestError:
             return None
         return policy.id
@@ -3178,6 +3179,15 @@ class AgentTriggerService:
         try:
             await self.sources.require_current(ctx, trigger, expected_id=source_policy_id)
         except (AuthorizationError, NotFoundError, BadRequestError) as refusal:
+            if trigger.local_target is not None:
+                # A blocked activation is terminal; the device sweep must not requeue it.
+                await device_wait_repo.settle(
+                    self.db,
+                    activation_id=activation_id,
+                    trigger_id=trigger.id,
+                    status="cancelled",
+                    reason="routine_changed",
+                )
             await self._record_attempt(
                 trigger,
                 activation_id,

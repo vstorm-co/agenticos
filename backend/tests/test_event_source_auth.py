@@ -105,6 +105,26 @@ def test_static_auth_credentials_are_compared_and_credential_replacement_invalid
     assert not verify_source("webhook", auth, credentials, body=_BODY, headers={}, url=_URL)
 
 
+@pytest.mark.parametrize(
+    ("prefix", "accepted"),
+    [("basic ", True), ("BaSiC   ", True), ("Bearer ", False), ("Basic", False)],
+)
+def test_basic_scheme_is_case_insensitive_but_requires_a_separate_token(prefix, accepted):
+    credentials = SourceCredentials(username=SecretStr("sender"), password=SecretStr("password"))
+    token = base64.b64encode(b"sender:password").decode()
+    assert (
+        verify_source(
+            "webhook",
+            SourceAuth(method="basic"),
+            credentials,
+            body=_BODY,
+            headers={"authorization": prefix + token},
+            url=_URL,
+        )
+        is accepted
+    )
+
+
 @pytest.mark.parametrize("offset", [-301, -300, 0, 300, 301])
 def test_standard_webhooks_accepts_v1_signature_lists_and_enforces_five_minutes(offset):
     key = bytes(range(32))

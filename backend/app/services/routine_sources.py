@@ -14,7 +14,7 @@ from app.agents.capabilities import all_capabilities
 from app.agents.mcp import McpSourceIdentity, tool_prefix
 from app.agents.spec import AgentSpec, OrgMcpServerRef, PersonalMcpServerRef, PlatformMcpServerRef
 from app.core.audit import current_impersonator, record_audit
-from app.core.exceptions import AuthorizationError, ConflictError
+from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.external_agent import ExternalAgent
@@ -590,6 +590,18 @@ class RoutineSourceService:
             )
             channel_sources[exposure.id] = grant_fingerprint(exposure, bot)
         input_source = None
+        if trigger.source_id is not None:
+            from app.services.event_sources import EventSourceService
+
+            try:
+                source = await EventSourceService(self.db).require_use(ctx, trigger.source_id)
+            except NotFoundError:
+                unavailable.add("event source")
+            else:
+                resources.add(f"Event source · {source.name} · {source.id}")
+                items.append(
+                    RoutineSourceItem(kind="event_source", id=str(source.id), name=source.name)
+                )
         if trigger.connection_id is not None:
             connection = await mcp_connection_repo.get_by_id(
                 self.db, trigger.connection_id, fresh=True

@@ -5921,6 +5921,7 @@ async def test_routine_source_edit_retires_consent_only_when_the_source_changes(
     trigger = _event_trigger(source_id=source_id, event_source="webhook", event_config={})
     if pending:
         trigger.setup_required = True
+        trigger.is_active = False
         trigger.approved_sources = {"pending_review": True, "unavailable_sources": ["Mailbox"]}
     prior_review = trigger.approved_sources
     selected_id = source_id if same_source else uuid.uuid4()
@@ -5948,7 +5949,12 @@ async def test_routine_source_edit_retires_consent_only_when_the_source_changes(
     assert trigger.source_id == selected_id
     assert trigger.event_source == "webhook"
     sources.return_value.bind_routine.assert_awaited_once_with(_ctx(), selected_id, trigger.id)
-    assert trigger.approved_sources == (prior_review if same_source or pending else None)
+    assert trigger.is_active is same_source
+    assert trigger.approved_sources == (
+        prior_review
+        if same_source or pending
+        else {"pending_review": True, "unavailable_sources": []}
+    )
 
 
 @pytest.mark.security
@@ -6074,12 +6080,13 @@ def test_source_and_template_edits_change_the_action_consent_fingerprint():
     assert action_intent(trigger) != original
 
 
-@pytest.mark.parametrize("failure", ["missing_field", "paused_source"])
+@pytest.mark.parametrize("failure", ["missing_field", "paused_source", "lost_source_access"])
 async def test_a_waited_template_failure_settles_its_activation_before_model_execution(failure):
     from app.schemas.local_target import LocalTarget
     from app.services.routine_actions import activation_intent
+    from app.services.routine_sources import RoutineSourcesRequired
 
-    source_id = uuid.uuid4() if failure == "paused_source" else None
+    source_id = None if failure == "missing_field" else uuid.uuid4()
     target = LocalTarget(
         folder="/work",
         mode="read_only",
@@ -6115,11 +6122,14 @@ async def test_a_waited_template_failure_settles_its_activation_before_model_exe
         patch("app.services.agent_trigger.device_wait_repo.get", new=AsyncMock(return_value=wait)),
         patch("app.services.agent_trigger.device_wait_repo.settle", new=AsyncMock()) as settle,
         patch("app.services.event_sources.EventSourceService") as sources,
+        patch("app.services.notifications.NotificationService.routine_blocked", new=AsyncMock()),
         patch("app.services.agent_runner.AgentRunnerService") as runner,
     ):
         repo.get_by_id = AsyncMock(return_value=trigger)
         members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
         sources.return_value.require_use = AsyncMock(return_value=SimpleNamespace(is_active=False))
+        if failure == "lost_source_access":
+            service.sources.require_current.side_effect = RoutineSourcesRequired()
         await service.fire(trigger.id, activation_id=activation_id)
     runner.assert_not_called()
     assert service._record_attempt.await_args.kwargs["reason"] == (
@@ -6130,6 +6140,7 @@ async def test_a_waited_template_failure_settles_its_activation_before_model_exe
         activation_id=activation_id,
         status="cancelled",
         reason="prompt_template_failed" if failure == "missing_field" else "routine_changed",
+        **({"trigger_id": trigger.id} if failure == "lost_source_access" else {}),
     )
 
 

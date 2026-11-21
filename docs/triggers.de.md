@@ -1,5 +1,5 @@
 ---
-source_sha: "ed007f781d57"
+source_sha: "c8cfdeb79aa5"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -140,7 +140,9 @@ Wählen Sie GitHub, Linear, HubSpot oder Zendesk für die jeweilige Provider-Pr�
 
 Senden Sie per POST ein JSON-Objekt; die bisherige Anpassung für HubSpot-Stapel bleibt erhalten. Zugangsdaten werden nur geschrieben und im Organisations-Vault gespeichert. Ersetzen Sie sie an der Quelle, niemals in einer Workflow-Definition oder einem Beispiel. Provider-Zustellungs-IDs oder ein konfigurierter Zustellungs-ID-Header erkennen Wiederholungen. Basic-Auth- und API-Schlüssel-Zugangsdaten sind keine Ereignis-IDs. Ohne Ereignis-ID können Wiederholungen zusätzliche Läufe starten.
 
-Eine authentifizierte Zustellung und ihre Versandaufträge werden gemeinsam gespeichert, bevor die Quelle den Empfang bestätigt. Fehler eines Abonnenten beeinflussen andere nicht. Bei vorübergehenden Raten- oder Kapazitätsgrenzen eines Abonnenten versucht der Worker die Zustellung erneut. Für ein eingereihtes Ereignis gilt nur die beim Empfang erteilte Quellenfreigabe der Routine. Ein Wechsel zu einer anderen Quelle erfordert eine neue Prüfung. Eine gemeinsame URL bestätigt den dauerhaften Empfang asynchron und liefert keine benutzerdefinierte Workflow-Antwort. Ein Workflow mit gemeinsamer Quelle darf **Auf Webhook antworten** nicht erreichen. Dedizierte Workflow-Endpunkte behalten synchrone Antworten.
+Eine authentifizierte Zustellung und ihre Versandaufträge werden gemeinsam gespeichert, bevor die Quelle den Empfang bestätigt. Fehler eines Abonnenten beeinflussen andere nicht. Bei vorübergehenden Raten- oder Kapazitätsgrenzen eines Abonnenten versucht der Worker die Zustellung erneut. Für ein eingereihtes Ereignis gilt nur die beim Empfang erteilte Quellenfreigabe der Routine. Ein Quellenwechsel pausiert die Routine. Vor dem Fortsetzen muss die Person, der die Routine gehört, die neue Quelle prüfen.
+
+Eine gemeinsame URL bestätigt den dauerhaften Empfang asynchron und liefert keine benutzerdefinierte Workflow-Antwort. Ein Workflow mit gemeinsamer Quelle darf **Auf Webhook antworten** nicht erreichen. Dedizierte Workflow-Endpunkte behalten synchrone Antworten.
 
 **Quelle pausieren** verhindert den Start von Abonnenten für neue Zustellungen; das Pausieren einer Routine oder eines Workflows betrifft nur dieses Ziel. Solange Abonnements bestehen, ist Löschen gesperrt; die Nutzungsliste zeigt die zuvor zu trennenden Ziele. Strukturierte Ereignisse bleiben für eingereihte oder wartende Arbeit erhalten. Abgeschlossene Zustellungen folgen der Aufbewahrungsregel für Hintergrundjobs.
 

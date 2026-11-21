@@ -115,8 +115,8 @@ it.each([false, true])(
 );
 
 /** The event form, as reached from the portal grid's "Advanced: API trigger". */
-async function openEvent() {
-  render(<TriggerFormDialog agentId={AGENT_ID} open initialType="event" onOpenChange={vi.fn()} />, {
+async function openEvent(agentId: string | null = AGENT_ID) {
+  render(<TriggerFormDialog agentId={agentId} open initialType="event" onOpenChange={vi.fn()} />, {
     wrapper,
   });
   return within(await screen.findByRole("dialog"));
@@ -163,27 +163,117 @@ describe("TriggerFormDialog custom-webhook event form", () => {
       if (path === "/me/permissions") {
         return { permissions: [{ permission: "event_sources:view", scope: "shared" }] };
       }
-      if (path === "/event-sources") {
+      if (path === "/agents") {
         return {
           items: [
             {
-              id: "shared-source",
-              name: "Shared incoming",
-              provider,
-              auth: { method: provider === "webhook" ? "hmac" : "provider" },
-              is_active: true,
-              visibility: "private",
-              can_use: true,
+              id: "run-only",
+              name: "Run only",
+              slug: "run-only",
+              status: "published",
+              can_run: true,
               can_edit: false,
-              webhook_url: "https://example.test/api/v1/webhooks/sources/shared-source",
+            },
+            {
+              id: AGENT_ID,
+              name: "Editable agent",
+              slug: "editable-agent",
+              status: "published",
+              can_run: true,
+              can_edit: true,
             },
           ],
-          total: 1,
+          total: 2,
         };
+      }
+      if (path === "/event-sources" || path === "/event-sources/shared-source") {
+        const source = {
+          id: "shared-source",
+          name: "Shared incoming",
+          provider,
+          auth: { method: provider === "webhook" ? "hmac" : "provider" },
+          is_active: true,
+          visibility: "private",
+          can_use: true,
+          can_edit: false,
+          webhook_url: "https://example.test/api/v1/webhooks/sources/shared-source",
+        };
+        return path === "/event-sources" ? { items: [source], total: 1 } : source;
       }
       return get(path, options);
     });
   }
+
+  it("keeps run-only targets for dedicated webhooks but not for shared subscriptions", async () => {
+    serveSharedSource("webhook");
+    const user = userEvent.setup();
+    const dialog = await openEvent(null);
+    await user.type(dialog.getByLabelText("Signing secret"), "dedicated-signing-secret");
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByRole("combobox", { name: "Agent" }));
+    await user.click(await screen.findByRole("option", { name: "Run only" }));
+    await user.click(dialog.getByRole("button", { name: "Back" }));
+    await user.click(await dialog.findByRole("combobox", { name: "Event source" }));
+    await user.click(await screen.findByRole("option", { name: "Shared incoming" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    const agentPicker = dialog.getByRole("combobox", { name: "Agent" });
+    expect(agentPicker).toHaveTextContent("Editable agent");
+    await user.click(agentPicker);
+    expect(screen.queryByRole("option", { name: "Run only" })).toBeNull();
+    await user.click(await screen.findByRole("option", { name: "Editable agent" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.type(dialog.getByLabelText("Message"), "Handle it");
+    vi.mocked(apiClient.post).mockResolvedValue(trigger({ source_id: "shared-source" }));
+    await user.click(dialog.getByRole("button", { name: "Create" }));
+    expect(apiClient.post).toHaveBeenCalledWith(
+      `/agents/${AGENT_ID}/triggers`,
+      expect.objectContaining({ source_id: "shared-source" }),
+    );
+  });
+
+  it("does not offer shared sources when the fixed target can only be run", async () => {
+    serveSharedSource("webhook");
+    const dialog = await openEvent("run-only");
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/agents", undefined));
+    expect(dialog.queryByRole("combobox", { name: "Event source" })).toBeNull();
+    expect(dialog.getByLabelText("Signing secret")).toBeVisible();
+  });
+
+  it.each([AGENT_ID, "run-only"])(
+    "gates live capture on the edited routine's target (%s)",
+    async (agentId) => {
+      serveSharedSource("webhook");
+      render(
+        <TriggerFormDialog
+          agentId={agentId}
+          open
+          trigger={trigger({
+            agent_id: agentId,
+            event_source: "webhook",
+            source_id: "shared-source",
+          })}
+          onOpenChange={vi.fn()}
+        />,
+        { wrapper },
+      );
+      await waitFor(() =>
+        expect(screen.getByRole("combobox", { name: "Event source" })).toHaveTextContent(
+          "Shared incoming",
+        ),
+      );
+      expect(screen.getByText("Or paste example JSON")).toBeVisible();
+      if (agentId === "run-only") {
+        expect(screen.queryByRole("button", { name: "Listen for event" })).toBeNull();
+      } else {
+        vi.mocked(apiClient.post).mockResolvedValue({ listener_id: "token", expires_at: "later" });
+        await userEvent.click(await screen.findByRole("button", { name: "Listen for event" }));
+        expect(apiClient.post).toHaveBeenCalledWith("/event-sources/shared-source/listen", {
+          kind: "agent",
+          id: agentId,
+        });
+      }
+    },
+  );
 
   it.each([
     {
@@ -217,7 +307,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
       serveSharedSource(provider);
       vi.mocked(apiClient.post).mockResolvedValue(trigger({ event_source: provider }));
       const dialog = await openEvent();
-      await userEvent.click(dialog.getByRole("combobox", { name: "Event source" }));
+      await userEvent.click(await dialog.findByRole("combobox", { name: "Event source" }));
       await userEvent.click(await screen.findByRole("option", { name: "Shared incoming" }));
       for (const [label, value] of Object.entries(inputs)) {
         await userEvent.type(dialog.getByLabelText(label), value);
@@ -243,7 +333,8 @@ describe("TriggerFormDialog custom-webhook event form", () => {
       trigger({ event_source: "webhook", source_id: "shared-source", prompt_mode: "template" }),
     );
     const dialog = await openEvent();
-    await userEvent.click(dialog.getByRole("combobox", { name: "Event source" }));
+    await userEvent.type(dialog.getByLabelText("Signing secret"), "unused-dedicated-secret");
+    await userEvent.click(await dialog.findByRole("combobox", { name: "Event source" }));
     await userEvent.click(await screen.findByRole("option", { name: "Shared incoming" }));
     expect(dialog.queryByLabelText("Signing secret")).toBeNull();
     await userEvent.click(dialog.getByRole("button", { name: "Continue" }));
@@ -269,6 +360,13 @@ describe("TriggerFormDialog custom-webhook event form", () => {
       .mocked(apiClient.post)
       .mock.calls.find(([path]) => path === `/agents/${AGENT_ID}/triggers`)?.[1];
     expect(request).not.toHaveProperty("event_secret");
+    await userEvent.click(await screen.findByRole("button", { name: "Enable routine" }));
+    const confirmation = within(await screen.findByRole("dialog", { name: "Trigger created" }));
+    expect(
+      confirmation.getByText(/uses the event source’s existing URL and credentials/),
+    ).toBeVisible();
+    expect(confirmation.queryByLabelText("Signing secret")).toBeNull();
+    expect(confirmation.queryByDisplayValue("unused-dedicated-secret")).toBeNull();
   });
 
   it("creates a raw-body HMAC trigger and refuses an invalid header", async () => {

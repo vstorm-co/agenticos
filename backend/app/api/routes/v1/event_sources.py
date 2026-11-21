@@ -14,6 +14,7 @@ from app.schemas.event_source import (
     EventSourceCreated,
     EventSourceList,
     EventSourceRead,
+    EventSourceTarget,
     EventSourceUpdate,
     SourceCapture,
     SourceCredentials,
@@ -79,12 +80,16 @@ async def source_usage(source_id: UUID, ctx: Auth, service: EventSourceSvc) -> A
 
 
 @router.post("/{source_id}/listen", response_model=SourceListening)
-async def listen(source_id: UUID, ctx: Auth, service: EventSourceSampleSvc) -> Any:
-    return await service.listen(ctx, source_id)
+async def listen(
+    source_id: UUID, target: EventSourceTarget, ctx: Auth, service: EventSourceSampleSvc
+) -> Any:
+    """Listen for the next delivery with source-use and target edit/run permission."""
+    return await service.listen(ctx, source_id, target)
 
 
 @router.get("/{source_id}/listen/{token}", response_model=SourceCapture)
 async def caught(source_id: UUID, token: str, ctx: Auth, service: EventSourceSampleSvc) -> Any:
+    """Read your sample while you still have access to the source and original target."""
     return await service.caught(ctx, source_id, token)
 
 

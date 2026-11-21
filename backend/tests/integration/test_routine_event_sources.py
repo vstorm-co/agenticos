@@ -11,20 +11,24 @@ from pydantic import SecretStr
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.core.exceptions import ConflictError
 from app.db.models.agent_run import AgentRun
 from app.db.models.agent_trigger import TriggerAttempt
 from app.db.models.background_job import BackgroundJob
 from app.db.models.event_source import EventDelivery, EventDispatch, EventSubscription
+from app.db.models.organization import Organization
+from app.db.models.resource_grant import ResourceGrant
 from app.repositories import event_source as source_repo
 from app.schemas.agent_trigger import TriggerCreate, TriggerUpdate
 from app.schemas.event_source import EventSourceCreate, SourceAuth, SourceCredentials
-from app.schemas.routine_sources import RoutineSourceConsent
+from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceItem
 from app.services import rate_limit
 from app.services.agent_trigger import AgentTriggerService
 from app.services.event_sources import EventSourceService
-from app.services.routine_sources import RoutineSourceService, read_policy
+from app.services.routine_sources import RoutineSourceService, RoutineSourcesRequired, read_policy
 from app.worker.jobs import FireTrigger
 from tests.integration.test_routine_sources import world
+from tests.integration.test_workflow_exposures import _ctx, _member, _user
 
 pytestmark = pytest.mark.anyio
 
@@ -101,6 +105,17 @@ async def test_rebinding_during_delivery_preserves_the_other_subscriber_and_reti
     await db.commit()
     await db.refresh(subscription)
     assert subscription.source_id == other.id
+    await db.refresh(moving)
+    assert not moving.is_active and moving.setup_required
+    with pytest.raises(RoutineSourcesRequired):
+        await triggers.update(ctx, seed.agent_id, moving.id, TriggerUpdate(is_active=True))
+    _, paused_receipt, _ = await sources.receive(
+        other.id, body=b"{}", headers={"x-api-key": "test-key"}
+    )
+    assert (
+        await db.scalar(select(EventDispatch).where(EventDispatch.delivery_id == paused_receipt.id))
+        is None
+    )
 
     await triggers.update(ctx, seed.agent_id, moving.id, TriggerUpdate(source_id=source.id))
     review_service = RoutineSourceService(db)
@@ -109,6 +124,8 @@ async def test_rebinding_during_delivery_preserves_the_other_subscriber_and_reti
     await review_service.replace(
         ctx, moving, RoutineSourceConsent(review_token=review.review_token)
     )
+    await triggers.update(ctx, seed.agent_id, moving.id, TriggerUpdate(is_active=True))
+    assert moving.is_active and not moving.setup_required
     dispatches = list(await db.scalars(select(EventDispatch)))
     assert len(dispatches) == 2
     for dispatch in dispatches:
@@ -118,15 +135,16 @@ async def test_rebinding_during_delivery_preserves_the_other_subscriber_and_reti
     assert [FireTrigger.model_validate(job.payload).trigger_id for job in jobs] == [sibling.id]
 
 
-async def test_shared_source_admits_one_routine_job_with_structured_input_across_restart(
+async def test_shared_github_push_admits_one_routine_job_with_structured_input_across_restart(
     db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ctx, existing, _, _ = await world(db)
     source = await EventSourceService(db).create(
         ctx,
         EventSourceCreate(
-            name="Routine events",
-            auth=SourceAuth(method="api_key", header_name="x-api-key", signature_prefix=""),
+            name="Repository pushes",
+            provider="github",
+            auth=SourceAuth(method="provider"),
             credentials=SourceCredentials(secret=SecretStr("integration-source-key")),
         ),
     )
@@ -136,15 +154,16 @@ async def test_shared_source_admits_one_routine_job_with_structured_input_across
         TriggerCreate(
             trigger_type="event",
             source_id=source.id,
+            event_config={"event": "push", "branches": ["main"]},
             prompt_mode="template",
-            prompt="Review {{issue.title}} and {{values[0]}}",
+            prompt="Review {{head_commit.message}}",
             runs_as_creator=True,
         ),
     )
     await db.refresh(routine)
     assert routine.is_active
     assert routine.source_id == source.id
-    assert routine.event_source == "webhook"
+    assert routine.event_source == "github" and routine.event_config["actions"] == []
     assert routine.event_secret_encrypted is None and routine.secret_key_version is None
     assert routine.prompt_mode == "template"
     policy_id = read_policy(routine.approved_sources).id
@@ -170,18 +189,20 @@ async def test_shared_source_admits_one_routine_job_with_structured_input_across
         ),
     )
     body = {
+        "ref": "refs/heads/main",
         "padding": "x" * 4000,
-        "issue": {"title": "Beyond the old cutoff"},
-        "values": [False, 0, None],
+        "head_commit": {"message": "Beyond the old cutoff"},
     }
-    headers = {"x-api-key": "integration-source-key", "x-delivery-id": "routine-delivery-1"}
+    encoded = json.dumps(body).encode()
+    headers = {
+        "x-github-event": "push",
+        "x-github-delivery": "routine-delivery-1",
+        "x-hub-signature-256": "sha256="
+        + hmac.digest(b"integration-source-key", encoded, "sha256").hex(),
+    }
     service = EventSourceService(db)
-    _, receipt, accepted = await service.receive(
-        source_id, body=json.dumps(body).encode(), headers=headers
-    )
-    _, _, repeated = await service.receive(
-        source_id, body=json.dumps(body).encode(), headers=headers
-    )
+    _, receipt, accepted = await service.receive(source_id, body=encoded, headers=headers)
+    _, _, repeated = await service.receive(source_id, body=encoded, headers=headers)
     assert accepted and not repeated
     receipt_id = receipt.id
     assert await db.scalar(select(func.count()).select_from(EventDelivery)) == 1
@@ -223,9 +244,7 @@ async def test_shared_source_admits_one_routine_job_with_structured_input_across
     assert payload.activation_id == uuid5(receipt_id, str(routine_id))
     assert queued[0].organization_id == ctx.organization_id
 
-    _, _, repeated = await EventSourceService(db).receive(
-        source_id, body=json.dumps(body).encode(), headers=headers
-    )
+    _, _, repeated = await EventSourceService(db).receive(source_id, body=encoded, headers=headers)
     assert not repeated
     assert (
         await db.scalar(
@@ -240,7 +259,73 @@ async def test_shared_source_admits_one_routine_job_with_structured_input_across
 
 
 @pytest.mark.security
-@pytest.mark.parametrize("initial_review", ["present", "missing", "rebound", "unavailable"])
+async def test_creator_must_be_able_to_use_the_replacement_source_to_review_and_resume(
+    db: AsyncSession,
+) -> None:
+    editor, seed, _, _ = await world(db)
+    org = await db.get(Organization, editor.organization_id)
+    assert org is not None
+    member = await _user(db)
+    await _member(db, org=org, user=member, role="member")
+    creator = _ctx(member, org, "member")
+    db.add(
+        ResourceGrant(
+            organization_id=org.id,
+            resource_type="agent",
+            resource_id=seed.agent_id,
+            subject_user_id=member.id,
+            level="edit",
+            created_by_user_id=editor.subject_id,
+        )
+    )
+    await db.flush()
+    sources = EventSourceService(db)
+    shared = await sources.create(editor, EventSourceCreate(name="Original", visibility="org"))
+    private = await sources.create(editor, EventSourceCreate(name="Private replacement"))
+    routines = AgentTriggerService(db)
+    routine = await routines.create(
+        creator,
+        seed.agent_id,
+        TriggerCreate(trigger_type="event", source_id=shared.id, prompt="Notify"),
+    )
+    await routines.update(editor, seed.agent_id, routine.id, TriggerUpdate(source_id=private.id))
+    reviews = RoutineSourceService(db)
+    blocked = await reviews.options(creator, routine)
+    assert not blocked.current and blocked.unavailable_sources == ["event source"]
+    assert private.name not in blocked.model_dump_json()
+    with pytest.raises(ConflictError):
+        await reviews.replace(
+            creator, routine, RoutineSourceConsent(review_token=blocked.review_token)
+        )
+    assert not routine.is_active and routine.setup_required
+
+    access = ResourceGrant(
+        organization_id=org.id,
+        resource_type="event_source",
+        resource_id=private.id,
+        subject_user_id=member.id,
+        level="use",
+        created_by_user_id=editor.subject_id,
+    )
+    db.add(access)
+    await db.flush()
+    allowed = await reviews.options(creator, routine)
+    assert (
+        RoutineSourceItem(kind="event_source", id=str(private.id), name=private.name)
+        in allowed.items
+    )
+    await reviews.replace(creator, routine, RoutineSourceConsent(review_token=allowed.review_token))
+    await db.delete(access)
+    await db.flush()
+    with pytest.raises(RoutineSourcesRequired):
+        async with db.begin_nested():
+            await routines.update(creator, seed.agent_id, routine.id, TriggerUpdate(is_active=True))
+    await db.refresh(routine)
+    assert not routine.is_active
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("initial_review", ["present", "missing", "unavailable"])
 async def test_source_delivery_requires_the_same_valid_review_at_receipt_and_dispatch(
     db: AsyncSession, monkeypatch: pytest.MonkeyPatch, initial_review: str
 ) -> None:
@@ -267,11 +352,6 @@ async def test_source_delivery_requires_the_same_valid_review_at_receipt_and_dis
         assert account is not None
         account.is_enabled = False
         await db.flush()
-    elif initial_review == "rebound":
-        source = await sources.create(ctx, source_config.model_copy(update={"name": "Second"}))
-        await triggers.update(
-            ctx, existing.agent_id, routine.id, TriggerUpdate(source_id=source.id)
-        )
     review = await reviews.options(ctx, routine)
     assert review.current == (initial_review == "present")
 

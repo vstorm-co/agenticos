@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
@@ -819,7 +820,7 @@ async def test_an_event_on_an_ended_session_can_reach_the_rebinding_worker(
     assert w.trigger.is_active
 
 
-@pytest.mark.parametrize("completion", ["started", "cancelled", "routine_changed"])
+@pytest.mark.parametrize("completion", ["started", "cancelled", "routine_changed", "failed"])
 async def test_structured_event_survives_device_wait_and_is_cleared_when_terminal(
     db: AsyncSession, completion: str
 ) -> None:
@@ -833,7 +834,7 @@ async def test_structured_event_survives_device_wait_and_is_cleared_when_termina
         user_id=w.user.id,
         device_id=w.device.id,
         intent_hash=activation_intent(w.trigger),
-        event_context=None,
+        event_context="rendered event" if completion == "failed" else None,
         event_body=body,
         event_source_id=source_id,
     )
@@ -843,11 +844,23 @@ async def test_structured_event_survives_device_wait_and_is_cleared_when_termina
     exported = RoutineDeviceWaitExport.model_validate(wait)
     assert exported.event_body == body and exported.event_source_id == source_id
     assert await personal_data_repo.routine_device_wait_export_size(db, w.user.id) > 5024
-    if completion == "routine_changed":
+    if completion == "failed":
+        await repo.fail(db, wait=wait)
+    elif completion == "routine_changed":
         await repo.cancel_for_trigger(db, trigger_id=w.trigger.id, reason=completion)
     elif completion == "started":
         await repo.settle(db, activation_id=activation_id, status="started")
     else:
-        await repo.settle(db, activation_id=activation_id, status="cancelled")
+        assert not await repo.settle(
+            db, activation_id=activation_id, trigger_id=uuid4(), status="cancelled"
+        )
+        assert await repo.settle(
+            db, activation_id=activation_id, trigger_id=w.trigger.id, status="cancelled"
+        )
     wait = await repo.get(db, activation_id)
-    assert wait is not None and wait.event_body is None and wait.event_context is None
+    assert wait is not None and wait.event_body is None
+    assert wait.event_context == ("rendered event" if completion == "failed" else None)
+    with pytest.raises(IntegrityError, match="ck_routine_device_wait_redacted"):
+        async with db.begin_nested():
+            wait.event_body = body
+            await db.flush()

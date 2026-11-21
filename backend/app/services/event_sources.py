@@ -42,6 +42,7 @@ from app.schemas.event_source import (
     EventSourceCreated,
     EventSourceList,
     EventSourceRead,
+    EventSourceTarget,
     EventSourceUpdate,
     JsonObject,
     Provider,
@@ -375,21 +376,32 @@ class EventSourceService:
         await repo.delete_source(self.db, source)
         await self._audit(ctx, source.id, "deleted")
 
+    async def require_target(self, ctx: AuthContext, target: EventSourceTarget) -> None:
+        """Binding or sampling in an editor requires edit and run access to its target."""
+        if target.kind == "agent":
+            resource = await agent_repo.get(self.db, target.id, organization_id=ctx.organization_id)
+            kind, permissions = AGENT, (Perm.AGENTS_EDIT, Perm.AGENTS_RUN)
+        else:
+            resource = await workflow_repo.get(
+                self.db, target.id, organization_id=ctx.organization_id
+            )
+            kind, permissions = WORKFLOW, (Perm.WORKFLOWS_EDIT, Perm.WORKFLOWS_RUN)
+        if resource is not None:
+            for perm in permissions:
+                if not await resolve_access(self.db, ctx, resource, perm, resource_type=kind):
+                    break
+            else:
+                return
+        raise AuthorizationError(
+            message=f"Editing and running the {target.kind} is required to use a source"
+        )
+
     async def bind_routine(self, ctx: AuthContext, source_id: UUID, trigger_id: UUID) -> None:
         await self.get(ctx, source_id, perm=Perm.EVENT_SOURCES_USE, lock=True)
         trigger = await trigger_repo.get_by_id(self.db, trigger_id)
         if trigger is None or trigger.organization_id != ctx.organization_id:
             raise NotFoundError(message="Routine not found")
-        agent = await agent_repo.get(self.db, trigger.agent_id, organization_id=ctx.organization_id)
-        if agent is None or not all(
-            [
-                await resolve_access(self.db, ctx, agent, perm, resource_type=AGENT)
-                for perm in (Perm.AGENTS_EDIT, Perm.AGENTS_RUN)
-            ]
-        ):
-            raise AuthorizationError(
-                message="Editing and running the agent is required to attach a source"
-            )
+        await self.require_target(ctx, EventSourceTarget(kind="agent", id=trigger.agent_id))
         subscription = await repo.target_subscription(self.db, trigger_id=trigger_id)
         if subscription is None:
             subscription = EventSubscription(
@@ -407,18 +419,7 @@ class EventSourceService:
         exposure = await exposure_repo.get_by_id(self.db, exposure_id)
         if exposure is None or exposure.organization_id != ctx.organization_id:
             raise NotFoundError(message="Workflow entry not found")
-        workflow = await workflow_repo.get(
-            self.db, exposure.workflow_id, organization_id=ctx.organization_id
-        )
-        if workflow is None or not all(
-            [
-                await resolve_access(self.db, ctx, workflow, perm, resource_type=WORKFLOW)
-                for perm in (Perm.WORKFLOWS_EDIT, Perm.WORKFLOWS_RUN)
-            ]
-        ):
-            raise AuthorizationError(
-                message="Editing and running the workflow is required to attach a source"
-            )
+        await self.require_target(ctx, EventSourceTarget(kind="workflow", id=exposure.workflow_id))
         existing = await repo.target_subscription(self.db, exposure_id=exposure_id)
         if existing and existing.source_id == source_id:
             return

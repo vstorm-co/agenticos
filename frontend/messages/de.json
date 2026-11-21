@@ -10273,6 +10273,7 @@
     "copy": "Kopieren",
     "copied": "Kopiert",
     "createdTitle": "Noch ein Schritt",
+    "createdDescriptionShared": "Diese Routine verwendet die vorhandene URL und die Zugangsdaten der Ereignisquelle. Sie müssen beim Anbieter keinen weiteren Webhook registrieren.",
     "createdDescription": "Tragen Sie diese Webhook-URL bei Ihrem Provider ein, signiert mit dem Secret, das Sie gesetzt haben. Nichts wird ausgelöst, bis er zustellt.",
     "createdDescriptionLinear": "Verwenden Sie diese URL und dasselbe Signing Secret, um einen Webhook in Linear zu erstellen. Die Linear-API nimmt beim Erstellen beides entgegen.",
     "createdSecretNote": "Kopieren Sie es jetzt – danach wird es nicht mehr angezeigt. Der Provider signiert jede Zustellung damit.",

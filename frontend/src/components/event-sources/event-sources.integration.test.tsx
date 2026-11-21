@@ -423,7 +423,8 @@ describe("editor samples", () => {
       expires_at: "later",
     });
     const onSample = vi.fn();
-    render(<LiveSample sourceId="s1" onSample={onSample} />, { wrapper });
+    const target = { kind: "workflow", id: "w1" } as const;
+    render(<LiveSample sourceId="s1" target={target} onSample={onSample} />, { wrapper });
     expect(await screen.findByDisplayValue(source.webhook_url)).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Listen for event" }));
     await waitFor(() =>
@@ -432,8 +433,18 @@ describe("editor samples", () => {
         delivery_id: "d1",
       }),
     );
-    expect(apiClient.post).toHaveBeenCalledExactlyOnceWith("/event-sources/s1/listen", {});
+    expect(apiClient.post).toHaveBeenCalledExactlyOnceWith("/event-sources/s1/listen", target);
     expect(screen.getByText(/Active subscribers still execute/)).toBeVisible();
+  });
+  it("keeps paste available without offering a listener to a source viewer", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ ...source, can_use: false });
+    render(
+      <LiveSample sourceId="s1" target={{ kind: "workflow", id: "w1" }} onSample={vi.fn()} />,
+      { wrapper },
+    );
+    expect(await screen.findByText(/Source-use permission is required/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Listen for event" })).toBeNull();
+    expect(screen.getByText("Or paste example JSON")).toBeVisible();
   });
   it("refuses non-object JSON and accepts falsy payload values without an API request", async () => {
     const onSample = vi.fn();
@@ -464,6 +475,7 @@ describe("editor samples", () => {
           onModeChange={vi.fn()}
           sourceId={null}
           agentId="a1"
+          canListen={false}
         />
       );
     }

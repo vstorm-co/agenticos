@@ -9083,6 +9083,7 @@
     "copy": "Kopiuj",
     "copied": "Skopiowano",
     "createdTitle": "Jeszcze jeden krok",
+    "createdDescriptionShared": "Ta rutyna korzysta z dotychczasowego adresu URL i danych uwierzytelniających źródła zdarzeń. Nie musisz rejestrować kolejnego webhooka u dostawcy.",
     "createdDescription": "Dodaj ten adres webhooka u swojego dostawcy, podpisany ustawionym sekretem. Nic się nie uruchomi, dopóki nie nadejdzie żądanie.",
     "createdDescriptionLinear": "Użyj tego URL i tego samego sekretu podpisującego, aby utworzyć webhook w Linear. API Linear przyjmuje oba przy tworzeniu webhooka.",
     "createdSecretNote": "Skopiuj go teraz - po zamknięciu nie zostanie już pokazany. Dostawca podpisuje nim każdą dostawę.",

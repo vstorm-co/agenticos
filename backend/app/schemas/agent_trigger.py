@@ -155,7 +155,7 @@ class GithubTriggerConfig(BaseSchema):
     model_config = ConfigDict(extra="forbid")
 
     event: GithubEvent = "issues"
-    actions: list[str] | None = Field(default=None, min_length=1)
+    actions: list[str] | None = None
     authors: GithubAuthors = "members"
     mention: str | None = Field(default=None, min_length=1, max_length=100)
     branches: list[str] | None = Field(default=None, min_length=1, max_length=20)
@@ -175,7 +175,9 @@ class GithubTriggerConfig(BaseSchema):
         allowed = _GITHUB_ACTIONS[self.event]
         if self.actions is None:
             self.actions = list(_DEFAULT_GITHUB_ACTIONS.get(self.event, []))
-        elif not allowed:
+        elif not self.actions and allowed:
+            raise ValueError(f"a {self.event} filter needs at least one action")
+        elif self.actions and not allowed:
             raise ValueError(f"a {self.event} has no actions to filter on")
         else:
             unknown = sorted(set(self.actions) - allowed)
@@ -706,10 +708,10 @@ class TriggerUpdate(BaseSchema):
     columns the shape CHECK depends on stay consistent. An event trigger's *filter*
     can change in place too: `event_config` is re-validated against the source's
     typed model, so refiltering which issue actions fire is an edit rather than a
-    delete-and-recreate. What still cannot change is a trigger's *type* - a
-    schedule never becomes an event - nor an event's source or secret: repointing
-    an event is a different trigger, made by deleting this one and creating that,
-    so a cadence field on an event, or an `event_config` on a schedule, is refused.
+    delete-and-recreate. A routine using a reusable event source may select
+    another one; it pauses until its creator reviews and resumes it. A dedicated
+    event trigger cannot switch sources. A trigger's *type* is fixed, so a
+    cadence field on an event, or an `event_config` on a schedule, is refused.
 
     `None` means "not sent" for every field except `environment_id`, `name` and
     `teams_conversation_id`, whose null is the deliberate "back to the default" -

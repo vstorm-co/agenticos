@@ -13,7 +13,13 @@ from app.clients.redis import RedisClient
 from app.core.background import spawn_after_commit
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext
-from app.schemas.event_source import JsonObject, SourceCapture, SourceListening, SourceSample
+from app.schemas.event_source import (
+    EventSourceTarget,
+    JsonObject,
+    SourceCapture,
+    SourceListening,
+    SourceSample,
+)
 from app.services.event_sources import EventSourceService
 from app.services.workflow_webhook_test import KEEP_SECONDS, LISTEN_SECONDS
 from app.workflows.graph.model import pinned_output_fits
@@ -28,13 +34,19 @@ class EventSourceSampleService:
         self.db = db
         self.redis = redis
 
-    async def listen(self, ctx: AuthContext, source_id: UUID) -> SourceListening:
-        await EventSourceService(self.db).require_use(ctx, source_id)
+    async def listen(
+        self, ctx: AuthContext, source_id: UUID, target: EventSourceTarget
+    ) -> SourceListening:
+        sources = EventSourceService(self.db)
+        await sources.require_use(ctx, source_id)
+        await sources.require_target(ctx, target)
         token = secrets.token_urlsafe(32)
         expires = datetime.now(UTC) + timedelta(seconds=LISTEN_SECONDS)
         owner = f"{ctx.organization_id}:{ctx.subject_id}:{source_id}"
         await self.redis.set(
-            f"source:listener:{token}:owner", owner, ttl=KEEP_SECONDS + LISTEN_SECONDS
+            f"source:listener:{token}:{owner}:target",
+            target.model_dump_json(),
+            ttl=KEEP_SECONDS + LISTEN_SECONDS,
         )
         await self.redis.set(f"source:listener:{token}:state", _LISTENING, ttl=LISTEN_SECONDS)
         await self.redis.update_mapping(
@@ -45,10 +57,13 @@ class EventSourceSampleService:
         return SourceListening(listener_id=token, expires_at=expires)
 
     async def caught(self, ctx: AuthContext, source_id: UUID, token: str) -> SourceCapture:
-        await EventSourceService(self.db).require_use(ctx, source_id)
-        owner = await self.redis.get(f"source:listener:{token}:owner")
-        if owner != f"{ctx.organization_id}:{ctx.subject_id}:{source_id}":
+        sources = EventSourceService(self.db)
+        await sources.require_use(ctx, source_id)
+        owner = f"{ctx.organization_id}:{ctx.subject_id}:{source_id}"
+        target = await self.redis.get(f"source:listener:{token}:{owner}:target")
+        if target is None:
             raise NotFoundError(message="Listener not found")
+        await sources.require_target(ctx, EventSourceTarget.model_validate_json(target))
         state = await self.redis.get(f"source:listener:{token}:state")
         return (
             SourceCapture.model_validate_json(state)

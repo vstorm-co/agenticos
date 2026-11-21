@@ -5,21 +5,24 @@ import { useTranslations } from "next-intl";
 import { Button, Label, Spinner, Textarea } from "@/components/ui";
 import { CopyableValue } from "@/components/workflows/triggers/copyable-value";
 import { useEventSource, useSourceListener } from "@/hooks/use-event-sources";
-import type { EventSample } from "@/lib/event-sources-api";
+import type { EventSample, SourceListenerTarget } from "@/lib/event-sources-api";
 import { MAX_PINNED_BYTES, jsonBytes } from "@/lib/workflows/step-data";
 
 /** Live capture never changes subscriber dispatch; pasted examples never make deliveries. */
 export function LiveSample({
   sourceId,
+  target,
   onSample,
 }: {
   sourceId: string;
+  target: SourceListenerTarget;
   onSample: (sample: EventSample) => void;
 }) {
   const t = useTranslations("eventSources");
   const source = useEventSource(sourceId);
+  const usableSource = !source.error && source.data?.can_use ? source.data : null;
   const [token, setToken] = useState<string | null>(null);
-  const { listen, capture } = useSourceListener(sourceId, token);
+  const { listen, capture } = useSourceListener(sourceId, usableSource ? token : null);
   const consumed = useRef<string | null>(null);
   const caught = capture.data?.state === "caught" ? capture.data.delivery : undefined;
   useEffect(() => {
@@ -37,12 +40,12 @@ export function LiveSample({
   return (
     <div className="space-y-3 rounded-md border p-3">
       <p className="text-muted-foreground text-xs">{t("liveWarning")}</p>
-      {source.data?.can_use && (
+      {usableSource && (
         <>
           <CopyableValue
             id="sample-live-url"
             label={t("liveUrl")}
-            value={source.data.webhook_url}
+            value={usableSource.webhook_url}
           />
           <Button
             type="button"
@@ -50,7 +53,7 @@ export function LiveSample({
             variant="outline"
             disabled={listen.isPending || waiting}
             onClick={() =>
-              listen.mutate(undefined, { onSuccess: (result) => setToken(result.listener_id) })
+              listen.mutate(target, { onSuccess: (result) => setToken(result.listener_id) })
             }
           >
             {waiting && <Spinner className="size-3.5" />}

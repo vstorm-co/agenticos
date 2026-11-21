@@ -126,7 +126,9 @@ Choose GitHub, Linear, HubSpot or Zendesk for provider verification, or **Custom
 
 Send a POST containing a JSON object; HubSpot batches retain their existing adaptation. Credentials are write-only and stored in the organization's vault. Replace them on the source, never in a workflow definition or sample. Provider delivery IDs, or a configured delivery-ID header, identify retries. Basic Auth and API-key credentials are not event IDs. If the sender supplies no event ID, retries may start additional runs.
 
-An authenticated delivery and its dispatch work commit together before the source acknowledges receipt. Subscriber failures are independent. The worker retries temporary subscriber rate or capacity limits. A queued event can use only the routine source approval in effect at receipt. Switching a routine to a different source requires a new review. A shared URL acknowledges durable receipt asynchronously; it cannot return a workflow's custom response. A shared-source workflow must not reach **Respond to webhook**. Dedicated workflow endpoints retain their synchronous response behavior.
+An authenticated delivery and its dispatch work commit together before the source acknowledges receipt. Subscriber failures are independent. The worker retries temporary subscriber rate or capacity limits. A queued event can use only the routine source approval in effect at receipt. Switching sources pauses the routine. Its owner must review the new source before resuming it.
+
+A shared URL acknowledges durable receipt asynchronously; it cannot return a workflow's custom response. A shared-source workflow must not reach **Respond to webhook**. Dedicated workflow endpoints retain their synchronous response behavior.
 
 **Pause source** stops starting subscribers for new deliveries; pausing one routine or workflow stops that subscriber. Deleting a source is refused while subscriptions remain; its usage list shows the targets to detach first. Structured events remain available to queued or waiting work. Terminal delivery payloads follow the background-job retention policy.
 

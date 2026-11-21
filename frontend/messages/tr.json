@@ -11135,6 +11135,7 @@
     "copy": "Kopyala",
     "copied": "Kopyalandı",
     "createdTitle": "Bir adım daha",
+    "createdDescriptionShared": "Bu rutin, olay kaynağının mevcut URL’sini ve kimlik bilgilerini kullanır. Sağlayıcıya yeni bir webhook kaydetmeniz gerekmez.",
     "createdDescription": "Bu webhook URL’sini belirlediğiniz secret ile imzalayarak provider’a ekleyin. İstek gönderilene kadar trigger çalışmaz.",
     "createdSecretNote": "Şimdi kopyalayın; daha sonra yeniden gösterilmez. Provider her isteği bununla imzalar.",
     "done": "Bitti",

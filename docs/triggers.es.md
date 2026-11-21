@@ -1,5 +1,5 @@
 ---
-source_sha: "ed007f781d57"
+source_sha: "c8cfdeb79aa5"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -138,7 +138,9 @@ Elige GitHub, Linear, HubSpot o Zendesk para la verificación del proveedor, o *
 
 Envía un POST con un objeto JSON; se mantiene la adaptación existente de lotes de HubSpot. Las credenciales solo se escriben y se guardan en el almacén seguro de la organización. Sustitúyelas en la fuente, nunca en una definición de workflow ni en una muestra. Los ID de entrega del proveedor o una cabecera de ID configurada reconocen reintentos. Las credenciales Basic Auth y las claves API no son ID de eventos. Sin ID de evento, los reintentos pueden iniciar ejecuciones adicionales.
 
-La entrega autenticada y sus tareas de envío se guardan juntas antes de confirmar la recepción. Los fallos de los suscriptores son independientes. El worker reintenta la entrega si un suscriptor alcanza un límite temporal de frecuencia o de capacidad. Un evento en cola solo puede usar la aprobación de la fuente de la rutina vigente en el momento de la recepción. Cambiar la fuente de una rutina requiere una nueva revisión. Una URL compartida confirma la recepción duradera de forma asíncrona y no devuelve una respuesta personalizada del workflow. Un workflow con fuente compartida no puede alcanzar **Responder al webhook**. Los endpoints dedicados de workflows conservan las respuestas síncronas.
+La entrega autenticada y sus tareas de envío se guardan juntas antes de confirmar la recepción. Los fallos de los suscriptores son independientes. El worker reintenta la entrega si un suscriptor alcanza un límite temporal de frecuencia o de capacidad. Un evento en cola solo puede usar la aprobación de la fuente de la rutina vigente en el momento de la recepción. Al cambiar de fuente, la rutina queda en pausa. Su propietario debe revisar la nueva fuente antes de reanudarla.
+
+Una URL compartida confirma la recepción duradera de forma asíncrona y no devuelve una respuesta personalizada del workflow. Un workflow con fuente compartida no puede alcanzar **Responder al webhook**. Los endpoints dedicados de workflows conservan las respuestas síncronas.
 
 **Pausar fuente** impide iniciar suscriptores para nuevas entregas; pausar una rutina o workflow afecta solo a ese destino. No se permite eliminar una fuente con suscripciones; la lista de uso muestra los destinos que debes desvincular. Los eventos estructurados siguen disponibles para el trabajo en cola o en espera. Las entregas terminadas siguen la política de retención de tareas en segundo plano.
 

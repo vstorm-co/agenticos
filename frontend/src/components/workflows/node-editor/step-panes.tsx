@@ -405,6 +405,7 @@ export function OutputPane({
               <LiveSample
                 key={`${node.id}:${node.config.source_id}`}
                 sourceId={node.config.source_id}
+                target={{ kind: "workflow", id: workflowId }}
                 onSample={(delivery) => {
                   updateNodeDetails(node.id, {
                     pinned_output: { body: delivery.body, delivery_id: delivery.delivery_id },

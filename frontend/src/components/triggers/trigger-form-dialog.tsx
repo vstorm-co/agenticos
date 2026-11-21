@@ -227,19 +227,20 @@ export function TriggerFormDialog({
   const { agents } = useAgents();
   const { can } = usePermissions();
   const defaultAgentId = useAgentSelectionStore((state) => state.defaultAgentId);
-  // Only agents the caller may actually run: a published version to run, and a
-  // `can_run` that resolves the caller's role scope plus any run grant. Seeding
-  // the default from this set never points at an agent the create would refuse.
-  const runnable = agents.filter(
-    (agent) =>
-      agent.status === "published" && agent.can_run && (!reusableSourceOnly || agent.can_edit),
-  );
+  const [sourceId, setSourceId] = useState<string | null>(trigger?.source_id ?? null);
+  const publishedRunnable = agents.filter((agent) => agent.status === "published" && agent.can_run);
+  const sourceTargets = publishedRunnable.filter((agent) => agent.can_edit);
+  const canAttachSource = sourceTargets.some((agent) => agentId === null || agent.id === agentId);
+  // Binding a reusable source needs edit as well as run, whichever creation path was used.
+  const runnable = sourceId || reusableSourceOnly ? sourceTargets : publishedRunnable;
   const [pickedAgentId, setPickedAgentId] = useState("");
-  // The user's starred default, or the first published agent, the moment the
-  // list arrives - the same resolution the chat's own picker makes.
-  const seededAgentId =
-    pickedAgentId || (runnable.find((agent) => agent.id === defaultAgentId) ?? runnable[0])?.id;
-  const effectiveAgentId = agentId ?? seededAgentId ?? null;
+  const seededAgent = pickedAgentId
+    ? runnable.find((agent) => agent.id === pickedAgentId)
+    : (runnable.find((agent) => agent.id === defaultAgentId) ?? runnable[0]);
+  const effectiveAgentId = agentId ?? seededAgent?.id ?? null;
+  const canUseSourceTarget = agents.some(
+    (agent) => agent.id === effectiveAgentId && agent.can_edit && agent.can_run,
+  );
 
   const { create, update, runNow, rotateSecret } = useTriggers(effectiveAgentId);
   const { environments } = useAgentEnvironments(effectiveAgentId);
@@ -362,7 +363,6 @@ export function TriggerFormDialog({
   // "Fires on: a GitHub issue" with a GitHub template picked under it, for
   // somebody who had just chosen the opposite. An edit reads the row.
   const [eventSource, setEventSource] = useState<EventSource>(trigger?.event_source ?? "webhook");
-  const [sourceId, setSourceId] = useState<string | null>(trigger?.source_id ?? null);
   const [promptMode, setPromptMode] = useState<"literal" | "template">(
     trigger?.prompt_mode ?? "literal",
   );
@@ -528,8 +528,19 @@ export function TriggerFormDialog({
   }
 
   function selectSource(source: ReusableSource | null) {
+    if (!editing && agentId === null) {
+      // Going back to change the source can disqualify the previously chosen agent.
+      // Its environment and pinned version must not follow the replacement target.
+      if (source && !sourceTargets.some((agent) => agent.id === effectiveAgentId)) {
+        setPickedAgentId("");
+        changeEnvironment(DEFAULT_ENV);
+      } else {
+        setPickedAgentId(effectiveAgentId ?? "");
+      }
+    }
     setSourceId(source?.id ?? null);
     if (source) {
+      setSecret("");
       setEventSource(source.provider);
       setExtraConfig({});
       setFilterA("");
@@ -812,7 +823,7 @@ export function TriggerFormDialog({
     step === "configure"
       ? effectiveAgentId !== null && versionValid && !invalidEnd && budgetLimit !== undefined
       : step === "message"
-        ? prompt.trim().length > 0
+        ? prompt.trim().length > 0 && (!sourceId || (effectiveAgentId !== null && canAttachSource))
         : step === "schedule"
           ? scheduleValid
           : sourceId !== null ||
@@ -850,22 +861,27 @@ export function TriggerFormDialog({
   }
 
   if (created !== null) {
+    const setupSecret = created.source_id ? null : (created.reveal_secret ?? secret);
     return (
       <Dialog open={open} onOpenChange={changeOpen}>
         <DialogContent className={DIALOG_CONFIRM}>
           <DialogHeader>
-            <DialogTitle>{t("createdTitle")}</DialogTitle>
+            <DialogTitle>{t(created.source_id ? "created" : "createdTitle")}</DialogTitle>
             <DialogDescription>
-              {eventSource === "linear" ? t("createdDescriptionLinear") : t("createdDescription")}
+              {created.source_id
+                ? t("createdDescriptionShared")
+                : created.event_source === "linear"
+                  ? t("createdDescriptionLinear")
+                  : t("createdDescription")}
             </DialogDescription>
           </DialogHeader>
           {created.webhook_url && <WebhookField url={created.webhook_url} />}
           {/* A generated secret must be copied before this dialog closes. The
               raw form's local state holds the caller's secret; `reveal_secret`
               covers a server-minted one. */}
-          {(created.reveal_secret ?? secret) && (
+          {setupSecret && (
             <SecretRevealField
-              secret={created.reveal_secret ?? secret}
+              secret={setupSecret}
               label={t("secret")}
               note={t("createdSecretNote")}
               id="created-secret"
@@ -932,7 +948,11 @@ export function TriggerFormDialog({
               {type === "event" ? (
                 <>
                   {trigger.source_id && (
-                    <SourceSelector value={sourceId} onChange={selectSource} disabled={pending} />
+                    <SourceSelector
+                      value={sourceId}
+                      onChange={selectSource}
+                      disabled={pending || !canUseSourceTarget}
+                    />
                   )}
                   {sourceId && eventSource !== "webhook" && (
                     <SubscriptionFields
@@ -951,6 +971,7 @@ export function TriggerFormDialog({
                     resultMode={resultMode}
                     sourceId={sourceId}
                     agentId={effectiveAgentId}
+                    canListen={canUseSourceTarget}
                     triggerId={trigger.id}
                     disabled={pending}
                   />
@@ -1153,11 +1174,13 @@ export function TriggerFormDialog({
       >
         {step === "event" && (
           <div className="space-y-4">
-            <SourceSelector
-              value={sourceId}
-              onChange={selectSource}
-              allowDedicated={!reusableSourceOnly}
-            />
+            {(canAttachSource || sourceId) && (
+              <SourceSelector
+                value={sourceId}
+                onChange={selectSource}
+                allowDedicated={!reusableSourceOnly}
+              />
+            )}
             {!sourceId && !reusableSourceOnly && (
               <EventFields
                 eventSource={eventSource}
@@ -1304,6 +1327,7 @@ export function TriggerFormDialog({
                 resultMode={resultMode}
                 sourceId={sourceId}
                 agentId={effectiveAgentId}
+                canListen={canUseSourceTarget}
                 disabled={pending}
               />
             ) : (

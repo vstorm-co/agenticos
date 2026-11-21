@@ -7,6 +7,7 @@ import {
   eventSourcesApi,
   type EventSourceCreate,
   type SourceCredentials,
+  type SourceListenerTarget,
 } from "@/lib/event-sources-api";
 import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
@@ -58,7 +59,9 @@ export function useEventSourceWrites() {
   };
 }
 export function useSourceListener(id: string, token: string | null) {
-  const listen = useMutation({ mutationFn: () => eventSourcesApi.listen(id) });
+  const listen = useMutation({
+    mutationFn: (target: SourceListenerTarget) => eventSourcesApi.listen(id, target),
+  });
   const capture = useQuery({
     queryKey: qk.eventSources.capture(id, token ?? ""),
     queryFn: () => eventSourcesApi.capture(id, token!),

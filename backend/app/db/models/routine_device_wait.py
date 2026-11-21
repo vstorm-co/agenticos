@@ -61,7 +61,8 @@ class RoutineDeviceWait(Base, TimestampMixin):
             name="ck_routine_device_wait_status",
         ),
         CheckConstraint(
-            "status IN ('waiting', 'failed') OR (event_context IS NULL AND event_body IS NULL)",
+            "(status = 'waiting' OR event_body IS NULL) AND "
+            "(status IN ('waiting', 'failed') OR event_context IS NULL)",
             name="ck_routine_device_wait_redacted",
         ),
         CheckConstraint("admission_failures >= 0", name="ck_routine_device_wait_failures"),

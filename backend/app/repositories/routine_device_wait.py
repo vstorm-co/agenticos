@@ -96,11 +96,15 @@ async def settle(
     activation_id: UUID,
     status: WaitStatus,
     reason: str | None = None,
+    trigger_id: UUID | None = None,
 ) -> bool:
     """The started marker commits with the run's admission, before the first model call."""
+    match = [RoutineDeviceWait.id == activation_id, RoutineDeviceWait.status == "waiting"]
+    if trigger_id is not None:
+        match.append(RoutineDeviceWait.trigger_id == trigger_id)
     result = await db.execute(
         update(RoutineDeviceWait)
-        .where(RoutineDeviceWait.id == activation_id, RoutineDeviceWait.status == "waiting")
+        .where(*match)
         .values(
             status=status,
             reason=reason,
@@ -144,6 +148,9 @@ async def record_admission_failure(db: AsyncSession, *, wait: RoutineDeviceWait)
 async def fail(db: AsyncSession, *, wait: RoutineDeviceWait) -> None:
     wait.status = "failed"
     wait.reason = "admission_failed"
+    # The rendered context remains the owner's failure evidence. No worker
+    # will consume the complete structured event once admission has failed.
+    wait.event_body = None
     wait.finished_at = datetime.now(UTC)
     await db.flush()
 

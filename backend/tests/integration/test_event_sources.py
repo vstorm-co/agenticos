@@ -13,8 +13,9 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.clients.redis import RedisClient
 from app.core.config import settings
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Scope
 from app.db.locks import LockScope, hold_subject
 from app.db.models.background_job import BackgroundJob
@@ -30,11 +31,17 @@ from app.db.models.resource_grant import ResourceGrant
 from app.db.models.user import User
 from app.db.models.workflow_run import WorkflowRun
 from app.schemas.agent_trigger import TriggerCreate
-from app.schemas.event_source import EventSourceCreate, SourceAuth, SourceCredentials
+from app.schemas.event_source import (
+    EventSourceCreate,
+    EventSourceTarget,
+    SourceAuth,
+    SourceCredentials,
+)
 from app.schemas.workflow import WorkflowPublish, WorkflowSettings
 from app.services import event_sources as module
 from app.services import rate_limit
 from app.services.agent_trigger import AgentTriggerService
+from app.services.event_source_samples import EventSourceSampleService
 from app.services.event_sources import EventSourceService
 from app.services.workflow_registry import WorkflowRegistryService
 from app.worker.executors import Succeeded, run_handler
@@ -97,6 +104,45 @@ async def _receive(db, source_id, event_id="event-1"):
 
 async def _count(db, model):
     return await db.scalar(select(func.count()).select_from(model))
+
+
+@pytest.mark.security
+async def test_sample_listener_requires_target_management_even_with_source_use(
+    db: AsyncSession, source_world
+) -> None:
+    ctx, org, owner, _ = source_world
+    source = await EventSourceService(db).create(
+        ctx, EventSourceCreate(name="Shared", visibility="org")
+    )
+    workflow = await _workflow(db, org=org, owner=owner)
+    target = EventSourceTarget(kind="workflow", id=workflow.id)
+    user = await _user(db)
+    await _member(db, org=org, user=user, role="operator")
+    operator = _ctx(user, org, role="operator")
+    await EventSourceService(db).require_use(operator, source.id)
+
+    cache = AsyncMock(spec=RedisClient)
+    samples = EventSourceSampleService(db, cache)
+    with pytest.raises(AuthorizationError):
+        await samples.listen(operator, source.id, target)
+    cache.set.assert_not_awaited()
+
+    grant = ResourceGrant(
+        organization_id=org.id,
+        resource_type="workflow",
+        resource_id=workflow.id,
+        subject_user_id=user.id,
+        level="edit",
+    )
+    db.add(grant)
+    await db.flush()
+    listener = await samples.listen(operator, source.id, target)
+    cache.get.return_value = target.model_dump_json()
+    await db.delete(grant)
+    await db.flush()
+    with pytest.raises(AuthorizationError):
+        await samples.caught(operator, source.id, listener.listener_id)
+    cache.get.assert_awaited_once()
 
 
 @pytest.mark.security
