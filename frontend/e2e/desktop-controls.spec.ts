@@ -34,6 +34,7 @@ async function settleEntrances(page: Page) {
 /** Click where a person clicks, without Playwright scrolling around an overlay. */
 async function clickCenter(page: Page, control: Locator) {
   await expect(control).toBeVisible();
+  await expect(control).toBeEnabled();
   await settleEntrances(page);
   const box = await control.boundingBox();
   if (!box) throw new Error("The control has no visible bounds");
