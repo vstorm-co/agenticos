@@ -4239,6 +4239,38 @@ describe("useChat - durable questions resumed on the socket", () => {
     });
   });
 
+  it("reuses the matching saved turn for an Inbox link despite stale cached status", async () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const cached = askedTurn();
+    useChatStore.getState().addMessage({
+      ...cached,
+      toolCalls: cached.toolCalls.map((call) => ({ ...call, status: "running" as const })),
+    });
+    useChatStore.getState().addMessage({
+      id: "unrelated-latest-answer",
+      role: "assistant",
+      content: "A different run's answer",
+      timestamp: new Date(),
+      conversationId: "c-1",
+      runId: "different-run",
+    });
+    get.mockResolvedValue(ASKED);
+    const { result } = renderHook(() => useChat({ requestedQuestionRunId: "r-1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.pendingQuestions?.[0]?.question).toBe("How formal?"));
+    expect(get).toHaveBeenCalledWith("/runs/r-1/questions", {
+      params: { conversation_id: "c-1" },
+    });
+    expect(result.current.questionTarget).toMatchObject({
+      messageId: cached.id,
+      toolCallIds: ["ask-1"],
+    });
+    expect(useChatStore.getState().messages.map((message) => message.id)).toEqual([
+      cached.id,
+      "unrelated-latest-answer",
+    ]);
+  });
+
   it("falls back from an answered Inbox link to the different saved waiting run", async () => {
     useConversationStore.getState().setCurrentConversationId("c-1");
     useChatStore.getState().addMessage(askedTurn());
