@@ -1,5 +1,5 @@
 ---
-source_sha: "e7d769dd8dd9"
+source_sha: "478a6600f722"
 ---
 
 # Konsola { #the-console }
@@ -20,7 +20,7 @@ Inbox zachowuje tę samą ramę listy, odstępy wierszy, oznaczenia źródeł, t
 
 Pliki i Źródła używają tego samego zwartego panelu bocznego: początkowo 400px, z regulacją od 360 do 420px i ograniczeniem do 38% szerokości zadokowanego czatu. Na wąskim desktopie mogą tymczasowo zwinąć listę rozmów; zamknięcie przywraca poprzedni wybór, chyba że zmienisz go ręcznie. Przeglądarka zachowuje szerszy obszar pracy: początkowo 55%, z regulacją od 35% do 65%. Kliknięcie cytatu przewija wyłącznie listę Źródeł, pozostawiając konwersację na miejscu.
 
-Komunikat Plików o obszarze roboczym, który jeszcze nie powstał lub nie jest już przechowywany, różni się od błędu połączenia i nie dowodzi, że pliki nigdy nie istniały. Załączniki rozmowy pozostają dostępne. Dołącz i wyślij plik przez pole wiadomości albo poproś agenta o utworzenie pliku, aby użyć obszaru roboczego; rzeczywiste błędy połączenia i archiwum pozostają jawne.
+Komunikat Plików o obszarze roboczym, który jeszcze nie powstał lub nie jest już przechowywany, różni się od błędu połączenia i nie dowodzi, że pliki nigdy nie istniały. Załączniki rozmowy pozostają dostępne. Dołącz i wyślij plik przez pole wiadomości albo poproś agenta o utworzenie pliku, aby użyć obszaru roboczego; rzeczywiste błędy połączenia i archiwum pozostają jawne. W czacie link do pliku zgodnego z potwierdzonym zapisem narzędzia otwiera podgląd obszaru roboczego. Niezweryfikowane ścieżki pozostają zwykłymi linkami; niedostępne prywatne źródło pliku nie staje się linkiem.
 
 Na początku czatu Inbox pokazuje najwyżej dwa priorytety, bez dat i osobnej ikony czatu. Kliknięcie wiersza wstawia propozycję działania do pola wiadomości do edycji; nie wysyła go. **Otwórz Inbox** prowadzi do pełnej listy. Domyślny układ listy rozmów to **Workspace — projects**; `?sidebar=compact` i `?sidebar=comfortable` pozostają dostępne do porównania.
 

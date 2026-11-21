@@ -1,5 +1,5 @@
 ---
-source_sha: "e7d769dd8dd9"
+source_sha: "478a6600f722"
 ---
 
 # Die Konsole { #the-console }
@@ -20,7 +20,7 @@ Der Posteingang verwendet in Alle, Dringend, Routinen-Ergebnisse, Vorschläge un
 
 Dateien und Quellen verwenden dasselbe kompakte Seitenpanel: anfangs 400px, verstellbar von 360 bis 420px und auf 38% der angedockten Chatbreite begrenzt. Auf schmalen Desktopfenstern können sie die Gesprächsliste vorübergehend einklappen. Beim Schließen wird die frühere Auswahl wiederhergestellt, sofern Sie sie nicht manuell geändert haben. Der Browser behält mehr Arbeitsfläche: anfangs 55%, verstellbar von 35% bis 65%. Ein Zitat scrollt nur die Quellenliste und lässt den Gesprächsverlauf an seiner Position.
 
-Meldet Dateien einen noch nicht erstellten oder nicht mehr aufbewahrten Arbeitsbereich, ist das von einem Verbindungsfehler getrennt und beweist nicht, dass dort nie Dateien lagen. Gesprächsanhänge bleiben verfügbar. Hängen Sie eine Datei im Eingabefeld an und senden Sie sie, oder bitten Sie den Agenten, eine Datei zu erstellen. Echte Verbindungs- und Archivfehler bleiben ausdrücklich sichtbar.
+Meldet Dateien einen noch nicht erstellten oder nicht mehr aufbewahrten Arbeitsbereich, ist das von einem Verbindungsfehler getrennt und beweist nicht, dass dort nie Dateien lagen. Gesprächsanhänge bleiben verfügbar. Hängen Sie eine Datei im Eingabefeld an und senden Sie sie, oder bitten Sie den Agenten, eine Datei zu erstellen. Echte Verbindungs- und Archivfehler bleiben ausdrücklich sichtbar. Im Chat öffnet ein Dateilink mit passendem erfolgreichem Werkzeugbeleg die Arbeitsbereichsvorschau. Unbestätigte Pfade bleiben gewöhnliche Links; ein nicht verfügbarer privater Dateiursprung wird nicht verlinkt.
 
 Beim Chatstart zeigt der Posteingang höchstens zwei Prioritäten ohne Datum oder zusätzliches Chatsymbol. Die Auswahl einer Zeile fügt ihre Handlungsanfrage zum Bearbeiten ins Eingabefeld ein, ohne sie zu senden. **Posteingang öffnen** führt zur vollständigen Liste. **Workspace — projects** ist das Standardlayout der Gesprächsliste; `?sidebar=compact` und `?sidebar=comfortable` bleiben zum Vergleichen verfügbar.
 

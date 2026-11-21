@@ -1,5 +1,5 @@
 ---
-source_sha: "e7d769dd8dd9"
+source_sha: "478a6600f722"
 ---
 
 # La consola { #the-console }
@@ -20,7 +20,7 @@ Inbox mantiene el mismo marco de lista, espaciado de filas, marcas de origen, ti
 
 Archivos y Fuentes usan el mismo panel lateral compacto: inicialmente 400px, ajustable entre 360 y 420px y limitado al 38% del ancho del chat acoplado. En un escritorio estrecho pueden contraer temporalmente la lista de conversaciones; al cerrarlo se recupera la elección anterior, salvo cambios manuales. El navegador conserva más espacio de trabajo: inicialmente el 55%, ajustable del 35% al 65%. Una cita desplaza solo la lista de Fuentes y conserva la posición de la conversación.
 
-Si Archivos indica que el espacio de trabajo aún no se ha creado o ya no se conserva, lo distingue de un fallo de conexión y no demuestra que nunca hubiera archivos. Los adjuntos de la conversación siguen disponibles. Adjunte y envíe un archivo desde el cuadro de mensaje, o pida al agente que cree uno, para usar el espacio de trabajo; los fallos reales de conexión y archivo siguen siendo explícitos.
+Si Archivos indica que el espacio de trabajo aún no se ha creado o ya no se conserva, lo distingue de un fallo de conexión y no demuestra que nunca hubiera archivos. Los adjuntos de la conversación siguen disponibles. Adjunte y envíe un archivo desde el cuadro de mensaje, o pida al agente que cree uno, para usar el espacio de trabajo; los fallos reales de conexión y archivo siguen siendo explícitos. En el chat, un enlace de archivo con un resultado satisfactorio coincidente de la herramienta abre el visor del espacio de trabajo. Las rutas no verificadas siguen como enlaces normales; un origen privado no disponible no se convierte en enlace.
 
 Al empezar el chat, Inbox muestra hasta dos prioridades sin fechas ni otro icono de chat. Al seleccionar una fila, su solicitud de acción pasa al cuadro de mensaje para editarla; no se envía. **Abrir Inbox** lleva a la lista completa. **Workspace — projects** es el diseño predeterminado de la lista de conversaciones; `?sidebar=compact` y `?sidebar=comfortable` siguen disponibles para compararlos.
 

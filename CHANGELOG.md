@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Upgrading
+
+- Deploy the API and workers together. New and re-reviewed routines store their source mode, which older workers cannot read. Existing stored routines without a mode retain their restricted policy.
+
 ### Added
 
 - Let new routines follow their agent's available configuration and approval rules by default, with optional restricted source review. Missing optional MCP accounts do not block unrelated work; creator permissions, required event-source identity and mandatory approval rules remain enforced.
@@ -30,6 +34,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Prepare actionable Inbox chat drafts from generated proposal text and source evidence, including local weekdays and time zones. Keep drafts editable and show only two starter prompts on phones.
 
 ### Fixed
+
+- Open links to verified tool-produced files in the scoped workspace viewer instead of navigating to nonexistent console pages, and do not present failed writes as produced files.
 
 - Distinguish chat workspaces that have not been created or retained from sandbox connection failures. Keep file attachments available and preserve explicit errors for lost recorded sessions and failed connections.
 
