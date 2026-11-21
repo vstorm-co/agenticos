@@ -904,9 +904,9 @@ später auf einen anderen Origin verlegt:
 | `lib/chart-4.5.1.umd.min.js` | Chart.js 4.5.1, als `window.Chart` |
 | `lib/d3-7.9.0.min.js` | d3 7.9.0, als `window.d3` |
 | `lib/lucide-1.46.0.min.js` | Lucide-1.46.0-Icons, als `window.lucide` - derselbe Satz, den die Konsole verwendet |
-| `lib/agenticos-3.css` | Das Seiten-Kit: das Aussehen der Konsole für Seiten, hell und dunkel, und die `ao-`-Komponenten, aus denen eine Seite gebaut wird |
-| `lib/agenticos-3.js` | `window.AO`: Chart.js im Stil der Konsole, Zahlenformate in der Sprache der Seite, Icons, Tabs, `AO.onData`, `AO.records` sowie `AO.run` und `AO.onRun` für [Aktionen](#actions) |
-| `lib/agenticos-2.css`, `lib/agenticos-2.js` | Die vorige Version des Kits, behalten für die Seiten, die gegen sie veröffentlicht wurden |
+| `lib/agenticos-4.css` | Das Seiten-Kit: das Aussehen der Konsole für Seiten, hell und dunkel, und die `ao-`-Komponenten, aus denen eine Seite gebaut wird |
+| `lib/agenticos-4.js` | `window.AO`: Chart.js im Stil der Konsole, Zahlenformate in der Sprache der Seite, Icons, Tabs, `AO.onData`, `AO.records` sowie `AO.run` und `AO.onRun` für [Aktionen](#actions) |
+| `lib/agenticos-3.css`, `lib/agenticos-3.js`, `lib/agenticos-2.css`, `lib/agenticos-2.js` | Frühere Versionen des Kits, behalten für die Seiten, die gegen sie veröffentlicht wurden |
 | `lib/agenticos-1.css` | Die erste Version des Aussehens, behalten für die Seiten, die gegen sie veröffentlicht wurden |
 | `lib/three-0.186.0/three.module.js` | three.js 0.186.0 als ES-Modul, mit `addons/controls/OrbitControls.js` daneben - `three` und `three/addons/` per Import Map darauf abbilden |
 | `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, als `window.mermaid` |

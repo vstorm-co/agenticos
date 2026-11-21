@@ -791,9 +791,9 @@ keeps working if the deployment later moves its content to another origin:
 | `lib/chart-4.5.1.umd.min.js` | Chart.js 4.5.1, as `window.Chart` |
 | `lib/d3-7.9.0.min.js` | d3 7.9.0, as `window.d3` |
 | `lib/lucide-1.46.0.min.js` | Lucide 1.46.0 icons, as `window.lucide` - the console's own icon set |
-| `lib/agenticos-3.css` | The page kit: the console's look for pages, light and dark, and the `ao-` components a page is built from |
-| `lib/agenticos-3.js` | `window.AO`: Chart.js in the console's style, number formatting in the page's language, icons, tabs, `AO.onData`, `AO.records`, and `AO.run` and `AO.onRun` for [actions](#actions) |
-| `lib/agenticos-2.css`, `lib/agenticos-2.js` | The previous version of the kit, kept for the pages published against it |
+| `lib/agenticos-4.css` | The page kit: the console's look for pages, light and dark, and the `ao-` components a page is built from |
+| `lib/agenticos-4.js` | `window.AO`: Chart.js in the console's style, number formatting in the page's language, icons, tabs, `AO.onData`, `AO.records`, and `AO.run` and `AO.onRun` for [actions](#actions) |
+| `lib/agenticos-3.css`, `lib/agenticos-3.js`, `lib/agenticos-2.css`, `lib/agenticos-2.js` | Earlier versions of the kit, kept for the pages published against them |
 | `lib/agenticos-1.css` | The first version of the look, kept for the pages published against it |
 | `lib/three-0.186.0/three.module.js` | three.js 0.186.0 as an ES module, with `addons/controls/OrbitControls.js` beside it - map `three` and `three/addons/` to them with an import map |
 | `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, as `window.mermaid` |

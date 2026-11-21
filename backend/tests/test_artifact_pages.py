@@ -1141,6 +1141,54 @@ class TestTheLibrarySet:
         assert calls(script_2) < calls(script_3)
         assert calls(script_3) - calls(script_2) == {"onData", "onRun", "records", "run"}
 
+    async def test_kit_4_keeps_every_class_and_call_of_kit_3(self) -> None:
+        assert "agenticos-4.css" in artifacts.ARTIFACT_LIBRARY
+        assert "agenticos-4.js" in artifacts.ARTIFACT_LIBRARY
+        assert KIT_CLASSES[3] < KIT_CLASSES[4]
+        sheet_3, _ = await artifacts.library_file("agenticos-3.css")
+        sheet_4, _ = await artifacts.library_file("agenticos-4.css")
+        script_3, _ = await artifacts.library_file("agenticos-3.js")
+        script_4, _ = await artifacts.library_file("agenticos-4.js")
+
+        # Every custom property a v3 page can name still resolves.
+        def properties(sheet: bytes) -> set[str]:
+            return set(re.findall(r"(--ao-[\w-]+)\s*:", sheet.decode()))
+
+        assert properties(sheet_3) <= properties(sheet_4)
+
+        def calls(script: bytes) -> set[str]:
+            text = script.decode()
+            exported = text[text.rindex("window.AO = {") :]
+            return set(re.findall(r"^\s+(\w+):", exported, re.M))
+
+        assert calls(script_3) < calls(script_4)
+        assert calls(script_4) - calls(script_3) == {"initials"}
+
+    async def test_kit_4_adds_the_t3_components(self) -> None:
+        assert {
+            "ao-button-ghost",
+            "ao-button-danger",
+            "ao-button-sm",
+            "ao-button-icon",
+            "ao-tabs-line",
+            "ao-stat-tile",
+            "ao-stat-icon",
+            "ao-table-scroll",
+            "ao-badge-accent",
+            "ao-chip",
+            "ao-chip-dot",
+            "ao-progress-success",
+            "ao-progress-label",
+            "ao-initials",
+            "ao-initials-1",
+        } <= KIT_CLASSES[4] - KIT_CLASSES[3]
+        sheet, _ = await artifacts.library_file("agenticos-4.css")
+        text = sheet.decode()
+        assert "position: sticky" in text  # the table header
+        assert ":focus-visible" in text  # a visible keyboard ring
+        assert "prefers-color-scheme: dark" in text
+        assert all(f"--ao-series-{n}:" in text for n in range(1, 10))  # the chart palette
+
 
 _SCRIPT = artifacts.base_platform_script()
 """What the placement tests put in: where it goes does not depend on what it is."""
@@ -1397,8 +1445,8 @@ class TestTheBundledSkill:
         skill = self._skill()
         assert skill.category == "design"
         assert {resource.name for resource in skill.resources} == {
-            "templates/dashboard.html",
-            "templates/live-table.html",
+            "templates/analytics-dashboard.html",
+            "templates/records-list.html",
             "templates/report.html",
             "references/design-recipes.md",
             "references/styles-and-deliverables.md",
@@ -1423,7 +1471,7 @@ class TestTheBundledSkill:
         )
         assert lint_page(page.encode()) == []
 
-    def test_its_class_table_is_exactly_what_kit_3_defines(self) -> None:
+    def test_its_class_table_is_exactly_what_kit_4_defines(self) -> None:
         """Every class the skill names is real, and every real one is named."""
         recipes = next(
             resource.content
@@ -1431,20 +1479,33 @@ class TestTheBundledSkill:
             if resource.name == "references/design-recipes.md"
         )
         named = set(re.findall(r"(?<![\w-])ao-[a-z0-9]+(?:-[a-z0-9]+)*", recipes))
-        assert named == KIT_CLASSES[3]
+        assert named == KIT_CLASSES[4]
 
     def test_every_template_uses_the_kit_or_its_own_style_and_passes_the_lint(self) -> None:
         for resource in self._skill().resources:
             if not resource.name.startswith("templates/"):
                 continue
-            assert "lib/agenticos-3.css" in resource.content or "<style>" in resource.content, (
+            assert "lib/agenticos-4.css" in resource.content or "<style>" in resource.content, (
                 resource.name
             )
-            assert "lib/agenticos-3.js" in resource.content or "<script" in resource.content, (
+            assert "lib/agenticos-4.js" in resource.content or "<script" in resource.content, (
                 resource.name
             )
-            bound = ["tickets"] if resource.name == "templates/live-table.html" else []
+            bound = ["tickets"] if resource.name == "templates/records-list.html" else []
             assert lint_page(resource.content.encode(), bound=bound) == [], resource.name
+
+    def test_the_three_kit_templates_have_no_style_block_and_no_inline_style(self) -> None:
+        """The templates teach kit-first: their look comes from classes alone."""
+        names = {"analytics-dashboard", "report", "records-list"}
+        found = 0
+        for resource in self._skill().resources:
+            if resource.name.removeprefix("templates/").removesuffix(".html") not in names:
+                continue
+            found += 1
+            assert "lib/agenticos-4.css" in resource.content, resource.name
+            assert "<style" not in resource.content, resource.name
+            assert "style=" not in resource.content, resource.name
+        assert found == len(names)
 
     def test_every_library_file_it_names_is_one_the_deployment_serves(self) -> None:
         """A renamed or upgraded library would otherwise leave the skill teaching
@@ -1461,7 +1522,8 @@ class TestTheBundledSkill:
         from app.agents.capabilities.artifacts._toolset import build_artifacts_toolset
 
         tool = build_artifacts_toolset(table_grants={}).tools["publish_artifact"]
-        for name in set(artifacts.ARTIFACT_LIBRARY) - artifacts.FRAME_ONLY_LIBRARY:
+        served = set(artifacts.ARTIFACT_LIBRARY) - artifacts.FRAME_ONLY_LIBRARY
+        for name in served:
             assert f"lib/{name}" in (tool.description or "")
 
 

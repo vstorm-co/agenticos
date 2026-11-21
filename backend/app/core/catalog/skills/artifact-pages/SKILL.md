@@ -8,7 +8,7 @@ category: design
 
 An App has a job beyond the current message: compare options, review evidence, explore a dataset, prepare a decision or track work. Identify its audience, primary action and source of truth. Reuse the relevant existing App when updating the same deliverable; preserve the user's content and edits.
 
-Choose a composition for the actual material. An evidence brief can lead with a clear argument and annotated sources; a decision tool can place controls beside consequences; a workbench can give a selected record a detail view. Use a dashboard when simultaneous monitoring is the job. Keep supplied branding consistent. Make a few deliberate decisions about type scale, spacing and emphasis rather than adding decorative cards to every paragraph.
+Choose a composition for the actual material. An evidence brief can lead with a clear argument and annotated sources; a decision tool can place controls beside consequences; a workbench can give a selected record a detail view. Use a dashboard when simultaneous monitoring is the job. Keep supplied branding consistent. Build with the kit's classes (`ao-stack`, `ao-row`, `ao-grid-*`, `ao-card`) and its tokens instead of writing CSS; inline `style` is for run-time values such as a bar width. Make a few deliberate decisions about emphasis rather than adding decorative cards to every paragraph, and write a `<style>` of your own only for a supplied brand or design.
 
 Give the reader a useful initial state. Every visible control must work and show what changed. Include loading, empty, error and success states where the data or action needs them. Filter and reset should be reversible; labels, keyboard focus and mobile layout should make the main action discoverable. A form that cannot submit to a supported action must explain its local-only behavior.
 
@@ -29,7 +29,7 @@ Read only the resource needed for this task:
 - `references/design-recipes.md`: existing App helpers, reports, dashboards and bound tables.
 - `templates/editorial-brief.html`: a source-led brief with an evidence filter and a print layout.
 - `templates/decision-workbench.html`: editable criteria, sortable options and an inspectable recommendation.
-- `templates/report.html`: an executive report with an annotated comparison, exact source table and a scope filter that recomputes the chart and totals.
-- `templates/dashboard.html`, `templates/live-table.html`: monitoring and record-work patterns.
+- `templates/report.html`: an executive report on kit 4 with a callout answer, a chart, an exact source table and next steps.
+- `templates/analytics-dashboard.html`, `templates/records-list.html`: monitoring and record-work patterns on kit 4, with no custom CSS.
 
 Render the actual published App, exercise its primary interaction and inspect phone and desktop layouts before calling it verified. Check both success and refusal/error states for real bindings or actions. Deliver the real link and explain what can be tried; report any unverified part precisely. Use the image-generation capability for a raster asset when it helps the subject, and a diagram/vector for precise relationships; preserve the exact values and labels as code-native text.

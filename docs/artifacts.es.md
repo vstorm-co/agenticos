@@ -815,9 +815,9 @@ contenido a otro origen:
 | `lib/chart-4.5.1.umd.min.js` | Chart.js 4.5.1, como `window.Chart` |
 | `lib/d3-7.9.0.min.js` | d3 7.9.0, como `window.d3` |
 | `lib/lucide-1.46.0.min.js` | Iconos de Lucide 1.46.0, como `window.lucide` - el mismo conjunto que usa la consola |
-| `lib/agenticos-3.css` | El kit de páginas: el aspecto de la consola para páginas, claro y oscuro, y los componentes `ao-` con los que se construye una página |
-| `lib/agenticos-3.js` | `window.AO`: Chart.js con el estilo de la consola, formato de números en el idioma de la página, iconos, pestañas, `AO.onData`, `AO.records`, y `AO.run` y `AO.onRun` para las [acciones](#actions) |
-| `lib/agenticos-2.css`, `lib/agenticos-2.js` | La versión anterior del kit, conservada para las páginas publicadas con ella |
+| `lib/agenticos-4.css` | El kit de páginas: el aspecto de la consola para páginas, claro y oscuro, y los componentes `ao-` con los que se construye una página |
+| `lib/agenticos-4.js` | `window.AO`: Chart.js con el estilo de la consola, formato de números en el idioma de la página, iconos, pestañas, `AO.onData`, `AO.records`, y `AO.run` y `AO.onRun` para las [acciones](#actions) |
+| `lib/agenticos-3.css`, `lib/agenticos-3.js`, `lib/agenticos-2.css`, `lib/agenticos-2.js` | Versiones anteriores del kit, conservada para las páginas publicadas con ella |
 | `lib/agenticos-1.css` | La primera versión del aspecto, conservada para las páginas publicadas con ella |
 | `lib/three-0.186.0/three.module.js` | three.js 0.186.0 como módulo ES, con `addons/controls/OrbitControls.js` al lado - asigne `three` y `three/addons/` con un import map |
 | `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, como `window.mermaid` |
