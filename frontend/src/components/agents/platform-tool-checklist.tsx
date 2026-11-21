@@ -136,9 +136,8 @@ export function PlatformToolChecklist({
     onChange(withToolApproval({ ...binding, approval: nextDefault }, own));
   };
   const summary = (infos: McpToolInfo[]): GroupApproval => {
-    const open = infos.filter(settable);
-    const asking = open.filter(asks).length;
-    return asking === 0 ? "run" : asking === open.length ? "ask" : "mixed";
+    const asking = infos.filter(asks).length;
+    return asking === 0 ? "run" : asking === infos.length ? "ask" : "mixed";
   };
 
   const groups = GROUP_ORDER.map((group) => {
