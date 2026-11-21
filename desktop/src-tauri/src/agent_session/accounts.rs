@@ -70,6 +70,19 @@ fn status(value: Value) -> Result<AccountStatus, String> {
 }
 
 async fn request(session: &Session, cursor: &mut u64, id: u32, method: &str, params: Value) -> Result<Value, String> {
+    request_auth_status(session, cursor, id, method, params)
+        .await?
+        .ok_or_else(|| "The CLI requires sign-in.".into())
+}
+
+/// None is ACP's explicit authentication-required outcome, never a transport error.
+async fn request_auth_status(
+    session: &Session,
+    cursor: &mut u64,
+    id: u32,
+    method: &str,
+    params: Value,
+) -> Result<Option<Value>, String> {
     let frame = serde_json::to_vec(&json!({"jsonrpc":"2.0","id":id,"method":method,"params":params}))
         .map_err(|_| "Could not prepare the account operation.")?;
     let mut stdin = session.stdin.lock().await;
@@ -107,6 +120,9 @@ async fn request(session: &Session, cursor: &mut u64, id: u32, method: &str, par
                         continue;
                     }
                     if frame.get("error").is_some() {
+                        if frame["error"]["code"].as_i64() == Some(-32000) {
+                            return Ok(None);
+                        }
                         return Err(
                             "The CLI refused the account operation. Check its version, login and environment key."
                                 .into(),
@@ -115,6 +131,7 @@ async fn request(session: &Session, cursor: &mut u64, id: u32, method: &str, par
                     return frame
                         .get("result")
                         .cloned()
+                        .map(Some)
                         .ok_or_else(|| "The CLI returned no account result.".into());
                 }
                 if exited {
@@ -355,6 +372,26 @@ mod tests {
         let error = request(&session, &mut 0, 1, "initialize", json!({})).await.unwrap_err();
         assert!(!error.contains("SECRET"));
         assert!(error.contains("refused"));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn auth_required_is_a_signed_out_outcome_but_other_errors_still_fail() {
+        let session = spawn_authenticated(
+            std::path::Path::new("/bin/sh"),
+            &["-c".into(), r#"read line; printf '%s\n' '{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"SECRET"}}'; read line; printf '%s\n' '{"jsonrpc":"2.0","id":2,"error":{"code":-32603,"message":"SECRET"}}'"#.into()],
+            std::path::Path::new("/tmp"), None, Provider::Custom,
+        ).unwrap();
+        let mut cursor = 0;
+        assert!(request_auth_status(&session, &mut cursor, 1, "authenticate", json!({}))
+            .await
+            .unwrap()
+            .is_none());
+        let error = request_auth_status(&session, &mut cursor, 2, "authenticate", json!({}))
+            .await
+            .unwrap_err();
+        assert!(error.contains("refused"));
+        assert!(!error.contains("SECRET"));
     }
 
     #[test]
@@ -603,9 +640,14 @@ async fn acp_account(
             .as_array()
             .is_some_and(|methods| methods.iter().any(|entry| entry["id"] == method));
         if entry.provider == Provider::Kimi && available {
-            request(session, &mut cursor, 2, "authenticate", json!({"methodId":method})).await?;
+            let authenticated =
+                request_auth_status(session, &mut cursor, 2, "authenticate", json!({"methodId":method})).await?;
             return Ok(CliAccountStatus {
-                state: "signed_in",
+                state: if authenticated.is_some() {
+                    "signed_in"
+                } else {
+                    "signed_out"
+                },
                 sign_out_available: true,
             });
         }
