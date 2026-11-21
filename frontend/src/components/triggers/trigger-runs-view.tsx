@@ -144,6 +144,9 @@ function AttemptHistory({
               </p>
               <p className="text-muted-foreground text-xs">{t(`attemptStage.${attempt.stage}`)}</p>
               <p className="mt-1 text-xs break-words">{t(`attemptReason.${attempt.reason}`)}</p>
+              {attempt.error_message && (
+                <p className="text-destructive text-xs break-words">{attempt.error_message}</p>
+              )}
             </div>
           </li>
         ))}

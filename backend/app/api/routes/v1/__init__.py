@@ -9,6 +9,7 @@ from app.api.routes.v1 import (
     browse_live,
     change_events,
     device_hub,
+    event_sources,
     diagnostics,
     admin_updates,
     health,
@@ -104,6 +105,11 @@ from app.api.routes.v1 import admin_background_jobs
 from app.api.routes.v1 import run_requests
 
 v1_router = APIRouter()
+v1_router.include_router(event_sources.router, prefix="/event-sources", tags=["event-sources"])
+v1_router.include_router(
+    sharing.event_source_sharing_router, prefix="/event-sources", tags=["event-sources"]
+)
+v1_router.include_router(event_sources.public_router, prefix="/webhooks", tags=["event-sources"])
 v1_router.include_router(admin_updates.router, prefix="/admin/updates", tags=["admin:updates"])
 v1_router.include_router(diagnostics.router, tags=["diagnostics"])
 

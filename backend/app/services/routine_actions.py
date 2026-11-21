@@ -62,6 +62,11 @@ def action_intent(trigger: AgentTrigger) -> str:
             "local_target",
         )
     }
+    # Omit legacy defaults so existing signed consents keep their fingerprints.
+    if trigger.source_id is not None:
+        content["source_id"] = trigger.source_id
+    if trigger.prompt_mode == "template":
+        content["prompt_mode"] = "template"
     if trigger.result_mode == "inbox":
         content["result_mode"] = "inbox"
     if trigger.project_id is not None:

@@ -3,7 +3,7 @@
 import re
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -11,6 +11,8 @@ from pydantic import (
     AwareDatetime,
     ConfigDict,
     Field,
+    JsonValue,
+    StringConstraints,
     computed_field,
     field_validator,
     model_validator,
@@ -465,6 +467,8 @@ class TriggerCreate(BaseSchema):
         description="Save paused with source review required before the first activation.",
     )
     prompt: str = Field(min_length=1, max_length=10000)
+    prompt_mode: Literal["literal", "template"] = "literal"
+    source_id: UUID | None = None
     # An optional human title; null lists the trigger by its agent's name instead.
     name: str | None = Field(default=None, max_length=120)
     trigger_type: Literal["schedule", "event"] = "schedule"
@@ -620,6 +624,18 @@ class TriggerCreate(BaseSchema):
         # the caller's filter override and left for the service to merge and
         # validate against the source, which is unknown here until the catalog is
         # read. So its shape is checked here and the rest left to the service.
+        if self.source_id is not None:
+            if (
+                self.portal_key is not None
+                or self.preset_key is not None
+                or self.event_secret is not None
+            ):
+                raise ValueError(
+                    "source_id cannot be combined with a portal preset or event_secret"
+                )
+            if self.connection_id is not None or self.target is not None:
+                raise ValueError("source_id uses manual provider setup, not a connection or target")
+            return
         if self.portal_key is not None or self.preset_key is not None:
             if self.portal_key is None or self.preset_key is None:
                 raise ValueError("portal_key and preset_key must be given together")
@@ -646,6 +662,8 @@ class TriggerCreate(BaseSchema):
         )
 
     def _reject_event_fields(self) -> None:
+        if self.source_id is not None or self.prompt_mode == "template":
+            raise ValueError("source_id and template prompts are only valid for event triggers")
         if self.event_source is not None:
             raise ValueError("event_source is not valid for a schedule")
         if self.event_secret is not None:
@@ -670,6 +688,7 @@ class TriggerCreate(BaseSchema):
 
 _UPDATE_NOT_NULLABLE = (
     "prompt",
+    "prompt_mode",
     "is_active",
     "runs_as_creator",
     "overlap",
@@ -712,6 +731,8 @@ class TriggerUpdate(BaseSchema):
     )
 
     prompt: str | None = Field(default=None, min_length=1, max_length=10000)
+    prompt_mode: Literal["literal", "template"] | None = None
+    source_id: UUID | None = None
     name: str | None = Field(default=None, max_length=120)
     schedule_kind: Literal["interval", "cron"] | None = None
     interval_seconds: int | None = Field(
@@ -901,6 +922,8 @@ class TriggerRead(BaseSchema, TimestampSchema):
     event_source: EventSourceName | None = None
     event_config: dict[str, Any] = Field(default_factory=dict)
     prompt: str
+    prompt_mode: Literal["literal", "template"] = "literal"
+    source_id: UUID | None = None
     # Null on an event trigger, which has no scheduled next fire.
     next_fire_at: datetime | None = None
     last_fired_at: datetime | None = None
@@ -941,6 +964,8 @@ class TriggerRead(BaseSchema, TimestampSchema):
         """
         if self.trigger_type != "event" or self.event_source is None:
             return None
+        if self.source_id is not None:
+            return None  # The source editor supplies its permission-checked live URL.
         if self.delivery_mode == "polling":
             return None
         return webhook_url(self.event_source, self.id)
@@ -986,6 +1011,7 @@ TriggerAttemptReason = Literal[
     "agent_unavailable",
     "preparation_failed",
     "previous_run_active",
+    "prompt_template_failed",
 ]
 
 
@@ -997,6 +1023,7 @@ class TriggerAttemptRead(BaseSchema):
     status: TriggerAttemptStatus
     stage: TriggerAttemptStage
     reason: TriggerAttemptReason
+    error_message: str | None = None
     occurred_at: datetime
 
 
@@ -1010,3 +1037,22 @@ class TriggerFireResult(BaseSchema):
 
     outcome: Literal["processed", "blocked", "failed"]
     attempt_id: UUID | None = None
+
+
+class TriggerPromptPreviewCreate(BaseSchema):
+    """Resolve an authored prompt against example JSON without invoking an agent."""
+
+    # Keep example event values byte-for-byte as they arrive on the webhook.
+    model_config = ConfigDict(str_strip_whitespace=False)
+
+    prompt: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=10000)]
+    payload: dict[str, JsonValue]
+    result_mode: Literal["report", "inbox"] = "report"
+    source_id: UUID | None = None
+    trigger_id: UUID | None = None
+
+
+class TriggerPromptPreviewRead(BaseSchema):
+    model_config = ConfigDict(str_strip_whitespace=False)
+
+    resolved_prompt: str

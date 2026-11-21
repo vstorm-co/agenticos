@@ -1013,6 +1013,16 @@ they are sent, so nothing is lost and nothing runs twice. The socket re-checks t
 session and the member's access before every frame and every read of the stream.
 The frames are in [The HTTP API](api.md#following-a-run-over-a-websocket).
 
+### Reusable webhook sources { #reusable-webhook-sources }
+
+In a **Webhook** trigger, choose an existing **Event source** or create one. Publishing subscribes that specific workflow entry to the source; later publications keep the subscription when the source and entry are unchanged. The source holds the credentials, outside the workflow definition. Its other routines and workflows receive the same authenticated events independently. [Event sources](triggers.md#reusable-event-sources) explains providers, authentication, permissions, pause and retention.
+
+Choose **Listen for event** to capture the next authenticated event on the configured live source URL. The window lasts two minutes; temporary samples last ten minutes and respect the 64 KB pin limit. **Active subscribers still execute.** Capture does not add a run or change delivery processing. Pasted example JSON is an alternative, and saving or publishing never requires a sample.
+
+The selected trigger's sample remains `{body, delivery_id}`. Pin it and use the existing field bindings and step tests; downstream nodes can consume the JSON directly. With multiple entries, capture and pin the intended Webhook node explicitly. This adds no payload transformation or routine-style prompt interpolation to workflow bindings.
+
+A shared source acknowledges durable receipt asynchronously. Publishing refuses a shared-source entry whose reachable branch contains **Respond to webhook**. Choose a dedicated workflow endpoint when the sender needs that node's synchronous status, headers or body. Dedicated endpoint URLs, credentials, duplicate detection and response behavior remain unchanged.
+
 ### A webhook or a schedule { #a-webhook-or-a-schedule }
 
 A **Webhook** trigger gets its address and **signing secret** the first time a

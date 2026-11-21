@@ -1,5 +1,5 @@
 ---
-source_sha: "d3dee8ee5b61"
+source_sha: "612ae89d3f02"
 ---
 
 # Workflows { #workflows }
@@ -1076,6 +1076,16 @@ está en marcha. Un cliente que perdió la conexión se reconecta con el cursor 
 antes de enviarse, así que nada se pierde y nada se ejecuta dos veces. El socket
 vuelve a comprobar la sesión y el acceso del miembro antes de cada frame y de cada
 lectura del flujo. Los frames están en [La API HTTP](api.md#following-a-run-over-a-websocket).
+
+### Fuentes de webhooks reutilizables { #reusable-webhook-sources }
+
+En un disparador **Webhook**, selecciona una **Fuente de eventos** existente o crea una. Publicar suscribe esa entrada concreta del workflow; las publicaciones posteriores conservan la suscripción cuando no cambian la fuente ni la entrada. La fuente guarda las credenciales fuera de la definición del workflow. Las demás rutinas y workflows reciben los mismos eventos autenticados de forma independiente. [Fuentes de eventos](triggers.md#reusable-event-sources) explica proveedores, autenticación, permisos, pausas y retención.
+
+**Escuchar evento** captura el siguiente evento autenticado en la URL activa configurada. La ventana dura dos minutos; las muestras temporales duran diez minutos y respetan el límite de 64 KB para datos fijados. **Los suscriptores activos siguen ejecutándose.** La captura no crea otra ejecución ni cambia las entregas. Pegar JSON de ejemplo es una alternativa; guardar y publicar nunca requieren una muestra.
+
+La muestra del disparador seleccionado sigue siendo `{body, delivery_id}`. Fíjala y usa las vinculaciones de campos y las pruebas de pasos existentes; los nodos siguientes consumen JSON directamente. Con varias entradas, selecciona explícitamente el nodo Webhook adecuado para capturar y fijar. No se añade transformación de la carga ni interpolación de prompts de rutinas a las vinculaciones del workflow.
+
+Una fuente compartida confirma la recepción duradera de forma asíncrona. Publicar rechaza una entrada compartida cuya rama alcanzable contiene **Responder al webhook**. Elige un endpoint dedicado cuando el remitente necesite el estado, las cabeceras o el cuerpo síncronos de ese nodo. Las URL, credenciales, detección de duplicados y respuestas de endpoints dedicados no cambian.
 
 ### Un webhook o una programación { #a-webhook-or-a-schedule }
 

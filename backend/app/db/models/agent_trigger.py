@@ -46,11 +46,13 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
     select,
     text,
@@ -332,6 +334,10 @@ class AgentTrigger(Base, TimestampMixin):
     )
 
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    prompt_mode: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="literal", server_default="literal"
+    )
+    source_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
 
     # When a *schedule* is next due. The heartbeat's claim query is
     # `is_active AND created_by_user_id IS NOT NULL AND next_fire_at <= now()`,
@@ -464,6 +470,17 @@ class AgentTrigger(Base, TimestampMixin):
     # schema from the models, so a constraint stated only in the migration would
     # be absent from exactly the tests written to prove it rejects a row.
     __table_args__ = (
+        UniqueConstraint("id", "organization_id", name="uq_agent_trigger_tenant"),
+        ForeignKeyConstraint(
+            ["source_id", "organization_id"],
+            ["event_sources.id", "event_sources.organization_id"],
+            name="fk_agent_trigger_source_tenant",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("prompt_mode IN ('literal', 'template')", name="ck_trigger_prompt_mode"),
+        CheckConstraint(
+            "prompt_mode = 'literal' OR trigger_type = 'event'", name="ck_trigger_template_event"
+        ),
         CheckConstraint("result_mode IN ('report', 'inbox')", name="ck_trigger_result_mode"),
         CheckConstraint(
             "max_failures IS NULL OR max_failures BETWEEN 1 AND 20", name="ck_routine_max_failures"
@@ -515,16 +532,18 @@ class AgentTrigger(Base, TimestampMixin):
         # webhook URL for a door that refuses it (#1068).
         CheckConstraint(
             "(trigger_type = 'schedule' AND (next_fire_at IS NOT NULL OR one_shot) "
-            "AND event_source IS NULL "
+            "AND event_source IS NULL AND source_id IS NULL "
             "AND ((schedule_kind = 'interval' AND interval_seconds IS NOT NULL "
             "AND cron_expression IS NULL) "
             "OR (schedule_kind = 'cron' AND cron_expression IS NOT NULL "
             "AND interval_seconds IS NULL))) "
             "OR (trigger_type = 'event' AND event_source IS NOT NULL "
-            f"AND ((event_source IN ({_POLLED}) AND event_secret_encrypted IS NULL "
+            f"AND ((source_id IS NULL AND event_source IN ({_POLLED}) AND event_secret_encrypted IS NULL "
             "AND secret_key_version IS NULL) "
-            f"OR (event_source NOT IN ({_POLLED}) AND event_secret_encrypted IS NOT NULL "
-            "AND secret_key_version IS NOT NULL)) "
+            f"OR (source_id IS NULL AND event_source NOT IN ({_POLLED}) AND event_secret_encrypted IS NOT NULL "
+            "AND secret_key_version IS NOT NULL) "
+            "OR (source_id IS NOT NULL AND event_source IN ('webhook', 'github', 'linear', 'hubspot', 'zendesk') "
+            "AND event_secret_encrypted IS NULL AND secret_key_version IS NULL)) "
             "AND next_fire_at IS NULL AND interval_seconds IS NULL "
             "AND cron_expression IS NULL)",
             name="ck_trigger_shape",
@@ -556,8 +575,8 @@ class AgentTrigger(Base, TimestampMixin):
 class TriggerAttempt(Base):
     """An activation that stopped before producing an agent run.
 
-    Only bounded reason codes are kept: no prompt, provider error, credential or
-    source metadata can leak through routine history.
+    Reason codes and controlled template diagnostics identify refusals without
+    storing payload values, credentials or raw provider exceptions.
     """
 
     __tablename__ = "trigger_attempts"
@@ -574,6 +593,7 @@ class TriggerAttempt(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     stage: Mapped[str] = mapped_column(String(24), nullable=False)
     reason: Mapped[str] = mapped_column(String(40), nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -586,7 +606,7 @@ class TriggerAttempt(Base):
         ),
         CheckConstraint(
             "reason IN ('platform_identity_required', 'source_review_required', "
-            "'agent_unavailable', 'preparation_failed', 'previous_run_active')",
+            "'agent_unavailable', 'preparation_failed', 'previous_run_active', 'prompt_template_failed')",
             name="ck_trigger_attempt_reason",
         ),
     )

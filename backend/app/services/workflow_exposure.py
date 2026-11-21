@@ -25,7 +25,7 @@ from typing import Any, Literal, cast
 from uuid import UUID
 
 import anyio
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, JsonValue, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
@@ -100,6 +100,7 @@ from app.workflows.nodes._triggers import (
     GithubTriggerOutput,
     MailAttachment,
     ScheduleTriggerConfig,
+    WebhookTriggerConfig,
 )
 from app.workflows.nodes.core_input._handler import input_problems
 from app.workflows.nodes.trigger_channel_message._handler import ChannelMessageTriggerConfig
@@ -198,6 +199,7 @@ def _read(exposure: WorkflowExposure, version: int) -> WorkflowExposureRead:
         node_instance_id=exposure.node_instance_id,
         is_active=exposure.is_active,
         execution_principal_user_id=exposure.execution_principal_user_id,
+        source_id=exposure.source_id,
         run_input=exposure.run_input,
         schedule_kind=(
             ExposureScheduleKind(exposure.schedule_kind) if exposure.schedule_kind else None
@@ -328,17 +330,25 @@ class WorkflowExposureService:
     ) -> tuple[WorkflowExposureRead, str | None]:
         """The webhook of a version just published, run as its publisher.
 
-        The row the same node had is kept - its address and signing secret with
-        it - and takes the new version over; a first publish of the node makes
-        one, and mints the secret returned here this once.
+        The row the same node had is kept and takes the new version over. A
+        reusable source owns its URL and credential; a dedicated endpoint keeps
+        its address and secret and returns a new secret only on first publish
+        or an explicit switch from a shared source to a dedicated endpoint.
         """
+        config = WebhookTriggerConfig.model_validate(
+            self._pinned_graph(version).node_by_id[node_id].config
+        )
+        if config.source_id is not None:
+            return await self._switch_on_source_webhook(
+                ctx, workflow, version, node_id, config.source_id
+            )
         exposure = await self._reusable(ctx, workflow, node_id, ExposureAdapter.WEBHOOK)
         live = {
             "workflow_version_id": version.id,
             "execution_principal_user_id": ctx.subject_id,
             "is_active": True,
         }
-        if exposure is not None:
+        if exposure is not None and exposure.source_id is None:
             exposure = await workflow_exposure_repo.update(
                 self.db, exposure=exposure, update_data=live
             )
@@ -346,19 +356,82 @@ class WorkflowExposureService:
             return _read(exposure, version.version), None
         secret = secrets.token_urlsafe(32)
         sealed = seal(secret, scope=VaultScope.organization(ctx.organization_id))
-        exposure = await workflow_exposure_repo.create(
-            self.db,
-            organization_id=ctx.organization_id,
-            workflow_id=workflow.id,
-            node_instance_id=node_id,
-            adapter=ExposureAdapter.WEBHOOK.value,
-            run_input={},
-            secret_encrypted=sealed.ciphertext,
-            secret_key_version=sealed.key_version,
-            **live,
-        )
+        if exposure is not None:
+            from app.services.event_sources import EventSourceService
+
+            await EventSourceService(self.db).unbind_workflow(exposure.id)
+            exposure = await workflow_exposure_repo.update(
+                self.db,
+                exposure=exposure,
+                update_data={
+                    **live,
+                    "source_id": None,
+                    "secret_encrypted": sealed.ciphertext,
+                    "secret_key_version": sealed.key_version,
+                },
+            )
+        else:
+            exposure = await workflow_exposure_repo.create(
+                self.db,
+                organization_id=ctx.organization_id,
+                workflow_id=workflow.id,
+                node_instance_id=node_id,
+                adapter=ExposureAdapter.WEBHOOK.value,
+                run_input={},
+                secret_encrypted=sealed.ciphertext,
+                secret_key_version=sealed.key_version,
+                **live,
+            )
         await self._audit(ctx, exposure, "workflow.exposure_created")
         return _read(exposure, version.version), secret
+
+    async def _switch_on_source_webhook(
+        self,
+        ctx: AuthContext,
+        workflow: Workflow,
+        version: WorkflowVersion,
+        node_id: UUID,
+        source_id: UUID,
+    ) -> tuple[WorkflowExposureRead, None]:
+        """Subscribe the entry without copying the source's credentials into an exposure."""
+        from app.services.event_sources import EventSourceService
+
+        sources = EventSourceService(self.db)
+        await sources.require_use(ctx, source_id, lock=True)
+        if answers_webhook(entry_graph(self._pinned_graph(version), node_id)):
+            raise BadRequestError(
+                message="A reusable event source cannot run Respond to webhook",
+                details={"node_id": node_id, "source_id": source_id},
+            )
+        exposure = await self._reusable(ctx, workflow, node_id, ExposureAdapter.WEBHOOK)
+        live = {
+            "workflow_version_id": version.id,
+            "execution_principal_user_id": ctx.subject_id,
+            "is_active": True,
+            "source_id": source_id,
+            "secret_encrypted": None,
+            "secret_key_version": None,
+        }
+        created = exposure is None
+        if exposure is None:
+            exposure = await workflow_exposure_repo.create(
+                self.db,
+                organization_id=ctx.organization_id,
+                workflow_id=workflow.id,
+                node_instance_id=node_id,
+                adapter=ExposureAdapter.WEBHOOK.value,
+                run_input={},
+                **live,
+            )
+        else:
+            exposure = await workflow_exposure_repo.update(
+                self.db, exposure=exposure, update_data=live
+            )
+        await sources.bind_workflow(ctx, source_id, exposure.id)
+        await self._audit(
+            ctx, exposure, "workflow.exposure_created" if created else "workflow.exposure_updated"
+        )
+        return _read(exposure, version.version), None
 
     async def switch_on_form(
         self, ctx: AuthContext, workflow: Workflow, version: WorkflowVersion, node_id: UUID
@@ -688,6 +761,10 @@ class WorkflowExposureService:
         exposure = await self._exposure(ctx, workflow, exposure_id)
         if data.is_active:
             require_human_publisher(ctx)
+            if exposure.source_id is not None:
+                from app.services.event_sources import EventSourceService
+
+                await EventSourceService(self.db).require_use(ctx, exposure.source_id)
         changes: dict[str, Any] = {"is_active": data.is_active}
         if (
             data.is_active
@@ -769,6 +846,11 @@ class WorkflowExposureService:
         workflow = await self._editable(ctx, workflow_id)
         exposure = await self._exposure(ctx, workflow, exposure_id)
         require_human_publisher(ctx)
+        if exposure.source_id is not None:
+            raise BadRequestError(
+                message="Manage this webhook's credentials on its event source",
+                details={"source_id": exposure.source_id},
+            )
         if exposure.adapter not in (ExposureAdapter.WEBHOOK.value, ExposureAdapter.GITHUB.value):
             raise BadRequestError(
                 message="Only a webhook or a GitHub trigger has a signing secret",
@@ -1415,6 +1497,7 @@ class WorkflowExposureService:
             exposure is None
             or exposure.adapter != ExposureAdapter.WEBHOOK.value
             or not exposure.is_active
+            or exposure.source_id is not None
         ):
             raise NotFoundError(message="Webhook not found", details={"exposure_id": exposure_id})
         secret = self._secret_of(exposure)
@@ -1496,6 +1579,84 @@ class WorkflowExposureService:
             answer = await self._answer(run.id)
             if answer is not None:
                 return answer
+        return WebhookAdmitted(run_id=run.id, duplicate=False)
+
+    async def receive_source_delivery(
+        self,
+        exposure_id: UUID,
+        *,
+        organization_id: UUID,
+        source_id: UUID,
+        receipt_id: UUID,
+        body: dict[str, JsonValue],
+        delivery_id: str,
+        version_id: UUID | None = None,
+        principal_user_id: UUID | None = None,
+    ) -> WebhookAdmitted | WebhookSkipped:
+        """Admit already-authenticated source work in the dispatch transaction.
+
+        The source receipt's identity, not an authentication credential or the
+        sender's possibly repeated id, fences a retry after worker restart.
+        The workflow keeps its publisher, pinned version and JSON trigger output.
+        """
+        from app.services.event_sources import EventSourceService
+
+        exposure = await workflow_exposure_repo.get_by_id(self.db, exposure_id)
+        if (
+            exposure is None
+            or exposure.organization_id != organization_id
+            or exposure.source_id != source_id
+            or exposure.adapter != ExposureAdapter.WEBHOOK.value
+            or not exposure.is_active
+        ):
+            return WebhookSkipped(skipped="The workflow no longer listens to this source")
+        if version_id is not None and principal_user_id is None:
+            raise AuthorizationError(
+                message="The member retained by this delivery is no longer available",
+                details={"exposure_id": exposure_id},
+            )
+        fire = await self._fire_context(
+            exposure, version_id=version_id, principal_user_id=principal_user_id
+        )
+        if fire is None:
+            raise AuthorizationError(
+                message="The member this webhook runs as can no longer run this workflow",
+                details={"exposure_id": exposure_id},
+            )
+        ctx, workflow, version = fire
+        source = await EventSourceService(self.db).require_use(ctx, source_id)
+        if not source.is_active:
+            return WebhookSkipped(skipped="The event source is paused")
+        receipt_key = f"source:{receipt_id}"
+        await workflow_exposure_repo.lock_delivery(
+            self.db, exposure_id=exposure.id, delivery_id=receipt_key
+        )
+        seen = await workflow_exposure_repo.get_delivery(
+            self.db, exposure_id=exposure.id, delivery_id=receipt_key
+        )
+        if seen is not None:
+            return WebhookAdmitted(run_id=seen.workflow_run_id, duplicate=True)
+        await self._spend_delivery_allowance(exposure)
+        run, _entry = await self.runs.admit_pinned(
+            ctx,
+            workflow,
+            version,
+            entry_node_id=exposure.node_instance_id,
+            triggered_by=WorkflowRunTrigger.WEBHOOK,
+            run_input={"body": body, "delivery_id": delivery_id},
+        )
+        await workflow_exposure_repo.create_delivery(
+            self.db,
+            organization_id=organization_id,
+            exposure_id=exposure.id,
+            delivery_id=receipt_key,
+            workflow_run_id=run.id,
+        )
+        await workflow_exposure_repo.update(
+            self.db,
+            exposure=exposure,
+            update_data={"last_fired_at": datetime.now(UTC), "last_run_id": run.id},
+        )
         return WebhookAdmitted(run_id=run.id, duplicate=False)
 
     async def _spend_delivery_allowance(self, exposure: WorkflowExposure) -> None:
@@ -1626,7 +1787,11 @@ class WorkflowExposureService:
         return admitted
 
     async def _fire_context(
-        self, exposure: WorkflowExposure
+        self,
+        exposure: WorkflowExposure,
+        *,
+        version_id: UUID | None = None,
+        principal_user_id: UUID | None = None,
     ) -> tuple[AuthContext, Workflow, WorkflowVersion] | None:
         """The member an exposure runs as, its workflow and pinned version - or
         None when that member can no longer run it.
@@ -1637,22 +1802,23 @@ class WorkflowExposureService:
         what publishing the trigger needed beyond running the workflow: a channel
         listener's `channels:manage`, a shared mailbox's `mcp:manage`.
         """
-        if exposure.execution_principal_user_id is None:
+        principal_user_id = principal_user_id or exposure.execution_principal_user_id
+        if principal_user_id is None:
             return None
         membership = await member_repo.get_active(
             self.db,
             organization_id=exposure.organization_id,
-            user_id=exposure.execution_principal_user_id,
+            user_id=principal_user_id,
         )
         if membership is None:
             return None
-        user = await user_repo.get_by_id(self.db, exposure.execution_principal_user_id)
+        user = await user_repo.get_by_id(self.db, principal_user_id)
         if user is None or not user.is_active:
             return None
         # Only to admit the run: each step's own context is built when it is
         # dispatched, from the principal the run row records.
         ctx = AuthContext(
-            user_id=exposure.execution_principal_user_id,
+            user_id=principal_user_id,
             organization_id=exposure.organization_id,
             role=membership.role,
             is_app_admin=user.is_app_admin,
@@ -1668,12 +1834,13 @@ class WorkflowExposureService:
             )
         ):
             return None
-        version = cast(
-            WorkflowVersion,
-            await workflow_repo.get_version(
-                self.db, exposure.workflow_version_id, organization_id=exposure.organization_id
-            ),
+        version = await workflow_repo.get_version(
+            self.db,
+            version_id or exposure.workflow_version_id,
+            organization_id=exposure.organization_id,
         )
+        if version is None or version.workflow_id != workflow.id:
+            return None
         if not self._still_publishable(ctx, exposure, version):
             return None
         return ctx, workflow, version
@@ -1762,6 +1929,10 @@ class WorkflowExposureService:
         return None
 
     async def _remove(self, ctx: AuthContext, exposure: WorkflowExposure) -> None:
+        if exposure.source_id is not None:
+            from app.services.event_sources import EventSourceService
+
+            await EventSourceService(self.db).unbind_workflow(exposure.id)
         await self._unregister_github(ctx, exposure)
         await self._audit(ctx, exposure, "workflow.exposure_deleted")
         await workflow_exposure_repo.delete(self.db, exposure=exposure)

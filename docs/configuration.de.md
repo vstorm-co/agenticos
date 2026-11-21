@@ -1,5 +1,5 @@
 ---
-source_sha: "34f407ae78ff"
+source_sha: "870495bf0bf8"
 ---
 
 # Konfiguration { #configuration }
@@ -1419,7 +1419,7 @@ diese.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Die Config einer Hosted Page, **je Seite** — und ihr Logo, auf einem eigenen Zähler. Das [Formular](workflows.md#from-a-form) eines Workflows wird auf einem Zähler dieser Größe je Formular gelesen. Siehe unten |
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Antworten, die ein [Formular](workflows.md#from-a-form) eines Workflows annimmt, **je Formular**: jede ist ein Lauf, den sein Veröffentlicher bezahlt, und der Server der Konsole leitet sie alle weiter, sodass eine Adresse niemanden zählen würde |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Zustellungen, die ein [Webhook](workflows.md) eines Workflows oder ein GitHub-Trigger annimmt, **je Webhook**, gezählt, sobald die Signatur stimmt und die Zustellung einen Lauf starten würde, sodass Fremde und übersprungene Zustellungen nichts davon verbrauchen: jede ist ein Lauf |
-| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Anfragen, die eine Adresse in einer Minute an die Webhook- und GitHub-Trigger-Adressen von Workflows senden darf, egal was sie enthalten, gezählt, bevor irgendetwas gelesen wird. Weit gefasst, weil Absender wie GitHub für viele Hooks von wenigen Adressen aus zustellen |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Anfragen pro Minute von einer IP-Adresse, gemeinsam gezählt für Workflow-Webhooks, GitHub-Trigger von Workflows und URLs wiederverwendbarer Ereignisquellen. Das Limit greift vor dem Lesen des Anfrageinhalts. Der Standardwert berücksichtigt Anbieter wie GitHub, die viele Webhooks von wenigen Adressen aus zustellen |
 | `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` | `100` | Eindeutige Workflow-Mail-Empfänger je Aussteller, über Schlüssel und Organisationen; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` | `500` | Eindeutige Workflow-Mail-Empfänger je Organisation; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` | `1000` | Eindeutige Workflow-Mail-Empfänger im gesamten Deployment; [email.send](reference/workflow-nodes.md#email-send) |

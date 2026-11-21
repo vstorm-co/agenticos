@@ -20,6 +20,7 @@ from app.api import deps
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.agent_trigger import TriggerRead
+from app.services.agent_trigger import AgentTriggerService
 
 pytestmark = pytest.mark.anyio
 
@@ -28,7 +29,7 @@ _PREVIOUS_RUN_ID = uuid4()
 
 
 @asynccontextmanager
-async def _client(service: MagicMock) -> AsyncIterator[AsyncClient]:
+async def _client(service: MagicMock | AgentTriggerService) -> AsyncIterator[AsyncClient]:
     context = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
     app.dependency_overrides[deps.get_auth_context] = lambda: context
     app.dependency_overrides[deps.get_agent_trigger_service] = lambda: service
@@ -163,6 +164,73 @@ async def test_activation_status_delegates_the_exact_receipt() -> None:
         activation_id,
         job_id,
     )
+
+
+async def test_prompt_preview_uses_real_resolver_without_queueing_and_requires_an_object(
+    monkeypatch,
+):
+    from app.services.routine_prompt import resolve_prompt
+
+    service = AgentTriggerService(MagicMock())
+    service.agents.get = AsyncMock()
+    queued = AsyncMock()
+    monkeypatch.setattr("app.services.agent_trigger.enqueue", queued)
+    payload = {"issue": {"title": "Example"}, "items": [False]}
+    prompt = "Review {{issue.title}} and {{items[0]}}"
+    async with _client(service) as client:
+        response = await client.post(
+            f"/api/v1/agents/{_AGENT_ID}/triggers/preview-prompt",
+            json={"prompt": prompt, "payload": payload},
+        )
+        malformed = await client.post(
+            f"/api/v1/agents/{_AGENT_ID}/triggers/preview-prompt",
+            json={"prompt": prompt, "payload": []},
+        )
+    assert response.status_code == 200
+    assert response.json() == {"resolved_prompt": resolve_prompt(prompt, payload)}
+    assert malformed.status_code == 422
+    queued.assert_not_awaited()
+
+
+async def test_inbox_preview_counts_result_instructions_in_the_final_byte_limit(monkeypatch):
+    from app.core.config import settings
+    from app.schemas.routine_notifications import ROUTINE_RESULT_INSTRUCTIONS
+    from app.services.routine_prompt import resolve_prompt
+
+    service = AgentTriggerService(MagicMock())
+    service.agents.get = AsyncMock()
+    prompt = "{{title}}"
+    payload = {"title": "  é  "}
+    request = {"prompt": prompt, "payload": payload, "result_mode": "inbox"}
+    resolved = resolve_prompt(prompt, payload)
+    final_message = f"{resolved}\n\n{ROUTINE_RESULT_INSTRUCTIONS}"
+    limit = len(final_message.encode())
+    url = f"/api/v1/agents/{_AGENT_ID}/triggers/preview-prompt"
+    async with _client(service) as client:
+        monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_INPUT_BYTES", limit)
+        fits = await client.post(url, json=request)
+        monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_INPUT_BYTES", limit - 1)
+        oversized = await client.post(url, json=request)
+        report = await client.post(url, json={**request, "result_mode": "report"})
+    assert fits.json() == {"resolved_prompt": final_message}
+    assert oversized.status_code == 400
+    assert oversized.json()["error"]["details"]["reason"] == "resolved_prompt_too_large"
+    assert report.json() == {"resolved_prompt": resolved}
+
+
+@pytest.mark.security
+async def test_prompt_preview_refuses_an_agent_the_caller_cannot_run():
+    from app.core.exceptions import NotFoundError
+
+    service = AgentTriggerService(MagicMock())
+    service.agents.get = AsyncMock(side_effect=NotFoundError(message="Agent not found"))
+    async with _client(service) as client:
+        response = await client.post(
+            f"/api/v1/agents/{_AGENT_ID}/triggers/preview-prompt",
+            json={"prompt": "{{issue.title}}", "payload": {"issue": {"title": "Private"}}},
+        )
+    assert response.status_code == 404
+    assert "Private" not in response.text
 
 
 async def test_filtered_event_endpoint_returns_only_the_typed_snapshot() -> None:

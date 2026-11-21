@@ -330,20 +330,27 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
                 name="report",
                 title="Report",
             )
-            routine = AgentTrigger(
-                organization_id=org_id,
-                agent_id=agent.id,
-                created_by_user_id=owner_id,
-                prompt="Report",
-                interval_seconds=300,
-                next_fire_at=datetime.now(UTC),
-                answer_to="conversation",
-                delivery_conversation_id=chat.id,
+            routine_id = uuid4()
+            db.execute(
+                text(
+                    "INSERT INTO agent_triggers (id, organization_id, agent_id, created_by_user_id, "
+                    "is_active, trigger_type, schedule_kind, interval_seconds, event_config, "
+                    "prompt, next_fire_at, answer_to, delivery_conversation_id) "
+                    "VALUES (:id, :org, :agent, :owner, true, 'schedule', 'interval', 300, "
+                    "'{}', 'Report', now(), 'conversation', :chat)"
+                ),
+                {
+                    "id": routine_id,
+                    "org": org_id,
+                    "agent": agent.id,
+                    "owner": owner_id,
+                    "chat": chat.id,
+                },
             )
-            db.add_all([page, routine])
+            db.add(page)
             db.commit()
             agent_id = agent.id
-            page_id, routine_id = page.id, routine.id
+            page_id = page.id
             environment_id, chat_id = environment.id, chat.id
 
         constraints = (
@@ -2573,7 +2580,6 @@ def test_batch_receipts_keep_their_keys_when_legacy_results_are_erased() -> None
 def test_github_filter_diagnostic_preserves_existing_routine_policy() -> None:
     """0337_github_filter_diagnostic.py adds a nullable snapshot without widening authors."""
     from app.db.models.agent import Agent
-    from app.db.models.agent_trigger import AgentTrigger
     from app.db.models.organization import Organization
 
     result = _alembic("upgrade", "head")
@@ -2600,18 +2606,20 @@ def test_github_filter_diagnostic_preserves_existing_routine_policy() -> None:
             db.add(agent)
             db.flush()
             db.execute(
-                AgentTrigger.__table__.insert().values(
-                    id=trigger_id,
-                    organization_id=org.id,
-                    agent_id=agent.id,
-                    created_by_user_id=owner_id,
-                    trigger_type="event",
-                    event_source="github",
-                    event_config={"actions": ["opened"]},
-                    event_secret_encrypted="sealed",
-                    secret_key_version=1,
-                    prompt="Triage issues",
-                )
+                text(
+                    "INSERT INTO agent_triggers (id, organization_id, agent_id, created_by_user_id, "
+                    "is_active, trigger_type, schedule_kind, event_source, event_config, "
+                    "event_secret_encrypted, secret_key_version, prompt) "
+                    "VALUES (:id, :org, :agent, :owner, true, 'event', 'interval', 'github', "
+                    "CAST(:config AS jsonb), 'sealed', 1, 'Triage issues')"
+                ),
+                {
+                    "id": trigger_id,
+                    "org": org.id,
+                    "agent": agent.id,
+                    "owner": owner_id,
+                    "config": json.dumps({"actions": ["opened"]}),
+                },
             )
             db.commit()
         for action, revision in [

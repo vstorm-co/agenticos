@@ -215,4 +215,6 @@ export { useDurableTasks } from "./use-durable-tasks";
 
 export { useCodingAccounts } from "./use-coding-accounts";
 
+export * from "./use-event-sources";
+
 export { usePersonalModelKeys } from "./use-personal-model-keys";

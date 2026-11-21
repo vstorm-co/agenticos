@@ -12,6 +12,7 @@ from app.api.routes.v1._sharing_loaders import (
     load_collection,
     load_context,
     load_dataset,
+    load_event_source,
     load_mcp_connection,
     load_project,
     load_secret,
@@ -26,6 +27,7 @@ from app.services.access import (
     COLLECTION,
     CONTEXT,
     DATASET,
+    EVENT_SOURCE,
     MCP_CONNECTION,
     PROJECT,
     SECRET,
@@ -47,3 +49,7 @@ mcp_connection_sharing_router = build_sharing_router(
     resource_type=MCP_CONNECTION, load=load_mcp_connection
 )
 project_sharing_router = build_sharing_router(resource_type=PROJECT, load=load_project)
+
+event_source_sharing_router = build_sharing_router(
+    resource_type=EVENT_SOURCE, load=load_event_source
+)

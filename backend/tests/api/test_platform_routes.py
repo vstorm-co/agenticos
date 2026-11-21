@@ -2175,6 +2175,8 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # service verifies that HMAC against the trigger named in the path. A
         # session here would mean the integration could never deliver.
         ("POST", f"{V1}/webhooks/triggers/{{source}}/{{trigger_id}}"),
+        # Reusable sources verify the sender against the named source's credentials.
+        ("POST", f"{V1}/webhooks/sources/{{source_id}}"),
         # A GitHub App's single delivery URL. The same arrangement with the routing
         # moved into the body: an App has one URL and one signing secret per
         # installation, so the path names nothing and the installation id in the

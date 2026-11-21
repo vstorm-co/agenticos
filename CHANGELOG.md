@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Reusable webhook event sources with provider presets, private or organization visibility, vault-backed authentication and independent routine/workflow subscribers. Listen for the next event on the live URL or paste optional JSON to reuse workflow step tests. Routine template prompts insert selected `{{payload.fields}}`, preview without an agent call and report missing fields before execution. Existing dedicated endpoints and literal prompts retain their behavior.
+
+### Upgrading
+
+- Apply `0346_reusable_event_sources.py` before starting the updated API and worker. It adds source, subscription, delivery and dispatch tables, structured queued routine input and template diagnostics. Existing webhook URLs and credentials stay valid.
+
 ## [1.87.0] - 2026-11-20
 
 ### Added

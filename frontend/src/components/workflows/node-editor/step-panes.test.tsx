@@ -32,6 +32,23 @@ vi.mock("./webhook-listener", () => ({
   ),
 }));
 
+vi.mock("@/components/event-sources/live-sample", () => ({
+  LiveSample: ({
+    sourceId,
+    onSample,
+  }: {
+    sourceId: string;
+    onSample: (delivery: { body: Record<string, unknown>; delivery_id: string }) => void;
+  }) => (
+    <button
+      type="button"
+      onClick={() => onSample({ body: { issue: { title: "Selected" } }, delivery_id: sourceId })}
+    >
+      capture source
+    </button>
+  ),
+}));
+
 const store = useWorkflowEditorStore;
 const STEP = makeDefinition({
   id: "test.step",
@@ -351,6 +368,28 @@ describe("OutputPane", () => {
       body: { lead: 1 },
       delivery_id: "t-1",
     });
+  });
+
+  it("pins a shared source sample only on the selected webhook entry", async () => {
+    const webhook = makeDefinition({
+      id: "trigger.webhook",
+      category: "triggers",
+      ports: [port("out", "output", null)],
+    });
+    seed(
+      line(
+        { definition_id: "trigger.webhook", config: { source_id: "selected-source" } },
+        node("a", "trigger.manual"),
+      ),
+    );
+    renderOutput(webhook, [webhook]);
+    await userEvent.click(screen.getByRole("button", { name: "capture source" }));
+    expect(store.getState().graph?.nodes[0]?.pinned_output).toBeUndefined();
+    expect(store.getState().graph?.nodes[1]?.pinned_output).toEqual({
+      body: { issue: { title: "Selected" } },
+      delivery_id: "selected-source",
+    });
+    expect(screen.queryByRole("button", { name: "catch a call" })).toBeNull();
   });
 
   it("offers a test URL only on a webhook trigger", () => {

@@ -39,6 +39,29 @@ describe("useWorkflowExposure", () => {
     await waitFor(() => expect(result.current.exposure?.id).toBe("form-b"));
   });
 
+  it("reads distinct shared and dedicated registrations for repeated webhook cards", async () => {
+    vi.mocked(api.listWorkflowExposures).mockResolvedValue([
+      { ...exposure, id: "other", adapter: "form" },
+      { ...exposure, id: "dedicated", adapter: "webhook", source_id: null },
+      { ...exposure, id: "shared", adapter: "webhook", source_id: "source" },
+    ]);
+    const { result } = renderHook(
+      () => [
+        useWorkflowExposure("wf", "trigger.webhook", 0),
+        useWorkflowExposure("wf", "trigger.webhook", 1),
+        useWorkflowExposure("wf", "trigger.webhook", 2),
+      ],
+      { wrapper },
+    );
+    await waitFor(() =>
+      expect(result.current.map(({ exposure }) => exposure && exposure.id)).toEqual([
+        "dedicated",
+        "shared",
+        null,
+      ]),
+    );
+  });
+
   it("reads the exposure, pauses and resumes it, and rotates its secret", async () => {
     vi.mocked(api.getWorkflowExposure).mockResolvedValue(exposure);
     vi.mocked(api.updateWorkflowExposure)

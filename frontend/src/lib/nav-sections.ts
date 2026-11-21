@@ -122,6 +122,12 @@ export const NAV_GROUPS: NavGroup[] = [
         permission: Perm.agentsView,
       },
       {
+        labelKey: "eventSources",
+        href: ROUTES.EVENT_SOURCES,
+        icon: Plug,
+        permission: Perm.eventSourcesView,
+      },
+      {
         labelKey: "datasets",
         href: ROUTES.DATASETS,
         icon: FlaskConical,

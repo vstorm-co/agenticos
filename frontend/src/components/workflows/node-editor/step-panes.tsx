@@ -48,6 +48,7 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { ApprovalVerdict } from "./approval-verdict";
 import { DataView, DeclaredOutput } from "./data-view";
 import { StepTestRun } from "./step-test-run";
+import { LiveSample } from "@/components/event-sources/live-sample";
 import { WebhookListener } from "./webhook-listener";
 
 function Pane({
@@ -398,15 +399,28 @@ export function OutputPane({
         </div>
       ) : (
         <>
-          {!readOnly && definition.id === WEBHOOK_TRIGGER && (
-            <WebhookListener
-              workflowId={workflowId}
-              onCaught={(delivery) => {
-                updateNodeDetails(node.id, { pinned_output: delivery });
-                toast.success(t("webhookTestCaught"));
-              }}
-            />
-          )}
+          {!readOnly &&
+            definition.id === WEBHOOK_TRIGGER &&
+            (typeof node.config.source_id === "string" ? (
+              <LiveSample
+                key={`${node.id}:${node.config.source_id}`}
+                sourceId={node.config.source_id}
+                onSample={(delivery) => {
+                  updateNodeDetails(node.id, {
+                    pinned_output: { body: delivery.body, delivery_id: delivery.delivery_id },
+                  });
+                  toast.success(t("webhookTestCaught"));
+                }}
+              />
+            ) : (
+              <WebhookListener
+                workflowId={workflowId}
+                onCaught={(delivery) => {
+                  updateNodeDetails(node.id, { pinned_output: delivery });
+                  toast.success(t("webhookTestCaught"));
+                }}
+              />
+            ))}
           {pinned !== null && (
             <p className="bg-muted text-muted-foreground rounded-md px-2.5 py-1.5 text-xs">
               {t("stepPinnedHint")}

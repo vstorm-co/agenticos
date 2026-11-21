@@ -1,5 +1,5 @@
 ---
-source_sha: "d3dee8ee5b61"
+source_sha: "612ae89d3f02"
 ---
 
 # Workflows { #workflows }
@@ -1137,6 +1137,16 @@ genau dort weiter, wo er aufgehört hat. Ereignisse werden geschrieben, bevor si
 gesendet werden, sodass nichts verloren geht und nichts zweimal läuft. Der Socket
 prüft die Sitzung und den Zugriff des Mitglieds vor jedem Frame und jedem Lesen des
 Streams erneut. Die Frames stehen in [Die HTTP-API](api.md#following-a-run-over-a-websocket).
+
+### Wiederverwendbare Webhook-Quellen { #reusable-webhook-sources }
+
+Wählen Sie im **Webhook**-Trigger eine vorhandene **Ereignisquelle** oder erstellen Sie eine. Veröffentlichen abonniert diesen Workflow-Einstieg; bei unveränderter Quelle und unverändertem Einstieg bleibt das Abonnement bestehen. Die Quelle verwahrt Zugangsdaten außerhalb der Workflow-Definition. Andere verbundene Routinen und Workflows empfangen dieselben authentifizierten Ereignisse unabhängig. [Ereignisquellen](triggers.md#reusable-event-sources) erklärt Provider, Authentifizierung, Rechte, Pausen und Aufbewahrung.
+
+**Auf Ereignis warten** erfasst das nächste authentifizierte Ereignis an der konfigurierten Live-URL. Das Fenster dauert zwei Minuten; temporäre Beispiele bleiben zehn Minuten und unterliegen dem 64-KB-Pin-Limit. **Aktive Abonnenten werden weiter ausgeführt.** Die Erfassung erzeugt keinen zusätzlichen Lauf und ändert die Zustellung nicht. Eingefügtes Beispiel-JSON ist eine Alternative; Speichern und Veröffentlichen benötigen kein Beispiel.
+
+Das Beispiel des gewählten Triggers bleibt `{body, delivery_id}`. Pinnen Sie es und verwenden Sie vorhandene Feldbindungen und Schritttests; nachfolgende Knoten lesen JSON direkt. Wählen Sie bei mehreren Einstiegen ausdrücklich den gewünschten Webhook-Knoten für Erfassung und Pin. Es gibt weder eine zusätzliche Payload-Transformation noch Prompt-Interpolation wie bei Routinen.
+
+Eine gemeinsame Quelle bestätigt dauerhaften Empfang asynchron. Veröffentlichen verweigert einen solchen Einstieg, wenn sein erreichbarer Zweig **Auf Webhook antworten** enthält. Verwenden Sie einen dedizierten Workflow-Endpunkt, wenn der Absender dessen synchrone Statuscodes, Header oder Body benötigt. URL, Zugangsdaten, Duplikaterkennung und Antwortverhalten dedizierter Endpunkte bleiben unverändert.
 
 ### Ein Webhook oder ein Zeitplan { #a-webhook-or-a-schedule }
 
