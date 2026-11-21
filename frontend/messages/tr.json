@@ -6995,6 +6995,8 @@
     "notAChatModelRefused": "{model} chat modeli değil; Agent bu modelle çalışamaz. Chat modeli seçin.",
     "secretForDifferentService": "\"{name}\" key'i başka bir hizmet için. Bu yapılandırmaya ait bir key seçin.",
     "openRouterEndpointHint": "Genel OpenRouter API'si için boş bırakın veya https://eu.openrouter.ai/api/v1 gibi bölgesel URL girin. AB yönlendirmesi uygun bir OpenRouter planı gerektirir; ZDR, OpenRouter'da ayrıca yapılandırılır.",
+    "openaiCompatibleEndpointHint": "OpenAI'ın Chat Completions API'sine yanıt veren bir sunucunun adresi, /v1 ile biten, örneğin https://models.example/v1.",
+    "anthropicCompatibleEndpointHint": "Anthropic'in Messages API'sine yanıt veren bir sunucunun adresi. Kendi /v1 yolunu taşımaz; SDK onu ekler, bu yüzden https://models.example adresin tamamıdır.",
     "defaultEndpoint": "Varsayılan API",
     "addSeparateModel": "Ayrı model ekle",
     "separateEndpointHint": "Mevcut profili diğer Agent'lar için korumak üzere bu endpoint'i ayrı bir model olarak kaydedin. “Modeli güncelle” kullanıldığı her yerde paylaşılan profili değiştirir.",

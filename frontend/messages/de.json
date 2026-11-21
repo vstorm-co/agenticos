@@ -979,6 +979,8 @@
     "notAChatModelRefused": "{model} ist kein Chat-Modell - ein Agent kann nicht darauf laufen. Wählen Sie ein Chat-Modell.",
     "secretForDifferentService": "Der Schlüssel „{name}“ ist für einen anderen Dienst bestimmt. Wählen Sie einen Schlüssel für diese Konfiguration.",
     "openRouterEndpointHint": "Leer lassen für die globale OpenRouter-API oder eine regionale URL wie https://eu.openrouter.ai/api/v1 eingeben. EU-Routing erfordert einen passenden OpenRouter-Tarif; ZDR wird separat bei OpenRouter konfiguriert.",
+    "openaiCompatibleEndpointHint": "Die Adresse eines Servers, der die Chat-Completions-API von OpenAI beantwortet, mit /v1 am Ende, zum Beispiel https://models.example/v1.",
+    "anthropicCompatibleEndpointHint": "Die Adresse eines Servers, der die Messages-API von Anthropic beantwortet. Sie trägt kein eigenes /v1; das SDK ergänzt es, daher ist https://models.example die ganze Adresse.",
     "defaultEndpoint": "Standard-API",
     "addSeparateModel": "Separates Modell hinzufügen",
     "separateEndpointHint": "Speichern Sie diesen Endpunkt als separates Modell, damit andere Agenten ihr bisheriges Profil behalten. „Modell aktualisieren“ ändert das gemeinsame Profil überall, wo es verwendet wird.",

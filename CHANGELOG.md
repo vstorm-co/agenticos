@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Custom model providers.** Two new providers take an endpoint and a key of your own: **Custom (OpenAI-compatible)** speaks OpenAI's Chat Completions API, and **Custom (Anthropic-compatible)** speaks Anthropic's Messages API. Name the address of a server you run or a gateway you trust, store the key that authenticates it in the vault, and the model list is read from that endpoint with that key. The Anthropic endpoint is the API root; an address that already ends in `/v1` is trimmed for you. [Models and providers](docs/models.md#your-own-endpoint) has the table.
+
 ## [1.87.0] - 2026-11-20
 
 ### Added

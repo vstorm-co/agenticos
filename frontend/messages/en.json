@@ -979,6 +979,8 @@
     "notAChatModelRefused": "{model} is not a chat model - an agent cannot run on it. Choose a chat model.",
     "secretForDifferentService": "Key \"{name}\" is for a different service. Choose a key for this configuration.",
     "openRouterEndpointHint": "Leave empty for the global OpenRouter API, or enter a regional URL such as https://eu.openrouter.ai/api/v1. EU routing requires an eligible OpenRouter plan; ZDR is configured separately on OpenRouter.",
+    "openaiCompatibleEndpointHint": "The address of a server that answers OpenAI's Chat Completions API, ending in /v1, such as https://models.example/v1.",
+    "anthropicCompatibleEndpointHint": "The address of a server that answers Anthropic's Messages API. It carries no /v1 of its own; the SDK adds that, so https://models.example is the whole address.",
     "defaultEndpoint": "Default API",
     "addSeparateModel": "Add separate model",
     "separateEndpointHint": "Save this endpoint as a separate model to keep the current profile for other agents. “Update model” changes the shared profile wherever it is used.",
