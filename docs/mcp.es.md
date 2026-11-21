@@ -1,5 +1,5 @@
 ---
-source_sha: "a0637ae8ab9e"
+source_sha: "bc42bd237c8b"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -366,7 +366,9 @@ persona con lo que conecta; la vinculación no lo limita.
 Las cuentas de la organización se vinculan una junto a otra del mismo modo: cada
 una de sus conexiones a un servidor es su propia vinculación, con su propio
 nombre y sus propias herramientas. En el Builder, los ajustes de un servidor
-listan sus cuentas vinculadas con **Add another account**. Cuando un run alcanza
+listan sus cuentas vinculadas con **Add another account**. En **Herramientas**,
+elige la cuenta cuyas herramientas y aprobaciones quieres editar. Las demás
+cuentas no cambian. Cuando un run alcanza
 un servicio a través de más de una cuenta, una línea de sus instrucciones nombra
 cada cuenta junto a su prefijo y le pide al modelo que pregunte cuando no esté
 claro a cuál se refiere la persona.

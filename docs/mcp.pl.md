@@ -1,5 +1,5 @@
 ---
-source_sha: "a0637ae8ab9e"
+source_sha: "bc42bd237c8b"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -356,7 +356,9 @@ podłączy - powiązanie tego nie zawęża.
 Konta organizacji wiążą się obok siebie tak samo: każde jej połączenie z serwerem
 to osobne powiązanie pod własną nazwą i z własnymi narzędziami. W Builderze
 ustawienia serwera wypisują powiązane konta z przyciskiem **Add another
-account**. Gdy run sięga do jednej usługi przez więcej niż jedno konto, jeden
+account**. W sekcji **Narzędzia** wybierz konto, którego narzędzia i zatwierdzenia
+chcesz zmienić. Pozostałe konta pozostają bez zmian. Gdy run sięga do jednej
+usługi przez więcej niż jedno konto, jeden
 wiersz jego instrukcji wymienia każde konto obok jego prefiksu i każe modelowi
 dopytać, gdy nie wiadomo, o które konto chodzi.
 

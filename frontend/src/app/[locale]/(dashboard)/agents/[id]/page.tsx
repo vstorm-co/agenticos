@@ -210,7 +210,7 @@ import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { DIALOG_CANVAS, DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
-import { narrowedSelection } from "@/lib/mcp-servers";
+import { applyMcpToolSelection } from "@/lib/mcp-servers";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -1466,24 +1466,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
           toolPicker={toolPicker}
           setToolPicker={setToolPicker}
           submitting={false}
-          // Written into the spec rather than onto the connection: this is the
-          // agent's narrowing, and the connection's own allowlist is everybody's.
-          // Every tool checked means "no narrowing from here", which is null - not
-          // a list that would freeze out a tool the server adds later.
           onSave={() => {
             if (toolPicker === null) return;
-            const allowed = narrowedSelection(
+            const next = applyMcpToolSelection(
+              spec.mcp_servers,
+              toolBinding,
               toolPicker.checked,
               toolPicker.tools,
-              // Only a real probe can mean "everything": where the catalogue is
-              // the binding's own names, all-checked is true by construction.
-              toolPicker.connection.last_tools !== null,
             );
-            update({
-              mcp_servers: spec.mcp_servers.map((ref) =>
-                bindingKey(ref) === toolBinding ? { ...ref, allowed_tools: allowed } : ref,
-              ),
-            });
+            if (next !== spec.mcp_servers) update({ mcp_servers: next });
             setToolPicker(null);
             setToolBinding(null);
           }}

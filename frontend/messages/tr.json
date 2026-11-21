@@ -6760,6 +6760,7 @@
     "menuDeleteHint": "Tüm sürümleriyle kalıcı olarak siler",
     "channelRunFreelyHint": "Bağlı kanal göndericileri, diğer kişilerin mesajları dahil tüm oda geçmişiyle bu ayarları kullanır. Run freely ek onay olmadan çağrılara izin verir; yalnızca güvendiğiniz araçlar ve odalar için kullanın.",
     "serverTools": "Tool'lar",
+    "toolsForAccount": "Tool ayarlarının uygulanacağı hesap",
     "loadTools": "Tool'larını yükle",
     "toolsAfterConnecting": "{name} hesabı bağlandığında tool'ları listelenir.",
     "toolsSearch": "Tool'larda ara",

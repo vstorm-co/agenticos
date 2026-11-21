@@ -744,6 +744,7 @@
     "menuDeleteHint": "Endgültig weg, mit jeder Version",
     "channelRunFreelyHint": "Verknüpfte Kanalabsender verwenden diese Einstellungen mit dem gesamten Raumverlauf, auch mit Nachrichten anderer Personen. Run freely erlaubt Aufrufe ohne weitere Bestätigung; verwende es nur für vertrauenswürdige Werkzeuge und Räume.",
     "serverTools": "Tools",
+    "toolsForAccount": "Konto für Tool-Einstellungen",
     "loadTools": "Tools laden",
     "toolsAfterConnecting": "Die Tools erscheinen, sobald ein {name}-Konto verbunden ist.",
     "toolsSearch": "Tools suchen",

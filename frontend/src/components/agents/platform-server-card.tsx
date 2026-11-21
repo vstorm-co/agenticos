@@ -58,10 +58,12 @@ function ApprovalStatus({ binding }: { binding: PlatformMcpServerRef }) {
 export function PlatformServerCard({
   binding,
   onChange,
+  onToggle,
   disabled,
 }: {
   binding: PlatformMcpServerRef | null;
   onChange: (next: PlatformMcpServerRef | null) => void;
+  onToggle?: (on: boolean, fallback: PlatformMcpServerRef) => void;
   disabled?: boolean;
 }) {
   const t = useTranslations("agents");
@@ -83,7 +85,8 @@ export function PlatformServerCard({
             checked={isOn}
             disabled={disabled}
             onCheckedChange={(on) => {
-              onChange(on ? NEW_PLATFORM_BINDING : null);
+              if (onToggle) onToggle(on, NEW_PLATFORM_BINDING);
+              else onChange(on ? NEW_PLATFORM_BINDING : null);
               if (on) setOpen(true);
             }}
             aria-label={t("useServerInAgent", { name: appName })}
@@ -109,7 +112,10 @@ export function PlatformServerCard({
           onOpenChange={setOpen}
           name={appName}
           binding={binding}
-          onChange={onChange}
+          onChange={(next) => {
+            if (onToggle && binding === null && next !== null) onToggle(true, next);
+            else onChange(next);
+          }}
           disabled={disabled}
         />
       )}

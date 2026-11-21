@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { McpBindingDialog } from "@/components/agents/mcp-binding-dialog";
 import { useBranding } from "@/components/branding/branding-provider";
@@ -8,26 +8,14 @@ import { CardStatus, McpServerCard } from "@/components/mcp/mcp-server-card";
 import { PlatformServerCard } from "./platform-server-card";
 import { Checkbox, Pager, SearchInput, Switch, useListControls } from "@/components/ui";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
-import { entryForConnection } from "@/lib/mcp-servers";
+import { entryForConnection, restoreMcpBindings, type McpBindingSlot } from "@/lib/mcp-servers";
 import type { McpConnectionRecord, McpToolInfo } from "@/lib/mcp-connections-api";
 import type { AccountRef } from "@/components/agents/mcp-binding-dialog";
 import type { McpServerRef, PlatformMcpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
 import { useTranslations } from "next-intl";
 
-/**
- * What identifies a binding in the spec: the connection it names, or the
- * service each person reaches through their own account.
- *
- * Two bindings with one key are the same binding, which is what the Builder
- * needs to replace a binding's tools without knowing which kind it is.
- */
-export function bindingKey(ref: McpServerRef): string {
-  if (ref.account === "platform") return "platform";
-  return ref.account === "personal"
-    ? `personal:${ref.catalog_key}`
-    : `organization:${ref.connection_id}`;
-}
+export { bindingKey } from "@/lib/mcp-servers";
 
 interface McpServerPickerProps {
   /** The organization's servers - what an organization binding may name. */
@@ -122,6 +110,7 @@ export function McpServerPicker({
   const { appName } = useBranding();
   const [connectedOnly, setConnectedOnly] = useState(false);
   const [boundOnly, setBoundOnly] = useState(false);
+  const switchedOff = useRef(new Map<string, McpBindingSlot[]>());
   const known = new Set(connections.map((connection) => connection.id));
   const catalogKeys = new Set(catalog.map((entry) => entry.key));
   // Of either kind: an organization binding to a connection this organization no
@@ -159,6 +148,26 @@ export function McpServerPicker({
     let index = 0;
     const updated = value.map((ref) => (mine.has(ref) ? next[index++]! : ref));
     onChange([...updated, ...next.slice(index)]);
+  };
+
+  const toggleBindings = (
+    key: string,
+    current: McpServerRef[],
+    on: boolean,
+    next: McpServerRef[],
+  ) => {
+    if (!on) {
+      const removed = new Set(current);
+      switchedOff.current.set(
+        key,
+        value.flatMap((binding, index) => (removed.has(binding) ? [{ binding, index }] : [])),
+      );
+      onChange(value.filter((binding) => !removed.has(binding)));
+      return;
+    }
+    const previous = switchedOff.current.get(key);
+    switchedOff.current.delete(key);
+    onChange(previous ? restoreMcpBindings(value, previous) : [...value, ...next]);
   };
 
   // A connection the catalog does not describe is a custom server somebody
@@ -251,10 +260,14 @@ export function McpServerPicker({
             <PlatformServerCard
               binding={platform}
               onChange={(next) =>
-                onChange([
-                  ...value.filter((ref) => ref.account !== "platform"),
-                  ...(next === null ? [] : [next]),
-                ])
+                onChange(
+                  platform === null
+                    ? [...value, ...(!next ? [] : [next])]
+                    : value.flatMap((ref) => (ref !== platform ? [ref] : next ? [next] : [])),
+                )
+              }
+              onToggle={(on, fallback) =>
+                toggleBindings("platform", platform ? [platform] : [], on, [fallback])
               }
               disabled={disabled}
             />
@@ -265,6 +278,9 @@ export function McpServerPicker({
             row={row}
             bindings={bindingsFor(row, value)}
             onRebind={(next) => rebind(row, next)}
+            onToggle={(on, fallback) =>
+              toggleBindings(`row:${row.key}`, bindingsFor(row, value), on, fallback)
+            }
             onTools={onTools}
             onConnect={onConnect}
             personalTools={
@@ -335,6 +351,7 @@ function ServerCard({
   row,
   bindings,
   onRebind,
+  onToggle,
   onTools,
   onConnect,
   personalTools,
@@ -348,6 +365,7 @@ function ServerCard({
   row: CardRow;
   bindings: AccountRef[];
   onRebind: (next: AccountRef[]) => void;
+  onToggle: (on: boolean, fallback: AccountRef[]) => void;
   onTools: (ref: McpServerRef, probed: OrgMcpConnectionRecord, name: string) => void;
   onConnect: (entry: McpCatalogEntry) => void;
   personalTools: McpToolInfo[] | null;
@@ -386,13 +404,15 @@ function ServerCard({
   // each person's own where there is not - the one kind that needs no connection
   // to exist - and opens its settings, because which accounts and which tools
   // is the next thing to decide. Off unbinds every account it had.
-  const toggle = (on: boolean) => {
+  const toggle = (on: boolean, preferred?: AccountRef) => {
     if (!on) {
-      onRebind([]);
+      onToggle(false, []);
       return;
     }
-    if (connection) {
-      onRebind([
+    if (preferred) {
+      onToggle(true, [preferred]);
+    } else if (connection) {
+      onToggle(true, [
         {
           account: "organization",
           connection_id: connection.id,
@@ -401,7 +421,7 @@ function ServerCard({
         },
       ]);
     } else if (entry) {
-      onRebind([
+      onToggle(true, [
         { account: "personal", catalog_key: entry.key, allowed_tools: null, approval: "none" },
       ]);
     }
