@@ -9,7 +9,8 @@ import { MoreOptions } from "@/components/ui/more-options";
 import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import {
   SlidersHorizontal,
   Wrench,
@@ -383,7 +384,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // From another tab the card mounts a render after the tab changes, so the
   // scroll waits for the card to attach rather than for the tab.
   const modelCard = useRef<HTMLDivElement | null>(null);
-  const [modelSectionOpen, setModelSectionOpen] = useState(true);
   const revealModel = useRef(false);
   const attachModelCard = useCallback((node: HTMLDivElement | null) => {
     modelCard.current = node;
@@ -393,7 +393,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
     }
   }, []);
   const goToModel = () => {
-    setModelSectionOpen(true);
     if (tab === "build" && modelCard.current) {
       modelCard.current.scrollIntoView({ behavior: glideOrJump(), block: "start" });
       return;
@@ -1790,7 +1789,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="build" className="mt-5 space-y-4 sm:mt-6">
+          <TabsContent value="build" className="mt-4 space-y-4">
             <Card data-tour="agent-instructions">
               <CardContent className="p-4 sm:p-5">
                 <InstructionsEditor
@@ -1829,7 +1828,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </CardContent>
             </Card>
 
-            <div data-agent-build-settings className="space-y-4">
+            <div
+              data-agent-build-settings
+              className="bg-card divide-border divide-y rounded-xl border"
+            >
               {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
               <BuildSection
@@ -1846,9 +1848,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
                           ? t("namedMissing", { name: spec.model_profile_id })
                           : t("organizationDefault")))
                 }
-                description={t("howAgentAsksIts")}
-                open={modelSectionOpen}
-                onOpenChange={setModelSectionOpen}
+                headerEnd={<ContextHelp>{t("howAgentAsksIts")}</ContextHelp>}
+                collapsible={false}
+                framed={false}
                 className="scroll-mt-4"
               >
                 <div className="space-y-4">
@@ -1881,20 +1883,22 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   </div>
                   <fieldset className="space-y-2" data-tour="agent-model-credentials">
                     <legend className="text-sm font-medium">{t("modelCredentialMode")}</legend>
-                    {(["organization", "personal"] as const).map((mode) => (
-                      <label key={mode} className="flex min-h-11 items-center gap-2 text-sm">
-                        <input
-                          type="radio"
-                          className={NATIVE_CHOICE}
-                          name="model-credential-mode"
-                          value={mode}
-                          checked={(spec.model_credential_mode ?? "organization") === mode}
-                          disabled={!canEdit}
-                          onChange={() => update({ model_credential_mode: mode })}
-                        />
-                        {t(mode === "organization" ? "organizationModelKey" : "personalModelKey")}
-                      </label>
-                    ))}
+                    <div className="grid gap-1 sm:grid-cols-2">
+                      {(["organization", "personal"] as const).map((mode) => (
+                        <label key={mode} className="flex min-h-11 items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            className={NATIVE_CHOICE}
+                            name="model-credential-mode"
+                            value={mode}
+                            checked={(spec.model_credential_mode ?? "organization") === mode}
+                            disabled={!canEdit}
+                            onChange={() => update({ model_credential_mode: mode })}
+                          />
+                          {t(mode === "organization" ? "organizationModelKey" : "personalModelKey")}
+                        </label>
+                      ))}
+                    </div>
                     {spec.model_credential_mode === "personal" && (
                       <p className="text-muted-foreground text-xs">{t("personalModelLimits")}</p>
                     )}
@@ -1937,6 +1941,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </BuildSection>
 
               <PromptVariablesPanel
+                framed={false}
                 system={promptVariables}
                 custom={spec.variables ?? []}
                 timeZone={spec.time_zone ?? "system"}
@@ -1947,6 +1952,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               />
 
               <VoiceCard
+                framed={false}
                 collapsible
                 value={spec.speech_to_text}
                 onChange={(speech_to_text) => update({ speech_to_text })}
@@ -1961,6 +1967,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 disabled={!canEdit}
               />
               <StartersPanel
+                framed={false}
                 draws={spec.capabilities.some(
                   (binding) => binding.id === VISUALS_ID && binding.enabled !== false,
                 )}

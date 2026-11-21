@@ -1617,7 +1617,11 @@ WIDGET_JS = r"""(function () {
     var quick = null;
     var turn = null;
 
-    function pin() { log.scrollTop = log.scrollHeight; }
+    var following = true;
+    log.onscroll = function () {
+      following = log.scrollHeight - log.clientHeight - log.scrollTop <= 48;
+    };
+    function pin() { if (following) log.scrollTop = log.scrollHeight; }
 
     function setWorking(value) {
       working = value;
@@ -1803,6 +1807,7 @@ WIDGET_JS = r"""(function () {
     function ask(text) {
       if (!text || working || !socket || socket.readyState !== 1) return false;
       if (quick) { quick.remove(); quick = null; }
+      following = true;
       userBubble(text);
       setWorking(true);
       // Read per message, not once at connect: a single-page app can learn who

@@ -209,3 +209,24 @@ reload does not restore that query cache; run events do not invalidate usage
 aggregates on each completion. No polling, server TTL or arbitrary freshness
 change was introduced. Backend aggregate work and the static widget import graph
 remain separate performance questions requiring profiling before a refactor.
+
+## Workflow surfaces
+
+Workflow templates now reuse the agent library's compact category selector,
+bounded detail canvas and template-row composition. Table-backed templates keep
+their existing provision permission gate and show the refusal reason beside the
+choice; local graph examples and Await a reply retain their existing contracts.
+
+Workflow Logs uses the same flex/fill list frame and bottom pagination placement
+as Run History; filters remain server-owned and invalid run IDs remain visible
+field refusals. The workflow route and its own portal dialogs opt into stable
+text-field hover fill. The override matches only standard filled inputs/areas;
+TemplateBox keeps its transparent syntax backdrop. Focus and invalid borders
+remain shared, and fields elsewhere do not receive this override.
+
+Inline editor, step-test, chat-trigger and form-preview starts use their visible
+run/answer surface as start feedback and omit the redundant start-success toast.
+Admission failures remain visible; history admission retains its route feedback.
+No run admission, polling, permissions, schema, choice or published-version
+contract changes. Shared navigation progress is owned by the console router
+adapter rather than patched separately inside each workflow table.

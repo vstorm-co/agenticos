@@ -1,5 +1,5 @@
 ---
-source_sha: "fd54201aae3e"
+source_sha: "c5ea2ca61a76"
 ---
 
 # Konsola { #the-console }
@@ -12,11 +12,25 @@ Jeśli onboarding bieżącej organizacji nie został ukończony, **Dokończ konf
 
 Inbox zachowuje tę samą ramę listy, odstępy wierszy, oznaczenia źródeł, typografię tytułów i opisów oraz responsywne położenie akcji w zakładkach Wszystkie, Pilne, Wyniki rutyn, Sugestie i Zakończone. Zakończone zachowują status decyzji i przywracanie odrzuconych wpisów; źródło i czas są widoczne także na telefonie. Formularze zgód mają zgodne zewnętrzne odstępy, zachowując wymagane pola i kontrolę uprawnień.
 
-Źródła otwierają się w zwartym panelu ze zmianą szerokości. Na wąskim desktopie jego otwarcie może tymczasowo zwinąć listę rozmów; zamknięcie przywraca poprzedni wybór, chyba że zmienisz go ręcznie. Kliknięcie cytatu przewija wyłącznie listę źródeł, pozostawiając konwersację na miejscu. Publiczny czat i osadzony widget obsługują wiadomości wielowierszowe: Enter wysyła, Shift+Enter dodaje wiersz, a składanie znaku przez IME nie wysyła wiadomości przedwcześnie.
+Pliki i Źródła używają tego samego zwartego panelu bocznego: początkowo 400px, z regulacją od 360 do 420px i ograniczeniem do 38% szerokości zadokowanego czatu. Na wąskim desktopie mogą tymczasowo zwinąć listę rozmów; zamknięcie przywraca poprzedni wybór, chyba że zmienisz go ręcznie. Przeglądarka zachowuje szerszy obszar pracy: początkowo 55%, z regulacją od 35% do 65%. Kliknięcie cytatu przewija wyłącznie listę Źródeł, pozostawiając konwersację na miejscu.
+
+Na początku czatu Inbox pokazuje najwyżej dwa priorytety, bez dat i osobnej ikony czatu. Kliknięcie wiersza wstawia pytanie do pola wiadomości do edycji; nie wysyła go. **Otwórz Inbox** prowadzi do pełnej listy. Domyślny układ listy rozmów to **Workspace — projects**; `?sidebar=compact` i `?sidebar=comfortable` pozostają dostępne do porównania.
+
+Publiczny czat i osadzony widget obsługują wiadomości wielowierszowe: Enter wysyła, Shift+Enter dodaje wiersz, a składanie znaku przez IME nie wysyła przedwcześnie. W głównym czacie, publicznym czacie i widgecie czytanie wcześniejszych wiadomości wstrzymuje automatyczne przewijanie. Streaming i zmiana rozmiaru treści zachowują tę pozycję; powrót na dół lub świadome wysłanie nowej wiadomości wznawia podążanie. Ponowne połączenie i wczytanie historii nie przewijają czytelnika na dół.
+
+Wykonania i logi workflow mają wspólną ramę listy: filtry nad przewijanymi wierszami i nawigację poniżej. Szablony workflow używają tego samego przejścia od kategorii do biblioteki co szablony agentów. Test uruchamiany z panelem Run potwierdza start w tym panelu zamiast powtarzać sukces w powiadomieniu; błędy pozostają jawne. Pola tekstowe workflow zachowują kolor tła po najechaniu, a fokus i walidacja pozostają widoczne.
+
+Główne kolekcje tabel wypełniają pozostały obszar roboczy; filtry, nagłówki kolumn i stopka pozostają dostępne podczas przewijania wierszy. Pełne lokalne listy mają strony po 50 rekordów, sortowane przed podziałem. Stopka pozostaje przy **1 / 1**, z wyłączonymi niedostępnymi kierunkami. Listy stronicowane na serwerze zachowują tę paginację; tabele wirtualne, czaty projektu i dokumenty wiedzy zachowują stopniowe doładowywanie i rzeczywistą liczbę wczytanych rekordów zamiast wymyślonej liczby stron. Osadzone raporty i macierze konfiguracji zachowują własny układ.
+
+Kategorie, ikony i tagi datasetów mają neutralny wygląd; błędy zachowują kolor ostrzegawczy. Ustawienia rozdzielają ocenianie od generowania i ulepszania. Zmiana modelu pomocniczego nie przesuwa przycisków Zapisz i Anuluj; są wyłączone bez zmian, a opis modelu zastępczego pozostaje na miejscu.
+
+Udostępnianie korzysta z tych samych zwartych pól, menu i wierszy co reszta konsoli. Błąd pierwszego odczytu pokazuje komunikat i Ponów. Późniejszy błąd usługi lub sieci może zachować wczytane osoby; odmowa autoryzacji lub usunięcie zasobu ukrywa zapisane w cache wiersze dostępu i edycję. Błąd wyszukiwania członków ma własne ponowienie zamiast sugerować, że nikogo nie ma.
+
+Apps ustala dostępne cele przewodnika przed pierwszym krokiem, więc licznik nie obejmuje niewidocznych kontrolek. Ostatni widoczny krok proponuje Zakończ. Pomoc pozostaje w stałym nagłówku przeglądarki aplikacji także po zwinięciu pozostałych opcji.
 
 Galeria agentów pokazuje publikację jako kropkę i tekst. Potrzeba uwagi ma mały bursztynowy wskaźnik z powodem dostępnym po najechaniu, fokusie klawiatury lub dotknięciu. Karty workflow skupiają się na nazwie, opisie, dostępie, publikacji i dotychczasowych akcjach; triggery, węzły, tagi i statystyki wykonań pozostają w edytorze, filtrach lub historii. Wprowadzanie tagów używa jednego pola, zachowując obsługę klawiatury i duplikatów.
 
-Katalogi zasobów mają większe karty z ikoną, tytułem, opisem i osobną stopką statusu oraz akcji. Agenci, tabele, workflowy, bazy wiedzy, projekty, datasety, serwery MCP, skille, pliki kontekstu, Apps i grupy używają wspólnej ramki, zachowując własne akcje. W Builderze ustawienia są dostępne w spójnych, rozwijanych kartach. Thinking i Answer format są częścią Model settings. First messages pokazuje wbudowane podpowiedzi, gdy agent nie ma własnych. Model jest początkowo otwarty; zwinięcie zachowuje edytory, a linki Voice otwierają odpowiednią sekcję.
+Katalogi zasobów mają spokojne odstępy, neutralne metadane i spójne akcje. Projekty, bazy wiedzy, tabele i datasety zachowują dostęp, rozmiar i istotne powiązania bez dat na kartach. W Build Instrukcje mają osobny obszar pisania; Model i opcjonalne Zmienne, Głos oraz Pierwsze wiadomości są w jednym panelu z separatorami. Główny model pozostaje widoczny. Thinking i Answer format są częścią ustawień modelu; brak wymaganej konfiguracji i błędy walidacji pozostają dostępne.
 
 W Build sekcja First messages pokazuje karty z ikoną, tytułem i wiadomością. Otwórz kartę, żeby ją edytować. Zapisanie zmian we wbudowanym przykładzie zachowuje pozostałe przykłady w szkicu. Skills, Context i Knowledge search w Toolbox używają list wyboru. Zapisany model czatu pozostaje w Models i w Saved models.
 
@@ -28,7 +42,7 @@ Przy tworzeniu projektu najpierw podajesz nazwę, miejsce pracy i odbiorców. **
 
 Organizacje mają wyszukiwanie po nazwie i slugu członkostwa, z liczbą wyników w tym samym pasku. Wyczyszczenie wyszukiwania przywraca pełną listę organizacji użytkownika.
 
-Karta aktywnego obszaru roboczego pokazuje skróty **AI i usługi** oraz **Budżet i zatwierdzenia** zgodnie z uprawnieniami w bieżącej organizacji. Karta AI Architect ma bezpośredni link do Buildera obok przełącznika, bez dodatkowego rozwijania. Pozostałe usługi AI zachowują rozwijane formularze, jeśli mają ustawienia do edycji.
+Karta AI Architect ma bezpośredni link do Buildera obok przełącznika, bez dodatkowego rozwijania. Pozostałe usługi AI zachowują rozwijane formularze, jeśli mają ustawienia do edycji.
 
 Widok Me zaczyna się od karty podsumowania okresu, a następnie zwartego Briefingu z tytułami, źródłami i akcjami. Pełne opisy propozycji pozostają w Inbox.
 
@@ -73,7 +87,7 @@ Wprowadzenia do stron i objaśnienia ustawień są dostępne pod ikoną informac
 
 W Agentach, Skills, Context i historii uruchomień przycisk **Filtry** rozwija dodatkowe opcje niezależnie od rozmiaru ekranu i pokazuje liczbę aktywnych filtrów.
 
-Karty agentów pokazują status, dostęp i datę edycji bez rozwijania. Karty Skills i Context zachowują podgląd dokumentu, opis, **Used by** z avatarami i **Dodaj do agenta**. Kategoria i odbiorcy są w zwartym wierszu obok akcji. Nie ma rozwijanych Szczegółów. Aby usunąć skill lub plik contextu, otwórz edytor i menu z trzema kropkami obok **Share**; usunięcie nadal wymaga potwierdzenia i jest dostępne tylko dla edytora.
+Karty agentów pokazują publikację i dostęp bez rozwijania. Karty Skills i Context zachowują podgląd dokumentu, opis, **Used by** z portretami agentów i **Dodaj do agenta**. Kategoria i odbiorcy są obok akcji. Aby usunąć skill lub plik kontekstu, otwórz edytor i menu z trzema kropkami obok **Share**; usunięcie wymaga potwierdzenia i uprawnień edytora.
 
 Nazwy, nawigacja i wartości formularzy używają wyraźnego tekstu pierwszego planu;
 metadane pozostają drugorzędne. Główne akcje mają kontrastujące neutralne
@@ -136,7 +150,7 @@ Metadane linków do plików zapisują dla lokalnych tur tylko niejawny identyfik
 
 Panel testowania w builderze można rozwinąć na cały obszar bez resetowania rozmowy ani niewysłanego tekstu. Porównanie dwóch wersji automatycznie otwiera ten widok; przycisk pełnego ekranu lub Escape przywraca builder. Wybór wersji ma osobny wiersz, dzięki czemu kontrolki testu mieszczą się w wąskim panelu. Na telefonie przełączaj porównywane chaty przyciskami wersji; obie rozmowy nadal działają i zachowują szkice. Wspólny prompt nadal trafia do obu naraz.
 
-Nawigacja zachowuje wspólne layouty przy przechodzeniu między sekcjami i stosuje krótkie wygaszenie zamiast resetowania ramki. Ograniczony ruch wyłącza animację. Karty dashboardu czekają na zapisany układ, strony zależne od uprawnień czekają na wynik ich odczytu, a lista użytkowników administracji zaczyna od stanu ładowania zamiast chwilowo twierdzić, że jest pusta. Filtry grup i autorów Apps rezerwują miejsce podczas ładowania. Oznaczenia źródeł w Inbox czekają na metadane katalogu; linki do roboczej rozmowy otwierają tę samą trasę chatu co sidebar.
+Nawigacja zachowuje wspólne układy stron bez wygaszania treści ani animowania statycznych sekcji ustawień przy wejściu. Górny pasek postępu obejmuje też przejścia uruchamiane przyciskami akcji. Podkreślenie zakładek przesuwa się między rzeczywistymi etykietami; ograniczony ruch pozostawia je statyczne. Widżety czekają na zapisany układ, strony zależne od uprawnień na ich odczyt, a listy administracyjne zaczynają od ładowania zamiast twierdzić, że są puste. Filtry grup i autorów Apps rezerwują miejsce podczas ładowania.
 
 Na telefonach wysłane wiadomości zatrzymują się poniżej pływających przycisków czatu, dzięki czemu avatar użytkownika pozostaje widoczny. Początek rozmowy i miejsce rezerwowane na odpowiedź uwzględniają ten sam odstęp pod przyciskami; desktop i osadzone czaty zachowują mniejszy odstęp.
 
@@ -147,7 +161,6 @@ Kompaktowy przycisk źródeł pod odpowiedzią otwiera Sources obok rozmowy, a n
 Linki internetowe w odpowiedzi korzystają z tych samych favicon niezależnie od połączeń MCP. Ikony nieznanych stron przechodzą przez proxy konsoli i stały serwis ikon DuckDuckGo. Serwis otrzymuje tylko nazwę hosta, bez cookies i adresu IP czytelnika, ścieżki ani parametrów URL. Proxy odrzuca przekierowania, obrazy inne niż rastrowe i ikony ponad 64 KiB; limit czasu wynosi trzy sekundy. Brak lub niedostępność ikony zastępuje globus. Widoki transkrypcji z wyłączonym ładowaniem obrazów nie pobierają też ikon nieznanych stron.
 
 Nieudany run pokazuje błąd oddzielnie od odpowiedzi agenta, poza zwijanymi narzędziami, także po odświeżeniu rozmowy. Filtr treści dostawcy ma osobne wyjaśnienie; surowe odpowiedzi dostawcy i nieznane historyczne komunikaty błędów nie są kopiowane do udostępnianych transkrypcji. Częściowe wyniki pozostają dostępne, a nieudana praca nie jest oznaczana jako ukończona.
-
 
 Załączniki pozostają wewnątrz pola wiadomości w jednym przewijanym wierszu. Bezpieczne obrazy mają lokalną miniaturę podczas wysyłania; trwające wysyłanie wskazuje animowany wskaźnik bez wymyślonego procentu. Podkreślenia kart i zaznaczenia segmentów płynnie przechodzą między opcjami; przy ograniczeniu animacji zmiana jest natychmiastowa.
 
@@ -174,12 +187,12 @@ pusty.
 Przełącznik na górze mówi, czyj to dashboard, i oferuje tylko widoki, które
 możesz otworzyć. Każdy zaczyna od widoku **Ja**:
 
-| Widok | Odpowiada na |
-| --- | --- |
-| **Ja** | Twój okres, Briefing i wskazówki Discover; ostatnie rozmowy, projekty, Twoi agenci, najczęściej używani agenci i ostatnie wizualizacje. Domyślny widok osobisty pomija karty decyzji, tematów w tle i udostępnionych zasobów. |
-| **Organizacja** | Układalna strona opisana niżej |
-| **Grupa** | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart |
-| **Wdrożenie** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
+| Widok           | Odpowiada na                                                                                                                                                                                                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Ja**          | Twój okres, Briefing i wskazówki Discover; ostatnie rozmowy, projekty, Twoi agenci, najczęściej używani agenci i ostatnie wizualizacje. Domyślny widok osobisty pomija karty decyzji, tematów w tle i udostępnionych zasobów.                                            |
+| **Organizacja** | Układalna strona opisana niżej                                                                                                                                                                                                                                           |
+| **Grupa**       | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart |
+| **Wdrożenie**   | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny                                                                                                                                                          |
 
 Briefing wyrównuje tytuły i źródła z akcjami. Discover znajduje się bezpośrednio pod nim. Ostatnie wizualizacje mieszczą obrazy w wyśrodkowanych podglądach. Pytanie przestaje oczekiwać na odpowiedź, gdy serwer rozpoczyna przyjętą kontynuację. Kliknięcie zamykanego toastu usuwa go z krótkim wygaszeniem; komunikaty trwających operacji pozostają widoczne.
 
@@ -189,11 +202,11 @@ Widok organizacji pokazuje karty, które odpowiadają danymi, pogrupowane w pasy
 Reszta - integracje, kanały, rutyny, synchronizacja wiedzy, działy, członkowie,
 sandboxy - czeka w katalogu, jedno kliknięcie dalej pod **Customize**:
 
-| Pas | Odpowiada na |
-| --- | --- |
-| _(bez tytułu, na górze)_ | Podsumowanie, runy w czasie i to, jak się skończyły |
-| **Needs attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, twoje najnowsze [powiadomienia](#the-bell) |
-| **Usage & cost** | Których agentów się używa, wydatki, [minuty rozmów](#voice-calls), kiedy dzieje się praca, skąd przychodzą runy, miks modeli, opóźnienia, jakość odpowiedzi, kto z tego korzysta |
+| Pas                      | Odpowiada na                                                                                                                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _(bez tytułu, na górze)_ | Podsumowanie, runy w czasie i to, jak się skończyły                                                                                                                              |
+| **Needs attention**      | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, twoje najnowsze [powiadomienia](#the-bell)                                                 |
+| **Usage & cost**         | Których agentów się używa, wydatki, [minuty rozmów](#voice-calls), kiedy dzieje się praca, skąd przychodzą runy, miks modeli, opóźnienia, jakość odpowiedzi, kto z tego korzysta |
 
 Karta **Wyniki zatwierdzeń (Approval outcomes)** czeka w katalogu, dla każdego, kto może
 oglądać workflow. Pokazuje, jak ludzie rozstrzygali [kroki zatwierdzenia](workflows.md#running-a-workflow),
@@ -980,27 +993,27 @@ Context i Documents. Ręczny wybór rozwinięcia lub zwinięcia jest zapamiętyw
 **Organization** (Organizations, Groups) pozostają zwijane i zapamiętują wybór.
 Grupa zawierająca bieżącą stronę zawsze się otwiera, aby ta strona była widoczna.
 
-| Obszar | Zawiera | Przeczytaj |
-| --- | --- | --- |
-| **Agents** | Katalog, Builder, wersje, udostępnianie, testowanie, aktywność | [Twój pierwszy agent](first-agent.md) |
-| **Chat** | Rozmowa z opublikowanym agentem | [Powierzchnie](channels.md) |
-| **Knowledge** | Kolekcje, dokumenty, źródła synchronizacji, ustawienia ingestii | [Przetwarzanie plików](file-processing.md) |
-| **Skills** | Spisane procedury, które agent wczytuje na żądanie | [Skille](skills.md) |
-| **Context** | Stała wiedza przypięta do wielu agentów | [Pliki kontekstowe](context.md) |
-| **Tables** | Typowane rekordy i ich kolumny, oglądane jako tabela, tablica kanban lub lista | [Virtual Tables](virtual-tables.md) |
-| **Workflows** | Wieloetapowe automatyzacje, które uruchamiają Twoje agenty, budowane na kanwie | [Workflows](workflows.md) |
-| **Datasets** | Wersjonowane przypadki testowe, importowane, eksportowane albo dodawane z ocenionej odpowiedzi | [Datasety](datasets.md) |
-| **Routines** | Harmonogramy i wyzwalacze zdarzeń | [Wyzwalacze](triggers.md) |
-| **Runs** | Co się uruchomiło, ile kosztowało, czego dotknęło, czy zakończyło się błędem | [Nadzór](governance.md#audit) |
-| **Documents** | Wszystkie pliki, które agenci trzymają dla ciebie: to, co załączyłeś, i to, co napisali | [Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
-| **Sandboxes** | Gdzie agenci uruchamiają kod: hosty, żywe sesje, polityka | [Sandbox](sandbox.md) |
-| **MCP servers** | Połączenia z zewnętrznymi narzędziami, osobiste i na całą organizację | [MCP](mcp.md) |
-| **Channels** | Boty Slacka, Teams, Telegrama i Mattermosta, widgety, hostowane strony | [Powierzchnie](channels.md) |
-| **Remote agents** | Agenci innych dostawców, zarejestrowani po ich agent card A2A, do których delegują agenci | [Capabilities](reference/capabilities.md#remote-agents) |
-| **Vault** | Poświadczenia, zapieczętowane per organizacja | [Sekrety](secrets.md) |
-| **Organizations** | Członkowie, role, zaproszenia | [Uprawnienia](permissions.md) |
-| **Settings** | Providerzy, domyślne ustawienia ingestii, powiadomienia, twój własny profil | [Konfiguracja](configuration.md) |
-| **Admin** | Sam deployment: użytkownicy, najemcy, system, zadania w tle, ustawienia deploymentu | [Deployment](deployment.md) |
+| Obszar            | Zawiera                                                                                        | Przeczytaj                                                               |
+| ----------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| **Agents**        | Katalog, Builder, wersje, udostępnianie, testowanie, aktywność                                 | [Twój pierwszy agent](first-agent.md)                                    |
+| **Chat**          | Rozmowa z opublikowanym agentem                                                                | [Powierzchnie](channels.md)                                              |
+| **Knowledge**     | Kolekcje, dokumenty, źródła synchronizacji, ustawienia ingestii                                | [Przetwarzanie plików](file-processing.md)                               |
+| **Skills**        | Spisane procedury, które agent wczytuje na żądanie                                             | [Skille](skills.md)                                                      |
+| **Context**       | Stała wiedza przypięta do wielu agentów                                                        | [Pliki kontekstowe](context.md)                                          |
+| **Tables**        | Typowane rekordy i ich kolumny, oglądane jako tabela, tablica kanban lub lista                 | [Virtual Tables](virtual-tables.md)                                      |
+| **Workflows**     | Wieloetapowe automatyzacje, które uruchamiają Twoje agenty, budowane na kanwie                 | [Workflows](workflows.md)                                                |
+| **Datasets**      | Wersjonowane przypadki testowe, importowane, eksportowane albo dodawane z ocenionej odpowiedzi | [Datasety](datasets.md)                                                  |
+| **Routines**      | Harmonogramy i wyzwalacze zdarzeń                                                              | [Wyzwalacze](triggers.md)                                                |
+| **Runs**          | Co się uruchomiło, ile kosztowało, czego dotknęło, czy zakończyło się błędem                   | [Nadzór](governance.md#audit)                                            |
+| **Documents**     | Wszystkie pliki, które agenci trzymają dla ciebie: to, co załączyłeś, i to, co napisali        | [Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
+| **Sandboxes**     | Gdzie agenci uruchamiają kod: hosty, żywe sesje, polityka                                      | [Sandbox](sandbox.md)                                                    |
+| **MCP servers**   | Połączenia z zewnętrznymi narzędziami, osobiste i na całą organizację                          | [MCP](mcp.md)                                                            |
+| **Channels**      | Boty Slacka, Teams, Telegrama i Mattermosta, widgety, hostowane strony                         | [Powierzchnie](channels.md)                                              |
+| **Remote agents** | Agenci innych dostawców, zarejestrowani po ich agent card A2A, do których delegują agenci      | [Capabilities](reference/capabilities.md#remote-agents)                  |
+| **Vault**         | Poświadczenia, zapieczętowane per organizacja                                                  | [Sekrety](secrets.md)                                                    |
+| **Organizations** | Członkowie, role, zaproszenia                                                                  | [Uprawnienia](permissions.md)                                            |
+| **Settings**      | Providerzy, domyślne ustawienia ingestii, powiadomienia, twój własny profil                    | [Konfiguracja](configuration.md)                                         |
+| **Admin**         | Sam deployment: użytkownicy, najemcy, system, zadania w tle, ustawienia deploymentu            | [Deployment](deployment.md)                                              |
 
 Katalog **Agents** można filtrować po **category** i **tag** — edytowalnych,
 lokalnych dla organizacji etykietach pokazywanych na karcie każdego agenta.
@@ -1130,12 +1143,12 @@ powiedzie, formularz logowania zachowuje cel i już utworzone konto.
 
 Start uwzględnia uprawnienia osoby i jej dotychczasową pracę:
 
-| Osoba | Prowadzony start |
-| --- | --- |
-| Administrator aplikacji | Utworzenie lub wybór firmy, tożsamość i zaproszenia, następnie zasady dołączania przyszłych kont. |
-| Administrator organizacji | Przygotowanie organizacji i jej limitu wydatków, bez ustawień wdrożenia. |
-| Nowe konto członka | Powitanie, opcjonalny profil osobisty i kontekst pracy, potem pierwsze zadanie. |
-| Istniejące konto dołączające do kolejnej organizacji | Powitanie w tej organizacji, użycie zapisanego profilu lub jego świadomy przegląd. |
+| Osoba                                                | Prowadzony start                                                                                  |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Administrator aplikacji                              | Utworzenie lub wybór firmy, tożsamość i zaproszenia, następnie zasady dołączania przyszłych kont. |
+| Administrator organizacji                            | Przygotowanie organizacji i jej limitu wydatków, bez ustawień wdrożenia.                          |
+| Nowe konto członka                                   | Powitanie, opcjonalny profil osobisty i kontekst pracy, potem pierwsze zadanie.                   |
+| Istniejące konto dołączające do kolejnej organizacji | Powitanie w tej organizacji, użycie zapisanego profilu lub jego świadomy przegląd.                |
 
 Przewodnik AgenticOS objaśnia każdą decyzję przygotowanymi wiadomościami interfejsu.
 Nie są odpowiedziami modelu i nie wywołują AI. Profil i kontekst pracy są wspólne dla

@@ -7,8 +7,12 @@ is recorded separately by the parent task.
 
 ## Implemented interaction contract
 
-- Files and Sources use the browser dock frame: the same 35–65% keyboard and
-  pointer resizing bounds, 55% starting width, explicit expansion and close.
+- Files, Sources and Browser share the dock frame, explicit expansion and close.
+  Browser retains 35–65% keyboard/pointer bounds and a 55% starting width.
+  Files and Sources start at a preferred 400px, resize from 360px to 420px and are capped
+  at 38% of the docked chat. On constrained desktop layouts, opening Files or Sources
+  temporarily folds the conversation list; closing restores the previous choice,
+  while a manual expansion overrides folding for that panel session.
   A narrow main console uses a full-screen panel; an embedded conversation keeps
   its panel inside that conversation. The two layout container names are explicit
   because metadata panels are siblings of the browser container.
@@ -179,7 +183,7 @@ No visual approval is implied by any row.
 | [tool-results/coding-agent.tsx](../../frontend/src/components/chat/tool-results/coding-agent.tsx)             | result renderer | Answer is primary and trace initially folded; recorded change/file origin retained. Owned report fields validated; legacy kind-less reports retained. |
 | [tool-results/coding-changes.tsx](../../frontend/src/components/chat/tool-results/coding-changes.tsx)         | result renderer | Capped patches disclose omitted/binary data and keep copy/revert controls.                                                                            |
 | [tool-results/coding-task-revert.tsx](../../frontend/src/components/chat/tool-results/coding-task-revert.tsx) | result renderer | Recorded conversation origin gates undo; conflict/unknown/pending outcomes stay explicit in confirmation.                                             |
-| [tool-results/delegation.tsx](../../frontend/src/components/chat/tool-results/delegation.tsx)                 | result renderer | Brief clamps with show-more; answer uses prose with inert external images.                                                                            |
+| `tool-results/delegation.tsx` (removed)                                                                       | result renderer | Removed unused legacy renderer after raw diagnostics replaced its only rendering path; turn-level delegation outputs remain separate.                 |
 | [tool-results/desktop-screenshot.tsx](../../frontend/src/components/chat/tool-results/desktop-screenshot.tsx) | result renderer | Parent reviewed/changed media-surface parser; missing stored file is explicit.                                                                        |
 | [tool-results/generated-image.tsx](../../frontend/src/components/chat/tool-results/generated-image.tsx)       | result renderer | Parent reviewed/changed media-surface parser; missing stored image is explicit.                                                                       |
 | [tool-results/generated-speech.tsx](../../frontend/src/components/chat/tool-results/generated-speech.tsx)     | result renderer | Parent reviewed/changed media-surface parser; native controls and missing audio state retained.                                                       |
@@ -234,7 +238,7 @@ file/source selection and run/MCP picker regression batch passed 120 tests acros
 four files. These batches are scoped evidence, not a full frontend coverage gate.
 Final integration and browser results are reported by the parent task.
 
-Required browser checks remain: light/dark metadata panels; narrow and wide chat;
+Browser checks outside this source-audit evidence: light/dark metadata panels; narrow and wide chat;
 resizer keyboard/pointer; nested file preview Escape; focus after close; approval
 and Chat controls geometry; project picker empty/search/error states; history
 versus live plans; native desktop/browser takeover where the runtime is available.
@@ -267,12 +271,11 @@ actual runtime for visual verification.
 
 ## Sources layout and embedded chat follow-up
 
-Sources now uses a preferred width of 400px, adjustable from 360px to 420px and
-capped at 38% of a docked conversation. Browser and Files retain their wider
-content-oriented profile. On a constrained desktop chat row, Sources temporarily
-folds the conversation list; closing Sources restores the prior explicit choice.
+Files and Sources now use a preferred width of 400px, adjustable from 360px to 420px and
+capped at 38% of a docked conversation. Browser retains its wider content-oriented profile. On a constrained desktop chat row, Sources temporarily
+folds the conversation list; closing the panel restores the prior explicit choice.
 Expanding the list manually overrides that automatic folding for the current
-Sources session. Resize observation responds to available chat width, without
+panel session. Resize observation responds to available chat width, without
 writing an automatic change into saved user preferences. Highlighted citations
 scroll their own Sources list instead of calling ancestor-scrolling
 `scrollIntoView`. Scoped tests cover preferred width, pointer and keyboard resize,
@@ -289,3 +292,91 @@ Browser verification of reading-position stability belongs to the parent pass.
 These are source and automated interaction checks. They do not establish visual
 approval in both themes, native microphone availability or a live public-channel
 end-to-end result; those require the parent browser/CI pass.
+
+## Public reading position and composer recovery
+
+Hosted and widget transcript following now pauses while a reader is above the
+bottom. Streaming deltas and content resize respect that state. Returning to the
+bottom or explicitly submitting a new message resumes following; reconnect and
+history replay do not force the reader away. Hosted tests deliver real public
+frames and exercise both scroll and ResizeObserver callbacks. The widget tests
+execute its actual scroll, pin and submit handlers in Node.
+
+The home Inbox preview has one actionable row per item, without dates or a second
+chat icon. It places an editable question into the composer through the existing
+incoming-message contract; it does not submit that question. Open inbox remains a
+separate link. Scoped hover treatment respects reduced motion.
+
+The rich composer serializes canonical message text for copy and cut, preserving
+URL and mention chips through a plain-text round trip. Paste and cut replace the
+selected range rather than inserting only at its end. Conversation rename uses a
+visible Title label, selects the current title and disables an unchanged save.
+
+## Sharing modal consistency
+
+The artifact share dialog is the reference shell: `DIALOG_FORM` with
+`DIALOG_SCROLL`, a named header and vertically ordered access sections. The chat
+share dialog now uses the same quiet section structure rather than an extra large
+nested general-access card. Its controls and the shared resource-sharing controls
+use 40px heights, with 44px targets on coarse-pointer devices. Link fields and copy
+buttons follow that same scale. Selecting a recipient or access level is disabled
+while the current share is saving; targeted tests preserve that pending-state
+contract.
+
+| Entry point                      | Composition checked                                                                      | Decision                                                                                               |
+| -------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Chat ShareDialog                 | Member picker, view/edit grants, view-only public token, grant changes, revoke and retry | Updated layout and control scale; public-token permission remains view-only.                           |
+| ArtifactShareDialog              | Page URL, public link, requests, data consent, embed settings and common SharingPanel    | Reference shell retained; common control polish applies without changing consent or public link rules. |
+| DatasetShareDialog               | Named header, description, common SharingPanel                                           | Existing reference-size scrollable shell retained; common controls apply.                              |
+| ShareResourceButton              | Project, skill, Context and knowledge-base sharing                                       | Existing common shell retained; common controls apply.                                                 |
+| Agent/table sharing dialogs      | Existing named dialog shells and common SharingPanel                                     | Existing reference-size scrollable shells retained; common controls apply.                             |
+| Vault and MCP connection sharing | Common SharingPanel inside their existing management dialogs                             | Common controls apply; existing management permissions remain authoritative.                           |
+
+The scoped chat/common-sharing batch passed 106 tests across four files, including
+pending recipient/access selection, read-only grants, levels, public links and
+consent paths. This is automated/source evidence; visual parity with the reference
+in light/dark themes remains part of the parent browser pass.
+
+## Shared surfaces recovery review
+
+A failed shared-resource access read previously stayed on the loading skeleton
+because the hook discarded its query error. `useSharing` now exposes error/refetch;
+SharingPanel presents the actual refusal and Retry. A network/service refresh
+failure keeps cached access rows visible alongside its warning; authentication,
+permission and not-found refusals hide cached grants and editing controls. This applies to every resource-sharing
+entry point listed above, without treating a 403 as an empty access list.
+
+The command palette now reports unavailable entity reads with a generic localized
+notice and retries only the failed, currently permitted queries. Backend exception
+text is not copied into that notice. Agent and knowledge-base names are also gated
+at rendering time: disabling a query alone did not hide previously cached names
+after permission withdrawal. Regression tests cover successful recovery without
+refetching healthy scopes and removal of cached names after a permission change.
+
+The file viewer attachment strip now reveals the selected item by changing only
+its own horizontal scroll position. Tests cover overflow on either edge, an
+already-visible item, retained button focus and absence of ancestor
+`scrollIntoView` calls. Reduced motion selects immediate scrolling.
+
+Additional retained boundaries: Quick Ask already tracks an explicit reader pause
+and resets it on the visitor's own send; it was not replaced with public-chat
+following. The notification bell already distinguishes a failed read from an empty
+inbox and refreshes when reopened. No native desktop or live-notification runtime
+claim follows from these source checks.
+
+## Phone composer layout
+
+At phone widths, the main console composer now has two stable control rows:
+attach, current agent, Files, settings, approval and usage on the first; model and
+Send/Stop on the second. Every control retains a 44px target. The model spans five
+of the six columns instead of sharing the narrow remainder after three icons;
+its former 5rem trigger and 2.75rem label caps were removed. At the narrowest
+supported layout the agent may show its avatar/chevron summary, while its full
+accessible current-agent label remains available. The model keeps substantially
+more room for its actual name.
+
+The grid occupies at least 264px and uses the same placement while the field is
+focused, blurred or processing. These overrides are limited to the main-chat
+phone stylesheet; desktop layout and embedded/public composers are unchanged.
+The phone/input unit batch passed 72 tests. Actual 390px geometry and theme proof
+remain the parent browser check, rather than a claim derived from jsdom layout.

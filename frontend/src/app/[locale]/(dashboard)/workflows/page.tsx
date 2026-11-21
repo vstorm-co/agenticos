@@ -6,7 +6,7 @@ import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
 import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
 import { useMemo, useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import Link from "next/link";
 import { ArrowDownWideNarrow, Activity, Library, Plus, Upload } from "lucide-react";
 import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";

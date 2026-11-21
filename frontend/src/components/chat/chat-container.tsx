@@ -1624,6 +1624,9 @@ function ChatUI({
             {pendingQuestions?.length ? (
               <button
                 type="button"
+                // Blurring the disabled composer on press can collapse its phone
+                // controls and move this button before the click is delivered.
+                onMouseDown={(event) => event.preventDefault()}
                 onClick={onRevealQuestion}
                 className="bg-popover text-foreground border-border focus-visible:outline-ring pointer-events-auto absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded-full border px-4 py-2 text-sm shadow-sm focus-visible:outline-2"
               >
@@ -2035,7 +2038,7 @@ function ChatUI({
           revision={turns}
           attachments={attachments}
           buttonSlot={filesSlot}
-          overlay={compact || mainChat}
+          overlay={compact}
         />
       </div>
     </div>

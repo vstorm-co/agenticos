@@ -74,7 +74,7 @@ export default function VaultPage() {
   useMcpOAuthOutcome();
 
   return (
-    <div className="flex flex-1 flex-col space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <PageHeader
         title={t("vault")}
         description={t("pageDescription")}
@@ -115,7 +115,10 @@ export default function VaultPage() {
           ) : undefined
         }
       />
-      <div data-tour="vault-keys" className="bg-card overflow-hidden rounded-xl border">
+      <div
+        data-tour="vault-keys"
+        className="bg-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border"
+      >
         {errors.map((error, index) => (
           <ErrorState
             key={index}
@@ -131,12 +134,15 @@ export default function VaultPage() {
             className="m-5"
           />
         ))}
-        {!loading && secrets.length === 0 && accounts.length === 0 ? (
-          errors.length === 0 && (
-            <ListCardEmpty icon={Lock} title={t("emptyTitle")} description={t("emptyDetail")} />
-          )
-        ) : (
+        {(errors.length === 0 || loading || secrets.length > 0 || accounts.length > 0) && (
           <VaultTable
+            empty={
+              errors.length === 0 ? (
+                <ListCardEmpty icon={Lock} title={t("emptyTitle")} description={t("emptyDetail")} />
+              ) : (
+                <></>
+              )
+            }
             secrets={secrets}
             purposes={purposes}
             accounts={accounts}

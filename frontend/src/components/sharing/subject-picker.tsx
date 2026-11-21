@@ -80,7 +80,7 @@ export function SubjectPicker({
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
-          className="w-full justify-between font-normal"
+          className="h-10 w-full justify-between font-normal pointer-coarse:h-11"
         >
           <span className={cn("truncate", chosen === undefined && "text-muted-foreground")}>
             {chosen ?? placeholder}

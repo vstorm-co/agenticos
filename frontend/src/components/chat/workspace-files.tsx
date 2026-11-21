@@ -16,6 +16,7 @@ import { useShell } from "@/hooks/use-shell";
 import { isDesktopShell } from "@/lib/desktop/shell";
 import { useLocalWorkspace } from "@/hooks/use-desktop";
 import { useFilePreviewStore } from "@/stores";
+import { useChatPanelStore } from "@/stores/chat-panel-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import { getFileUrl } from "@/lib/file-api";
 import { cn, formatBytes } from "@/lib/utils";
@@ -107,6 +108,11 @@ export function WorkspaceFiles({
   const sourcesOpen = useSourcesPanelStore((state) => state.isOpen);
   const closeSources = useSourcesPanelStore((state) => state.close);
   const visible = open && !sourcesOpen && !beforeFirstMessage;
+  useEffect(() => {
+    if (overlay) return;
+    useChatPanelStore.getState().setFilesOpen(visible);
+    return () => useChatPanelStore.getState().setFilesOpen(false);
+  }, [visible, overlay]);
   const panelId = useId();
   const toggle = useRef<HTMLButtonElement>(null);
   const closePanel = useCallback(() => setOpen(false), []);
@@ -218,6 +224,7 @@ export function WorkspaceFiles({
       {visible && (
         <ChatSidePanel
           label={t("title")}
+          sizing="sources"
           panelId={panelId}
           contained={overlay}
           onClose={closePanel}

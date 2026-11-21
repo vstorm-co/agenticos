@@ -184,15 +184,19 @@ export function SettingsSection({
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </header>
-      <DisclosureContent
-        id={panelId}
-        open={!collapsible || open}
-        triggerId={collapsible ? `${panelId}-toggle` : undefined}
-        mountOnOpen={false}
-        onReveal={() => setOpen(true)}
-      >
-        {children}
-      </DisclosureContent>
+      {collapsible ? (
+        <DisclosureContent
+          id={panelId}
+          open={open}
+          triggerId={`${panelId}-toggle`}
+          mountOnOpen={false}
+          onReveal={() => setOpen(true)}
+        >
+          {children}
+        </DisclosureContent>
+      ) : (
+        <div>{children}</div>
+      )}
     </section>
   );
 }

@@ -266,6 +266,72 @@ describe("the hosted page", () => {
     }
   });
 
+  it("pauses streaming and resize following while reading, resumes at bottom or on an own send", async () => {
+    const OriginalObserver = global.ResizeObserver;
+    const observers: Array<{ target: Element; notify: () => void }> = [];
+    class Observer implements ResizeObserver {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        observers.push({ target, notify: () => this.callback([], this) });
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    global.ResizeObserver = Observer;
+    try {
+      const { container } = render(<HostedChat config={config()} />);
+      const thread = container.querySelector("div.scrollbar-thin");
+      if (!(thread instanceof HTMLDivElement)) throw new Error("missing hosted transcript");
+      let height = 1600;
+      Object.defineProperties(thread, {
+        scrollHeight: { get: () => height },
+        clientHeight: { value: 400 },
+      });
+      const resize = () => {
+        for (const observer of observers) {
+          if (observer.target === thread || observer.target === thread.firstElementChild)
+            observer.notify();
+        }
+      };
+      act(() => socket().deliver({ type: "text_delta", data: { content: "First answer" } }));
+      expect(thread.scrollTop).toBe(1600);
+      thread.scrollTop = 300;
+      fireEvent.scroll(thread);
+      height = 2000;
+      act(() => socket().deliver({ type: "text_delta", data: { content: " keeps growing" } }));
+      act(() => resize());
+      expect(thread.scrollTop).toBe(300);
+
+      thread.scrollTop = 1600;
+      fireEvent.scroll(thread);
+      height = 2200;
+      act(() => socket().deliver({ type: "text_delta", data: { content: " follows again" } }));
+      expect(thread.scrollTop).toBe(2200);
+      thread.scrollTop = 250;
+      fireEvent.scroll(thread);
+      act(() => socket().deliver({ type: "complete", data: {} }));
+      await userEvent.type(screen.getByRole("textbox"), "My next question{Enter}");
+      expect(socket().sent).toHaveLength(1);
+      expect(thread.scrollTop).toBe(2200);
+
+      thread.scrollTop = 200;
+      fireEvent.scroll(thread);
+      act(() => socket().onclose?.({ code: 1006 }));
+      expect(thread.scrollTop).toBe(200);
+      await userEvent.click(screen.getByRole("button", { name: "Reconnect" }));
+      act(() =>
+        socket().deliver({
+          type: "history",
+          data: { messages: [{ role: "assistant", text: "Replayed" }] },
+        }),
+      );
+      act(() => resize());
+      expect(thread.scrollTop).toBe(200);
+    } finally {
+      global.ResizeObserver = OriginalObserver;
+    }
+  });
+
   it("names itself with the title the operator chose", () => {
     render(<HostedChat config={config()} />);
 

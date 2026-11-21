@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useAuthStore } from "@/stores";
 import { readSession, sessionUnavailable, stayOffline, useAdoptSession } from "@/hooks/use-auth";
 import { ROUTES } from "@/lib/constants";

@@ -22,6 +22,7 @@ function BotsCard({ count, children }: { count: number | null; children: ReactNo
   const t = useTranslations("pages.channels");
   return (
     <ListCard
+      fill
       className="overflow-hidden"
       data-tour="channels-list"
       namedByPage
@@ -74,7 +75,7 @@ export default function ChannelsPage() {
 
   if (!permissionsLoading && !permissionsError && !canManage) {
     return (
-      <div className="flex flex-1 flex-col space-y-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         <PageHeader title={t("channels")} description={t("pageDescription")} />
         <BotsCard count={0}>
           <p className="text-muted-foreground px-6 py-16 text-center text-sm">
@@ -86,7 +87,7 @@ export default function ChannelsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <PageHeader
         title={t("channels")}
         description={t("pageDescription")}
@@ -124,25 +125,26 @@ export default function ChannelsPage() {
             }}
             className="m-5"
           />
-        ) : bots.length === 0 ? (
-          <ListCardEmpty
-            icon={MessagesSquare}
-            title={t("noChannelsYet")}
-            description={t("addOneBecomesBindable")}
-            // Its own words, not the header's: two buttons reading "Add
-            // channel" is one control a screen reader announces twice.
-            cta={{
-              label: (
-                <>
-                  <Plus className="h-3.5 w-3.5" />
-                  {t("addChannel")}
-                </>
-              ),
-              onClick: () => setAdding(true),
-            }}
-          />
         ) : (
           <ChannelBotsTable
+            empty={
+              <ListCardEmpty
+                icon={MessagesSquare}
+                title={t("noChannelsYet")}
+                description={t("addOneBecomesBindable")}
+                // Its own words, not the header's: two buttons reading "Add
+                // channel" is one control a screen reader announces twice.
+                cta={{
+                  label: (
+                    <>
+                      <Plus className="h-3.5 w-3.5" />
+                      {t("addChannel")}
+                    </>
+                  ),
+                  onClick: () => setAdding(true),
+                }}
+              />
+            }
             bots={bots}
             busy={setActive.isPending || remove.isPending}
             onEdit={setEditing}

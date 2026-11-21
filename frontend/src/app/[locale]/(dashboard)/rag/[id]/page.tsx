@@ -4,7 +4,7 @@ import { ListChecks, RefreshCw } from "lucide-react";
 import { DocumentIcon as Files } from "@/components/icons/product-icons";
 
 import { use, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
@@ -215,7 +215,11 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   if (!kb) return null;
 
   return (
-    <FileDropZone collectionName={kb.name} onFiles={handleFiles} className="flex flex-1 flex-col">
+    <FileDropZone
+      collectionName={kb.name}
+      onFiles={handleFiles}
+      className="flex min-h-0 flex-1 flex-col"
+    >
       <input
         ref={fileInputRef}
         type="file"
@@ -323,7 +327,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
       <Tabs
         value={tab}
         onValueChange={(next) => setTab(next as KBTab)}
-        className="flex flex-1 flex-col"
+        className="flex min-h-0 flex-1 flex-col"
       >
         <TabsList data-tour="kb-tabs">
           <TabsTrigger value="documents" data-tour="kb-tab-documents">
@@ -345,7 +349,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           )}
         </TabsList>
 
-        <TabsContent value="documents" className="flex flex-1 flex-col">
+        <TabsContent value="documents" className="flex min-h-0 flex-1 flex-col">
           <DocumentsTable
             kbId={id}
             documents={documents}
@@ -361,8 +365,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           />
         </TabsContent>
 
-        <TabsContent value="ingestion" className="flex flex-1 flex-col">
-          <div className="flex flex-1 flex-col" data-tour="kb-ingestion">
+        <TabsContent value="ingestion" className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col" data-tour="kb-ingestion">
             <IngestionPanel
               kb={kb}
               onEdit={mayEdit ? () => setIngestionOpen(true) : undefined}
@@ -371,7 +375,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           </div>
         </TabsContent>
 
-        <TabsContent value="sync" className="flex flex-1 flex-col">
+        <TabsContent value="sync" className="flex min-h-0 flex-1 flex-col">
           <SyncSourcesSection
             kbId={id}
             syncSources={syncSources}
@@ -396,8 +400,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         </TabsContent>
 
         {maySeeGaps && (
-          <TabsContent value="gaps" className="flex flex-1 flex-col">
-            <div className="flex flex-1 flex-col" data-tour="kb-gaps">
+          <TabsContent value="gaps" className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col" data-tour="kb-gaps">
               <KnowledgeGapsPanel
                 scope={{ kind: "collection", id }}
                 topicId={topicParam}

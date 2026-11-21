@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -242,6 +242,24 @@ describe("choosing who to share with", () => {
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(fetchMembers).toHaveBeenCalled();
+  });
+
+  it("holds recipient and permission choices while the current share is being saved", async () => {
+    let finish = () => {};
+    const saving = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    shareConversation.mockReturnValueOnce(saving);
+    renderDialog();
+    await pick(/Nina Vale/);
+    await userEvent.click(screen.getByRole("button", { name: /^Share$/ }));
+    expect(screen.getByRole("button", { name: "Nina Vale" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Access level" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Share$/ })).toBeDisabled();
+    await act(async () => {
+      finish();
+    });
+    expect(screen.getByRole("combobox", { name: "Access level" })).toBeEnabled();
   });
 
   it("shares with the id the picker holds, not an address", async () => {

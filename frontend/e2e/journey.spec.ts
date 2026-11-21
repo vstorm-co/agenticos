@@ -559,16 +559,20 @@ async function idOf(
 async function expectComposerAlignment(page: import("@playwright/test").Page): Promise<void> {
   const form = await page.locator("form").boundingBox();
   const input = await page.getByRole("textbox", { name: "Ask a question…" }).boundingBox();
+  const controls = await page.locator("[data-hosted-composer-controls]").boundingBox();
   const button = await page.getByRole("button", { name: "Send", exact: true }).boundingBox();
   const icon = await page
     .getByRole("button", { name: "Send", exact: true })
     .locator("svg")
     .boundingBox();
-  if (!form || !input || !button || !icon)
+  if (!form || !input || !controls || !button || !icon)
     throw new Error("Hosted composer controls must have visible bounds");
   expect(Math.abs(button.width - button.height)).toBeLessThanOrEqual(0.5);
-  const center = form.y + form.height / 2;
-  expect(Math.abs(input.y + input.height / 2 - center)).toBeLessThanOrEqual(0.5);
+  expect(input.y).toBeGreaterThanOrEqual(form.y);
+  expect(input.y + input.height).toBeLessThanOrEqual(controls.y);
+  expect(controls.y + controls.height).toBeLessThanOrEqual(form.y + form.height);
+  expect(input.width).toBeGreaterThan(form.width - 48);
+  const center = controls.y + controls.height / 2;
   expect(Math.abs(button.y + button.height / 2 - center)).toBeLessThanOrEqual(0.5);
   expect(Math.abs(icon.y + icon.height / 2 - center)).toBeLessThanOrEqual(0.5);
   expect(Math.abs(icon.x + icon.width / 2 - button.x - button.width / 2)).toBeLessThanOrEqual(0.5);

@@ -112,22 +112,24 @@ export function DirectoryMappingList({
           cta={{ label: tc("retry"), onClick: onRetry }}
           className="m-5"
         />
-      ) : !isLoading && mappings.length === 0 ? (
-        <ListCardEmpty
-          icon={Network}
-          title={t("emptyTitle")}
-          description={t("emptyBody")}
-          cta={
-            canEdit
-              ? {
-                  label: <span data-tour="org-directory-new">{t("addMapping")}</span>,
-                  onClick: onAdd,
-                }
-              : undefined
-          }
-        />
       ) : (
         <DataTable<DirectoryMapping>
+          clientPagination
+          empty={
+            <ListCardEmpty
+              icon={Network}
+              title={t("emptyTitle")}
+              description={t("emptyBody")}
+              cta={
+                canEdit
+                  ? {
+                      label: <span data-tour="org-directory-new">{t("addMapping")}</span>,
+                      onClick: onAdd,
+                    }
+                  : undefined
+              }
+            />
+          }
           columns={columns}
           rows={mappings}
           loading={isLoading}

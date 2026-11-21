@@ -20,15 +20,15 @@ original databases are not the preview's write target.
 References inform composition and interaction. Their fonts, illustrations,
 copy and product-specific behavior are not assets to import into AgenticOS.
 
-| Reference | Observed pattern | Application here |
-| --- | --- | --- |
-| Mistral Vibe, light and dark | Empty composer keeps a stable shortcut hint on focus; suggestions disappear on input | Keep `/` and `@` guidance until actual input; remove rotating examples |
-| Mistral Studio, API keys | One page title and primary action; table skeleton becomes an explicit empty state; plan restrictions have a reason | Distinguish loading, empty, unavailable and forbidden states; explain blocked actions |
-| Mistral Studio, managed agents | Small preview badge; focused empty state with one primary action and secondary documentation | Avoid repeating explanatory introductions and competing creation actions |
-| Mistral Studio, OCR | One upload target, constraints beside it, optional examples, restrained color | Group related choices and use progressive disclosure instead of simultaneous panels |
-| OpenBot | Compact navigation rail and conversation list; identity color separated from neutral chrome | Preserve conversation identity and make context panels optional, without losing navigation labels |
-| Orca bot settings | Grouped rows show current values before opening a detail page | Let builder summaries explain the saved configuration; preserve deep links and unsaved edits |
-| Supplied mobile assistant | Whitespace, one dominant action, short text, color for identity | Reduce decoration and repeated copy; retain large touch targets and readable composer text |
+| Reference                      | Observed pattern                                                                                                   | Application here                                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Mistral Vibe, light and dark   | Empty composer keeps a stable shortcut hint on focus; suggestions disappear on input                               | Keep `/` and `@` guidance until actual input; remove rotating examples                            |
+| Mistral Studio, API keys       | One page title and primary action; table skeleton becomes an explicit empty state; plan restrictions have a reason | Distinguish loading, empty, unavailable and forbidden states; explain blocked actions             |
+| Mistral Studio, managed agents | Small preview badge; focused empty state with one primary action and secondary documentation                       | Avoid repeating explanatory introductions and competing creation actions                          |
+| Mistral Studio, OCR            | One upload target, constraints beside it, optional examples, restrained color                                      | Group related choices and use progressive disclosure instead of simultaneous panels               |
+| OpenBot                        | Compact navigation rail and conversation list; identity color separated from neutral chrome                        | Preserve conversation identity and make context panels optional, without losing navigation labels |
+| Orca bot settings              | Grouped rows show current values before opening a detail page                                                      | Let builder summaries explain the saved configuration; preserve deep links and unsaved edits      |
+| Supplied mobile assistant      | Whitespace, one dominant action, short text, color for identity                                                    | Reduce decoration and repeated copy; retain large touch targets and readable composer text        |
 
 Mistral Studio's desktop sidebar measures about 260 CSS pixels, with 14px
 regular labels and 32px rows. Its dark main surface is approximately `#17171b`.
@@ -144,14 +144,14 @@ assistive-technology navigation. Initial desktop focus prevents automatic scroll
 
 Default-theme contrast calculations for the actual token values:
 
-| Pair | Light | Dark |
-| --- | --- | --- |
-| Main text / canvas | 14.93:1 | 15.44:1 |
-| Secondary text / card | 6.03:1 | 7.55:1 |
-| Blue link / canvas | 6.37:1 | 6.69:1 |
-| Focus ring / card | 3.66:1 | 4.44:1 |
-| Enabled switch / card | 4.08:1 | 7.37:1 |
-| Switch thumb / enabled track | 3.91:1 | 8.81:1 |
+| Pair                         | Light   | Dark    |
+| ---------------------------- | ------- | ------- |
+| Main text / canvas           | 14.93:1 | 15.44:1 |
+| Secondary text / card        | 6.03:1  | 7.55:1  |
+| Blue link / canvas           | 6.37:1  | 6.69:1  |
+| Focus ring / card            | 3.66:1  | 4.44:1  |
+| Enabled switch / card        | 4.08:1  | 7.37:1  |
+| Switch thumb / enabled track | 3.91:1  | 8.81:1  |
 
 These establish the default palette's listed pairs, not every contextual alpha
 composition or custom look. The browser viewport override did not change the
@@ -172,7 +172,6 @@ phone E2E coverage now also checks that typing does not move the composer.
 - [x] Apply shared patterns to resource lists, details and settings; audit every route.
 - [ ] Finish accessibility checks and final-commit CI before merge/release.
 
-
 ## Live conversation and replay audit (2026-11-21)
 
 Tested the maintainer's local conversation `c1412941-f1c3-48cd-a04b-cda772282f21`
@@ -183,15 +182,15 @@ routine creation. These measurements are desktop observations, not mobile proof.
 
 ### Measured layout changes
 
-| Transition | Dock height | Transcript scrollTop | Composer editor top |
-| --- | --- | --- | --- |
-| Existing single question visible | 425.75 px | 233 px | 588 px |
-| That question submitted | 144 px | 93.5 px | 588 px |
-| New two-question test sent | 144 px | 589.5 px | 588 px |
-| Question 1 appeared | 366.75 px | 763 px | 588 px |
-| Question 2 appeared | 366.75 px | 763 px | 588 px |
-| Answer review appeared | 338 px | 734 px | 588 px |
-| Answers submitted | 144 px | 624 px | 588 px |
+| Transition                       | Dock height | Transcript scrollTop | Composer editor top |
+| -------------------------------- | ----------- | -------------------- | ------------------- |
+| Existing single question visible | 425.75 px   | 233 px               | 588 px              |
+| That question submitted          | 144 px      | 93.5 px              | 588 px              |
+| New two-question test sent       | 144 px      | 589.5 px             | 588 px              |
+| Question 1 appeared              | 366.75 px   | 763 px               | 588 px              |
+| Question 2 appeared              | 366.75 px   | 763 px               | 588 px              |
+| Answer review appeared           | 338 px      | 734 px               | 588 px              |
+| Answers submitted                | 144 px      | 624 px               | 588 px              |
 
 The composer itself stayed put in this run. The visible transcript moved: the
 absolute dock contains the question card, its ResizeObserver rewrites transcript
@@ -223,15 +222,15 @@ as the cause of every measured movement.
 
 ### Proposed interaction contract
 
-| State | Default presentation | Viewport behavior |
-| --- | --- | --- |
-| Running | One compact progress row, latest action and action count; details collapsed | Follow only when the reader is already following |
-| Waiting for an answer | One actionable question card in transcript flow | Keep the composer and the reader's visible anchor stable |
-| Submitting answers | Keep the same card with disabled controls and submitting status | Do not remove the card before acknowledgement |
-| Answer acknowledged | Convert that card into a concise question/answer receipt | Preserve identity and place; expand details on request |
-| Waiting for approval | Separate decision card identifying the concrete effect | Required decisions remain visible regardless of work disclosure |
-| Finished / reopened | Answer and meaningful outputs first; work collapsed | No replay animations, fake spinners or forced focus |
-| Failed submission | Keep answers, show the failure and a retry action | No blank state or automatic resubmission after unknown acceptance |
+| State                 | Default presentation                                                        | Viewport behavior                                                 |
+| --------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Running               | One compact progress row, latest action and action count; details collapsed | Follow only when the reader is already following                  |
+| Waiting for an answer | One actionable question card in transcript flow                             | Keep the composer and the reader's visible anchor stable          |
+| Submitting answers    | Keep the same card with disabled controls and submitting status             | Do not remove the card before acknowledgement                     |
+| Answer acknowledged   | Convert that card into a concise question/answer receipt                    | Preserve identity and place; expand details on request            |
+| Waiting for approval  | Separate decision card identifying the concrete effect                      | Required decisions remain visible regardless of work disclosure   |
+| Finished / reopened   | Answer and meaningful outputs first; work collapsed                         | No replay animations, fake spinners or forced focus               |
+| Failed submission     | Keep answers, show the failure and a retry action                           | No blank state or automatic resubmission after unknown acceptance |
 
 Recommended implementation order:
 
@@ -278,3 +277,23 @@ Additional workstreams have their own source-review ledgers:
 [settings and onboarding](console-settings-audit.md).
 
 The maintainer selected **Workspace — projects** as the default conversation-list layout. Missing or unknown `sidebar` values use that layout; `compact` and `comfortable` remain explicit comparison options.
+
+## Follow-up review from the maintainer's populated account
+
+The next pass covers issues observed on 2026-11-21 after the initial delivery.
+Completion means source review, implementation and scoped checks, not merely listing the route. Checked items below do not claim final-head browser or CI verification.
+
+- [x] Insert Inbox suggestions as editable composer text; remove dates and redundant chat actions.
+- [x] Recheck Build section grouping, card height and spacing without changing the other agent tabs.
+- [x] Align workflow runs/logs and template libraries; keep one run-start confirmation and quiet field hover.
+- [x] Review Projects, Knowledge, Tables and Dataset cards; neutralize Dataset decoration and stabilize its settings footer.
+- [x] Fill primary table views and retain visible pagination, including one-page results; preserve server/cursor boundaries.
+- [x] Recheck the mobile composer, URL-chip clipboard, Files panel, rename and sharing dialogs.
+- [x] Resolve app-viewer help counts before the first caption and keep help in the persistent viewer header.
+- [x] Remove workspace-card shortcuts and static settings-section entry animations.
+- [x] Cover imperative navigation with the shared progress bar and animate tab selection using measured geometry.
+- [x] Fill and center the quiet Group dashboard, then review the remaining route/component inventory.
+- [ ] Verify the final head in both themes, responsive journeys and CI; do not equate an earlier run with the final head.
+
+The local administrator's onboarding completion and Personal membership snooze were
+reset at their explicit request. Organization and agent configuration were retained.

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { ArrowRightLeft, Building2, Check, Plus } from "lucide-react";
 
 import { CreateOrgDialog } from "@/components/teams";
@@ -17,9 +18,8 @@ import {
   Skeleton,
   EntityAvatar,
 } from "@/components/ui";
-import { useOrganizations, useOrganizationList, usePermissions } from "@/hooks";
+import { useOrganizations, useOrganizationList } from "@/hooks";
 import { ErrorState } from "@/components/states";
-import { Perm } from "@/types/permissions";
 import { ROUTES } from "@/lib/constants";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
@@ -56,9 +56,6 @@ export default function OrgsPage() {
   const ui = useTranslations("ui");
   const [query, setQuery] = useState("");
   const { orgs, activeOrgId, switchOrg } = useOrganizations();
-  const { can } = usePermissions();
-  const canServices = can(Perm.orgSettings) || can(Perm.budgetsManage);
-  const canGovernance = canServices || can(Perm.approvalsDecide);
   const organizations = useOrganizationList();
   const isLoading = organizations.isPending;
   const [createOpen, setCreateOpen] = useState(false);
@@ -199,30 +196,6 @@ export default function OrgsPage() {
                       </p>
                     </div>
                   </div>
-
-                  {isActive && (canServices || canGovernance) && (
-                    <div className="relative z-20 space-y-2 border-t pt-3">
-                      <p className="text-muted-foreground text-xs">{t("workspaceSettings")}</p>
-                      <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-                        {canServices && (
-                          <Link
-                            className="text-info focus-visible:outline-ring hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
-                            href={`${ROUTES.ORG_MEMBERS(org.id)}?tab=assistant`}
-                          >
-                            {t("tabAssistant")}
-                          </Link>
-                        )}
-                        {canGovernance && (
-                          <Link
-                            className="text-info focus-visible:outline-ring hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
-                            href={`${ROUTES.ORG_MEMBERS(org.id)}?tab=governance`}
-                          >
-                            {t("tabGovernance")}
-                          </Link>
-                        )}
-                      </div>
-                    </div>
-                  )}
 
                   <div className="relative z-20">
                     <Button

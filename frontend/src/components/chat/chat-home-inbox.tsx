@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, MessageSquare, ShieldCheck } from "lucide-react";
-import { useFormatter, useTranslations } from "next-intl";
+import { ArrowRight, ShieldCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePendingApprovals } from "@/hooks/use-pending-approvals";
 import { SuggestionMark, urgentFirst, useSuggestionSource } from "./suggestion-actions";
+
+import styles from "./chat-home-inbox.module.css";
 
 const PREVIEW_LIMIT = 2;
 
@@ -19,12 +21,10 @@ export function ChatHomeInbox({ onDiscuss }: { onDiscuss: (prompt: string) => vo
   const t = useTranslations("chat.homeInbox");
   const common = useTranslations("common");
   const inbox = useTranslations("inbox");
-  const format = useFormatter();
   const { sourceOf } = useSuggestionSource();
   const loading = suggested.isLoading || pending.isLoading;
   const failed = suggested.error || pending.error;
   const hasCachedContent = suggested.suggestions.length > 0 || pending.count > 0;
-  const discussLabel = inbox("discuss");
   const items = urgentFirst(
     suggested.suggestions.toSorted((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)),
   ).slice(0, PREVIEW_LIMIT - Number(pending.count > 0));
@@ -69,19 +69,12 @@ export function ChatHomeInbox({ onDiscuss }: { onDiscuss: (prompt: string) => vo
           {items.length > 0 ? (
             <ol>
               {items.map((item) => (
-                <li key={item.id} className="chat-home-timeline-entry">
-                  {Number.isFinite(Date.parse(item.created_at)) && (
-                    <time
-                      dateTime={item.created_at}
-                      className="text-muted-foreground text-xs tabular-nums"
-                    >
-                      {format.dateTime(new Date(item.created_at), {
-                        day: "numeric",
-                        month: "short",
-                      })}
-                    </time>
-                  )}
-                  <Link href={`/inbox#suggestion-${item.id}`} className="chat-home-inbox-topic">
+                <li key={item.id} className={`chat-home-timeline-entry ${styles.entry}`}>
+                  <button
+                    type="button"
+                    className={`chat-home-inbox-topic ${styles.topic}`}
+                    onClick={() => onDiscuss(inbox("discussPrompt", { id: item.id }))}
+                  >
                     <SuggestionMark suggestion={item} className="chat-home-inbox-source" />
                     <span className="chat-home-inbox-copy">
                       <span className="sr-only">
@@ -94,15 +87,6 @@ export function ChatHomeInbox({ onDiscuss }: { onDiscuss: (prompt: string) => vo
                         </Badge>
                       )}
                     </span>
-                  </Link>
-                  <button
-                    type="button"
-                    className="chat-home-inbox-discuss"
-                    aria-label={discussLabel}
-                    title={discussLabel}
-                    onClick={() => onDiscuss(inbox("discussPrompt", { id: item.id }))}
-                  >
-                    <MessageSquare className="size-[18px]" aria-hidden />
                   </button>
                 </li>
               ))}

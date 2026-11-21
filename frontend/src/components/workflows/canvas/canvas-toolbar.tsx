@@ -363,7 +363,7 @@ export function ShortcutSheet() {
   const setOverlay = useWorkflowEditorStore((state) => state.setOverlay);
   return (
     <Dialog open={overlay === "shortcuts"} onOpenChange={(open) => !open && setOverlay(null)}>
-      <DialogContent className="max-w-md">
+      <DialogContent data-workflow-fields className="max-w-md">
         <DialogHeader>
           <DialogTitle>{t("shortcutsTitle")}</DialogTitle>
         </DialogHeader>

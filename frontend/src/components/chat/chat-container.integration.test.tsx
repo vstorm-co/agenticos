@@ -303,6 +303,31 @@ beforeEach(() => {
 });
 
 describe("the chat container - answering a durable question", () => {
+  it("keeps a question reveal press stable until its click transfers focus", async () => {
+    useChatStore.getState().addMessage({
+      id: "question-start",
+      role: "user",
+      content: "Ask about format",
+      timestamp: new Date(),
+    });
+    mount(undefined, true);
+    const editor = await screen.findByRole("textbox", { name: "Type a message..." });
+    editor.focus();
+    receive("model_request_start", {});
+    receive("thinking_delta", { content: "Choosing a format" });
+    receive("ask_user", {
+      questions: [{ question: "Which format?", options: [{ label: "List" }] }],
+    });
+    const reveal = await screen.findByRole("button", { name: "Answer the agent’s question" });
+    expect(editor).toHaveAttribute("contenteditable", "false");
+    const press = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+    act(() => reveal.dispatchEvent(press));
+    expect(press.defaultPrevented).toBe(true);
+    expect(editor).toHaveFocus();
+    fireEvent.click(reveal);
+    expect(screen.getByRole("group", { name: "Question from the assistant" })).toHaveFocus();
+  });
+
   it("keeps the question disabled offline and resumes on the connected socket", async () => {
     mount();
     await screen.findByRole("button", { name: "Voice input" });

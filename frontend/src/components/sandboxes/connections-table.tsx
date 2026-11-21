@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Pencil, ShieldCheck, Star, Trash2 } from "lucide-react";
 
 import { Badge, Button, DataTable, type Column } from "@/components/ui";
@@ -11,6 +11,7 @@ import { useTranslations } from "next-intl";
 interface ConnectionsTableProps {
   connections: readonly SandboxConnectionRecord[];
   loading?: boolean;
+  empty?: ReactNode;
   onEdit: (connection: SandboxConnectionRecord) => void;
   onInspect: (connection: SandboxConnectionRecord) => void;
   onDelete: (connection: SandboxConnectionRecord) => void;
@@ -48,6 +49,7 @@ function addressLabel(connection: SandboxConnectionRecord): string {
 export function ConnectionsTable({
   connections,
   loading = false,
+  empty,
   onEdit,
   onInspect,
   onDelete,
@@ -184,6 +186,9 @@ export function ConnectionsTable({
 
   return (
     <DataTable<SandboxConnectionRecord>
+      clientPagination
+      empty={empty}
+      fillHeight
       columns={columns}
       rows={rows}
       loading={loading}

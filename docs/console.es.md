@@ -1,5 +1,5 @@
 ---
-source_sha: "fd54201aae3e"
+source_sha: "c5ea2ca61a76"
 ---
 
 # La consola { #the-console }
@@ -12,11 +12,25 @@ Si el onboarding de tu organización actual no está terminado, el enlace para c
 
 Inbox mantiene el mismo marco de lista, espaciado de filas, marcas de origen, tipografía de títulos y detalles y alineación adaptable de acciones en Todas, Urgentes, Resultados de rutinas, Sugerencias y Terminadas. Las terminadas conservan el estado de la decisión y la acción de recuperar elementos descartados; origen y hora también se ven en el teléfono. Los formularios de aprobación mantienen el mismo margen exterior, sus campos obligatorios y controles de permisos.
 
-Las fuentes se abren en un panel compacto de ancho ajustable. En ventanas de escritorio estrechas, abrirlo puede contraer temporalmente la lista de conversaciones; al cerrarlo se recupera la elección anterior, salvo que la hayas cambiado manualmente. Una cita desplaza solo la lista de fuentes y conserva la posición de la conversación. El chat público y el widget integrado aceptan mensajes multilínea: Enter envía, Mayús+Enter añade una línea y la composición de caracteres con IME no envía antes de tiempo.
+Archivos y Fuentes usan el mismo panel lateral compacto: inicialmente 400px, ajustable entre 360 y 420px y limitado al 38% del ancho del chat acoplado. En un escritorio estrecho pueden contraer temporalmente la lista de conversaciones; al cerrarlo se recupera la elección anterior, salvo cambios manuales. El navegador conserva más espacio de trabajo: inicialmente el 55%, ajustable del 35% al 65%. Una cita desplaza solo la lista de Fuentes y conserva la posición de la conversación.
+
+Al empezar el chat, Inbox muestra hasta dos prioridades sin fechas ni otro icono de chat. Al seleccionar una fila, su pregunta pasa al cuadro de mensaje para editarla; no se envía. **Abrir Inbox** lleva a la lista completa. **Workspace — projects** es el diseño predeterminado de la lista de conversaciones; `?sidebar=compact` y `?sidebar=comfortable` siguen disponibles para compararlos.
+
+El chat público y el widget integrado aceptan mensajes multilínea: Enter envía, Mayús+Enter añade una línea y la composición IME no envía antes de tiempo. En el chat principal, el público y el widget, leer mensajes anteriores pausa el seguimiento automático. El streaming y los cambios de tamaño conservan esa posición; volver al final o enviar deliberadamente otro mensaje reanuda el seguimiento. Reconectar o cargar el historial no desplaza al lector hacia abajo.
+
+Las ejecuciones y los registros de workflows usan el mismo marco: filtros sobre las filas desplazables y navegación debajo. Las plantillas de workflows siguen el mismo recorrido de categoría a biblioteca que las de agentes. Una prueba con el panel Run confirma allí su inicio en lugar de repetir el éxito en una notificación; los errores siguen siendo explícitos. Los campos de texto de workflows conservan su color al pasar el cursor, con foco y validación visibles.
+
+Las tablas principales ocupan el espacio restante; filtros, encabezados y pie siguen disponibles mientras se desplazan las filas. Las listas locales completas se ordenan antes de dividirse en páginas de 50 registros. El pie permanece en **1 / 1**, con las direcciones no disponibles desactivadas. Las listas del servidor conservan su paginación. Tablas virtuales, chats de proyectos y documentos de conocimiento mantienen la carga incremental y sus cifras reales, sin inventar un total de páginas. Informes integrados y matrices de configuración conservan su diseño.
+
+Las categorías, los iconos y las etiquetas de datasets usan estilos neutros; los errores mantienen su color de aviso. Los ajustes separan la evaluación de la generación y mejora. Cambiar un modelo auxiliar mantiene Guardar y Cancelar en su sitio, desactivados sin cambios, con una explicación estable del modelo alternativo.
+
+Compartir usa los mismos campos, menús y filas compactos que el resto de la consola. Un primer fallo de lectura muestra un error y Reintentar. Un fallo posterior de servicio o red puede conservar las personas ya cargadas; una denegación de autorización o un recurso eliminado oculta las filas de acceso en caché y la edición. Una búsqueda de miembros fallida ofrece su propio reintento en lugar de sugerir que no hay personas.
+
+Apps resuelve los destinos disponibles del recorrido antes del primer paso; el contador excluye los controles ausentes. El último paso visible ofrece Finalizar. La ayuda permanece en la cabecera fija del visor incluso con las demás opciones plegadas.
 
 Las galerías de agentes muestran la publicación mediante un punto y texto. Un indicador ámbar pequeño señala lo que requiere atención y permite consultar el motivo al pasar el cursor, enfocar con el teclado o tocar. Las tarjetas de workflow se centran en nombre, descripción, acceso, publicación y acciones existentes; los disparadores, nodos, etiquetas y estadísticas siguen en el editor, los filtros o el historial. Las etiquetas se introducen en un solo campo, conservando el teclado y la prevención de duplicados.
 
-Los catálogos de recursos usan tarjetas más grandes con icono, título, descripción y un pie separado para estado y acciones. Agentes, tablas, workflows, bases de conocimiento, proyectos, datasets, servidores MCP, skills, archivos de contexto, Apps y grupos comparten el marco y conservan sus propias acciones. En el Builder, los ajustes desde Model aparecen en tarjetas desplegables coherentes. Thinking y Answer format están en Model settings. First messages muestra las sugerencias integradas cuando no hay mensajes personalizados. Model comienza abierto; cerrar una sección conserva sus editores y los enlaces de Voice abren la sección correspondiente.
+Los catálogos usan espaciado discreto, metadatos neutros y acciones coherentes. Proyectos, bases de conocimiento, tablas y datasets conservan acceso, tamaño y vínculos relevantes sin fechas en las tarjetas. En Build, Instrucciones tiene su propia superficie de escritura; Modelo y las opciones Variables, Voz y Primeros mensajes comparten un panel con separadores. El modelo principal permanece visible. Thinking y Answer format siguen en los ajustes del modelo; la configuración obligatoria pendiente y los errores de validación siguen accesibles.
 
 En Build, First messages muestra tarjetas con icono, título y mensaje. Abre una tarjeta para editarla. Al guardar un ejemplo editado, los demás ejemplos se conservan en el borrador. Skills, Context y Knowledge search en Toolbox usan listas seleccionables. Un modelo de chat guardado sigue visible en Models y Saved models. Desactiva las sugerencias para ver más elementos de Inbox en el chat nuevo.
 
@@ -28,7 +42,7 @@ Al crear un proyecto, primero eliges nombre, espacio de trabajo y destinatarios.
 
 Organizaciones permite buscar nombres y slugs de las membresías, con el número de coincidencias en la misma barra. Borrar la búsqueda restaura la lista completa de membresías.
 
-La tarjeta del espacio activo ofrece accesos a **IA y servicios** y **Presupuesto y aprobaciones** según sus permisos en la organización actual. La tarjeta AI Architect enlaza directamente al Builder junto al interruptor, sin una sección desplegable adicional. Los demás servicios de IA conservan formularios desplegables cuando tienen ajustes que editar.
+La tarjeta AI Architect enlaza directamente al Builder junto al interruptor, sin otra sección desplegable. Los demás servicios de IA conservan formularios desplegables cuando tienen ajustes que editar.
 
 La vista Me empieza con una tarjeta de resumen del período, seguida de un Briefing compacto con títulos, fuentes y acciones. Los detalles completos siguen en Inbox.
 
@@ -74,7 +88,7 @@ Las introducciones de páginas y explicaciones de ajustes están en el icono de 
 
 En Agentes, Skills, Context y el historial, **Filtros** despliega opciones adicionales en cualquier tamaño de pantalla e indica cuántos filtros están activos.
 
-Las tarjetas de agentes muestran directamente estado, acceso y fecha de edición. Las tarjetas de Skills y Context mantienen visibles la vista previa, el resumen, **Used by** con retratos y **Add to an agent**. Categoría y audiencia están en una fila compacta junto a la acción. No hay un desplegable Detalles. Para borrar un skill o archivo de contexto, abre su editor y el menú de tres puntos junto a **Share**; se sigue pidiendo confirmación y solo quien puede editar tiene acceso a esta acción.
+Las tarjetas de agentes muestran publicación y acceso directamente. Las tarjetas de Skills y Context mantienen visibles la vista previa, el resumen, **Used by** con retratos y **Add to an agent**. Categoría y destinatarios están junto a la acción. Para borrar un skill o archivo de contexto, abre su editor y el menú de tres puntos junto a **Share**; se requiere confirmación y permiso de edición.
 
 Los nombres, la navegación y los valores de formularios usan texto destacado; los
 metadatos siguen en segundo plano. Las acciones principales tienen un relleno neutro
@@ -138,7 +152,7 @@ Los metadatos de enlaces guardan solo un identificador opaco del origen para los
 
 El panel de pruebas del editor puede ocupar todo el espacio de trabajo sin reiniciar la conversación ni el texto sin enviar. Comparar dos versiones abre este espacio automáticamente; el botón de pantalla completa o Escape devuelve al editor. Los selectores de versión tienen su propia fila para mantener accesibles los controles en paneles estrechos. En el teléfono, los botones de versión alternan entre los chats comparados; ambas conversaciones siguen funcionando y conservan sus borradores. El prompt compartido sigue llegando a ambas a la vez.
 
-La navegación conserva los layouts compartidos al cambiar de sección y usa una transición breve en lugar de reiniciar el marco. El movimiento reducido desactiva la transición. Las tarjetas del dashboard esperan la disposición guardada, las páginas con permisos esperan su lectura y la lista administrativa de usuarios comienza cargando, sin afirmar que está vacía. Los filtros de grupos y autores de Apps reservan espacio durante la carga. Las fuentes del Inbox esperan los metadatos del catálogo; los enlaces a conversaciones de trabajo usan la misma ruta que la barra lateral.
+La navegación conserva los diseños compartidos sin fundidos ni animaciones de entrada en secciones estáticas de ajustes. La barra superior de progreso cubre también la navegación iniciada por botones de acción. El subrayado de las pestañas se mueve entre sus etiquetas reales; el movimiento reducido lo mantiene estático. Los widgets esperan la disposición guardada y las páginas con permisos esperan su lectura. Las listas administrativas empiezan cargando, sin afirmar que están vacías. Los filtros de grupos y autores de Apps reservan espacio durante la carga.
 
 En el móvil, los mensajes enviados se detienen debajo de los botones flotantes del chat para mantener visible el avatar del usuario. El inicio de la conversación y el espacio reservado para la respuesta usan la misma separación; los chats de escritorio e integrados conservan un margen menor.
 
@@ -149,7 +163,6 @@ El botón compacto bajo una respuesta abre Sources junto a la conversación y oc
 Los enlaces web de las respuestas usan la misma política de favicon, sin depender de conexiones MCP. Los iconos de sitios desconocidos pasan por el proxy del mismo origen de la consola y el servicio fijo de iconos de DuckDuckGo. Este solo recibe el nombre de host, nunca las cookies o la dirección IP del lector, la ruta ni los parámetros de URL. El proxy rechaza redirecciones, contenido no rasterizado e iconos de más de 64 KiB; el tiempo límite es de tres segundos. Si falta el icono o no está disponible, aparece un globo. Las vistas inertes de transcripciones no cargan imágenes remotas ni iconos de sitios desconocidos.
 
 Una ejecución fallida muestra el error separado de la respuesta y fuera de las herramientas plegadas, incluso después de recargar la conversación. El filtro de contenido del proveedor tiene una explicación explícita; las respuestas originales del proveedor y los errores históricos desconocidos no se copian a transcripciones compartidas. El trabajo parcial sigue disponible y no se presenta como terminado.
-
 
 Los adjuntos permanecen dentro del cuadro de mensaje en una fila desplazable. Las imágenes seguras muestran una miniatura local durante la carga; un indicador giratorio señala las cargas pendientes sin inventar porcentajes. Los subrayados de pestañas y las selecciones segmentadas se deslizan entre opciones; con movimiento reducido, cambian de inmediato.
 
@@ -176,12 +189,12 @@ vacía.
 Un selector arriba dice de quién es el dashboard, y ofrece solo las vistas que
 puedes abrir. Todos empiezan en **Me**:
 
-| Vista | Responde a |
-| --- | --- |
-| **Me** | Tu período, Briefing y consejos Discover; conversaciones recientes, proyectos, tus agentes, agentes más usados y visualizaciones recientes. Esta vista personal predeterminada omite las tarjetas de decisiones, temas en segundo plano y recursos compartidos. |
-| **Organization** | La página que se ordena, descrita abajo |
-| **Group** | Los miembros de un [grupo](departments.md) - sus runs, gasto, modelos, cuándo trabajan y quién lo usa más. El grupo se elige junto al selector. Un grupo cuyos miembros no ejecutaron nada en el periodo lo dice una vez, con un enlace al grupo, en lugar de una página de tarjetas vacías |
-| **Deployment** | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones |
+| Vista            | Responde a                                                                                                                                                                                                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Me**           | Tu período, Briefing y consejos Discover; conversaciones recientes, proyectos, tus agentes, agentes más usados y visualizaciones recientes. Esta vista personal predeterminada omite las tarjetas de decisiones, temas en segundo plano y recursos compartidos.                             |
+| **Organization** | La página que se ordena, descrita abajo                                                                                                                                                                                                                                                     |
+| **Group**        | Los miembros de un [grupo](departments.md) - sus runs, gasto, modelos, cuándo trabajan y quién lo usa más. El grupo se elige junto al selector. Un grupo cuyos miembros no ejecutaron nada en el periodo lo dice una vez, con un enlace al grupo, en lugar de una página de tarjetas vacías |
+| **Deployment**   | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones                                                                                                                                                         |
 
 El Briefing personal alinea cada título y origen con sus acciones. Discover aparece justo debajo. Las visualizaciones recientes encajan sus imágenes en vistas previas centradas. Las preguntas respondidas dejan de esperar cuando el servidor inicia la continuación admitida. Un clic cierra los avisos descartables con una salida breve; los avisos de operaciones en curso siguen visibles.
 
@@ -192,11 +205,11 @@ agrupadas en bandas. El resto - integraciones, canales, rutinas, sincronización
 de conocimiento, departamentos, miembros, sandboxes - espera en el catálogo, a un
 clic bajo **Customize**:
 
-| Banda | Responde a |
-| --- | --- |
-| _(sin título, arriba del todo)_ | El resumen, los runs en el tiempo y cómo terminaron |
-| **Needs attention** | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, tus [notificaciones](#the-bell) más recientes |
-| **Usage & cost** | Qué agents se usan, gasto, [minutos de voz](#voice-calls), cuándo ocurre el trabajo, de dónde vienen los runs, mezcla de modelos, latencia, calidad de respuesta, quién lo usa |
+| Banda                           | Responde a                                                                                                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| _(sin título, arriba del todo)_ | El resumen, los runs en el tiempo y cómo terminaron                                                                                                                            |
+| **Needs attention**             | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, tus [notificaciones](#the-bell) más recientes                              |
+| **Usage & cost**                | Qué agents se usan, gasto, [minutos de voz](#voice-calls), cuándo ocurre el trabajo, de dónde vienen los runs, mezcla de modelos, latencia, calidad de respuesta, quién lo usa |
 
 La tarjeta **Approval outcomes** espera en el catálogo, para quien pueda ver workflows.
 Muestra cómo decidieron las personas los [pasos de aprobación](workflows.md#running-a-workflow)
@@ -1004,27 +1017,27 @@ Context y Documents. Se recuerda la elección manual de abrirlo o cerrarlo.
 **Organization** (Organizations, Groups) siguen siendo plegables y recuerdan la
 elección. Un grupo que contiene la página actual siempre se abre para mantenerla visible.
 
-| Área | Contiene | Lee |
-| --- | --- | --- |
-| **Agents** | El catálogo, el Builder, las versiones, el uso compartido, las pruebas, la actividad | [Tu primer agent](first-agent.md) |
-| **Chat** | Hablar con un agent publicado | [Superficies](channels.md) |
-| **Knowledge** | Colecciones, documentos, fuentes de sincronización, ajustes de ingesta | [Procesamiento de archivos](file-processing.md) |
-| **Skills** | Procedimientos escritos que un agent carga cuando hacen falta | [Skills](skills.md) |
-| **Context** | Conocimiento permanente ligado a muchos agents | [Archivos de contexto](context.md) |
-| **Tables** | Registros tipados y sus columnas, vistos como tabla, tablero kanban o lista | [Virtual Tables](virtual-tables.md) |
-| **Workflows** | Automatizaciones de varios pasos que ejecutan tus agents, construidas en un lienzo | [Workflows](workflows.md) |
-| **Datasets** | Casos de prueba versionados, importados, exportados o añadidos desde una respuesta valorada | [Datasets](datasets.md) |
-| **Routines** | Horarios y disparadores por evento | [Disparadores](triggers.md) |
-| **Runs** | Qué se ejecutó, cuánto costó, qué tocó, si falló | [Governance](governance.md#audit) |
-| **Documents** | Todos los archivos que los agents guardan para ti: lo que adjuntaste y lo que escribieron | [La sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
-| **Sandboxes** | Dónde ejecutan código los agents: hosts, sesiones en curso, política | [La sandbox](sandbox.md) |
-| **MCP servers** | Conexiones a herramientas externas, personales y de toda la organización | [MCP](mcp.md) |
-| **Channels** | Bots de Slack, Teams, Telegram y Mattermost, widgets, páginas alojadas | [Superficies](channels.md) |
-| **Remote agents** | Agents de otros proveedores, registrados por su agent card de A2A, en los que delegan los agents | [Capabilities](reference/capabilities.md#remote-agents) |
-| **Vault** | Credenciales, selladas por organización | [Secretos](secrets.md) |
-| **Organizations** | Miembros, roles, invitaciones | [Permisos](permissions.md) |
-| **Settings** | Providers, valores de ingesta por defecto, notificaciones, tu propio perfil | [Configuración](configuration.md) |
-| **Admin** | El despliegue en sí: usuarios, inquilinos, sistema, jobs en segundo plano, ajustes del despliegue | [El despliegue](deployment.md) |
+| Área              | Contiene                                                                                          | Lee                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **Agents**        | El catálogo, el Builder, las versiones, el uso compartido, las pruebas, la actividad              | [Tu primer agent](first-agent.md)                                           |
+| **Chat**          | Hablar con un agent publicado                                                                     | [Superficies](channels.md)                                                  |
+| **Knowledge**     | Colecciones, documentos, fuentes de sincronización, ajustes de ingesta                            | [Procesamiento de archivos](file-processing.md)                             |
+| **Skills**        | Procedimientos escritos que un agent carga cuando hacen falta                                     | [Skills](skills.md)                                                         |
+| **Context**       | Conocimiento permanente ligado a muchos agents                                                    | [Archivos de contexto](context.md)                                          |
+| **Tables**        | Registros tipados y sus columnas, vistos como tabla, tablero kanban o lista                       | [Virtual Tables](virtual-tables.md)                                         |
+| **Workflows**     | Automatizaciones de varios pasos que ejecutan tus agents, construidas en un lienzo                | [Workflows](workflows.md)                                                   |
+| **Datasets**      | Casos de prueba versionados, importados, exportados o añadidos desde una respuesta valorada       | [Datasets](datasets.md)                                                     |
+| **Routines**      | Horarios y disparadores por evento                                                                | [Disparadores](triggers.md)                                                 |
+| **Runs**          | Qué se ejecutó, cuánto costó, qué tocó, si falló                                                  | [Governance](governance.md#audit)                                           |
+| **Documents**     | Todos los archivos que los agents guardan para ti: lo que adjuntaste y lo que escribieron         | [La sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
+| **Sandboxes**     | Dónde ejecutan código los agents: hosts, sesiones en curso, política                              | [La sandbox](sandbox.md)                                                    |
+| **MCP servers**   | Conexiones a herramientas externas, personales y de toda la organización                          | [MCP](mcp.md)                                                               |
+| **Channels**      | Bots de Slack, Teams, Telegram y Mattermost, widgets, páginas alojadas                            | [Superficies](channels.md)                                                  |
+| **Remote agents** | Agents de otros proveedores, registrados por su agent card de A2A, en los que delegan los agents  | [Capabilities](reference/capabilities.md#remote-agents)                     |
+| **Vault**         | Credenciales, selladas por organización                                                           | [Secretos](secrets.md)                                                      |
+| **Organizations** | Miembros, roles, invitaciones                                                                     | [Permisos](permissions.md)                                                  |
+| **Settings**      | Providers, valores de ingesta por defecto, notificaciones, tu propio perfil                       | [Configuración](configuration.md)                                           |
+| **Admin**         | El despliegue en sí: usuarios, inquilinos, sistema, jobs en segundo plano, ajustes del despliegue | [El despliegue](deployment.md)                                              |
 
 El catálogo de **Agents** se puede filtrar por **category** y **tag** — las
 etiquetas editables y locales a la organización que se muestran en la tarjeta de
@@ -1162,12 +1175,12 @@ conserva el destino y la cuenta ya creada.
 
 El inicio respeta los permisos y el trabajo que ya existe:
 
-| Persona | Inicio guiado |
-| --- | --- |
-| Administrador de la aplicación | Crear o elegir una organización de empresa, preparar identidad e invitaciones y decidir cómo se incorporan las cuentas futuras. |
-| Administrador de organización | Preparar la organización y su límite de gasto, sin controles del despliegue. |
-| Cuenta nueva de miembro | Bienvenida, perfil personal y contexto laboral opcionales, después una primera tarea. |
-| Cuenta existente en otra organización | Bienvenida a la organización; usar el perfil guardado o revisarlo de forma deliberada. |
+| Persona                               | Inicio guiado                                                                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Administrador de la aplicación        | Crear o elegir una organización de empresa, preparar identidad e invitaciones y decidir cómo se incorporan las cuentas futuras. |
+| Administrador de organización         | Preparar la organización y su límite de gasto, sin controles del despliegue.                                                    |
+| Cuenta nueva de miembro               | Bienvenida, perfil personal y contexto laboral opcionales, después una primera tarea.                                           |
+| Cuenta existente en otra organización | Bienvenida a la organización; usar el perfil guardado o revisarlo de forma deliberada.                                          |
 
 Un acompañante AgenticOS explica cada decisión con mensajes preparados de la interfaz.
 No son respuestas de un modelo ni llamadas de IA. El perfil y el contexto acompañan

@@ -740,7 +740,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             <>
               {tab === "table" && (
                 // A bounded height, so the grid scrolls its own rows and draws only those in view.
-                <div className={cn("flex min-h-80 flex-col", "min-h-80 flex-1")}>
+                <div className="flex min-h-0 flex-1 flex-col">
                   <TableGridView
                     recordColumns={liveColumns}
                     tableId={id}

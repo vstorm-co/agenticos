@@ -195,7 +195,7 @@ describe("ProjectCard", () => {
     expect(screen.getByText("L")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByText("2 chats")).toBeInTheDocument();
     expect(screen.getByText("Starts with Writer")).toBeInTheDocument();
-    expect(screen.getByText(/Active/)).toBeInTheDocument();
+    expect(screen.queryByText(/Active/)).toBeNull();
   });
 
   it("leaves out what a bare project does not have", () => {

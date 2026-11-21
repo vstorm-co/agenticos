@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { ChatPanel } from "./chat-panel";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
 import { Pin, Play } from "lucide-react";
@@ -50,7 +50,7 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
   const watchRun = useWorkflowEditorStore((state) => state.watchRun);
   const tableDrift = useWorkflowEditorStore((state) => state.tableDrift);
   const [asking, setAsking] = useState(false);
-  const { start } = useWorkflowRuns(workflowId, asking);
+  const { start } = useWorkflowRuns(workflowId, asking, { startFeedback: "inline" });
 
   const problems = useMemo(
     () =>
@@ -172,7 +172,11 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
         </Popover>
       )}
       <Sheet open={chatOpen} onOpenChange={setChatOpen}>
-        <SheetContent side="right" className="flex w-full flex-col sm:max-w-xl">
+        <SheetContent
+          data-workflow-fields
+          side="right"
+          className="flex w-full flex-col sm:max-w-xl"
+        >
           <SheetHeader>
             <SheetTitle>{tw("chatPanelTitle")}</SheetTitle>
             <SheetClose onClick={() => setChatOpen(false)} />

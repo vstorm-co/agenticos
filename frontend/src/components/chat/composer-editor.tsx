@@ -297,8 +297,10 @@ export function ComposerEditor({
 
   /** Put `text` where the caret is, through the message rather than the DOM. */
   const insert = (root: HTMLElement, text: string) => {
-    const at = caretIn(root) ?? value.length;
-    emit(value.slice(0, at) + text + value.slice(at), at + text.length);
+    const selected = selectionIn(root);
+    const from = selected?.from ?? caretIn(root) ?? value.length;
+    const to = selected?.to ?? from;
+    emit(value.slice(0, from) + text + value.slice(to), from + text.length);
   };
 
   return (
@@ -367,6 +369,25 @@ export function ComposerEditor({
             event.preventDefault();
             insert(event.currentTarget, "\n");
           }
+        }}
+        onCopy={(event) => {
+          const selected = selectionIn(event.currentTarget);
+          if (selected === null) return;
+          event.preventDefault();
+          event.clipboardData.setData(
+            "text/plain",
+            messageOf(event.currentTarget).slice(selected.from, selected.to),
+          );
+        }}
+        onCut={(event) => {
+          const selected = selectionIn(event.currentTarget);
+          if (selected === null || disabled || readOnly) return;
+          event.preventDefault();
+          event.clipboardData.setData(
+            "text/plain",
+            messageOf(event.currentTarget).slice(selected.from, selected.to),
+          );
+          insert(event.currentTarget, "");
         }}
         onPaste={(event) => {
           onPaste?.(event);

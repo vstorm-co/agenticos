@@ -3,7 +3,7 @@
 import { COMMAND_ITEM_FOCUS, MENU_ROW } from "@/components/ui/control-styles";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { Command } from "cmdk";
@@ -61,6 +61,7 @@ interface ConversationItem {
 export function CommandPalette() {
   const router = useRouter();
   const t = useTranslations("nav");
+  const common = useTranslations("common");
   const { user, logout } = useAuth();
   const { can } = usePermissions();
   const { apiUrl } = usePublicConfig();
@@ -108,9 +109,14 @@ export function CommandPalette() {
     enabled: open,
   });
 
-  const agentItems = agents.data?.items.slice(0, MAX_ENTITIES) ?? [];
-  const kbItems = kbs.data?.slice(0, MAX_ENTITIES) ?? [];
+  const agentItems = can(Perm.agentsView) ? (agents.data?.items.slice(0, MAX_ENTITIES) ?? []) : [];
+  const kbItems = can(Perm.collectionsView) ? (kbs.data?.slice(0, MAX_ENTITIES) ?? []) : [];
   const conversationItems = conversations.data?.items ?? [];
+  const failedQueries = [
+    ...(can(Perm.agentsView) ? [agents] : []),
+    ...(can(Perm.collectionsView) ? [kbs] : []),
+    conversations,
+  ].filter((query) => query.isError);
 
   const go = (href: string) => {
     useSidebarStore.getState().close();
@@ -161,6 +167,24 @@ export function CommandPalette() {
           {t("esc")}
         </kbd>
       </div>
+
+      {failedQueries.length > 0 && (
+        <div
+          role="alert"
+          className="border-border flex items-center justify-between gap-3 border-b px-4 py-2 text-sm"
+        >
+          <p className="text-muted-foreground">{t("searchUnavailable")}</p>
+          <button
+            type="button"
+            className="hover:bg-control min-h-10 shrink-0 rounded-md px-3 pointer-coarse:min-h-11"
+            onClick={() => {
+              for (const query of failedQueries) void query.refetch();
+            }}
+          >
+            {common("retry")}
+          </button>
+        </div>
+      )}
 
       <Command.List className="max-h-[min(55dvh,28rem)] min-h-0 scrollbar-thin overflow-y-auto overscroll-contain px-2 py-2">
         <Command.Empty className="text-muted-foreground px-4 py-10 text-center text-sm">

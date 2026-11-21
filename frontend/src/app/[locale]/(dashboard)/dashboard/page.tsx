@@ -419,7 +419,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <div>
+    <div className="flex min-h-0 flex-1 flex-col">
       {view === "me" ? (
         <MeHeader period={period} canRun={can(Perm.agentsRun)} actions={headerActions} />
       ) : (
@@ -447,7 +447,7 @@ export default function DashboardPage() {
       />
       <div
         key={`${view}:${view === "group" ? (group?.id ?? "") : ""}`}
-        className="tab-panel"
+        className="tab-panel flex flex-1 flex-col"
         data-state="active"
         data-dashboard-view={view}
       >

@@ -154,6 +154,47 @@ describe("the palette's named entities", () => {
     expect(apiClient.get).not.toHaveBeenCalled();
   });
 
+  it("exposes an unavailable entity read and retries only that source", async () => {
+    let broken = true;
+    vi.mocked(apiClient.get).mockImplementation(async (endpoint: string) => {
+      if (endpoint === "/agents" && broken) throw new Error("internal details stay private");
+      return ANSWERS[endpoint];
+    });
+    await openPalette();
+    expect(await screen.findByRole("alert")).toHaveTextContent("searchUnavailable");
+    expect(screen.queryByText("internal details stay private")).toBeNull();
+    expect(await screen.findByRole("option", { name: "E2E Handbook" })).toBeVisible();
+    broken = false;
+    await userEvent.click(screen.getByRole("button", { name: "retry" }));
+    expect(await screen.findByRole("option", { name: "Getting Started" })).toBeVisible();
+    expect(apiClient.get).toHaveBeenCalledTimes(4);
+    expect(vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === "/kb")).toHaveLength(1);
+    expect(
+      vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === "/conversations"),
+    ).toHaveLength(1);
+  });
+
+  it("does not render cached names after their permission is withdrawn", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(
+      <QueryClientProvider client={client}>
+        <CommandPalette />
+      </QueryClientProvider>,
+    );
+    act(() => window.dispatchEvent(new CustomEvent("command-palette:open")));
+    expect(await screen.findByRole("option", { name: "Getting Started" })).toBeVisible();
+    can.mockImplementation(
+      (permission) => !["agents:view", "collections:view"].includes(permission),
+    );
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <CommandPalette />
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByRole("option", { name: "Getting Started" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "E2E Handbook" })).toBeNull();
+  });
+
   it("does not ask for entities the caller may not see", async () => {
     can.mockImplementation((permission) => permission !== "collections:view");
 

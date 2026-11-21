@@ -103,32 +103,12 @@ it("refreshes memberships after the create dialog reports a new organization", a
   expect(state.refetch).toHaveBeenCalledOnce();
 });
 
-it("offers settings shortcuts only for the active organization and held permissions", () => {
-  state.held = [Perm.orgSettings];
-  render(<OrgsPage />);
-  expect(screen.getByRole("link", { name: "AI & services" })).toHaveAttribute(
-    "href",
-    "/orgs/personal/members?tab=assistant",
-  );
-  expect(screen.getByRole("link", { name: "Budget and approvals" })).toHaveAttribute(
-    "href",
-    "/orgs/personal/members?tab=governance",
-  );
-  expect(document.querySelector('a[href="/orgs/company/members?tab=assistant"]')).toBeNull();
-});
-
-it("does not show administrative shortcuts without permission", () => {
+it("keeps organization switch actions aligned without workspace settings shortcuts", () => {
+  state.held = [Perm.orgSettings, Perm.approvalsDecide];
   render(<OrgsPage />);
   expect(screen.queryByText("Settings for this workspace")).toBeNull();
   expect(screen.queryByRole("link", { name: "AI & services" })).toBeNull();
-});
-
-it("offers an approval-only user the governance route without AI configuration", () => {
-  state.held = [Perm.approvalsDecide];
-  render(<OrgsPage />);
-  expect(screen.getByRole("link", { name: "Budget and approvals" })).toHaveAttribute(
-    "href",
-    "/orgs/personal/members?tab=governance",
-  );
-  expect(screen.queryByRole("link", { name: "AI & services" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Budget and approvals" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Current" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Switch" })).toBeEnabled();
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { lazy, Suspense, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ErrorState } from "@/components/states";

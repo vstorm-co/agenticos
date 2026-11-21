@@ -16,9 +16,16 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createTranslator } from "next-intl";
+import en from "@/../messages/en.json";
+import pl from "@/../messages/pl.json";
+import de from "@/../messages/de.json";
+import tr from "@/../messages/tr.json";
+
 import type { Conversation } from "@/types/conversation";
 import { ConversationSidebar } from "./conversation-sidebar";
 import { apiClient } from "@/lib/api-client";
+import { useChatPanelStore } from "@/stores/chat-panel-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import { toast } from "sonner";
 import * as invalidation from "@/lib/coalesced-invalidation";
@@ -544,8 +551,12 @@ describe("what the sidebar says about the list", () => {
     await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
     const dialog = screen.getByRole("dialog", { name: "Rename" });
+    expect(within(dialog).getByText("Conversation title")).toBeVisible();
     const field = within(dialog).getByDisplayValue("Quarterly numbers");
     await waitFor(() => expect(field).toHaveFocus());
+    expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(field).toHaveProperty("selectionStart", 0);
+    expect(field).toHaveProperty("selectionEnd", "Quarterly numbers".length);
     await userEvent.clear(field);
     await userEvent.type(field, "Discard this title");
     await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
@@ -1306,6 +1317,23 @@ describe("making temporary room for Sources", () => {
     }
   });
 
+  it("makes the same temporary room for Files without changing a deliberate collapse", async () => {
+    const bounds = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(0, 0, 1100, 800));
+    try {
+      mount();
+      await screen.findByRole("button", { name: "Collapse conversations sidebar" });
+      act(() => useChatPanelStore.getState().setFilesOpen(true));
+      expect(screen.getByRole("button", { name: "Expand conversations sidebar" })).toBeVisible();
+      act(() => useChatPanelStore.getState().setFilesOpen(false));
+      expect(screen.getByRole("button", { name: "Collapse conversations sidebar" })).toBeVisible();
+    } finally {
+      act(() => useChatPanelStore.getState().setFilesOpen(false));
+      bounds.mockRestore();
+    }
+  });
+
   it("keeps the list expanded when the desktop chat has enough width", async () => {
     const bounds = vi
       .spyOn(Element.prototype, "getBoundingClientRect")
@@ -1321,3 +1349,23 @@ describe("making temporary room for Sources", () => {
     }
   });
 });
+
+it.each([
+  { locale: "en", messages: en, label: "Conversation title" },
+  { locale: "pl", messages: pl, label: "Tytuł rozmowy" },
+  { locale: "de", messages: de, label: de.chat.conversationTitle },
+  { locale: "tr", messages: tr, label: "Sohbet başlığı" },
+])(
+  "resolves the rename field label from the actual $locale catalog",
+  ({ locale, messages, label }) => {
+    const t = createTranslator({
+      locale,
+      messages,
+      namespace: "chat",
+      onError: (error) => {
+        throw error;
+      },
+    });
+    expect(t("conversationTitle")).toBe(label);
+  },
+);

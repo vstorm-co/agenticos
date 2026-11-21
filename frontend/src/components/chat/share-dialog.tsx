@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/select";
 import { useConversationShares, useMembers } from "@/hooks";
 import { ShareLinkField } from "@/components/sharing/share-link-field";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getErrorMessage } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
@@ -235,7 +234,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
         <div className="space-y-5">
           <div className="space-y-2">
             <div className="grid grid-cols-2 items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-              <div className="col-span-2 min-w-0 sm:col-span-1 [&>button]:w-full [&>button]:justify-start">
+              <div className="col-span-2 min-w-0 sm:col-span-1 [&>button]:min-h-10 [&>button]:w-full [&>button]:justify-start pointer-coarse:[&>button]:min-h-11">
                 <MemberPicker
                   members={candidates}
                   selected={picked === null ? [] : [picked]}
@@ -244,11 +243,18 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                   }
                   label={() => (chosen ? displayName(chosen) : t("choosePerson"))}
                   scope={t("shareConversationTitle")}
-                  disabled={candidates.length === 0}
+                  disabled={candidates.length === 0 || isSharing}
                 />
               </div>
-              <Select value={permission} onValueChange={(v) => setPermission(toPermission(v))}>
-                <SelectTrigger className="h-9 w-full sm:w-28" aria-label={t("accessLevel")}>
+              <Select
+                value={permission}
+                onValueChange={(v) => setPermission(toPermission(v))}
+                disabled={isSharing}
+              >
+                <SelectTrigger
+                  className="h-10 w-full sm:w-28 pointer-coarse:h-11"
+                  aria-label={t("accessLevel")}
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -324,7 +330,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                       disabled={changingId !== null || revokingId !== null}
                     >
                       <SelectTrigger
-                        className="h-8 w-24 shrink-0"
+                        className="h-10 w-24 shrink-0 pointer-coarse:h-11"
                         aria-label={t("accessLevelFor", { name: displayName(person) })}
                         aria-busy={changingId === share.id}
                       >
@@ -342,7 +348,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                       size="icon"
                       onClick={() => handleRevoke(share)}
                       disabled={changingId !== null || revokingId !== null}
-                      className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
+                      className="text-muted-foreground hover:text-destructive size-10 shrink-0 pointer-coarse:size-11"
                       aria-label={t("revokeAccess")}
                     >
                       {revokingId === share.id ? <Loader2 className="animate-spin" /> : <X />}
@@ -353,15 +359,22 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
             </ul>
           </section>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Globe className="size-4" aria-hidden />
-                {link ? t("anyoneWithLink") : t("restricted")}
-              </CardTitle>
-              {!link && <CardDescription>{t("restrictedHint")}</CardDescription>}
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <section className="space-y-2">
+            <h3 className="text-sm font-medium">{tSharing("generalAccess")}</h3>
+            <div className="space-y-3 rounded-xl border p-3">
+              <div className="flex items-start gap-3">
+                <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full">
+                  <Globe className="size-4" aria-hidden />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">
+                    {link ? t("anyoneWithLink") : t("restricted")}
+                  </p>
+                  {!link && (
+                    <p className="text-muted-foreground mt-1 text-xs">{t("restrictedHint")}</p>
+                  )}
+                </div>
+              </div>
               {link && linkShare ? (
                 <>
                   <ShareLinkField
@@ -371,7 +384,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                   />
                   <Button
                     variant="outline"
-                    size="sm"
+                    className="h-10 pointer-coarse:h-11"
                     onClick={() => void handleRevoke(linkShare)}
                     disabled={changingId !== null || revokingId !== null}
                   >
@@ -380,7 +393,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                 </>
               ) : (
                 <Button
-                  size="sm"
+                  className="h-10 pointer-coarse:h-11"
                   loading={isGeneratingLink}
                   disabled={isLoading}
                   onClick={handleGenerateLink}
@@ -388,8 +401,8 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                   {t("generateShareLink")}
                 </Button>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         </div>
       </DialogContent>
     </Dialog>

@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  Label,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -41,6 +42,7 @@ import {
   useChatSidebarStore,
   useWorkingStore,
 } from "@/stores";
+import { useChatPanelStore } from "@/stores/chat-panel-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import { useChanged } from "@/hooks/use-changed";
 import { DEFAULT_COLLAPSED_BANDS, LONG_LIST } from "@/stores/chat-sidebar-store";
@@ -133,7 +135,7 @@ function ConversationItem({
   const [editTitle, setEditTitle] = useState(conversation.title || "");
 
   const handleRename = () => {
-    if (editTitle.trim()) {
+    if (editTitle.trim() && editTitle.trim() !== (conversation.title ?? "").trim()) {
       onRename(editTitle.trim());
     }
     setIsEditing(false);
@@ -413,7 +415,7 @@ function ConversationItem({
           onClick={(event) => event.stopPropagation()}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            actionsButton.current?.focus();
+            actionsButton.current?.focus({ preventScroll: true });
           }}
         >
           <DialogHeader>
@@ -426,18 +428,27 @@ function ConversationItem({
               handleRename();
             }}
           >
-            <Input
-              aria-label={t("rename")}
-              value={editTitle}
-              onChange={(event) => setEditTitle(event.target.value)}
-              maxLength={255}
-              required
-            />
+            <Label className="flex flex-col gap-2">
+              {t("conversationTitle")}
+              <Input
+                aria-label={t("rename")}
+                onFocus={(event) => event.currentTarget.select()}
+                value={editTitle}
+                onChange={(event) => setEditTitle(event.target.value)}
+                maxLength={255}
+                required
+              />
+            </Label>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
                 {common("cancel")}
               </Button>
-              <Button type="submit" disabled={!editTitle.trim()}>
+              <Button
+                type="submit"
+                disabled={
+                  !editTitle.trim() || editTitle.trim() === (conversation.title ?? "").trim()
+                }
+              >
                 {common("save")}
               </Button>
             </DialogFooter>
@@ -957,10 +968,12 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   const ts = useTranslations("chat.sidebar");
   const [preferredCollapsed, setPreferredCollapsed] = useState(false);
   const sourcesOpen = useSourcesPanelStore((state) => state.isOpen);
+  const filesOpen = useChatPanelStore((state) => state.filesOpen);
+  const panelOpen = sourcesOpen || filesOpen;
   const [sourcesOverride, setSourcesOverride] = useState(false);
   const [tight, setTight] = useState(false);
   const sidebar = useRef<HTMLElement>(null);
-  if (useChanged(sourcesOpen)) setSourcesOverride(false);
+  if (useChanged(panelOpen)) setSourcesOverride(false);
   useLayoutEffect(() => {
     const container = sidebar.current?.parentElement;
     if (!container) return;
@@ -973,7 +986,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     observer.observe(container);
     return () => observer.disconnect();
   }, []);
-  const isCollapsed = preferredCollapsed || (sourcesOpen && tight && !sourcesOverride);
+  const isCollapsed = preferredCollapsed || (panelOpen && tight && !sourcesOverride);
   const [searchOpen, setSearchOpen] = useState(false);
   const collapse = () => setPreferredCollapsed(true);
   const { isOpen, close } = useChatSidebarStore();

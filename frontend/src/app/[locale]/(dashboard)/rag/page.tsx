@@ -283,7 +283,7 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
   // only `group-hover` in this file was on the delete button #303 removed, so
   // it named a relationship nothing was on the other end of.
   return (
-    <ResourceCard>
+    <ResourceCard className="min-h-52">
       {/* The card is a link and nothing else, so the layering is a link over
           content that declines the click rather than the three-way z-index
           argument this used to be. Deleting a collection now lives on the
@@ -303,13 +303,13 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
           <AudienceChip visibility={kb.visibility ?? "private"} groups={kb.shared_groups} />
         </div>
       </ResourceCardHeader>
-      <ResourceCardDescription className="pointer-events-none">
+      <ResourceCardDescription className="pointer-events-none my-4 line-clamp-2">
         {kb.description}
       </ResourceCardDescription>
       <div className="pointer-events-none relative">
         {(kb.used_by?.length ?? 0) > 0 && <UsedBy agents={kb.used_by} className="mt-2" />}
 
-        <ResourceCardFooter className="text-muted-foreground text-xs">
+        <ResourceCardFooter className="text-muted-foreground border-0 pt-0 text-xs">
           {kb.is_default && (
             <Badge variant="outline" className="font-normal">
               {t("default")}

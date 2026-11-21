@@ -8,11 +8,25 @@ If your current organization’s onboarding is unfinished, **Finish setup** link
 
 Inbox keeps the same list frame, row spacing, source marks, title/detail typography and responsive action alignment across All, Urgent, Routine results, Suggestions and Done. Done retains its decision badge and Bring back action for dismissed items, with source and time visible on phones too. Approval forms keep the same outer inset while retaining their required fields and permission checks.
 
-Sources opens in a compact resizable panel. On a narrow desktop, opening it can temporarily collapse the conversation list; closing it restores the earlier choice unless you changed it manually. Following a citation scrolls only the Sources list, keeping the transcript in place. Hosted public chat and the embedded widget accept multiline messages: Enter sends, Shift+Enter adds a line, and composing an IME character never sends early.
+Files and Sources use the same compact side panel: 400px initially, adjustable from 360 to 420px and capped at 38% of the docked chat width. On a narrow desktop they can temporarily collapse the conversation list; closing restores the earlier choice unless you changed it manually. Browser keeps its wider working area, initially 55% and adjustable from 35% to 65%. Following a citation scrolls only the Sources list, keeping the transcript in place.
+
+At the start of chat, Inbox shows up to two priorities without dates or a separate chat icon. Selecting a row puts its question into the composer for editing; it does not send it. **Open Inbox** opens the complete list. **Workspace — projects** is the default conversation-list layout; `?sidebar=compact` and `?sidebar=comfortable` remain available for comparison.
+
+Hosted public chat and the embedded widget accept multiline messages: Enter sends, Shift+Enter adds a line, and IME composition never sends early. In the main chat, hosted chat and widget, reading earlier messages pauses automatic following. Streaming and content resizing preserve that position; returning to the bottom or deliberately sending a new message resumes following. Reconnecting or loading history does not pull the reader down.
+
+Workflow runs and logs use the same collection frame, with filters above scrolling rows and navigation below. Workflow templates use the same category-to-library interaction as agent templates. Starting a test with an inline Run panel uses that panel for confirmation instead of repeating the success in a toast; failures remain explicit. Workflow text fields keep their surface color on hover while focus and validation remain visible.
+
+Primary table collections fill the remaining workspace, keeping filters, column headings and the footer available while rows scroll. Complete local inventories have pages of 50, sorted before paging. The footer remains visible at **1 / 1**, with unavailable directions disabled. Server-paged lists keep their server pagination; virtual tables, project chats and knowledge documents retain their existing incremental loading and real loaded/total counts rather than an invented page total. Embedded reports and configuration matrices retain their own layout.
+
+Dataset categories, icons and tags use neutral styling; errors retain their warning color. Settings separates grading from generation and improvement. Changing a helper model keeps Save and Cancel in place, disabled until there is a change, with a stable explanation of its fallback.
+
+Sharing uses the same compact fields, menus and rows as the rest of the console. A failed initial read shows an error and Retry. A later service or network failure can retain previously loaded people; an authorization refusal or removed resource hides cached access rows and editing. A failed member lookup offers its own retry instead of implying that no people exist.
+
+Apps resolve which walkthrough targets exist before showing the first step, so its count excludes unavailable controls. The last visible step offers Finish. Help remains in the persistent viewer header even when other options are folded away.
 
 Agent galleries show publication state as a dot and text. Needs attention uses a small amber indicator whose reason is available on hover, keyboard focus or tap. Workflow cards focus on name, description, access, publication and existing actions; triggers, nodes, tags and run statistics remain in their editor, filters or history. Tag entry uses one field and preserves keyboard and duplicate handling.
 
-Resource galleries share larger cards with an icon, title, description and a separate status/action footer. Agents, tables, workflows, knowledge bases, projects, datasets, MCP servers, skills, context files, Apps and groups use the same frame while retaining their own actions. In the agent Builder, settings use matching collapsible cards. Thinking and Answer format live within Model settings. First messages shows the built-in fallback suggestions when no custom messages are set. Model starts open; closing a section preserves its editors, and Voice links reveal the matching section.
+Resource galleries use restrained spacing, neutral metadata and consistent actions. Projects, knowledge bases, tables and datasets retain access, size and relevant resource links without gallery timestamps. In Build, Instructions has its own writing surface; Model and the optional Variables, Voice and First messages settings share one panel with separators. The primary model stays visible. Thinking and Answer format remain within Model settings; missing required configuration and validation errors remain reachable.
 
 In Build, First messages previews cards with the icon, title and message. Open a card to edit it. Saving a built-in example as a custom message keeps the other examples in the draft. The Skills, Context and Knowledge search pickers in Toolbox use selectable rows. A saved chat model stays visible in Models as well as Saved models.
 
@@ -24,7 +38,7 @@ Creating a project asks for its name, workspace and audience first. **Instructio
 
 Organizations has a search field for membership names and slugs, with the matching count in the same toolbar. Clearing the search restores the full membership list.
 
-The active workspace card offers **AI & services** and **Budget and approvals** shortcuts according to your current organization permissions. The AI Architect card links directly to its Builder beside the enable switch; it has no extra disclosure. Other AI services retain collapsible forms where there are settings to edit.
+The AI Architect card links directly to its Builder beside the enable switch, without an extra disclosure. Other AI services retain collapsible forms where there are settings to edit.
 
 The Me view starts with its period summary in a card, followed by a compact Briefing with titles, sources and actions. Full proposal details remain in Inbox.
 
@@ -71,7 +85,7 @@ Page introductions and settings explanations are available from the information 
 
 In Agents, Skills, Context and run history, **Filters** reveals secondary controls on every screen size and shows how many filters are active.
 
-Agent cards show status, access and the edit date directly. Skills and Context cards keep the document preview, summary, **Used by** with agent portraits and **Add to an agent** visible. Category and audience metadata sit in a compact row beside the action. There is no Details expansion. To delete a skill or context file, open its editor and use the three-dot menu beside **Share**; deletion still asks for confirmation and is available only to an editor.
+Agent cards show publication and access directly. Skills and Context cards keep the document preview, summary, **Used by** with agent portraits and **Add to an agent** visible. Category and audience metadata sit beside the action. To delete a skill or context file, open its editor and use the three-dot menu beside **Share**; deletion asks for confirmation and requires edit access.
 
 Names, navigation and form values use strong foreground text; metadata stays
 secondary. Primary actions use a contrasting neutral fill. Glass keeps the native
@@ -130,7 +144,7 @@ The agent Builder’s **Visual map** fits the whole configuration on opening and
 
 The Builder’s test panel can expand to a full workspace without resetting its conversation or unsent text. Comparing two versions opens that workspace automatically; the full-screen button or Escape returns to the Builder. Version selectors have their own row, so the test controls remain usable in narrow panels. On phones, switch between the compared chats using their version buttons; both conversations keep running and keep their drafts. The shared prompt still asks both at once.
 
-Navigation keeps shared page layouts mounted when moving between sections, with a short fade instead of resetting the frame. Reduced motion disables the fade. Dashboard widgets wait for the saved arrangement, permission-dependent pages wait for the permission result, and the administration user list starts in a loading state rather than briefly claiming it is empty. Group and app-publisher filters reserve their space while loading. Inbox source marks wait for catalog metadata; links to a working conversation open the same chat route as the sidebar.
+Navigation keeps shared page layouts mounted without fading or animating static settings sections on entry. The top progress bar also covers navigation started by action buttons. Tab selection moves its underline between the actual labels; reduced motion keeps it static. Dashboard widgets wait for their saved arrangement, permission-dependent pages wait for the permission result, and administration lists begin loading instead of claiming to be empty. Group and app-publisher filters reserve their space while loading.
 
 On phones, sent messages stop below the floating chat buttons, keeping the user portrait visible. The initial transcript and the space reserved for a reply use the same toolbar clearance; desktop and embedded chats retain their smaller inset.
 
@@ -158,12 +172,12 @@ than sitting there empty.
 A switch at the top says whose dashboard it is, and offers only the views you
 may open. Everybody opens on **Me**:
 
-| View             | Answers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Me** | Your period, Briefing and Discover tips; recent conversations, projects, your agents, agents you use most and recent visuals. Decision, background-topic and shared-resource cards are omitted from this default personal view. |
-| **Organization** | The arrangeable page below                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| **Group**        | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch. A group whose members ran nothing in the period says so once, with a way to the group, rather than showing a page of empty cards                                                                                                                                                                                                                                                                                   |
-| **Deployment**   | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| View             | Answers                                                                                                                                                                                                                                                                      |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Me**           | Your period, Briefing and Discover tips; recent conversations, projects, your agents, agents you use most and recent visuals. Decision, background-topic and shared-resource cards are omitted from this default personal view.                                              |
+| **Organization** | The arrangeable page below                                                                                                                                                                                                                                                   |
+| **Group**        | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch. A group whose members ran nothing in the period says so once, with a way to the group, rather than showing a page of empty cards |
+| **Deployment**   | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings                                                                                                                                                                            |
 
 The personal Briefing aligns each title and source with its actions. Discover follows it directly. Recent visuals fit their images inside centered previews. Answered questions stop waiting when the server starts their admitted continuation. Clicking a dismissible toast closes it with a short exit; loading notices remain visible.
 
@@ -1098,12 +1112,12 @@ fails, the sign-in form keeps the destination and the account already created.
 
 The start follows the person's authority and existing work:
 
-| Person | Guided start |
-| --- | --- |
-| Application administrator | Create or choose a company organization, prepare identity and invitations, then decide how future accounts join. |
-| Organization administrator | Prepare their organization and its spending limit; no deployment controls. |
-| New member account | Welcome, optional personal profile and work context, then a first task. |
-| Existing account joining another organization | Welcome to that organization; use the saved personal profile or deliberately review it. |
+| Person                                        | Guided start                                                                                                     |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Application administrator                     | Create or choose a company organization, prepare identity and invitations, then decide how future accounts join. |
+| Organization administrator                    | Prepare their organization and its spending limit; no deployment controls.                                       |
+| New member account                            | Welcome, optional personal profile and work context, then a first task.                                          |
+| Existing account joining another organization | Welcome to that organization; use the saved personal profile or deliberately review it.                          |
 
 A scripted AgenticOS companion explains each decision. These are interface messages,
 not model responses, and they make no AI calls. Personal identity and work context

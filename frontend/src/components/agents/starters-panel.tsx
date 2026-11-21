@@ -45,6 +45,7 @@ interface StarterDraft {
 }
 
 interface StartersPanelProps {
+  framed?: boolean;
   starters: string[];
   draws?: boolean;
   icons?: StarterIcons;
@@ -56,6 +57,7 @@ interface StartersPanelProps {
 }
 
 export function StartersPanel({
+  framed = true,
   starters,
   draws = false,
   icons = {},
@@ -117,6 +119,7 @@ export function StartersPanel({
 
   return (
     <BuildSection
+      framed={framed}
       className="@container"
       data-tour="agent-starters"
       title={t("startersTitle")}

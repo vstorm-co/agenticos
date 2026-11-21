@@ -325,3 +325,49 @@ assert.equal(prevented, 1);
     assert result.returncode == 0, result.stderr
     assert 'el("textarea", "aos-input")' in RENDERED
     assert "max-height:160px;overflow-y:auto" in RENDERED
+
+
+def test_stream_following_pauses_for_reading_and_own_send_resumes_it():
+    """The widget's actual scroll/pin/ask handlers must preserve a reader during deltas."""
+    node = shutil.which("node")
+    if node is None:  # pragma: no cover - CI includes node
+        pytest.skip("node is not installed")
+    follow = RENDERED.split("    var following = true;", 1)[1].split("    function setWorking", 1)[
+        0
+    ]
+    ask = RENDERED.split("    function ask(text) {", 1)[1].split("    function greet()", 1)[0]
+    script = """
+const assert = require("node:assert/strict");
+const log = { scrollHeight: 1600, clientHeight: 400, scrollTop: 1200 };
+var following = true;
+__FOLLOW__
+pin();
+assert.equal(log.scrollTop, 1600);
+log.scrollTop = 300;
+log.onscroll();
+log.scrollHeight = 2000;
+pin();
+assert.equal(log.scrollTop, 300);
+log.scrollTop = 1600;
+log.onscroll();
+log.scrollHeight = 2200;
+pin();
+assert.equal(log.scrollTop, 2200);
+log.scrollTop = 250;
+log.onscroll();
+var working = false;
+var quick = null;
+var sent = [];
+var socket = { readyState: 1, send(frame) { sent.push(JSON.parse(frame)); } };
+var window = {};
+function userBubble() { pin(); }
+function setWorking(value) { working = value; }
+function ask(text) { __ASK__
+assert.equal(ask(""), false);
+assert.equal(log.scrollTop, 250);
+assert.equal(ask("My next question"), true);
+assert.equal(log.scrollTop, 2200);
+assert.equal(sent.length, 1);
+""".replace("__FOLLOW__", follow).replace("__ASK__", ask)
+    result = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr

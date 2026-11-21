@@ -20,7 +20,7 @@ export default function DraftFormPreview({ params }: { params: Promise<{ id: str
   const t = useTranslations("workflows.formPage");
   const common = useTranslations("common");
   const { workflow, isLoading, error, refetch } = useWorkflow(id);
-  const { start } = useWorkflowRuns(id);
+  const { start } = useWorkflowRuns(id, false, { startFeedback: "inline" });
   const [runId, setRunId] = useState<string | null>(null);
   const graph = workflow?.draft_graph;
   const node = graph?.nodes.find(

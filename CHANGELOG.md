@@ -46,6 +46,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Align primary tables with the available page height and keep pagination visible, including one-page lists. Preserve server pagination and embedded table layouts.
+
+- Simplify workflow templates and run feedback, resource cards and Dataset settings. Keep Agent Builder model configuration visible and optional settings in compact sections.
+
 - Standardize chat Files and Sources panels, compact permission/context/project controls, and keep tool diagnostics raw while showing produced outputs once. Group conversations by project in the default Workspace layout. Compare alternatives with `sidebar=compact` or `sidebar=comfortable`; `sidebar=workspace` explicitly selects the default.
 
 - Use neutral light surfaces and progressive disclosure in Agent Builder, onboarding and settings. Edit welcome content directly in its onboarding preview; retain clear loading, empty, permission and retry states throughout resource catalogs.
@@ -109,6 +113,12 @@ Two things are versioned separately from this file and worth knowing about:
 - Refine the default AgenticOS assistant’s guidance for economical specialist delegation, safe tool-error recovery, editable drafts and artifact verification. Keep media generation tied to available configured tools and preserve personal model, budget and prompt choices during normal default refreshes.
 
 ### Fixed
+
+- Preserve URL chips when copying or cutting composer text. Keep question reveal buttons stable on phones, and give the model control a full row beside Send. Inbox preview rows now prepare an editable message without sending it.
+
+- Start navigation progress for button-driven routes, animate shared tab indicators, keep static settings still, and calculate Apps help steps before opening the tour.
+
+- Show retryable sharing and search failures explicitly and hide cached resource names after access is refused. Pause public chat following while reading older messages.
 
 - Keep Sources compact and restore the conversation list after closing them. Preserve question navigation when a chat mounts late, and keep dashboard sparkline tooltips inside their own column.
 

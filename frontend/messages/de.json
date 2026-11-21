@@ -1277,6 +1277,7 @@
     "title": "Abrechnung"
   },
   "chat": {
+    "conversationTitle": "Titel der Unterhaltung",
     "questions": {
       "heading": "Frage an dich",
       "answered": "Fragen und Antworten",
@@ -4641,6 +4642,7 @@
     "you": "(Sie)"
   },
   "nav": {
+    "searchUnavailable": "Einige Suchergebnisse konnten nicht geladen werden.",
     "memory": "Gedächtnis",
     "account": "Konto",
     "activity": "Aktivität",
@@ -6986,8 +6988,7 @@
       "assistantServices": "Assistent und Gespräche",
       "assistantServicesHint": "Hilfe, Aktualisierungen und Sprachgespräche für Mitglieder einrichten.",
       "backgroundServices": "Hintergrunddienste",
-      "backgroundServicesHint": "Modelle und Budgets für die internen Aufgaben der Plattform.",
-      "workspaceSettings": "Einstellungen für diesen Arbeitsbereich"
+      "backgroundServicesHint": "Modelle und Budgets für die internen Aufgaben der Plattform."
     },
     "rag": {
       "active": "Aktiv",
@@ -14193,7 +14194,6 @@
     "uploaded": "{count, plural, =1 {1 Datei hinzugefügt} other {# Dateien hinzugefügt}}",
     "removed": "Entfernt",
     "filesUnreadable": "Die Dateien des Projekts konnten nicht gelesen werden",
-    "activeWhen": "Aktiv {when}",
     "chatCount": "{count, plural, =0 {Noch keine Chats} =1 {1 Chat} other {# Chats}}",
     "projectCount": "{count, plural, =1 {1 Projekt} other {# Projekte}}",
     "startsWith": "Beginnt mit {agent}",

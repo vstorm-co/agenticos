@@ -427,6 +427,8 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   );
   const socketRef = useRef<WebSocket | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const following = useRef(true);
+  const readingHistory = useCallback(() => !following.current, []);
   const threadContentRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const filePicker = useRef<HTMLInputElement | null>(null);
@@ -563,11 +565,11 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
 
   useEffect(() => {
     const thread = threadRef.current;
-    if (thread !== null) thread.scrollTop = thread.scrollHeight;
+    if (thread !== null && following.current) thread.scrollTop = thread.scrollHeight;
   }, [turns, thinking]);
   // And on growth the turns do not announce: an answer's last words are revealed
   // over frames after its turn has stopped changing.
-  useFollowContent(threadRef, threadContentRef);
+  useFollowContent(threadRef, threadContentRef, readingHistory);
 
   // Reopen the socket on the *same* visitor key, so a dropped connection is
   // resumed rather than replaced: bumping `session` re-runs the effect and
@@ -663,6 +665,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
     pageThreadRef.current += 1;
     threadKnownRef.current = false;
     mintVisitorKey(config.public_key);
+    following.current = true;
     setTurns([]);
     setThinking(false);
     setClosed(null);
@@ -754,6 +757,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
     const socket = socketRef.current;
     if ((!text && attached.length === 0) || socket === null || socket.readyState !== WebSocket.OPEN)
       return;
+    following.current = true;
     setTurns((said) => [
       ...said,
       {
@@ -803,7 +807,14 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
         )}
       </header>
 
-      <div ref={threadRef} className="flex-1 scrollbar-thin overflow-y-auto py-4">
+      <div
+        ref={threadRef}
+        onScroll={(event) => {
+          const thread = event.currentTarget;
+          following.current = thread.scrollHeight - thread.clientHeight - thread.scrollTop <= 48;
+        }}
+        className="flex-1 scrollbar-thin overflow-y-auto py-4"
+      >
         <div ref={threadContentRef} className="space-y-3">
           {/* Markdown, like the answer and for the same reason: the operator writes it
               in a Markdown editor, so printing the asterisks would be the one place on
@@ -956,7 +967,10 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
                   rows={2}
                   className="max-h-48 min-h-16 resize-none border-0 bg-transparent px-1 py-2 shadow-none focus-visible:ring-0"
                 />
-                <div className="flex shrink-0 items-center justify-end gap-0.5">
+                <div
+                  data-hosted-composer-controls
+                  className="flex shrink-0 items-center justify-end gap-0.5"
+                >
                   {config.allow_files && (
                     <>
                       <input

@@ -81,7 +81,7 @@ export default function SandboxesPage() {
   };
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col space-y-4">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
       <PageHeader
         title={t("sandboxes2")}
         description={t("pageDescription")}
@@ -111,7 +111,7 @@ export default function SandboxesPage() {
         <EmptyState icon={Lock} title={t("noAccess")} description={t("noAccessBody")} />
       ) : (
         <Tabs
-          className="flex min-w-0 flex-col gap-2"
+          className="flex min-h-0 min-w-0 flex-1 flex-col gap-2"
           value={tab}
           onValueChange={(value) => setTabParam(value === "connections" ? null : value)}
         >
@@ -126,8 +126,9 @@ export default function SandboxesPage() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="connections" className="min-w-0">
+          <TabsContent value="connections" className="flex min-h-0 min-w-0 flex-1 flex-col">
             <ListCard
+              fill
               className="overflow-hidden"
               data-tour="sandboxes-connections"
               title={t("sandboxConnections")}
@@ -143,14 +144,15 @@ export default function SandboxesPage() {
                   cta={{ label: common("retry"), onClick: () => void refresh() }}
                   className="m-5"
                 />
-              ) : !isLoading && connections.length === 0 ? (
-                <ListCardEmpty
-                  icon={Boxes}
-                  title={t("noSandboxConnectionsYet")}
-                  description={t("agentsCanStillKeep")}
-                />
               ) : (
                 <ConnectionsTable
+                  empty={
+                    <ListCardEmpty
+                      icon={Boxes}
+                      title={t("noSandboxConnectionsYet")}
+                      description={t("agentsCanStillKeep")}
+                    />
+                  }
                   connections={connections}
                   loading={isLoading}
                   canManage={canManage}
@@ -165,7 +167,7 @@ export default function SandboxesPage() {
             </ListCard>
           </TabsContent>
 
-          <TabsContent value="running" className="min-w-0">
+          <TabsContent value="running" className="flex min-h-0 min-w-0 flex-1 flex-col">
             {isLoading ? (
               <SessionsPanelLoading />
             ) : error !== null ? (

@@ -3,7 +3,7 @@
 import { NATIVE_CHOICE } from "@/components/ui/control-styles";
 
 import { useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { AlertTriangle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";

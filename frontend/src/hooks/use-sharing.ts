@@ -94,7 +94,7 @@ export function useSharing(
   const queryClient = useQueryClient();
   const base = `${SHARING_ROOT[resourceType]}/${resourceId}/sharing`;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.sharing.detail(resourceType, resourceId ?? ""),
     queryFn: () => apiClient.get<ResourceSharing>(base),
     enabled: !!resourceId,
@@ -173,5 +173,5 @@ export function useSharing(
     onError: refused,
   });
 
-  return { sharing: data, isLoading, share, revoke, setVisibility };
+  return { sharing: data, isLoading, error, refetch, share, revoke, setVisibility };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { TrendingUp } from "lucide-react";

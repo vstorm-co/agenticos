@@ -54,6 +54,7 @@ export const AGENT_CALLS_ANCHOR = "agent-voice";
 type VoiceTab = "calls" | "dictation";
 
 interface VoiceCardProps {
+  framed?: boolean;
   collapsible?: boolean;
   value: SpeechToTextSpec | null | undefined;
   onChange: (next: SpeechToTextSpec | null) => void;
@@ -82,6 +83,7 @@ interface VoiceCardProps {
  * JSON: any other spelling would show as an unpublished change that is not one.
  */
 export function VoiceCard({
+  framed = true,
   value,
   onChange,
   disabled,
@@ -275,6 +277,7 @@ export function VoiceCard({
   if (collapsible) {
     return (
       <BuildSection
+        framed={framed}
         id={AGENT_CALLS_ANCHOR}
         data-tour="agent-voice"
         className="scroll-mt-20"

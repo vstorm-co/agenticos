@@ -432,7 +432,7 @@ export default function OrgMembersPage({ params }: PageProps) {
       />
 
       <Tabs
-        className="flex flex-1 flex-col"
+        className="flex min-h-0 flex-1 flex-col"
         value={tab}
         onValueChange={(next) => {
           setTabParam(next === "members" ? null : next);
@@ -474,7 +474,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           value="members"
           hidden={tab !== "members"}
           forceMount
-          className="flex-1 flex-col space-y-6 data-[state=active]:flex"
+          className="min-h-0 flex-1 flex-col gap-6 data-[state=active]:flex"
         >
           {/* The table draws its own skeleton from the same column definitions, so
           the header and every column width are already right while it loads -
@@ -539,6 +539,8 @@ export default function OrgMembersPage({ params }: PageProps) {
               />
             ) : (
               <DataTable<OrganizationMember>
+                fillHeight
+                clientPagination
                 stackOnNarrow
                 columns={columns}
                 rows={visibleMembers}
@@ -555,7 +557,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           </ListCard>
 
           {pendingInvitations.length > 0 && (
-            <section className="space-y-3">
+            <section className="max-h-52 shrink-0 space-y-3 overflow-auto">
               <div>
                 <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
                   {t("pendingInvitations")}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { FlaskConical, Lock } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -60,7 +60,7 @@ export default function EvalRunsPage() {
 
   if (permissionsError)
     return (
-      <div className="flex flex-1 flex-col gap-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         {header}
         <ErrorState
           description={getErrorMessage(permissionsError, tErrors)}
@@ -71,7 +71,7 @@ export default function EvalRunsPage() {
 
   if (!isLoadingPermissions && !mayRead) {
     return (
-      <div className="flex flex-1 flex-col gap-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         {header}
         <EmptyState icon={Lock} title={t("noAccess")} description={t("noAccessBody")} />
       </div>
@@ -79,7 +79,7 @@ export default function EvalRunsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       {header}
       <ListCard
         fill
@@ -107,13 +107,14 @@ export default function EvalRunsPage() {
             }
           />
         ) : (
-          <div className="flex flex-1 flex-col gap-4">
-            <ul className="divide-border divide-y">
+          <div className="flex min-h-0 flex-1 flex-col gap-4">
+            <ul className="divide-border min-h-0 flex-1 divide-y overflow-auto">
               {runs.map((run) => (
                 <EvalRunRow key={run.id} run={run} agentName={names.get(run.agent_id)} />
               ))}
             </ul>
             <Pager
+              showSinglePage
               page={page}
               pageCount={Math.max(1, Math.ceil(total / PAGE))}
               matched={total}

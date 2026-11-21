@@ -490,3 +490,18 @@ it("refreshes the paused step after an expectation change and after a refused ch
   });
   expect(toast.error).toHaveBeenCalled();
 });
+
+it("lets an inline run surface own start feedback while keeping admission errors visible", async () => {
+  vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [], total: 0 });
+  vi.mocked(api.startWorkflowRun).mockResolvedValue(run("queued"));
+  const { result } = renderHook(() => useWorkflowRuns("wf", false, { startFeedback: "inline" }), {
+    wrapper,
+  });
+  await act(() => result.current.start.mutateAsync({ workflow_id: "wf" }));
+  expect(toast.success).not.toHaveBeenCalled();
+  vi.mocked(api.startWorkflowRun).mockRejectedValue(new Error("admission refused"));
+  await act(async () => {
+    await result.current.start.mutateAsync({ workflow_id: "wf" }).catch(() => undefined);
+  });
+  expect(toast.error).toHaveBeenCalled();
+});

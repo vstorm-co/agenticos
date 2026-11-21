@@ -61,6 +61,7 @@
     "logout": "Wyloguj"
   },
   "nav": {
+    "searchUnavailable": "Nie udało się wczytać części wyników wyszukiwania.",
     "memory": "Pamięć",
     "account": "Konto",
     "activity": "Aktywność",
@@ -272,6 +273,7 @@
     "deleteAccount": "Usuń konto"
   },
   "chat": {
+    "conversationTitle": "Tytuł rozmowy",
     "questions": {
       "heading": "Pytanie do Ciebie",
       "answered": "Pytania i odpowiedzi",
@@ -2988,8 +2990,7 @@
       "assistantServices": "Asystent i rozmowy",
       "assistantServicesHint": "Ustaw pomoc dla użytkowników, aktualizacje i rozmowy głosowe.",
       "backgroundServices": "Usługi w tle",
-      "backgroundServicesHint": "Modele i budgety do wewnętrznych zadań platformy.",
-      "workspaceSettings": "Ustawienia tego obszaru roboczego"
+      "backgroundServicesHint": "Modele i budgety do wewnętrznych zadań platformy."
     },
     "rag": {
       "active": "Aktywne",
@@ -11163,7 +11164,6 @@
     "uploaded": "{count, plural, one {Dodano 1 plik} few {Dodano # pliki} many {Dodano # plików} other {Dodano # pliku}}",
     "removed": "Usunięto",
     "filesUnreadable": "Nie udało się odczytać plików projektu",
-    "activeWhen": "Aktywny {when}",
     "chatCount": "{count, plural, =0 {Brak czatów} one {1 czat} few {# czaty} many {# czatów} other {# czatu}}",
     "projectCount": "{count, plural, one {1 projekt} few {# projekty} many {# projektów} other {# projektu}}",
     "startsWith": "Zaczyna z {agent}",

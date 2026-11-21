@@ -1277,6 +1277,7 @@
     "title": "Billing"
   },
   "chat": {
+    "conversationTitle": "Conversation title",
     "questions": {
       "heading": "Question for you",
       "answered": "Questions and answers",
@@ -4759,6 +4760,7 @@
     "you": "(you)"
   },
   "nav": {
+    "searchUnavailable": "Some search results could not be loaded.",
     "memory": "Memory",
     "account": "Account",
     "activity": "Activity",
@@ -7714,8 +7716,7 @@
       "assistantServices": "Assistant and conversations",
       "assistantServicesHint": "Choose how people get help, receive updates and use voice.",
       "backgroundServices": "Background services",
-      "backgroundServicesHint": "Models and budgets for the platform’s internal work.",
-      "workspaceSettings": "Settings for this workspace"
+      "backgroundServicesHint": "Models and budgets for the platform’s internal work."
     },
     "rag": {
       "active": "Active",
@@ -14507,7 +14508,6 @@
     "uploaded": "{count, plural, =1 {1 file added} other {# files added}}",
     "removed": "Removed",
     "filesUnreadable": "The project's files could not be read",
-    "activeWhen": "Active {when}",
     "chatCount": "{count, plural, =0 {No chats yet} =1 {1 chat} other {# chats}}",
     "projectCount": "{count, plural, =1 {1 project} other {# projects}}",
     "startsWith": "Starts with {agent}",

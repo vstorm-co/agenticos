@@ -66,7 +66,7 @@ it("limits the timeline preview and keeps approval and item links without a visu
   render(<ChatHomeInbox onDiscuss={vi.fn()} />);
   const list = screen.getByRole("list");
   expect(within(list).getAllByRole("listitem")).toHaveLength(1);
-  expect(within(list).getAllByRole("link")[0]).toHaveAttribute("href", "/inbox#suggestion-urgent");
+  expect(within(list).getByRole("button")).toHaveTextContent("Topic urgent");
   expect(screen.queryByText("Topic c")).toBeNull();
   const approvalLink = screen.getByRole("link", { name: "2 approvals need your attention" });
   expect(approvalLink).toHaveAttribute("href", "/runs?tab=approvals");
@@ -87,15 +87,15 @@ it("shows at most two entries and includes older priority items before newer reg
     suggestion("newer-priority", true),
   ];
   render(<ChatHomeInbox onDiscuss={vi.fn()} />);
-  const links = within(screen.getByRole("list")).getAllByRole("link");
-  expect(links.map((link) => link.getAttribute("href"))).toEqual([
-    "/inbox#suggestion-newer-priority",
-    "/inbox#suggestion-older-priority",
+  const entries = within(screen.getByRole("list")).getAllByRole("button");
+  expect(entries.map((entry) => entry.textContent)).toEqual([
+    expect.stringContaining("Topic newer-priority"),
+    expect.stringContaining("Topic older-priority"),
   ]);
   expect(screen.getAllByText("Priority")).toHaveLength(2);
 });
 
-it("shows short dates and composes a question about the picked item", async () => {
+it("makes the entire undated row compose an editable question about the picked item", async () => {
   state.items = [
     suggestion("older"),
     { ...suggestion("latest"), created_at: "2026-11-20T10:15:00Z" },
@@ -105,12 +105,10 @@ it("shows short dates and composes a question about the picked item", async () =
   expect(screen.getByRole("list").tagName).toBe("OL");
   const [latest, older] = screen.getAllByRole("listitem");
   if (!latest || !older) throw new Error("Expected two timeline entries");
-  expect(within(latest).getByRole("link")).toHaveAttribute("href", "/inbox#suggestion-latest");
-  expect(latest.querySelector("time")).toHaveAttribute("datetime", "2026-11-20T10:15:00Z");
-  expect(latest.querySelector("time")).toHaveTextContent(/^Nov 20$/);
+  expect(latest.querySelector("time")).toBeNull();
   expect(older).toHaveTextContent("Topic older");
-  const action = within(latest).getByRole("button", { name: "Discuss with agent" });
-  expect(action).not.toHaveTextContent("Discuss with agent");
+  const action = within(latest).getByRole("button", { name: /Topic latest/ });
+  expect(within(latest).getAllByRole("button")).toHaveLength(1);
   await userEvent.click(action);
   expect(discuss).toHaveBeenCalledExactlyOnceWith("Does Inbox item latest need my attention?");
 });
@@ -145,6 +143,6 @@ it("keeps cached topics visible when a background refresh fails", () => {
   expect(screen.getByRole("status")).toHaveTextContent(
     "Could not refresh your inbox. Showing the last loaded items.",
   );
-  expect(screen.getByRole("link", { name: /Topic cached/ })).toBeVisible();
+  expect(screen.getByRole("button", { name: /Topic cached/ })).toBeVisible();
   expect(screen.queryByText(/all caught up/)).not.toBeInTheDocument();
 });

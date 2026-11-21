@@ -41,7 +41,7 @@ export function WorkflowConnectionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
-      <DialogContent className={`${DIALOG_CANVAS} ${DIALOG_FILL}`}>
+      <DialogContent data-workflow-fields className={`${DIALOG_CANVAS} ${DIALOG_FILL}`}>
         <DialogHeader>
           <DialogTitle>{t("pickerConnectAccount")}</DialogTitle>
           <DialogDescription>{t("pickerConnectAccountHint")}</DialogDescription>

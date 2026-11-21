@@ -69,6 +69,34 @@ for (const theme of ["light", "dark"] as const) {
         };
         const scroller = page.locator("[data-chat-scroller]");
         const composer = page.locator(".composer-box");
+        if (width === 390) {
+          const actions = composer.locator(".chat-input-actions");
+          const model = actions.locator("[data-chat-model]");
+          await expect(model).toBeVisible();
+          await expect
+            .poll(async () => (await model.boundingBox())?.width ?? 0)
+            .toBeGreaterThanOrEqual(180);
+          const targets = await actions.locator("button:visible").evaluateAll((buttons) =>
+            buttons.map((button) => {
+              const rect = button.getBoundingClientRect();
+              return {
+                name:
+                  button.getAttribute("aria-label") ??
+                  button.getAttribute("title") ??
+                  button.textContent,
+                width: rect.width,
+                height: rect.height,
+              };
+            }),
+          );
+          expect(targets.length).toBeGreaterThanOrEqual(7);
+          for (const target of targets) {
+            expect(target.width, `${target.name} phone target width`).toBeGreaterThanOrEqual(43.5);
+            expect(target.height, `${target.name} phone target height`).toBeGreaterThanOrEqual(
+              43.5,
+            );
+          }
+        }
         await expect(scroller.getByText(/^History fixture 6\./)).toBeVisible();
         await scroller.hover();
         await page.mouse.wheel(0, -10000);

@@ -16,7 +16,7 @@ import {
   Skeleton,
   useListControls,
 } from "@/components/ui";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 
 import { ErrorState } from "@/components/states";
 import { FileViewer } from "@/components/files";

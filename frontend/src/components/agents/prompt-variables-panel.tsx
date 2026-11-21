@@ -23,6 +23,7 @@ const NAME = /^[a-z][a-z0-9_]{0,39}$/;
 const ZONES = Intl.supportedValuesOf("timeZone");
 
 interface PromptVariablesPanelProps {
+  framed?: boolean;
   system: SystemPromptVariable[];
   custom: PromptVariableSpec[];
   timeZone: string;
@@ -40,6 +41,7 @@ interface PromptVariablesPanelProps {
  * `{{current_time}}` says - the deployment's, each person's own, or one chosen.
  */
 export function PromptVariablesPanel({
+  framed = true,
   system,
   custom,
   timeZone,
@@ -68,6 +70,7 @@ export function PromptVariablesPanel({
 
   return (
     <BuildSection
+      framed={framed}
       title={t("variablesTitle")}
       description={t("variablesHint")}
       summary={t("buildSummary.variables", { count: custom.length })}
