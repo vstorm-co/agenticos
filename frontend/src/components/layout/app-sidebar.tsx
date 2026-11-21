@@ -37,6 +37,7 @@ import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { useMounted } from "@/hooks/use-mounted";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePendingApprovals } from "@/hooks/use-pending-approvals";
+import { useWaitingChatQuestions } from "@/hooks/use-waiting-chat-questions";
 import { usePermissions } from "@/hooks/use-permissions";
 import { cn, isAppAdmin } from "@/lib/utils";
 import { useAuthStore, useSidebarStore } from "@/stores";
@@ -94,7 +95,8 @@ function InboxCount({ collapsed }: { collapsed: boolean }) {
   const t = useTranslations("nav");
   const { suggestions } = useSuggestions();
   const approvals = usePendingApprovals();
-  const waiting = suggestions.length + approvals.count;
+  const questions = useWaitingChatQuestions();
+  const waiting = suggestions.length + approvals.count + questions.count;
   if (waiting === 0) return null;
   const label = t("inboxCount", { count: waiting });
   return collapsed ? (

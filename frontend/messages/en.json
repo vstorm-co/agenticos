@@ -3714,6 +3714,7 @@
       "nothingWaiting": "Nothing is waiting on you.",
       "waitingOn": "Waiting on you: <b>{items}</b>.",
       "waiting": {
+        "questions": "{count, plural, one {# question} other {# questions}}",
         "approvals": "{count, plural, =1 {1 call} other {# calls}}",
         "review": "{count, plural, =1 {1 answer to review} other {# answers to review}}",
         "suites": "{count, plural, =1 {1 failing suite} other {# failing suites}}",
@@ -5780,6 +5781,10 @@
       "agent-starters": {
         "title": "First messages",
         "body": "What the chat offers somebody opening this agent with nothing said yet. A newcomer learns what the agent is for from these more than from its description, so make each one a real question it answers well."
+      },
+      "inbox-questions": {
+        "title": "Questions waiting for you",
+        "body": "Find questions an agent is waiting for you to answer. Open the chat to reply."
       },
       "inbox-filters": {
         "title": "What came to you on its own",
@@ -14896,6 +14901,15 @@
     "openWorkingChat": "Open conversation",
     "preferences": "Inbox preferences",
     "preferencesDescription": "Choose which automatic suggestions reach your Inbox.",
+    "questions": {
+      "title": "Questions waiting for you",
+      "open": "Open chat: {conversation}, question from {agent}",
+      "untitled": "Untitled chat",
+      "source": "{agent} · Expires {expiry}",
+      "failed": "Couldn’t load waiting questions.",
+      "retry": "Retry",
+      "loadMore": "Show more questions"
+    },
     "approvals": {
       "title": "Approval requests",
       "open": "Open approvals",

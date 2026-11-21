@@ -4158,6 +4158,22 @@ describe("useChat - durable questions resumed on the socket", () => {
     receive("user_question_required", { run_id: "r-1", questions: ASKED });
   }
 
+  it("opens the Inbox-linked question even before its old turn is loaded", async () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    get.mockResolvedValue(ASKED);
+    const { result } = renderHook(() => useChat({ requestedQuestionRunId: "r-1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.pendingQuestions?.[0]?.question).toBe("How formal?"));
+    expect(get).toHaveBeenCalledWith("/runs/r-1/questions", {
+      params: { conversation_id: "c-1" },
+    });
+    const answer = { answer: "Casual", skipped: false };
+    act(() => result.current.sendAskUserResponses([answer]));
+    expect(runAnswerFrame()).toMatchObject({ run_id: "r-1", responses: { "ask-1": [answer] } });
+    await act(async () => acknowledgeAnswer());
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
   it.each(["ask_user_question", "clarify"])(
     "keeps the %s card after completion and resumes it on the socket",
     async (toolName) => {

@@ -1,5 +1,5 @@
 ---
-source_sha: "79ff311d2516"
+source_sha: "8e5e5054239f"
 ---
 
 # La consola { #the-console }
@@ -148,7 +148,7 @@ puedes abrir. Todos empiezan en **Me**:
 
 El Briefing personal alinea cada título y origen con sus acciones. Discover aparece justo debajo. Las visualizaciones recientes encajan sus imágenes en vistas previas centradas. Las preguntas respondidas dejan de esperar cuando el servidor inicia la continuación admitida. Un clic cierra los avisos descartables con una salida breve; los avisos de operaciones en curso siguen visibles.
 
-Las tarjetas de calidad, como **Agents that need attention** e **Improvements waiting for you**, siguen disponibles en la vista de organización mediante **Customize**. Las decisiones, los permisos y los enlaces de mejora no cambian. El contador personal solo incluye aprobaciones propias de herramientas y propuestas abiertas de Inbox.
+Las tarjetas de calidad, como **Agents that need attention** e **Improvements waiting for you**, siguen disponibles en la vista de organización mediante **Customize**. Las decisiones, los permisos y los enlaces de mejora no cambian. El contador personal incluye aprobaciones propias de herramientas, preguntas pendientes del chat y propuestas abiertas de Inbox.
 
 La vista de la organización muestra las tarjetas que responden con datos,
 agrupadas en bandas. El resto - integraciones, canales, rutinas, sincronización
@@ -254,6 +254,8 @@ te trajo por iniciativa propia: lo que tus
 que propuso la revisión nocturna. El número a su lado dice cuánto espera. Se lee
 como un buzón: una fila por elemento, lo urgente primero, de dónde vino y
 cuándo, y las respuestas en la fila.
+
+**Preguntas pendientes de tu respuesta** aparece en **Todo** y **Urgente** cuando un agente del chat web espera que respondas. Cada fila muestra la conversación, el agente y cuándo caduca la pregunta. Ábrela para responder en el chat original; abrirla no la elimina. La pregunta cuenta como pendiente hasta que la ejecución se reanuda, se cancela o la pregunta caduca. Solo la persona a quien el agente preguntó ve la fila en la bandeja, independientemente de sus permisos de aprobación.
 
 Filtra por su origen, o abre **Hecho** para ver lo que ya aceptaste o
 descartaste y recuperar algo descartado. **What they found** en la tarjeta de

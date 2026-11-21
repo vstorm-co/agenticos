@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Find unanswered chat questions in Inbox.** Under All or Urgent, see questions a web-chat agent is waiting for you to answer, when they expire, and a link to the original question card. Pending questions also count in the Inbox badge and your personal dashboard.
+
 ## [1.87.0] - 2026-11-20
 
 ### Added

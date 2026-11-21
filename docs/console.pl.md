@@ -1,5 +1,5 @@
 ---
-source_sha: "79ff311d2516"
+source_sha: "8e5e5054239f"
 ---
 
 # Konsola { #the-console }
@@ -146,7 +146,7 @@ możesz otworzyć. Każdy zaczyna od widoku **Ja**:
 
 Briefing wyrównuje tytuły i źródła z akcjami. Discover znajduje się bezpośrednio pod nim. Ostatnie wizualizacje mieszczą obrazy w wyśrodkowanych podglądach. Pytanie przestaje oczekiwać na odpowiedź, gdy serwer rozpoczyna przyjętą kontynuację. Kliknięcie zamykanego toastu usuwa go z krótkim wygaszeniem; komunikaty trwających operacji pozostają widoczne.
 
-Karty jakości, w tym **Agenci wymagający uwagi** i **Poprawki czekające na Ciebie**, pozostają w katalogu widoku organizacji pod **Customize**. Decyzje, uprawnienia i linki do ulepszania agentów działają tak samo. Osobisty licznik oczekujących spraw obejmuje tylko zgody na narzędzia użytkownika i jego otwarte propozycje Inbox.
+Karty jakości, w tym **Agenci wymagający uwagi** i **Poprawki czekające na Ciebie**, pozostają w katalogu widoku organizacji pod **Customize**. Decyzje, uprawnienia i linki do ulepszania agentów działają tak samo. Osobisty licznik oczekujących spraw obejmuje zgody na narzędzia użytkownika, pytania czekające na odpowiedź w czacie i otwarte propozycje Inbox.
 
 Widok organizacji pokazuje karty, które odpowiadają danymi, pogrupowane w pasy.
 Reszta - integracje, kanały, rutyny, synchronizacja wiedzy, działy, członkowie,
@@ -250,6 +250,8 @@ przywrócić odrzucone. **Co znalazły** na karcie Obserwacje w Rutynach otwiera
 zawężonego do obserwacji. Krótsze wiersze otwierają twój dashboard jako
 **Briefing**, a pusty czat z agentem startowym pokazuje pierwszą z nich jako
 kartę, z linkiem do reszty.
+
+**Pytania czekające na odpowiedź** pojawiają się w widokach **Wszystkie** i **Pilne**, gdy agent w czacie internetowym czeka na Twoją odpowiedź. Wiersz pokazuje czat, agenta i termin wygaśnięcia. Otwórz go, aby odpowiedzieć w pierwotnym czacie; samo otwarcie nie usuwa wpisu. Pytanie liczy się jako oczekujące, dopóki wykonanie nie zostanie wznowione lub anulowane albo pytanie nie wygaśnie. Wpis w Inbox widzi tylko osoba, do której skierowano pytanie, niezależnie od uprawnień do zatwierdzania.
 
 To, co obserwacja znajdzie, a co nie musi trafić do ciebie od razu, czeka na
 twój poranek: o godzinie, którą trzyma proaktywność organizacji, jedno

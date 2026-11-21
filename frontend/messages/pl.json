@@ -5766,6 +5766,7 @@
       "nothingWaiting": "Nic nie czeka na Ciebie.",
       "waitingOn": "Czeka na Ciebie: <b>{items}</b>.",
       "waiting": {
+        "questions": "{count, plural, one {# pytanie} few {# pytania} other {# pytań}}",
         "approvals": "{count, plural, one {1 wywołanie} few {# wywołania} many {# wywołań} other {# wywołania}}",
         "review": "{count, plural, one {1 odpowiedź do przeglądu} few {# odpowiedzi do przeglądu} many {# odpowiedzi do przeglądu} other {# odpowiedzi do przeglądu}}",
         "suites": "{count, plural, one {1 oblana suita} few {# oblane suity} many {# oblanych suit} other {# oblanej suity}}",
@@ -7412,6 +7413,10 @@
       "agent-starters": {
         "title": "Pierwsze wiadomości",
         "body": "To, co czat proponuje komuś, kto otwiera tego agenta, zanim cokolwiek napisze. Nowa osoba dowiaduje się z nich, do czego jest agent, bardziej niż z opisu, więc niech każda będzie prawdziwym pytaniem, na które agent dobrze odpowiada."
+      },
+      "inbox-questions": {
+        "title": "Pytania czekające na odpowiedź",
+        "body": "Tutaj znajdziesz pytania agentów, które czekają na Twoją odpowiedź. Otwórz czat, aby odpowiedzieć."
       },
       "inbox-filters": {
         "title": "Co przyszło do ciebie samo",
@@ -14125,6 +14130,15 @@
     "openWorkingChat": "Otwórz rozmowę",
     "preferences": "Ustawienia Inbox",
     "preferencesDescription": "Wybierz, jakie automatyczne sugestie trafiają do Twojego Inbox.",
+    "questions": {
+      "title": "Pytania czekające na odpowiedź",
+      "open": "Otwórz czat: {conversation}, pytanie od agenta {agent}",
+      "untitled": "Czat bez tytułu",
+      "source": "{agent} · Wygasa: {expiry}",
+      "failed": "Nie udało się wczytać oczekujących pytań.",
+      "retry": "Spróbuj ponownie",
+      "loadMore": "Pokaż więcej pytań"
+    },
     "approvals": {
       "title": "Do zatwierdzenia",
       "open": "Otwórz zatwierdzenia",

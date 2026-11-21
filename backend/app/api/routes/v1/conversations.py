@@ -21,7 +21,7 @@ from app.api.deps import (
     limit_fork,
     require,
 )
-from app.api.public_api import PUBLIC
+from app.api.public_api import INTERNAL, PUBLIC
 from app.api.responses import content_disposition
 from app.api.routes.v1._artifact_bytes import visual_image_response
 from app.api.routes.v1._workspace_bytes import file_response
@@ -38,6 +38,7 @@ from app.schemas.conversation import (
     MessageCreate,
     MessageList,
     MessageRead,
+    WaitingChatQuestionList,
 )
 from app.schemas.conversation_share import (
     ConversationShareCreate,
@@ -60,6 +61,21 @@ from app.schemas.workspace import (
 from app.services.sandbox_workspace import owner_label, stored_ceiling
 
 router = APIRouter()
+
+
+@router.get("/waiting-questions", response_model=WaitingChatQuestionList, openapi_extra=INTERNAL)
+async def list_waiting_questions(
+    service: ConversationSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(25, ge=1, le=100),
+) -> Any:
+    """Find unanswered web-chat questions addressed to the signed-in member.
+
+    Returns only navigation metadata. Open the conversation to read and answer
+    the question; access to the approval queue is unrelated.
+    """
+    return await service.list_waiting_questions(ctx, skip=skip, limit=limit)
 
 
 @router.get("/background-tasks", response_model=list[ConversationTaskRead])

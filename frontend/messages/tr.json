@@ -7171,6 +7171,9 @@
       "morningNamed": "Günaydın, {name}",
       "afternoonNamed": "İyi günler, {name}",
       "eveningNamed": "İyi akşamlar, {name}",
+      "waiting": {
+        "questions": "{count, plural, other {# soru}}"
+      },
       "summary": "Agentlarınız bu dönemde <b>{runs, plural, =0 {hiç çalışmadı} =1 {1 kez çalıştı} other {# kez çalıştı}}</b>. {waiting, plural, =0 {Sizden yanıt bekleyen yok.} =1 {Sizden yanıt bekleyen <b>1 çağrı</b> var.} other {Sizden yanıt bekleyen <b># çağrı</b> var.}}"
     },
     "discover": {
@@ -8804,6 +8807,10 @@
       "agent-starters": {
         "title": "İlk mesajlar",
         "body": "Henüz mesaj yazmamış birinin agent’ı açtığında sohbetin önerdiği mesajlar. Yeni kullanıcılar agent’ın amacını bu örneklerden açıklamasından daha çok anlar; bu yüzden her biri agent’ın iyi yanıtlayacağı gerçek bir soru olsun."
+      },
+      "inbox-questions": {
+        "title": "Yanıtınızı bekleyen sorular",
+        "body": "Agentın yanıtınızı beklediği soruları burada bulun. Yanıtlamak için sohbeti açın."
       },
       "inbox-filters": {
         "title": "Kendiliğinden gelenler",
@@ -13110,6 +13117,15 @@
     "openWorkingChat": "Sohbeti aç",
     "preferences": "Gelen kutusu tercihleri",
     "preferencesDescription": "Gelen kutuna hangi otomatik önerilerin ulaşacağını seç.",
+    "questions": {
+      "title": "Yanıtınızı bekleyen sorular",
+      "open": "Sohbeti aç: {conversation}, {agent} tarafından sorulan soru",
+      "untitled": "Başlıksız sohbet",
+      "source": "{agent} · Son yanıt zamanı: {expiry}",
+      "failed": "Bekleyen sorular yüklenemedi.",
+      "retry": "Tekrar dene",
+      "loadMore": "Daha fazla soru göster"
+    },
     "approvals": {
       "title": "Onay bekleyenler",
       "open": "Onayları aç",
