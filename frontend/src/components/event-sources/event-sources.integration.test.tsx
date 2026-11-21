@@ -2,7 +2,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NodeForm } from "@/components/workflows/property-panel/node-form";
+import {
+  graph,
+  makeCatalog,
+  makeDefinition,
+  node,
+} from "@/components/workflows/validation/fixtures";
 import { apiClient } from "@/lib/api-client";
 import type { EventSource } from "@/lib/event-sources-api";
 import { SourceForm } from "./source-form";
@@ -72,6 +80,48 @@ beforeEach(() => {
   vi.mocked(apiClient.patch).mockResolvedValue(source);
 });
 
+it("binds and detaches a reusable source in the workflow webhook form", async () => {
+  const user = userEvent.setup();
+  const definition = makeDefinition({ id: "trigger.webhook", category: "triggers" });
+  const catalog = makeCatalog([definition]);
+  const update = vi.fn();
+
+  function WebhookForm() {
+    const [config, setConfig] = useState<Record<string, unknown>>({});
+    const entry = node("webhook", definition.id, config);
+    return (
+      <NodeForm
+        definition={definition}
+        node={entry}
+        graph={graph({ entry: entry.id, nodes: [entry] })}
+        catalog={catalog}
+        bindings={[]}
+        errors={new Map()}
+        updateNodeConfig={(id, next) => {
+          update(id, next);
+          setConfig(next);
+        }}
+        upsertBinding={vi.fn()}
+        removeBinding={vi.fn()}
+      />
+    );
+  }
+
+  render(<WebhookForm />, { wrapper });
+  const picker = screen.getByRole("combobox", { name: "Event source" });
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/event-sources"));
+  await waitFor(() => expect(picker).toBeEnabled());
+  await user.click(picker);
+  await user.click(await screen.findByRole("option", { name: "Issues" }));
+  expect(update).toHaveBeenLastCalledWith("webhook", { source_id: "s1" });
+  expect(screen.getByDisplayValue(source.webhook_url)).toBeVisible();
+
+  await user.click(picker);
+  await user.click(screen.getByRole("option", { name: /^Dedicated endpoint/ }));
+  expect(update).toHaveBeenLastCalledWith("webhook", { source_id: null });
+  expect(screen.queryByDisplayValue(source.webhook_url)).toBeNull();
+});
+
 describe("event source management", () => {
   it("waits for permissions before claiming source access is refused", () => {
     vi.mocked(apiClient.get).mockImplementation(() => new Promise(() => {}));
@@ -126,6 +176,21 @@ describe("event source management", () => {
     });
   });
 
+  it("keeps the sources already loaded if the remaining page is empty", async () => {
+    const get = vi.mocked(apiClient.get).getMockImplementation()!;
+    const list = vi
+      .fn()
+      .mockResolvedValueOnce({ items: [source], total: 2 })
+      .mockResolvedValueOnce({ items: [], total: 1 })
+      .mockRejectedValue(new Error("Unexpected extra page"));
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) =>
+      path === "/event-sources" ? list() : get(path, options),
+    );
+    render(<SourceManager />, { wrapper });
+    expect(await screen.findByRole("heading", { name: "Issues" })).toBeVisible();
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
   it("pauses only the source and explains the subscribers blocking deletion", async () => {
     subscribers = 1;
     render(<SourceManager />, { wrapper });
@@ -133,6 +198,43 @@ describe("event source management", () => {
     expect(screen.getByRole("button", { name: "Delete source" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: "Pause source" }));
     expect(apiClient.patch).toHaveBeenCalledWith("/event-sources/s1", { is_active: false });
+  });
+
+  it("keeps credential replacement open after a refusal and closes it after retry", async () => {
+    const user = userEvent.setup();
+    vi.mocked(apiClient.post)
+      .mockRejectedValueOnce(new Error("Credential replacement refused"))
+      .mockResolvedValueOnce(undefined);
+    render(<SourceManager />, { wrapper });
+
+    await user.click(await screen.findByRole("button", { name: "Replace credentials" }));
+    await user.type(screen.getByLabelText("Secret"), "replacement");
+    const submit = screen.getAllByRole("button", { name: "Replace credentials" })[1]!;
+    await user.click(submit);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Credential replacement refused"));
+    expect(screen.getByLabelText("Secret")).toHaveValue("replacement");
+
+    await user.click(submit);
+    await waitFor(() => expect(screen.queryByLabelText("Secret")).not.toBeInTheDocument());
+    expect(apiClient.post).toHaveBeenLastCalledWith("/event-sources/s1/credentials", {
+      secret: "replacement",
+    });
+  });
+
+  it("deletes a source only after confirming and refreshes the catalog", async () => {
+    const user = userEvent.setup();
+    vi.mocked(apiClient.delete).mockImplementation(async () => {
+      items = [];
+    });
+    render(<SourceManager />, { wrapper });
+
+    const deletion = await screen.findByRole("button", { name: "Delete source" });
+    await waitFor(() => expect(deletion).toBeEnabled());
+    await user.click(deletion);
+    expect(apiClient.delete).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Confirm deletion" }));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Issues" })).toBeNull());
+    expect(apiClient.delete).toHaveBeenCalledExactlyOnceWith("/event-sources/s1");
   });
   it("creates a private HMAC source and reveals its generated secret only in creation state", async () => {
     render(<SourceSelector value={null} onChange={vi.fn()} />, { wrapper });
