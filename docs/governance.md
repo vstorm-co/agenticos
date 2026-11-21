@@ -776,11 +776,7 @@ reviewed actions** is an explicit new choice over matching eligible identities; 
 nothing until you save the current review. New actions and changed accounts are not
 selected automatically. Mandatory approvals, revocation and stale-review checks still apply.
 
-An unattended routine asks before capability actions, local file changes and
-delegation. External MCP calls ask unless their server marks them read-only;
-a connection's stronger approval policy still applies. Ordinary interactive
-agent defaults are unchanged. Code mode is disabled for routine runs so bundled
-scripts cannot skip the individual action gates.
+Following routines use the agent's own action approval rules, without an additional routine-wide approval requirement. Restricted routines additionally ask before capability effects, local file changes and delegation, and before external MCP calls not marked read-only. Explicit agent or connection gates and mandatory approvals apply in both modes. Code mode stays disabled for routine runs so bundled scripts cannot bypass individual tool checks.
 
 Writes to AgenticOS Virtual Tables run within their live table and operation grants without a routine exception. An explicit agent approval policy still applies to these internal writes.
 
@@ -2378,9 +2374,11 @@ The list shows when a routine was paused automatically and its failure count. He
 
 ## Reviewed routine sources { #routine-sources }
 
-A routine freezes its published source configuration, exact MCP accounts, credential consent generations and known tool names when it is created. The review includes pinned delegates, knowledge collections, skills, context and capability configuration; remote A2A registrations also retain their endpoint/card/credential binding. Changing instructions or model settings alone can follow publication. Adding sources, changing an account or granting it renewed consent requires the owner to review the Sources panel in the routine's consent dialog. This review does not waive action approvals or grant access to resources. Current resource permissions still apply.
+New routines use `follow_agent`: each new execution captures the selected published agent's current sources and the creator's live permissions. Optional MCP accounts that are missing or unreachable are unavailable to that run; an unused GitHub binding does not block web research. Required event-input accounts and creator identity remain necessary. Current resource grants, budgets, native consent and explicit agent/platform approvals still apply; this mode creates no standing approval exceptions. Required event-input identity changes still need an explicit owner review.
 
-Queued activations, offline waits and parked runs keep their original review identity. A later review never lends new authority to old work. The mailbox poll checks the input account before reading, and its events retain the review admitted before that read. MCP calls use reviewed aliases and exclude unreviewed tools; unavailable reviewed sources produce an explicit refusal. A review needed before an execution appears in the owner's existing attention case and does not count as a model failure.
+The owner may instead select `restricted`, which freezes the reviewed source configuration, exact MCP accounts, credential generations and known tool names. Its review includes pinned delegates, knowledge, skills, context, capabilities and remote A2A registrations. New sources or changed account authorization require another review. Existing policies without a mode remain restricted; upgrading does not silently broaden them.
+
+Every admitted execution retains its own source and account snapshot. A parked run cannot borrow a later account, authorization or review. Source ownership, revocation and tool allowlists are checked again before calls. Missing optional tools are reported rather than treated as successful work. The owner can explicitly switch an existing routine's mode through its token-bound access settings.
 
 Migration `0276_routine_sources.py` leaves existing routines without consent. Drain old workers, update API and workers together, then explicitly review legacy routines before running them. Only the console owner may replace a review; API keys, impersonation and unattended agents cannot do so.
 

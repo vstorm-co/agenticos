@@ -4702,8 +4702,12 @@ class AgentRunnerService:
         if routine is not None and routine.routine_kind == "trigger":
             assert routine.source_policy is not None
             if (
-                set(resolved.sources) != set(routine.source_policy.root_mcp_ids)
-                or resolved.unavailable
+                (
+                    not set(resolved.sources).issubset(routine.source_policy.root_mcp_ids)
+                    if routine.source_policy.mode == "follow_agent"
+                    else set(resolved.sources) != set(routine.source_policy.root_mcp_ids)
+                )
+                or (resolved.unavailable and routine.source_policy.mode == "restricted")
                 or any(
                     identity != (routine.mcp_sources or {}).get(identifier)
                     for identifier, identity in resolved.sources.items()

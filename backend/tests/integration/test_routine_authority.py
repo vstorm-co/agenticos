@@ -120,11 +120,15 @@ async def _world(db: AsyncSession) -> World:
         "agent",
     ],
 )
+@pytest.mark.parametrize("mode", ["follow_agent", "restricted"])
 async def test_current_authority_can_revoke_a_previously_admitted_tool(
     db: AsyncSession,
     change: str,
+    mode: str,
 ) -> None:
     world = await _world(db)
+    world.trigger.approved_sources = {**world.trigger.approved_sources, "mode": mode}
+    await db.flush()
     authority = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=None)
     assert authority is not None
     await authority.check_in(db, world.delegate.id)

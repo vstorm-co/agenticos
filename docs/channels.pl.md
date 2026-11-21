@@ -1,5 +1,5 @@
 ---
-source_sha: "9dab1088209c"
+source_sha: "b9e22792a58f"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -3163,7 +3163,9 @@ Checkboxy w sekcji **Co agent może robić** przyznają prawdziwe narzędzia. Na
 
 Przy każdej operacji usługa ponownie sprawdza członkostwo w organizacji, dostęp do agenta, aktywne powiązanie i bota, a następnie członkostwo bota w kanale i przynależność wątku. Nie dołącza do kanałów ani nie pożycza botów innych agentów. Wyszukiwanie i historia zwracają ograniczone strony; puste dopasowanie nie kończy przeglądania, jeśli istnieje kursor. Błąd dostawcy jest odmową, nie pustym wynikiem. Wysyłanie podlega zasadom akceptacji; niepotwierdzoną wysyłkę trzeba sprawdzić przed ponowieniem. Pozostałe platformy zachowują dotychczasowe narzędzia rozmowy; akcje między kanałami są dostępne tylko tam, gdzie adapter weryfikuje członkostwo.
 
-Przed utworzeniem cyklicznego raportu ustal strefę czasową, harmonogram i miejsce dostarczenia, w tym użycie tego samego wątku lub nowego wpisu. Wpisz zweryfikowane identyfikatory bota, kanału i wątku oraz pełne zadanie do promptu rutyny, z końcowym dostarczeniem przez `send_chat_message`; kopia w konsoli trafia do dziennika rutyny. Sprawdź źródła i ewentualną stałą zgodę na akcję w Rutynach. Brak źródła zapisuje rutynę wstrzymaną z informacją o konfiguracji; nie można jej uruchomić ani włączyć przed naprawą i przeglądem źródeł. Napraw istniejącą rutynę, zamiast tworzyć kolejne pod innymi agentami.
+Przed utworzeniem cyklicznego raportu ustal strefę czasową, harmonogram i miejsce dostarczenia, w tym użycie tego samego wątku lub nowego wpisu. Wpisz zweryfikowane identyfikatory bota, kanału i wątku oraz pełne zadanie do promptu rutyny, z końcowym dostarczeniem przez `send_chat_message`; kopia w konsoli trafia do dziennika rutyny.
+
+Nowe rutyny korzystają z konfiguracji agenta i uprawnień twórcy bez osobnego przeglądu dostępu. Brak opcjonalnego konta MCP nie blokuje innej pracy. Wysyłanie nadal podlega zgodom agenta i obowiązkowym zabezpieczeniom; nie obiecuj działania bez nadzoru, jeśli potrzebna jest zgoda. Rzeczywista blokada konfiguracji zapisuje rutynę jako wstrzymaną. Napraw istniejącą rutynę zamiast tworzyć duplikaty lub bez uzgodnienia zmieniać współdzielone powiązania agenta.
 
 Długie zadania strumieniują tekst i rzeczywiste etapy narzędzi. W komunikatorach tekstowych bieżący etap pozostaje widoczny także po zdaniu postępu; ograniczone aktualizacje pokazują upływ czasu i zakończone kroki, bez wymyślonego procentu. Końcowa odpowiedź zastępuje stan tymczasowy. Platformy z natywnym strumieniem zachowują własną oś czasu.
 

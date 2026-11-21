@@ -1516,3 +1516,229 @@ async def test_many_collection_labels_use_one_grant_lookup_and_preserve_scope_ru
     named = {item.id: item.name for item in items}
     for row in rows:
         assert named[str(row.id)] == (row.name if await readable_kb(db, member, row) else None)
+
+
+@pytest.mark.security
+async def test_follow_agent_omits_missing_optional_personal_mcp_but_keeps_the_gap_visible(db):
+    from app.agents.spec import PersonalMcpServerRef
+
+    ctx, trigger, spec, _ = await world(db)
+    version = await db.get(AgentVersion, trigger.pinned_version_id)
+    assert version is not None
+    version.spec = spec.model_copy(
+        update={"mcp_servers": [PersonalMcpServerRef(account="personal", catalog_key="github")]}
+    ).model_dump(mode="json")
+    await db.flush()
+    service = RoutineSourceService(db)
+    with pytest.raises(RoutineSourcesRequired):
+        await service.initial(ctx, trigger, mode="restricted")
+    policy = await service.initial(ctx, trigger, mode="follow_agent")
+    trigger.approved_sources = policy.model_dump(mode="json")
+    await db.flush()
+    review = await service.options(ctx, trigger)
+    assert review.current and review.mode == "follow_agent"
+    assert review.unavailable_sources == ["github"]
+    assert policy.mcp_sources == {} and policy.root_mcp_ids == ()
+    from app.services.routine_actions import activation_intent
+
+    intent = activation_intent(trigger)
+    refreshed = await service.require_current(ctx, trigger, expected_id=policy.id)
+    assert refreshed.id == policy.id and refreshed.mode == "follow_agent"
+    assert refreshed.reviewed_at == policy.reviewed_at
+    assert activation_intent(trigger) == intent
+
+
+@pytest.mark.security
+async def test_follow_agent_refreshes_between_fires_but_keeps_an_admitted_run_snapshot(db):
+    ctx, trigger, spec, account = await world(db, mcp=True)
+    assert account is not None
+    service = RoutineSourceService(db)
+    before = await service.initial(ctx, trigger, mode="follow_agent")
+    trigger.approved_sources = before.model_dump(mode="json")
+    version = await db.get(AgentVersion, trigger.pinned_version_id)
+    assert version is not None
+    changed = spec.model_copy(update={"context_ids": [uuid4()]})
+    version.spec = changed.model_dump(mode="json")
+    account.is_enabled = False
+    await db.flush()
+    after = await service.require_current(ctx, trigger, expected_id=before.id)
+    assert after.id == before.id and after.spec_hash == spec_fingerprint(changed)
+    assert after.mcp_sources == {} and after.root_mcp_ids == ()
+    assert before.mcp_sources and before.spec_hash == spec_fingerprint(spec)
+    from app.services.routine_sources import require_bound_sources
+
+    with pytest.raises(RoutineSourcesRequired):
+        await require_bound_sources(db, organization_id=ctx.organization_id, policy=before)
+
+
+@pytest.mark.security
+async def test_owner_can_explicitly_switch_missing_source_setup_to_follow_agent(db):
+    from app.agents.spec import PersonalMcpServerRef
+
+    ctx, trigger, spec, _ = await world(db)
+    version = await db.get(AgentVersion, trigger.pinned_version_id)
+    assert version is not None
+    version.spec = spec.model_copy(
+        update={"mcp_servers": [PersonalMcpServerRef(account="personal", catalog_key="github")]}
+    ).model_dump(mode="json")
+    trigger.approved_sources = {"pending_review": True, "unavailable_sources": ["github"]}
+    await db.flush()
+    service = RoutineSourceService(db)
+    before = await service.options(ctx, trigger)
+    assert not before.current and before.mode == "restricted"
+    after = await service.replace(
+        ctx, trigger, RoutineSourceConsent(review_token=before.review_token, mode="follow_agent")
+    )
+    assert after.current and after.mode == "follow_agent"
+    assert after.unavailable_sources == ["github"]
+    assert not trigger.setup_required
+
+
+@pytest.mark.security
+async def test_follow_agent_does_not_borrow_creator_identity_for_platform_mcp(db):
+    from app.agents.spec import PlatformMcpServerRef
+    from app.services.routine_sources import PlatformRoutineIdentityRequired
+
+    ctx, trigger, spec, _ = await world(db)
+    version = await db.get(AgentVersion, trigger.pinned_version_id)
+    assert version is not None
+    version.spec = spec.model_copy(
+        update={"mcp_servers": [PlatformMcpServerRef(account="platform")]}
+    ).model_dump(mode="json")
+    trigger.runs_as_creator = False
+    await db.flush()
+    with pytest.raises(PlatformRoutineIdentityRequired):
+        await RoutineSourceService(db).initial(ctx, trigger, mode="follow_agent")
+
+
+@pytest.mark.security
+async def test_follow_agent_still_requires_its_event_input_even_with_a_matching_optional_label(db):
+    ctx, trigger, _, account = await world(db, mcp=True)
+    assert account is not None
+    account.name = "event source"
+    account.is_enabled = False
+    trigger.connection_id = account.id
+    await db.flush()
+    with pytest.raises(RoutineSourcesRequired) as refusal:
+        await RoutineSourceService(db).initial(ctx, trigger, mode="follow_agent")
+    assert refusal.value.details == {"unavailable_sources": ["event source"]}
+
+
+async def test_new_routine_follows_available_agent_settings_without_an_access_review(db):
+    from app.schemas.agent_trigger import TriggerCreate
+
+    ctx, original, _, _ = await world(db)
+    created = await AgentTriggerService(db).create(
+        ctx,
+        original.agent_id,
+        TriggerCreate(prompt="Research the web", interval_seconds=300, runs_as_creator=True),
+    )
+    assert created.is_active and not created.setup_required
+    assert read_policy(created.approved_sources).mode == "follow_agent"
+    assert not created.action_consents
+
+
+@pytest.mark.security
+async def test_switching_mode_cannot_consent_to_an_account_changed_after_its_token_snapshot(
+    db, monkeypatch
+):
+    from app.schemas.routine_sources import RoutineSourceMode
+    from app.services.routine_sources import RoutineSourceSnapshot
+
+    ctx, trigger, _, account = await world(db, mcp=True)
+    assert account is not None
+    service = RoutineSourceService(db)
+    offered = await service.options(ctx, trigger)
+    generation = account.authorization_generation
+    original_review = service._review
+    reads = 0
+
+    async def review_then_rotate(
+        actor: AuthContext, current: AgentTrigger, *, mode: RoutineSourceMode | None = None
+    ) -> RoutineSourceSnapshot:
+        nonlocal reads
+        snapshot = await original_review(actor, current, mode=mode)
+        reads += 1
+        if reads == 1:
+            account.authorization_generation = uuid4()
+            await db.flush()
+        return snapshot
+
+    monkeypatch.setattr(service, "_review", review_then_rotate)
+    response = await service.replace(
+        ctx, trigger, RoutineSourceConsent(review_token=offered.review_token, mode="follow_agent")
+    )
+    saved = read_policy(trigger.approved_sources)
+    assert saved.mode == "follow_agent"
+    assert saved.mcp_sources[account.id].authorization_generation == generation
+    assert (
+        saved.mcp_sources[account.id].authorization_generation != account.authorization_generation
+    )
+    assert not response.current
+
+
+@pytest.mark.security
+async def test_follow_agent_cannot_borrow_new_event_authorization_after_a_mailbox_read(db):
+    ctx, trigger, _, account = await world(db, mcp=True)
+    assert account is not None
+    trigger.connection_id = account.id
+    await db.flush()
+    service = RoutineSourceService(db)
+    admitted = await service.initial(ctx, trigger, mode="follow_agent")
+    trigger.approved_sources = admitted.model_dump(mode="json")
+    await db.flush()
+    account.authorization_generation = uuid4()
+    await db.flush()
+    with pytest.raises(RoutineSourcesRequired):
+        await service.require_current(ctx, trigger, expected_id=admitted.id)
+    assert read_policy(trigger.approved_sources).input_source == admitted.input_source
+
+
+@pytest.mark.security
+async def test_follow_agent_mcp_action_keeps_live_connection_allowlists(db, monkeypatch):
+    from collections.abc import AsyncIterator
+    from contextlib import asynccontextmanager
+
+    from pydantic_ai.tools import ToolDefinition
+
+    from app.agents.mcp import MCP_ORIGIN, McpToolOrigin
+    from app.services.routine_sources import account_identities
+
+    ctx, trigger, spec, account = await world(db, mcp=True)
+    assert account is not None
+    policy = await RoutineSourceService(db).initial(ctx, trigger, mode="follow_agent")
+    trigger.approved_sources = policy.model_dump(mode="json")
+    await db.flush()
+    authority = await RoutineAuthority.capture(
+        db,
+        replace(
+            ctx,
+            routine_id=trigger.id,
+            fired_as_creator="schedule",
+            routine_source_policy_id=policy.id,
+        ),
+        agent_id=trigger.agent_id,
+        run=None,
+    )
+    assert authority is not None
+
+    @asynccontextmanager
+    async def context() -> AsyncIterator[AsyncSession]:
+        yield db
+
+    monkeypatch.setattr("app.services.routine_authority.get_db_context", context)
+    tool = ToolDefinition(
+        name="source_read",
+        metadata={
+            MCP_ORIGIN: McpToolOrigin(
+                connection_id=account.id,
+                identity=account_identities(policy)[account.id],
+                tool_id="read",
+            )
+        },
+    )
+    assert not (await authority.action_policy(trigger.agent_id, spec, tool)).required
+    account.allowed_tools = []
+    await db.flush()
+    with pytest.raises(AuthorizationError):
+        await authority.action_policy(trigger.agent_id, spec, tool)

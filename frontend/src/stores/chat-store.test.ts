@@ -610,3 +610,26 @@ it("does not duplicate an acknowledged prompt's final answer when history beats 
   store().updateMessage("live", (item) => ({ ...item, id: "saved", isTemporaryId: false }));
   expect(store().messages.map((item) => item.id)).toEqual(["question", "saved"]);
 });
+
+it("uses authoritative saved question corrections while keeping receipts scoped to invocation identity", () => {
+  const question = toolCall({
+    id: "question-call",
+    name: "ask_user_question",
+    status: "completed",
+    args: { questions: [{ header: "Day", question: "Which day?" }] },
+    result: JSON.stringify({ Day: ["Thursday"] }),
+  });
+  store().addMessage(message({ toolCalls: [question] }));
+  store().rereadMessages([
+    message({ toolCalls: [{ ...question, result: JSON.stringify({ Day: ["Friday"] }) }] }),
+  ]);
+  expect(store().messages[0]?.toolCalls?.[0]?.result).toBe(JSON.stringify({ Day: ["Friday"] }));
+  store().rereadMessages([
+    message({ toolCalls: [{ ...question, result: JSON.stringify({ cancelled: true }) }] }),
+  ]);
+  expect(store().messages[0]?.toolCalls?.[0]?.result).toBe(JSON.stringify({ cancelled: true }));
+  store().rereadMessages([
+    message({ toolCalls: [{ ...question, id: "different-call", result: "{}" }] }),
+  ]);
+  expect(store().messages[0]?.toolCalls?.[0]?.result).toBe("{}");
+});

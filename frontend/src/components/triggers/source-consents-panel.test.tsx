@@ -46,7 +46,7 @@ it("shows physical accounts and resources and submits only the displayed review"
   expect(screen.getByText("Work mailbox · id")).toBeVisible();
   expect(screen.getByText("Knowledge · id")).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Approve these sources" }));
-  expect(state.save).toHaveBeenCalledWith("exact-review");
+  expect(state.save).toHaveBeenCalledWith({ review_token: "exact-review", mode: "restricted" });
 });
 it("groups named sources by kind, folded to counts, and says when one is gone", async () => {
   if (state.data) {
@@ -92,4 +92,31 @@ it("does not offer consent when there is no review data", () => {
   state.data = undefined;
   render(<SourceConsentsPanel trigger={trigger} />);
   expect(screen.queryByRole("button", { name: "Approve these sources" })).not.toBeInTheDocument();
+});
+
+it("lets a paused legacy snapshot follow the agent despite an unavailable optional connection", async () => {
+  if (state.data) state.data.unavailable_sources = ["Optional mailbox"];
+  render(<SourceConsentsPanel trigger={trigger} />);
+  expect(screen.getByRole("radio", { name: "Reviewed snapshot" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await userEvent.click(screen.getByRole("radio", { name: "Follow agent" }));
+  expect(screen.getByText("Save to apply this access mode.")).toBeVisible();
+  const save = screen.getByRole("button", { name: "Save access mode" });
+  expect(save).toBeEnabled();
+  await userEvent.click(save);
+  expect(state.save).toHaveBeenCalledWith({ review_token: "exact-review", mode: "follow_agent" });
+});
+
+it("requires a review before changing a following routine to a restricted snapshot", async () => {
+  if (state.data) {
+    state.data.mode = "follow_agent";
+    state.data.current = true;
+  }
+  render(<SourceConsentsPanel trigger={trigger} />);
+  expect(screen.getByRole("button", { name: "Save access mode" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("radio", { name: "Reviewed snapshot" }));
+  await userEvent.click(screen.getByRole("button", { name: "Approve these sources" }));
+  expect(state.save).toHaveBeenCalledWith({ review_token: "exact-review", mode: "restricted" });
 });

@@ -1,5 +1,5 @@
 ---
-source_sha: "f35b4353727e"
+source_sha: "06839c22a83d"
 ---
 
 # API HTTP { #the-http-api }
@@ -79,7 +79,7 @@ który utworzyłeś, albo token klienta MCP, który autoryzowałeś, może tworz
 zmieniać twoje [routines](triggers.md) działające jako ty (`runs_as_creator`) i
 twoje [watche](console.md), przeglądać źródła routine oraz publikować agenta bez
 cofania zgody routines, które działają jako ty. Przebieg takiej routine nadal
-podlega jej przejrzanym źródłom i budżetowi. Nie może tego zrobić credential
+podlega wybranej polityce źródeł, aktualnym uprawnieniom i budżetowi. Nie może tego zrobić credential
 uruchomionego agenta poza twoim prywatnym czatem ani administrator, który się pod
 ciebie podszywa.
 

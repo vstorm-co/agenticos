@@ -158,6 +158,7 @@ function Welcome({
 
   return (
     <ChatWelcome
+      limitMobileSuggestions
       quiet
       showGreeting={showGreeting}
       showLead={!isStarter || showDiscoveryHints}

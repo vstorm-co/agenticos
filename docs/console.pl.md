@@ -1,8 +1,12 @@
 ---
-source_sha: "3722119864ec"
+source_sha: "e7d769dd8dd9"
 ---
 
 # Konsola { #the-console }
+
+Nowe generowane propozycje Inbox zawierają gotową prośbę o konkretne działanie zamiast pytania z identyfikatorem wpisu. Powtarzalna praca zachowuje źródłowe prośby oraz ich lokalne daty, dni tygodnia i strefę czasową, dzięki czemu sugerowany harmonogram może wynikać z dowodów. Wybór propozycji przygotowuje edytowalny szkic i nigdy nie wysyła go automatycznie. Chat na telefonie pokazuje dwa startery; szersze ekrany zachowują cztery.
+
+Operator może sprawdzić plan odświeżenia przez `agenticos cmd refresh-inbox --organization-id UUID`, a następnie dodać `--queue`, aby je zakolejkować. Nadal obowiązują skonfigurowany model i dotychczasowe budżety. Tylko otwarte, generowane propozycje są zastępowane po poprawnym odczycie; błąd lub odmowa pozostawia je bez zmian. Zaakceptowane i odrzucone decyzje, findings, powiązane sprawy oraz approval pozostają nietknięte. Decyzja podjęta podczas generowania anuluje zastąpienie propozycji danej osoby.
 
 Domyślne motywy rozróżniają tło strony, sidebar, karty i panele pływające. Niebieski oznacza linki i fokus klawiatury, a włączone przełączniki są zielone. Nawigacja ma zwykłą grubość tekstu i mocniejszą etykietę aktywnej strony. Podsumowania sekcji Buildera pokazują bieżący model, zmienne, stan głosu i pierwsze wiadomości przed otwarciem edytorów. Logowanie i odzyskiwanie konta korzystają ze wspólnego, krótkiego nagłówka i statycznego panelu marki.
 
@@ -16,7 +20,9 @@ Inbox zachowuje tę samą ramę listy, odstępy wierszy, oznaczenia źródeł, t
 
 Pliki i Źródła używają tego samego zwartego panelu bocznego: początkowo 400px, z regulacją od 360 do 420px i ograniczeniem do 38% szerokości zadokowanego czatu. Na wąskim desktopie mogą tymczasowo zwinąć listę rozmów; zamknięcie przywraca poprzedni wybór, chyba że zmienisz go ręcznie. Przeglądarka zachowuje szerszy obszar pracy: początkowo 55%, z regulacją od 35% do 65%. Kliknięcie cytatu przewija wyłącznie listę Źródeł, pozostawiając konwersację na miejscu.
 
-Na początku czatu Inbox pokazuje najwyżej dwa priorytety, bez dat i osobnej ikony czatu. Kliknięcie wiersza wstawia pytanie do pola wiadomości do edycji; nie wysyła go. **Otwórz Inbox** prowadzi do pełnej listy. Domyślny układ listy rozmów to **Workspace — projects**; `?sidebar=compact` i `?sidebar=comfortable` pozostają dostępne do porównania.
+Komunikat Plików o obszarze roboczym, który jeszcze nie powstał lub nie jest już przechowywany, różni się od błędu połączenia i nie dowodzi, że pliki nigdy nie istniały. Załączniki rozmowy pozostają dostępne. Dołącz i wyślij plik przez pole wiadomości albo poproś agenta o utworzenie pliku, aby użyć obszaru roboczego; rzeczywiste błędy połączenia i archiwum pozostają jawne.
+
+Na początku czatu Inbox pokazuje najwyżej dwa priorytety, bez dat i osobnej ikony czatu. Kliknięcie wiersza wstawia propozycję działania do pola wiadomości do edycji; nie wysyła go. **Otwórz Inbox** prowadzi do pełnej listy. Domyślny układ listy rozmów to **Workspace — projects**; `?sidebar=compact` i `?sidebar=comfortable` pozostają dostępne do porównania.
 
 Publiczny czat i osadzony widget obsługują wiadomości wielowierszowe: Enter wysyła, Shift+Enter dodaje wiersz, a składanie znaku przez IME nie wysyła przedwcześnie. W głównym czacie, publicznym czacie i widgecie czytanie wcześniejszych wiadomości wstrzymuje automatyczne przewijanie. Streaming i zmiana rozmiaru treści zachowują tę pozycję; powrót na dół lub świadome wysłanie nowej wiadomości wznawia podążanie. Ponowne połączenie i wczytanie historii nie przewijają czytelnika na dół.
 
@@ -278,7 +284,7 @@ migawkę, którą chciałeś zachować.
 
 ## Rutyny i obserwacje { #routines-and-watches }
 
-Nowe harmonogramy i wyzwalacze API są zapisywane jako wstrzymane. Następnie pojawia się **Sprawdź dostęp rutyny**. Sprawdź źródła i wybierz działania, które mogą wykonywać się bez pytania; **Włącz rutynę** zapisuje obie zgody i ją aktywuje. **Dokończ później** pozostawia ją wstrzymaną. Jawne wymagania zatwierdzenia ustawione w agencie nadal obowiązują. Wznowienie niedokończonej konfiguracji ponownie otwiera ten przegląd; aktywacja sprawdza aktualność źródeł.
+Nowe rutyny korzystają z bieżącej konfiguracji opublikowanego agenta i aktualnych uprawnień twórcy. Osobny przegląd dostępu jest opcjonalny. Brak opcjonalnego konta MCP nie blokuje niezwiązanej z nim pracy. Nadal obowiązują jawne zgody agenta, obowiązkowe zgody platformy i zgoda na lokalny folder. W oknie dostępu można wybrać zatwierdzony zestaw źródeł jako stałe ograniczenie. Istniejące rutyny z przeglądem zachowują ograniczenia do zmiany trybu przez właściciela; rzeczywisty brak wymaganej konfiguracji nadal je wstrzymuje.
 
 Gdy **Skip this run** pomija termin z powodu trwającego uruchomienia, historia zapisuje przyczynę bez nowego uruchomienia ani opłat. Jeśli serwer przyznaje Ci prawo do zatrzymania oczekującego uruchomienia, możesz zrobić to bezpośrednio w historii. Zatrzymanie zachowuje naliczone koszty i odblokowuje kolejny termin harmonogramu. Kolejne pominięcia przez ten sam niedokończony przebieg mają jeden wspólny wpis w historii.
 

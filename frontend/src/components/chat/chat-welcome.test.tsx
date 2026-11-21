@@ -160,3 +160,36 @@ it("keeps the docked editor focused until a starter click prefills it", async ()
   view.unmount();
   target.remove();
 });
+
+it("keeps the two-prompt mobile policy on loading and portaled home suggestions", async () => {
+  const onPick = vi.fn();
+  const target = document.createElement("div");
+  document.body.append(target);
+  const props = {
+    mark: <span />,
+    title: "Welcome",
+    lead: "Ready",
+    quiet: true,
+    limitMobileSuggestions: true,
+    suggestionsSlot: target,
+    suggestions: ["One", "Two", "Three", "Four"].map((title) => ({
+      key: title,
+      title,
+      prompt: `Send ${title}`,
+      icon: Ban,
+    })),
+    onPick,
+  };
+  const view = render(<ChatWelcome {...props} loading />);
+  const pending = target.querySelector("[data-chat-welcome-hints]");
+  expect(pending).toHaveClass("max-sm:[&>*:nth-child(n+3)]:hidden");
+  expect(pending?.children).toHaveLength(4);
+  view.rerender(<ChatWelcome {...props} />);
+  const loaded = target.querySelector("[data-chat-welcome-hints]");
+  expect(loaded).toHaveClass("max-sm:[&>*:nth-child(n+3)]:hidden");
+  expect(loaded?.children).toHaveLength(4);
+  await userEvent.click(screen.getByRole("button", { name: /Two/ }));
+  expect(onPick).toHaveBeenCalledWith("Send Two");
+  view.unmount();
+  target.remove();
+});

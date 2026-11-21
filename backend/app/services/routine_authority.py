@@ -453,6 +453,13 @@ class RoutineAuthority:
         """Default to approval for effects; only current, snapshotted consent may waive it."""
         async with get_db_context() as db:
             await self.check_in(db, agent_id)
+            if self.source_policy is not None and self.source_policy.mode == "follow_agent":
+                origin = tool_origin(tool)
+                if origin is not None:
+                    await self._mcp_in(db, origin)
+                # The normal ApprovalGate still enforces the agent, connection,
+                # mandatory platform and native consent floors.
+                return RoutineToolDecision()
             # The native loader has no registry capability_id. Its owned kind,
             # not an MCP tool's claimed name/read-only hint, identifies a skill
             # instruction read. Explicit agent gates still run in ApprovalGate.

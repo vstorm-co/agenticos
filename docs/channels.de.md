@@ -1,5 +1,5 @@
 ---
-source_sha: "9dab1088209c"
+source_sha: "b9e22792a58f"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -3375,7 +3375,9 @@ Die Kontrollkästchen unter **Was dieser Agent tun darf** gewähren echte Werkze
 
 Jede Operation prüft erneut Organisationsmitgliedschaft, Agentenzugriff, aktive Bindung und Bot sowie anschließend Kanalmitgliedschaft und Thread-Zugehörigkeit. Sie tritt keinen Kanälen bei und verwendet keine Bots anderer Agenten. Suche und Verlauf liefern begrenzte Seiten mit Cursorn; eine leere Trefferseite ist nicht das Ende, solange ein Cursor besteht. Anbieterfehler sind Ablehnungen, keine leeren Ergebnisse. Senden folgt den Freigaberegeln; unbestätigte Sendungen müssen vor einem erneuten Versuch am Ziel geprüft werden. Andere Plattformen behalten ihre Gesprächswerkzeuge; kanalübergreifende Aktionen werden nur bei überprüfbarer Mitgliedschaft angeboten.
 
-Vor einem wiederkehrenden Bericht Zeitzone, Rhythmus und Ziel einschließlich bestehendem Thread oder neuem Beitrag klären. Verifizierte Bot-, Kanal- und Thread-IDs sowie die vollständige Aufgabe in den Routinen-Prompt schreiben und abschließend `send_chat_message` verwenden; die Konsolenkopie gehört ins Laufprotokoll. Quellen und gegebenenfalls dauerhafte Aktionsfreigabe unter Routinen prüfen. Fehlt eine Quelle, wird die Routine mit Einrichtungshinweisen pausiert gespeichert und bleibt bis zur Reparatur und Quellenprüfung gesperrt. Die bestehende Routine reparieren, statt weitere mit anderen Agenten anzulegen.
+Vor einem wiederkehrenden Bericht Zeitzone, Rhythmus und Ziel einschließlich bestehendem Thread oder neuem Beitrag vereinbaren. Verifizierte Bot-, Kanal- und Thread-IDs und die vollständige Aufgabe in den Routineprompt aufnehmen, mit `send_chat_message` als letzter Zustellung; die Konsolenkopie bleibt im Ausführungsprotokoll.
+
+Neue Routinen folgen Agentenkonfiguration und Erstellerberechtigungen ohne separate Zugriffsprüfung. Fehlende optionale MCP-Konten blockieren keine andere Arbeit. Senden unterliegt weiterhin Agentenfreigaben und verbindlichen Kontrollen; bei erforderlicher Freigabe keine unbeaufsichtigte Zustellung versprechen. Tatsächlich fehlende Pflichtkonfiguration speichert die Routine pausiert. Die bestehende Routine reparieren, statt Duplikate anzulegen oder gemeinsam genutzte Agentenbindungen ohne Absprache zu ändern.
 
 Lange Aufgaben streamen Text und tatsächliche Werkzeugschritte. Textkanäle zeigen die laufende Phase auch nach einem Zwischenstand; begrenzte Aktualisierungen nennen verstrichene Zeit und abgeschlossene Schritte, keinen erfundenen Prozentsatz. Die endgültige Antwort ersetzt den Zwischenstatus. Nativ streamende Plattformen behalten ihre eigene Zeitleiste.
 

@@ -271,6 +271,7 @@ export function WorkspaceFiles({
                 {readIssue !== null && (
                   <WorkspaceReadNotice
                     detail={readIssue}
+                    code={error === null ? workspace?.unreadable_code : undefined}
                     onRetry={refresh}
                     cloud={localRoot === null}
                     failed={error !== null}

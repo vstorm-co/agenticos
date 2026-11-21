@@ -1,5 +1,5 @@
 ---
-source_sha: "f35b4353727e"
+source_sha: "06839c22a83d"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -86,7 +86,7 @@ MCP-Clients, den Sie autorisiert haben, darf Ihre eigenen [Routinen](triggers.md
 die als Sie handeln (`runs_as_creator`), und Ihre [Watches](console.md) anlegen und
 ändern, die Quellen einer Routine prüfen und einen Agenten veröffentlichen, ohne
 die Zustimmung Ihrer als Sie handelnden Routinen zu entziehen. Der Lauf einer
-solchen Routine bleibt an ihre geprüften Quellen und ihr Budget gebunden. Die
+solchen Routine bleibt an ihre gewählte Quellenrichtlinie, aktuelle Berechtigungen und ihr Budget gebunden. Die
 Laufberechtigung eines Agenten außerhalb Ihres privaten Chats kann das nicht,
 ebenso wenig ein Administrator, der Sie imitiert.
 

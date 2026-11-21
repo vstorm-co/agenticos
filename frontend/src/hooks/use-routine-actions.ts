@@ -7,13 +7,14 @@ import { routineActionsApi, type RoutineActionKey } from "@/lib/routine-actions-
 import { qk } from "@/lib/query-keys";
 import { getErrorMessage } from "@/lib/api-error";
 
-export function useRoutineActions(agentId: string, triggerId: string) {
+export function useRoutineActions(agentId: string, triggerId: string, { enabled = true } = {}) {
   const client = useQueryClient();
   const t = useTranslations("errors");
   const key = qk.triggers.actionConsents(agentId, triggerId);
   const query = useQuery({
     queryKey: key,
     queryFn: () => routineActionsApi.get(agentId, triggerId),
+    enabled,
   });
   const replace = useMutation({
     mutationFn: (actions: RoutineActionKey[]) =>

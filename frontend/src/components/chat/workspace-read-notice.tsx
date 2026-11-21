@@ -17,17 +17,20 @@ export function WorkspaceReadNotice({
   failed,
   cloud,
   onRetry,
+  code,
 }: {
   detail: string;
   failed: boolean;
   cloud: boolean;
   onRetry: () => Promise<void>;
+  code?: "workspace_not_retained" | null;
 }) {
   const t = useTranslations("chat.files");
   const common = useTranslations("common");
   const errors = useTranslations("errors");
   const { can } = usePermissions();
   const [pending, setPending] = useState(false);
+  const notRetained = code === "workspace_not_retained";
   const retry = async () => {
     setPending(true);
     try {
@@ -46,8 +49,12 @@ export function WorkspaceReadNotice({
       <div className="flex items-start gap-2.5">
         <Info className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
         <div className="min-w-0 space-y-2">
-          <p className="text-sm font-medium">{t(failed ? "loadFailed" : "notAvailable")}</p>
-          <p className="text-muted-foreground text-xs leading-5">{t("readNoticeBody")}</p>
+          <p className="text-sm font-medium">
+            {t(notRetained ? "workspaceNotRetained" : failed ? "loadFailed" : "notAvailable")}
+          </p>
+          <p className="text-muted-foreground text-xs leading-5">
+            {t(notRetained ? "workspaceNotRetainedBody" : "readNoticeBody")}
+          </p>
           <div className="flex flex-wrap items-center gap-3">
             <Button
               type="button"
@@ -58,7 +65,7 @@ export function WorkspaceReadNotice({
             >
               {common("retry")}
             </Button>
-            {cloud && can(Perm.connectionsManage) && (
+            {cloud && !notRetained && can(Perm.connectionsManage) && (
               <Link href="/sandboxes" className="text-brand text-xs underline underline-offset-4">
                 {t("connectionSettings")}
               </Link>

@@ -1,8 +1,12 @@
 ---
-source_sha: "3722119864ec"
+source_sha: "e7d769dd8dd9"
 ---
 
 # Die Konsole { #the-console }
+
+Neue generierte Inbox-Vorschläge enthalten eine direkt verwendbare Handlungsanfrage statt einer Frage mit einer Eintrags-ID. Bei wiederkehrender Arbeit bleiben die zugrunde liegenden Anfragen mit lokalem Datum, Wochentag und Zeitzone erhalten, damit ein vorgeschlagener Zeitplan auf Belegen beruht. Die Auswahl erstellt einen bearbeitbaren Entwurf und sendet ihn niemals automatisch. Auf dem Telefon zeigt der Chat zwei Startvorschläge, auf breiteren Bildschirmen weiterhin vier.
+
+Betreiber können mit `agenticos cmd refresh-inbox --organization-id UUID` eine Aktualisierung planen und sie mit `--queue` einreihen. Das konfigurierte Modell und die bestehenden Budgets gelten weiterhin. Nur offene generierte Vorschläge werden nach einer gültigen Auswertung ersetzt; bei Fehlern oder Ablehnung bleiben sie erhalten. Angenommene oder verworfene Entscheidungen, Findings, verknüpfte Fälle und Freigaben bleiben unverändert. Eine während der Generierung getroffene Entscheidung bricht den Austausch für diese Person ab.
 
 Die Standarddesigns unterscheiden Seitenfläche, Seitenleiste, Karten und schwebende Panels. Blau kennzeichnet Links und Tastaturfokus; eingeschaltete Schalter sind grün. Navigationsbeschriftungen sind normal gewichtet, die aktive Beschriftung mittelstark. Zusammenfassungen im Builder zeigen Modell, Variablen, Sprachstatus und erste Nachrichten vor dem Öffnen der Editoren. Anmeldung und Kontowiederherstellung verwenden denselben knappen Überschriftenstil und ein statisches Markenpanel.
 
@@ -16,7 +20,9 @@ Der Posteingang verwendet in Alle, Dringend, Routinen-Ergebnisse, Vorschläge un
 
 Dateien und Quellen verwenden dasselbe kompakte Seitenpanel: anfangs 400px, verstellbar von 360 bis 420px und auf 38% der angedockten Chatbreite begrenzt. Auf schmalen Desktopfenstern können sie die Gesprächsliste vorübergehend einklappen. Beim Schließen wird die frühere Auswahl wiederhergestellt, sofern Sie sie nicht manuell geändert haben. Der Browser behält mehr Arbeitsfläche: anfangs 55%, verstellbar von 35% bis 65%. Ein Zitat scrollt nur die Quellenliste und lässt den Gesprächsverlauf an seiner Position.
 
-Beim Chatstart zeigt der Posteingang höchstens zwei Prioritäten ohne Datum oder zusätzliches Chatsymbol. Die Auswahl einer Zeile fügt ihre Frage zum Bearbeiten ins Eingabefeld ein, ohne sie zu senden. **Posteingang öffnen** führt zur vollständigen Liste. **Workspace — projects** ist das Standardlayout der Gesprächsliste; `?sidebar=compact` und `?sidebar=comfortable` bleiben zum Vergleichen verfügbar.
+Meldet Dateien einen noch nicht erstellten oder nicht mehr aufbewahrten Arbeitsbereich, ist das von einem Verbindungsfehler getrennt und beweist nicht, dass dort nie Dateien lagen. Gesprächsanhänge bleiben verfügbar. Hängen Sie eine Datei im Eingabefeld an und senden Sie sie, oder bitten Sie den Agenten, eine Datei zu erstellen. Echte Verbindungs- und Archivfehler bleiben ausdrücklich sichtbar.
+
+Beim Chatstart zeigt der Posteingang höchstens zwei Prioritäten ohne Datum oder zusätzliches Chatsymbol. Die Auswahl einer Zeile fügt ihre Handlungsanfrage zum Bearbeiten ins Eingabefeld ein, ohne sie zu senden. **Posteingang öffnen** führt zur vollständigen Liste. **Workspace — projects** ist das Standardlayout der Gesprächsliste; `?sidebar=compact` und `?sidebar=comfortable` bleiben zum Vergleichen verfügbar.
 
 Öffentlicher Chat und eingebettetes Widget unterstützen mehrzeilige Nachrichten: Enter sendet, Umschalt+Enter fügt eine Zeile ein, und eine laufende IME-Eingabe sendet nicht vorzeitig. Im Hauptchat, öffentlichen Chat und Widget pausiert das Lesen älterer Nachrichten das automatische Folgen. Streaming und Größenänderungen erhalten diese Position. Die Rückkehr zum Ende oder das bewusste Senden einer neuen Nachricht setzt das Folgen fort. Wiederverbinden und Laden des Verlaufs ziehen die Ansicht nicht nach unten.
 
@@ -286,7 +292,7 @@ statt still den Snapshot zu überschreiben, den Sie behalten wollten.
 
 ## Routinen und Beobachtungen { #routines-and-watches }
 
-Neue Zeitpläne und API-Trigger werden pausiert gespeichert. Danach erscheint **Zugriff der Routine prüfen**. Prüfen Sie die Quellen und wählen Sie Aktionen ohne Rückfrage aus; **Routine aktivieren** speichert beide Entscheidungen und aktiviert die Routine. **Später fortfahren** lässt sie pausiert. Explizite Freigaben des Agenten bleiben verbindlich. Beim Fortsetzen einer unvollständigen Einrichtung öffnet sich diese Prüfung erneut; die Aktivierung prüft die Quellen nochmals.
+Neue Routinen folgen der aktuellen Konfiguration des veröffentlichten Agenten und den aktuellen Berechtigungen ihres Erstellers. Eine separate Zugriffsprüfung ist optional. Fehlende optionale MCP-Konten blockieren keine davon unabhängige Arbeit. Explizite Agentenfreigaben, verbindliche Plattformfreigaben und die Zustimmung zu lokalen Ordnern gelten weiterhin. Im Zugriffsdialog lässt sich ein geprüfter Quellenstand als feste Grenze wählen. Bestehende geprüfte Routinen behalten ihre Einschränkungen, bis ihr Eigentümer den Modus ändert; tatsächlich fehlende Pflichtkonfiguration lässt sie pausiert.
 
 Verhindert **Skip this run** eine überlappende Ausführung, speichert der Verlauf den Grund ohne neue Ausführung oder Kosten. Sie können eine wartende Ausführung direkt im Verlauf stoppen, wenn der Server dies erlaubt. Ihre bisherigen Kosten bleiben erhalten; der nächste geplante Termin kann wieder starten. Wiederholte Auslassungen wegen desselben unfertigen Laufs teilen sich einen Verlaufseintrag.
 
@@ -313,7 +319,7 @@ Dashboard-Karten verwenden einheitliche kompakte Zeilen, Dienstsymbole und Statu
 
 Ein neuer Chat begrüßt nach lokaler Tageszeit und zeigt ein kompaktes Eingabefeld. Dateien stehen neben dem Agenten, Chat-Einstellungen und Berechtigungsschild neben dem Modell. Die Kontextnutzung bleibt bis zum Öffnen ein Symbol.
 
-Die Zeitleiste über dem Eingabefeld zeigt Einträge mit Priorität zuerst. Innerhalb jeder Gruppe stehen die neuesten Einträge oben. Jede Zeile zeigt die Quelle, ohne Datum. Ein Klick bereitet eine bearbeitbare Frage im Eingabefeld vor; Inbox öffnen führt zur vollständigen Liste. Der Genehmigungszähler führt zur Entscheidungswarteschlange. Laden, Fehler und leere Listen bleiben getrennte Zustände. Diktat und Anrufe verwenden dieselbe leichte Oberfläche wie das Eingabefeld. Beim Architect-Widget stehen dieselbe Hauptaktion und dieselben Diktierfunktionen zur Verfügung.
+Die Zeitleiste über dem Eingabefeld zeigt Einträge mit Priorität zuerst. Innerhalb jeder Gruppe stehen die neuesten Einträge oben. Jede Zeile zeigt die Quelle, ohne Datum. Ein Klick bereitet eine bearbeitbare Handlungsanfrage im Eingabefeld vor; Inbox öffnen führt zur vollständigen Liste. Der Genehmigungszähler führt zur Entscheidungswarteschlange. Laden, Fehler und leere Listen bleiben getrennte Zustände. Diktat und Anrufe verwenden dieselbe leichte Oberfläche wie das Eingabefeld. Beim Architect-Widget stehen dieselbe Hauptaktion und dieselben Diktierfunktionen zur Verfügung.
 
 Vor der ersten Nachricht bleiben Dateien und Kontextnutzung sichtbar, aber deaktiviert. Das Anhangsmenü zeigt verfügbare Aktionen direkt. Die Chat-Einstellungen verwenden kompakte Abschnitte für Verbindungen und gespeicherte Freigaben; die Inbox-Vorschau zeigt Quelle und Priorität.
 

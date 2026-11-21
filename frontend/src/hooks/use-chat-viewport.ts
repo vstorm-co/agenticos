@@ -66,6 +66,9 @@ export function useChatViewport(options: ViewportOptions) {
     let pointerActive = false;
     let nativeControlScroll = false;
     let releaseFrame: number | null = null;
+    let questionPending = !!transcript.querySelector("[data-question-pending]");
+    let hasTranscript = current.current.messages.length > 0;
+    let pausedForQuestion = false;
     const viewportTop = () => scrolling.getBoundingClientRect().top;
     const remember = () => {
       const top = viewportTop();
@@ -96,6 +99,19 @@ export function useChatViewport(options: ViewportOptions) {
       // Native scrollIntoView may run before pointerdown. Moving the viewport
       // again before click changes the hit target between press and release.
       if (pointerActive || nativeControlScroll) return;
+      const pending = !!transcript.querySelector("[data-question-pending]");
+      // An incoming form can add a whole viewport at once. Keep the place the
+      // person was reading; the dock's explicit Reveal action takes them to it.
+      // An already-pending question on initial history load is not a live arrival.
+      if (pending && !questionPending && hasTranscript) {
+        pausedForQuestion = true;
+        if (mode === "following") {
+          write(lastTop);
+          read();
+        }
+      }
+      questionPending = pending;
+      hasTranscript = current.current.messages.length > 0;
       const height = docking.offsetHeight;
       setDockHeight((previous) => (previous === height ? previous : height));
       scrolling.style.paddingBottom = `${height}px`;
@@ -121,7 +137,7 @@ export function useChatViewport(options: ViewportOptions) {
           space.style.height = `${reserve}px`;
           write(scrolling.scrollTop + row.getBoundingClientRect().top - viewportTop() - inset);
           if (reserve === 0) {
-            mode = "following";
+            mode = pausedForQuestion ? "reading" : "following";
             remember();
           }
           return;
@@ -275,6 +291,7 @@ export function useChatViewport(options: ViewportOptions) {
         nativeControlScroll = false;
         preserveAnchor = false;
         sentKey = id;
+        pausedForQuestion = false;
         mode = "sent";
         resize();
       },

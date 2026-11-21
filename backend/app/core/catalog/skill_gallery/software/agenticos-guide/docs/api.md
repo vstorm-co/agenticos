@@ -72,7 +72,7 @@ key you created, or an MCP client's token you authorized, may create and change
 your own [routines](https://vstorm-co.github.io/agenticos/triggers/) that act as you (`runs_as_creator`) and your
 [watches](https://vstorm-co.github.io/agenticos/console/), review a routine's sources, and publish an agent without
 withdrawing the consent of routines you made to act as you. The run those
-routines start is still the routine's, under its reviewed sources and budget.
+routines start is still the routine's, under its selected source policy, current permissions and budget.
 An agent's own run credential cannot do this outside your private chat, and
 neither can an administrator impersonating you.
 

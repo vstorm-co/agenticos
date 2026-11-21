@@ -1,5 +1,5 @@
 ---
-source_sha: "967cfe084fed"
+source_sha: "0c49f2ac8606"
 ---
 
 # Governance { #governance }
@@ -827,11 +827,7 @@ sprawdzone akcje** to jawny nowy wybór zgodnych, dozwolonych identyfikatorów; 
 zgody przed zapisaniem bieżącego review. Nowe akcje i zmienione konta nie zaznaczają
 się automatycznie. Obowiązkowe akceptacje, cofanie zgody i kontrola aktualności nadal działają.
 
-Rutyna działająca bez nadzoru pyta przed działaniami funkcji, zmianami lokalnych
-plików i delegowaniem. Wywołania zewnętrznego MCP pytają, chyba że serwer oznacza je
-jako tylko do odczytu; silniejsza polityka zatwierdzania połączenia nadal obowiązuje.
-Domyślne zachowanie zwykłego interaktywnego agenta nie zmienia się. Tryb kodu jest
-wyłączony w rutynach, aby skrypt zbiorczy nie omijał kontroli pojedynczych działań.
+Rutyny podążające za agentem stosują jego zasady zatwierdzania działań bez dodatkowej zgody na poziomie rutyny. Rutyny ograniczone dodatkowo pytają przed działaniami capabilities, zmianami plików lokalnych i delegowaniem oraz przed wywołaniami MCP nieoznaczonymi jako tylko do odczytu. Jawne wymagania agenta lub połączenia i obowiązkowe zatwierdzenia obowiązują w obu trybach. Tryb kodu pozostaje wyłączony w rutynach, aby skrypty zbiorcze nie omijały kontroli poszczególnych narzędzi.
 
 Zapisy do Virtual Tables w AgenticOS działają w granicach aktualnych uprawnień do tabel i operacji, bez wyjątku dla rutyny. Jawna polityka zatwierdzania agenta nadal obowiązuje dla tych wewnętrznych zapisów.
 
@@ -2517,9 +2513,11 @@ Lista pokazuje automatyczne wstrzymanie i liczbę błędów. Metadane zachowują
 
 ## Zatwierdzone źródła rutyn { #routine-sources }
 
-Podczas tworzenia rutyna utrwala opublikowaną konfigurację źródeł, konkretne konta MCP, generacje zgody na uwierzytelnienie i znane nazwy narzędzi. Przegląd obejmuje przypiętych delegatów, kolekcje wiedzy, umiejętności, kontekst i konfigurację możliwości; zdalne rejestracje A2A zachowują powiązanie endpointu, karty i poświadczenia. Sama zmiana instrukcji lub ustawień modelu może podążać za publikacją. Dodanie źródła, zmiana konta lub ponowne udzielenie zgody na konto wymaga przeglądu panelu źródeł w oknie zgód rutyny przez jej właściciela. Ten przegląd nie znosi zatwierdzeń działań ani nie przyznaje dostępu do zasobów. Nadal obowiązują aktualne uprawnienia.
+Nowe rutyny używają trybu `follow_agent`: każde nowe wykonanie zapisuje bieżące źródła wybranego opublikowanego agenta i aktualne uprawnienia twórcy. Brakujące lub nieosiągalne opcjonalne konta MCP są niedostępne dla tego wykonania; nieużywane powiązanie GitHuba nie blokuje wyszukiwania w sieci. Konto wejściowe wyzwalacza zdarzeniowego i tożsamość twórcy nadal są wymagane. Obowiązują aktualne uprawnienia do zasobów, budżety, zgody lokalne i jawne zatwierdzenia agenta oraz platformy; ten tryb nie nadaje stałych wyjątków od zatwierdzania. Zmiana tożsamości wymaganego konta wejściowego zdarzeń nadal wymaga jawnego przeglądu przez właściciela.
 
-Zakolejkowane uruchomienia, oczekiwanie na komputer i zaparkowane przebiegi zachowują identyfikator pierwotnego przeglądu. Późniejszy przegląd nie rozszerza uprawnień starej pracy. Polling skrzynki sprawdza konto wejściowe przed odczytem, a zdarzenia zachowują zgodę obowiązującą przed nim. Wywołania MCP używają zatwierdzonych aliasów i wykluczają niezatwierdzone narzędzia; niedostępne źródła powodują jawną odmowę. Konieczność przeglądu przed wykonaniem pojawia się w istniejącej sprawie właściciela i nie jest błędem modelu.
+Właściciel może wybrać tryb `restricted`, który utrwala zatwierdzoną konfigurację źródeł, konkretne konta MCP, generacje autoryzacji i znane nazwy narzędzi. Przegląd obejmuje przypiętych delegatów, wiedzę, skille, kontekst, capabilities i zdalne rejestracje A2A. Nowe źródła lub zmieniona autoryzacja konta wymagają ponownego przeglądu. Istniejące zasady bez pola trybu pozostają ograniczone; aktualizacja nie rozszerza ich automatycznie.
+
+Każde dopuszczone wykonanie zachowuje własny zapis źródeł i kont. Zaparkowane wykonanie nie może przejąć późniejszego konta, autoryzacji ani przeglądu. Własność źródeł, cofnięcie dostępu i listy dozwolonych narzędzi są sprawdzane ponownie przed wywołaniem. Brak opcjonalnych narzędzi jest zgłaszany, a nie uznawany za udaną pracę. Właściciel może jawnie zmienić tryb istniejącej rutyny w ustawieniach dostępu chronionych tokenem przeglądu.
 
 Migracja `0276_routine_sources.py` nie nadaje zgód istniejącym rutynom. Opróżnij starą kolejkę workerów, zaktualizuj API i workery razem, a przed uruchomieniem jawnie przejrzyj stare rutyny. Zgodę może zastąpić tylko właściciel w konsoli; nie mogą tego zrobić klucze API, podszywanie się ani agenci działający bez nadzoru.
 

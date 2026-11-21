@@ -19,6 +19,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Let new routines follow their agent's available configuration and approval rules by default, with optional restricted source review. Missing optional MCP accounts do not block unrelated work; creator permissions, required event-source identity and mandatory approval rules remain enforced.
+
+- Let operators queue a bounded refresh of open generated Inbox proposals in one organization. Keep decisions, findings and linked cases, and retain the old proposals when generation fails or a person decides during the refresh.
+
+### Changed
+
+- Prepare actionable Inbox chat drafts from generated proposal text and source evidence, including local weekdays and time zones. Keep drafts editable and show only two starter prompts on phones.
+
+### Fixed
+
+- Distinguish chat workspaces that have not been created or retained from sandbox connection failures. Keep file attachments available and preserve explicit errors for lost recorded sessions and failed connections.
+
+- Keep routine titles readable in narrow chat cards, with wrapping status and action controls based on the card's available width.
+
+- Preserve the reader's position when a live question appears and keep selected answers visible across submission, server acknowledgements and transcript reloads.
+
 ## [1.88.0] - 2026-11-21
 
 ### Added

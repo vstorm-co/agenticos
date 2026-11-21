@@ -2370,11 +2370,17 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         selects another target. `ends_at` is an ISO timestamp with its UTC offset;
         set it for time-bounded requests. `monthly_budget_usd` is a decimal USD cap.
         `pinned_version_id` keeps one published version; omitted, future fires
-        follow the published version. If configured sources are unavailable, the
-        routine is saved PAUSED with setup_required=true and setup_issues. Report
-        that state honestly, link /routines and the appropriate MCP settings, and
-        repair the existing routine. Do not retry with other agents or identities
-        or create duplicates. The result names the routine and its next activation.
+        follow the published version. New routines follow the agent's current
+        configuration and your current permissions without a separate access
+        review. An unconnected optional MCP service is unavailable to that run;
+        it does not block unrelated web research or other available tools. The
+        agent's own approvals and mandatory platform/native gates still apply.
+        People may optionally freeze reviewed sources under /routines. Existing
+        reviewed routines retain that policy until their owner changes it.
+        If setup_required=true, the routine is PAUSED: report the exact blocker
+        and link /routines. Do not claim it will run or silently change shared
+        agent bindings, retry with other identities, or create duplicates.
+        The result names the routine and its next activation.
         """
         body: dict[str, Any] = {"prompt": prompt, "runs_as_creator": runs_as_me}
         if result_mode is not None:

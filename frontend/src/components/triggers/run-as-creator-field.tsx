@@ -20,19 +20,21 @@ export function RunAsCreatorField({
   onChange,
   type,
   isCreator,
+  canConsent = true,
 }: {
   checked: boolean;
   onChange: (checked: boolean) => void;
   type: TriggerType;
   /** Whether the person looking is the one the trigger would act as. */
   isCreator: boolean;
+  canConsent?: boolean;
 }) {
   const t = useTranslations("triggers");
   return (
     <Label className="flex items-start gap-2 font-normal sm:col-span-2">
       <Checkbox
         checked={checked}
-        disabled={!isCreator && !checked}
+        disabled={!checked && (!isCreator || !canConsent)}
         onCheckedChange={(next) => onChange(next === true)}
       />
       <span>
@@ -40,9 +42,11 @@ export function RunAsCreatorField({
         <span className="text-muted-foreground block text-xs">
           {!isCreator
             ? t("runAsCreatorOthersHint")
-            : type === "event"
-              ? t("runAsMeEventHint")
-              : t("runAsMeScheduleHint")}
+            : !canConsent
+              ? t("sourceConsents.identityPermissionHint")
+              : type === "event"
+                ? t("runAsMeEventHint")
+                : t("runAsMeScheduleHint")}
         </span>
       </span>
     </Label>

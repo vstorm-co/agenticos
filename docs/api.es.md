@@ -1,5 +1,5 @@
 ---
-source_sha: "f35b4353727e"
+source_sha: "06839c22a83d"
 ---
 
 # La API HTTP { #the-http-api }
@@ -81,7 +81,7 @@ tú.** Una clave que creaste, o el token de un cliente MCP que autorizaste, pued
 crear y cambiar tus propias [rutinas](triggers.md) que actúan como tú
 (`runs_as_creator`) y tus [watches](console.md), revisar las fuentes de una rutina
 y publicar un agente sin retirar el consentimiento de las rutinas que actúan como
-tú. La ejecución de esa rutina sigue sujeta a sus fuentes revisadas y su
+tú. La ejecución de esa rutina sigue sujeta a su política de fuentes elegida, sus permisos vigentes y su
 presupuesto. No puede hacerlo la credencial de ejecución de un agente fuera de tu
 chat privado, ni un administrador que te suplante.
 

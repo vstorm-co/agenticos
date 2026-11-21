@@ -45,6 +45,7 @@ const WEEKLY: TriggerTemplate = {
 
 function serve(templates: TriggerTemplate[] = [DAILY, WEEKLY]) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path === "/me/permissions") return { permissions: [] };
     if (path.endsWith("/sources"))
       return {
         current: true,
@@ -99,8 +100,7 @@ describe("New-schedule template picker", () => {
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers", {
-      review_before_activation: true,
-      is_active: false,
+      source_mode: "follow_agent",
       prompt: "Summarise what happened overnight.",
       name: "Daily standup",
       trigger_type: "schedule",
@@ -130,8 +130,7 @@ describe("New-schedule template picker", () => {
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers", {
-      review_before_activation: true,
-      is_active: false,
+      source_mode: "follow_agent",
       prompt: "Write this week's report.",
       name: "Weekly report",
       trigger_type: "schedule",

@@ -20,9 +20,13 @@ class RoutineSourceAccount(BaseModel):
     tool_ids: tuple[ToolName, ...] = Field(default=(), max_length=4096)
 
 
+type RoutineSourceMode = Literal["follow_agent", "restricted"]
+
+
 class RoutineSourcePolicy(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    mode: RoutineSourceMode = "restricted"
     id: UUID
     consented_by: UUID
     reviewed_at: AwareDatetime
@@ -87,6 +91,7 @@ class RoutineSourceItem(BaseModel):
 class RoutineSourceReview(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    mode: RoutineSourceMode = "restricted"
     review_token: Fingerprint
     version_id: UUID
     current: bool
@@ -103,3 +108,4 @@ class RoutineSourceConsent(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     review_token: Fingerprint
+    mode: RoutineSourceMode = "restricted"

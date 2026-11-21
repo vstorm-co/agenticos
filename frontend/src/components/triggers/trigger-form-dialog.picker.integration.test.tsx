@@ -1,12 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TriggerFormDialog } from "./trigger-form-dialog";
 import { apiClient } from "@/lib/api-client";
-import { useAgentSelectionStore } from "@/stores";
+import { useAgentSelectionStore, useAuthStore } from "@/stores";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -253,6 +253,8 @@ it("creates paused and saves reviewed sources and actions before enabling", asyn
   });
   render(<TriggerFormDialog agentId="a1" open onOpenChange={closed} />, { wrapper });
   let dialog = within(await screen.findByRole("dialog"));
+  await user.click(dialog.getByText("Advanced options"));
+  await user.click(dialog.getByRole("checkbox", { name: /Review access before enabling/ }));
   await user.click(dialog.getByRole("button", { name: "Continue" }));
   await user.type(dialog.getByLabelText("Message"), "Check the glossary");
   await user.click(dialog.getByRole("button", { name: "Continue" }));
@@ -269,6 +271,7 @@ it("creates paused and saves reviewed sources and actions before enabling", asyn
   await user.click(dialog.getByRole("button", { name: "Enable routine" }));
   expect(apiClient.put).toHaveBeenNthCalledWith(1, "/agents/a1/triggers/new/sources", {
     review_token: "exact-sources",
+    mode: "restricted",
   });
   expect(apiClient.put).toHaveBeenNthCalledWith(2, "/agents/a1/triggers/new/action-consents", {
     actions: [{ capability_id: "sandbox", tool_id: "execute" }],
@@ -277,3 +280,90 @@ it("creates paused and saves reviewed sources and actions before enabling", asyn
   expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/triggers/new", { is_active: true });
   expect(closed).toHaveBeenCalledWith(false);
 });
+
+it("creates with agent source access without a mandatory approval modal", async () => {
+  const user = userEvent.setup();
+  const closed = vi.fn();
+  vi.mocked(apiClient.post).mockResolvedValue({
+    id: "new",
+    agent_id: "a1",
+    trigger_type: "schedule",
+    is_active: true,
+  });
+  render(<TriggerFormDialog agentId="a1" open onOpenChange={closed} />, { wrapper });
+  const dialog = within(await screen.findByRole("dialog"));
+  await user.click(dialog.getByRole("button", { name: "Continue" }));
+  await user.type(dialog.getByLabelText("Message"), "Check the glossary");
+  await user.click(dialog.getByRole("button", { name: "Continue" }));
+  await user.click(dialog.getByRole("button", { name: "Create" }));
+  await waitFor(() => expect(closed).toHaveBeenCalledWith(false));
+  expect(apiClient.post).toHaveBeenCalledWith(
+    "/agents/a1/triggers",
+    expect.objectContaining({ source_mode: "follow_agent" }),
+  );
+  const request = vi.mocked(apiClient.post).mock.calls[0]?.[1];
+  expect(request).not.toHaveProperty("is_active");
+  expect(request).not.toHaveProperty("review_before_activation");
+  expect(screen.queryByRole("dialog", { name: "Review routine access" })).not.toBeInTheDocument();
+  expect(apiClient.put).not.toHaveBeenCalled();
+});
+
+it.each([
+  { signedIn: true, permission: true, impersonated: false, enabled: true },
+  { signedIn: true, permission: false, impersonated: false, enabled: false },
+  { signedIn: false, permission: true, impersonated: false, enabled: false },
+  { signedIn: true, permission: true, impersonated: true, enabled: false },
+])(
+  "defaults creator access only to an authorized signed-in person: %j",
+  async ({ signedIn, permission, impersonated, enabled }) => {
+    const previous = useAuthStore.getState().user;
+    useAuthStore.setState({
+      user: signedIn
+        ? {
+            id: "owner",
+            email: "owner@example.com",
+            is_active: true,
+            created_at: "2026-11-21T00:00:00Z",
+            impersonation: impersonated
+              ? {
+                  session_id: "session",
+                  impersonator: { id: "admin", email: "admin@example.com" },
+                  expires_at: "2026-11-22T00:00:00Z",
+                }
+              : null,
+          }
+        : null,
+    });
+    const normal = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) =>
+      path === "/me/permissions"
+        ? { permissions: permission ? [{ permission: "personal:consent", scope: "all" }] : [] }
+        : normal(path, options),
+    );
+    const user = userEvent.setup();
+    const view = render(<TriggerFormDialog agentId="a1" open onOpenChange={vi.fn()} />, {
+      wrapper,
+    });
+    const dialog = within(await screen.findByRole("dialog"));
+    await user.click(dialog.getByText("Advanced options"));
+    const identity = dialog.getByRole("checkbox", {
+      name: /Run as me|Runs as the person who made it/,
+    });
+    await waitFor(() =>
+      enabled ? expect(identity).toBeChecked() : expect(identity).not.toBeChecked(),
+    );
+    if (enabled) {
+      expect(
+        dialog.getByText("Runs as you. Your permissions and required approvals still apply."),
+      ).toBeVisible();
+      await user.click(identity);
+      expect(identity).not.toBeChecked();
+      await user.click(dialog.getByRole("button", { name: "Continue" }));
+      await user.click(dialog.getByRole("button", { name: "Back" }));
+      await user.click(dialog.getByText("Advanced options"));
+      expect(dialog.getByRole("checkbox", { name: /Run as me/ })).not.toBeChecked();
+    } else expect(identity).toBeDisabled();
+    view.unmount();
+    useAuthStore.setState({ user: previous });
+  },
+);

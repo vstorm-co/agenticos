@@ -2,6 +2,10 @@
 
 The default themes distinguish the canvas, sidebar, cards and floating panels. Blue identifies links and keyboard focus; enabled switches use green. Navigation uses regular weight with a medium active label. Builder section summaries show the current model, variables, voice state and first messages before opening their editors. Sign-in and account recovery use the same concise heading style and a static identity panel.
 
+New generated Inbox proposals carry a ready-to-send action request, rather than a question containing an item ID. Repeated work retains the source requests and their local dates, weekdays and time zone, so a suggested schedule can follow the evidence. Selecting a proposal prepares an editable draft and never sends it automatically. Phone chat shows two starter prompts; wider screens retain four.
+
+Operators can plan a refresh with `agenticos cmd refresh-inbox --organization-id UUID`, then add `--queue` to enqueue it. The configured model and existing budgets still apply. Only open generated proposals are replaced, after a valid reading; a failed or refused reading leaves them intact. Accepted or dismissed decisions, findings, linked cases and approvals remain unchanged. A decision made while generation runs cancels that person's replacement.
+
 Dashboard usage and spending aggregates reuse the same in-memory answer for the same time window for up to 30 minutes. They are not live counters: run events do not refresh these aggregates after every run. A full browser reload starts with a cold cache and asks the API again. Saved layout presets are requested only in the organization view, where their arrangement controls are available.
 
 If your current organization’s onboarding is unfinished, **Finish setup** returns to its guided setup. Dismissing the reminder snoozes it for the effective interval of 1, 3 or 7 days (one day by default). Completion and snoozing follow your membership on the server; loading or failed progress checks never label setup incomplete.
@@ -12,7 +16,9 @@ Inbox keeps the same list frame, row spacing, source marks, title/detail typogra
 
 Files and Sources use the same compact side panel: 400px initially, adjustable from 360 to 420px and capped at 38% of the docked chat width. On a narrow desktop they can temporarily collapse the conversation list; closing restores the earlier choice unless you changed it manually. Browser keeps its wider working area, initially 55% and adjustable from 35% to 65%. Following a citation scrolls only the Sources list, keeping the transcript in place.
 
-At the start of chat, Inbox shows up to two priorities without dates or a separate chat icon. Selecting a row puts its question into the composer for editing; it does not send it. **Open Inbox** opens the complete list. **Workspace — projects** is the default conversation-list layout; `?sidebar=compact` and `?sidebar=comfortable` remain available for comparison.
+When Files reports a workspace that has not been created yet or is no longer retained, this is distinct from a connection failure and does not prove that no files ever existed. Conversation attachments remain available. Attach and send a file through the composer, or ask the agent to create one, to use the workspace; genuine connection and archive failures remain explicit.
+
+At the start of chat, Inbox shows up to two priorities without dates or a separate chat icon. Selecting a row puts its action request into the composer for editing; it does not send it. **Open Inbox** opens the complete list. **Workspace — projects** is the default conversation-list layout; `?sidebar=compact` and `?sidebar=comfortable` remain available for comparison.
 
 Hosted public chat and the embedded widget accept multiline messages: Enter sends, Shift+Enter adds a line, and IME composition never sends early. In the main chat, hosted chat and widget, reading earlier messages pauses automatic following. Streaming and content resizing preserve that position; returning to the bottom or deliberately sending a new message resumes following. Reconnecting or loading history does not pull the reader down.
 
@@ -261,7 +267,7 @@ snapshot you meant to keep.
 
 ## Routines and watches
 
-New schedules and API triggers are saved paused, then show **Review routine access**. Review sources and select the actions that may run without asking; **Enable routine** saves both choices and activates it. **Finish later** leaves it paused. Explicit agent approvals still apply. Resuming unfinished setup reopens this review; activation revalidates the sources.
+New routines follow the published agent's current configuration and the creator's current permissions. A separate access review is optional. Missing optional MCP accounts do not block unrelated work. The agent's explicit approvals, mandatory platform approvals and native folder consent still apply. Choose a reviewed source snapshot in the access dialog when you want a fixed ceiling. Existing reviewed routines retain their restrictions until their owner changes the mode; a genuinely blocked setup remains paused.
 
 If **Skip this run** prevents an overlapping occurrence, history records the reason without starting or charging another run. You can stop a waiting run directly in this history when the server permits it. Stopping preserves its spend and lets the next scheduled occurrence proceed. Repeated skips behind the same unfinished run share one history entry.
 
@@ -285,7 +291,7 @@ Dashboard cards use the same compact rows, service marks and status labels. Coun
 
 A new chat greets you by local time and shows a compact composer. Files sit beside the agent; chat settings and the permission shield sit beside the model. Context usage stays an icon until opened.
 
-Above the composer, an Inbox timeline shows priority items first and sorts each group newest first, with source marks and no dates. Selecting a row prepares an editable question in the composer; Open Inbox leads to the full list. Approval counts link to the approval queue. Loading, failure and empty states remain distinct. Dictation and calls use the same light surface as the composer. The Architect widget shares the primary action and dictation controls.
+Above the composer, an Inbox timeline shows priority items first and sorts each group newest first, with source marks and no dates. Selecting a row prepares an editable action request in the composer; Open Inbox leads to the full list. Approval counts link to the approval queue. Loading, failure and empty states remain distinct. Dictation and calls use the same light surface as the composer. The Architect widget shares the primary action and dictation controls.
 
 Before the first message, Files and context usage remain visible but disabled. The attachment menu shows its available actions directly. Chat controls use compact sections for connections and remembered approvals; Inbox previews show source and priority.
 

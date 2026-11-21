@@ -88,6 +88,51 @@ async def list_all(
     return list(result.scalars().all())
 
 
+async def open_generated_people(db: AsyncSession, *, organization_id: UUID) -> dict[UUID, int]:
+    """People with replaceable generated proposals; findings and linked cases stay intact."""
+    rows = await db.execute(
+        select(Suggestion.user_id, func.count())
+        .where(
+            Suggestion.organization_id == organization_id,
+            Suggestion.status == SuggestionStatus.OPEN.value,
+            Suggestion.kind != SuggestionKind.FINDING.value,
+            Suggestion.watch_id.is_(None),
+            Suggestion.outcome_id.is_(None),
+        )
+        .group_by(Suggestion.user_id)
+    )
+    return dict(rows.tuples().all())
+
+
+async def remove_open_generated(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, expected_ids: set[UUID]
+) -> bool:
+    """Replace only the captured open set, refusing a concurrent decision or deletion."""
+    result = await db.execute(
+        select(Suggestion)
+        .where(
+            Suggestion.organization_id == organization_id,
+            Suggestion.user_id == user_id,
+            Suggestion.id.in_(expected_ids),
+        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    rows = list(result.scalars().all())
+    if len(rows) != len(expected_ids) or any(
+        row.status != SuggestionStatus.OPEN.value
+        or row.kind == SuggestionKind.FINDING.value
+        or row.watch_id is not None
+        or row.outcome_id is not None
+        for row in rows
+    ):
+        return False
+    for row in rows:
+        await db.delete(row)
+    await db.flush()
+    return True
+
+
 async def reopen(db: AsyncSession, *, suggestion: Suggestion) -> Suggestion:
     """Take a decision back: the proposal waits again."""
     suggestion.status = SuggestionStatus.OPEN.value

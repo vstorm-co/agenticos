@@ -3,7 +3,7 @@
 import hashlib
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -38,6 +38,7 @@ from app.schemas.routine_sources import (
     RoutineSourceAccount,
     RoutineSourceConsent,
     RoutineSourceItem,
+    RoutineSourceMode,
     RoutineSourcePolicy,
     RoutineSourceReview,
 )
@@ -302,6 +303,7 @@ class RoutineSourceSnapshot:
     unavailable: list[str]
     resources: list[str]
     requires_creator_identity: bool = False
+    optional_unavailable: frozenset[str] = frozenset()
     items: list[RoutineSourceItem] = field(default_factory=list)
 
     def token(self) -> str:
@@ -327,7 +329,15 @@ class RoutineSourceService:
         ):
             raise AuthorizationError(message="Only the routine's owner can review its sources")
 
-    async def _review(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourceSnapshot:
+    async def _review(
+        self, ctx: AuthContext, trigger: AgentTrigger, *, mode: RoutineSourceMode | None = None
+    ) -> RoutineSourceSnapshot:
+        if mode is None:
+            mode = (
+                "follow_agent"
+                if (trigger.approved_sources or {}).get("mode") == "follow_agent"
+                else "restricted"
+            )
         if trigger.pinned_version_id is not None:
             _, spec, version = await self.agents.get_pinned_spec(
                 ctx, trigger.agent_id, trigger.pinned_version_id
@@ -345,6 +355,7 @@ class RoutineSourceService:
         names: set[str] = set()
         unavailable: set[str] = set()
         requires_creator_identity = False
+        optional_unavailable: set[str] = set()
         specs = [spec]
         seen: set[UUID] = set()
         resources: set[str] = set()
@@ -505,6 +516,7 @@ class RoutineSourceService:
                 )
         if len(external_sources) > 100:
             raise RoutineSourcesRequired(message="A routine can review at most 100 remote agents")
+        required_unavailable = set(unavailable)
         for ref in (ref for current in specs for ref in current.mcp_servers):
             if isinstance(ref, PlatformMcpServerRef):
                 resources.add("AgenticOS platform MCP")
@@ -512,6 +524,7 @@ class RoutineSourceService:
                 if not trigger.runs_as_creator:
                     requires_creator_identity = True
                     unavailable.add(PlatformRoutineIdentityRequired.message)
+                    required_unavailable.add(PlatformRoutineIdentityRequired.message)
                 continue
             if isinstance(ref, OrgMcpServerRef):
                 connection = await mcp_connection_repo.get_org_scoped_by_id(
@@ -540,14 +553,14 @@ class RoutineSourceService:
                 continue
             if not accounts:
                 unavailable.add(missing_name)
+                optional_unavailable.add(missing_name)
             for account in accounts:
-                if ref in spec.mcp_servers:
-                    root_sources.add(account.id)
                 name = account.label or account.name
                 names.add(f"{name} · {account.id}")
                 items.append(RoutineSourceItem(kind="mcp_account", id=str(account.id), name=name))
                 if not account.is_enabled or account.last_tools is None:
                     unavailable.add(name)
+                    optional_unavailable.add(name)
                     continue
                 try:
                     tools = _TOOLS.validate_python(account.last_tools)
@@ -573,7 +586,10 @@ class RoutineSourceService:
                     )
                 except ValidationError:
                     unavailable.add(name)
+                    optional_unavailable.add(name)
                     continue
+                if ref in spec.mcp_servers:
+                    root_sources.add(account.id)
                 sources[account.id] = candidate
         from app.services.channel_actions import grant_fingerprint, granted_connections
 
@@ -599,6 +615,7 @@ class RoutineSourceService:
                 or not connection.is_enabled
             ):
                 unavailable.add("event source")
+                required_unavailable.add("event source")
             else:
                 input_source = RoutineSourceAccount(
                     endpoint_hash=hashlib.sha256(connection.url.encode()).hexdigest(),
@@ -616,6 +633,7 @@ class RoutineSourceService:
             raise RoutineSourcesRequired(message="A routine can review at most 100 source accounts")
         return RoutineSourceSnapshot(
             policy=RoutineSourcePolicy(
+                mode=mode,
                 id=uuid4(),
                 consented_by=ctx.subject_id,
                 reviewed_at=datetime.now(UTC),
@@ -638,6 +656,7 @@ class RoutineSourceService:
             unavailable=sorted(unavailable),
             resources=sorted(resources),
             requires_creator_identity=requires_creator_identity,
+            optional_unavailable=frozenset(optional_unavailable - required_unavailable),
             items=_distinct(
                 [
                     *await self._named(
@@ -759,21 +778,26 @@ class RoutineSourceService:
         )
         return {identifier: row for identifier, row in rows.items() if row.id in allowed}
 
-    async def initial(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourcePolicy:
-        """Creating the responsibility freezes its configured sources, never new grants."""
-        review = await self._review(ctx, trigger)
+    async def initial(
+        self, ctx: AuthContext, trigger: AgentTrigger, *, mode: RoutineSourceMode = "restricted"
+    ) -> RoutineSourcePolicy:
+        """Capture available sources under the chosen policy, never granting new access."""
+        review = await self._review(ctx, trigger, mode=mode)
         self._require_available(review)
         return review.policy
 
     @staticmethod
     def _require_available(review: RoutineSourceSnapshot) -> None:
-        if review.unavailable:
+        unavailable = set(review.unavailable)
+        if review.policy.mode == "follow_agent":
+            unavailable -= review.optional_unavailable
+        if unavailable:
             refusal = (
                 PlatformRoutineIdentityRequired
                 if review.requires_creator_identity
                 else RoutineSourcesRequired
             )
-            raise refusal(details={"unavailable_sources": review.unavailable})
+            raise refusal(details={"unavailable_sources": sorted(unavailable)})
 
     async def snapshot(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourceSnapshot:
         """A single metadata snapshot for a console-owned preset confirmation."""
@@ -791,9 +815,17 @@ class RoutineSourceService:
             == review.policy.model_dump(exclude={"id", "reviewed_at", "version_id"})
         )
         return RoutineSourceReview(
+            mode=review.policy.mode,
             review_token=review.token(),
             version_id=review.policy.version_id,
-            current=current and not review.unavailable,
+            current=current
+            and (
+                not review.unavailable
+                or (
+                    review.policy.mode == "follow_agent"
+                    and not (set(review.unavailable) - review.optional_unavailable)
+                )
+            ),
             accounts=review.accounts,
             resources=review.resources,
             unavailable_sources=review.unavailable,
@@ -810,8 +842,14 @@ class RoutineSourceService:
         if current is None:
             raise RoutineSourcesRequired()
         self._human(ctx, current)
-        review = await self._review(ctx, current)
-        if review.unavailable or data.review_token != review.token():
+        previous_review = await self._review(ctx, current)
+        review = replace(
+            previous_review, policy=previous_review.policy.model_copy(update={"mode": data.mode})
+        )
+        blocked = set(review.unavailable)
+        if data.mode == "follow_agent":
+            blocked -= review.optional_unavailable
+        if blocked or data.review_token != previous_review.token():
             raise ConflictError(
                 message="The routine or its sources changed. Review them again before consenting."
             )
@@ -831,6 +869,7 @@ class RoutineSourceService:
                 "trigger_id": str(current.id),
                 "version_id": str(review.policy.version_id),
                 "accounts": len(review.policy.mcp_sources),
+                "mode": data.mode,
             },
         )
         return await self.options(ctx, current)
@@ -848,6 +887,21 @@ class RoutineSourceService:
             raise RoutineSourcesRequired()
         review = await self._review(ctx, trigger)
         self._require_available(review)
+        if policy.mode == "follow_agent":
+            if (
+                policy.input_connection_id != review.policy.input_connection_id
+                or policy.input_source != review.policy.input_source
+            ):
+                raise RoutineSourcesRequired()
+            # Refresh only at admission. A parked run retains its own immutable
+            # snapshot, so reconnecting or rotating an account cannot retarget it.
+            excluded = {"id", "reviewed_at", "version_id"}
+            if policy.model_dump(exclude=excluded) == review.policy.model_dump(exclude=excluded):
+                return policy
+            current = review.policy.model_copy(update={"id": policy.id})
+            trigger.approved_sources = current.model_dump(mode="json")
+            await self.db.flush()
+            return current
         excluded = {"id", "reviewed_at", "version_id"}
         if policy.model_dump(exclude=excluded) != review.policy.model_dump(exclude=excluded):
             raise RoutineSourcesRequired()

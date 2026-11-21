@@ -39,6 +39,8 @@ interface ChatWelcomeProps {
   showSuggestions?: boolean;
   /** Reserve the heading slot while hiding optional home greeting copy. */
   showGreeting?: boolean;
+  /** Main chat shows two opening prompts on phones, four from the small breakpoint. */
+  limitMobileSuggestions?: boolean;
   /** Generic discovery copy can be hidden without moving the composer. */
   showLead?: boolean;
 }
@@ -64,11 +66,12 @@ export function ChatWelcome({
   showSuggestions = true,
   showGreeting = true,
   showLead = true,
+  limitMobileSuggestions = false,
 }: ChatWelcomeProps) {
   const t = useTranslations("chat.empty");
   const docked = quiet && suggestionsSlot !== undefined;
   // The centered composer must stay put when agent metadata replaces skeletons.
-  // Reserve four two-line suggestions and the same header slots in both states.
+  // Reserve the same suggestion and header slots in both states.
   const hints = (
     <>
       <div
@@ -79,6 +82,7 @@ export function ChatWelcome({
         aria-busy={loading}
         className={cn(
           "chat-welcome-suggestions grid",
+          limitMobileSuggestions && "max-sm:[&>*:nth-child(n+3)]:hidden",
           quiet
             ? "mt-4 auto-rows-fr gap-2 sm:grid-cols-2"
             : compact

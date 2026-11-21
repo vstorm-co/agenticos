@@ -9876,11 +9876,15 @@ async def test_a_revoked_routine_is_refused_before_models_or_mcp_connections_are
 
 @pytest.mark.anyio
 @pytest.mark.security
-@pytest.mark.parametrize("change", ["not_personal", "personal", "unavailable"])
+@pytest.mark.parametrize(
+    "change", ["not_personal", "personal", "unavailable", "offline_reviewed", "unexpected"]
+)
 @pytest.mark.parametrize("has_dispatch", [False, True])
+@pytest.mark.parametrize("mode", ["follow_agent", "restricted"])
 async def test_routine_origin_and_live_tool_guard_are_attached_during_preparation(
-    change, has_dispatch: bool
+    change, has_dispatch: bool, mode
 ) -> None:
+    from app.agents.mcp import McpSourceIdentity
     from app.agents.routine_authority import RoutineGuard
     from app.services.routine_authority import RoutineAuthority
 
@@ -9896,6 +9900,8 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
     from app.services.routine_sources import spec_fingerprint
 
     source_policy = RoutineSourcePolicy(
+        mode=mode,
+        root_mcp_ids=(uuid.uuid4(),) if change == "offline_reviewed" else (),
         id=uuid.uuid4(),
         consented_by=ctx.subject_id,
         reviewed_at=datetime.now(UTC),
@@ -9912,7 +9918,24 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
         acts_as_creator=change == "personal",
         source_policy=source_policy,
     )
+    resolved = ResolvedMcpToolsets(
+        toolsets=[],
+        unavailable=[UnavailablePersonalService("github", "not_connected")]
+        if change in {"unavailable", "offline_reviewed"}
+        else [],
+        sources={
+            uuid.uuid4(): McpSourceIdentity(
+                endpoint_hash="a" * 64, authorization_generation=uuid.uuid4()
+            )
+        }
+        if change == "unexpected"
+        else {},
+    )
     with (
+        patch(
+            "app.services.agent_runner.build_toolsets_for_agent",
+            new=AsyncMock(return_value=resolved),
+        ),
         patch.object(RoutineAuthority, "check", new=check),
         patch.object(
             service.registry,
@@ -9933,23 +9956,12 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
         ) as create,
         patch("app.services.agent_runner.build_agent", return_value=MagicMock()) as build,
     ):
-        if change == "unavailable":
+        if change == "unexpected" or (
+            change in {"unavailable", "offline_reviewed"} and mode == "restricted"
+        ):
             from app.services.routine_sources import RoutineSourcesRequired
 
-            with (
-                patch(
-                    "app.services.agent_runner.build_toolsets_for_agent",
-                    new=AsyncMock(
-                        return_value=ResolvedMcpToolsets(
-                            toolsets=[],
-                            unavailable=[
-                                SimpleNamespace(catalog_key="github", gap="not_connected")
-                            ],
-                        )
-                    ),
-                ),
-                pytest.raises(RoutineSourcesRequired),
-            ):
+            with pytest.raises(RoutineSourcesRequired):
                 await service.prepare(ctx, agent.id)
             return
         await service.prepare(ctx, agent.id)
