@@ -9,17 +9,20 @@ vi.mock("@/components/icons/custom-icons", async () => {
   const actual = await vi.importActual<typeof import("@/components/icons/custom-icons")>(
     "@/components/icons/custom-icons",
   );
-  return { ...actual, useCustomIcons: () => new Set(["acme", "otari", "keenable"]) };
+  return { ...actual, useCustomIcons: () => new Set(["acme", "otari", "keenable", "llmtr"]) };
 });
 
 describe("ProviderIcon", () => {
-  it.each(["acme", "otari", "keenable"])("draws a deployment-supplied mark for %s", (provider) => {
-    const { container } = render(<ProviderIcon provider={provider} />);
-    const mark = container.firstElementChild as HTMLElement;
+  it.each(["acme", "otari", "keenable", "llmtr"])(
+    "draws a deployment-supplied mark for %s",
+    (provider) => {
+      const { container } = render(<ProviderIcon provider={provider} />);
+      const mark = container.firstElementChild as HTMLElement;
 
-    expect(mark.style.maskImage).toBe(`url("/api/catalog/icons/${provider}")`);
-    expect(mark.style.backgroundColor).toBe("currentcolor");
-  });
+      expect(mark.style.maskImage).toBe(`url("/api/catalog/icons/${provider}")`);
+      expect(mark.style.backgroundColor).toBe("currentcolor");
+    },
+  );
 
   it("draws every mark in one colour - its brand's, or the text colour", () => {
     // A mark is one shape in one fill: the brand's own colour where it reads on
@@ -88,6 +91,25 @@ describe("ProviderIcon", () => {
       expect(container.querySelector("svg")).not.toBeNull();
       unmount();
     }
+  });
+
+  it.each([
+    "chutes",
+    "cline",
+    "inception",
+    "minimax",
+    "nous_portal",
+    "opencode_go",
+    "cliproxyapi",
+    "synthetic",
+    "stav",
+    "typesafe",
+    "system-one",
+  ])("draws a visible mark instead of a letter for %s", (provider) => {
+    const { container } = render(<ProviderIcon provider={provider} />);
+    expect(container.querySelector("svg")).not.toBeNull();
+    expect(container.textContent).toBe("");
+    expect(container.firstElementChild).toHaveAttribute("aria-hidden");
   });
 
   it("stays out of the accessibility tree either way", () => {

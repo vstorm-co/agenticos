@@ -1,6 +1,17 @@
 "use client";
 
-import { Box, CircleUserRound, KeyRound, Plug, TrainFront, type LucideIcon } from "lucide-react";
+import {
+  Atom,
+  Box,
+  CircleUserRound,
+  KeyRound,
+  Network,
+  Plug,
+  Route,
+  TrainFront,
+  Workflow,
+  type LucideIcon,
+} from "lucide-react";
 
 import { CustomMark, useCustomIcons } from "@/components/icons/custom-icons";
 import { GlyphIcon } from "@/components/icons/glyph";
@@ -26,6 +37,12 @@ const SERVICE_MARKS: Readonly<Record<string, LucideIcon>> = {
   litellm: TrainFront,
   // Each person's own accounts, of several vendors: a person, not a brand.
   subscription_accounts: CircleUserRound,
+  cliproxyapi: Network,
+  // Decision APIs and gateways without a bundled brand use their function.
+  typesafe: Workflow,
+  "system-one": Workflow,
+  stav: Route,
+  synthetic: Atom,
   // Custom endpoints identify a server rather than a model maker.
   openai_compatible: Plug,
   anthropic_compatible: Plug,

@@ -208,6 +208,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Show the missing provider marks and gateway icons in model pickers and the vault.
+
 - Honor the configured MCP workflow timeout for transport reads while retaining a separate three-second connection limit (#3214). Ambiguous writes are not replayed.
 
 - Retry an OpenRouter reasoning-refusal response once without altering recorded reasoning or retrying an already-started stream.

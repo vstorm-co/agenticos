@@ -243,6 +243,8 @@ const PROVIDERS: Readonly<Record<string, Source>> = {
   // BytePlus is ByteDance's cloud, and lobehub draws it with ByteDance's mark.
   byteplus: lobehub("bytedance"),
   cerebras: lobehub("cerebras"),
+  chutes: lobehub("chutes"),
+  cline: lobehub("cline"),
   cohere: lobehub("cohere"),
   deepseek: lobehub("deepseek"),
   // Text to speech's provider (#2259); a black mark, so it keeps the text colour.
@@ -254,10 +256,14 @@ const PROVIDERS: Readonly<Record<string, Source>> = {
   groq: lobehub("groq"),
   heroku: simple("heroku"),
   huggingface: lobehub("huggingface"),
+  inception: lobehub("inception"),
+  minimax: lobehub("minimax"),
   mistral: lobehub("mistral"),
   moonshotai: lobehub("moonshot"),
   nebius: lobehub("nebius"),
+  nous_portal: lobehub("nousresearch"),
   ollama: lobehub("ollama"),
+  opencode_go: lobehub("opencode"),
   openai: lobehub("openai"),
   openai_codex: lobehub("codex"),
   openrouter: lobehub("openrouter"),
