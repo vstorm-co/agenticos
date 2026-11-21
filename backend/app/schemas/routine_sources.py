@@ -27,7 +27,9 @@ class RoutineSourcePolicy(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     mode: RoutineSourceMode = "restricted"
-    approved_ceiling: Self | None = Field(default=None, exclude_if=lambda value: value is None)
+    approved_ceiling: RoutineSourcePolicy | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     id: UUID
     consented_by: UUID
     reviewed_at: AwareDatetime
