@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ChatWelcome, WelcomeIcon } from "./chat-welcome";
 
 describe("ChatWelcome", () => {
-  it("puts suggestions below the composer without first rendering them in the greeting", () => {
+  it("puts suggestions into the composer slot without first drawing them in the greeting", () => {
     const target = document.createElement("div");
     document.body.append(target);
     const props = {
@@ -74,4 +74,50 @@ describe("ChatWelcome", () => {
     expect(onRemove).toHaveBeenCalledOnce();
     expect(onPick).not.toHaveBeenCalled();
   });
+});
+
+it("keeps the quiet starter's icon, title and description on view", () => {
+  const { container } = render(
+    <ChatWelcome
+      quiet
+      mark={<span />}
+      title="Welcome"
+      lead="Ready"
+      suggestions={[
+        {
+          key: "draft",
+          icon: Ban,
+          title: "A starter",
+          description: "A short description",
+          prompt: "The full prompt",
+        },
+      ]}
+      onPick={vi.fn()}
+    />,
+  );
+  expect(screen.getByText("A short description")).not.toHaveClass("sr-only");
+  expect(container.querySelector(".lucide-ban")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /A starter\s*A short description/ })).toBeVisible();
+});
+
+it("retains greeting and starter slots when personal preferences hide them", () => {
+  render(
+    <ChatWelcome
+      mark={<span />}
+      title="Welcome back"
+      lead="Discover what you can do"
+      suggestions={[{ key: "first", icon: Ban, title: "First suggestion", prompt: "Start" }]}
+      onPick={vi.fn()}
+      quiet
+      showGreeting={false}
+      showLead={false}
+      showSuggestions={false}
+    />,
+  );
+  expect(screen.getByText("Welcome back")).toHaveClass("invisible");
+  expect(screen.getByText("Welcome back")).toHaveAttribute("aria-hidden", "true");
+  expect(screen.getByText("Discover what you can do")).toHaveClass("invisible");
+  const hints = screen.getByText("First suggestion").closest("[data-chat-welcome-hints]");
+  expect(hints).toHaveAttribute("inert");
+  expect(hints).toHaveAttribute("data-suggestions-hidden", "true");
 });

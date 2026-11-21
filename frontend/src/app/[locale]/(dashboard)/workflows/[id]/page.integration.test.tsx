@@ -28,6 +28,11 @@ const state = vi.hoisted(() => ({
   debug: null as string | null,
   clearDebug: vi.fn(),
   catalogLoading: false,
+  workflowError: null as Error | null,
+  catalogError: null as Error | null,
+  noWorkflow: false,
+  refetchWorkflow: vi.fn(),
+  refetchCatalog: vi.fn(),
 }));
 const exporting = vi.hoisted(() => ({ mutate: vi.fn(), isPending: false }));
 const actions = vi.hoisted(() => ({
@@ -85,20 +90,29 @@ vi.mock("@/hooks", () => ({
   useWorkflow: () => ({
     // What the server answers: `can_edit` is this caller's reach to this
     // workflow, and false for an archived one whatever the role.
-    workflow: {
-      ...WORKFLOW,
-      status: state.status,
-      can_edit: state.canEdit && state.status !== "archived",
-      current_version_id: state.live ? "v1" : null,
-      trigger_active: state.triggerActive,
-      tags: ["sales"],
-    },
+    workflow: state.noWorkflow
+      ? undefined
+      : {
+          ...WORKFLOW,
+          status: state.status,
+          can_edit: state.canEdit && state.status !== "archived",
+          current_version_id: state.live ? "v1" : null,
+          trigger_active: state.triggerActive,
+          tags: ["sales"],
+        },
     isLoading: false,
+    error: state.workflowError,
+    refetch: state.refetchWorkflow,
     saveDraft: { mutateAsync: vi.fn() },
     publish: { mutateAsync: vi.fn() },
     restore: { mutateAsync: vi.fn() },
   }),
-  useNodeCatalog: () => ({ nodes: [], isLoading: state.catalogLoading }),
+  useNodeCatalog: () => ({
+    nodes: [],
+    isLoading: state.catalogLoading,
+    error: state.catalogError,
+    refetch: state.refetchCatalog,
+  }),
   useWorkflowActions: () => actions,
   useWorkflowVersion: () => ({ version: undefined }),
   useWorkflowExport: () => exporting,
@@ -203,6 +217,9 @@ beforeEach(() => {
   state.live = false;
   state.triggerActive = null;
   state.catalogLoading = false;
+  state.workflowError = null;
+  state.catalogError = null;
+  state.noWorkflow = false;
   vi.clearAllMocks();
 });
 
@@ -215,6 +232,35 @@ describe("the workflow editor page permission gate", () => {
     state.catalogLoading = true;
     await renderPage();
     expect(screen.queryByTestId("canvas")).toBeNull();
+  });
+
+  it.each(["workflow", "catalog"] as const)(
+    "offers recovery when the %s cannot load",
+    async (kind) => {
+      if (kind === "workflow") {
+        state.noWorkflow = true;
+        state.workflowError = new Error("Workflow unavailable");
+      } else {
+        state.catalogError = new Error("Catalog unavailable");
+      }
+      await renderPage();
+      expect(screen.queryByTestId("canvas")).toBeNull();
+      expect(
+        screen.getByText(kind === "workflow" ? "Workflow unavailable" : "Catalog unavailable"),
+      ).toBeVisible();
+      await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+      expect(state.refetchWorkflow).toHaveBeenCalledOnce();
+      expect(state.refetchCatalog).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("keeps the cached canvas mounted after a background workflow read fails", async () => {
+    state.workflowError = new Error("Refresh failed");
+    await renderPage();
+    expect(screen.getByTestId("canvas")).toBeVisible();
+    expect(screen.getByText("Refresh failed")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(state.refetchWorkflow).toHaveBeenCalledOnce();
   });
 
   it("gives an editor the full editor", async () => {
@@ -363,10 +409,13 @@ describe("the workflow editor page header", () => {
     const name = screen.getByRole("textbox", { name: "Workflow name" });
     fireEvent.change(name, { target: { value: "Lead intake" } });
     fireEvent.blur(name);
-    expect(actions.update.mutate).toHaveBeenCalledWith({
-      id: "w1",
-      update: { name: "Lead intake" },
-    });
+    expect(actions.update.mutate).toHaveBeenCalledWith(
+      {
+        id: "w1",
+        update: { name: "Lead intake" },
+      },
+      expect.anything(),
+    );
     const description = screen.getByRole("textbox", { name: "Description" });
     fireEvent.change(description, { target: { value: "Scores new leads" } });
     fireEvent.blur(description);
@@ -443,6 +492,25 @@ describe("debugging a past run in the editor", () => {
 });
 
 describe("a workflow's settings", () => {
+  it("explains an empty name without pretending it was autosaved", async () => {
+    await renderPage();
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Settings" }));
+    const name = screen.getByRole("textbox", { name: "Workflow name" });
+    fireEvent.change(name, { target: { value: "   " } });
+    fireEvent.blur(name);
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText("Enter a name for this workflow.")).toBeVisible();
+    expect(actions.update.mutate).not.toHaveBeenCalled();
+    fireEvent.change(name, { target: { value: "Renamed" } });
+    fireEvent.blur(name);
+    expect(name).not.toHaveAttribute("aria-invalid", "true");
+    expect(actions.update.mutate).toHaveBeenCalledWith(
+      { id: "w1", update: { name: "Renamed" } },
+      expect.anything(),
+    );
+  });
+
   it("opens from the header and saves what the form hands over, then closes", async () => {
     await renderPage();
 

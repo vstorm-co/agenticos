@@ -27,15 +27,15 @@ import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
 /**
- * The two config fields this panel draws itself.
+ * The config fields this panel draws itself.
  *
  * Everything else in `SubagentsConfig` is a scalar with a range or a closed set
  * of values, which is exactly what the generated form is for - so a field added
- * to the capability appears here without anybody touching this file. These two
+ * to the capability appears here without anybody touching this file. The nested fields
  * cannot be generated: one is a list of nested specs, the other a choice from a
  * set only this agent's own bindings know.
  */
-const HAND_ROLLED = ["inline", "share_with_delegates"];
+const HAND_ROLLED = ["inline", "share_with_delegates", "allow_any_agent"];
 
 interface SubagentsSectionProps {
   definition: CapabilityCatalogEntry | undefined;
@@ -136,6 +136,22 @@ export function SubagentsSection({
             <p className="text-xs">{t("delegationOffButConfigured")}</p>
           </div>
         )}
+
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <Label htmlFor="subagents-all-published">{t("allPublishedDelegates")}</Label>
+          <p id="subagents-all-published-detail" className="text-muted-foreground text-xs">
+            {t("allPublishedDelegatesDetail")}
+          </p>
+        </div>
+        <Switch
+          id="subagents-all-published"
+          aria-describedby="subagents-all-published-detail"
+          checked={config.allow_any_agent}
+          disabled={disabled || readOnly || !binding}
+          onCheckedChange={(allow_any_agent) => setConfig({ allow_any_agent })}
+        />
+      </div>
 
       <DelegateList
         agents={agents}

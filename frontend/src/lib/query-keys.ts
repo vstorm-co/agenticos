@@ -10,6 +10,10 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  consoleExperience: {
+    all: () => ["console-experience"] as const,
+    member: (org: string | null, user: string | null) => ["console-experience", org, user] as const,
+  },
   accountPreferences: (userId: string | null) => ["account-preferences", userId] as const,
   personalModelKeys: {
     all: (scope: string) => ["personal-model-keys", scope] as const,
@@ -152,6 +156,7 @@ export const qk = {
     ceiling: () => ["agents", "ceiling"] as const,
     create: () => ["agents", "create"] as const,
     detail: (id: string) => ["agents", id] as const,
+    shippedUpdate: (id: string) => ["agents", id, "shipped-update"] as const,
     templates: () => ["agents", "templates"] as const,
     // The page is part of the key: a history past its page size is several
     // answers, and caching one as another shows the wrong decade of the timeline.
@@ -678,6 +683,7 @@ export const qk = {
     list: (orgId: string) => ["invitations", orgId] as const,
   },
   conversations: {
+    search: (term: string) => ["conversations", "search", term] as const,
     all: () => ["conversations"] as const,
     /**
      * One page of the sidebar, under the filters it was fetched with.

@@ -62,6 +62,7 @@ import type {
   ToolApproval,
   WireQuestion,
 } from "@/types/runs";
+import { questionAnswerResult } from "@/lib/question-answers";
 import { toAskUserQuestions } from "@/lib/ask-user-questions";
 import {
   applyDelegationFrame,
@@ -332,6 +333,7 @@ export function useChat(options: UseChatOptions = {}) {
   // steps stop reading `awaiting_approval`, which is exactly the state the
   // effect reads as "a reloaded parked run".
   const offeredApprovalBatchesRef = useRef<Set<string>>(new Set());
+  const parkedApprovalReadsRef = useRef(new Map<string, Promise<ParkedCall[]>>());
   const decidedApprovalIdsRef = useRef(new Set<string>());
   const terminalRunIdsRef = useRef(new Set<string>());
   const decidingApprovalRef = useRef<object | null>(null);
@@ -340,6 +342,7 @@ export function useChat(options: UseChatOptions = {}) {
     () => new Set(),
   );
   const [pendingQuestions, setPendingQuestions] = useState<AskUserQuestion[] | null>(null);
+  const [submittingQuestions, setSubmittingQuestions] = useState(false);
   // A durable question resumes its parked run on this live socket. Delegate
   // questions belong to that running turn and use ask_user_response (#2064).
   // A run can park on several `ask_user` calls at once; their questions share
@@ -355,6 +358,18 @@ export function useChat(options: UseChatOptions = {}) {
   const parkedQuestionRunRef = useRef<string | null>(null);
   const answeringQuestionRef = useRef<object | null>(null);
   const liveQuestionRef = useRef(false);
+  const liveQuestionBatchId = useRef<string | null>(null);
+  const [liveQuestionTarget, setLiveQuestionTarget] = useState<{
+    id: string;
+    messageId: string | null;
+    toolCallIds: string[];
+  } | null>(null);
+  const liveQuestionSubmission = useRef<{
+    requestId: string;
+    messageId: string | null;
+    questions: AskUserQuestion[];
+    answers: AskUserAnswer[];
+  } | null>(null);
   const pendingRunAnswerRef = useRef<{
     requestId: string;
     runId: string;
@@ -944,6 +959,9 @@ export function useChat(options: UseChatOptions = {}) {
             setParkedQuestion((question) =>
               question?.messageId === target ? { ...question, messageId: message_id } : question,
             );
+            setLiveQuestionTarget((question) =>
+              question?.messageId === target ? { ...question, messageId: message_id } : question,
+            );
             updateMessage(target, (msg) => ({
               ...msg,
               id: message_id,
@@ -1135,11 +1153,17 @@ export function useChat(options: UseChatOptions = {}) {
             const drawn = chatApi
               .getState()
               .messages.find((m) => m.id === currentMessageIdRef.current)
-              ?.toolCalls?.some((call) => call.id === tool_call_id);
+              ?.toolCalls?.find((call) => call.id === tool_call_id);
             // The step `part_start` drew while the arguments streamed, when there
             // was one. Adding a second would draw the call twice.
             if (drawn) {
-              updateToolCallPart(currentMessageIdRef.current, tool_call_id, toolCall);
+              updateToolCallPart(currentMessageIdRef.current, tool_call_id, {
+                ...toolCall,
+                status:
+                  drawn.status === "awaiting_answer" || drawn.status === "awaiting_approval"
+                    ? drawn.status
+                    : toolCall.status,
+              });
             } else {
               addToolCallPart(currentMessageIdRef.current, toolCall);
             }
@@ -1488,10 +1512,24 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "ask_user": {
           liveQuestionRef.current = true;
+          liveQuestionBatchId.current = clientId();
+          liveQuestionSubmission.current = null;
+          setSubmittingQuestions(false);
           const { questions } = wsEvent.data as { questions: WireQuestion[] };
           setPendingQuestions(toAskUserQuestions(questions ?? []));
           const messageId = currentMessageIdRef.current;
           const message = chatApi.getState().messages.find((message) => message.id === messageId);
+          setLiveQuestionTarget({
+            id: liveQuestionBatchId.current,
+            messageId,
+            toolCallIds: (message?.toolCalls ?? [])
+              .filter(
+                (call) =>
+                  toolLookupName(call) === "ask_user_question" &&
+                  ["running", "awaiting_answer"].includes(call.status),
+              )
+              .map((call) => call.id),
+          });
           for (const call of message?.toolCalls ?? []) {
             if (
               toolLookupName(call) === "ask_user_question" &&
@@ -1500,6 +1538,57 @@ export function useChat(options: UseChatOptions = {}) {
             ) {
               updateToolCallPart(messageId, call.id, { status: "awaiting_answer" });
             }
+          }
+          break;
+        }
+
+        case "ask_user_answered": {
+          const { request_id, asked_by } = wsEvent.data as {
+            request_id?: unknown;
+            asked_by?: unknown;
+          };
+          const submitted = liveQuestionSubmission.current;
+          if (!submitted || submitted.requestId !== request_id) break;
+          liveQuestionSubmission.current = null;
+          setPendingQuestions(null);
+          setSubmittingQuestions(false);
+          const message = chatApi
+            .getState()
+            .messages.find(
+              (message) =>
+                message.id === submitted.messageId || message.renderKey === submitted.messageId,
+            );
+          if (!message) break;
+          const questionCalls = (message.toolCalls ?? []).filter(
+            (call) =>
+              call.status === "awaiting_answer" && toolLookupName(call) === "ask_user_question",
+          );
+          if (questionCalls.length > 0) {
+            for (const call of questionCalls)
+              updateToolCallPart(message.id, call.id, {
+                status: "completed",
+                result: questionAnswerResult(submitted.questions, submitted.answers),
+              });
+          } else {
+            updateMessage(message.id, (message) => ({
+              ...message,
+              parts: [
+                ...(message.parts ?? []),
+                ...submitted.questions.map((question, index) => {
+                  const answer = submitted.answers[index];
+                  return {
+                    id: index === 0 ? submitted.requestId : `${submitted.requestId}:${index}`,
+                    type: "ask_user" as const,
+                    question: question.question,
+                    answer:
+                      !answer || answer.skipped
+                        ? "(skipped)"
+                        : answer.selected?.join(", ") || answer.answer,
+                    askedBy: typeof asked_by === "string" ? asked_by : undefined,
+                  };
+                }),
+              ],
+            }));
           }
           break;
         }
@@ -2084,6 +2173,8 @@ export function useChat(options: UseChatOptions = {}) {
     clearQueued();
     setPendingApproval(null);
     setPendingQuestions(null);
+    setSubmittingQuestions(false);
+    liveQuestionSubmission.current = null;
     setParkedQuestion(null);
     parkedQuestionRunRef.current = null;
     setPendingConnection(null);
@@ -2170,6 +2261,8 @@ export function useChat(options: UseChatOptions = {}) {
     closeBrowserPanel();
     setPendingApproval(null);
     setPendingQuestions(null);
+    setSubmittingQuestions(false);
+    liveQuestionSubmission.current = null;
     setParkedQuestion(null);
     parkedQuestionRunRef.current = null;
     setPendingConnection(null);
@@ -2229,11 +2322,10 @@ export function useChat(options: UseChatOptions = {}) {
   // `sendResumeDecisions` clears the panel before the steps stop reading
   // `awaiting_approval`, which is exactly the state this effect would otherwise
   // read as a reloaded parked run. Empty rows are left alone - a run decided
-  // elsewhere but not yet resumed has nothing left to offer - and a fetch that
-  // failed is left alone too: the approvals queue holds the same rows, and an
-  // error toast over a transcript somebody is reading buys nothing.
+  // elsewhere but not yet resumed has nothing left to offer.
   useEffect(() => {
-    if (pendingApproval !== null || !canDecide || decidingApprovalRef.current) return;
+    if (pendingApproval !== null || continuingApproval || !canDecide || decidingApprovalRef.current)
+      return;
     const candidates = [...messages].reverse().flatMap((message) => {
       const calls = (message.toolCalls ?? []).filter((call) => call.status === "awaiting_approval");
       if (
@@ -2256,14 +2348,22 @@ export function useChat(options: UseChatOptions = {}) {
       for (const { message, key, runId } of candidates) {
         if (disposed || panelsBelongTo.current !== conversation) return;
         if (terminalRunIdsRef.current.has(runId)) continue;
-        offeredApprovalBatchesRef.current.add(key);
+        // The transcript can be hydrated again while the read is in flight.
+        // Share that read and only mark it handled when the current effect can
+        // apply the response.
+        const reads = parkedApprovalReadsRef.current;
+        let request = reads.get(runId);
+        if (request === undefined) {
+          request = apiClient.get<ParkedCall[]>(`/runs/${runId}/parked`);
+          reads.set(runId, request);
+        }
         try {
-          const parked = await apiClient.get<ParkedCall[]>(`/runs/${runId}/parked`);
-          if (disposed || panelsBelongTo.current !== conversation || decidingApprovalRef.current) {
-            offeredApprovalBatchesRef.current.delete(key);
+          const parked = await request;
+          if (disposed || panelsBelongTo.current !== conversation || decidingApprovalRef.current)
             return;
-          }
-          if (terminalRunIdsRef.current.has(runId)) continue;
+          if (terminalRunIdsRef.current.has(runId) || offeredApprovalBatchesRef.current.has(key))
+            continue;
+          offeredApprovalBatchesRef.current.add(key);
           const actionable = parked.filter((call) => !decidedApprovalIdsRef.current.has(call.id));
           if (actionable.length === 0) continue;
           setPendingApproval({
@@ -2289,14 +2389,16 @@ export function useChat(options: UseChatOptions = {}) {
           });
           return;
         } catch {
-          offeredApprovalBatchesRef.current.delete(key);
+          // Keep the batch eligible for a later transcript refresh.
+        } finally {
+          if (reads.get(runId) === request) reads.delete(runId);
         }
       }
     })();
     return () => {
       disposed = true;
     };
-  }, [messages, pendingApproval, canDecide, activeConversationId]);
+  }, [messages, pendingApproval, continuingApproval, canDecide, activeConversationId]);
 
   const queryClient = useQueryClient();
 
@@ -2785,16 +2887,14 @@ export function useChat(options: UseChatOptions = {}) {
         useAuthStore.getState().user?.id === account;
       const asked = pendingQuestions;
       const stream = { started: false };
-      setPendingQuestions(null);
-      setParkedQuestion(null);
-      parkedQuestionRunRef.current = null;
+      // Keep the question and choices on screen until the server accepts them.
+      setSubmittingQuestions(true);
       const setStatus = (status: "running" | "awaiting_answer") => {
         const messageId = parked.messageId;
         for (const call of parked.calls) {
           updateToolCallPart(messageId, call.toolCallId, { status });
         }
       };
-      setStatus("running");
       // The card's answers are in the order of its questions, which is the
       // order of the calls; each call takes its own slice back.
       const responses: Record<string, AskUserAnswer[]> = {};
@@ -2821,12 +2921,23 @@ export function useChat(options: UseChatOptions = {}) {
               // This marker arrives only after the runner admits the answers.
               // The correlated result follows the whole continuation, which may
               // run for minutes or ask another question in a different message.
+              setPendingQuestions(null);
+              setParkedQuestion(null);
+              parkedQuestionRunRef.current = null;
               updateMessage(parked.messageId, (message) => ({
                 ...message,
                 runWaitingFor: undefined,
               }));
+              let answerOffset = 0;
               for (const call of parked.calls) {
-                updateToolCallPart(parked.messageId, call.toolCallId, { status: "completed" });
+                updateToolCallPart(parked.messageId, call.toolCallId, {
+                  status: "completed",
+                  result: questionAnswerResult(
+                    (asked ?? []).slice(answerOffset, answerOffset + call.count),
+                    answers.slice(answerOffset, answerOffset + call.count),
+                  ),
+                });
+                answerOffset += call.count;
               }
             },
           };
@@ -2838,15 +2949,26 @@ export function useChat(options: UseChatOptions = {}) {
           });
         });
         if (!stillHere()) return;
+        setPendingQuestions(null);
+        setParkedQuestion(null);
+        parkedQuestionRunRef.current = null;
+        setSubmittingQuestions(false);
         updateMessage(parked.messageId, (message) => ({ ...message, runWaitingFor: undefined }));
+        let settledOffset = 0;
         for (const call of parked.calls) {
           const settled = (resumed.settled ?? []).find(
             (settledCall) => settledCall.tool_call_id === call.toolCallId,
           );
           updateToolCallPart(parked.messageId, call.toolCallId, {
             status: "completed",
-            result: settled?.result,
+            result:
+              settled?.result ??
+              questionAnswerResult(
+                (asked ?? []).slice(settledOffset, settledOffset + call.count),
+                answers.slice(settledOffset, settledOffset + call.count),
+              ),
           });
+          settledOffset += call.count;
         }
         showContinuation(
           resumed,
@@ -2859,6 +2981,9 @@ export function useChat(options: UseChatOptions = {}) {
         if (error instanceof RunAnswerInterrupted) {
           // Acceptance is unknown. Reconnect restores only what the persisted
           // run is still waiting on; submitted answers are never resent.
+          setPendingQuestions(null);
+          setParkedQuestion(null);
+          parkedQuestionRunRef.current = null;
           questionOfferedForRef.current.delete(parked.runId);
           return;
         }
@@ -2894,6 +3019,7 @@ export function useChat(options: UseChatOptions = {}) {
         setStatus("awaiting_answer");
       } finally {
         if (answeringQuestionRef.current === ticket) {
+          setSubmittingQuestions(false);
           answeringQuestionRef.current = null;
           const following = !stream.started && followingRef.current !== null;
           processingRef.current = following;
@@ -2931,19 +3057,19 @@ export function useChat(options: UseChatOptions = {}) {
         void answerParkedQuestion(parkedQuestion, answers);
         return;
       }
-      if (!liveQuestionRef.current) return;
+      if (!liveQuestionRef.current || liveQuestionSubmission.current !== null) return;
       liveQuestionRef.current = false;
-      setPendingQuestions(null);
-      const messageId = currentMessageIdRef.current;
-      const message = chatApi.getState().messages.find((message) => message.id === messageId);
-      for (const call of message?.toolCalls ?? []) {
-        if (call.status === "awaiting_answer" && messageId) {
-          updateToolCallPart(messageId, call.id, { status: "running" });
-        }
-      }
-      sendMessage({ type: "ask_user_response", answers });
+      const requestId = liveQuestionBatchId.current ?? clientId();
+      liveQuestionSubmission.current = {
+        requestId,
+        messageId: currentMessageIdRef.current,
+        questions: pendingQuestions ?? [],
+        answers,
+      };
+      setSubmittingQuestions(true);
+      sendMessage({ type: "ask_user_response", request_id: requestId, answers });
     },
-    [parkedQuestion, answerParkedQuestion, isConnected, sendMessage, chatApi, updateToolCallPart],
+    [parkedQuestion, answerParkedQuestion, isConnected, sendMessage, pendingQuestions],
   );
 
   /** Release a run paused on `connect_account`: `true` once connected, `false` to go on without. */
@@ -3550,6 +3676,17 @@ export function useChat(options: UseChatOptions = {}) {
       controlOrgs?.find((org) => org.id === activeOrgId)?.chat_may_waive_approvals === true,
     sendResumeDecisions,
     pendingQuestions,
+    submittingQuestions,
+    questionTarget: pendingQuestions
+      ? {
+          id: parkedQuestion?.calls[0]?.toolCallId ?? liveQuestionTarget?.id ?? "question",
+          messageId: parkedQuestion?.messageId ?? liveQuestionTarget?.messageId ?? null,
+          toolCallIds:
+            parkedQuestion?.calls.map((call) => call.toolCallId) ??
+            liveQuestionTarget?.toolCallIds ??
+            [],
+        }
+      : null,
     sendAskUserResponses,
     /** The service a paused run is waiting for the person to connect. See `ConnectAccountPrompt`. */
     pendingConnection,

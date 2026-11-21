@@ -1,5 +1,5 @@
 ---
-source_sha: "28fef18e676b"
+source_sha: "2945cec5a53b"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -625,11 +625,13 @@ tak właśnie literówka albo wycofany model jest łapany zamiast wysyłany jako
 rozwijana, na którą provider odpowiada 404. Model, który migawka zna, ale którego
 nie wycenia, po prostu nie ma okna, co jest nullem opisanym poniżej.
 
+Selektor subskrypcji pobiera po otwarciu listę dostarczaną z wdrożeniem. Nie pobiera katalogu dla danego konta na żywo. Wpisy GPT-6.2 sprawdzono w Codex app server. Rozmiar kontekstu pozostaje pusty do czasu uzupełnienia katalogu cen.
+
 | Provider | Kuratorowane id |
 |---|---|
 | `anthropic` | `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`, `claude-haiku-4-5` |
 | `openai` | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.3-codex` |
-| `openai_codex` | te same cztery co `openai` |
+| `openai_codex` | GPT-6.2 Sol i Astra, GPT-6.1 Sol i Terra, GPT-6 Sol, Astra i Luna oraz wcześniejsze identyfikatory Codex |
 | `google` | `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview` |
 | `deepseek` | `deepseek-v4-pro`, `deepseek-v4-flash` |
 | `xai` | `grok-4.5`, `grok-4.3` |

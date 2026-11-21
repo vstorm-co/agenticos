@@ -1,5 +1,5 @@
 ---
-source_sha: "28fef18e676b"
+source_sha: "2945cec5a53b"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -641,11 +641,13 @@ como un desplegable al que el provider responde 404. Un modelo que el snapshot
 conoce pero no tarifa simplemente no tiene ventana, que es el nulo descrito más
 abajo.
 
+Al abrir el selector de la suscripción se carga la lista incluida en el despliegue. El selector no consulta un catálogo en directo para cada cuenta. Las entradas de GPT-6.2 se verificaron en el servidor de Codex y dejan el contexto vacío hasta que se incorpore al catálogo de precios.
+
 | Provider | ids curados |
 |---|---|
 | `anthropic` | `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`, `claude-haiku-4-5` |
 | `openai` | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.3-codex` |
-| `openai_codex` | los mismos cuatro que `openai` |
+| `openai_codex` | GPT-6.2 Sol y Astra, GPT-6.1 Sol y Terra, GPT-6 Sol, Astra y Luna, y los identificadores anteriores de Codex |
 | `google` | `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview` |
 | `deepseek` | `deepseek-v4-pro`, `deepseek-v4-flash` |
 | `xai` | `grok-4.5`, `grok-4.3` |

@@ -261,7 +261,7 @@ export async function signInAs(
  * greeting for the time of day rather than the page's name. Unanchored, because
  * the heading opens on the date above the greeting.
  */
-export const DASHBOARD_GREETING = /Good (morning|afternoon|evening)/;
+export const DASHBOARD_GREETING = /Good (morning|afternoon|evening)|Up late/;
 
 export function pageHeading(page: Page, name?: string | RegExp): Locator {
   return page.getByRole("heading", { level: 1, name });
@@ -778,4 +778,17 @@ export async function callApi(
   const renewed = await api.post("/api/auth/refresh");
   expect(renewed.ok(), `the session could not be renewed: ${await renewed.text()}`).toBeTruthy();
   return api[method](`/api${path}`, options);
+}
+
+/** Isolate appearance in a test context without mutating the shared owner's profile. */
+export async function readAppearanceAs(page: Page, theme: "light" | "dark"): Promise<void> {
+  for (const path of ["auth/me", "users/me/preferences"]) {
+    await page.route(`**/api/${path}`, async (route) => {
+      if (route.request().method() !== "GET") return route.continue();
+      const response = await route.fetch();
+      const body: unknown = await response.json();
+      if (!body || typeof body !== "object") throw new Error("Expected account appearance data");
+      await route.fulfill({ response, json: { ...body, theme, look: "standard" } });
+    });
+  }
 }

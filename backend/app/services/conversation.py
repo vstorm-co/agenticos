@@ -10,8 +10,10 @@ member's request reaches.
 import asyncio
 import json
 import logging
+import re
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from datetime import UTC, datetime
+from itertools import groupby
 from typing import Any, Literal
 from uuid import UUID
 
@@ -187,6 +189,55 @@ def _anchor_replayed_answer(ordered: list[HistoryMessage], used: int | None) -> 
         anchor["context_used_tokens"] = used
 
 
+_HISTORY_TOOL_NAME = re.compile(r"[A-Za-z0-9_.:-]{1,100}")
+_HISTORY_TOOL_STATUSES = frozenset(
+    {
+        "pending",
+        "running",
+        "completed",
+        "failed",
+        "cancelled",
+        "awaiting_approval",
+        "awaiting_answer",
+    }
+)
+
+
+def _tool_history_note(row: Message) -> str:
+    """Record the visible call timeline without replaying any caller's data."""
+    if row.role != "assistant" or row.guardrail_refused or not row.tool_calls:
+        return ""
+    parts = row.parts or []
+    positions = {
+        call_id: position
+        for position, part in enumerate(parts)
+        if part.get("type") == "tool" and isinstance(call_id := part.get("tool_call_id"), str)
+    }
+    ordered = sorted(
+        row.tool_calls,
+        key=lambda call: (
+            positions.get(call.tool_call_id, len(parts)),
+            call.started_at,
+            call.tool_call_id,
+        ),
+    )
+    calls = (
+        (call.tool_name, call.status if call.status in _HISTORY_TOOL_STATUSES else "unknown")
+        for call in ordered
+        if _HISTORY_TOOL_NAME.fullmatch(call.tool_name)
+    )
+    runs = []
+    for (name, status), group in groupby(calls):
+        count = sum(1 for _ in group)
+        runs.append(f"{name} ({count} calls, {status})" if count > 1 else f"{name} ({status})")
+    if not runs:
+        return ""
+    listing = ", ".join(runs)
+    return (
+        f"[Recorded tool calls: {listing}. Arguments and results are not included in this history.]"
+    )
+
+
 def _as_history(
     rows: Sequence[Message],
     exclude_message_id: UUID | None,
@@ -233,8 +284,11 @@ def _as_history(
                         {"role": "user", "content": f"Question: {question}\nAnswer: {answer}"}
                     )
         ordered = _preserve_blank_text(ordered)
+        evidence = _tool_history_note(row)
         if _replays_content(texts, row.content):
             _anchor_replayed_answer(ordered, row.context_used_tokens)
+            if evidence:
+                ordered.append({"role": "assistant", "content": evidence})
             history.extend(ordered)
             continue
         ordered.append(
@@ -260,6 +314,8 @@ def _as_history(
             }
         )
         _anchor_replayed_answer(ordered, row.context_used_tokens)
+        if evidence:
+            ordered.append({"role": "assistant", "content": evidence})
         history.extend(ordered)
     return history
 
@@ -530,12 +586,16 @@ class ConversationService:
         quotes it, so "yes, do that" reaches the model with what it says yes to.
         One query for the quoted messages outside the window, one for the names.
         """
-        in_project = getattr(conversation, "project_id", None) is not None
+        owner = conversation.user_id if conversation is not None else None
+        label_authors = getattr(conversation, "project_id", None) is not None or any(
+            row.role == "user" and row.author_user_id is not None and row.author_user_id != owner
+            for row in rows
+        )
         turns = [
             row
             for row in rows
             if row.role == "user"
-            and (row.reply_to_message_id is not None or (in_project and row.author_user_id))
+            and (row.reply_to_message_id is not None or (label_authors and row.author_user_id))
         ]
         if not turns:
             return {}
@@ -564,7 +624,7 @@ class ConversationService:
         )
         spoken: dict[UUID, str] = {}
         for row in turns:
-            text = row.content
+            text = _said(row)
             answered = (
                 quoted.get(row.reply_to_message_id) if row.reply_to_message_id is not None else None
             )
@@ -573,7 +633,9 @@ class ConversationService:
                     f'(In reply to {_whose(answered, people)}: "{_excerpt(_said(answered))}")'
                     f"\n\n{text}"
                 )
-            author = people.get(row.author_user_id) if in_project and row.author_user_id else None
+            author = (
+                people.get(row.author_user_id) if label_authors and row.author_user_id else None
+            )
             if author is not None:
                 text = f"{ChatPerson.of(author).name}: {text}"
             spoken[row.id] = text
@@ -1266,6 +1328,7 @@ class ConversationService:
         project_id: UUID | None = None,
         reader: AuthContext | None = None,
         for_model: bool = False,
+        project_scope: Literal["include", "only", "exclude"] = "include",
     ) -> tuple[list[Conversation], int]:
         """One page of the organization's conversations, each naming who answered.
 
@@ -1290,7 +1353,7 @@ class ConversationService:
         )
         project_ids = (
             await self.visible_project_ids(user_id, organization_id, reader=reader)
-            if user_id is not None
+            if user_id is not None and project_scope != "exclude"
             else []
         )
         items = await conversation_repo.get_conversations_by_user(
@@ -1323,6 +1386,7 @@ class ConversationService:
             hide_channels=hide_channels,
             project_id=project_id,
             for_model=for_model,
+            project_scope=project_scope,
         )
         total = await conversation_repo.count_conversations(
             self.db,
@@ -1338,6 +1402,7 @@ class ConversationService:
             hide_channels=hide_channels,
             project_id=project_id,
             for_model=for_model,
+            project_scope=project_scope,
         )
         await self.attach_agents(items)
         await self._attach_favourites(items, user_id=user_id)

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Suspense } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -185,10 +186,10 @@ async function mount() {
   });
 }
 
-/** The name and description card: the page has other fields called "Name". */
 async function identity() {
-  const title = await screen.findByText("Name and description");
-  return within(title.closest("[data-tour='agent-identity']") as HTMLElement);
+  await userEvent.click(await screen.findByRole("button", { name: "More actions" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Details" }));
+  return within(screen.getByRole("dialog", { name: "Details" }));
 }
 
 // Past the Builder's 1.2s autosave debounce.
@@ -211,6 +212,25 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("renaming an agent in the Builder", () => {
+  it("names the page after the agent and keeps avatar upload outside the heading", async () => {
+    await mount();
+    const heading = screen.getByRole("heading", { level: 1, name: "Support (copy)" });
+    expect(heading).not.toContainElement(screen.getByRole("button", { name: "Upload avatar" }));
+  });
+
+  it("keeps the identity and discovery fields together behind the actions menu", async () => {
+    await mount();
+    expect(screen.queryByText("Name and description")).not.toBeInTheDocument();
+    expect(screen.queryByText("Categories and tags")).not.toBeInTheDocument();
+
+    const details = await identity();
+    expect(details.getByRole("heading", { name: "Name and description" })).toBeVisible();
+    expect(details.getByRole("heading", { name: "Categories and tags" })).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Details" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "More actions" })).toHaveFocus();
+  });
+
   it("stores a new name and description with the draft", async () => {
     await mount();
     const card = await identity();
@@ -276,7 +296,7 @@ describe("renaming an agent in the Builder", () => {
     await mount();
     const card = await identity();
     const name = card.getByRole("textbox", { name: "Name" });
-    const publish = screen.getByRole("button", { name: "Publish" });
+    const publish = screen.getByText("Publish").closest("button");
     expect(publish).toBeEnabled();
 
     fireEvent.change(name, { target: { value: "   " } });

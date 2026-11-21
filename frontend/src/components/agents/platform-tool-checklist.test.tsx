@@ -146,7 +146,7 @@ describe("the platform's tools, grouped by what they work on", () => {
     const invite = screen.getByRole("button", { name: "Ask first before invite_member" });
     expect(invite).toBeDisabled();
     expect(invite).toHaveAttribute("aria-pressed", "true");
-    expect(invite).toHaveAttribute("title", "always asks: it changes who has authority here");
+    expect(invite).toHaveAttribute("title", "always asks for confirmation");
 
     // Every read asking is the default `all`, so a read added later asks too; the
     // `never` nobody may set on inviting is not carried forward.
@@ -232,4 +232,78 @@ describe("withToolApproval", () => {
     });
     expect(withToolApproval({ ...BINDING, tool_approval: { a: "never" } }, {})).toEqual(BINDING);
   });
+});
+
+it("shows a default-free write truthfully and still lets the author require approval", async () => {
+  const onChange = vi.fn();
+  const tools: PlatformMcpTool[] = [
+    {
+      name: "create_task",
+      description: "Create a task.",
+      group: "tasks",
+      writes: true,
+      default_approval_free: true,
+    },
+    { name: "list_tasks", description: "Read tasks.", group: "tasks", writes: false },
+  ];
+  render(<Harness tools={tools} onChange={onChange} />);
+  const row = screen.getByText("Create task").closest("li");
+  if (!row) throw new Error("missing create task row");
+  const shield = within(row).getByRole("button", { name: "Ask first before create_task" });
+  expect(shield).toHaveAttribute("aria-pressed", "false");
+  await userEvent.click(shield);
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ tool_approval: { create_task: "required" } }),
+  );
+  expect(within(row).getByRole("button", { name: "Ask first before create_task" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+});
+
+it("keeps default-free writes gated under a binding that asks for every call", () => {
+  render(
+    <Harness
+      initial={{ ...BINDING, approval: "all" }}
+      tools={[
+        {
+          name: "create_task",
+          description: "Create a task.",
+          group: "tasks",
+          writes: true,
+          default_approval_free: true,
+        },
+      ]}
+      onChange={vi.fn()}
+    />,
+  );
+  const row = screen.getByText("Create task").closest("li");
+  if (!row) throw new Error("missing create task row");
+  expect(within(row).getByRole("button", { name: "Ask first before create_task" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+});
+
+it("explains conditional task execution while keeping author approval configurable", () => {
+  render(
+    <Harness
+      onChange={vi.fn()}
+      tools={[
+        {
+          name: "create_task",
+          description: "Create task",
+          group: "agents",
+          writes: true,
+          default_approval_free: true,
+          conditional_approval: true,
+        },
+      ]}
+    />,
+  );
+  expect(screen.getByText(/may start or reschedule agent work/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Ask first before create_task" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
 });

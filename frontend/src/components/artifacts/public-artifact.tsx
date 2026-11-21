@@ -32,9 +32,11 @@ export function OpenedArtifact({ artifact }: { artifact: OpenPublicArtifact }) {
   return (
     <main className="bg-background flex h-dvh flex-col gap-3 p-4">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-foreground text-lg font-semibold">{artifact.title}</h1>
-        <div className="flex items-center gap-3">
-          <p className="text-muted-foreground text-xs">
+        <h1 className="text-foreground max-w-full min-w-0 text-lg font-medium wrap-anywhere">
+          {artifact.title}
+        </h1>
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <p className="text-muted-foreground text-xs wrap-anywhere">
             {t("publicUpdated", {
               when: format.dateTime(new Date(artifact.published_at), {
                 dateStyle: "medium",

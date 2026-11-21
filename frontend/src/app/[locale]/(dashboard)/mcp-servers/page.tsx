@@ -38,7 +38,8 @@ export default function McpServersPage() {
   const t = useTranslations("pages.mcp-servers");
   const tMcp = useTranslations("mcp");
   const tErrors = useTranslations("errors");
-  const { rows, isLoading, error } = useMcpServers();
+  const common = useTranslations("common");
+  const { rows, isLoading, error, retry } = useMcpServers();
   const { can } = usePermissions();
   useMcpOAuthOutcome();
 
@@ -72,7 +73,10 @@ export default function McpServersPage() {
         // `counted` stays null while refused: the count was never answered,
         // and "0 servers" over a failure would state it as fact.
         <ListCard fill namedByPage title={tMcp("servers")} counted={null}>
-          <ErrorState description={getErrorMessage(error, tErrors)} />
+          <ErrorState
+            description={getErrorMessage(error, tErrors)}
+            cta={{ label: common("retry"), onClick: () => void retry() }}
+          />
         </ListCard>
       ) : rows.length === 0 ? (
         <ListCard

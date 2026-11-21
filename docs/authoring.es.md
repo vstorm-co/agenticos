@@ -1,5 +1,5 @@
 ---
-source_sha: "1897e92263bc"
+source_sha: "fb6f5341f260"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -284,9 +284,7 @@ cambio a un skill como para un archivo.
 
 ## Describir un agent nuevo { #describing-a-new-agent }
 
-El diálogo de creación ofrece describir el agent en lugar de rellenar el
-formulario. La descripción va al [Architect](console.md#the-assistant), que crea
-drafts de agents y pregunta antes de crear uno; el resultado es un draft normal.
+La acción **Create with Architect** del diálogo abre el widget del [Architect](console.md#the-assistant), sin enviar un prompt ni crear un agent. Describe lo que necesitas en esa conversación; el Architect pregunta antes de crear un draft normal.
 
 ## Coste y budget { #cost-and-budget }
 

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Suspense, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -178,6 +179,8 @@ describe("the detail page's metadata editor gate", () => {
     allowed = new Set();
     await mount();
 
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Details" }));
     expect(await screen.findByRole("textbox", { name: "Add a category" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Add a tag" })).toBeInTheDocument();
   });
@@ -211,8 +214,10 @@ describe("the detail page's metadata editor gate", () => {
     shown = AGENT;
     await mount();
 
-    // The instructions card renders for everyone; the editor does not.
-    await screen.findByText("Instructions");
+    // Details remain readable; resource access controls the editor inside them.
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Details" }));
+    expect(screen.getByRole("textbox", { name: "Name" })).toBeDisabled();
     expect(screen.queryByRole("textbox", { name: "Add a category" })).toBeNull();
   });
 });

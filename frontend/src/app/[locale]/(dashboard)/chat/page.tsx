@@ -1,19 +1,28 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 import { ChatContainer, ConversationSidebar } from "@/components/chat";
+import { ChatLayout } from "@/components/chat/chat-layout";
 import { PhoneChatBar } from "@/components/chat/phone-chat-bar";
 import { useMcpOAuthOutcome } from "@/hooks";
 import { useChatWith } from "@/hooks/use-chat-with";
 import { SAFE_AREA_CLEARANCE } from "@/lib/page-clearance";
 import { StartExample } from "@/components/onboarding/start-example";
 import { startGoal } from "@/lib/onboarding-api";
-import { cn } from "@/lib/utils";
+import { cn, setUrlParam } from "@/lib/utils";
 
 export default function ChatPage() {
-  const example = startGoal(useSearchParams().get("example"));
-  const requestedConversationId = useSearchParams().get("id");
+  const params = useSearchParams();
+  const t = useTranslations("inbox");
+  const discuss = params.get("discuss");
+  const composerDraft =
+    discuss && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(discuss)
+      ? { text: t("discussPrompt", { id: discuss }), consume: () => setUrlParam("discuss", null) }
+      : undefined;
+  const example = startGoal(params.get("example"));
+  const requestedConversationId = params.get("id");
   // A consent started from the chat comes back here, and the outcome is in the
   // query string exactly as it is on the servers page.
   useMcpOAuthOutcome();
@@ -29,14 +38,17 @@ export default function ChatPage() {
           the buttons floating over it on a phone. */}
       <div className="relative min-w-0 flex-1 max-md:[&_[data-chat-scroller]]:scroll-pt-20 max-md:[&_[data-transcript]]:pt-20">
         <PhoneChatBar />
-        <ChatContainer
-          requestedConversationId={requestedConversationId}
-          emptyState={
-            example
-              ? (onPick) => <StartExample key={example} goal={example} onRun={onPick} />
-              : undefined
-          }
-        />
+        <ChatLayout>
+          <ChatContainer
+            composerDraft={composerDraft}
+            requestedConversationId={requestedConversationId}
+            emptyState={
+              example
+                ? (onPick) => <StartExample key={example} goal={example} onRun={onPick} />
+                : undefined
+            }
+          />
+        </ChatLayout>
       </div>
     </div>
   );

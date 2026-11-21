@@ -295,6 +295,7 @@ CALLS: tuple[Call, ...] = (
         body={"name": "ci", "scopes": ["agents:view"]},
     ),
     Call("PATCH", "/assistant", Perm.ORG_SETTINGS, body={"enabled": False}),
+    Call("GET", "/conversations/search", Perm.AGENTS_VIEW),
     Call("GET", "/assistant/configuration", Perm.ORG_SETTINGS),
     Call("POST", "/assistant/install", Perm.ORG_SETTINGS),
     Call("GET", "/agents/capabilities", Perm.AGENTS_VIEW),
@@ -1011,7 +1012,7 @@ _PLATFORM_PREFIXES = (
 
 def _is_platform(tail: str) -> bool:
     """Whether a path belongs to the platform layer rather than the template."""
-    return tail.startswith(_PLATFORM_PREFIXES)
+    return tail == "/conversations/search" or tail.startswith(_PLATFORM_PREFIXES)
 
 
 def _api_routes() -> Iterator[RouteContext]:

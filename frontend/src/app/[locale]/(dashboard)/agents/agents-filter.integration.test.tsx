@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AgentsPage from "./page";
+import { qk } from "@/lib/query-keys";
 import { apiClient } from "@/lib/api-client";
 import type { Agent } from "@/types/agents";
 
@@ -132,11 +133,11 @@ describe("the agents gallery's attention badge", () => {
     ];
     render(<AgentsPage />, { wrapper });
 
-    expect(await screen.findByText("Needs attention")).toHaveAttribute(
+    expect(await screen.findByRole("button", { name: /^Needs attention:/ })).toHaveAttribute(
       "title",
       "2 answers rated down",
     );
-    expect(screen.getAllByText("Needs attention")).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /^Needs attention:/ })).toHaveLength(1);
     expect(vi.mocked(apiClient.get)).toHaveBeenCalledWith("/stats/attention", expect.anything());
   });
 });
@@ -337,4 +338,45 @@ describe("the agents gallery filter", () => {
     expect(screen.getByText("Draft")).toBeInTheDocument();
     expect(screen.queryByText("Live")).toBeNull();
   });
+});
+
+it("shows a failed registry read with a retry instead of an empty gallery", async () => {
+  const original = vi.mocked(apiClient.get).getMockImplementation();
+  vi.mocked(apiClient.get).mockImplementation((path, options) =>
+    path === "/agents"
+      ? Promise.reject(new Error("Registry unavailable"))
+      : original!(path, options),
+  );
+  render(<AgentsPage />, { wrapper });
+  expect(await screen.findByRole("alert")).toHaveTextContent("Registry unavailable");
+  expect(screen.queryByText("No agents yet")).not.toBeInTheDocument();
+  const before = vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === "/agents").length;
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  await waitFor(() =>
+    expect(
+      vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === "/agents").length,
+    ).toBeGreaterThan(before),
+  );
+});
+
+it("keeps cached agents visible and reports a failed refresh", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <AgentsPage />
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByText("Live")).toBeVisible();
+  const original = vi.mocked(apiClient.get).getMockImplementation();
+  vi.mocked(apiClient.get).mockImplementation((path, options) =>
+    path === "/agents"
+      ? Promise.reject(new Error("Refresh unavailable"))
+      : original!(path, options),
+  );
+  await act(async () => {
+    await client.invalidateQueries({ queryKey: qk.agents.all() });
+  });
+  expect(await screen.findByRole("alert")).toHaveTextContent("Refresh unavailable");
+  expect(screen.getByText("Live")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
 });

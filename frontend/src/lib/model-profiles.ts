@@ -1,21 +1,7 @@
 import { ApiError } from "@/lib/api-error";
 import type { ModelProfile } from "@/types/providers";
 
-/**
- * The technical line under a profile's name, or nothing when the name is it.
- *
- * A label is *derived* from the provider and the model unless somebody typed
- * their own - both forms that create one submit `${provider.label} · ${model}` -
- * so printing `provider · model` after it read `OpenRouter · openai/gpt-5.5
- * openrouter · openai/gpt-5.5`. Three places did it: the Builder's current-model
- * strip, every row of its saved-model list, and the chat's active-model line.
- *
- * Both halves are checked rather than only the model, because a label carrying
- * one of them (`fast gpt-5`, on Azure) still leaves the other worth saying.
- *
- * `null` rather than an empty string, so a caller renders no element at all
- * instead of an empty line under the name.
- */
+/** A technical description, unless the profile's label already includes both parts. */
 export function modelDetail(
   profile: Pick<ModelProfile, "label" | "provider" | "model">,
 ): string | null {
@@ -23,6 +9,24 @@ export function modelDetail(
   const saysIt =
     name.includes(profile.provider.toLowerCase()) && name.includes(profile.model.toLowerCase());
   return saysIt ? null : `${profile.provider} · ${profile.model}`;
+}
+
+/** The catalog sometimes prefixes model names with the model maker. */
+export function catalogModelName(id: string, name?: string): string {
+  const display = name?.trim();
+  if (!display) return id;
+  const separator = id.includes("/") ? display.indexOf(": ") : -1;
+  return separator < 0 ? display : display.slice(separator + 2).trim() || id;
+}
+
+/** Match the picker’s catalog spelling while respecting a saved custom label. */
+export function modelName(
+  profile: Pick<ModelProfile, "label" | "provider" | "model">,
+  catalogName?: string,
+): string {
+  if (profile.label && profile.label !== profile.model && modelDetail(profile) !== null)
+    return profile.label;
+  return catalogModelName(profile.model, catalogName ?? profile.model.split("/").at(-1));
 }
 
 /**

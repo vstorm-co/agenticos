@@ -1,4 +1,6 @@
 "use client";
+
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
@@ -397,7 +399,10 @@ export function AttemptRow({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <details className="rounded-xl border" onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <NativeDisclosure
+      className="rounded-xl border"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
       <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 p-3 text-sm sm:px-4">
         <AttemptSummary session={session} round={round} />
       </summary>
@@ -406,7 +411,7 @@ export function AttemptRow({
           <RoundResults session={session} round={round} extra={extra} />
         </div>
       )}
-    </details>
+    </NativeDisclosure>
   );
 }
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   ArchiveRestore,
+  CircleAlert,
   Archive,
   Building2,
   Copy,
@@ -20,6 +21,17 @@ import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { SystemAgentBadge } from "@/components/agents/system-agent-badge";
 import {
   Badge,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+  ResourceCard,
+  ResourceCardHeader,
+  ResourceCardDescription,
+  ResourceCardFooter,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -102,64 +114,53 @@ export function AgentCard({
 
   return (
     <div className="h-full">
-      <div
-        className={cn(
-          "border-border bg-card relative flex h-full flex-col rounded-xl border p-4 transition-colors",
-          "hover:border-foreground/25",
-          busy && "pointer-events-none opacity-50",
-        )}
-      >
+      <ResourceCard className={cn(busy && "pointer-events-none opacity-50")}>
         <Link
           href={ROUTES.AGENT_DETAIL(agent.id)}
           className="focus-visible:ring-ring absolute inset-0 rounded-xl outline-none focus-visible:ring-2"
           aria-label={tc("openNamed", { name: agent.name })}
         />
 
-        <div className="pointer-events-none relative mb-3 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
+        <ResourceCardHeader className="pointer-events-none">
           <AgentAvatar
             agentId={agent.id}
             slug={agent.slug}
             hasAvatar={agent.has_avatar}
             colorSlot={agent.avatar_color}
             size="lg"
-            className="max-sm:size-12"
           />
-          <div className="contents">
-            <div className="flex min-w-0 flex-col items-start gap-1.5 sm:flex-row sm:justify-between sm:gap-2">
-              <div className="w-full min-w-0 sm:w-auto">
-                <h3
-                  className={cn(
-                    "text-foreground line-clamp-2 font-semibold break-words",
-                    archived && "text-muted-foreground",
-                  )}
-                >
-                  {agent.name}
-                </h3>
-              </div>
-              <AgentStatusBadge status={agent.status} />
-            </div>
-            <p className="text-foreground/85 col-span-2 line-clamp-2 min-h-[2.5rem] text-sm">
-              {agent.description || t("noDescription")}
-            </p>
-            <div className="col-span-2 flex flex-wrap items-center gap-1.5">
-              <AccessChip agent={agent} />
-              {attention && <AttentionBadge attention={attention} />}
-              {isSystemAgent(agent.kind) &&
-                (agent.system_key ? (
-                  <Badge
-                    variant="secondary"
-                    className="font-normal"
-                    title={t(`defaultBadge.${agent.kind}Hint`)}
-                  >
-                    {t(`defaultBadge.${agent.kind}`)}
-                  </Badge>
-                ) : (
-                  <SystemAgentBadge kind={agent.kind} />
-                ))}
-            </div>
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <h3
+              className={cn(
+                "text-foreground line-clamp-2 font-semibold break-words",
+                archived && "text-muted-foreground",
+              )}
+            >
+              {agent.name}
+            </h3>
+            <AccessChip agent={agent} />
           </div>
-          {footer !== undefined && <div className="mt-2">{footer}</div>}
-        </div>
+        </ResourceCardHeader>
+        <ResourceCardDescription className="pointer-events-none">
+          {agent.description || t("noDescription")}
+        </ResourceCardDescription>
+        <ResourceCardFooter className="pointer-events-none">
+          <AgentStatusBadge status={agent.status} compact />
+          {attention && <AttentionBadge attention={attention} />}
+          {isSystemAgent(agent.kind) &&
+            (agent.system_key ? (
+              <Badge
+                variant="secondary"
+                className="font-normal"
+                title={t(`defaultBadge.${agent.kind}Hint`)}
+              >
+                {t(`defaultBadge.${agent.kind}`)}
+              </Badge>
+            ) : (
+              <SystemAgentBadge kind={agent.kind} />
+            ))}
+          {footer !== undefined && <div className="w-full text-xs">{footer}</div>}
+        </ResourceCardFooter>
 
         <div className="relative mt-auto flex items-start justify-between gap-2 pt-3">
           <span
@@ -238,7 +239,7 @@ export function AgentCard({
             </div>
           )}
         </div>
-      </div>
+      </ResourceCard>
     </div>
   );
 }
@@ -248,10 +249,12 @@ function AccessChip({ agent }: { agent: Agent }) {
   const tAudience = useTranslations("audience");
   const { icon: Icon, label } = accessSummary(agent, t, tAudience);
   return (
-    <Badge variant="outline" className="text-muted-foreground gap-1 font-normal">
-      <Icon className="h-3 w-3" aria-hidden />
-      {label}
-    </Badge>
+    <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+      <Icon className="size-3 shrink-0" aria-hidden />
+      <span className="truncate" title={label}>
+        {label}
+      </span>
+    </span>
   );
 }
 
@@ -280,16 +283,42 @@ function IconAction({
   );
 }
 
-/** Describes the signal; opening any part of the card still opens the builder. */
+/** A small, keyboard- and touch-readable signal with the concrete reasons. */
 function AttentionBadge({ attention }: { attention: AgentAttention }) {
   const tAttention = useTranslations("attention");
+  const reasons = attentionParts(attention, tAttention).join(" · ");
+  const label = `${tAttention("badge")}: ${reasons}`;
+  const content = (
+    <>
+      <p className="font-medium">{tAttention("badge")}</p>
+      <p>{reasons}</p>
+    </>
+  );
   return (
-    <Badge
-      variant="warning"
-      className="font-normal"
-      title={attentionParts(attention, tAttention).join(" · ")}
-    >
-      {tAttention("badge")}
-    </Badge>
+    <TooltipProvider delayDuration={150}>
+      <Popover>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label={label}
+                title={reasons}
+                className="text-warning-ink focus-visible:outline-ring hover:bg-warning/10 pointer-events-auto relative inline-flex size-7 shrink-0 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                <CircleAlert className="size-4" aria-hidden />
+              </button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs space-y-1">{content}</TooltipContent>
+        </Tooltip>
+        <PopoverContent
+          className="max-w-[calc(100vw-2rem)] space-y-1 text-sm"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
+          {content}
+        </PopoverContent>
+      </Popover>
+    </TooltipProvider>
   );
 }

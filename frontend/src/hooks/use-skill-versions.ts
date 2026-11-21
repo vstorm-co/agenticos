@@ -52,11 +52,11 @@ export function useSkillVersion(skillId: string, versionId: string | null) {
 }
 
 export function useSkillForks(skillId: string) {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.skills.forks(skillId),
     queryFn: () => listSkillForks(skillId),
   });
-  return { forks: data?.items ?? [], isLoading, error };
+  return { forks: data?.items ?? [], isLoading, error, refetch };
 }
 
 /** How often the skill was used, by agent, over the last `days` days. */

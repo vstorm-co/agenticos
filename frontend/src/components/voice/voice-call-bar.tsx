@@ -20,7 +20,7 @@ import { viewState } from "@/lib/voice/call-reducer";
 import { waveVisual } from "@/lib/voice/waveform";
 import { useVoiceCallStore, useVoiceGlowStore } from "@/stores";
 
-import { PILL_SPRING } from "./floating-pill";
+import { PILL_SPRING, VOICE_SURFACE } from "./floating-pill";
 import { voiceCallHint, type VoiceEndingCopy } from "./voice-call-strip";
 import { VoiceCallStatus } from "./voice-call-status";
 import { VoiceControls } from "./voice-controls";
@@ -106,6 +106,7 @@ export function VoiceCallBar({
   onShowApproval,
   endingCopy,
   pill = false,
+  subtle = false,
   avatar,
 }: {
   session: VoiceSession;
@@ -116,6 +117,7 @@ export function VoiceCallBar({
   /** How a limit ending the call and its notices are put, when not the console's `chat.voice`. */
   endingCopy?: VoiceEndingCopy;
   pill?: boolean;
+  subtle?: boolean;
   /** The agent's face, at the pill's start. */
   avatar?: ReactNode;
 }) {
@@ -193,7 +195,9 @@ export function VoiceCallBar({
           aria-label={tView("bar")}
           tabIndex={-1}
           className={cn(
-            "bg-foreground text-background flex items-center gap-2 overflow-hidden rounded-full py-1.5 pr-1.5 pl-1.5 shadow-lg outline-none",
+            subtle
+              ? cn(VOICE_SURFACE, "outline-none")
+              : "bg-foreground text-background flex items-center gap-2 overflow-hidden rounded-full py-1.5 pr-1.5 pl-1.5 shadow-lg outline-none",
             call.approval !== null && "ring-warning ring-2",
           )}
         >
@@ -210,7 +214,11 @@ export function VoiceCallBar({
             compact
           />
           {!reduced && (
-            <span className="w-14 shrink-0 @md:w-20">
+            <span
+              className={
+                subtle ? "ml-auto hidden w-20 shrink-0 sm:block" : "w-14 shrink-0 @md:w-20"
+              }
+            >
               <VoiceWaveform visual={visual} levels={{ input, output }} compact />
             </span>
           )}
@@ -222,7 +230,7 @@ export function VoiceCallBar({
             onPushToTalkChange={changePushToTalk}
             onPress={press}
             onEnd={end}
-            inverse
+            inverse={!subtle}
           />
         </motion.div>
       ) : (

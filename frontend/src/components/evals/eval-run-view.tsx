@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { Lock } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";

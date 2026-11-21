@@ -17,6 +17,8 @@ const state = vi.hoisted(() => ({
   connect: vi.fn(),
   disconnect: vi.fn(),
   hook: vi.fn(),
+  retrySecrets: vi.fn(),
+  retryAccounts: vi.fn(),
 }));
 vi.mock("@/hooks", () => ({
   usePermissions: () => ({ can: (permission: Permission) => state.permissions.has(permission) }),
@@ -27,6 +29,7 @@ vi.mock("@/hooks", () => ({
     kinds: [],
     isLoading: state.loading,
     listError: state.error,
+    refetch: state.retrySecrets,
     create: { mutateAsync: vi.fn(), isPending: false },
     rotate: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutate: vi.fn() },
@@ -39,6 +42,7 @@ vi.mock("@/hooks/use-connected-accounts", () => ({
       accounts: state[owner],
       isLoading: false,
       error: owner === "personal" ? state.personalError : null,
+      refetch: () => state.retryAccounts(owner),
       isConnecting: false,
       connect: (path: string) => state.connect(owner, path),
       disconnect: (id: string) => state.disconnect(owner, id),
@@ -142,6 +146,13 @@ describe("vault inventory", () => {
     rerender(<VaultPage />);
     expect(screen.getByText("No credentials yet")).toBeVisible();
   });
+  it("retries readable inventories without requesting inaccessible organization accounts", async () => {
+    state.permissions.delete(Perm.connectionsView);
+    state.personalError = new Error("Accounts unavailable");
+    render(<VaultPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(state.retrySecrets).toHaveBeenCalledOnce();
+    expect(state.retryAccounts).toHaveBeenCalledWith("personal");
+    expect(state.retryAccounts).not.toHaveBeenCalledWith("organization");
+  });
 });
-
-vi.mock("@/components/vault/personal-model-keys", () => ({ PersonalModelKeys: () => null }));

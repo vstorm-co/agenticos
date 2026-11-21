@@ -384,3 +384,61 @@ it("keeps an empty or failed full-height table inside its row scrollport", () =>
     screen.getByRole("alert"),
   );
 });
+
+describe("DataTable client pagination", () => {
+  const rows = Array.from({ length: 53 }, (_, index) => ({
+    id: String(index),
+    name: `Record ${String(index).padStart(2, "0")}`,
+  }));
+  it("pages the complete sorted collection and keeps both bounds disabled", async () => {
+    const user = userEvent.setup();
+    renderTable({
+      clientPagination: true,
+      fillHeight: true,
+      rows,
+      columns: [
+        {
+          key: "name",
+          header: "Name",
+          cell: (row) => row.name,
+          sortable: true,
+          sortValue: (row) => row.name,
+        },
+      ],
+    });
+    expect(screen.getByText("Record 00")).toBeInTheDocument();
+    expect(screen.queryByText("Record 52")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: messages.ui.nextPage }));
+    expect(screen.getByText("Record 52")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: messages.ui.nextPage })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: /Name/ }));
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    expect(screen.getByText("Record 52")).toBeInTheDocument();
+    expect(screen.queryByText("Record 00")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: messages.ui.previousPage })).toBeDisabled();
+  });
+  it("clamps synchronously when filtering removes later pages and keeps an empty footer", async () => {
+    const user = userEvent.setup();
+    const view = renderTable({ clientPagination: true, rows });
+    await user.click(screen.getByRole("button", { name: messages.ui.nextPage }));
+    view.rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DataTable
+          columns={[{ key: "name", header: "Name", cell: (row: Row) => row.name }]}
+          rows={[]}
+          clientPagination
+          getRowKey={(row) => row.id}
+        />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.getByText("1 / 1")).toBeInTheDocument();
+    expect(screen.getByText("0–0 of 0")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: messages.ui.nextPage })).toBeDisabled();
+    expect(screen.getByRole("button", { name: messages.ui.previousPage })).toBeDisabled();
+  });
+  it("does not slice embedded or server-paged tables by default", () => {
+    renderTable({ rows });
+    expect(screen.getByText("Record 52")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: messages.ui.nextPage })).not.toBeInTheDocument();
+  });
+});

@@ -264,12 +264,18 @@ test.describe("Agents", () => {
     // Builder that renders its shell while the agent fails to load shows the
     // same headings and none of this.
     await expect(pageStatus(page)).toContainText("published");
-    await expect(page.getByRole("textbox", { name: "Description" })).toHaveValue(
+    await expect(page.getByRole("textbox", { name: "Description" })).toHaveCount(0);
+    await page.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("menuitem", { name: "Details" }).click();
+    const details = page.getByRole("dialog", { name: "Details" });
+    await expect(details.getByRole("textbox", { name: "Description" })).toHaveValue(
       /organization's general-purpose assistant/,
     );
+    await expect(details.getByRole("heading", { name: "Categories and tags" })).toBeVisible();
+    await details.getByRole("button", { name: "Close" }).click();
 
     await expect(page.getByRole("textbox", { name: "Instructions" })).toHaveValue(
-      /You are \{\{agent_name\}\}, the helpful general-purpose assistant in/,
+      /You are \{\{agent_name\}\}, the general-purpose assistant in/,
     );
 
     // The model section leads with the profile this agent actually runs on, and

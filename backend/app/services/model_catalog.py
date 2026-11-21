@@ -159,9 +159,8 @@ class FallbackModel:
 # OpenAI is `ada`. A short current list beats a long misleading one.
 #
 # What the library *is* used for is the half that rots: every context length comes
-# from it at read time, and `test_model_catalog.py` fails when an id here is one
-# the snapshot has never heard of - which is how a typo or a retired model is
-# caught rather than shipped as a dropdown the provider refuses.
+# from it at read time. The catalog test requires either a pricing snapshot row
+# or direct evidence from the subscription catalog for a new Codex model.
 CURATED: dict[str, tuple[FallbackModel, ...]] = catalog.load(
     "curated_models.json", TypeAdapter(dict[str, tuple[FallbackModel, ...]])
 )
@@ -171,10 +170,8 @@ def priced_model(provider: str, model_id: str) -> Any | None:
     """This model as `genai-prices` knows it, or None where it has no row for it.
 
     Two questions come off this and they are not the same one: whether the model
-    exists at all, and whether anybody recorded how much context it takes. A
-    curated id the snapshot has never heard of is a typo or a retirement, which is
-    a build failure; a known model with no window is simply not recorded, and the
-    capability resolves one itself.
+    is recorded in the price catalog, and how much context that row says it takes.
+    A new subscription model can appear before the price snapshot records it.
 
     The provider ids differ in a handful of places - the snapshot writes `x-ai`
     where the platform writes `xai` - so the alias table is part of the lookup

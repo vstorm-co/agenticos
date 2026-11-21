@@ -54,6 +54,8 @@ template-inherited subsystems have different coverage gates, described below.
   `app.services.telephony.runtime` commits telephone admission, submission, transfer, hang-up and
   single-use media claims before external effects; unknown acceptance is retained
   for signed callbacks and cleanup, never automatic redial.
+  `PersonalCodingSessionFactory` commits private workspace ownership and initial source
+  before credential-bearing work, and retention or queued teardown in shielded cleanup;
   `ChannelMessageRouter._route_inner` commits admitted channel identity/session/conversation
   state before prompt resumption or independent platform MCP credential creation;
   `VoiceCallStarter.start` commits a call's row and its run before the call

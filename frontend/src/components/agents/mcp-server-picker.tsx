@@ -230,7 +230,7 @@ export function McpServerPicker({
         </label>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid auto-rows-fr gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {/* First, and on every page a search does not rule out: the one server
             that needs no connection, because it is this deployment (#2190). */}
         {list.page === 0 &&

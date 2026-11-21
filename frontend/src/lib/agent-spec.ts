@@ -267,6 +267,7 @@ export const SUBAGENTS_ID = "subagents";
 /** What the delegation capability does when nothing has said otherwise. */
 export const DEFAULT_SUBAGENTS_CONFIG: SubagentsConfig = {
   inline: [],
+  allow_any_agent: false,
   mode: "sync",
   allow_dynamic: false,
   max_depth: 1,

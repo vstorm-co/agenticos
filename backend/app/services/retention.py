@@ -39,7 +39,7 @@ from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError
 from app.core.field_errors import refused_field
-from app.core.permissions import Perm, role_has
+from app.core.permissions import AuthContext, Perm, role_has
 from app.core.retention import (
     AUDIT,
     DEFAULT_AUDIT_FLOOR_DAYS,
@@ -57,6 +57,7 @@ from app.repositories import (
     retention_repo,
 )
 from app.schemas.retention import RetentionRead, RetentionUpdate
+from app.services.sandbox_workspace import SandboxWorkspaceService
 
 if TYPE_CHECKING:
     from app.db.models.organization import Organization
@@ -427,6 +428,10 @@ class RetentionService:
             await generated_media_repo.delete_by_storage_paths(
                 self.db, organization_id=organization_id, storage_paths=paths
             )
+            workspaces = SandboxWorkspaceService(self.db)
+            ctx = AuthContext(user_id=None, organization_id=organization_id, role="")
+            for conversation_id in expiring:
+                await workspaces.purge_for_conversation(ctx, conversation_id=conversation_id)
             return await retention_repo.delete_conversations(
                 self.db, organization_id=organization_id, conversation_ids=expiring
             )
@@ -444,7 +449,15 @@ class RetentionService:
                 )
             return removed
         if name == "workspaces":
-            return await retention_repo.delete_workspaces(self.db, **scope)
+            coding = await retention_repo.lock_expiring_coding_workspaces(self.db, **scope)
+            if coding:
+                workspaces = SandboxWorkspaceService(self.db)
+                ctx = AuthContext(user_id=None, organization_id=organization_id, role="")
+                for row in coding:
+                    await workspaces.discard_personal_coding(ctx, row)
+            return len(coding) + await retention_repo.delete_workspaces(
+                self.db, organization_id=organization_id, cutoff=cutoff, limit=BATCH - len(coding)
+            )
         if name == "artifacts":
             # One locked set for both paths and rows; a publish cannot split them.
             expiring = await retention_repo.lock_expiring_artifacts(self.db, **scope)

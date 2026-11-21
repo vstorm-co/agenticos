@@ -6065,3 +6065,52 @@ async def test_browser_only_selection_keeps_the_agents_sandbox(
     await service.open(_spec(), ctx=_ctx(), identity=_identity(), local=target)
     cloud.assert_awaited_once()
     local.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_discard_cannot_target_an_unadmitted_or_foreign_personal_workspace() -> None:
+    from unittest.mock import AsyncMock
+
+    from app.core.exceptions import AuthorizationError
+    from app.db.models.agent_workspace import AgentWorkspace
+    from app.services.sandbox_workspace import SandboxWorkspaceService
+
+    org = uuid4()
+    ctx = AuthContext(user_id=uuid4(), organization_id=org, role="owner")
+    for row in (
+        AgentWorkspace(organization_id=org, coding_account_id=None),
+        AgentWorkspace(organization_id=uuid4(), coding_account_id=uuid4()),
+    ):
+        db = AsyncMock()
+        with pytest.raises(AuthorizationError):
+            await SandboxWorkspaceService(db).discard_personal_coding(ctx, row)
+        db.execute.assert_not_awaited()
+
+
+def test_private_namespaces_are_isolated_and_cannot_widen_workspace_scope() -> None:
+    from dataclasses import replace
+
+    identity = WorkspaceIdentity(
+        organization_id=uuid4(),
+        agent_id=uuid4(),
+        run_id=uuid4(),
+        conversation_id=uuid4(),
+        user_id=str(uuid4()),
+        namespace=uuid4(),
+    )
+    first = scope_key(identity, "user", "service")
+    assert first == scope_key(replace(identity, run_id=uuid4()), "user", "service")
+    assert first != scope_key(replace(identity, namespace=uuid4()), "user", "service")
+    assert first != scope_key(replace(identity, user_id=str(uuid4())), "user", "service")
+    with pytest.raises(WorkspaceScopeUnavailable):
+        scope_key(identity, "conversation", "service")
+
+
+@pytest.mark.anyio
+async def test_personal_coding_teardown_selection_requires_an_owner_boundary() -> None:
+    from app.repositories import agent_workspace
+
+    db = AsyncMock()
+    with pytest.raises(ValueError, match="requires an owner"):
+        await agent_workspace.list_personal_coding(db)
+    db.execute.assert_not_awaited()

@@ -268,9 +268,7 @@ and are refused once it changed since, for a skill change as for a file.
 
 ## Describing a new agent { #describing-a-new-agent }
 
-The create dialog offers to describe the agent instead of filling in the form.
-The description goes to the [Architect](https://vstorm-co.github.io/agenticos/console/#the-assistant), which drafts agents and asks
-before it creates one; the result is an ordinary draft.
+The create dialog’s **Create with Architect** action opens the [Architect](https://vstorm-co.github.io/agenticos/console/#the-assistant) widget without sending a prompt or creating an agent. Describe what you need in that conversation; the Architect asks before creating an ordinary draft.
 
 ## Cost and budget { #cost-and-budget }
 

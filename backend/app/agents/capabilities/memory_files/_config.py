@@ -4,13 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class MemoryFilesConfig(BaseModel):
-    """How an agent keeps its notes.
-
-    One field, and that is the point. This capability used to be one binding with
-    six - two store toggles, two write levers, a backend and its URL - so a
-    builder configured a matrix instead of picking a thing. Semantic recall (mem0) went with the organisation-wide store, which
-    leaves exactly one genuine choice (#1470, #2090).
-    """
+    """Privacy and automatic prompt context for a bound Memory capability."""
 
     allow_personal: bool = Field(
         title="Keep private notes per person",
@@ -20,5 +14,14 @@ class MemoryFilesConfig(BaseModel):
             "readable only when it is alone with them. Off drops that store "
             "entirely, for compliance or privacy; the notes it keeps in group "
             "chats stay."
+        ),
+    )
+
+    inject_context: bool = Field(
+        title="Include memory automatically",
+        default=True,
+        description=(
+            "Show a bounded summary of personal memories and notes in private conversations. "
+            "Off keeps memory tools and background maintenance available."
         ),
     )

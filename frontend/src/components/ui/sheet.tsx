@@ -19,6 +19,9 @@ interface SheetContentProps {
   side?: "left" | "right" | "bottom";
   /** Navigation opens on its container, without selecting a close control or opening a keyboard. */
   focusContent?: boolean;
+  /** A replacement dialog owns focus while this sheet closes. */
+  restoreFocus?: boolean;
+  onEscapeKeyDown?: React.ComponentProps<typeof DialogPrimitive.Content>["onEscapeKeyDown"];
 }
 
 export function Sheet({ open, onOpenChange, children }: SheetProps) {
@@ -34,6 +37,8 @@ export function SheetContent({
   className,
   side = "left",
   focusContent = false,
+  restoreFocus = true,
+  onEscapeKeyDown,
 }: SheetContentProps) {
   const opener = React.useRef<HTMLElement | null>(null);
   const content = React.useRef<HTMLDivElement>(null);
@@ -53,6 +58,7 @@ export function SheetContent({
             target.value
           )
             event.preventDefault();
+          onEscapeKeyDown?.(event);
         }}
         onOpenAutoFocus={(event) => {
           // Most sheets are controlled by actions outside a Radix trigger.
@@ -65,7 +71,8 @@ export function SheetContent({
         }}
         onCloseAutoFocus={(event) => {
           event.preventDefault();
-          if (opener.current?.isConnected) opener.current.focus({ preventScroll: true });
+          if (restoreFocus && opener.current?.isConnected)
+            opener.current.focus({ preventScroll: true });
         }}
         // A side panel runs the screen's full height: in the phone app that is
         // under the status bar and over the gesture bar, so it keeps clear of
@@ -77,12 +84,12 @@ export function SheetContent({
         }
         className={cn(
           "panel-strong fixed z-50 flex min-h-0 max-w-full flex-col overflow-y-auto overscroll-contain outline-none",
-          "data-[state=open]:animate-in data-[state=closed]:animate-out duration-200",
+          "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 duration-[var(--duration-panel)]",
           side === "bottom"
-            ? "slide-in-from-bottom data-[state=closed]:slide-out-to-bottom inset-x-0 bottom-[max(0px,calc(100dvh-var(--app-height,100dvh)))] max-h-[calc(var(--app-height,100dvh)-var(--shell-inset-top,0px)-1rem)] rounded-t-2xl pb-[var(--safe-bottom)]"
+            ? "inset-x-0 bottom-[max(0px,calc(100dvh-var(--app-height,100dvh)))] max-h-[calc(var(--app-height,100dvh)-var(--shell-inset-top,0px)-1rem)] rounded-t-2xl pb-[var(--safe-bottom)]"
             : "top-0 h-[var(--app-height,100dvh)] w-72",
-          side === "left" && "slide-in-from-left data-[state=closed]:slide-out-to-left left-0",
-          side === "right" && "slide-in-from-right data-[state=closed]:slide-out-to-right right-0",
+          side === "left" && "left-0",
+          side === "right" && "right-0",
           className,
         )}
       >

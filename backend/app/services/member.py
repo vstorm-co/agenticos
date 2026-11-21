@@ -44,6 +44,12 @@ async def end_membership(db: AsyncSession, membership: OrganizationMember) -> No
     await api_key_repo.revoke_for_member(
         db, organization_id=organization_id, user_id=user_id, at=at
     )
+    from app.services.sandbox_workspace import SandboxWorkspaceService
+
+    await SandboxWorkspaceService(db).purge_personal_coding(
+        organization_id=organization_id,
+        user_id=user_id,
+    )
     await coding_account_repo.delete_for_member(
         db, organization_id=organization_id, user_id=user_id
     )

@@ -8,9 +8,10 @@ import {
   modelPlaceholder,
   placeholderWords,
 } from "@/components/agents/add-model";
+import { ChatModelLibrary } from "./chat-model-library";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { getErrorMessage } from "@/lib/api-error";
-import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ModelIcon } from "@/components/icons/model-icon";
 import { ProviderRow } from "@/components/vault/provider-row";
 import {
   Button,
@@ -21,8 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
-import { InlineSecret } from "@/components/vault/inline-secret";
+import { ModelProviderCredential } from "./model-provider-credential";
 import {
   useModelProviders,
   usePermissions,
@@ -30,12 +30,15 @@ import {
   useSecretPurposes,
   useSecrets,
 } from "@/hooks";
-import { hasKey, modelDetail, runsAgents, usableForAgents } from "@/lib/model-profiles";
+import { hasKey, modelName, runsAgents, usableForAgents } from "@/lib/model-profiles";
 import type { PublishedModel } from "@/types/agents";
 import { Perm } from "@/types/permissions";
+import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
 interface ChatModelPickerProps {
+  compact?: boolean;
+  presentation?: "form" | "library";
   /** The model profile this conversation overrides to, or null for the agent's own. */
   value: string | null;
   /** The agent's published model, shown as the current one when there is no override. */
@@ -67,7 +70,13 @@ interface ChatModelPickerProps {
  * likely to want to know (#926) - so the current-model summary renders above the
  * gate, and only the fields that write are withheld.
  */
-export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPickerProps) {
+export function ChatModelPicker({
+  value,
+  agentModel,
+  onChange,
+  compact = false,
+  presentation = "form",
+}: ChatModelPickerProps) {
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
   const tErrors = useTranslations("errors");
@@ -84,17 +93,24 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     profilesStatus,
     refetchProfiles,
   } = useModelProviders();
-  const { purposes } = useSecretPurposes();
-  const { secrets } = useSecrets();
+  const { purposes, isLoading: loadingPurposes } = useSecretPurposes();
+  const {
+    secrets,
+    listError: secretReadError,
+    isLoading: loadingSecrets,
+    refetch: refetchSecrets,
+  } = useSecrets();
 
   const current = value === null ? agentModel : (profiles.find((p) => p.id === value) ?? null);
   const currentProfile = profiles.find(
     (profile) => profile.id === (value ?? agentModel?.profile_id),
   );
   const sourceKey = value ?? "agent";
-  const [draft, setDraft] = useState<{ source: string; providerId: string; model: string } | null>(
-    null,
-  );
+  const [draft, setDraft] = useState<{
+    source: string;
+    providerId: string;
+    model: string;
+  } | null>(null);
   const edited = draft?.source === sourceKey ? draft : null;
   const providerId = edited?.providerId ?? current?.provider ?? "";
   const model = edited?.model ?? current?.model ?? "";
@@ -103,7 +119,16 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
   const setModel = (next: string) => setDraft({ source: sourceKey, providerId, model: next });
   const [failure, setFailure] = useState<string | null>(null);
 
+  const [pickedKey, setPickedKey] = useState<string | null>(null);
+  const providerKeys = secrets.filter((secret) => secret.purpose === providerId);
+  const explicitKey = providerKeys.find((secret) => secret.id === pickedKey);
   const inheritedProfile = currentProfile?.provider === providerId ? currentProfile : undefined;
+  const effectiveKey =
+    explicitKey ??
+    providerKeys.find((key) => key.id === inheritedProfile?.secret_id) ??
+    providerKeys[0];
+  const matchesKey = (profile: ModelProfile) =>
+    !effectiveKey || profile.secret_id === effectiveKey.id;
   const endpoint = inheritedProfile?.base_url ?? null;
   const providers = purposes.filter((entry) => entry.category === "model_provider");
   const provider = providers.find((entry) => entry.id === providerId);
@@ -112,13 +137,15 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     refused,
     source,
     isLoading: loadingModels,
+    hasCachedListing,
+    refetch: refetchModels,
   } = useProviderModels(
     providerId,
     providerId === "openrouter" ? (endpoint ?? undefined) : undefined,
+    effectiveKey?.id,
   );
   // An override profile and the agent's published model both carry
   // provider/model/label, so one summary renders whichever is current.
-  const currentDetail = current ? modelDetail(current) : null;
 
   const matching = profiles.filter(
     (profile) =>
@@ -127,7 +154,7 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
       (!endpoint || profile.base_url?.replace(/\/+$/, "") === endpoint.replace(/\/+$/, "")),
   );
   const hasCustomEndpoint = matching.some(
-    (profile) => !!profile.base_url && usableForAgents(profile),
+    (profile) => matchesKey(profile) && !!profile.base_url && usableForAgents(profile),
   );
 
   const canApply =
@@ -137,15 +164,40 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     !createProfile.isPending &&
     !loadingProfiles &&
     profilesStatus !== "failed" &&
+    !loadingSecrets &&
+    !secretReadError &&
     (!loadingModels || hasCustomEndpoint);
 
-  const apply = async () => {
-    if (provider === undefined) return;
-    const modelId = model.trim();
+  const apply = async (selectedModel = model) => {
+    if (
+      provider === undefined ||
+      createProfile.isPending ||
+      loadingProfiles ||
+      profilesStatus === "failed" ||
+      loadingSecrets ||
+      secretReadError
+    )
+      return;
+    const modelId = selectedModel.trim();
+    if (!modelIdIsWellFormed(provider.id, modelId)) return;
+    const matching = profiles.filter(
+      (profile) =>
+        profile.provider === providerId &&
+        profile.model === modelId &&
+        (!endpoint || profile.base_url?.replace(/\/+$/, "") === endpoint.replace(/\/+$/, "")),
+    );
+    if (
+      loadingModels &&
+      !matching.some(
+        (profile) => matchesKey(profile) && profile.base_url && usableForAgents(profile),
+      )
+    )
+      return;
     setFailure(null);
     if (
       current?.provider === provider.id &&
       current.model === modelId &&
+      (!currentProfile || matchesKey(currentProfile)) &&
       (currentProfile === undefined || usableForAgents(currentProfile))
     ) {
       onChange(value);
@@ -159,7 +211,9 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     const listingRefuses = refused.includes(modelId);
     const existing = matching.find(
       (profile) =>
-        usableForAgents(profile) && (!!profile.base_url || (!loadingModels && !listingRefuses)),
+        matchesKey(profile) &&
+        usableForAgents(profile) &&
+        (!!profile.base_url || (!loadingModels && !listingRefuses)),
     );
     if (existing) {
       onChange(existing.id);
@@ -167,19 +221,20 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     }
     // The organization has this model, but its key was deleted (#2478). A second
     // profile under the same name is refused, and the fix is a key for this one.
-    if (!listingRefuses && matching.some((profile) => runsAgents(profile) && !hasKey(profile))) {
+    if (
+      providerKeys.length <= 1 &&
+      !listingRefuses &&
+      matching.some((profile) => runsAgents(profile) && !hasKey(profile))
+    ) {
       setFailure(t("modelHasNoKey", { model: modelId }));
       return;
     }
-    if (matching.length > 0 || listingRefuses) {
+    if (matching.some(matchesKey) || listingRefuses) {
       setFailure(t("notAChatModel", { model: modelId }));
       return;
     }
 
-    const key =
-      secrets.find(
-        (secret) => secret.id === inheritedProfile?.secret_id && secret.purpose === provider.id,
-      ) ?? secrets.find((secret) => secret.purpose === provider.id);
+    const key = effectiveKey;
     if (key === undefined) {
       // The form below offers to add one, so this says what is missing rather than
       // sending somebody to another page for it.
@@ -189,7 +244,10 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
 
     try {
       const profile = await createProfile.mutateAsync({
-        label: `${provider.label} · ${modelId}`,
+        label:
+          providerKeys.length > 1
+            ? `${`${provider.label} · ${modelId}`.slice(0, 108)} · ${key.id.slice(0, 8)}`
+            : `${provider.label} · ${modelId}`,
         provider: provider.id,
         model: modelId,
         secret_id: key.id,
@@ -210,25 +268,135 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     }
   };
 
+  const credentialForm = !secretReadError &&
+    !loadingSecrets &&
+    provider !== undefined &&
+    !secrets.some((secret) => secret.purpose === provider.id) && (
+      <ModelProviderCredential
+        key={provider.id}
+        provider={provider}
+        onCreated={() => {
+          setFailure(null);
+          void refetchModels();
+        }}
+      />
+    );
+
   const currentSummary = current ? (
     <>
-      <span className="bg-foreground/[0.05] text-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
-        <ProviderIcon provider={current.provider} className="size-5" />
-      </span>
+      <ModelIcon model={current.model} provider={current.provider} />
       <span className="min-w-0 flex-1">
-        <span className="block text-sm leading-5 font-medium break-words whitespace-normal">
-          {current.label}
+        <span
+          className={
+            compact
+              ? "block truncate text-xs font-medium"
+              : "block text-sm leading-5 font-medium break-words whitespace-normal"
+          }
+        >
+          {modelName(
+            current,
+            current.provider === providerId
+              ? suggestions.find((entry) => entry.id === current.model)?.name
+              : undefined,
+          )}
         </span>
-        {currentDetail !== null && (
-          <span className="text-muted-foreground mt-1 block truncate font-mono text-[11px]">
-            {currentDetail}
-          </span>
-        )}
       </span>
     </>
   ) : (
     t("changeModel")
   );
+
+  if (presentation === "library" && can(Perm.connectionsManage))
+    return (
+      <ChatModelLibrary
+        providers={providers.map((entry) => ({
+          id: entry.id,
+          label: entry.label,
+          connected:
+            secretReadError || loadingSecrets
+              ? null
+              : secrets.some((secret) => secret.purpose === entry.id) ||
+                profiles.some(
+                  (profile) => profile.provider === entry.id && usableForAgents(profile),
+                ),
+        }))}
+        providerId={providerId}
+        loadingProviders={loadingPurposes}
+        needsCredential={
+          !!credentialForm &&
+          !profiles.some((profile) => profile.provider === providerId && usableForAgents(profile))
+        }
+        credentialPicker={
+          providerKeys.length > 1 && (
+            <div className="grid gap-1.5">
+              <Label htmlFor="chat-model-key">{tRoot("vault.key")}</Label>
+              <Select value={effectiveKey?.id} onValueChange={setPickedKey}>
+                <SelectTrigger id="chat-model-key">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {providerKeys.map((key) => (
+                    <SelectItem key={key.id} value={key.id} textValue={key.name}>
+                      <ProviderRow provider={providerId} name={key.name} hint={key.hint} />
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )
+        }
+        model={
+          current?.provider === providerId && (!currentProfile || matchesKey(currentProfile))
+            ? current.model
+            : ""
+        }
+        profileId={
+          currentProfile?.provider === providerId && matchesKey(currentProfile)
+            ? currentProfile.id
+            : undefined
+        }
+        models={suggestions}
+        profiles={profiles.filter((profile) => usableForAgents(profile) && matchesKey(profile))}
+        loading={(loadingModels && !hasCachedListing) || loadingProfiles}
+        catalogRefreshing={loadingModels}
+        applying={createProfile.isPending}
+        disabled={
+          loadingProfiles || profilesStatus === "failed" || !!secretReadError || !!loadingSecrets
+        }
+        onProviderChange={(id) => {
+          setProviderId(id);
+          setPickedKey(null);
+          setFailure(null);
+        }}
+        onModelChange={(id) => void apply(id)}
+        onProfileChange={(profile) => {
+          if (!createProfile.isPending && !loadingProfiles && profilesStatus !== "failed")
+            onChange(profile.id);
+        }}
+        credentialForm={credentialForm}
+        failure={
+          profilesStatus === "failed" || secretReadError ? (
+            <p role="alert" className="text-destructive text-xs">
+              {t("profilesUnavailable")}{" "}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  void refetchProfiles();
+                  void refetchSecrets();
+                }}
+              >
+                {tRoot("common.retry")}
+              </Button>
+            </p>
+          ) : failure ? (
+            <p role="alert" className="text-destructive text-xs">
+              {failure}
+            </p>
+          ) : null
+        }
+      />
+    );
 
   return (
     <div className="space-y-4">
@@ -252,7 +420,11 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
             type="button"
             variant="outline"
             size="sm"
-            className="h-auto min-h-16 w-full items-start justify-start gap-3 rounded-xl px-3.5 py-3 text-left text-[13px]"
+            className={
+              compact
+                ? "h-auto min-h-10 w-full justify-start gap-2 rounded-lg px-2 py-2 text-left text-xs"
+                : "h-auto min-h-16 w-full items-start justify-start gap-3 rounded-xl px-3.5 py-3 text-left text-[13px]"
+            }
             aria-label={t("changeModel")}
             data-tour="chat-model-picker"
             aria-expanded={expanded}
@@ -273,14 +445,17 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
               id={panelId}
               className="animate-in fade-in space-y-4 pt-5 duration-150 motion-reduce:animate-none"
             >
-              {profilesStatus === "failed" && (
+              {(profilesStatus === "failed" || secretReadError) && (
                 <p role="alert" className="text-destructive text-xs">
                   {t("profilesUnavailable")}{" "}
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => void refetchProfiles()}
+                    onClick={() => {
+                      void refetchProfiles();
+                      void refetchSecrets();
+                    }}
                   >
                     {tRoot("common.retry")}
                   </Button>
@@ -329,6 +504,7 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
                 {/* The Builder's own picker: the provider's catalog, searchable, and
                 still able to carry an id that is not in it. */}
                 <ModelCombobox
+                  provider={provider?.id}
                   id="chat-model-id"
                   value={model}
                   onChange={(next) => {
@@ -348,23 +524,14 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
               only offer what is already stored, and answers "add one in the Vault"
               when nothing is, is a dead end - and the provider is already chosen, so
               the purpose this key needs is known. */}
-              {provider !== undefined &&
-                !secrets.some((secret) => secret.purpose === provider.id) &&
-                (provider.kind === "openai_codex" ? (
-                  <InlineChatGPTSignIn
-                    suggestedName={provider.label}
-                    onCreated={() => setFailure(null)}
-                  />
-                ) : (
-                  <InlineSecret
-                    kind="api_key"
-                    purpose={provider.id}
-                    suggestedName={provider.label}
-                    onCreated={() => setFailure(null)}
-                  />
-                ))}
+              {credentialForm}
 
-              <Button type="button" className="w-full" disabled={!canApply} onClick={apply}>
+              <Button
+                type="button"
+                className="w-full"
+                disabled={!canApply}
+                onClick={() => void apply()}
+              >
                 {t("runModel")}
               </Button>
             </div>

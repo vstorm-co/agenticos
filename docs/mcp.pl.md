@@ -1,5 +1,5 @@
 ---
-source_sha: "a0637ae8ab9e"
+source_sha: "2df099ce061d"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -228,46 +228,46 @@ nie dowodzi niższego kosztu.
 
 ### Które wywołania czekają na człowieka { #which-calls-wait-for-a-person }
 
-Każde powiązanie ma politykę `approval` dla narzędzi swojego serwera. Domyślna,
-`none`, przepuszcza każde wywołanie, tak jak narzędzia capability działają, dopóki
-ktoś nie obejmie ich bramką. `writes` wstrzymuje każde narzędzie, którego serwer
-nie oznaczył jako tylko do odczytu (`readOnlyHint` w MCP), aż człowiek zatwierdzi
-wywołanie: karta pokazuje dokładne argumenty, a wykonywane są te zatwierdzone.
-`all` wstrzymuje każde wywołanie. Wskazówka „tylko do odczytu” to deklaracja
-samego serwera, więc `writes` jest tak ścisłe, jak serwer jest uczciwy — dla
-serwera, którego nie kontrolujesz, wybierz `all`.
+Dla zewnętrznego serwera `approval: none` przepuszcza wywołania, `writes` pyta przed
+narzędziami bez `readOnlyHint: true`, a `all` także przed odczytami. Wskazówkę podaje
+sam serwer; wybierz `all`, jeśli nie ufasz jego klasyfikacji. Zewnętrzny klient MCP,
+np. Claude Code, stosuje własne ustawienia potwierdzania.
 
-Szablon Architect używa `writes` dla serwera platformy. Powiązania z tym serwerem
-wymuszają co najmniej `writes`, także przy `none`, ponieważ narzędzia działają
-z uprawnieniami pytającej osoby. Odczyty, w tym `get_project` i `read_conversation`,
-działają automatycznie przy `writes`. Tworzenie, aktualizacja, usuwanie i inne
-operacje zmieniające stan wymagają akceptacji. Wybierz `all`, aby pytać również o odczyty.
-To minimum dotyczy tylko domyślnego ustawienia powiązania: pojedyncze, wskazane
-narzędzie nadal może działać bez pytania, jak na każdym innym serwerze.
+Powiązanie platformy wymusza co najmniej `writes`. Zaufane wartości domyślne pozwalają
+bez potwierdzenia wykonywać autoryzowane odczyty, przygotowywać wersje robocze,
+zmieniać zwykłe zadania i rekordy tabel oraz tworzyć puste bazy wiedzy, projekty,
+rozmowy, Skills, pliki Context i przypadki datasetów. Zapisy nadal deklarują
+`readOnlyHint: false`: zmienia się zgoda, nie uprawnienia ani skutki operacji.
+`prepare_solution` przygotowuje plan; `install_solution` nadal wymaga potwierdzenia.
 
-W Builderze
-ustawienia serwera mówią to osobno dla grup: **Odczyt** i **Zmiany** działają bez
-pytania albo najpierw pytają.
+Zmiany zadań nadal pytają, gdy mogą uruchomić lub przeplanować pracę agenta: aktywne
+zadanie ma przypisanego agenta i następny krok Agent. Zadania ludzkie, zakończone,
+anulowane, zablokowane i oczekujące nie uzyskują tego obowiązku. Ogólne aktualizacje
+rekordów tablicy zadań stosują tę samą kontrolę, a zapis nadal wymaga odczytanej
+rewizji. Upsert pyta, chyba że jawnie wybiera Person albo stan końcowy/oczekujący,
+ponieważ może odtworzyć równolegle usunięty rekord. Zwykły zapis tabeli nie pyta
+ponownie tylko dlatego, że nasłuchuje go wcześniej zatwierdzona automatyzacja.
 
-Każde narzędzie może też samo działać bez pytania albo najpierw pytać,
-niezależnie od swojej grupy i wskazówki „tylko do odczytu”: kliknij tarczę obok
-niego. Serwer, który nie oznacza żadnego narzędzia jako tylko do odczytu, pokazuje
-wszystkie narzędzia w jednej grupie, którą `writes` wstrzymuje w całości;
-ustawienie jego odczytów na **Bez pytania** sprawia, że działają, a zapisy nadal
-pytają. Ta sama kontrolka pozwala jednemu zapisowi działać bez pytania, bez `none`,
-które zwolniłoby wszystkie pozostałe.
+Każda zmiana schematu, usunięcie, publikacja, zmiana aktywnej wersji, promocja,
+publiczny link App, rozstrzygnięcie Inboxa, wykonanie lub płatna operacja wymaga
+nowej odpowiedzi. Dotyczy to testów, ewaluacji i kroków ulepszania, ingestii/sync,
+testów połączeń, definicji automatyzacji i uruchamiania rutyn, środowisk agentów,
+zmian profilu/modeli/embeddingów, zaproszeń oraz ustawień administracji i proaktywności.
+Tryb zatwierdzania wszystkiego, zapamiętane decyzje i stałe zgody rutyn nie omijają
+tego minimum. Własny język i preferencje interfejsu nadal nie wymagają zgody.
 
-Spec przechowuje te ustawienia w `tool_approval` powiązania, według nazwy
-narzędzia na serwerze. Grupa, której narzędzia się różnią, pokazuje
-**Dla każdego narzędzia**, a wybór dla grupy znów ustawia wszystkie jej
-narzędzia. Narzędzie dodane później przez serwer podąża za swoją grupą.
+W Builderze użyj tarczy narzędzia lub kontroli grupy, aby wymagać zgody na operację
+domyślnie wykonywaną bez pytania. `tool_approval`, z oryginalną nazwą narzędzia na
+serwerze, zapisuje wybór: `required` pyta, a `never` omija zwykłą bramkę powiązania.
+`all` pyta o każdą operację z domyślnym ustawieniem, również odczyty; obowiązkowe
+minimum i warunkowa zgoda na pracę agenta wygrywają z `never`. Mieszana grupa pokazuje
+**Per tool**. Nowe narzędzia podlegają polityce powiązania; niesklasyfikowane zapisy
+platformy zachowawczo pytają.
 
-Uruchomienia w kanałach stosują politykę powiązania i poszczególnych narzędzi dla
-każdego dopuszczonego nadawcy, także bez powiązanego konta. Kanał nie dodaje
-osobnej bramki akceptacji. Konta osobiste nadal wymagają powiązanej tożsamości
-nadawcy i jego autoryzowanego połączenia; połączenia platformy zachowują minimum
-`writes`. Obserwacja nie odczytuje narzędzia wymagającego akceptacji, bo nikt
-nie może wtedy odpowiedzieć.
+Reguły obowiązują także w kanałach i akcjach rutyn. Nie nadają powiązanej tożsamości,
+połączenia, dostępu do zasobu ani szerszych zakresów OAuth. Wyjątki pochodzą wyłącznie
+z zaufanego katalogu platformy działającego w procesie; zdalny serwer nie uzyska ich
+przez zadeklarowanie takich samych metadanych.
 
 ### Przez czyje konto mówi powiązanie { #whose-account-a-binding-speaks-through }
 
@@ -1255,7 +1255,7 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 
 Zatwierdzanie osobistych routines i watchy wymaga jawnego scope’u `personal:consent`, wybranego w **Custom** przy wystawianiu klucza lub autoryzacji klienta MCP. Nie zawiera go żaden preset, także **Full access**. Potwierdzenie pozwala credentialowi zatwierdzać trwałe routines i watche korzystające z twoich osobistych połączeń i danych; zwykłe scope’y `agents:run` i `runs:view` tego nie umożliwiają. Istniejące klucze i autoryzacje MCP nie zyskują osobistej zgody automatycznie.
 
-Sprawdzenie połączenia aktualizuje wykryte narzędzia i status. Dlatego `test_my_connection` czeka na zatwierdzenie zarówno przy `writes`, jak i `all`.
+Sprawdzenie połączenia aktualizuje wykryte narzędzia i status. Dlatego `test_my_connection` wymaga nowego potwierdzenia przy każdym wywołaniu.
 
 | Narzędzie | Wymaga |
 | --- | --- |
@@ -1369,12 +1369,11 @@ nazwana jak to wdrożenie; jej włączenie wiąże go jako
   niczego nie tworzy. Nic nowego nie jest przyznawane, a gdy za runem nikt nie
   stoi - publiczny widget, harmonogram działający w niczyim imieniu - bindingu nie
   ma.
-- **Zmiany podlegają polityce zgód powiązania.** Domyślne `writes` zatrzymuje
-  publikację, zaproszenia, usuwanie, uruchamianie teraz oraz tworzenie i edycję
-  własnych rutyn i obserwacji; `all` także odczyty. Tylko `set_my_language`
-  omija tę bramkę. Tożsamość człowieka w prywatnej rozmowie, własność i uprawnienia
-  pozostają wymagane, ale nie zastępują zatwierdzenia trwałej automatyzacji.
-  `set_my_profile` też czeka, bo jego treść trafia do przyszłych uruchomień agentów.
+- **Zmiany używają zaufanych wartości domyślnych platformy.** Wersje robocze i zwykłe
+  rekordy działają bez potwierdzenia; działania o istotnych skutkach i możliwa nowa
+  praca agenta nad zadaniem pytają. `set_my_language` i `set_my_preferences` nie
+  wymagają zgody. Autor może wymagać jej dla domyślnie swobodnych operacji.
+  Zobacz [reguły zgód](#which-calls-wait-for-a-person).
 
 - **Narzędzia można zawęzić** w ustawieniach karty, które grupują je według tego,
   na czym działają - tabele, zadania, workflowy, agenci, bazy wiedzy, skille,
@@ -1456,11 +1455,11 @@ odkrywanie HTTP dla właściwych im sposobów uruchamiania.
 JSON, wliczając wszystkie zwracane wejścia. Nigdy nie zwraca części kontraktu.
 Większe kontrakty sprawdzaj przez endpoint HTTP poza kontekstem modelu.
 
-Do rekordów operacyjnych służą `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` i `update_virtual_table_record`. Zmiany schematu i rekordów zachowują kontrolę rewizji. Wszystkie narzędzia działają w organizacji wywołującego, z jego uprawnieniami i grantami zasobów; zapis nadal wymaga zatwierdzenia platformy MCP. Skille Architecta workflow-builder i virtual-tables wyjaśniają wybór wyzwalaczy, opakowanie udokumentowanego HTTP API, gdy brakuje integracji w galerii MCP, oraz podpięcie opublikowanego workflow jako narzędzia agenta. Poświadczenia konfiguruje się w sejfie, nigdy w grafie ani wyniku dla modelu.
+Do rekordów operacyjnych służą `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` i `update_virtual_table_record`. Zmiany schematu i rekordów zachowują kontrolę rewizji. Wszystkie narzędzia działają w organizacji wywołującego, z jego uprawnieniami i grantami zasobów; zwykłe zapisy wersji roboczych i rekordów stosują zaufane wartości domyślne, a zmiany schematu, wykonanie i publikacja zawsze pytają. Skille Architecta workflow-builder i virtual-tables wyjaśniają wybór wyzwalaczy, opakowanie udokumentowanego HTTP API, gdy brakuje integracji w galerii MCP, oraz podpięcie opublikowanego workflow jako narzędzia agenta. Poświadczenia konfiguruje się w sejfie, nigdy w grafie ani wyniku dla modelu.
 
-Workflows i Tables używają serwera AgenticOS MCP jako wspólnego interfejsu narzędzi. Udostępniaj agentowi tylko potrzebne narzędzia. `run_workflow` uruchamia opublikowany workflow i zwraca przyjęty run; wynik sprawdzaj przez `get_workflow_execution`. Narzędzia tabel obejmują `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` i `list_virtual_table_views`. Aktualizacja i usunięcie używają odczytanej rewizji, a zapisy nadal wymagają zatwierdzenia. Lista widoków używa tego samego uwierzytelnionego publicznego API i kontroli dostępu do tabeli. Dotychczasowe powiązania Workflows pozostają edytowalne. Capability Tables zostało usunięte: uprawnienia aplikacji przechodzą do `table_bindings`, a operacje na tabelach wymagają jawnego połączenia z platformowym MCP.
+Workflows i Tables używają serwera AgenticOS MCP jako wspólnego interfejsu narzędzi. Udostępniaj agentowi tylko potrzebne narzędzia. `run_workflow` uruchamia opublikowany workflow i zwraca przyjęty run; wynik sprawdzaj przez `get_workflow_execution`. Narzędzia tabel obejmują `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` i `list_virtual_table_views`. Aktualizacja i usunięcie używają odczytanej rewizji, zwykłe rekordy zapisują się domyślnie bez pytania, usunięcie zawsze pyta, a praca agenta zachowuje warunkowy obowiązek zgody. Lista widoków używa tego samego uwierzytelnionego publicznego API i kontroli dostępu do tabeli. Dotychczasowe powiązania Workflows pozostają edytowalne. Capability Tables zostało usunięte: uprawnienia aplikacji przechodzą do `table_bindings`, a operacje na tabelach wymagają jawnego połączenia z platformowym MCP.
 
-Oczekiwane odmowy API zwracają jawny obiekt `error` ze statusem HTTP, kodem, komunikatem i bezpiecznymi szczegółami pól. To odmowa operacji, nigdy udany zapis. Obiekt pozostaje czytelny w historii czatu; nieoczekiwane błędy serwera nadal są maskowane. Narzędzie `prepare_workflow_draft` pozwala zaakceptować tabelę i graf razem, a `check_workflow_draft` sprawdza je bez wykonywania akcji. Odświeżenie niezmodyfikowanego Architekta instaluje i podpina także skille workflow-builder i virtual-tables, zachowując obecne powiązania i odmawiając nadpisania niezapisanych zmian szkicu.
+Oczekiwane odmowy API zwracają jawny obiekt `error` ze statusem HTTP, kodem, komunikatem i bezpiecznymi szczegółami pól. To odmowa operacji, nigdy udany zapis. Obiekt pozostaje czytelny w historii czatu; nieoczekiwane błędy serwera nadal są maskowane. Narzędzie `prepare_workflow_draft` pozwala przejrzeć tabelę i graf razem, a `check_workflow_draft` sprawdza je bez wykonywania akcji. Odświeżenie niezmodyfikowanego Architekta instaluje i podpina także skille workflow-builder i virtual-tables, zachowując obecne powiązania i odmawiając nadpisania niezapisanych zmian szkicu.
 
 Dla istniejącego Architekta z własnymi zmianami uruchom `uv run agenticos cmd refresh-assistant --org <organization-id> --workflow-support`.
 
@@ -1532,6 +1531,19 @@ zamiast powtarzać zapis. Potwierdzenie żądania nie oznacza zakończenia zadan
 `prepare_solution` zachowuje przegląd pakietu przez 24 godziny, tylko dla danej
 osoby i organizacji. `install_solution` przyjmuje `plan_id`, klucz instalacji i
 sprawdzony hash manifestu. Trwałe potwierdzenia instalacji przeżywają ten przegląd.
+
+`get_my_console_experience` odczytuje prezentację strony startowej czatu i przypomnień
+o konfiguracji dla aktywnego członkostwa w organizacji: dostępność, wartości domyślne
+organizacji, własne nadpisania i wartości efektywne. `set_my_console_experience(update)`
+zmienia tylko własne nadpisania. Opcje czatu to `inbox`, `starters`, `greeting`
+i `feature_hints`, a przypomnień: `enabled` i `snooze_days` (1, 3 lub 7).
+
+Pominięte pola pozostają bez zmian; zagnieżdżony `null` przywraca dziedziczenie
+jednej opcji, a `preferences: null` lub `reminders: null` resetuje całą grupę.
+Zapis nie wymaga zgody, jak inne odwracalne preferencje interfejsu. Nie zmienia
+ograniczeń instalacji, domyślnych ustawień organizacji, inicjatywy agenta, uprawnień
+ani zgód; nie zmienia też motywu, stylu ani języka konta. Oba narzędzia wymagają
+aktywnego osobistego członkostwa; nie przyjmują selektora użytkownika ani organizacji.
 
 `get_my_preferences` odczytuje motyw, styl i język osoby wywołującej.
 `set_my_preferences` zmienia tylko podane pola: motyw `light`, `dark`, `system`;

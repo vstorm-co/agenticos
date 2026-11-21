@@ -551,7 +551,10 @@ describe("useAgents mutations", () => {
 
     await result.current.create.mutateAsync({ spec: SPEC });
 
-    expect(toast.success).toHaveBeenCalledWith("Created Support");
+    expect(toast.success).toHaveBeenCalledWith("Created Support", {
+      position: "bottom-center",
+      duration: 3000,
+    });
   });
 
   it("records its own created agent before refreshing a guided create's ceiling", async () => {
@@ -656,6 +659,7 @@ describe("useAgents mutations", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/clone", {});
     expect(toast.success).toHaveBeenCalledWith(
       "Created Support copy - a draft, nothing published yet",
+      { position: "bottom-center", duration: 3000 },
     );
   });
 
@@ -941,7 +945,10 @@ describe("useAgent mutations", () => {
     await result.current.publish.mutateAsync("A note");
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/publish", { note: "A note" });
-    expect(toast.success).toHaveBeenCalledWith("Published v4");
+    expect(toast.success).toHaveBeenCalledWith("Published v4", {
+      position: "bottom-center",
+      duration: 3000,
+    });
   });
 
   it("refetches the environments after a publish, because the default one moved", async () => {

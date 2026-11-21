@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { Check, KeyRound, Plus, Save } from "lucide-react";
 
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
@@ -14,6 +14,7 @@ import {
   FormField,
   Input,
   Label,
+  MoreOptions,
   Select,
   SelectContent,
   SelectItem,
@@ -32,6 +33,8 @@ import type { ModelApi, ModelProfile, ModelRegion, ProviderInfo } from "@/types/
 import { useTranslations } from "next-intl";
 
 interface AddModelProps {
+  /** Keep an existing model’s connection details behind a readable summary. */
+  collapseConnection?: boolean;
   purpose?: "chat" | "decision";
   /** Called with the new model once it exists, so the picker can select it. */
   onCreated: (profile: ModelProfile) => void;
@@ -223,8 +226,10 @@ export function AddModel({
   disabled,
   selected,
   purpose,
+  collapseConnection = false,
 }: AddModelProps) {
   const fieldId = useId();
+  const [connectionOpen, setConnectionOpen] = useState(false);
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   // Root, for the absolute keys `modelPlaceholder` answers with - see the note on
@@ -613,6 +618,7 @@ export function AddModel({
           error={failure.fields.model}
         >
           <ModelCombobox
+            provider={provider?.id}
             id={`${fieldId}-add-model-id`}
             value={model}
             onChange={(next) => {
@@ -628,229 +634,246 @@ export function AddModel({
         </FormField>
       </div>
 
-      {provider !== undefined && (
-        <div className="space-y-1.5">
-          {/* One key needs no question. The vault has exactly one OpenRouter
+      <ConnectionSettings
+        collapsed={collapseConnection && selected !== undefined}
+        label={t("connectionSettings", {
+          provider: provider?.label ?? t("chooseProvider"),
+          endpoint: customEndpoint ? t("customEndpoint") : t("defaultEndpoint"),
+        })}
+        open={
+          connectionOpen ||
+          (provider !== undefined &&
+            ((endpointRequired && !baseUrl.trim()) ||
+              (keys.length === 0 && !offersNoKey) ||
+              failure.fields.base_url !== undefined ||
+              failure.fields.secret_id !== undefined))
+        }
+        onOpenChange={setConnectionOpen}
+      >
+        {provider !== undefined && (
+          <div className="space-y-1.5">
+            {/* One key needs no question. The vault has exactly one OpenRouter
               key in most organizations, and a select with a single option is a
               decision somebody has to make about nothing. */}
-          {keys.length === 1 && !offersNoKey && (
-            <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
-              <KeyRound className="h-3.5 w-3.5" />
-              {t.rich("usingKey", {
-                name: keys[0]!.name,
-                strong: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
-              })}
-              <span className="font-mono">····{keys[0]?.hint}</span>
-            </p>
-          )}
+            {keys.length === 1 && !offersNoKey && (
+              <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                <KeyRound className="h-3.5 w-3.5" />
+                {t.rich("usingKey", {
+                  name: keys[0]!.name,
+                  strong: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
+                })}
+                <span className="font-mono">····{keys[0]?.hint}</span>
+              </p>
+            )}
 
-          {(keys.length > 1 || (offersNoKey && keys.length > 0)) && (
-            <>
-              <Label htmlFor={`${fieldId}-add-model-key`}>{t("key")}</Label>
-              <Select
-                value={chosenKey || NO_KEY}
-                onValueChange={(value) => chooseKey(value === NO_KEY ? "" : value)}
-              >
-                <SelectTrigger id={`${fieldId}-add-model-key`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {offersNoKey && <SelectItem value={NO_KEY}>{t("noKeyForEndpoint")}</SelectItem>}
-                  {keys.map((secret) => (
-                    <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
-                      {/* The provider is the filter this list was built with, so
+            {(keys.length > 1 || (offersNoKey && keys.length > 0)) && (
+              <>
+                <Label htmlFor={`${fieldId}-add-model-key`}>{t("key")}</Label>
+                <Select
+                  value={chosenKey || NO_KEY}
+                  onValueChange={(value) => chooseKey(value === NO_KEY ? "" : value)}
+                >
+                  <SelectTrigger id={`${fieldId}-add-model-key`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {offersNoKey && <SelectItem value={NO_KEY}>{t("noKeyForEndpoint")}</SelectItem>}
+                    {keys.map((secret) => (
+                      <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
+                        {/* The provider is the filter this list was built with, so
                           it is also every row's mark - no `purpose` lookup. */}
-                      <ProviderRow provider={provider.id} name={secret.name} hint={secret.hint} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </>
-          )}
+                        <ProviderRow provider={provider.id} name={secret.name} hint={secret.hint} />
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
 
-          {keys.length === 0 && (
-            <div className="space-y-2">
-              {/* The sentence stays either way: a panel that simply drops the
+            {keys.length === 0 && (
+              <div className="space-y-2">
+                {/* The sentence stays either way: a panel that simply drops the
                   form leaves somebody staring at a submit they cannot enable
                   with nothing saying why. What changes is what it points at -
                   a field here, or the person who may fill one in. */}
-              <p className="text-muted-foreground text-xs">
-                {canStoreKey
-                  ? t("noProviderKeyAddOneHere", { provider: provider.label })
-                  : t("noProviderKeyAskSomebody", { provider: provider.label })}
-              </p>
-              {canStoreKey && provider.kind === "openai_codex" && (
-                <InlineChatGPTSignIn
-                  suggestedName={provider.label}
-                  onCreated={chooseKey}
-                  disabled={disabled}
-                />
-              )}
-              {canStoreKey && provider.kind !== "openai_codex" && (
-                <InlineSecret
-                  kind="api_key"
-                  purpose={provider.id}
-                  suggestedName={provider.label}
-                  helpUrl={provider.help_url ?? undefined}
-                  onCreated={chooseKey}
-                  // Passed on rather than left to the submit button. This writes
-                  // an organization-wide secret, and a caller that disabled the
-                  // form - a dialog mid-save, a panel somebody may only read -
-                  // did not mean "except the vault".
-                  disabled={disabled}
-                />
-              )}
-            </div>
-          )}
+                <p className="text-muted-foreground text-xs">
+                  {canStoreKey
+                    ? t("noProviderKeyAddOneHere", { provider: provider.label })
+                    : t("noProviderKeyAskSomebody", { provider: provider.label })}
+                </p>
+                {canStoreKey && provider.kind === "openai_codex" && (
+                  <InlineChatGPTSignIn
+                    suggestedName={provider.label}
+                    onCreated={chooseKey}
+                    disabled={disabled}
+                  />
+                )}
+                {canStoreKey && provider.kind !== "openai_codex" && (
+                  <InlineSecret
+                    kind="api_key"
+                    purpose={provider.id}
+                    suggestedName={provider.label}
+                    helpUrl={provider.help_url ?? undefined}
+                    onCreated={chooseKey}
+                    // Passed on rather than left to the submit button. This writes
+                    // an organization-wide secret, and a caller that disabled the
+                    // form - a dialog mid-save, a panel somebody may only read -
+                    // did not mean "except the vault".
+                    disabled={disabled}
+                  />
+                )}
+              </div>
+            )}
 
-          {/* No control to mark: the server refuses `secret_id` for being null,
+            {/* No control to mark: the server refuses `secret_id` for being null,
               which is the state in which this block is a sentence rather than a
               select. */}
-          {failure.fields.secret_id !== undefined && (
-            <p className="text-destructive text-xs">{failure.fields.secret_id}</p>
-          )}
-        </div>
-      )}
+            {failure.fields.secret_id !== undefined && (
+              <p className="text-destructive text-xs">{failure.fields.secret_id}</p>
+            )}
+          </div>
+        )}
 
-      {/* Only for providers whose SDK names an endpoint parameter. Offering it
+        {/* Only for providers whose SDK names an endpoint parameter. Offering it
           for the rest would collect a URL the client drops, and the API refuses
           it - which is the right refusal and a pointless one to walk into. */}
-      {provider !== undefined && acceptsEndpoint && (
-        <div className="space-y-2">
-          <FormField
-            htmlFor={`${fieldId}-add-model-endpoint`}
-            label={t("endpoint")}
-            error={failure.fields.base_url}
-            description={
-              providerId === "openrouter"
-                ? t("openRouterEndpointHint")
-                : providerId === "stav"
-                  ? t("stavEndpointHint")
-                  : providerId === "otari"
-                    ? t("otariEndpointHint")
+        {provider !== undefined && acceptsEndpoint && (
+          <div className="space-y-2">
+            <FormField
+              htmlFor={`${fieldId}-add-model-endpoint`}
+              label={t("endpoint")}
+              error={failure.fields.base_url}
+              description={
+                providerId === "openrouter"
+                  ? t("openRouterEndpointHint")
+                  : providerId === "stav"
+                    ? t("stavEndpointHint")
+                    : providerId === "otari"
+                      ? t("otariEndpointHint")
+                      : endpointRequired
+                        ? t("gatewayLitellmProxyModel")
+                        : t("optionalPointModelAt")
+              }
+            >
+              <Input
+                id={`${fieldId}-add-model-endpoint`}
+                value={baseUrl}
+                onChange={(event) => {
+                  setBaseUrl(event.target.value);
+                  setFailure(NO_FAILURE);
+                }}
+                placeholder={
+                  capabilities?.requires_base_url
+                    ? "https://gateway.example/api/v1"
                     : endpointRequired
-                      ? t("gatewayLitellmProxyModel")
-                      : t("optionalPointModelAt")
-            }
+                      ? "http://localhost:11434/v1"
+                      : t("leaveEmptyProviderS")
+                }
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </FormField>
+            {manualDiscovery && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!endpoint || !chosenKey || loadingModels}
+                onClick={() => setGatewayDiscovery({ endpoint, secretId: chosenKey })}
+              >
+                {t("loadGatewayModels")}
+              </Button>
+            )}
+          </div>
+        )}
+
+        {provider !== undefined && apiFromModel && (
+          <div className="space-y-1.5">
+            <Label>{t("modelApi")}</Label>
+            <p className="text-sm">
+              {api === null
+                ? t("modelApiFromModelPending")
+                : // "chosen from the model" only when it is: a profile saved with
+                  // another API through the API keeps it, and says only which.
+                  t(api === modelApi ? "modelApiFromModel" : "modelApiStored", {
+                    api:
+                      api === "decisions"
+                        ? t("modelApiDecisions")
+                        : api === "responses"
+                          ? t("modelApiResponses")
+                          : providerId === "google"
+                            ? t("modelApiNative")
+                            : t("modelApiChat"),
+                  })}
+            </p>
+            <p className="text-muted-foreground text-xs">{t("modelApiFromModelHint")}</p>
+          </div>
+        )}
+
+        {provider !== undefined && choosesApi && api !== null && (
+          <FormField
+            htmlFor={`${fieldId}-add-model-api`}
+            label={t("modelApi")}
+            description={providerId === "azure" ? t("modelApiHintAzure") : t("modelApiHint")}
           >
-            <Input
-              id={`${fieldId}-add-model-endpoint`}
-              value={baseUrl}
-              onChange={(event) => {
-                setBaseUrl(event.target.value);
+            <Select
+              value={api}
+              onValueChange={(value) => {
+                setPickedApi(capabilities?.apis.find((entry) => entry === value) ?? null);
                 setFailure(NO_FAILURE);
               }}
-              placeholder={
-                capabilities?.requires_base_url
-                  ? "https://gateway.example/api/v1"
-                  : endpointRequired
-                    ? "http://localhost:11434/v1"
-                    : t("leaveEmptyProviderS")
-              }
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </FormField>
-          {manualDiscovery && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!endpoint || !chosenKey || loadingModels}
-              onClick={() => setGatewayDiscovery({ endpoint, secretId: chosenKey })}
             >
-              {t("loadGatewayModels")}
-            </Button>
-          )}
-        </div>
-      )}
-
-      {provider !== undefined && apiFromModel && (
-        <div className="space-y-1.5">
-          <Label>{t("modelApi")}</Label>
-          <p className="text-sm">
-            {api === null
-              ? t("modelApiFromModelPending")
-              : // "chosen from the model" only when it is: a profile saved with
-                // another API through the API keeps it, and says only which.
-                t(api === modelApi ? "modelApiFromModel" : "modelApiStored", {
-                  api:
-                    api === "decisions"
+              <SelectTrigger id={`${fieldId}-add-model-api`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {availableApis.map((entry) => (
+                  <SelectItem key={entry} value={entry}>
+                    {entry === "decisions"
                       ? t("modelApiDecisions")
-                      : api === "responses"
+                      : entry === "responses"
                         ? t("modelApiResponses")
                         : providerId === "google"
                           ? t("modelApiNative")
-                          : t("modelApiChat"),
-                })}
-          </p>
-          <p className="text-muted-foreground text-xs">{t("modelApiFromModelHint")}</p>
-        </div>
-      )}
+                          : t("modelApiChat")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+        )}
 
-      {provider !== undefined && choosesApi && api !== null && (
-        <FormField
-          htmlFor={`${fieldId}-add-model-api`}
-          label={t("modelApi")}
-          description={providerId === "azure" ? t("modelApiHintAzure") : t("modelApiHint")}
-        >
-          <Select
-            value={api}
-            onValueChange={(value) => {
-              setPickedApi(capabilities?.apis.find((entry) => entry === value) ?? null);
-              setFailure(NO_FAILURE);
-            }}
+        {provider !== undefined && region !== null && (
+          <FormField
+            htmlFor={`${fieldId}-add-model-region`}
+            label={t("modelRegion")}
+            description={t("modelRegionHint")}
           >
-            <SelectTrigger id={`${fieldId}-add-model-api`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {availableApis.map((entry) => (
-                <SelectItem key={entry} value={entry}>
-                  {entry === "decisions"
-                    ? t("modelApiDecisions")
-                    : entry === "responses"
-                      ? t("modelApiResponses")
-                      : providerId === "google"
-                        ? t("modelApiNative")
-                        : t("modelApiChat")}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FormField>
-      )}
-
-      {provider !== undefined && region !== null && (
-        <FormField
-          htmlFor={`${fieldId}-add-model-region`}
-          label={t("modelRegion")}
-          description={t("modelRegionHint")}
-        >
-          <Select
-            value={region}
-            onValueChange={(value) => {
-              setPickedRegion(regions.find((entry) => entry === value) ?? null);
-              setFailure(NO_FAILURE);
-            }}
-          >
-            <SelectTrigger id={`${fieldId}-add-model-region`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {regions.map((entry) => (
-                <SelectItem key={entry} value={entry}>
-                  {entry === "eu"
-                    ? t("modelRegionEu")
-                    : entry === "eea"
-                      ? t("modelRegionEea")
-                      : t("modelRegionGlobal")}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FormField>
-      )}
+            <Select
+              value={region}
+              onValueChange={(value) => {
+                setPickedRegion(regions.find((entry) => entry === value) ?? null);
+                setFailure(NO_FAILURE);
+              }}
+            >
+              <SelectTrigger id={`${fieldId}-add-model-region`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {regions.map((entry) => (
+                  <SelectItem key={entry} value={entry}>
+                    {entry === "eu"
+                      ? t("modelRegionEu")
+                      : entry === "eea"
+                        ? t("modelRegionEea")
+                        : t("modelRegionGlobal")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+        )}
+      </ConnectionSettings>
 
       {/* The name is derived and almost never worth changing - it exists so an
           organization can run the same model twice under two keys and tell them
@@ -942,5 +965,27 @@ export function AddModel({
         )}
       </div>
     </div>
+  );
+}
+
+function ConnectionSettings({
+  collapsed,
+  label,
+  open,
+  onOpenChange,
+  children,
+}: {
+  collapsed: boolean;
+  label: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: ReactNode;
+}) {
+  return collapsed ? (
+    <MoreOptions label={label} open={open} onOpenChange={onOpenChange}>
+      {children}
+    </MoreOptions>
+  ) : (
+    <>{children}</>
   );
 }

@@ -66,6 +66,7 @@ export function StartBudget({
   };
   return (
     <StartQuestion
+      stage="organization"
       index={0}
       total={2}
       title={t("budgetTitle")}

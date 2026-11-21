@@ -4,15 +4,7 @@ import { useWorkingStore } from "@/stores/working-store";
 
 import { onRemoteChange } from "@/lib/live-updates";
 import type { Mentionable } from "@/types/mention";
-import {
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useRef,
-  useCallback,
-  useMemo,
-  useState,
-} from "react";
+import { useEffect, useEffectEvent, useRef, useCallback, useMemo, useState } from "react";
 import { Bot, Gauge, PhoneCall, SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ChatMessageFile, ChatPerson } from "@/types";
@@ -30,6 +22,10 @@ import { AgentPicker, isChattable } from "./agent-picker";
 import { ChatApprovalSelector } from "./chat-approval-selector";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
+import { useMainChat, useMinimalComposer } from "./main-chat-context";
+import { useChatHomeOptions } from "@/components/settings/console-experience-provider";
+import { DEFAULT_CHAT_HOME } from "@/lib/console-experience-api";
+import { ChatHomeInbox } from "./chat-home-inbox";
 import { PersonalModelConnection } from "./personal-model-connection";
 import { SheetRow } from "./composer-sheet";
 import { ChatEmptyState } from "./chat-empty-state";
@@ -37,7 +33,7 @@ import { ChatRoomBar } from "./chat-room-bar";
 import { TypingIndicator } from "./typing-indicator";
 import { useProjectMentions } from "@/hooks/use-project-mentions";
 import type { PageComment } from "./browser-comment";
-import { ChatInput, type IncomingFiles } from "./chat-input";
+import { ChatInput, type ComposerDraft, type IncomingFiles } from "./chat-input";
 import { ComposerStatus } from "./composer-status";
 import { OutcomeCards } from "./outcome-cards";
 import { ProjectChip } from "./project-chip";
@@ -64,9 +60,8 @@ import { ConnectAccountPrompt } from "./connect-account-prompt";
 import { ConnectServicesCard } from "./connect-services-card";
 import { PendingMessages } from "./pending-messages";
 import { PlanStrip } from "./plan-strip";
-import { BackgroundTasks } from "./background-tasks";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
-import { QuestionPrompt } from "@/components/ui";
+import { QuestionInteractionContext } from "./question-interaction";
 import type {
   PendingApproval,
   AskUserQuestion,
@@ -100,9 +95,7 @@ import { useMounted } from "@/hooks/use-mounted";
 import { useOnline } from "@/hooks/use-online";
 import { offlineAvailable } from "@/lib/offline/device-cache";
 import { useSlashCommands } from "@/hooks";
-import { useFollowContent } from "@/hooks/use-follow-content";
-import { useSentTurnAnchor } from "@/hooks/use-sent-turn-anchor";
-import { useReaderScrolledUp } from "@/hooks/use-reader-scrolled-up";
+import { useChatViewport } from "@/hooks/use-chat-viewport";
 import { useFocusAfterCall } from "@/hooks/use-focus-after-call";
 import { useAgentDictation } from "@/hooks/use-agent-dictation";
 import { usePermissions, useVoiceReadiness, useVoiceSession, type VoiceSession } from "@/hooks";
@@ -111,7 +104,7 @@ import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
 import { Perm } from "@/types/permissions";
 import { BrowserDictationPill, DictationPill } from "./dictation-bar";
-import { browserDictationHint, dictationHint, DictationStrip } from "./dictation-strip";
+import { dictationHint, DictationStrip } from "./dictation-strip";
 import { useAudioLevel } from "@/hooks/use-audio-level";
 import { AGENT_CALLS_ANCHOR, AGENT_DICTATION_ANCHOR } from "@/components/agents/voice-card";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -163,6 +156,7 @@ export interface ChatPrompt {
 }
 
 interface ChatContainerProps {
+  composerDraft?: ComposerDraft;
   /** Keep the welcome screen out of a saved conversation's initial load. */
   requestedConversationId?: string | null;
   /** Sent as soon as the socket is up, once per `id` (#2063). */
@@ -195,6 +189,7 @@ export interface PinnedPrompts {
 }
 
 export function ChatContainer({
+  composerDraft,
   requestedConversationId = null,
   prompt = null,
   emptyState,
@@ -489,10 +484,11 @@ export function ChatContainer({
     setModelProfile,
     setApprovalMode,
     pendingApproval,
-    continuingApproval,
     mayRememberApproval,
     sendResumeDecisions,
     pendingQuestions,
+    submittingQuestions,
+    questionTarget,
     sendAskUserResponses,
     pendingConnection,
     sendConnectionResponse,
@@ -656,19 +652,18 @@ export function ChatContainer({
 
   const transcriptRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  // true = user deliberately scrolled up; suppress auto-scroll until they return to bottom
-  const userScrolledUpRef = useRef(false);
-  const sentTurnAnchoredRef = useRef(false);
   const sentTurnSpacerRef = useRef<HTMLDivElement>(null);
-  useSentTurnAnchor(
+  const dockRef = useRef<HTMLDivElement>(null);
+  const { dockHeight, revealQuestion, bindScroller } = useChatViewport({
+    conversationId: currentConversationId,
     messages,
-    scrollContainerRef,
-    transcriptRef,
-    sentTurnSpacerRef,
-    sentTurnAnchoredRef,
     sentTurnId,
-    userScrolledUpRef,
-  );
+    empty: messages.length === 0 && callPhase === "idle",
+    scroller: scrollContainerRef,
+    content: transcriptRef,
+    spacer: sentTurnSpacerRef,
+    dock: dockRef,
+  });
 
   // Clear messages when conversation changes, but NOT when going from null to a new ID
   // (that happens when a new chat is saved - we want to keep the messages)
@@ -727,30 +722,6 @@ export function ChatContainer({
     }
   }, [currentMessages, currentConversationId, rereadMessages, soleAgentId]);
 
-  // Whether the reader has moved up to read, so the transcript stops following.
-  useReaderScrolledUp(scrollContainerRef, userScrolledUpRef);
-
-  // An empty conversation is not followed at all: its welcome reads from the
-  // top, and in a narrow window - the Architect's, the test panel - following
-  // the foot scrolled the greeting and the face above it out of view. A call is
-  // content even before any of its turns is saved: its captions are followed.
-  const empty = messages.length === 0 && callPhase === "idle";
-  const emptyRef = useRef(empty);
-  useEffect(() => {
-    emptyRef.current = empty;
-    const container = scrollContainerRef.current;
-    if (emptyRef.current) {
-      container?.scrollTo({ top: 0 });
-      return;
-    }
-  }, [empty]);
-  // And on growth the messages do not announce: an answer's last words are
-  // revealed over frames after its message has stopped changing.
-  const holdFollow = useCallback(
-    () => emptyRef.current || userScrolledUpRef.current || sentTurnAnchoredRef.current,
-    [],
-  );
-  useFollowContent(scrollContainerRef, transcriptRef, holdFollow);
   // A turn starting here is a thread at work in the list beside it; asked once as
   // it starts, the row shows it at once, and the listing then polls until it ends.
   useEffect(() => {
@@ -849,6 +820,7 @@ export function ChatContainer({
     <>
       <LocalAccessDialog />
       <ChatUI
+        composerDraft={composerDraft}
         hasEarlierMessages={hasEarlierMessages}
         isLoadingEarlier={isLoadingEarlier}
         loadEarlierMessages={loadEarlierMessages}
@@ -927,15 +899,17 @@ export function ChatContainer({
         onSendQueuedNow={sendQueuedNow}
         onMoveQueued={moveQueued}
         transcriptRef={transcriptRef}
-        scrollContainerRef={scrollContainerRef}
-        userScrolledUpRef={userScrolledUpRef}
-        sentTurnAnchoredRef={sentTurnAnchoredRef}
+        bindScroller={bindScroller}
+        dockRef={dockRef}
+        dockHeight={dockHeight}
+        onRevealQuestion={revealQuestion}
         sentTurnSpacerRef={sentTurnSpacerRef}
         pendingApproval={pendingApproval}
-        continuingApproval={continuingApproval}
         onResumeDecisions={sendResumeDecisions}
         mayRememberApproval={mayRememberApproval}
         pendingQuestions={pendingQuestions}
+        submittingQuestions={submittingQuestions}
+        questionTarget={questionTarget}
         onAnswerQuestions={sendAskUserResponses}
         pendingConnection={pendingConnection}
         onConnectionResponse={sendConnectionResponse}
@@ -955,6 +929,7 @@ export function ChatContainer({
 }
 
 interface ChatUIProps {
+  composerDraft?: ComposerDraft;
   hasEarlierMessages: boolean;
   isLoadingEarlier: boolean;
   loadEarlierMessages: () => Promise<void>;
@@ -1061,16 +1036,17 @@ interface ChatUIProps {
   steers?: SteerDraft[];
   /** The transcript's content, whose growth the scroller follows. */
   transcriptRef: React.RefObject<HTMLDivElement | null>;
-  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
-  /** Whether the reader scrolled up, and the scroller should stay where they left it. */
-  userScrolledUpRef: React.RefObject<boolean>;
-  sentTurnAnchoredRef: React.RefObject<boolean>;
+  bindScroller: (element: HTMLDivElement | null) => void;
+  dockRef: React.RefObject<HTMLDivElement | null>;
+  dockHeight: number;
+  onRevealQuestion: () => void;
   sentTurnSpacerRef: React.RefObject<HTMLDivElement | null>;
   pendingApproval?: PendingApproval | null;
-  continuingApproval?: boolean;
   onResumeDecisions?: (decisions: Decision[]) => void;
   mayRememberApproval?: boolean;
   pendingQuestions?: AskUserQuestion[] | null;
+  submittingQuestions?: boolean;
+  questionTarget?: { id: string; messageId: string | null; toolCallIds: string[] } | null;
   onAnswerQuestions?: (answers: AskUserAnswer[]) => void;
   /** The service a paused run waits for the person to connect. */
   pendingConnection?: ConnectionRequest | null;
@@ -1139,15 +1115,17 @@ function ChatUI({
   onMoveQueued,
   steers = [],
   transcriptRef,
-  scrollContainerRef,
-  userScrolledUpRef,
-  sentTurnAnchoredRef,
+  bindScroller,
+  dockRef,
+  dockHeight,
+  onRevealQuestion,
   sentTurnSpacerRef,
   pendingApproval,
-  continuingApproval = false,
   onResumeDecisions,
   mayRememberApproval,
   pendingQuestions,
+  submittingQuestions = false,
+  questionTarget,
   onAnswerQuestions,
   pendingConnection,
   onConnectionResponse,
@@ -1160,10 +1138,13 @@ function ChatUI({
   agentFixed,
   testingDraft,
   incomingFiles,
+  composerDraft,
   onVisualReport,
 }: ChatUIProps) {
   const composerFocusRequest = useConversationStore((state) => state.composerFocusRequest);
   const t = useTranslations("chat");
+  const mainChat = useMainChat();
+  const minimalComposer = useMinimalComposer();
   const tDictation = useTranslations("chat.dictation");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
@@ -1286,13 +1267,30 @@ function ChatUI({
     onShowApproval: showVoiceApproval,
     active: onCall,
   });
-  // Browser recognition works for every agent; while it listens for one whose
-  // Dictation switch is off, the strip says so and where to turn it on.
-  const browserStrip =
-    stopBrowserDictation !== null && status?.requested === false
-      ? browserDictationHint(agentVoiceHref, tDictation)
+  const composerStrip = voiceHint ?? callHint ?? dictationStrip;
+  const recordingPill = serverDictating
+    ? {
+        key: "dictation",
+        node: (
+          <DictationPill
+            subtle={minimalComposer}
+            state={dictationState}
+            actions={dictationActions}
+          />
+        ),
+      }
+    : stopBrowserDictation
+      ? {
+          key: "browser",
+          node: (
+            <BrowserDictationPill
+              subtle={minimalComposer}
+              level={browserLevel}
+              onDone={stopBrowserDictation}
+            />
+          ),
+        }
       : null;
-  const composerStrip = voiceHint ?? callHint ?? dictationStrip ?? browserStrip;
   // Focus went into the call bar when the call started. When the call is over
   // it goes to the box after "continue in text", and otherwise back to the call
   // button - but only if it was lost with the bar, never taken from where the
@@ -1388,34 +1386,6 @@ function ChatUI({
   // Where the files button sits: among the composer's own controls, rather than
   // in a strip of its own down the conversation's right edge.
   const [filesSlot, setFilesSlot] = useState<HTMLSpanElement | null>(null);
-  const dockRef = useRef<HTMLDivElement | null>(null);
-  const [dockHeight, setDockHeight] = useState(0);
-  useLayoutEffect(() => {
-    const dock = dockRef.current;
-    if (!dock) return;
-    const observer = new ResizeObserver(() => setDockHeight(dock.offsetHeight));
-    observer.observe(dock);
-    setDockHeight(dock.offsetHeight);
-    return () => observer.disconnect();
-  }, []);
-  // A taller dock is more padding under the last message, and padding is not
-  // content, so nothing follows it: when the call bar gave way to the composer
-  // at the end of a call, the last message was left under the composer. A reader
-  // at the bottom stays there; one who scrolled up is left where they are.
-  useLayoutEffect(() => {
-    const scroller = scrollContainerRef.current;
-    const empty = messages.length === 0 && voice.call.phase === "idle";
-    if (scroller === null || userScrolledUpRef.current || sentTurnAnchoredRef.current || empty)
-      return;
-    scroller.scrollTop = scroller.scrollHeight;
-  }, [
-    dockHeight,
-    scrollContainerRef,
-    userScrolledUpRef,
-    sentTurnAnchoredRef,
-    messages.length,
-    voice.call.phase,
-  ]);
   const callReady = offerCall && readiness?.available === true;
   const callShown = offerCall && (readiness !== null || readinessFailed);
   // Hidden, not unmounted, during a call: the pill holds its controls, and focus
@@ -1433,8 +1403,12 @@ function ChatUI({
       />
     </span>
   );
+  const configuredHome = useChatHomeOptions();
+  const homeOptions = mainChat ? configuredHome : DEFAULT_CHAT_HOME;
   const showWorkspaceHome =
     !compact && messages.length === 0 && voice.call.phase === "idle" && !isLoadingConversation;
+  const showDailyBriefing = showWorkspaceHome && mainChat && !emptyState && !conversationId;
+  const composeSuggestion = (text: string) => setIncoming({ id: Date.now(), files: [], text });
   return (
     <div className="chat-surface @container/sources-layout relative flex h-full min-h-0 w-full overflow-hidden">
       <div className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1">
@@ -1449,16 +1423,17 @@ function ChatUI({
         <div
           className={cn(
             "@container/chat relative flex h-full min-w-0 flex-1 flex-col",
-            showWorkspaceHome && "chat-home-column justify-center-safe overflow-y-auto",
+            showWorkspaceHome && "chat-home-column overflow-y-auto",
+            showDailyBriefing && "chat-home-timeline",
           )}
         >
           {!compact && <TurnRail entries={railEntries} />}
           <BrowserPanelAutoOpen browses={browses} />
           <div
-            ref={scrollContainerRef}
+            ref={bindScroller}
             data-chat-scroller
             className={cn(
-              "flex-1 scrollbar-thin overflow-y-auto",
+              "flex-1 scrollbar-thin overflow-y-auto [overflow-anchor:none]",
               showWorkspaceHome && "flex-none overflow-visible pb-0!",
             )}
             style={{
@@ -1501,8 +1476,13 @@ function ChatUI({
                     emptyState((picked) => sendMessage(picked))
                   ) : (
                     <ChatEmptyState
+                      showSuggestions={!drafting && homeOptions.starters}
+                      showGreeting={homeOptions.greeting}
+                      showDiscoveryHints={homeOptions.feature_hints}
                       suggestionsSlot={!compact ? homeHintsSlot : undefined}
-                      onPick={(picked) => sendMessage(picked)}
+                      onPick={
+                        showDailyBriefing ? composeSuggestion : (picked) => sendMessage(picked)
+                      }
                     />
                   )}
                 </div>
@@ -1528,14 +1508,33 @@ function ChatUI({
                     {forkedFrom && onOpenForkSource && (
                       <ForkedFrom origin={forkedFrom} onOpen={onOpenForkSource} />
                     )}
-                    <MessageList
-                      messages={messages}
-                      delegations={delegations}
-                      onRegenerate={onRegenerate}
-                      onFork={onFork}
-                      forkingMessageId={forkingMessageId}
-                      pins={pins}
-                    />
+                    <QuestionInteractionContext
+                      value={
+                        pendingQuestions?.length && onAnswerQuestions
+                          ? {
+                              id: questionTarget?.id ?? "question",
+                              messageId:
+                                questionTarget?.messageId ??
+                                messages.findLast((message) => message.role === "assistant")?.id ??
+                                null,
+                              toolCallIds: questionTarget?.toolCallIds ?? [],
+                              questions: pendingQuestions,
+                              submitting: submittingQuestions,
+                              disabled: readOnly || !isConnected || isStopping,
+                              onAnswer: onAnswerQuestions,
+                            }
+                          : null
+                      }
+                    >
+                      <MessageList
+                        messages={messages}
+                        delegations={delegations}
+                        onRegenerate={onRegenerate}
+                        onFork={onFork}
+                        forkingMessageId={forkingMessageId}
+                        pins={pins}
+                      />
+                    </QuestionInteractionContext>
                   </ConversationVisualsProvider>
                 </LiveBrowsesProvider>
               )}
@@ -1628,17 +1627,22 @@ function ChatUI({
               compact && "bg-background",
             )}
           >
-            {/* Actionable notices belong beside the composer, outside the transcript.
-              The approval panel replaces approval notices, including older runs. */}
+            {pendingQuestions?.length ? (
+              <button
+                type="button"
+                // Blurring the disabled composer on press can collapse its phone
+                // controls and move this button before the click is delivered.
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={onRevealQuestion}
+                className="bg-popover text-foreground border-border focus-visible:outline-ring pointer-events-auto absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded-full border px-4 py-2 text-sm shadow-sm focus-visible:outline-2"
+              >
+                {t("questions.reveal")}
+              </button>
+            ) : null}
+            {/* Findings and approval decisions sit beside the composer. */}
             {conversationId && !compact && (
               <OutcomeCards
                 conversationId={conversationId}
-                hasApprovalPanel={!!pendingApproval && !!onResumeDecisions}
-                isWorking={
-                  isProcessing ||
-                  continuingApproval ||
-                  messages.some((message) => message.isStreaming)
-                }
                 className="pointer-events-auto mx-auto max-h-40 w-full max-w-5xl overflow-y-auto overscroll-contain px-2 pb-2 sm:px-4"
               />
             )}
@@ -1648,14 +1652,21 @@ function ChatUI({
               </div>
             )}
             {pendingApproval && onResumeDecisions && (
-              <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
-                <ToolApprovalDialog
-                  actionRequests={pendingApproval.actionRequests}
-                  reviewConfigs={pendingApproval.reviewConfigs}
-                  onDecisions={onResumeDecisions}
-                  mayRemember={mayRememberApproval}
-                  disabled={readOnly || !isConnected || isStopping}
-                />
+              <div
+                className={cn(
+                  "pointer-events-auto mx-auto w-full pb-2",
+                  compact ? "px-3" : "max-w-5xl px-2 sm:px-4",
+                )}
+              >
+                <div className="chat-composer-width">
+                  <ToolApprovalDialog
+                    actionRequests={pendingApproval.actionRequests}
+                    reviewConfigs={pendingApproval.reviewConfigs}
+                    onDecisions={onResumeDecisions}
+                    mayRemember={mayRememberApproval}
+                    disabled={readOnly || !isConnected || isStopping}
+                  />
+                </div>
               </div>
             )}
             {pendingConnection && onConnectionResponse && (
@@ -1664,15 +1675,6 @@ function ChatUI({
                   request={pendingConnection}
                   disabled={readOnly || !isConnected || isStopping}
                   onRespond={onConnectionResponse}
-                />
-              </div>
-            )}
-            {pendingQuestions && pendingQuestions.length > 0 && onAnswerQuestions && (
-              <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
-                <QuestionPrompt
-                  questions={pendingQuestions}
-                  disabled={readOnly || !isConnected || isStopping}
-                  onComplete={onAnswerQuestions}
                 />
               </div>
             )}
@@ -1687,6 +1689,9 @@ function ChatUI({
                   : "max-w-5xl bg-[linear-gradient(to_bottom,transparent_30%,var(--color-background)_62%)] px-2 pb-2 sm:px-4 sm:pb-4",
               )}
             >
+              {showDailyBriefing && homeOptions.inbox && (
+                <ChatHomeInbox onDiscuss={composeSuggestion} />
+              )}
               <InterruptedNotice
                 interrupted={interrupted}
                 detached={detachedTurnPending}
@@ -1712,14 +1717,15 @@ function ChatUI({
                 transcript because a plan is written in one turn and worked through
                 over the next several: as a step it scrolls away under the work it
                 describes, and what somebody wants is where the agent is now. */}
-              <BackgroundTasks conversationId={conversationId} />
+              {showWorkspaceHome && !emptyState && !mainChat && (
+                <div
+                  ref={setHomeHintsSlot}
+                  className="chat-home-starters chat-composer-suggestions mb-4 empty:hidden"
+                />
+              )}
               <PlanStrip plan={plan} live={isProcessing} />
               {/* Right over the box the reply is written in, where a messenger says it. */}
               <TypingIndicator people={typing} />
-              {/* What is attached, above the composer rather than inside it. The
-                slot is here because the box below is drawn here; `ChatInput`
-                portals its row into it and keeps the upload state. */}
-              <div ref={setAttachmentSlot} />
               {/* `@container`, so the composer and the line under it change shape
                 on their own width rather than on the window's. They are not the
                 same question: at 900px with the conversation list open this box
@@ -1734,12 +1740,14 @@ function ChatUI({
                   and its attachments are still there when the call ends. */}
                   <div className="relative">
                     <FloatingPill
+                      embedded={mainChat}
                       pill={
                         onCall
                           ? {
                               key: "call",
                               node: (
                                 <VoiceCallBar
+                                  subtle={mainChat}
                                   pill
                                   session={voice}
                                   agentName={callAgent?.name ?? t("rail.agent")}
@@ -1760,47 +1768,36 @@ function ChatUI({
                                 />
                               ),
                             }
-                          : serverDictating
-                            ? {
-                                key: "dictation",
-                                node: (
-                                  <DictationPill
-                                    state={dictationState}
-                                    actions={dictationActions}
-                                  />
-                                ),
-                              }
-                            : stopBrowserDictation
-                              ? {
-                                  key: "browser",
-                                  node: (
-                                    <BrowserDictationPill
-                                      level={browserLevel}
-                                      onDone={stopBrowserDictation}
-                                    />
-                                  ),
-                                }
-                              : null
+                          : minimalComposer
+                            ? null
+                            : recordingPill
                       }
                     />
-                    {/* No glow under the box: the pill above it says the microphone is
-                    open and how loud, and a second signal below read as a shadow. */}
                     <div>
-                      {/* Every hint on top of the box, beside the pill it belongs to. */}
                       {!readOnly && !onCall && (
                         <NextSteps steps={nextSteps} onPick={(step) => sendMessage(step)} />
                       )}
                       {callAgent?.personal_model_key && (
                         <PersonalModelConnection key={selectedAgentId} agentId={selectedAgentId} />
                       )}
-                      <DictationStrip hint={composerStrip} placement="above" />
+                      <DictationStrip
+                        hint={composerStrip}
+                        placement="above"
+                        detached={minimalComposer}
+                      />
                       <div
                         data-tour="chat-composer"
                         className={cn(
-                          "panel composer-box focus-within:border-foreground/20 rounded-2xl transition-colors",
-                          composerStrip !== null && "rounded-t-none",
+                          "panel composer-box chat-composer-width focus-within:border-foreground/20 rounded-2xl transition-colors",
+                          composerStrip !== null && !minimalComposer && "rounded-t-none",
                         )}
                       >
+                        {minimalComposer && (
+                          <div data-chat-dictation>
+                            <FloatingPill embedded pill={onCall ? null : recordingPill} />
+                          </div>
+                        )}
+                        <div ref={setAttachmentSlot} />
                         {!agentFixed && (
                           <div className="border-border bg-muted/40 hidden items-center rounded-t-2xl border-b px-3 py-1.5 has-[a]:flex">
                             <ProjectChip
@@ -1813,7 +1810,8 @@ function ChatUI({
                         <div
                           className={cn(
                             "px-2.5 pt-1 pb-0.5",
-                            !compact && "sm:px-4 sm:pt-4 sm:pb-1",
+                            !compact && "sm:px-4 sm:pb-1",
+                            !compact && (showDailyBriefing ? "sm:pt-3" : "sm:pt-4"),
                           )}
                         >
                           {isArchived && (
@@ -1827,6 +1825,7 @@ function ChatUI({
                           limit near its end changes an icon's colour and never
                           costs the row a button. */}
                           <ChatInput
+                            composerDraft={composerDraft}
                             autoFocus={!compact && !onCall}
                             focusRequest={composerFocusRequest}
                             onSend={sendMessage}
@@ -1835,7 +1834,7 @@ function ChatUI({
                             // scope's own selection holds it.
                             agentId={delegatingAgentId}
                             mentionsFromDraft={testingDraft}
-                            hints={messages.length === 0}
+                            hints={messages.length === 0 && homeOptions.feature_hints}
                             disabled={
                               isStopping ||
                               isLoadingConversation ||
@@ -1879,10 +1878,15 @@ function ChatUI({
                             controlsSlot={
                               <>
                                 {!agentFixed && <AgentPicker />}
-                                <ChatApprovalSelector
-                                  onChange={onApprovalModeChange}
-                                  disabled={isProcessing || readOnly}
-                                />
+                                {mainChat && (
+                                  <span ref={setFilesSlot} data-chat-files className="contents" />
+                                )}
+                                {!mainChat && (
+                                  <ChatApprovalSelector
+                                    onChange={onApprovalModeChange}
+                                    disabled={isProcessing || readOnly}
+                                  />
+                                )}
                               </>
                             }
                             onProject={
@@ -1893,60 +1897,88 @@ function ChatUI({
                             // A phone's row keeps +, the agent, the microphone and
                             // send; these move into its `+` sheet as rows.
                             phoneRows={
-                              <>
-                                {!agentFixed && (
-                                  <SheetRow icon={Bot} label={t("rail.agent")}>
-                                    <AgentPicker />
-                                  </SheetRow>
-                                )}
-                                {offerCall && !onCall && (
-                                  <SheetRow
-                                    icon={PhoneCall}
-                                    label={t("input.callAgent", {
-                                      agent: callAgent?.name ?? t("rail.agent"),
-                                    })}
-                                  >
-                                    <VoiceCallButton
-                                      readiness={readiness}
-                                      failed={readinessFailed}
-                                      disabled={isProcessing || readOnly}
-                                      onStart={startCall}
-                                      setUpHref={agentCallsHref}
-                                      publishedOnly={testingDraft}
-                                    />
-                                  </SheetRow>
-                                )}
-                                <SheetRow
-                                  icon={SlidersHorizontal}
-                                  label={t("input.modelAndApprovals")}
-                                >
-                                  <ChatControls
-                                    onModelProfileChange={onModelProfileChange}
-                                    onApprovalModeChange={onApprovalModeChange}
-                                    agentModel={agentModel}
-                                    agentCapabilities={agentCapabilities}
-                                  />
-                                </SheetRow>
-                                <SheetRow icon={Gauge} label={t("input.contextUsed")}>
-                                  <UsageMeter
-                                    usage={lastUsage}
-                                    workspace={workspace}
-                                    total={conversationCost}
-                                    contextWindow={contextWindow}
-                                  />
-                                </SheetRow>
-                              </>
+                              mainChat && (!offerCall || onCall) ? undefined : (
+                                <>
+                                  {!agentFixed && !mainChat && (
+                                    <SheetRow icon={Bot} label={t("rail.agent")}>
+                                      <AgentPicker />
+                                    </SheetRow>
+                                  )}
+                                  {offerCall && !onCall && (
+                                    <SheetRow
+                                      icon={PhoneCall}
+                                      label={t("input.callAgent", {
+                                        agent: callAgent?.name ?? t("rail.agent"),
+                                      })}
+                                    >
+                                      <VoiceCallButton
+                                        readiness={readiness}
+                                        failed={readinessFailed}
+                                        disabled={isProcessing || readOnly}
+                                        onStart={startCall}
+                                        setUpHref={agentCallsHref}
+                                        publishedOnly={testingDraft}
+                                      />
+                                    </SheetRow>
+                                  )}
+                                  {!mainChat && (
+                                    <SheetRow
+                                      icon={SlidersHorizontal}
+                                      label={t("input.modelAndApprovals")}
+                                    >
+                                      <ChatControls
+                                        onModelProfileChange={onModelProfileChange}
+                                        onApprovalModeChange={onApprovalModeChange}
+                                        agentModel={agentModel}
+                                        agentCapabilities={agentCapabilities}
+                                      />
+                                    </SheetRow>
+                                  )}
+                                  {!mainChat && (
+                                    <SheetRow icon={Gauge} label={t("input.contextUsed")}>
+                                      <UsageMeter
+                                        usage={lastUsage}
+                                        workspace={workspace}
+                                        total={conversationCost}
+                                        contextWindow={contextWindow}
+                                      />
+                                    </SheetRow>
+                                  )}
+                                </>
+                              )
                             }
                             actionsSlot={
                               <span className="contents max-md:hidden">
                                 {/* Wide screens only, as is the panel it opens. */}
-                                <span ref={setFilesSlot} className="hidden lg:contents" />
-                                <div>
+                                {!mainChat && (
+                                  <span
+                                    data-chat-files
+                                    ref={setFilesSlot}
+                                    className="hidden lg:contents"
+                                  />
+                                )}
+                                <div data-chat-actions>
+                                  {mainChat && (
+                                    <ChatControls
+                                      settingsOnly
+                                      agentCapabilities={agentCapabilities}
+                                    />
+                                  )}
+                                  {mainChat && (
+                                    <ChatApprovalSelector
+                                      iconOnly
+                                      onChange={onApprovalModeChange}
+                                      disabled={isProcessing || readOnly}
+                                    />
+                                  )}
                                   <ChatControls
                                     usageSlot={
                                       <div className="text-muted-foreground flex items-center gap-2 text-xs">
                                         <span>{t("input.contextUsed")}</span>{" "}
                                         <UsageMeter
+                                          key={`${conversationId ?? "new"}:${messages.length === 0}`}
+                                          iconOnly={mainChat}
+                                          beforeFirstMessage={mainChat && messages.length === 0}
                                           usage={lastUsage}
                                           workspace={workspace}
                                           total={conversationCost}
@@ -1979,14 +2011,14 @@ function ChatUI({
                   <ComposerStatus isConnected={isConnected} />
                 </div>
               )}
+              {showDailyBriefing && (
+                <div
+                  ref={setHomeHintsSlot}
+                  className="chat-home-starters chat-home-hints chat-composer-width mt-3 empty:hidden"
+                />
+              )}
             </div>
           </div>
-          {showWorkspaceHome && !emptyState && (
-            <div
-              ref={setHomeHintsSlot}
-              className="chat-home-hints mx-auto min-h-40 w-full max-w-5xl shrink-0 px-4 pb-4 sm:px-5"
-            />
-          )}
         </div>
         <FilePreviewDialog />
         {/* The browser shares the chat's width; a narrow chat opens it full screen. */}
@@ -2004,8 +2036,12 @@ function ChatUI({
           ones where the agent keeps nothing. Hidden on a narrow screen, where there
           is no room for it. */}
       <SourcesPanel contained={compact} conversationId={conversationId} />
-      <div className="hidden h-full min-h-0 shrink-0 lg:block">
+      <div
+        className={mainChat ? "h-full min-h-0 shrink-0" : "hidden h-full min-h-0 shrink-0 lg:block"}
+      >
         <WorkspaceFiles
+          key={conversationId ?? "new"}
+          beforeFirstMessage={mainChat && messages.length === 0}
           conversationId={conversationId}
           revision={turns}
           attachments={attachments}

@@ -282,6 +282,7 @@ function providerModelsQuery(
     ],
     queryFn: () => apiClient.get<ProviderModelList>(`/providers/${providerId}/models${query}`),
     staleTime: 60 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
     // An empty dropdown is the fallback the field is built for, so a provider
     // that cannot be reached must not retry three times behind an open form.
     retry: false,
@@ -306,7 +307,7 @@ export function useProviderModels(
   secretId?: string,
   decision = false,
 ) {
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, refetch } = useQuery({
     ...providerModelsQuery(providerId, baseUrl, secretId, decision),
     enabled:
       providerId !== "" &&
@@ -322,7 +323,14 @@ export function useProviderModels(
   const refused = decision
     ? []
     : items.filter((entry) => !runsAgents(entry)).map((entry) => entry.id);
-  return { models, refused, source: data?.source ?? null, isLoading: isFetching };
+  return {
+    models,
+    refused,
+    source: data?.source ?? null,
+    isLoading: isFetching,
+    hasCachedListing: data !== undefined,
+    refetch,
+  };
 }
 
 /** One model that draws. */
