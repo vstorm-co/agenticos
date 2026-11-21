@@ -86,7 +86,7 @@ import {
 import { hereForMcpOAuthReturn } from "@/lib/mcp-oauth";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
 import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
-import { bindingKey, McpServerPicker } from "@/components/agents/mcp-server-picker";
+import { McpServerPicker } from "@/components/agents/mcp-server-picker";
 import { McpToolLoadNotice } from "@/components/agents/mcp-tool-load-notice";
 import { StaleReferences } from "@/components/agents/stale-references";
 import { McpServerList } from "@/components/mcp/mcp-server-list";
@@ -210,7 +210,7 @@ import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { DIALOG_CANVAS, DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
-import { applyMcpToolSelection } from "@/lib/mcp-servers";
+import { applyMcpToolSelection, bindingKey } from "@/lib/mcp-servers";
 
 interface PageProps {
   params: Promise<{ id: string }>;

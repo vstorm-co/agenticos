@@ -10,7 +10,7 @@ import {
   useConnectEntry,
   useSignInOwn,
 } from "@/components/agents/connect-server-dialog";
-import { bindingKey, McpServerPicker } from "@/components/agents/mcp-server-picker";
+import { McpServerPicker } from "@/components/agents/mcp-server-picker";
 import { McpToolLoadNotice } from "@/components/agents/mcp-tool-load-notice";
 import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
@@ -19,7 +19,7 @@ import { enableMcpToolSearch } from "@/lib/agent-spec";
 import { getErrorMessage } from "@/lib/api-error";
 import { toolsForBinding } from "@/lib/binding-tools";
 import { hereForMcpOAuthReturn } from "@/lib/mcp-oauth";
-import { applyMcpToolSelection } from "@/lib/mcp-servers";
+import { applyMcpToolSelection, bindingKey } from "@/lib/mcp-servers";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import type { AgentSpec, McpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";

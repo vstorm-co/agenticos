@@ -15,8 +15,6 @@ import type { McpServerRef, PlatformMcpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
 import { useTranslations } from "next-intl";
 
-export { bindingKey } from "@/lib/mcp-servers";
-
 interface McpServerPickerProps {
   /** The organization's servers - what an organization binding may name. */
   connections: OrgMcpConnectionRecord[];
@@ -260,11 +258,7 @@ export function McpServerPicker({
             <PlatformServerCard
               binding={platform}
               onChange={(next) =>
-                onChange(
-                  platform === null
-                    ? [...value, ...(!next ? [] : [next])]
-                    : value.flatMap((ref) => (ref !== platform ? [ref] : next ? [next] : [])),
-                )
+                onChange(value.flatMap((ref) => (ref !== platform ? [ref] : next ? [next] : [])))
               }
               onToggle={(on, fallback) =>
                 toggleBindings("platform", platform ? [platform] : [], on, [fallback])

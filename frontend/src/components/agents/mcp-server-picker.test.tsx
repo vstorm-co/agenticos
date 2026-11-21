@@ -3,7 +3,8 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 
-import { bindingKey, McpServerPicker } from "./mcp-server-picker";
+import { bindingKey } from "@/lib/mcp-servers";
+import { McpServerPicker } from "./mcp-server-picker";
 import { NEW_PLATFORM_BINDING } from "./platform-server-card";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
@@ -235,6 +236,35 @@ describe("McpServerPicker", () => {
       within(screen.getAllByRole("group")[0] as HTMLElement).getByRole("switch"),
     );
     expect(onChange).toHaveBeenLastCalledWith([bound("c1")]);
+  });
+
+  it("restores a switched-off platform binding from its dialog and removes it explicitly", async () => {
+    const platform = { ...NEW_PLATFORM_BINDING, allowed_tools: ["list_agents"] };
+    const account = bound("c1");
+    const initial = [platform, account];
+    const onChange = vi.fn();
+    function Editor() {
+      const [value, setValue] = useState<McpServerRef[]>(initial);
+      return picker({
+        connections: [connection()],
+        value,
+        onChange: (next) => {
+          onChange(next);
+          setValue(next);
+        },
+      });
+    }
+    render(<Editor />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("switch", { name: /use agenticos in this agent/i }));
+    expect(onChange).toHaveBeenLastCalledWith([account]);
+
+    await user.click(screen.getByText(/This platform's own tools:/));
+    await user.click(screen.getByRole("button", { name: "Use it in this agent" }));
+    expect(onChange).toHaveBeenLastCalledWith(initial);
+
+    await user.click(screen.getByRole("button", { name: "Remove from this agent" }));
+    expect(onChange).toHaveBeenLastCalledWith([account]);
   });
 
   it("lets a search rule out the built-in server as it rules out the others", async () => {
@@ -543,9 +573,14 @@ describe("several connections behind one catalog entry", () => {
 
     const dialog = await settings();
 
-    expect(within(dialog).getByText("Company")).toBeVisible();
-    expect(within(dialog).getAllByText("github-oss")[0]).toBeVisible();
+    const toolsAccount = within(dialog).getByRole("combobox", {
+      name: "Account for tool settings",
+    });
+    expect(toolsAccount).toHaveTextContent("Company");
     expect(within(dialog).queryByRole("combobox", { name: /which github account/i })).toBeNull();
+    await userEvent.click(toolsAccount);
+    await userEvent.click(await screen.findByRole("option", { name: "github-oss" }));
+    expect(toolsAccount).toHaveTextContent("github-oss");
   });
 
   it("drops one account and keeps the others", async () => {
