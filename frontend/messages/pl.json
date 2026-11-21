@@ -2378,6 +2378,12 @@
     },
     "agents": {
       "draftChanged": "Ta wersja robocza zmieniła się w innym miejscu. Twoje wpisy nadal tu są, ale zapis został wstrzymany. Skopiuj to, co chcesz zachować, a potem wczytaj najnowszą wersję roboczą.",
+      "discardDraft": "Odrzuć wersję roboczą",
+      "discardDraftHint": "Cofnij nieopublikowane zmiany bez publikowania.",
+      "discardDraftTitle": "Odrzucić nieopublikowane zmiany?",
+      "discardDraftBody": "Wersja robocza zostanie przywrócona do wersji {version}. Nieopublikowane zmiany zostaną utracone. Nie powstanie nowa opublikowana wersja, a działająca wersja się nie zmieni.",
+      "draftDiscarded": "Przywrócono wersję roboczą do ostatniej opublikowanej wersji.",
+      "discardVersionChanged": "Opublikowano nowszą wersję. Sprawdź ją, zanim odrzucisz wersję roboczą.",
       "reloadDraft": "Wczytaj najnowszą wersję roboczą",
       "voiceUnreportedTokenUsage": "Ten provider nie raportuje kosztów tokenów. Rozmowy nie mogą startować z limitem wydatków; zapisany koszt audio jest dolną granicą.",
       "agentAposSBehaviour": "Zachowanie agenta mieszka tutaj, a nie w kodzie. Bądź konkretny: co ma robić, czego odmawiać i jak cytować. Markdown, a model czyta strukturę - nagłówki i listy sprawiają, że długi prompt da się śledzić, dlatego podgląd pokazuje je wyrenderowane.",

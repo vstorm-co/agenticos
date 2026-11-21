@@ -20,6 +20,7 @@ import type {
   Agent,
   AgentCeiling,
   AgentDetail,
+  AgentDraftDiscard,
   AgentDraftUpdate,
   AgentList,
   AgentSpec,
@@ -393,6 +394,39 @@ export function useAgent(agentId: string | null) {
       ),
   });
 
+  const discardDraft = useMutation({
+    mutationFn: (request: AgentDraftDiscard) =>
+      apiClient.post<AgentDetail>(`/agents/${agentId}/draft/discard`, request),
+    onSuccess: async (saved) => {
+      queryClient.setQueryData<AgentDetail>(
+        qk.agents.detail(agentId ?? ""),
+        (current) =>
+          current && {
+            ...current,
+            name: saved.name,
+            description: saved.description,
+            draft_spec: saved.draft_spec,
+            draft_revision: saved.draft_revision,
+            updated_at: saved.updated_at,
+          },
+      );
+      await invalidate();
+      await queryClient.invalidateQueries({ queryKey: qk.authoring.all() });
+      toast.success(tDraft("draftDiscarded"));
+    },
+    onError: async (error) => {
+      const reason = error instanceof ApiError ? error.details?.reason : null;
+      if (reason === "draft_changed") {
+        toast.error(tDraft("draftChanged"));
+      } else if (reason === "published_version_changed") {
+        toast.error(tDraft("discardVersionChanged"));
+        await invalidate();
+      } else {
+        toast.error(getErrorMessage(error, tErrors));
+      }
+    },
+  });
+
   /**
    * Check the draft without publishing.
    *
@@ -515,6 +549,7 @@ export function useAgent(agentId: string | null) {
     fetchedAt: dataUpdatedAt,
     refetch,
     saveDraft,
+    discardDraft,
     validate,
     publish,
     rollback,

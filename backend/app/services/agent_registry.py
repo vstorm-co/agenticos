@@ -126,6 +126,7 @@ from app.schemas.agent import (
     MAX_CATEGORIES,
     MAX_TAGS,
     AgentCeiling,
+    AgentDetail,
     AgentDraftRevision,
     AgentRead,
     AgentTemplateCatalog,
@@ -1395,6 +1396,16 @@ class AgentRegistryService:
             self.db, ctx, agent, Perm.AGENTS_PUBLISH, resource_type=AGENT
         )
 
+    async def detail_for(self, ctx: AuthContext, agent: Agent) -> AgentDetail:
+        """Add the caller's effective permissions to an already-authorized agent response."""
+        return AgentDetail.model_validate(agent).model_copy(
+            update={
+                "can_run": await self.may_run(ctx, agent),
+                "can_edit": await self.may_edit(ctx, agent),
+                "can_publish": await self.may_publish(ctx, agent),
+            }
+        )
+
     async def _visible_scope(
         self, ctx: AuthContext, *, shared_with_me: bool
     ) -> tuple[bool, list[UUID]]:
@@ -2214,12 +2225,9 @@ class AgentRegistryService:
         Server-side commands already owning the current draft may omit it.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
-        if expected_revision is not None and expected_revision != agent_draft_revision(
-            AgentSpec.model_validate(agent.draft_spec)
-        ):
-            raise ConflictError(
-                message="The draft changed elsewhere. Reload the latest draft before saving.",
-                details={"reason": "draft_changed"},
+        if expected_revision is not None:
+            self._check_draft_revision(
+                AgentSpec.model_validate(agent.draft_spec), expected_revision
             )
         spec = _without_unselectable(spec)
         await skill_repo.hold(self.db, bound_skill_ids(spec), organization_id=ctx.organization_id)
@@ -2234,6 +2242,83 @@ class AgentRegistryService:
                 "description": spec.description,
             },
         )
+
+    @staticmethod
+    def _check_draft_revision(current: AgentSpec, expected_revision: str) -> None:
+        if expected_revision != agent_draft_revision(current):
+            raise ConflictError(
+                message="The draft changed elsewhere. Reload the latest draft before saving.",
+                details={"reason": "draft_changed"},
+            )
+
+    async def discard_draft(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        *,
+        expected_revision: str,
+        expected_version_id: UUID,
+    ) -> Agent:
+        """Replace only the draft with the latest published spec the editor confirmed.
+
+        Hold the same lock as save and publish, and check both revisions before
+        writing. Publication and environment pointers are not changed.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
+        # Unlike a save's response, the returned draft contains a spec the caller
+        # did not supply. An edit-only API key must not use this as a read.
+        if not await resolve_access(self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT):
+            raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
+        if agent.status == AgentStatus.ARCHIVED.value:
+            raise BadRequestError(
+                message="An archived agent's draft cannot be discarded",
+                details={"agent_id": agent.id},
+            )
+        current = AgentSpec.model_validate(agent.draft_spec)
+        self._check_draft_revision(current, expected_revision)
+        latest = await agent_repo.newest_version(
+            self.db, agent_id=agent.id, organization_id=ctx.organization_id
+        )
+        if latest is None:
+            raise BadRequestError(
+                message="This agent has no published version to return to",
+                details={"agent_id": agent.id},
+            )
+        if latest.id != expected_version_id:
+            raise ConflictError(
+                message="The latest published version changed. Review it before discarding.",
+                details={"reason": "published_version_changed"},
+            )
+        published = AgentSpec.model_validate(latest.spec)
+        if agent_draft_revision(current) == agent_draft_revision(published):
+            return agent
+        await skill_repo.hold(
+            self.db, bound_skill_ids(published), organization_id=ctx.organization_id
+        )
+        updated = await agent_repo.update(
+            self.db,
+            agent=agent,
+            update_data={
+                "draft_spec": latest.spec,
+                "name": published.name,
+                "description": published.description,
+            },
+        )
+        batch = await authoring_repo.get_open_batch(
+            self.db, organization_id=ctx.organization_id, agent_id=agent.id, lock=True
+        )
+        if batch is not None:
+            await authoring_repo.close_batch(self.db, batch=batch, status=BatchStatus.SUPERSEDED)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="agent.draft_discarded",
+            target_type="agent",
+            target_id=str(agent.id),
+            details={"version": latest.version},
+        )
+        return updated
 
     async def import_spec(
         self, ctx: AuthContext, agent_id: UUID, text: str, *, expected_revision: str | None = None
