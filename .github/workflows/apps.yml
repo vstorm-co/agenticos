@@ -110,6 +110,7 @@ jobs:
             cargo clippy --locked --manifest-path "$crate/Cargo.toml" --all-targets -- -D warnings
             cargo test --locked --manifest-path "$crate/Cargo.toml"
           done
+          cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --example native_browser_smoke
       - name: Optimized GLib iterator regression
         if: runner.os == 'Linux'
         shell: bash
