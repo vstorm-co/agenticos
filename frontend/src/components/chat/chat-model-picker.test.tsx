@@ -11,6 +11,13 @@ import type { ProviderInfo, ModelProfile } from "@/types/providers";
 import { providerMarkIn } from "@/test-utils/brand-marks";
 
 const providerCatalog: ProviderInfo[] = [];
+const personalAccounts: import("@/lib/subscription-accounts-api").SubscriptionAccount[] = [];
+vi.mock("@/hooks/use-subscription-accounts", async () => ({
+  ...(await vi.importActual<typeof import("@/hooks/use-subscription-accounts")>(
+    "@/hooks/use-subscription-accounts",
+  )),
+  useSubscriptionAccounts: () => ({ accounts: { data: { items: personalAccounts } } }),
+}));
 const secretRead = { isLoading: false, listError: null as Error | null };
 const listedProfiles = vi.fn<() => ModelProfile[]>(() => []);
 const listedSecrets = vi.fn<() => { id: string; purpose: string }[]>(() => []);
@@ -83,6 +90,41 @@ vi.mock("@/components/agents/add-model", async () => {
   };
 });
 
+vi.mock("@/components/agents/subscription-model-form", () => ({
+  SubscriptionModelForm: ({
+    provider,
+    initialModel,
+    onCreated,
+    libraryPane: LibraryPane,
+  }: {
+    provider: string;
+    initialModel?: string;
+    onCreated: (profile: ModelProfile) => void;
+    libraryPane: import("react").ComponentType<import("./chat-model-library").ChatModelPaneProps>;
+  }) => {
+    const paneProps: import("./chat-model-library").ChatModelPaneProps = {
+      providerId: "subscription_accounts",
+      profileId: listedProfiles().find((entry) => entry.model === initialModel)?.id,
+      model: "",
+      models: [],
+      profiles: listedProfiles().filter((entry) =>
+        personalAccounts.some(
+          (account) => account.model_prefix && entry.model.startsWith(account.model_prefix + "/"),
+        ),
+      ),
+      loading: false,
+      applying: false,
+      disabled: false,
+      onModelChange: () => undefined,
+      onProfileChange: onCreated,
+      credentialForm: null,
+      failure: null,
+      configurationForm: <div data-testid="connection-form">{`subscription:${provider}`}</div>,
+    };
+    return <LibraryPane {...paneProps} />;
+  },
+}));
+
 const purpose = (
   id: string,
   label: string,
@@ -134,6 +176,7 @@ async function typeModel(id: string) {
 
 beforeEach(() => {
   providerCatalog.length = 0;
+  personalAccounts.length = 0;
   secretRead.isLoading = false;
   secretRead.listError = null;
   profileRead.isLoading = false;
@@ -982,4 +1025,134 @@ it.each([
   );
   expect(screen.getByRole("button", { name: label })).toHaveAttribute("aria-pressed", "true");
   expect(screen.getByTestId("connection-form")).toHaveTextContent(`subscription:${source}`);
+});
+
+it("changes the OpenRouter region deliberately without reusing the previous regional profile", async () => {
+  const regional = {
+    ...profile("regional", "openrouter", "vendor/original"),
+    base_url: "https://eu.openrouter.ai/api/v1",
+  };
+  listedProfiles.mockReturnValue([regional]);
+  listedSecrets.mockReturnValue([{ id: "s1", purpose: "openrouter" }]);
+  mutateAsync.mockResolvedValue({ ...regional, id: "global-new", base_url: null });
+  const changed = vi.fn();
+  renderExpandedPicker(<ChatModelPicker value="regional" agentModel={null} onChange={changed} />);
+  expect(screen.getByRole("combobox", { name: "Catalog region" })).toHaveTextContent(
+    "European Union",
+  );
+  await userEvent.click(screen.getByRole("combobox", { name: "Catalog region" }));
+  await userEvent.click(await screen.findByRole("option", { name: "Global" }));
+  expect(modelCatalog).toHaveBeenLastCalledWith("openrouter", undefined, "s1");
+  await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
+  expect(mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining({ provider: "openrouter", model: "vendor/original" }),
+  );
+  expect(mutateAsync.mock.calls[0]?.[0]).not.toHaveProperty("base_url");
+  expect(changed).toHaveBeenCalledWith("global-new");
+});
+
+it("restores a subscription source from its account route even when the model label was renamed", () => {
+  const prefix = "account-" + "a".repeat(24);
+  personalAccounts.push({
+    name: "google.json",
+    provider: "antigravity",
+    model_prefix: prefix,
+    label: null,
+    email: null,
+    status: "active",
+    disabled: false,
+    unavailable: false,
+  });
+  listedProfiles.mockReturnValue([
+    {
+      ...profile("personal", "subscription_accounts", `${prefix}/claude-sonnet`),
+      label: "My renamed model",
+    },
+  ]);
+  providerCatalog.push({
+    id: "subscription_accounts",
+    name: "Subscriptions",
+    personal_gateway: true,
+    secret_kind: "api_key",
+    supports_base_url: false,
+    keyless: true,
+    apis: [],
+    native_api: null,
+  });
+  render(
+    <ChatModelPicker
+      presentation="library"
+      value="personal"
+      agentModel={null}
+      onChange={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Google Antigravity" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+});
+
+it("keeps saved subscription models selectable and excludes another person's account routes", async () => {
+  const prefix = "account-" + "a".repeat(24);
+  const other = "account-" + "b".repeat(24);
+  personalAccounts.push({
+    name: "google.json",
+    provider: "antigravity",
+    model_prefix: prefix,
+    label: null,
+    email: null,
+    status: "active",
+    disabled: false,
+    unavailable: false,
+  });
+  listedProfiles.mockReturnValue([
+    {
+      ...profile("mine", "subscription_accounts", `${prefix}/claude-sonnet`),
+      label: "My renamed model",
+    },
+    {
+      ...profile("other", "subscription_accounts", `${other}/claude-sonnet`),
+      label: "Someone else's model",
+    },
+  ]);
+  providerCatalog.push({
+    id: "subscription_accounts",
+    name: "Subscriptions",
+    personal_gateway: true,
+    secret_kind: "api_key",
+    supports_base_url: false,
+    keyless: true,
+    apis: [],
+    native_api: null,
+  });
+  const changed = vi.fn();
+  render(
+    <ChatModelPicker presentation="library" value="mine" agentModel={null} onChange={changed} />,
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "Saved models" }));
+  const mine = screen.getByRole("option", { name: /My renamed model/ });
+  expect(within(mine).getByLabelText("Selected")).toBeInTheDocument();
+  expect(screen.queryByRole("option", { name: /Someone else's/ })).not.toBeInTheDocument();
+  await userEvent.click(mine);
+  expect(changed).toHaveBeenCalledWith("mine");
+});
+
+it("keeps other regions in saved models without adding them to the active catalog", async () => {
+  const regional = {
+    ...profile("eu", "openrouter", "vendor/eu"),
+    base_url: "https://eu.openrouter.ai/api/v1",
+  };
+  listedProfiles.mockReturnValue([
+    regional,
+    { ...profile("global", "openrouter", "vendor/global"), label: "Global only" },
+  ]);
+  listedSecrets.mockReturnValue([{ id: "s1", purpose: "openrouter" }]);
+  listedModels.mockReturnValue([{ id: "vendor/eu", name: "EU model" }]);
+  render(
+    <ChatModelPicker presentation="library" value="eu" agentModel={null} onChange={vi.fn()} />,
+  );
+  expect(screen.queryByRole("option", { name: /Global only/ })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("tab", { name: "Saved models" }));
+  expect(screen.getByRole("option", { name: /Global only/ })).toBeInTheDocument();
 });

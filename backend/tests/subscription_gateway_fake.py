@@ -16,6 +16,7 @@ import yaml
 config = yaml.safe_load(Path(sys.argv[2]).read_text())
 CLIENT = config["access"]["api-keys"][0]
 MANAGEMENT = config["management"]["secret-key"]
+PREFIXES: dict[str, str] = {}
 assert config["server"]["host"] == "127.0.0.1"
 
 
@@ -99,10 +100,20 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "2")
             self.end_headers()
             self.wfile.write(b"ok")
+        elif path == "/credentials/fields" and method == "PATCH":
+            PREFIXES[body["name"]] = body["prefix"]
+            self._send(200, {"status": "ok"})
         elif path == "/credentials/models":
             self._send(
                 200,
-                {"models": [{"id": "claude-via-google"}]}
+                {
+                    "models": [
+                        {
+                            "id": (PREFIXES.get(query.get("name", ""), "") + "/").lstrip("/")
+                            + "claude-via-google"
+                        }
+                    ]
+                }
                 if query.get("name") == "antigravity-me.json"
                 else {"models": "invalid"},
             )
@@ -132,6 +143,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         self._route("POST")
+
+    def do_PATCH(self) -> None:
+        self._route("PATCH")
 
     def do_DELETE(self) -> None:
         self._route("DELETE")

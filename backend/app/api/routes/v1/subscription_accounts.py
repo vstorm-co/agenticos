@@ -9,9 +9,10 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Path, status
 
 from app.api.deps import Auth, SubscriptionAccountSvc
-from app.clients.subscription_gateway import configured_gateway
+from app.clients.subscription_gateway import SelectedAccountModel, configured_gateway
 from app.schemas.subscription_account import (
     SubscriptionAccountList,
+    SubscriptionModelSelection,
     SubscriptionSignIn,
     SubscriptionSignInCallback,
     SubscriptionSignInStart,
@@ -73,3 +74,11 @@ async def disconnect(name: AccountName, ctx: Auth, service: SubscriptionAccountS
 async def account_models(name: AccountName, ctx: Auth, service: SubscriptionAccountSvc) -> Any:
     """List models advertised by one of the caller's accounts, without guessing from model IDs."""
     return await service.account_models(ctx, name)
+
+
+@router.post("/{name}/model-selection", response_model=SelectedAccountModel)
+async def select_account_model(
+    name: AccountName, data: SubscriptionModelSelection, ctx: Auth, service: SubscriptionAccountSvc
+) -> Any:
+    """Select a listed model on this account, returning its opaque account-specific route."""
+    return await service.select_account_model(ctx, name, data.model)

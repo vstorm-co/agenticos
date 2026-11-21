@@ -28,6 +28,7 @@ interface ModelComboboxProps {
   source: "live" | "curated" | "unlisted" | null;
   loading?: boolean;
   disabled?: boolean;
+  allowCustom?: boolean;
   placeholder: string;
   id?: string;
   /**
@@ -75,6 +76,7 @@ export function ModelCombobox({
   source,
   loading,
   disabled,
+  allowCustom = true,
   placeholder,
   id,
   "aria-invalid": invalid,
@@ -90,7 +92,9 @@ export function ModelCombobox({
   // Only when it is genuinely not in the catalog. Offering "use openai/gpt-5"
   // beneath the openai/gpt-5 row is offering the same thing twice.
   const custom =
-    typed !== "" && !options.some((option) => option.id.toLowerCase() === typed.toLowerCase())
+    allowCustom &&
+    typed !== "" &&
+    !options.some((option) => option.id.toLowerCase() === typed.toLowerCase())
       ? typed
       : null;
 
@@ -161,6 +165,12 @@ export function ModelCombobox({
               <p className="text-muted-foreground px-3 py-6 text-center text-sm">
                 {t("providerPublishesNoList")}
               </p>
+            )}
+
+            {!allowCustom && !loading && options.length > 0 && (
+              <Command.Empty className="text-muted-foreground px-3 py-6 text-center text-sm">
+                {t("noMatchingModels")}
+              </Command.Empty>
             )}
 
             {custom !== null && (

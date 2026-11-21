@@ -1052,3 +1052,19 @@ async def test_zai_coding_plan_catalog_does_not_substitute_the_general_api_on_fa
     assert (models, source) == ([], "unlisted")
     assert len(requests) == 1
     assert requests[0].url.path == "/api/coding/paas/v4/models"
+
+
+@pytest.mark.anyio
+async def test_explicit_refresh_bypasses_only_the_requested_catalog_cache() -> None:
+    old = [model_catalog.CatalogModel(id="vendor/old", name="Old")]
+    new = [model_catalog.CatalogModel(id="vendor/new", name="New")]
+    with patch(f"{MODULE}._fetch", new=AsyncMock(return_value=old)) as fetch:
+        assert (await models_for("openrouter"))[0] == old
+        fetch.return_value = new
+        assert (await models_for("openrouter"))[0] == old
+        assert fetch.await_count == 1
+        assert (await models_for("openrouter", refresh=True))[0] == new
+        assert fetch.await_count == 2
+        assert (await models_for("openrouter"))[0] == new
+        assert (await models_for("openrouter", api="decisions", refresh=True))[0] == new
+        assert fetch.await_count == 3

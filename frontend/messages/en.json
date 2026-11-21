@@ -1165,7 +1165,8 @@
     "observationSaveFailed": "Could not save. Your edits remain in this form; try again.",
     "observationSave": "Save participation settings",
     "connectionSettings": "Connection settings · {provider} · {endpoint}",
-    "customEndpoint": "Custom endpoint"
+    "customEndpoint": "Custom endpoint",
+    "noMatchingModels": "No matching models."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1697,7 +1698,18 @@
       "runModel": "Run on this model",
       "thisChat": "Just this chat",
       "changeModel": "Change model",
-      "profilesUnavailable": "Model settings could not be read. Retry before choosing another model."
+      "profilesUnavailable": "Model settings could not be read. Retry before choosing another model.",
+      "catalogCount": "{count, plural, one {# model} other {# models}}",
+      "catalogLive": "Provider catalog",
+      "catalogFallback": "Limited fallback list — the provider catalog is unavailable.",
+      "catalogUnlisted": "Enter a model ID supplied by your provider.",
+      "catalogFailed": "The catalog could not be refreshed. Try again.",
+      "refreshCatalog": "Refresh models",
+      "catalogRegion": "Catalog region",
+      "catalogGlobal": "Global",
+      "catalogEu": "European Union",
+      "catalogCustom": "Custom endpoint",
+      "catalogRegionHint": "Model availability differs by region. Your selection keeps this region."
     },
     "newChat": "New chat",
     "newConversation": "New conversation",
@@ -21367,7 +21379,7 @@
     "custom": "Advanced / custom endpoint",
     "gateway": "Subscription gateway (custom endpoint)",
     "allSubscriptions": "All connected subscriptions",
-    "subscriptionHint": "Use models from your own subscription with AgenticOS instructions and tools. This does not run the provider’s coding agent. Your account is used only in your own interactive chats.",
+    "subscriptionHint": "Models from this account use AgenticOS instructions and tools in your own chats.",
     "unavailable": "Subscription sign-in is not enabled on this deployment. Ask an administrator to enable it.",
     "loading": "Loading your accounts…",
     "connected": "Connected",
@@ -21375,8 +21387,20 @@
     "loadFailed": "Your accounts or models could not be loaded",
     "model": "Model",
     "chooseModel": "Choose a model from this account",
-    "useModel": "Use this model",
-    "noModels": "This account has not advertised any models yet. Retry after sign-in finishes."
+    "noModels": "This account has not advertised any models yet. Retry after sign-in finishes.",
+    "account": "Account",
+    "accountNumber": "Account {number}",
+    "usageAndLimits": "Usage and limits",
+    "usageUnavailable": "This provider has not reported usage limits for this account.",
+    "usageStale": "Last reported usage — these values may have changed.",
+    "fiveHourWindow": "5-hour window",
+    "weeklyWindow": "Weekly limit",
+    "minutesWindow": "{minutes}-minute window",
+    "usageWindow": "Usage window",
+    "usageRemaining": "{remaining} left",
+    "usageConsumed": "Used quota",
+    "usageResets": "Resets {time}",
+    "usageObserved": "Reported {time}. Updated after provider responses."
   },
   "agentDelegation": {
     "coding_agent": {

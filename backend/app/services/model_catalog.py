@@ -454,7 +454,7 @@ DECISION_SUGGESTIONS: dict[str, tuple[FallbackModel, ...]] = catalog.load(
 
 
 async def _decision_models_for(
-    provider: str, *, base_url: str | None
+    provider: str, *, base_url: str | None, refresh: bool = False
 ) -> tuple[list[CatalogModel], CatalogSource]:
     """Keep native-decision suggestions and caches separate from text models."""
     curated = [
@@ -471,7 +471,11 @@ async def _decision_models_for(
     listing = replace(LISTINGS["openrouter"], url=f"{endpoint}/models?output_modalities=decisions")
     try:
         models = await _listed(
-            f"openrouter:decisions:{endpoint}", listing, None, custom=base_url is not None
+            f"openrouter:decisions:{endpoint}",
+            listing,
+            None,
+            custom=base_url is not None,
+            refresh=refresh,
         )
     except httpx.HTTPError, ValueError:
         logger.warning("The native decision model catalog could not be reached")
@@ -485,6 +489,7 @@ async def models_for(
     api_key: str | None = None,
     base_url: str | None = None,
     api: ModelApi | None = None,
+    refresh: bool = False,
 ) -> tuple[list[CatalogModel], CatalogSource]:
     """What this provider offers, and where the answer came from.
 
@@ -519,7 +524,7 @@ async def models_for(
             for model in models
         ], "live"
     if is_decision_api(provider, api):
-        return await _decision_models_for(provider, base_url=base_url)
+        return await _decision_models_for(provider, base_url=base_url, refresh=refresh)
     if (
         base_url is None
         and (provider_spec := PROVIDERS.get(provider)) is not None
@@ -553,7 +558,9 @@ async def models_for(
         cache_key = f"{cache_key}:{hashlib.sha256(api_key.encode()).hexdigest()}"
 
     try:
-        models = await _listed(cache_key, spec, api_key, custom=base_url is not None)
+        models = await _listed(
+            cache_key, spec, api_key, custom=base_url is not None, refresh=refresh
+        )
     except Exception:
         # What is said has to match what is answered: for a provider with no
         # curated entry there is no list to fall back to, and a log line during
@@ -602,7 +609,7 @@ async def embedding_models_at(base_url: str) -> tuple[CatalogModel, ...] | None:
 
 
 async def _listed(
-    cache_key: str, spec: ListingSpec, api_key: str | None, *, custom: bool
+    cache_key: str, spec: ListingSpec, api_key: str | None, *, custom: bool, refresh: bool = False
 ) -> list[CatalogModel]:
     """One listing, from the cache while it is fresh, fetched and cached otherwise.
 
@@ -614,7 +621,11 @@ async def _listed(
     """
     async with _lock:
         entry = _cache.get(cache_key)
-        if entry is not None and time.monotonic() - entry.fetched_at < CACHE_TTL_SECONDS:
+        if (
+            not refresh
+            and entry is not None
+            and time.monotonic() - entry.fetched_at < CACHE_TTL_SECONDS
+        ):
             _cache.move_to_end(cache_key)
             return list(entry.models)
 

@@ -13,6 +13,19 @@ export const SUBSCRIPTION_PROVIDERS = [
 ] as const;
 export type SubscriptionProvider = (typeof SUBSCRIPTION_PROVIDERS)[number];
 
+export interface SubscriptionUsageWindow {
+  kind: "primary" | "secondary" | "five_hour" | "seven_day";
+  remaining_percent: number;
+  duration_minutes: number | null;
+  resets_at: string | null;
+}
+
+export interface SubscriptionUsage {
+  status: "available" | "stale" | "unavailable";
+  observed_at: string | null;
+  windows: SubscriptionUsageWindow[];
+}
+
 export interface SubscriptionAccount {
   name: string;
   provider: string;
@@ -21,6 +34,8 @@ export interface SubscriptionAccount {
   status: string | null;
   disabled: boolean;
   unavailable: boolean;
+  model_prefix?: string | null;
+  usage?: SubscriptionUsage;
 }
 
 export interface SubscriptionAccountList {
@@ -96,3 +111,9 @@ export function subscriptionFromChoice(choice: string): SubscriptionProvider | u
 
 export const listSubscriptionAccountModels = (name: string) =>
   apiClient.get<string[]>(`/subscription-accounts/${encodeURIComponent(name)}/models`);
+
+export const selectSubscriptionAccountModel = (name: string, model: string) =>
+  apiClient.post<{ model: string }>(
+    `/subscription-accounts/${encodeURIComponent(name)}/model-selection`,
+    { model },
+  );

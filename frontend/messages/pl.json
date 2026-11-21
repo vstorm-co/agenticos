@@ -689,7 +689,18 @@
       "runModel": "Uruchom na tym modelu",
       "thisChat": "Tylko ten czat",
       "changeModel": "Zmień model",
-      "profilesUnavailable": "Nie udało się odczytać ustawień modelu. Spróbuj ponownie przed wyborem innego modelu."
+      "profilesUnavailable": "Nie udało się odczytać ustawień modelu. Spróbuj ponownie przed wyborem innego modelu.",
+      "catalogCount": "{count, plural, one {# model} few {# modele} many {# modeli} other {# modelu}}",
+      "catalogLive": "Katalog dostawcy",
+      "catalogFallback": "Lista zastępcza — katalog dostawcy jest niedostępny.",
+      "catalogUnlisted": "Wpisz identyfikator modelu podany przez dostawcę.",
+      "catalogFailed": "Nie udało się odświeżyć katalogu. Spróbuj ponownie.",
+      "refreshCatalog": "Odśwież modele",
+      "catalogRegion": "Region katalogu",
+      "catalogGlobal": "Globalny",
+      "catalogEu": "Unia Europejska",
+      "catalogCustom": "Własny endpoint",
+      "catalogRegionHint": "Dostępność modeli zależy od regionu. Wybrany model zachowa ten region."
     },
     "newChat": "Nowy czat",
     "newConversation": "Nowa konwersacja",
@@ -10455,7 +10466,8 @@
     "observationSaveFailed": "Nie udało się zapisać. Zmiany pozostały w formularzu; spróbuj ponownie.",
     "observationSave": "Zapisz ustawienia uczestnictwa",
     "connectionSettings": "Ustawienia połączenia · {provider} · {endpoint}",
-    "customEndpoint": "Własny endpoint"
+    "customEndpoint": "Własny endpoint",
+    "noMatchingModels": "Brak pasujących modeli."
   },
   "steps": {
     "skills-gallery": {
@@ -21140,7 +21152,7 @@
     "custom": "Zaawansowane / własny endpoint",
     "gateway": "Gateway subskrypcji (własny endpoint)",
     "allSubscriptions": "Wszystkie połączone subskrypcje",
-    "subscriptionHint": "Korzystaj z modeli swojej subskrypcji z instrukcjami i narzędziami AgenticOS. To nie uruchamia agenta programistycznego dostawcy. Konto jest używane tylko w Twoich własnych rozmowach.",
+    "subscriptionHint": "Modele z tego konta korzystają z instrukcji i narzędzi AgenticOS w Twoich czatach.",
     "unavailable": "Logowanie do subskrypcji nie jest włączone w tej instalacji. Poproś administratora o jego włączenie.",
     "loading": "Wczytywanie Twoich kont…",
     "connected": "Połączono",
@@ -21148,8 +21160,20 @@
     "loadFailed": "Nie udało się wczytać kont lub modeli",
     "model": "Model",
     "chooseModel": "Wybierz model dostępny dla tego konta",
-    "useModel": "Użyj tego modelu",
-    "noModels": "To konto nie udostępniło jeszcze listy modeli. Spróbuj ponownie po zakończeniu logowania."
+    "noModels": "To konto nie udostępniło jeszcze listy modeli. Spróbuj ponownie po zakończeniu logowania.",
+    "account": "Konto",
+    "accountNumber": "Konto {number}",
+    "usageAndLimits": "Zużycie i limity",
+    "usageUnavailable": "Dostawca nie podał limitów zużycia dla tego konta.",
+    "usageStale": "Ostatnio podane zużycie — wartości mogły się zmienić.",
+    "fiveHourWindow": "Okno 5-godzinne",
+    "weeklyWindow": "Limit tygodniowy",
+    "minutesWindow": "Okno {minutes}-minutowe",
+    "usageWindow": "Okno zużycia",
+    "usageRemaining": "Pozostało {remaining}",
+    "usageConsumed": "Wykorzystany limit",
+    "usageResets": "Odnowienie: {time}",
+    "usageObserved": "Dane z {time}. Aktualizacja po odpowiedziach dostawcy."
   },
   "agentDelegation": {
     "coding_agent": {

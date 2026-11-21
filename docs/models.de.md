@@ -1,5 +1,5 @@
 ---
-source_sha: "b4b4c51a04c2"
+source_sha: "41145ddb3eda"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -462,6 +462,12 @@ Wähle den Vault-Schlüssel und bestätige das Ziel, bevor du Modelle lädst. Ei
 ### Abonnement-Konten { #subscription-accounts }
 
 Beginne im Agenteneditor und in der Modellauswahl des Chats mit **Deine Abonnements**, wähle einen bekannten Anbieter wie **Claude Code (Pro, Max)** oder **ChatGPT (Codex)** und klicke auf **Verbinden**. Die Anmeldung öffnet sich direkt dort und führt zur Modellauswahl zurück. Die Liste stammt aus den verbundenen Konten dieses Anbieters, nicht aus Vermutungen anhand von Modellnamen. Nicht verfügbare Konten bieten eine erneute Anmeldung. Konten lassen sich weiterhin im Profil verwalten und trennen. API-Schlüssel der Organisation bilden eine eigene Gruppe; manuell konfigurierte Gateways und Endpoints stehen unter **Erweitert / eigener Endpoint**. Bestehende Profile mit `subscription_accounts` und `cliproxyapi` behalten ihre API-IDs.
+
+Chatkataloge zeigen alle chatfähigen Einträge, statt die Liste unbemerkt auf 100 Modelle zu begrenzen. Die Auswahl zeigt die Anzahl, den aktuellen Katalog oder eine begrenzte Ersatzliste und eine Aktualisierung an. OpenRouter zeigt die aktuelle Katalogregion; Änderungen erfolgen ausdrücklich und das neu gespeicherte Modell behält die Region. Gespeicherte Modelle behalten ihre eigenen Verbindungseinstellungen.
+
+Bei mehreren verbundenen persönlichen Konten öffnen Sie den Reiter **Konto** und wählen Sie das Konto wie einen gespeicherten API-Schlüssel. Abonnementmodelle verwenden dieselbe durchsuchbare Liste wie API-Anbieter; die Auswahl eines Modells wendet es sofort an. Die Modellauswahl bindet es über eine undurchsichtige Route an dieses Konto; sie wechselt nicht still zu einem anderen Konto. Kontogebundene Profile benötigen das verbundene Konto der ausführenden Person. Beim erneuten Öffnen werden Konto und Modell wiederhergestellt, ohne die Kontoroute im Modellnamen anzuzeigen.
+
+**Nutzung und Limits** zeigt gemeldete Codex- und Claude-Kontingentfenster mit verbleibenden Prozenten, Rücksetzzeit und Beobachtungszeitpunkt, sofern verfügbar. Dies sind passive Beobachtungen aus Anbieterantworten und keine Live-Abrechnungsabfrage. Daten älter als fünf Minuten oder nach einer Rücksetzung werden als veraltet markiert; fehlende Daten bedeuten nicht ein ungenutztes Kontingent. Andere Anbieter melden möglicherweise keine kompatiblen Kontingentinformationen.
 
 Alle Verbindungsgruppen sind sofort sichtbar. Verbundene Abonnements zeigen ein Statusabzeichen und die Kontoidentität; ein weiteres Konto hinzuzufügen ist eine sekundäre Aktion. Beim erneuten Öffnen stellt die Auswahl die Abonnementquelle und das Modell aus dem gespeicherten Abonnementprofil wieder her.
 

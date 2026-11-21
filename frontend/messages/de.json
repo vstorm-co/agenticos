@@ -1165,7 +1165,8 @@
     "observationSaveFailed": "Speichern fehlgeschlagen. Ihre Änderungen bleiben im Formular erhalten.",
     "observationSave": "Teilnahmeeinstellungen speichern",
     "connectionSettings": "Verbindungseinstellungen · {provider} · {endpoint}",
-    "customEndpoint": "Eigener Endpunkt"
+    "customEndpoint": "Eigener Endpunkt",
+    "noMatchingModels": "Keine passenden Modelle."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1697,7 +1698,18 @@
       "runModel": "Auf diesem Modell ausführen",
       "thisChat": "Nur dieser Chat",
       "changeModel": "Modell ändern",
-      "profilesUnavailable": "Die Modelleinstellungen konnten nicht geladen werden. Versuche es erneut, bevor du ein anderes Modell auswählst."
+      "profilesUnavailable": "Die Modelleinstellungen konnten nicht geladen werden. Versuche es erneut, bevor du ein anderes Modell auswählst.",
+      "catalogCount": "{count, plural, one {# Modell} other {# Modelle}}",
+      "catalogLive": "Anbieterkatalog",
+      "catalogFallback": "Begrenzte Ersatzliste — der Anbieterkatalog ist nicht verfügbar.",
+      "catalogUnlisted": "Geben Sie eine Modell-ID Ihres Anbieters ein.",
+      "catalogFailed": "Der Katalog konnte nicht aktualisiert werden. Versuchen Sie es erneut.",
+      "refreshCatalog": "Modelle aktualisieren",
+      "catalogRegion": "Katalogregion",
+      "catalogGlobal": "Global",
+      "catalogEu": "Europäische Union",
+      "catalogCustom": "Eigener Endpunkt",
+      "catalogRegionHint": "Die verfügbaren Modelle unterscheiden sich je nach Region. Ihre Auswahl behält diese Region."
     },
     "newChat": "Neuer Chat",
     "newConversation": "Neue Unterhaltung",
@@ -21053,7 +21065,7 @@
     "custom": "Erweitert / eigener Endpoint",
     "gateway": "Abonnement-Gateway (eigener Endpoint)",
     "allSubscriptions": "Alle verbundenen Abonnements",
-    "subscriptionHint": "Nutze Modelle deines Abonnements mit den Anweisungen und Werkzeugen von AgenticOS. Der Coding-Agent des Anbieters wird dabei nicht ausgeführt. Dein Konto wird nur in deinen eigenen interaktiven Chats verwendet.",
+    "subscriptionHint": "Modelle dieses Kontos nutzen die Anweisungen und Werkzeuge von AgenticOS in Ihren eigenen Chats.",
     "unavailable": "Die Anmeldung für Abonnements ist hier nicht aktiviert. Bitte einen Administrator, sie zu aktivieren.",
     "loading": "Deine Konten werden geladen…",
     "connected": "Verbunden",
@@ -21061,8 +21073,20 @@
     "loadFailed": "Deine Konten oder Modelle konnten nicht geladen werden",
     "model": "Modell",
     "chooseModel": "Ein Modell dieses Kontos auswählen",
-    "useModel": "Dieses Modell verwenden",
-    "noModels": "Dieses Konto hat noch keine Modelle gemeldet. Versuche es nach Abschluss der Anmeldung erneut."
+    "noModels": "Dieses Konto hat noch keine Modelle gemeldet. Versuche es nach Abschluss der Anmeldung erneut.",
+    "account": "Konto",
+    "accountNumber": "Konto {number}",
+    "usageAndLimits": "Nutzung und Limits",
+    "usageUnavailable": "Dieser Anbieter hat keine Nutzungslimits für dieses Konto gemeldet.",
+    "usageStale": "Zuletzt gemeldete Nutzung — die Werte können sich geändert haben.",
+    "fiveHourWindow": "5-Stunden-Fenster",
+    "weeklyWindow": "Wochenlimit",
+    "minutesWindow": "{minutes}-Minuten-Fenster",
+    "usageWindow": "Nutzungsfenster",
+    "usageRemaining": "{remaining} übrig",
+    "usageConsumed": "Verbrauchtes Kontingent",
+    "usageResets": "Zurücksetzung: {time}",
+    "usageObserved": "Gemeldet am {time}. Aktualisierung nach Anbieterantworten."
   },
   "agentDelegation": {
     "coding_agent": {

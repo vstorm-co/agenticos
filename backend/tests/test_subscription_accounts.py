@@ -119,6 +119,9 @@ async def test_the_client_sends_the_shared_token_and_reads_each_answer() -> None
         ("GET", "/scopes/s/accounts"): {"items": [{"name": "a.json", "provider": "claude"}]},
         ("DELETE", "/scopes/s/accounts/a.json"): {"removed": True},
         ("GET", "/scopes/s/accounts/a.json/models"): {"items": [{"id": "claude-sonnet"}]},
+        ("POST", "/scopes/s/accounts/a.json/model-selection"): {
+            "model": "account-test/claude-sonnet"
+        },
         ("GET", "/scopes/s/v1/models"): {"data": [{"id": "claude-sonnet"}]},
         ("DELETE", "/scopes/s"): {"wiped": True},
     }
@@ -137,6 +140,9 @@ async def test_the_client_sends_the_shared_token_and_reads_each_answer() -> None
     await client.remove_account("s", "a.json")
     assert await client.models("s") == ["claude-sonnet"]
     assert await client.account_models("s", "a.json") == ["claude-sonnet"]
+    assert (
+        await client.select_account_model("s", "a.json", "claude-sonnet")
+    ).model == "account-test/claude-sonnet"
     await client.wipe("s")
     assert client.model_endpoint("s") == f"{URL}/scopes/s/v1"
     assert {request.headers["authorization"] for request in seen} == {f"Bearer {TOKEN}"}
@@ -202,6 +208,9 @@ async def test_the_service_acts_on_the_callers_own_scope_only(enabled: None) -> 
     fake.accounts.return_value = []
     fake.models.return_value = ["m"]
     fake.account_models.return_value = ["m"]
+    fake.select_account_model.return_value = client_module.SelectedAccountModel(
+        model="account-test/m"
+    )
     db = MagicMock()
     service = SubscriptionAccountService(db)
     with (
@@ -211,6 +220,7 @@ async def test_the_service_acts_on_the_callers_own_scope_only(enabled: None) -> 
         assert await service.accounts(caller) == []
         assert await service.models(caller) == ["m"]
         assert await service.account_models(caller, "a.json") == ["m"]
+        assert (await service.select_account_model(caller, "a.json", "m")).model == "account-test/m"
         await service.start_login(caller, "antigravity")
         await service.login_status(caller, "st")
         await service.complete_login(caller, "st", "https://localhost/cb")
@@ -222,6 +232,7 @@ async def test_the_service_acts_on_the_callers_own_scope_only(enabled: None) -> 
         "accounts",
         "models",
         "account_models",
+        "select_account_model",
         "start_login",
         "login_status",
         "complete_login",
@@ -249,6 +260,8 @@ async def test_the_service_acts_on_the_callers_own_scope_only(enabled: None) -> 
 async def test_only_a_signed_in_person_reaches_a_scope(caller: AuthContext, enabled: None) -> None:
     with pytest.raises(AuthorizationError):
         await SubscriptionAccountService(MagicMock()).accounts(caller)
+    with pytest.raises(AuthorizationError):
+        await SubscriptionAccountService(MagicMock()).select_account_model(caller, "a.json", "m")
 
 
 async def test_the_service_names_the_settings_when_the_gateway_is_off(disabled: None) -> None:
@@ -550,3 +563,25 @@ async def test_account_models_route_keeps_the_authenticated_context(
     assert answer.status_code == 200 and answer.json() == ["claude-sonnet"]
     assert bad.status_code == 422
     service.account_models.assert_awaited_once_with(caller, "a.json")
+
+
+async def test_account_model_selection_route_keeps_the_authenticated_context(
+    routes: tuple[AsyncMock, AuthContext],
+) -> None:
+    service, caller = routes
+    service.select_account_model.return_value = client_module.SelectedAccountModel(
+        model="account-test/claude"
+    )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        answer = await client.post(
+            "/api/v1/subscription-accounts/a.json/model-selection", json={"model": "claude"}
+        )
+        bad = await client.post(
+            "/api/v1/subscription-accounts/a.json/model-selection", json={"model": "bad model"}
+        )
+        long = await client.post(
+            "/api/v1/subscription-accounts/a.json/model-selection", json={"model": "a" * 223}
+        )
+    assert answer.status_code == 200 and answer.json() == {"model": "account-test/claude"}
+    assert bad.status_code == long.status_code == 422
+    service.select_account_model.assert_awaited_once_with(caller, "a.json", "claude")

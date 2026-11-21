@@ -3,6 +3,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.clients.subscription_gateway import GatewayProvider
+from app.subscription_gateway.contracts import AccountUsage
 
 
 class SubscriptionAccountRead(BaseModel):
@@ -17,6 +18,8 @@ class SubscriptionAccountRead(BaseModel):
     status: str | None = None
     disabled: bool = False
     unavailable: bool = False
+    model_prefix: str | None = None
+    usage: AccountUsage = Field(default_factory=AccountUsage)
 
 
 class SubscriptionAccountList(BaseModel):
@@ -49,3 +52,7 @@ class SubscriptionSignInStatus(BaseModel):
 
 class SubscriptionSignInCallback(BaseModel):
     redirect_url: str = Field(min_length=1, max_length=8192)
+
+
+class SubscriptionModelSelection(BaseModel):
+    model: str = Field(min_length=1, max_length=222, pattern=r"^[^\s]+$")

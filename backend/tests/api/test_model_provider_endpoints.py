@@ -33,7 +33,11 @@ async def test_custom_listing_uses_the_endpoint_without_opening_a_vault_key():
             accounts=MagicMock(spec=SubscriptionAccountService),
         )
     listing.assert_awaited_once_with(
-        "openrouter", api_key=None, base_url="https://eu.openrouter.ai/api/v1"
+        "openrouter",
+        api_key=None,
+        base_url="https://eu.openrouter.ai/api/v1",
+        api=None,
+        refresh=False,
     )
     secrets.listing_key.assert_not_called()
     assert response.items[0].id == "vendor/chat"
@@ -63,7 +67,11 @@ async def test_a_custom_authenticated_listing_sends_the_selected_key(provider: s
             accounts=MagicMock(spec=SubscriptionAccountService),
         )
     listing.assert_awaited_once_with(
-        provider, api_key="sk_stav_test", base_url="https://staging-api.stav.ai/v1"
+        provider,
+        api_key="sk_stav_test",
+        base_url="https://staging-api.stav.ai/v1",
+        api=None,
+        refresh=False,
     )
     secrets.listing_key.assert_awaited_once_with(ctx, provider, secret_id=secret_id)
 
@@ -189,7 +197,11 @@ async def test_a_custom_provider_lists_the_endpoint_it_is_given(provider: str) -
             accounts=MagicMock(spec=SubscriptionAccountService),
         )
     listing.assert_awaited_once_with(
-        provider, api_key="sk_custom_test", base_url="https://models.example"
+        provider,
+        api_key="sk_custom_test",
+        base_url="https://models.example",
+        api=None,
+        refresh=False,
     )
     secrets.listing_key.assert_awaited_once_with(ctx, provider, secret_id=secret_id)
 
@@ -241,3 +253,36 @@ async def test_a_custom_provider_without_an_endpoint_lists_nothing(provider: str
     assert response.source == "unlisted"
     secrets.listing_key.assert_not_called()
     listing.assert_not_called()
+
+
+async def test_explicit_refresh_preserves_endpoint_and_key_authorization() -> None:
+    secrets = MagicMock(spec=OrganizationSecretService)
+    with patch(
+        "app.api.routes.v1.model_providers.models_for",
+        new=AsyncMock(return_value=([CatalogModel(id="a/chat", name="Chat")], "live")),
+    ) as listing:
+        await list_provider_models(
+            "openrouter",
+            secrets,
+            context(),
+            accounts=MagicMock(spec=SubscriptionAccountService),
+            base_url="https://eu.openrouter.ai/api/v1",
+            refresh=True,
+        )
+        listing.assert_awaited_once_with(
+            "openrouter",
+            api_key=None,
+            base_url="https://eu.openrouter.ai/api/v1",
+            api=None,
+            refresh=True,
+        )
+        with pytest.raises(AuthorizationError):
+            await list_provider_models(
+                "openrouter",
+                secrets,
+                context("member"),
+                accounts=MagicMock(spec=SubscriptionAccountService),
+                base_url="https://eu.openrouter.ai/api/v1",
+                refresh=True,
+            )
+    secrets.listing_key.assert_not_called()

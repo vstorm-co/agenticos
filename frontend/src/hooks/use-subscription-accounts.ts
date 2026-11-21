@@ -9,6 +9,7 @@ import {
   completeSubscriptionSignIn,
   disconnectSubscriptionAccount,
   listSubscriptionAccounts,
+  selectSubscriptionAccountModel,
   listSubscriptionAccountModels,
   subscriptionBelongsTo,
   type SubscriptionProvider,
@@ -16,17 +17,22 @@ import {
   subscriptionSignInStatus,
 } from "@/lib/subscription-accounts-api";
 
+import { subscriptionModelId } from "@/lib/subscription-model-id";
+
 interface Scope {
   tenant: string | null;
   user: string | undefined;
 }
 
 /** The chosen vendor's actual account catalogs, including models made by other vendors. */
-export function useSubscriptionModels(provider: SubscriptionProvider) {
+export function useSubscriptionModels(provider: SubscriptionProvider, accountName?: string) {
   const actions = useSubscriptionAccounts();
   const accounts = (actions.accounts.data?.items ?? []).filter(
     (account) =>
-      subscriptionBelongsTo(account, provider) && !account.disabled && !account.unavailable,
+      subscriptionBelongsTo(account, provider) &&
+      !account.disabled &&
+      !account.unavailable &&
+      account.name === accountName,
   );
   const listings = useQueries({
     queries: accounts.map((account) => ({
@@ -37,7 +43,9 @@ export function useSubscriptionModels(provider: SubscriptionProvider) {
     })),
   });
   return {
-    models: [...new Set(listings.flatMap((listing) => listing.data ?? []))].map((id) => ({
+    models: [
+      ...new Set(listings.flatMap((listing) => listing.data ?? []).map(subscriptionModelId)),
+    ].map((id) => ({
       id,
       name: id,
     })),
@@ -49,7 +57,7 @@ export function useSubscriptionModels(provider: SubscriptionProvider) {
 }
 
 /** The signed-in person's own subscription accounts in the current organization. */
-export function useSubscriptionAccounts() {
+export function useSubscriptionAccounts({ enabled = true }: { enabled?: boolean } = {}) {
   const tenant = useTenantId();
   const user = useAuthStore((state) => state.user?.id);
   const guard = useTenantGuard();
@@ -69,10 +77,15 @@ export function useSubscriptionAccounts() {
   const accounts = useQuery({
     queryKey: qk.subscriptionAccounts.mine(scope),
     queryFn: listSubscriptionAccounts,
-    enabled: !!tenant && !!user,
+    enabled: enabled && !!tenant && !!user,
+    refetchInterval: 60_000,
   });
   return {
     accounts,
+    selectModel: useMutation({
+      mutationFn: ({ name, model }: { name: string; model: string }) =>
+        selectSubscriptionAccountModel(name, model),
+    }),
     start: useMutation({ mutationFn: startSubscriptionSignIn }),
     complete: useMutation({
       mutationFn: ({ state, redirectUrl }: { state: string; redirectUrl: string }) =>
@@ -84,6 +97,7 @@ export function useSubscriptionAccounts() {
     refresh: () => client.invalidateQueries({ queryKey: qk.subscriptionAccounts.mine(scope) }),
     scope,
     ready: !!tenant && !!user,
+    isCurrentScope: () => guard(tenant) && useAuthStore.getState().user?.id === user,
   };
 }
 

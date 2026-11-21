@@ -31,6 +31,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Choose a specific personal subscription account for a model, with account-bound routing, restored selection and provider-reported Codex/Claude quota windows when available.
+
 - The model picker lists subscriptions by familiar provider names, connects accounts inline and reads each account’s own model catalog. Organization API keys and advanced custom endpoints stay separate. Capabilities follow task-based groups with enabled and recommended entries first; installed agents are grouped under delegation.
 
 - Add isolated Cursor and Grok CLI API-key templates, native account controls for Cursor, Grok, Kimi, Devin and Vibe, and process-only model selection for Vibe, Kimi, Qwen and Devin. Account changes stop affected runtimes before replacing credentials; launch models must be acknowledged before inference.
@@ -94,6 +96,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Find unanswered web-chat questions in Inbox and return to their original question cards, including older conversations.
 
 ### Fixed
+
+- Show the entire chat model catalog, its source and count; make OpenRouter's region explicit and keep regional profiles separate when changing it.
 
 - Keep compressed subscription model responses decodable instead of failing with a UTF-8 error in chat.
 - Open the model picker on the active subscription and model, emphasize connected accounts, show all connection groups immediately and recognize model-family icons in subscription catalogs.

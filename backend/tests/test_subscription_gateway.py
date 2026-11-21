@@ -17,9 +17,11 @@ from unittest.mock import patch
 import httpx
 import pytest
 import yaml
+from pydantic import JsonValue
 
-from app.subscription_gateway import _instances
+from app.subscription_gateway import _instances, _server
 from app.subscription_gateway.__main__ import main
+from app.subscription_gateway._account_data import account_prefix
 from app.subscription_gateway._instances import GatewayError, Supervisor
 from app.subscription_gateway._server import create_app
 
@@ -161,6 +163,8 @@ async def test_sign_in_answers_carry_only_what_the_console_needs(supervisor: Sup
                     "provider": "antigravity",
                     "email": "me@example.com",
                     "status": "active",
+                    "model_prefix": account_prefix(ALICE, "antigravity-me.json"),
+                    "usage": {"status": "unavailable", "observed_at": None, "windows": []},
                 }
             ]
         }
@@ -349,3 +353,67 @@ async def test_account_models_are_read_from_the_scopes_management_api(
         assert malformed.status_code == 502
         bad = await client.get(f"/scopes/{ALICE}/accounts/bad!name/models")
         assert bad.status_code == 400
+
+
+async def test_a_chosen_account_gets_a_scope_bound_model_route(supervisor: Supervisor) -> None:
+    async with gateway(supervisor) as client:
+
+        async def select(scope: str, model: str = "claude-via-google") -> httpx.Response:
+            return await client.post(
+                f"/scopes/{scope}/accounts/antigravity-me.json/model-selection",
+                json={"model": model},
+            )
+
+        alice = await select(ALICE)
+        bob = await select(BOB)
+        assert alice.status_code == bob.status_code == 200
+        expected = account_prefix(ALICE, "antigravity-me.json") + "/claude-via-google"
+        assert alice.json() == {"model": expected}
+        assert bob.json() != alice.json()
+        assert (await select(ALICE)).json() == alice.json()
+        assert (await select(ALICE, "unlisted")).status_code == 400
+        streamed = await client.post(
+            f"/scopes/{ALICE}/v1/chat/completions", json={"model": expected}
+        )
+        assert expected in streamed.text
+        missing = await client.post(
+            f"/scopes/{ALICE}/accounts/missing.json/model-selection",
+            json={"model": "claude-via-google"},
+        )
+        assert missing.status_code == 404
+
+
+async def test_account_selection_refuses_unusable_or_unregistered_routes(
+    supervisor: Supervisor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mode = "disabled"
+
+    async def management(
+        _instance: _instances.Instance, _method: str, path: str, **_kwargs: object
+    ) -> JsonValue:
+        if path == "/credentials":
+            if mode == "malformed":
+                return {"files": "bad"}
+            return {"files": [{"name": "account.json", "disabled": mode == "disabled"}]}
+        if path == "/credentials/models":
+            return {"models": [{"id": "known"}]}
+        return {}
+
+    monkeypatch.setattr(_server, "_management", management)
+    async with gateway(supervisor) as client:
+
+        async def select() -> httpx.Response:
+            return await client.post(
+                f"/scopes/{ALICE}/accounts/account.json/model-selection", json={"model": "known"}
+            )
+
+        assert (await select()).status_code == 409
+        mode = "malformed"
+        assert (await select()).status_code == 502
+        mode = "not-registered"
+        assert (await select()).status_code == 503
+    with pytest.raises(GatewayError):
+        _server._public_account(ALICE, {"name": None})
+    assert _server._model_ids({"models": [None, {"id": 1}, {"id": "ok"}]}) == ["ok"]
+    with pytest.raises(GatewayError):
+        _server._model_ids([])

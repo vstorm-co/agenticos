@@ -40,6 +40,7 @@ import { useTranslations } from "next-intl";
 interface AddModelProps {
   /** The caller owns the provider choice; do not draw a second selector. Remount on change. */
   fixedProviderId?: string;
+  presentation?: "form" | "library";
   /** Keep an existing model’s connection details behind a readable summary. */
   collapseConnection?: boolean;
   purpose?: "chat" | "decision";
@@ -256,6 +257,7 @@ export function endpointProfileLabel(
 
 export function AddModel({
   fixedProviderId,
+  presentation = "form",
   onCreated,
   onCreationPendingChange,
   onCancel,
@@ -653,7 +655,13 @@ export function AddModel({
   const subscription = subscriptionFromChoice(providerId);
   if (subscription !== undefined || personal)
     return (
-      <div className="border-border bg-muted/20 space-y-4 rounded-xl border p-4">
+      <div
+        className={
+          presentation === "library"
+            ? "space-y-4"
+            : "border-border bg-muted/20 space-y-4 rounded-xl border p-4"
+        }
+      >
         {(fixedProviderId === undefined || fixedProviderId === "subscription_accounts") && (
           <FormField htmlFor={`${fieldId}-add-model-provider`} label={t("provider")}>
             <ModelSourceSelect

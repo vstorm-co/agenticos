@@ -23,6 +23,7 @@ from app.clients.subscription_gateway import (
     GatewayProvider,
     LoginStarted,
     LoginStatus,
+    SelectedAccountModel,
     SubscriptionGateway,
     configured_gateway,
 )
@@ -136,6 +137,12 @@ class SubscriptionAccountService:
     async def account_models(self, ctx: AuthContext, name: str) -> list[str]:
         """Models advertised by this account in the caller's own gateway scope."""
         return await _gateway().account_models(self._scope(ctx), name)
+
+    async def select_account_model(
+        self, ctx: AuthContext, name: str, model: str
+    ) -> SelectedAccountModel:
+        """Pin a model to an account owned by this caller; never select another person's account."""
+        return await _gateway().select_account_model(self._scope(ctx), name, model)
 
     async def start_login(self, ctx: AuthContext, provider: GatewayProvider) -> LoginStarted:
         started = await _gateway().start_login(self._scope(ctx), provider)

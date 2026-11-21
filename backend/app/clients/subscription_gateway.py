@@ -10,10 +10,11 @@ from a browser.
 from typing import Literal
 
 import httpx
-from pydantic import BaseModel, ConfigDict, JsonValue, TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, ValidationError
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, ExternalServiceError
+from app.subscription_gateway.contracts import AccountUsage
 
 type GatewayProvider = Literal[
     "claude", "codex", "antigravity", "kimi", "kimi-ai", "xai", "devin", "meta"
@@ -46,6 +47,8 @@ class GatewayAccount(_Answer):
     status: str | None = None
     disabled: bool = False
     unavailable: bool = False
+    model_prefix: str | None = None
+    usage: AccountUsage = Field(default_factory=AccountUsage)
 
 
 class _Accounts(_Answer):
@@ -58,6 +61,10 @@ class _Model(_Answer):
 
 class _Models(_Answer):
     data: list[_Model]
+
+
+class SelectedAccountModel(_Answer):
+    model: str
 
 
 class _AccountModels(_Answer):
@@ -154,6 +161,14 @@ class SubscriptionGateway:
             TypeAdapter(_AccountModels), "GET", f"/scopes/{scope}/accounts/{name}/models"
         )
         return [model.id for model in listed.items]
+
+    async def select_account_model(self, scope: str, name: str, model: str) -> SelectedAccountModel:
+        return await self._call(
+            TypeAdapter(SelectedAccountModel),
+            "POST",
+            f"/scopes/{scope}/accounts/{name}/model-selection",
+            body={"model": model},
+        )
 
     async def wipe(self, scope: str) -> None:
         await self._call(TypeAdapter(JsonValue), "DELETE", f"/scopes/{scope}")

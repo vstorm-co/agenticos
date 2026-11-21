@@ -1,43 +1,65 @@
 "use client";
 
-import { useId, useState, useRef, useLayoutEffect } from "react";
+import { useId, useState, useRef, useLayoutEffect, type ComponentType } from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Button, FormField } from "@/components/ui";
 import { CircleCheck } from "lucide-react";
+import {
+  Badge,
+  Button,
+  FormField,
+  Spinner,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui";
 import { ErrorState } from "@/components/states";
 import { ModelCombobox } from "./model-combobox";
+import { SubscriptionUsage } from "./subscription-usage";
 import { SubscriptionSignInDialog } from "@/components/settings/subscription-accounts";
+import { ProviderRow } from "@/components/vault/provider-row";
 import { useSubscriptionAccounts, useSubscriptionModels } from "@/hooks/use-subscription-accounts";
 import { useModelProviders } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
 import { runsAgents } from "@/lib/model-profiles";
-import { subscriptionBelongsTo, type SubscriptionProvider } from "@/lib/subscription-accounts-api";
+import {
+  SUBSCRIPTION_MARK,
+  subscriptionBelongsTo,
+  type SubscriptionProvider,
+  type SubscriptionAccount,
+} from "@/lib/subscription-accounts-api";
+import { subscriptionModelId } from "@/lib/subscription-model-id";
+import type { ChatModelPaneProps } from "@/components/chat/chat-model-library";
 import type { ModelProfile } from "@/types/providers";
 
-/** A subscription supplies models to AgenticOS; it does not enable a separate harness. */
+/** A selected account supplies models to AgenticOS, independently of coding harnesses. */
 export function SubscriptionModelForm({
   provider,
   initialModel = "",
   onCreated,
   disabled,
   onPendingChange,
+  libraryPane: LibraryPane,
 }: {
   provider: SubscriptionProvider;
   initialModel?: string;
   onCreated: (profile: ModelProfile) => void;
   disabled?: boolean;
   onPendingChange?: (pending: boolean) => void;
+  libraryPane?: ComponentType<ChatModelPaneProps>;
 }) {
   const t = useTranslations("modelSources");
+  const chatCopy = useTranslations("chat.modelPicker");
   const accountsCopy = useTranslations("subscriptionAccounts");
   const errors = useTranslations("errors");
   const agents = useTranslations("agents");
   const id = useId();
   const actions = useSubscriptionAccounts();
-  const listing = useSubscriptionModels(provider);
   const { createProfile, profiles } = useModelProviders();
   const [connecting, setConnecting] = useState(false);
-  const [model, setModel] = useState(initialModel);
+  const [pickedAccount, setPickedAccount] = useState<string | null>(null);
+  const [model, setModel] = useState(subscriptionModelId(initialModel));
   const [failure, setFailure] = useState<string | null>(null);
   const active = useRef(true);
   useLayoutEffect(() => {
@@ -49,80 +71,124 @@ export function SubscriptionModelForm({
   const own = (actions.accounts.data?.items ?? []).filter((account) =>
     subscriptionBelongsTo(account, provider),
   );
-  const connected = own.some((account) => !account.disabled && !account.unavailable);
-  const choose = async () => {
+  const available = own.filter((account) => !account.disabled && !account.unavailable);
+  const account =
+    available.find((entry) => entry.name === pickedAccount) ??
+    available.find(
+      (entry) => entry.model_prefix && initialModel.startsWith(entry.model_prefix + "/"),
+    ) ??
+    available[0];
+  const connected = account !== undefined;
+  const listing = useSubscriptionModels(provider, account?.name);
+  const pending = actions.selectModel.isPending || createProfile.isPending;
+  const identity = (entry: (typeof own)[number], index: number) =>
+    entry.email || entry.label || t("accountNumber", { number: index + 1 });
+
+  const choose = async (selectedAccount: SubscriptionAccount, selectedModel: string) => {
     onPendingChange?.(true);
     setFailure(null);
     try {
+      const selected = await actions.selectModel.mutateAsync({
+        name: selectedAccount.name,
+        model: selectedModel,
+      });
+      if (!active.current || !actions.isCurrentScope()) return;
       const existing = profiles.find(
         (entry) =>
-          entry.provider === "subscription_accounts" && entry.model === model && runsAgents(entry),
+          entry.provider === "subscription_accounts" &&
+          entry.model === selected.model &&
+          runsAgents(entry),
       );
       const profile =
         existing ??
         (await createProfile.mutateAsync({
           provider: "subscription_accounts",
-          model,
+          model: selected.model,
           secret_id: null,
-          label: `${accountsCopy(`providers.${provider}`)} · ${model}`,
+          label: `${accountsCopy(`providers.${provider}`)} · ${selected.model}`.slice(0, 128),
         }));
-      if (!active.current) return;
+      if (!active.current || !actions.isCurrentScope()) return;
       if (!runsAgents(profile)) {
         setFailure(agents("notAChatModel"));
         return;
       }
+      setModel(selectedModel);
       onCreated(profile);
     } catch (error) {
-      setFailure(getErrorMessage(error, errors));
+      if (active.current && actions.isCurrentScope()) setFailure(getErrorMessage(error, errors));
     } finally {
       onPendingChange?.(false);
     }
   };
-  return (
-    <div className="space-y-3" data-tour="model-subscription-connect">
-      <p className="text-muted-foreground text-xs">{t("subscriptionHint")}</p>
-      {actions.accounts.data?.enabled === false ? (
-        <p role="status" className="text-sm">
-          {t("unavailable")}
-        </p>
-      ) : (
-        <>
-          <div className="flex flex-wrap items-center gap-2">
-            <div role="status" className="flex flex-wrap items-center gap-2 text-xs">
-              {connected ? (
-                <>
-                  <Badge variant="success" className="gap-1.5">
-                    <CircleCheck aria-hidden className="size-3.5" />
-                    {t("connected")}
-                  </Badge>
-                  {own
-                    .filter(
-                      (account) =>
-                        !account.disabled &&
-                        !account.unavailable &&
-                        (account.email || account.label),
-                    )
-                    .map((account) => (
-                      <span key={account.name} className="text-muted-foreground">
-                        {account.email ?? account.label}
-                      </span>
-                    ))}
-                </>
-              ) : actions.accounts.isLoading ? (
-                t("loading")
-              ) : own.length ? (
-                t("reconnect")
-              ) : (
-                accountsCopy("notConnected")
-              )}
-            </div>
+  const accountSettings = (
+    <>
+      <div className="space-y-3">
+        {own.length > 1 && (
+          <FormField htmlFor={`${id}-account`} label={t("account")}>
+            <Select
+              value={account?.name ?? ""}
+              disabled={disabled || pending}
+              onValueChange={(next) => {
+                setPickedAccount(next);
+                setModel("");
+                setFailure(null);
+              }}
+            >
+              <SelectTrigger id={`${id}-account`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {own.map((entry, index) => (
+                  <SelectItem
+                    key={entry.name}
+                    value={entry.name}
+                    disabled={entry.disabled || entry.unavailable}
+                    textValue={identity(entry, index)}
+                  >
+                    <ProviderRow
+                      provider={SUBSCRIPTION_MARK[provider]}
+                      name={identity(entry, index)}
+                    />
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <div role="status" className="flex flex-wrap items-center gap-2 text-xs">
+            {actions.accounts.data?.enabled === false ? (
+              t("unavailable")
+            ) : connected ? (
+              <>
+                <Badge variant="success" className="gap-1.5">
+                  <CircleCheck aria-hidden className="size-3.5" />
+                  {t("connected")}
+                </Badge>
+                {own.length === 1 && (
+                  <span className="text-muted-foreground">{identity(account, 0)}</span>
+                )}
+              </>
+            ) : actions.accounts.isLoading ? (
+              t("loading")
+            ) : own.length ? (
+              t("reconnect")
+            ) : (
+              accountsCopy("notConnected")
+            )}
+          </div>
+          {actions.accounts.data?.enabled !== false && (
             <Button
               type="button"
               size="sm"
               variant={connected ? "link" : "outline"}
               className={connected ? "h-auto p-0 text-xs" : undefined}
               disabled={
-                disabled || !actions.ready || actions.accounts.isLoading || !!actions.accounts.error
+                disabled ||
+                pending ||
+                !actions.ready ||
+                actions.accounts.isLoading ||
+                !!actions.accounts.error
               }
               onClick={() => setConnecting(true)}
             >
@@ -132,63 +198,11 @@ export function SubscriptionModelForm({
                   ? t("reconnect")
                   : accountsCopy("connect")}
             </Button>
-          </div>
-          {listing.error ? (
-            <ErrorState
-              title={t("loadFailed")}
-              cta={{ label: accountsCopy("retry"), onClick: () => void listing.refetch() }}
-            />
-          ) : (
-            connected && (
-              <>
-                {!listing.loading && listing.models.length === 0 && (
-                  <div role="status" className="space-y-2 text-xs">
-                    <p>{t("noModels")}</p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void listing.refetch()}
-                    >
-                      {accountsCopy("retry")}
-                    </Button>
-                  </div>
-                )}
-                <FormField htmlFor={id} label={t("model")}>
-                  <ModelCombobox
-                    id={id}
-                    provider="subscription_accounts"
-                    value={model}
-                    onChange={setModel}
-                    options={listing.models}
-                    source="live"
-                    loading={listing.loading}
-                    disabled={disabled || listing.loading}
-                    placeholder={t("chooseModel")}
-                  />
-                </FormField>
-                <Button
-                  type="button"
-                  disabled={
-                    disabled ||
-                    createProfile.isPending ||
-                    listing.loading ||
-                    !listing.models.some((entry) => entry.id === model)
-                  }
-                  onClick={() => void choose()}
-                >
-                  {t("useModel")}
-                </Button>
-              </>
-            )
           )}
-        </>
-      )}
-      {failure && (
-        <p role="alert" className="text-destructive text-xs">
-          {failure}
-        </p>
-      )}
+        </div>
+        {connected && <SubscriptionUsage usage={account.usage} />}
+        <p className="text-muted-foreground text-xs">{t("subscriptionHint")}</p>
+      </div>
       {connecting && (
         <SubscriptionSignInDialog
           key={actions.scope}
@@ -197,6 +211,100 @@ export function SubscriptionModelForm({
           onClose={() => setConnecting(false)}
         />
       )}
+    </>
+  );
+  if (LibraryPane) {
+    const accountProfiles = profiles.filter(
+      (entry) =>
+        entry.provider === "subscription_accounts" &&
+        account &&
+        (account.model_prefix
+          ? entry.model.startsWith(account.model_prefix + "/")
+          : entry.label.startsWith(accountsCopy(`providers.${provider}`) + " · ")),
+    );
+    const paneProps: ChatModelPaneProps = {
+      providerId: "subscription_accounts",
+      model,
+      profileId: accountProfiles.find((entry) => subscriptionModelId(entry.model) === model)?.id,
+      models: listing.models,
+      profiles: accountProfiles,
+      catalogProfiles: [],
+      loading: actions.accounts.isLoading || listing.loading,
+      catalogSource: "live",
+      catalogError: !!listing.error || !!actions.accounts.error,
+      allowCustom: false,
+      onRefresh: () => void listing.refetch(),
+      credentialTabLabel: t("account"),
+      connectionLabel: account ? identity(account, own.indexOf(account)) : undefined,
+      needsCredential: !connected && !actions.accounts.isLoading,
+      credentialPicker: connected ? accountSettings : null,
+      credentialForm: connected ? null : accountSettings,
+      applying: pending,
+      disabled: !!disabled || !!listing.error || !connected,
+      onModelChange: (next) => {
+        if (account) void choose(account, next);
+      },
+      onProfileChange: (profile) => {
+        if (account) void choose(account, subscriptionModelId(profile.model));
+      },
+      failure: failure ? (
+        <p role="alert" className="text-destructive text-xs">
+          {failure}
+        </p>
+      ) : null,
+    };
+    return <LibraryPane {...paneProps} />;
+  }
+  return (
+    <div className="space-y-4" data-tour="model-subscription-connect">
+      <FormField htmlFor={id} label={t("model")}>
+        <ModelCombobox
+          id={id}
+          provider="subscription_accounts"
+          value={model}
+          allowCustom={false}
+          onChange={(next) => {
+            if (account) void choose(account, next);
+          }}
+          options={listing.models}
+          source="live"
+          loading={listing.loading}
+          disabled={
+            disabled ||
+            pending ||
+            listing.loading ||
+            !connected ||
+            !!listing.error ||
+            listing.models.length === 0
+          }
+          placeholder={t("chooseModel")}
+        />
+      </FormField>
+      {listing.error ? (
+        <ErrorState
+          title={t("loadFailed")}
+          cta={{ label: accountsCopy("retry"), onClick: () => void listing.refetch() }}
+        />
+      ) : connected && !listing.loading && listing.models.length === 0 ? (
+        <div role="status" className="space-y-2 text-xs">
+          <p>{t("noModels")}</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => void listing.refetch()}>
+            {accountsCopy("retry")}
+          </Button>
+        </div>
+      ) : null}
+      {pending && (
+        <p role="status" className="text-muted-foreground flex items-center gap-2 text-xs">
+          <Spinner className="size-3.5" />
+          {chatCopy("applyingModel")}
+        </p>
+      )}
+      {failure && (
+        <p role="alert" className="text-destructive text-xs">
+          {failure}
+        </p>
+      )}
+      <div className="border-border border-t pt-3">{accountSettings}</div>
     </div>
   );
 }

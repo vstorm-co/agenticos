@@ -20,6 +20,8 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field, JsonValue
 from starlette.background import BackgroundTask
 
+from app.subscription_gateway._account_data import account_prefix, account_usage
+
 from ._instances import GatewayError, Instance, Supervisor
 
 PROVIDERS = frozenset({"claude", "codex", "antigravity", "kimi", "kimi-ai", "xai", "devin", "meta"})
@@ -43,6 +45,10 @@ _ACCOUNT_FIELDS = ("name", "provider", "label", "email", "status", "disabled", "
 
 class LoginStart(BaseModel):
     provider: str
+
+
+class AccountModelSelection(BaseModel):
+    model: str = Field(min_length=1, max_length=222, pattern=r"^[^\s]+$")
 
 
 class LoginCallback(BaseModel):
@@ -81,6 +87,42 @@ async def _management(
         return response.json()
     except ValueError:
         return None
+
+
+async def _account(instance: Instance, name: str) -> dict[str, JsonValue]:
+    listed = await _management(instance, "GET", "/credentials")
+    files = listed.get("files") if isinstance(listed, dict) else None
+    if not isinstance(files, list):
+        raise GatewayError("The account service did not list accounts", status=502)
+    for row in files:
+        if isinstance(row, dict) and row.get("name") == name:
+            if row.get("disabled") or row.get("unavailable"):
+                raise GatewayError("Reconnect this account before selecting a model", status=409)
+            return row
+    raise GatewayError("This account is not connected", status=404)
+
+
+def _public_account(scope: str, row: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    name = row.get("name")
+    provider = row.get("provider")
+    if not isinstance(name, str) or not isinstance(provider, str):
+        raise GatewayError("The account service sent an invalid account", status=502)
+    return {
+        **{key: row[key] for key in _ACCOUNT_FIELDS if key in row},
+        "model_prefix": account_prefix(scope, name),
+        "usage": account_usage(provider, row.get("quota")).model_dump(mode="json"),
+    }
+
+
+def _model_ids(listed: JsonValue) -> list[str]:
+    models = listed.get("models") if isinstance(listed, dict) else None
+    if not isinstance(models, list):
+        raise GatewayError("The account service did not list models", status=502)
+    ids: list[str] = []
+    for row in models:
+        if isinstance(row, dict) and isinstance(model_id := row.get("id"), str):
+            ids.append(model_id)
+    return ids
 
 
 def create_app(supervisor: Supervisor, token: str, *, reap_seconds: float = 60) -> FastAPI:
@@ -208,13 +250,7 @@ def create_app(supervisor: Supervisor, token: str, *, reap_seconds: float = 60) 
             listed = await _management(instance, "GET", "/credentials")
         files = listed.get("files") if isinstance(listed, dict) else None
         rows = files if isinstance(files, list) else []
-        return {
-            "items": [
-                {key: row[key] for key in _ACCOUNT_FIELDS if key in row}
-                for row in rows
-                if isinstance(row, dict)
-            ]
-        }
+        return {"items": [_public_account(scope, row) for row in rows if isinstance(row, dict)]}
 
     @app.delete("/scopes/{scope}/accounts/{name}", dependencies=guarded)
     async def remove_account(scope: str, name: str) -> JsonValue:
@@ -233,6 +269,32 @@ def create_app(supervisor: Supervisor, token: str, *, reap_seconds: float = 60) 
         if not isinstance(listed, dict) or not isinstance(listed.get("models"), list):
             raise GatewayError("The account service did not list models", status=502)
         return {"items": listed["models"]}
+
+    @app.post("/scopes/{scope}/accounts/{name}/model-selection", dependencies=guarded)
+    async def select_account_model(scope: str, name: str, body: AccountModelSelection) -> JsonValue:
+        _checked(_ACCOUNT, name, "account")
+        prefix = account_prefix(scope, name)
+        async with supervisor.use(scope) as instance:
+            await _account(instance, name)
+            listed = await _management(
+                instance, "GET", "/credentials/models", params={"name": name}
+            )
+            if body.model not in {model.removeprefix(prefix + "/") for model in _model_ids(listed)}:
+                raise GatewayError("This model is not advertised by the selected account")
+            # CLIProxyAPI routes a prefixed model only to that credential. Unlike
+            # toggling enabled accounts, this cannot redirect another conversation.
+            await _management(
+                instance, "PATCH", "/credentials/fields", json={"name": name, "prefix": prefix}
+            )
+            pinned = f"{prefix}/{body.model}"
+            refreshed = await _management(
+                instance, "GET", "/credentials/models", params={"name": name}
+            )
+            if pinned not in _model_ids(refreshed):
+                raise GatewayError(
+                    "The selected account's model route is not ready; retry shortly", status=503
+                )
+        return {"model": pinned}
 
     @app.delete("/scopes/{scope}", dependencies=guarded)
     async def wipe(scope: str) -> JsonValue:

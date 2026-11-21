@@ -136,3 +136,12 @@ describe("the model combobox", () => {
     expect(onChange).toHaveBeenCalledWith("anthropic/claude-opus-5");
   });
 });
+
+it("does not offer unsupported custom IDs when only listed account models are allowed", async () => {
+  const { onChange } = mount({ allowCustom: false });
+  await userEvent.click(screen.getByRole("combobox"));
+  await userEvent.type(screen.getByPlaceholderText("Search models…"), "unknown-model");
+  expect(screen.getByText("No matching models.")).toBeInTheDocument();
+  expect(screen.queryByText("not in the list")).not.toBeInTheDocument();
+  expect(onChange).not.toHaveBeenCalled();
+});

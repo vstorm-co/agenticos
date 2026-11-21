@@ -5,13 +5,22 @@ import { ChevronDown } from "lucide-react";
 
 import {
   AddModel,
+  endpointProfileLabel,
   modelIdIsWellFormed,
   modelPlaceholder,
   placeholderWords,
 } from "@/components/agents/add-model";
 import { ModelSourceSelect, modelSourceOptions } from "@/components/agents/model-source-select";
-import { subscriptionFromChoice } from "@/lib/subscription-accounts-api";
-import { ChatModelLibrary } from "./chat-model-library";
+import {
+  SUBSCRIPTION_PROVIDERS,
+  subscriptionBelongsTo,
+  subscriptionChoice,
+  subscriptionFromChoice,
+} from "@/lib/subscription-accounts-api";
+import { subscriptionModelId } from "@/lib/subscription-model-id";
+import { useSubscriptionAccounts } from "@/hooks/use-subscription-accounts";
+import { SubscriptionModelForm } from "@/components/agents/subscription-model-form";
+import { ChatModelPane, ChatModelLibrary } from "./chat-model-library";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { getErrorMessage } from "@/lib/api-error";
 import { ModelIcon } from "@/components/icons/model-icon";
@@ -116,8 +125,20 @@ export function ChatModelPicker({
     model: string;
   } | null>(null);
   const edited = draft?.source === sourceKey ? draft : null;
-  const currentSource =
-    current?.provider === "subscription_accounts"
+  const personalAccounts = useSubscriptionAccounts({
+    enabled:
+      current?.provider === "subscription_accounts" ||
+      catalog.some((entry) => entry.personal_gateway),
+  });
+  const currentAccount = personalAccounts.accounts.data?.items.find(
+    (account) => account.model_prefix && current?.model.startsWith(account.model_prefix + "/"),
+  );
+  const currentSubscription =
+    currentAccount &&
+    SUBSCRIPTION_PROVIDERS.find((provider) => subscriptionBelongsTo(currentAccount, provider));
+  const currentSource = currentSubscription
+    ? subscriptionChoice(currentSubscription)
+    : current?.provider === "subscription_accounts"
       ? (modelSourceOptions([], true, tRoot).find((entry) =>
           current.label.startsWith(`${entry.label} · `),
         )?.id ?? current.provider)
@@ -141,7 +162,23 @@ export function ChatModelPicker({
     providerKeys[0];
   const matchesKey = (profile: ModelProfile) =>
     !effectiveKey || profile.secret_id === effectiveKey.id;
-  const endpoint = inheritedProfile?.base_url ?? null;
+  const [pickedEndpoint, setPickedEndpoint] = useState<{
+    source: string;
+    value: string | null;
+  } | null>(null);
+  const endpoint =
+    providerId === "openrouter" && pickedEndpoint?.source === sourceKey
+      ? pickedEndpoint.value
+      : (inheritedProfile?.base_url ?? null);
+  const globalEndpoint = "https://openrouter.ai/api/v1";
+  const euEndpoint = "https://eu.openrouter.ai/api/v1";
+  const endpointIdentity = (value: string | null | undefined) =>
+    value?.replace(/\/+$/, "") || globalEndpoint;
+  const matchesEndpoint = (profile: Pick<ModelProfile, "base_url">) =>
+    providerId === "openrouter" && pickedEndpoint?.source === sourceKey
+      ? endpointIdentity(profile.base_url) === endpointIdentity(endpoint)
+      : !endpoint || profile.base_url?.replace(/\/+$/, "") === endpoint.replace(/\/+$/, "");
+  const currentEndpointMatches = currentProfile ? matchesEndpoint(currentProfile) : !endpoint;
   const providers = purposes.filter((entry) => entry.category === "model_provider");
   const provider = providers.find((entry) => entry.id === providerId);
   const requiresEndpoint = catalog.some(
@@ -154,6 +191,7 @@ export function ChatModelPicker({
     isLoading: loadingModels,
     hasCachedListing,
     refetch: refetchModels,
+    error: catalogError,
   } = useProviderModels(
     subscription ? "" : providerId,
     providerId === "openrouter" ? (endpoint ?? undefined) : undefined,
@@ -167,7 +205,7 @@ export function ChatModelPicker({
       profile.provider === providerId &&
       profile.model === model.trim() &&
       (providerId !== "openai_chatgpt" || profile.secret_id === effectiveKey?.id) &&
-      (!endpoint || profile.base_url?.replace(/\/+$/, "") === endpoint.replace(/\/+$/, "")),
+      matchesEndpoint(profile),
   );
   const hasCustomEndpoint = matching.some(
     (profile) => matchesKey(profile) && !!profile.base_url && usableForAgents(profile),
@@ -198,9 +236,7 @@ export function ChatModelPicker({
     if (!modelIdIsWellFormed(provider.id, modelId)) return;
     const matching = profiles.filter(
       (profile) =>
-        profile.provider === providerId &&
-        profile.model === modelId &&
-        (!endpoint || profile.base_url?.replace(/\/+$/, "") === endpoint.replace(/\/+$/, "")),
+        profile.provider === providerId && profile.model === modelId && matchesEndpoint(profile),
     );
     if (
       loadingModels &&
@@ -213,6 +249,7 @@ export function ChatModelPicker({
     if (
       current?.provider === provider.id &&
       current.model === modelId &&
+      currentEndpointMatches &&
       (!currentProfile || matchesKey(currentProfile)) &&
       (currentProfile === undefined || usableForAgents(currentProfile))
     ) {
@@ -259,11 +296,19 @@ export function ChatModelPicker({
     }
 
     try {
+      const baseLabel =
+        providerKeys.length > 1
+          ? `${`${provider.label} · ${modelId}`.slice(0, 108)} · ${key.id.slice(0, 8)}`
+          : `${provider.label} · ${modelId}`;
       const profile = await createProfile.mutateAsync({
-        label:
-          providerKeys.length > 1
-            ? `${`${provider.label} · ${modelId}`.slice(0, 108)} · ${key.id.slice(0, 8)}`
-            : `${provider.label} · ${modelId}`,
+        label: profiles.some((profile) => profile.label === baseLabel)
+          ? endpointProfileLabel(
+              baseLabel,
+              endpoint ?? "",
+              profiles.map((profile) => profile.label),
+              globalEndpoint,
+            )
+          : baseLabel,
         provider: provider.id,
         model: modelId,
         secret_id: key.id,
@@ -322,6 +367,62 @@ export function ChatModelPicker({
     t("changeModel")
   );
 
+  const catalogConnection =
+    providerId === "openrouter" ? (
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor={`${panelId}-catalog-region`}>{t("catalogRegion")}</Label>
+          <Select
+            value={endpointIdentity(endpoint)}
+            onValueChange={(next) => {
+              setPickedEndpoint({
+                source: sourceKey,
+                value: next === globalEndpoint ? null : next,
+              });
+              setFailure(null);
+            }}
+          >
+            <SelectTrigger id={`${panelId}-catalog-region`} className="h-8 w-auto min-w-32 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={globalEndpoint}>{t("catalogGlobal")}</SelectItem>
+              <SelectItem value={euEndpoint}>{t("catalogEu")}</SelectItem>
+              {![globalEndpoint, euEndpoint].includes(endpointIdentity(endpoint)) && (
+                <SelectItem value={endpointIdentity(endpoint)}>{t("catalogCustom")}</SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-muted-foreground text-xs">{t("catalogRegionHint")}</p>
+      </div>
+    ) : undefined;
+
+  const sourceProfiles = profiles.filter((profile) => {
+    const provider = subscription ? "subscription_accounts" : providerId;
+    if (
+      profile.provider !== provider ||
+      !usableForAgents(profile) ||
+      (!requiresEndpoint && !matchesKey(profile))
+    )
+      return false;
+    if (profile.provider !== "subscription_accounts") return true;
+    if (subscriptionModelId(profile.model) !== profile.model) {
+      return (personalAccounts.accounts.data?.items ?? []).some(
+        (account) =>
+          account.model_prefix &&
+          profile.model.startsWith(account.model_prefix + "/") &&
+          !account.disabled &&
+          !account.unavailable &&
+          (!subscription || subscriptionBelongsTo(account, subscription)),
+      );
+    }
+    return (
+      !subscription ||
+      profile.label.startsWith(tRoot(`subscriptionAccounts.providers.${subscription}`) + " · ")
+    );
+  });
+
   const connectionUnavailable =
     loadingProfiles ||
     profilesStatus === "failed" ||
@@ -353,6 +454,7 @@ export function ChatModelPicker({
         <AddModel
           key={providerId}
           fixedProviderId={providerId}
+          presentation={presentation}
           selected={personalSource && currentSource === providerId ? currentProfile : undefined}
           purpose="chat"
           onCreated={(profile) => onChange(profile.id)}
@@ -363,6 +465,18 @@ export function ChatModelPicker({
   if (presentation === "library" && can(Perm.connectionsManage))
     return (
       <ChatModelLibrary
+        pane={
+          subscription ? (
+            <SubscriptionModelForm
+              key={providerId}
+              provider={subscription}
+              initialModel={currentSource === providerId ? current?.model : undefined}
+              disabled={connectionUnavailable}
+              onCreated={(profile) => onChange(profile.id)}
+              libraryPane={ChatModelPane}
+            />
+          ) : undefined
+        }
         providers={modelSourceOptions(
           providers,
           catalog.some((entry) => entry.personal_gateway),
@@ -371,7 +485,17 @@ export function ChatModelPicker({
           ...entry,
           connected:
             entry.group === "subscriptions"
-              ? null
+              ? personalAccounts.accounts.data
+                ? personalAccounts.accounts.data.items.some((account) => {
+                    const provider = subscriptionFromChoice(entry.id);
+                    return (
+                      provider !== undefined &&
+                      subscriptionBelongsTo(account, provider) &&
+                      !account.disabled &&
+                      !account.unavailable
+                    );
+                  })
+                : null
               : secretReadError || loadingSecrets
                 ? null
                 : secrets.some((secret) => secret.purpose === entry.id) ||
@@ -380,6 +504,14 @@ export function ChatModelPicker({
                   ),
         }))}
         providerId={providerId}
+        catalogConnection={catalogConnection}
+        catalogSource={source}
+        catalogError={!!catalogError}
+        onRefresh={
+          providerId && !personalSource && !requiresEndpoint
+            ? () => void refetchModels()
+            : undefined
+        }
         loadingProviders={loadingPurposes}
         configurationForm={endpointForm}
         needsCredential={
@@ -408,19 +540,23 @@ export function ChatModelPicker({
           )
         }
         model={
-          current?.provider === providerId && (!currentProfile || matchesKey(currentProfile))
+          current?.provider === providerId &&
+          currentEndpointMatches &&
+          (!currentProfile || matchesKey(currentProfile))
             ? current.model
             : ""
         }
         profileId={
-          currentProfile?.provider === providerId && matchesKey(currentProfile)
+          currentProfile &&
+          currentSource === providerId &&
+          currentEndpointMatches &&
+          matchesKey(currentProfile)
             ? currentProfile.id
             : undefined
         }
         models={suggestions}
-        profiles={profiles.filter(
-          (profile) => usableForAgents(profile) && (requiresEndpoint || matchesKey(profile)),
-        )}
+        profiles={sourceProfiles}
+        catalogProfiles={sourceProfiles.filter(matchesEndpoint)}
         loading={(loadingModels && !hasCachedListing) || loadingProfiles}
         catalogRefreshing={loadingModels}
         applying={createProfile.isPending}
@@ -543,6 +679,7 @@ export function ChatModelPicker({
                 endpointForm
               ) : (
                 <>
+                  {catalogConnection}
                   <div className="space-y-1.5">
                     <Label htmlFor="chat-model-id">{t("model")}</Label>
                     {/* The Builder's own picker: the provider's catalog, searchable, and

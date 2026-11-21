@@ -1,5 +1,5 @@
 ---
-source_sha: "b4b4c51a04c2"
+source_sha: "41145ddb3eda"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -433,6 +433,12 @@ Przed wczytaniem modeli wybierz klucz z sejfu i potwierdź adres docelowy. Włas
 ### Konta subskrypcyjne { #subscription-accounts }
 
 W edytorze agenta i selektorze modeli czatu zacznij od **Twoje subskrypcje**, wybierz rozpoznawalnego dostawcę, np. **Claude Code (Pro, Max)** lub **ChatGPT (Codex)**, i kliknij **Połącz**. Logowanie otwiera się w tym miejscu i wraca do selektora; lista modeli pochodzi z połączonych kont wybranego dostawcy, bez zgadywania na podstawie nazw modeli. Niedostępne konta oferują ponowne logowanie. Kontami nadal możesz zarządzać i rozłączać je w profilu. Klucze API organizacji mają osobną grupę; ręcznie konfigurowane gatewaye i endpointy znajdziesz w **Zaawansowane / własny endpoint**. Dotychczasowe profile `subscription_accounts` i `cliproxyapi` zachowują swoje identyfikatory API.
+
+Katalog czatu pokazuje wszystkie pozycje obsługujące czat, zamiast bez informacji kończyć listę na 100 modelach. Selektor pokazuje liczbę opcji, źródło katalogu lub ograniczoną listę zastępczą i pozwala odświeżyć dane. OpenRouter pokazuje bieżący region katalogu; jego zmiana jest jawna, a nowy zapisany model zachowuje ten region. Zapisane modele zachowują własne ustawienia połączenia.
+
+Przy kilku podłączonych kontach osobistych otwórz zakładkę **Konto** i wybierz konto, tak jak zapisany klucz API. Modele subskrypcyjne korzystają z tej samej przeszukiwalnej listy co dostawcy API; kliknięcie modelu od razu go wybiera. Zatwierdzenie modelu przypisuje go do tego konta przez niejawny identyfikator trasy; nie przełącza automatycznie na inne konto. Profil przypisany do konta wymaga, aby osoba uruchamiająca miała to konto podłączone. Selektor po ponownym otwarciu odtwarza konto i model, a identyfikatorów tras nie pokazuje w nazwach modeli.
+
+**Zużycie i limity** pokazuje przekazane przez Codex i Claude okna limitów, gdy są dostępne: pozostały procent, czas odnowienia i datę odczytu. To obserwacje z odpowiedzi dostawcy, a nie bieżące sprawdzenie rozliczeń. Dane starsze niż pięć minut lub po odnowieniu są oznaczone jako nieaktualne; brak danych oznacza niedostępne informacje, nigdy niewykorzystany limit. Inni dostawcy mogą nie podawać zgodnych informacji o limitach.
 
 Wszystkie grupy połączeń są od razu widoczne. Podłączone subskrypcje pokazują plakietkę stanu i dane konta; dodanie kolejnego konta jest akcją drugorzędną. Ponowne otwarcie selektora odtwarza źródło subskrypcji i model z zapisanego profilu subskrypcji.
 

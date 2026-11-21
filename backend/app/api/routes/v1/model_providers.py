@@ -411,8 +411,9 @@ async def list_provider_models(
     base_url: str | None = None,
     secret_id: UUID | None = None,
     api: ModelApi | None = None,
+    refresh: bool = False,
 ) -> Any:
-    """List suggestions; custom authenticated endpoints require a visible selected key."""
+    """List models; `refresh` bypasses this API replica's cache, preserving key and endpoint checks."""
     if provider == "subscription_accounts":
         # The caller's own signed-in accounts decide what the gateway serves;
         # somebody who signed in to none sees nothing to pick from.
@@ -488,7 +489,11 @@ async def list_provider_models(
         else None
     )
     models, source = await models_for(
-        provider, api_key=api_key, base_url=base_url, **({"api": api} if api is not None else {})
+        provider,
+        api_key=api_key,
+        base_url=base_url,
+        api=api,
+        refresh=refresh,
     )
     return ProviderModelList(
         items=[

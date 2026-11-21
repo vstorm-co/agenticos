@@ -695,3 +695,25 @@ it("lists official ChatGPT models only for an explicitly selected grant and sepa
     "/providers/openai_chatgpt/models?secret_id=key-b",
   );
 });
+
+it("bypasses the backend catalog cache only on explicit refresh and exposes refresh failures", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({
+    items: [{ id: "vendor/chat", name: "Chat" }],
+    total: 1,
+    source: "live",
+  });
+  const { result } = renderHook(() => useProviderModels("openrouter"), { wrapper });
+  await waitFor(() => expect(result.current.models).toHaveLength(1));
+  expect(apiClient.get).toHaveBeenLastCalledWith("/providers/openrouter/models");
+  await act(async () => {
+    await result.current.refetch();
+  });
+  expect(apiClient.get).toHaveBeenLastCalledWith("/providers/openrouter/models?refresh=true");
+  vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("catalog offline"));
+  await act(async () => {
+    const refreshed = await result.current.refetch();
+    expect(refreshed.isError).toBe(true);
+  });
+  expect(result.current.error).toBeInstanceOf(Error);
+  expect(result.current.models).toHaveLength(1);
+});

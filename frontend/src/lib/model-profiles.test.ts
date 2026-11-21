@@ -145,3 +145,19 @@ describe("modelInUse", () => {
     expect(modelInUse(new Error("network"))).toBeNull();
   });
 });
+
+it("keeps opaque subscription account routes out of the displayed model name", () => {
+  const model = "account-" + "a".repeat(24) + "/openai/gpt-test";
+  expect(
+    modelName({ provider: "subscription_accounts", model, label: `ChatGPT (Codex) · ${model}` }),
+  ).toBe("gpt-test");
+  expect(
+    modelName(
+      { provider: "subscription_accounts", model, label: `ChatGPT (Codex) · ${model}` },
+      "GPT Test",
+    ),
+  ).toBe("GPT Test");
+  expect(modelName({ provider: "subscription_accounts", model, label: "My account model" })).toBe(
+    "My account model",
+  );
+});
