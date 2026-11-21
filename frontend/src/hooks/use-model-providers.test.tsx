@@ -714,6 +714,6 @@ it("bypasses the backend catalog cache only on explicit refresh and exposes refr
     const refreshed = await result.current.refetch();
     expect(refreshed.isError).toBe(true);
   });
-  expect(result.current.error).toBeInstanceOf(Error);
+  await waitFor(() => expect(result.current.error).toBeInstanceOf(Error));
   expect(result.current.models).toHaveLength(1);
 });
