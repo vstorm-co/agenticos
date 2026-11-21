@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- Defer heavy CI on draft PRs until Ready for review, distribute backend tests
+  across four isolated jobs with the unchanged merged 100% coverage gate, and
+  adopt separate PRs with one manual daily release train and urgent hotfixes.
+
 ## [1.87.0] - 2026-11-20
 
 ### Added
