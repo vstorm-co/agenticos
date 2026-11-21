@@ -116,7 +116,11 @@ export function AgentCard({
     <div className="h-full">
       <ResourceCard className={cn(busy && "pointer-events-none opacity-50")}>
         <Link
-          href={ROUTES.AGENT_DETAIL(agent.id)}
+          href={
+            attention && !isSystemAgent(agent.kind)
+              ? `${ROUTES.AGENT_DETAIL(agent.id)}?tab=evals`
+              : ROUTES.AGENT_DETAIL(agent.id)
+          }
           className="focus-visible:ring-ring absolute inset-0 rounded-xl outline-none focus-visible:ring-2"
           aria-label={tc("openNamed", { name: agent.name })}
         />
@@ -144,7 +148,7 @@ export function AgentCard({
         <ResourceCardDescription className="pointer-events-none">
           {agent.description || t("noDescription")}
         </ResourceCardDescription>
-        <ResourceCardFooter className="pointer-events-none">
+        <ResourceCardFooter className="pointer-events-none min-h-12">
           <AgentStatusBadge status={agent.status} compact />
           {attention && <AttentionBadge attention={attention} />}
           {isSystemAgent(agent.kind) &&
@@ -162,7 +166,7 @@ export function AgentCard({
           {footer !== undefined && <div className="w-full text-xs">{footer}</div>}
         </ResourceCardFooter>
 
-        <div className="relative mt-auto flex items-start justify-between gap-2 pt-3">
+        <div className="relative flex items-start justify-between gap-2 pt-3">
           <span
             className="text-muted-foreground pointer-events-none py-2 text-xs"
             title={`@${agent.slug}`}

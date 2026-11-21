@@ -649,7 +649,8 @@
     -webkit-line-clamp: 1;
   }
   .chat-layout .chat-home-column .chat-home-inbox {
-    min-block-size: 140px;
+    /* Two 44px topics with 16px row padding, plus the 36px Inbox link. */
+    min-block-size: 9.75rem;
     margin-block-end: 8px;
   }
 }

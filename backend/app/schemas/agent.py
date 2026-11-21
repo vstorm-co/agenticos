@@ -502,6 +502,18 @@ class AgentDraftUpdate(BaseSchema):
     )
 
 
+class AgentDraftDiscard(BaseSchema):
+    """Discard against both the draft and publication the editor confirmed."""
+
+    expected_revision: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="Revision of the draft being discarded; a stale revision returns 409.",
+    )
+    expected_version_id: UUID = Field(
+        description="Latest published version shown at confirmation; a newer publication returns 409."
+    )
+
+
 class AgentAvatarColorRequest(BaseSchema):
     """The chosen default-avatar colour for an agent, or null to reset to auto.
 

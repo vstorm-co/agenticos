@@ -2450,6 +2450,12 @@
         "published": "Opublikowana wersja"
       },
       "draftChanged": "Ta wersja robocza zmieniła się w innym miejscu. Twoje wpisy nadal tu są, ale zapis został wstrzymany. Skopiuj to, co chcesz zachować, a potem wczytaj najnowszą wersję roboczą.",
+      "discardDraft": "Odrzuć wersję roboczą",
+      "discardDraftHint": "Cofnij nieopublikowane zmiany bez publikowania.",
+      "discardDraftTitle": "Odrzucić nieopublikowane zmiany?",
+      "discardDraftBody": "Wersja robocza zostanie przywrócona do wersji {version}. Nieopublikowane zmiany zostaną utracone. Nie powstanie nowa opublikowana wersja, a działająca wersja się nie zmieni.",
+      "draftDiscarded": "Przywrócono wersję roboczą do ostatniej opublikowanej wersji.",
+      "discardVersionChanged": "Opublikowano nowszą wersję. Sprawdź ją, zanim odrzucisz wersję roboczą.",
       "reloadDraft": "Wczytaj najnowszą wersję roboczą",
       "voiceUnreportedTokenUsage": "Ten provider nie raportuje kosztów tokenów. Rozmowy nie mogą startować z limitem wydatków; zapisany koszt audio jest dolną granicą.",
       "agentAposSBehaviour": "Zachowanie agenta mieszka tutaj, a nie w kodzie. Bądź konkretny: co ma robić, czego odmawiać i jak cytować. Markdown, a model czyta strukturę - nagłówki i listy sprawiają, że długi prompt da się śledzić, dlatego podgląd pokazuje je wyrenderowane.",
@@ -5847,6 +5853,7 @@
       "nothingWaiting": "Nic nie czeka na Ciebie.",
       "waitingOn": "Czeka na Ciebie: <b>{items}</b>.",
       "waiting": {
+        "questions": "{count, plural, one {# pytanie} few {# pytania} other {# pytań}}",
         "approvals": "{count, plural, one {1 wywołanie} few {# wywołania} many {# wywołań} other {# wywołania}}",
         "review": "{count, plural, one {1 odpowiedź do przeglądu} few {# odpowiedzi do przeglądu} many {# odpowiedzi do przeglądu} other {# odpowiedzi do przeglądu}}",
         "suites": "{count, plural, one {1 oblana suita} few {# oblane suity} many {# oblanych suit} other {# oblanej suity}}",
@@ -7499,6 +7506,10 @@
         "title": "Pierwsze wiadomości",
         "body": "To, co czat proponuje komuś, kto otwiera tego agenta, zanim cokolwiek napisze. Nowa osoba dowiaduje się z nich, do czego jest agent, bardziej niż z opisu, więc niech każda będzie prawdziwym pytaniem, na które agent dobrze odpowiada."
       },
+      "inbox-questions": {
+        "title": "Pytania czekające na odpowiedź",
+        "body": "Tutaj znajdziesz pytania agentów, które czekają na Twoją odpowiedź. Otwórz czat, aby odpowiedzieć."
+      },
       "inbox-filters": {
         "title": "Co przyszło do ciebie samo",
         "body": "Znaleziska twoich obserwacji i nocne sugestie, pilne najpierw. Filtruj po źródle albo otwórz Załatwione, żeby przywrócić coś, co odrzuciłeś."
@@ -8689,12 +8700,14 @@
     "share": "Udostępnij",
     "sharingUpdated": "Udostępnianie zaktualizowane",
     "visibilityOrg": "Wszyscy w organizacji",
-    "visibilityOrgReaches": "Każdy w organizacji, kto w ogóle może przeglądać {resource, select, agent {agentów} skill {skille} collection {kolekcje} artifact {aplikacje} dataset {datasety} context {pliki kontekstu} mcp_connection {serwery MCP} project {projekty} other {sekrety}}.",
+    "visibilityOrgReaches": "Każdy w organizacji, kto w ogóle może przeglądać {resource, select, agent {agentów} skill {skille} collection {kolekcje} artifact {aplikacje} dataset {datasety} context {pliki kontekstu} mcp_connection {serwery MCP} project {projekty} workflow {workflow} other {sekrety}}.",
     "visibilityPrivate": "Tylko osoby z dostępem",
     "visibilityPrivateReaches": "Tylko osoby wymienione wyżej. Nikt inny nie znajdzie {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} artifact {tej aplikacji} dataset {tego datasetu} context {tego pliku kontekstu} mcp_connection {tego serwera MCP} project {projekt} other {tego sekretu}} na swojej liście - a jeśli nie ma jeszcze właściciela, właścicielem zostajesz Ty.",
     "visibilityTeam": "Zespół (już nieoferowane)",
-    "visibilityTeamReaches": "Każdy, czyja rola sięga zespołowych {resource, select, agent {agentów} skill {skilli} collection {kolekcji} artifact {aplikacji} dataset {datasetów} context {plików kontekstu} mcp_connection {serwerów MCP} project {projekty} other {sekretów}}. Ta organizacja nie ma zespołów - wybierz jedną z dwóch powyżej.",
+    "visibilityTeamReaches": "Każdy, czyja rola sięga zespołowych {resource, select, agent {agentów} skill {skilli} collection {kolekcji} artifact {aplikacji} dataset {datasetów} context {plików kontekstu} mcp_connection {serwerów MCP} project {projekty} workflow {workflow} other {sekretów}}. Ta organizacja nie ma zespołów - wybierz jedną z dwóch powyżej.",
     "visibilityUpdated": "Widoczność zaktualizowana",
+    "workflowPrivateReaches": "Właściciel, wymienione wyżej osoby i grupy oraz role z dostępem do wszystkich workflowów. Role ograniczone do współdzielonych workflowów mogą utracić dostęp po zmianie na prywatny.",
+    "workflowRuntimeNote": "Udostępnianie dotyczy też wcześniejszych runów. Nie wstrzymuje harmonogramów ani nie wyłącza webhooków.",
     "groupsHeading": "Grupy",
     "membersHeading": "Członkowie",
     "groupSubject": "Grupa",
@@ -10041,6 +10054,7 @@
     "menuDeleteHint": "Na zawsze, z każdą wersją",
     "channelRunFreelyHint": "Powiązani nadawcy na kanałach korzystają z tych ustawień z pełną historią pokoju, także wiadomościami innych osób. Run freely pozwala wykonywać wywołania bez kolejnego potwierdzenia; wybieraj je dla zaufanych narzędzi i pokoi.",
     "serverTools": "Narzędzia",
+    "toolsForAccount": "Konto, którego narzędzia konfigurujesz",
     "loadTools": "Wczytaj narzędzia",
     "toolsAfterConnecting": "Narzędzia pojawią się po połączeniu konta {name}.",
     "toolsSearch": "Szukaj narzędzi",
@@ -10277,6 +10291,8 @@
     "notAChatModelRefused": "{model} nie jest modelem czatu - agent nie może na nim działać. Wybierz model czatu.",
     "secretForDifferentService": "Klucz „{name}” jest przeznaczony do innej usługi. Wybierz klucz pasujący do tej konfiguracji.",
     "openRouterEndpointHint": "Puste pole oznacza globalne API OpenRouter. Możesz podać regionalny URL, np. https://eu.openrouter.ai/api/v1. Routing EU wymaga odpowiedniego planu OpenRouter; ZDR ustawia się osobno w OpenRouter.",
+    "openaiCompatibleEndpointHint": "Adres serwera odpowiadającego na API Chat Completions OpenAI, kończący się na /v1, na przykład https://models.example/v1.",
+    "anthropicCompatibleEndpointHint": "Adres serwera odpowiadającego na API Messages Anthropic. Nie zawiera własnego /v1; dodaje je SDK, więc https://models.example to cały adres.",
     "defaultEndpoint": "Domyślne API",
     "addSeparateModel": "Dodaj osobny model",
     "separateEndpointHint": "Zapisz ten endpoint jako osobny model, aby zachować obecny profil dla innych agentów. „Zaktualizuj model” zmienia wspólny profil wszędzie, gdzie jest używany.",
@@ -14284,6 +14300,15 @@
     "openWorkingChat": "Otwórz rozmowę",
     "preferences": "Ustawienia Inbox",
     "preferencesDescription": "Wybierz, jakie automatyczne sugestie trafiają do Twojego Inbox.",
+    "questions": {
+      "title": "Pytania czekające na odpowiedź",
+      "open": "Otwórz czat: {conversation}, pytanie od agenta {agent}",
+      "untitled": "Czat bez tytułu",
+      "source": "{agent} · Wygasa: {expiry}",
+      "failed": "Nie udało się wczytać oczekujących pytań.",
+      "retry": "Spróbuj ponownie",
+      "loadMore": "Pokaż więcej pytań"
+    },
     "approvals": {
       "title": "Do zatwierdzenia",
       "open": "Otwórz zatwierdzenia"
@@ -16573,7 +16598,10 @@
     "rated": "{count, plural, one {1 odpowiedź oceniona w dół} few {# odpowiedzi ocenione w dół} many {# odpowiedzi ocenionych w dół} other {# odpowiedzi ocenionej w dół}}",
     "failed": "{count, plural, one {1 nieudany run} few {# nieudane runy} many {# nieudanych runów} other {# nieudanego runu}}",
     "suites": "{count, plural, one {1 oblana suita} few {# oblane suity} many {# oblanych suit} other {# oblanej suity}}",
-    "improveLabel": "Wymaga uwagi: {reasons}. Popraw tego agenta"
+    "improveLabel": "Wymaga uwagi: {reasons}. Popraw tego agenta",
+    "tabLabel": "Wymaga uwagi: {reasons}",
+    "improvementWaiting": "poprawka czeka na Ciebie",
+    "gapsLabel": "{count, plural, one {1 otwarta luka w wiedzy} few {# otwarte luki w wiedzy} many {# otwartych luk w wiedzy} other {# otwartej luki w wiedzy}}"
   },
   "improvement": {
     "attributionUnconfirmed": "Zmiana {number}: wynik nie jest potwierdzony.",

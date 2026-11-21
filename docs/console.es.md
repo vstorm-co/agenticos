@@ -1,5 +1,5 @@
 ---
-source_sha: "5ddcab2b653c"
+source_sha: "3722119864ec"
 ---
 
 # La consola { #the-console }
@@ -118,6 +118,8 @@ Los diálogos centrados mantienen un margen de 12 px en todos los bordes del tel
 
 La opción de compartir se abre junto al borde inferior del teléfono y se ajusta al espacio disponible sobre el teclado. El encabezado permanece visible mientras se desplaza el contenido. La lista móvil permite editar títulos en su sitio; compartir sustituye el contenido de la lista y **Atrás** la restaura. La búsqueda sustituye temporalmente la lista. Escape cancela primero la edición del título antes de cerrar la lista. Los campos y selectores normales miden al menos 44 px de alto en el teléfono; el texto de entrada usa 16 px. La búsqueda de comandos mantiene visibles el campo y el botón de cierre al desplazar los resultados.
 
+Los campos de búsqueda de los catálogos siguen visibles y editables mientras cargan las listas; los filtros escritos se conservan. Una vista previa vacía de Inbox en el chat nuevo no muestra mensaje ni enlace y mantiene el espacio reservado encima del cuadro de mensaje.
+
 En el teléfono, las acciones principales siguen visibles y los comandos secundarios se despliegan con **Más acciones de la página**. Inbox y el formato de tabla usan selectores. Los ajustes usan pestañas horizontales desplazables; el cliente MCP se elige en una lista. Los archivos de proyecto o workspace se abren en un visor a pantalla completa; la flecha vuelve a las carpetas. El editor de pasos del workflow muestra un panel elegido: ajustes, entrada o salida. Cambiar de panel conserva las ediciones; en escritorio siguen uno al lado del otro.
 
 Los campos Markdown y los editores de archivos también ofrecen un botón para ampliar sin descartar el borrador actual. La descripción y la categoría de un skill pueden desplegarse encima del editor. El cuadro del chat ocupa menos espacio y limita los borradores largos según la altura disponible. Al abrir la navegación, el foco se sitúa en el panel; Tab sigue permitiendo acceder a sus controles. En el teléfono, el lienzo del workflow ofrece un control flotante de pantalla completa, se abre con todo el flujo a la vista y empieza con el minimapa oculto.
@@ -214,7 +216,7 @@ puedes abrir. Todos empiezan en **Me**:
 
 El Briefing personal alinea cada título y origen con sus acciones. Discover aparece justo debajo. Las visualizaciones recientes encajan sus imágenes en vistas previas centradas. Las preguntas respondidas dejan de esperar cuando el servidor inicia la continuación admitida. Un clic cierra los avisos descartables con una salida breve; los avisos de operaciones en curso siguen visibles.
 
-Las tarjetas de calidad, como **Agents that need attention** e **Improvements waiting for you**, siguen disponibles en la vista de organización mediante **Customize**. Las decisiones, los permisos y los enlaces de mejora no cambian. El contador personal solo incluye aprobaciones propias de herramientas y propuestas abiertas de Inbox.
+Las tarjetas de calidad, como **Agents that need attention** e **Improvements waiting for you**, siguen disponibles en la vista de organización mediante **Customize**. Las decisiones, los permisos y los enlaces de mejora no cambian. El contador personal incluye aprobaciones propias de herramientas, preguntas pendientes del chat y propuestas abiertas de Inbox.
 
 La vista de la organización muestra las tarjetas que responden con datos,
 agrupadas en bandas. El resto - integraciones, canales, rutinas, sincronización
@@ -326,6 +328,8 @@ te trajo por iniciativa propia: lo que tus
 que propuso la revisión nocturna. El número a su lado dice cuánto espera. Se lee
 como un buzón: una fila por elemento, lo urgente primero, de dónde vino y
 cuándo, y las respuestas en la fila.
+
+**Preguntas pendientes de tu respuesta** aparece en **Todo** y **Urgente** cuando un agente del chat web espera que respondas. Cada fila muestra la conversación, el agente y cuándo caduca la pregunta. Ábrela para responder en el chat original; abrirla no la elimina. La pregunta cuenta como pendiente hasta que la ejecución se reanuda, se cancela o la pregunta caduca. Solo la persona a quien el agente preguntó ve la fila en la bandeja, independientemente de sus permisos de aprobación.
 
 Filtra por su origen, o abre **Hecho** para ver lo que ya aceptaste o
 descartaste y recuperar algo descartado. **What they found** en la tarjeta de

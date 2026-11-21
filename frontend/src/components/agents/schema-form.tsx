@@ -2,7 +2,7 @@
 
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
 import { ChevronRight, Cloud, Container, Eye, EyeOff, Globe, Laptop, Network } from "lucide-react";
 
@@ -27,6 +27,8 @@ import { PickerMark } from "@/components/icons/picker-mark";
 import { ModelIcon } from "@/components/icons/model-icon";
 import { useCustomIcons } from "@/components/icons/custom-icons";
 import { BRAND_GLYPHS } from "@/lib/brand-glyphs.generated";
+import { sameJson } from "@/lib/canonical-json";
+import { conditionalChoices, editSchemaConfig, visible } from "@/lib/schema-config-edit";
 import type { FieldCopy, FieldCopyFor } from "@/components/agents/capability-field-copy";
 import { cn } from "@/lib/utils";
 import type { JsonSchema, JsonSchemaProperty } from "@/types/agents";
@@ -64,6 +66,8 @@ interface SchemaFormProps {
    * a field it has no copy for, the schema's own English is shown.
    */
   copyFor?: FieldCopyFor;
+  /** Restore incompatible choices if the user switches back in this editor session. */
+  rememberConditionalValues?: boolean;
 }
 
 /**
@@ -94,7 +98,12 @@ export function SchemaForm({
   idPrefix,
   errors,
   copyFor,
+  rememberConditionalValues,
 }: SchemaFormProps) {
+  const lastEdit = useRef<{
+    value: Record<string, unknown>;
+    remembered: Map<string, unknown>;
+  } | null>(null);
   const properties = Object.entries(schema.properties ?? {}).filter(
     // A field with exactly one legal value is not a question. Rendering it
     // would offer a control whose every other answer the server refuses, and
@@ -107,26 +116,18 @@ export function SchemaForm({
   if (properties.length === 0) return null;
 
   const set = (key: string, fieldValue: unknown) => {
-    const next: Record<string, unknown> = { ...value, [key]: fieldValue };
-    // A choice that depended on this field and is no longer offered goes,
-    // rather than staying selected where the form cannot show it.
-    for (const [other, property] of Object.entries(schema.properties ?? {})) {
-      if (property["x-visible-when"]?.field === key && !visible(property, schema, next)) {
-        next[other] = undefined;
-        continue;
-      }
-      const when = property["x-enum-when"];
-      if (
-        when === undefined ||
-        (when.field !== key && when.unless?.field !== key) ||
-        next[other] === undefined
-      )
-        continue;
-      const allowed = conditionalChoices(property, schema, next);
-      if (allowed !== undefined && !allowed.includes(String(next[other]))) {
-        next[other] = undefined;
-      }
+    if (!rememberConditionalValues) {
+      onChange(editSchemaConfig(schema, value, key, fieldValue));
+      return;
     }
+    // An autosave can replace the object, but a different config starts a new edit.
+    const previous = lastEdit.current;
+    const remembered =
+      previous && sameJson(previous.value, value)
+        ? previous.remembered
+        : new Map<string, unknown>();
+    const next = editSchemaConfig(schema, value, key, fieldValue, remembered);
+    lastEdit.current = { value: next, remembered };
     onChange(next);
   };
   const field = ([key, property]: [string, JsonSchemaProperty]) => (
@@ -185,35 +186,6 @@ function narrowed(
       branch.enum ? { ...branch, enum: keep(branch.enum) } : branch,
     ),
   };
-}
-
-function conditionalChoices(
-  property: JsonSchemaProperty,
-  schema: JsonSchema,
-  value: Record<string, unknown>,
-): string[] | undefined {
-  const when = property["x-enum-when"];
-  if (when === undefined) return undefined;
-  const read = (field: string) => value[field] ?? schema.properties?.[field]?.default;
-  if (when.unless?.equals.includes(String(read(when.unless.field)))) return undefined;
-  return when.choices[String(read(when.field))] ?? [];
-}
-
-/**
- * Whether a field marked `x-visible-when` applies to what the form holds now.
- *
- * The deciding field is read with its schema default, because the form shows a
- * default without storing it until somebody changes it.
- */
-function visible(
-  property: JsonSchemaProperty,
-  schema: JsonSchema,
-  value: Record<string, unknown>,
-): boolean {
-  const when = property["x-visible-when"];
-  if (when === undefined) return true;
-  const current = value[when.field] ?? schema.properties?.[when.field]?.default;
-  return when.equals.includes(String(current));
 }
 
 /**

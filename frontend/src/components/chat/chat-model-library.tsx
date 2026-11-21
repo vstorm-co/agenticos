@@ -37,6 +37,8 @@ interface ChatModelLibraryProps {
   onModelChange: (model: string) => void;
   onProfileChange: (profile: ModelProfile) => void;
   credentialForm: ReactNode;
+  /** An endpoint-required provider uses the shared connection/model form before creation. */
+  configurationForm?: ReactNode;
   failure: ReactNode;
 }
 
@@ -192,91 +194,97 @@ export function ChatModelLibrary(props: ChatModelLibraryProps) {
               key={activeTab}
               className="mt-0"
             >
-              <Command shouldFilter={false} loop className="min-w-0 flex-1">
-                <div className="border-border flex items-center gap-2 border-b px-3 py-2.5">
-                  <Search className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-                  <Command.Input
-                    value={query}
-                    onValueChange={setQuery}
-                    placeholder={t("searchModels")}
-                    aria-label={t("searchModels")}
-                    className="h-7 min-w-0 flex-1 bg-transparent text-xs outline-none"
-                  />
+              {activeTab === "catalog" && props.configurationForm ? (
+                <div className="max-h-[400px] overflow-y-auto overscroll-contain p-3">
+                  {props.configurationForm}
                 </div>
-                {activeTab === "catalog" && props.loading && (
-                  <div role="status" className="space-y-2 p-2">
-                    <span className="sr-only">{t("loadingModels")}</span>
-                    {Array.from({ length: 5 }, (_, index) => (
-                      <Skeleton key={index} className="h-10 w-full rounded-lg" />
-                    ))}
+              ) : (
+                <Command shouldFilter={false} loop className="min-w-0 flex-1">
+                  <div className="border-border flex items-center gap-2 border-b px-3 py-2.5">
+                    <Search className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+                    <Command.Input
+                      value={query}
+                      onValueChange={setQuery}
+                      placeholder={t("searchModels")}
+                      aria-label={t("searchModels")}
+                      className="h-7 min-w-0 flex-1 bg-transparent text-xs outline-none"
+                    />
                   </div>
-                )}
-                <Command.List className="max-h-[340px] overflow-y-auto overscroll-contain p-1.5">
-                  {!props.loading && (
-                    <Command.Empty className="text-muted-foreground px-3 py-5 text-xs">
-                      {t(
-                        query.trim()
-                          ? "noMatchingModels"
-                          : activeTab === "saved"
-                            ? "noSavedModels"
-                            : "searchOrType",
-                      )}
-                    </Command.Empty>
+                  {activeTab === "catalog" && props.loading && (
+                    <div role="status" className="space-y-2 p-2">
+                      <span className="sr-only">{t("loadingModels")}</span>
+                      {Array.from({ length: 5 }, (_, index) => (
+                        <Skeleton key={index} className="h-10 w-full rounded-lg" />
+                      ))}
+                    </div>
                   )}
-                  {activeTab === "saved" && saved.length > 0 && (
-                    <Command.Group
-                      heading={t("savedModels")}
-                      className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[10px]"
-                    >
-                      {saved.map((entry) =>
-                        row(
-                          entry.id,
-                          entry.model,
-                          modelName(entry, catalog.get(entry.model)?.name),
-                          props.profileId === entry.id,
-                          () => props.onProfileChange(entry),
-                          entry.context_length,
-                        ),
-                      )}
-                    </Command.Group>
-                  )}
-                  {activeTab === "catalog" &&
-                    modelRows
-                      .slice(0, 100)
-                      .map((entry) =>
-                        row(
-                          entry.id,
-                          entry.id,
-                          catalogModelName(entry.id, entry.name),
-                          props.model === entry.id,
-                          () => props.onModelChange(entry.id),
-                          entry.context_length,
-                        ),
-                      )}
-                  {activeTab === "catalog" &&
-                    query.trim() &&
-                    modelIdIsWellFormed(props.providerId, query.trim()) &&
-                    !catalog.has(query.trim()) && (
-                      <Command.Item
-                        disabled={
-                          props.disabled ||
-                          props.applying ||
-                          props.loading ||
-                          props.catalogRefreshing ||
-                          !modelIdIsWellFormed(props.providerId, query.trim())
-                        }
-                        value={`custom:${query.trim()}`}
-                        onSelect={() => props.onModelChange(query.trim())}
-                        className={cn(
-                          COMMAND_ITEM_FOCUS,
-                          "cursor-pointer rounded-lg px-3 py-3 text-xs",
+                  <Command.List className="max-h-[340px] overflow-y-auto overscroll-contain p-1.5">
+                    {!props.loading && (
+                      <Command.Empty className="text-muted-foreground px-3 py-5 text-xs">
+                        {t(
+                          query.trim()
+                            ? "noMatchingModels"
+                            : activeTab === "saved"
+                              ? "noSavedModels"
+                              : "searchOrType",
                         )}
-                      >
-                        {t("customModel", { model: query.trim() })}
-                      </Command.Item>
+                      </Command.Empty>
                     )}
-                </Command.List>
-              </Command>
+                    {activeTab === "saved" && saved.length > 0 && (
+                      <Command.Group
+                        heading={t("savedModels")}
+                        className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[10px]"
+                      >
+                        {saved.map((entry) =>
+                          row(
+                            entry.id,
+                            entry.model,
+                            modelName(entry, catalog.get(entry.model)?.name),
+                            props.profileId === entry.id,
+                            () => props.onProfileChange(entry),
+                            entry.context_length,
+                          ),
+                        )}
+                      </Command.Group>
+                    )}
+                    {activeTab === "catalog" &&
+                      modelRows
+                        .slice(0, 100)
+                        .map((entry) =>
+                          row(
+                            entry.id,
+                            entry.id,
+                            catalogModelName(entry.id, entry.name),
+                            props.model === entry.id,
+                            () => props.onModelChange(entry.id),
+                            entry.context_length,
+                          ),
+                        )}
+                    {activeTab === "catalog" &&
+                      query.trim() &&
+                      modelIdIsWellFormed(props.providerId, query.trim()) &&
+                      !catalog.has(query.trim()) && (
+                        <Command.Item
+                          disabled={
+                            props.disabled ||
+                            props.applying ||
+                            props.loading ||
+                            props.catalogRefreshing ||
+                            !modelIdIsWellFormed(props.providerId, query.trim())
+                          }
+                          value={`custom:${query.trim()}`}
+                          onSelect={() => props.onModelChange(query.trim())}
+                          className={cn(
+                            COMMAND_ITEM_FOCUS,
+                            "cursor-pointer rounded-lg px-3 py-3 text-xs",
+                          )}
+                        >
+                          {t("customModel", { model: query.trim() })}
+                        </Command.Item>
+                      )}
+                  </Command.List>
+                </Command>
+              )}
             </TabsContent>
           </Tabs>
         )}

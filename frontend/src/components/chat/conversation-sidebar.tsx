@@ -148,8 +148,8 @@ function RenameConversationForm({
         }
       }}
     >
-      <Label className="flex flex-col gap-2">
-        {t("conversationTitle")}
+      <Label className="block">
+        <span className="sr-only">{t("conversationTitle")}</span>
         <Input
           aria-label={t("rename")}
           autoFocus

@@ -64,6 +64,8 @@ export function useChatViewport(options: ViewportOptions) {
     let touchY: number | null = null;
     let preserveAnchor = false;
     let pointerActive = false;
+    let nativeControlScroll = false;
+    let releaseFrame: number | null = null;
     const viewportTop = () => scrolling.getBoundingClientRect().top;
     const remember = () => {
       const top = viewportTop();
@@ -91,7 +93,9 @@ export function useChatViewport(options: ViewportOptions) {
       remember();
     };
     const resize = () => {
-      if (pointerActive) return;
+      // Native scrollIntoView may run before pointerdown. Moving the viewport
+      // again before click changes the hit target between press and release.
+      if (pointerActive || nativeControlScroll) return;
       const height = docking.offsetHeight;
       setDockHeight((previous) => (previous === height ? previous : height));
       scrolling.style.paddingBottom = `${height}px`;
@@ -146,16 +150,34 @@ export function useChatViewport(options: ViewportOptions) {
       preserveAnchor = true;
       if (restore) resize();
     };
+    const cancelRelease = () => {
+      if (releaseFrame !== null) cancelAnimationFrame(releaseFrame);
+      releaseFrame = null;
+    };
+    const finishPointer = () => {
+      cancelRelease();
+      pointerActive = false;
+      nativeControlScroll = false;
+      resize();
+    };
+    const onPointerUp = () => {
+      if (pointerActive) {
+        cancelRelease();
+        releaseFrame = requestAnimationFrame(finishPointer);
+      }
+    };
     const onScroll = () => {
       const top = scrolling.scrollTop;
       if (writtenTop !== null && Math.abs(top - writtenTop) < 1) {
         writtenTop = null;
         return;
       }
+      if (Math.abs(top - lastTop) < 1) return;
       // Layout can clamp scrollTop before ResizeObserver restores the reading anchor.
       // That synthetic scroll must not replace the anchor with the clamped position.
       if (preserveAnchor) {
-        resize();
+        if (scrolling.scrollHeight === writtenExtent) nativeControlScroll = true;
+        else resize();
         return;
       }
       if (scrolling.scrollHeight !== writtenExtent) return;
@@ -166,6 +188,9 @@ export function useChatViewport(options: ViewportOptions) {
       remember();
     };
     const onWheel = (event: WheelEvent) => {
+      cancelRelease();
+      nativeControlScroll = false;
+      pointerActive = false;
       preserveAnchor = false;
       if (event.deltaY < 0 || (event.deltaY > 0 && mode === "sent")) read();
     };
@@ -173,12 +198,23 @@ export function useChatViewport(options: ViewportOptions) {
       touchY = event.touches[0]?.clientY ?? null;
     };
     const onTouchMove = (event: TouchEvent) => {
+      cancelRelease();
+      nativeControlScroll = false;
+      pointerActive = false;
       preserveAnchor = false;
       const y = event.touches[0]?.clientY;
       if (touchY !== null && y !== undefined && (y > touchY || (y !== touchY && mode === "sent")))
         read();
     };
     const onKey = (event: KeyboardEvent) => {
+      cancelRelease();
+      nativeControlScroll = false;
+      pointerActive = false;
+      if (event.key === "Tab" && preserveAnchor) {
+        preserveAnchor = false;
+        read();
+        return;
+      }
       if (["ArrowDown", "PageDown", "End"].includes(event.key)) {
         preserveAnchor = false;
         if (mode === "sent") read();
@@ -197,6 +233,9 @@ export function useChatViewport(options: ViewportOptions) {
     };
     const onPointer = (event: MouseEvent) => {
       if (event.target === scrolling) {
+        cancelRelease();
+        nativeControlScroll = false;
+        pointerActive = false;
         preserveAnchor = false;
         if (mode === "sent") read();
         return;
@@ -206,15 +245,15 @@ export function useChatViewport(options: ViewportOptions) {
         ((event.type === "pointerdown" && transcript.contains(event.target)) ||
           event.target.closest("button, summary, input, textarea"))
       ) {
-        // Native scroll-into-view may have positioned this press away from the
-        // saved anchor. Restore only after click has chosen its target; moving
-        // the button during pointerdown makes pointerup miss that same button.
-        pointerActive = event.type === "pointerdown";
-        lockReadingAnchor(!pointerActive);
+        if (event.type === "pointerdown") {
+          pointerActive = true;
+          lockReadingAnchor(false);
+        } else {
+          // Click's target is already fixed; restoring now cannot retarget it.
+          lockReadingAnchor(false);
+          finishPointer();
+        }
       }
-    };
-    const onPointerEnd = () => {
-      pointerActive = false;
     };
     const observer = new ResizeObserver(resize);
     observer.observe(transcript);
@@ -227,10 +266,14 @@ export function useChatViewport(options: ViewportOptions) {
     scrolling.addEventListener("keydown", onKey);
     scrolling.addEventListener("pointerdown", onPointer, true);
     transcript.addEventListener("click", onPointer, true);
-    window.addEventListener("pointerup", onPointerEnd);
-    window.addEventListener("pointercancel", onPointerEnd);
+    window.addEventListener("pointerup", onPointerUp, true);
+    window.addEventListener("pointercancel", finishPointer, true);
     controller.current = {
       sent: (id) => {
+        cancelRelease();
+        pointerActive = false;
+        nativeControlScroll = false;
+        preserveAnchor = false;
         sentKey = id;
         mode = "sent";
         resize();
@@ -238,6 +281,9 @@ export function useChatViewport(options: ViewportOptions) {
       reveal: () => {
         const card = transcript.querySelector<HTMLElement>("[data-question-pending]");
         if (!card) return;
+        cancelRelease();
+        pointerActive = false;
+        nativeControlScroll = false;
         mode = "reading";
         preserveAnchor = true;
         const inset = Number.parseFloat(getComputedStyle(scrolling).scrollPaddingTop) || 24;
@@ -261,8 +307,9 @@ export function useChatViewport(options: ViewportOptions) {
       scrolling.removeEventListener("keydown", onKey);
       scrolling.removeEventListener("pointerdown", onPointer, true);
       transcript.removeEventListener("click", onPointer, true);
-      window.removeEventListener("pointerup", onPointerEnd);
-      window.removeEventListener("pointercancel", onPointerEnd);
+      window.removeEventListener("pointerup", onPointerUp, true);
+      window.removeEventListener("pointercancel", finishPointer, true);
+      cancelRelease();
       controller.current = null;
     };
   }, [options.conversationId, mountedScroller]);

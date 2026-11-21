@@ -97,6 +97,9 @@ class ListingSpec:
     eleven places for the next one to be subtly different.
     """
 
+    # The provider's own listing endpoint. Empty for a provider that exists
+    # only at an endpoint the caller names: the path there is derived from that
+    # endpoint rather than from here (see `models_for`).
     url: str
     # Where the array lives in the response body. Empty means the body *is* the
     # array, which is what Together answers with.
@@ -430,6 +433,8 @@ CUSTOM_LISTINGS: dict[str, bool] = {
     "chutes": True,
     "synthetic": True,
     "cliproxyapi": True,
+    "openai_compatible": True,
+    "anthropic_compatible": True,
 }
 """Providers whose model list can be read at an endpoint the caller names, and
 whether the vault key goes with that request.
@@ -437,6 +442,9 @@ whether the vault key goes with that request.
 OpenRouter's list is public, so a regional OpenRouter is asked with no key.
 The others need one; the key is the one the profile sends to that same
 endpoint on every run - listing there reaches no host the profile does not.
+The two custom providers need one for the same reason: the endpoint is the
+organization's own server, and it is the key stored for it that authenticates
+the listing.
 """
 
 
@@ -529,7 +537,12 @@ async def models_for(
             )
         # Regional catalogs must never inherit the global fallback or cache.
         endpoint = base_url.rstrip("/")
-        spec = replace(spec, url=f"{endpoint}/models")
+        # The SDK's own path sits below the endpoint: Anthropic lists its models
+        # at `<endpoint>/v1/models`, while OpenAI lists them at `<endpoint>/models`
+        # because its endpoint already is the `/v1` root.
+        provider_spec = PROVIDERS.get(provider)
+        prefix = provider_spec.api_prefix if provider_spec is not None else ""
+        spec = replace(spec, url=f"{endpoint}{prefix}/models")
         curated = []
         cache_key = f"{provider}:{endpoint}"
 

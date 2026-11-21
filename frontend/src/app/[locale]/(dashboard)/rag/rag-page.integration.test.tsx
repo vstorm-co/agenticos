@@ -435,3 +435,30 @@ describe("the three tabs each show only their own section (#939)", () => {
   // `vitest.setup.ts` answers empty and wins: a test written that way passed
   // while the page rendered its default, which is worse than not having it.
 });
+
+it("keeps semantic search editable and preserves its draft while bases load", async () => {
+  mockApi([]);
+  const fallback = vi.mocked(apiClient.get).getMockImplementation();
+  let finish!: (value: { items: KnowledgeBase[]; total: number }) => void;
+  const pending = new Promise<{ items: KnowledgeBase[]; total: number }>((resolve) => {
+    finish = resolve;
+  });
+  vi.mocked(apiClient.get).mockImplementation((path) => {
+    if (path === "/kb") return pending;
+    if (!fallback) throw new Error("Missing mock transport");
+    return fallback(path);
+  });
+  window.history.replaceState({}, "", "/rag?tab=search");
+  render(<RAGPage />, { wrapper });
+  await openSearchTab();
+  const input = await screen.findByRole("textbox", { name: "rag.search.queryLabel" });
+  await userEvent.type(input, "vacation");
+  expect(screen.getByRole("button", { name: "rag.search.button" })).toBeDisabled();
+  expect(screen.queryByText("rag.search.noBasesTitle")).not.toBeInTheDocument();
+  await act(async () => finish({ items: [kb("kb-1", "Handbook", "handbook")], total: 1 }));
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "rag.search.button" })).toBeEnabled(),
+  );
+  expect(screen.getByRole("textbox", { name: "rag.search.queryLabel" })).toBe(input);
+  expect(input).toHaveValue("vacation");
+});

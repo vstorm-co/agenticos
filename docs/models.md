@@ -482,6 +482,40 @@ authenticate with.
     when it carries an endpoint; otherwise it is refused with the same "no key
     configured" message it always had.
 
+### Your own endpoint
+
+| Provider | id | Credential | Custom URL |
+|---|---|---|---|
+| Custom (OpenAI-compatible) | `openai_compatible` | API key | ✓ |
+| Custom (Anthropic-compatible) | `anthropic_compatible` | API key | ✓ |
+
+These two are an API *shape* rather than a vendor. You type the address of a
+server you run or a gateway you trust, and the key that authenticates it. Pick
+the one that matches what your endpoint answers:
+
+| Your endpoint answers | Choose | The address to enter |
+|---|---|---|
+| `POST /chat/completions` — vLLM, LM Studio, a LiteLLM proxy, most gateways | `openai_compatible` | the `/v1` root, such as `https://llm.example/v1` |
+| `POST /v1/messages` — Anthropic's own API shape | `anthropic_compatible` | the API root, such as `https://llm.example` |
+
+Both need an endpoint and a key. There is no public API to fall back on, so a
+profile without one is refused rather than sent somewhere else.
+
+The key is stored in the vault under the provider's own name, which says there
+that it authenticates *that* endpoint rather than a vendor's public API. That is
+why they are entries of their own rather than an `openai` or an `anthropic`
+profile with an endpoint: a key filed under a vendor names that vendor.
+
+!!! info "The Anthropic address carries no `/v1`"
+
+    Anthropic's SDK posts to `<endpoint>/v1/messages`, so the endpoint is the
+    API root. An address that already ends in `/v1` is trimmed for you, so
+    either spelling works — but the root is what the platform asks for.
+
+**Load models** reads the list from the same endpoint, with the same key, so
+the dropdown offers what your server actually serves. The model id stays free
+text: a server that publishes no list can still be used by typing the id.
+
 ### When the credential is not an API key
 
 | Provider | id | Credential |

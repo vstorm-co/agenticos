@@ -1,5 +1,5 @@
 ---
-source_sha: "fb6f5341f260"
+source_sha: "33aaba823ae5"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -431,6 +431,8 @@ próby.
 ### Kreator Popraw { #the-improve-wizard }
 
 Otwórz **Popraw** z paska narzędzi zakładki **Ewaluacje** agenta, z plakietki **Wymaga uwagi** na liście agentów, z karty na dashboardzie albo z zakładki **Luki w wiedzy**. Gdy bieżąca opublikowana wersja miała w ostatnich 30 dniach odpowiedzi ocenione negatywnie lub nieudane runy, przycisk Popraw ma kropkę uwagi. Karta **Poprawki czekające na Ciebie** na dashboardzie pokazuje sesje czekające na decyzję.
+
+Ta sama kropka oznacza zakładki agenta, w których coś na Ciebie czeka. **Ewaluacje** mają ją z tych powodów, przy oblanej suicie albo sesji Popraw czekającej na Ciebie, a **Luki w wiedzy** przy otwartych lukach; powód podaje podpowiedź po najechaniu na zakładkę i czytnik ekranu. Agent oznaczony **Wymaga uwagi** na liście agentów albo na karcie dashboardu otwiera się na zakładce **Ewaluacje**.
 
 Każde **Popraw** otwiera otwartą sesję agenta - pracującą, czekającą na Ciebie, na wyniku albo zatrzymaną lub nieudaną - a nową zaczyna, gdy ta sesja zostanie zachowana jako wersja robocza, opublikowana, odrzucona, anulowana albo zamknięta; zostaje wtedy w [historii usprawnień](#improvement-history) agenta. **Zakończ ją i zacznij nową** obok otwartej sesji najpierw ją kończy.
 

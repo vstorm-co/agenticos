@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
 import {
+  AddModel,
   modelIdIsWellFormed,
   modelPlaceholder,
   placeholderWords,
@@ -88,6 +89,7 @@ export function ChatModelPicker({
   const { can } = usePermissions();
   const {
     profiles,
+    catalog = [],
     createProfile,
     isLoading: loadingProfiles,
     profilesStatus,
@@ -132,6 +134,9 @@ export function ChatModelPicker({
   const endpoint = inheritedProfile?.base_url ?? null;
   const providers = purposes.filter((entry) => entry.category === "model_provider");
   const provider = providers.find((entry) => entry.id === providerId);
+  const requiresEndpoint = catalog.some(
+    (entry) => entry.id === providerId && entry.requires_base_url,
+  );
   const {
     models: suggestions,
     refused,
@@ -307,6 +312,41 @@ export function ChatModelPicker({
     t("changeModel")
   );
 
+  const connectionUnavailable =
+    loadingProfiles || profilesStatus === "failed" || !!secretReadError || !!loadingSecrets;
+  const endpointForm =
+    requiresEndpoint && !connectionUnavailable ? (
+      <div className="space-y-3">
+        {presentation !== "library" &&
+          profiles.some(
+            (profile) => profile.provider === providerId && usableForAgents(profile),
+          ) && (
+            <div role="group" aria-label={t("savedModels")} className="grid gap-2">
+              <p className="text-muted-foreground text-xs">{t("savedModels")}</p>
+              {profiles
+                .filter((profile) => profile.provider === providerId && usableForAgents(profile))
+                .map((profile) => (
+                  <Button
+                    key={profile.id}
+                    type="button"
+                    variant="outline"
+                    className="h-auto min-h-10 justify-start text-left whitespace-normal"
+                    onClick={() => onChange(profile.id)}
+                  >
+                    {modelName(profile)}
+                  </Button>
+                ))}
+            </div>
+          )}
+        <AddModel
+          key={providerId}
+          fixedProviderId={providerId}
+          purpose="chat"
+          onCreated={(profile) => onChange(profile.id)}
+        />
+      </div>
+    ) : null;
+
   if (presentation === "library" && can(Perm.connectionsManage))
     return (
       <ChatModelLibrary
@@ -323,11 +363,14 @@ export function ChatModelPicker({
         }))}
         providerId={providerId}
         loadingProviders={loadingPurposes}
+        configurationForm={endpointForm}
         needsCredential={
+          !requiresEndpoint &&
           !!credentialForm &&
           !profiles.some((profile) => profile.provider === providerId && usableForAgents(profile))
         }
         credentialPicker={
+          !requiresEndpoint &&
           providerKeys.length > 1 && (
             <div className="grid gap-1.5">
               <Label htmlFor="chat-model-key">{tRoot("vault.key")}</Label>
@@ -357,7 +400,9 @@ export function ChatModelPicker({
             : undefined
         }
         models={suggestions}
-        profiles={profiles.filter((profile) => usableForAgents(profile) && matchesKey(profile))}
+        profiles={profiles.filter(
+          (profile) => usableForAgents(profile) && (requiresEndpoint || matchesKey(profile)),
+        )}
         loading={(loadingModels && !hasCachedListing) || loadingProfiles}
         catalogRefreshing={loadingModels}
         applying={createProfile.isPending}
@@ -374,7 +419,7 @@ export function ChatModelPicker({
           if (!createProfile.isPending && !loadingProfiles && profilesStatus !== "failed")
             onChange(profile.id);
         }}
-        credentialForm={credentialForm}
+        credentialForm={requiresEndpoint ? null : credentialForm}
         failure={
           profilesStatus === "failed" || secretReadError ? (
             <p role="alert" className="text-destructive text-xs">
@@ -500,41 +545,47 @@ export function ChatModelPicker({
                 </Select>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="chat-model-id">{t("model")}</Label>
-                {/* The Builder's own picker: the provider's catalog, searchable, and
+              {requiresEndpoint ? (
+                endpointForm
+              ) : (
+                <>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="chat-model-id">{t("model")}</Label>
+                    {/* The Builder's own picker: the provider's catalog, searchable, and
                 still able to carry an id that is not in it. */}
-                <ModelCombobox
-                  provider={provider?.id}
-                  id="chat-model-id"
-                  value={model}
-                  onChange={(next) => {
-                    setModel(next);
-                    setFailure(null);
-                  }}
-                  options={suggestions}
-                  source={source}
-                  loading={loadingModels}
-                  disabled={provider === undefined}
-                  placeholder={placeholderWords(modelPlaceholder(provider?.id), tRoot)}
-                />
-                {failure !== null && <p className="text-destructive text-xs">{failure}</p>}
-              </div>
+                    <ModelCombobox
+                      provider={provider?.id}
+                      id="chat-model-id"
+                      value={model}
+                      onChange={(next) => {
+                        setModel(next);
+                        setFailure(null);
+                      }}
+                      options={suggestions}
+                      source={source}
+                      loading={loadingModels}
+                      disabled={provider === undefined}
+                      placeholder={placeholderWords(modelPlaceholder(provider?.id), tRoot)}
+                    />
+                    {failure !== null && <p className="text-destructive text-xs">{failure}</p>}
+                  </div>
 
-              {/* A key can be added here rather than on another page. A picker that can
+                  {/* A key can be added here rather than on another page. A picker that can
               only offer what is already stored, and answers "add one in the Vault"
               when nothing is, is a dead end - and the provider is already chosen, so
               the purpose this key needs is known. */}
-              {credentialForm}
+                  {credentialForm}
 
-              <Button
-                type="button"
-                className="w-full"
-                disabled={!canApply}
-                onClick={() => void apply()}
-              >
-                {t("runModel")}
-              </Button>
+                  <Button
+                    type="button"
+                    className="w-full"
+                    disabled={!canApply}
+                    onClick={() => void apply()}
+                  >
+                    {t("runModel")}
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </div>

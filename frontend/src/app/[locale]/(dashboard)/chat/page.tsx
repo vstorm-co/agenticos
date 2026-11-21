@@ -23,6 +23,7 @@ export default function ChatPage() {
       : undefined;
   const example = startGoal(params.get("example"));
   const requestedConversationId = params.get("id");
+  const [questionConversationId, questionRunId] = params.get("question")?.split(":") ?? [];
   // A consent started from the chat comes back here, and the outcome is in the
   // query string exactly as it is on the servers page.
   useMcpOAuthOutcome();
@@ -42,6 +43,9 @@ export default function ChatPage() {
           <ChatContainer
             composerDraft={composerDraft}
             requestedConversationId={requestedConversationId}
+            requestedQuestionRunId={
+              questionConversationId === requestedConversationId ? questionRunId : null
+            }
             emptyState={
               example
                 ? (onPick) => <StartExample key={example} goal={example} onRun={onPick} />

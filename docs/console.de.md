@@ -1,5 +1,5 @@
 ---
-source_sha: "5ddcab2b653c"
+source_sha: "3722119864ec"
 ---
 
 # Die Konsole { #the-console }
@@ -118,6 +118,8 @@ Zentrierte Dialoge behalten auf dem Smartphone an allen Rändern 12 px Abstand. 
 
 Kontextbezogenes Teilen öffnet sich am unteren Rand des Smartphones und bleibt innerhalb des verfügbaren Platzes oberhalb der Tastatur. Der Kopf bleibt sichtbar, während der Inhalt scrollt. In der mobilen Gesprächsliste werden Titel direkt bearbeitet; Teilen ersetzt den Listeninhalt. **Zurück** stellt die Liste wieder her. Die Suche ersetzt die Liste vorübergehend. Escape bricht zuerst die Titelbearbeitung ab, bevor es die Liste schließt. Normale Formularfelder und Auswahlfelder sind auf dem Smartphone mindestens 44 px hoch; Texteingaben verwenden 16 px Schrift. Die Befehlssuche hält Suchfeld und Schließen sichtbar, während Ergebnisse scrollen.
 
+Die Suchfelder der Kataloge bleiben sichtbar und bedienbar, während die Listen laden; eingegebene Filter bleiben erhalten. Eine leere Inbox-Vorschau auf der Seite für einen neuen Chat zeigt weder Nachricht noch Link und behält ihren reservierten Platz oberhalb des Eingabefelds.
+
 Auf dem Smartphone bleiben die Hauptaktionen sichtbar; weitere Befehle öffnet **Weitere Seitenaktionen**. Inbox-Filter und Tabellenformat werden über Auswahllisten gewählt. Einstellungen haben eine horizontale, scrollbare Tableiste; der MCP-Client wird aus einer Liste gewählt. Projekt- und Workspace-Dateien öffnen sich im Vollbildleser; der Zurück-Pfeil führt zu den Ordnern. Im Workflow-Schritteditor wählst du Einstellungen, Eingabe oder Ausgabe. Beim Wechsel bleiben Änderungen erhalten; auf dem Desktop stehen die Bereiche weiterhin nebeneinander.
 
 Jede ausdrückliche Aktion **New chat** fokussiert den Editor erneut, auch bei einem leeren Entwurf; die Vergabe einer Gesprächs-ID während des Schreibens fordert keinen Fokus an.
@@ -214,7 +216,7 @@ an, die Sie öffnen dürfen. Alle starten in der Ansicht **Ich**:
 
 Das persönliche Briefing richtet Titel und Quelle an den Aktionen aus. Discover folgt direkt darunter. Letzte Visualisierungen zeigen ihre Bilder vollständig in zentrierten Vorschauen. Beantwortete Fragen warten nicht mehr, sobald der Server die zugelassene Fortsetzung startet. Ein Klick schließt schließbare Toasts mit kurzem Ausblenden; laufende Vorgänge bleiben sichtbar.
 
-Qualitätskarten wie **Agents, die Aufmerksamkeit brauchen** und **Verbesserungen, die auf Sie warten**, bleiben in der Organisationsansicht unter **Customize** verfügbar. Entscheidungen, Berechtigungen und Links zur Agent-Verbesserung bleiben erhalten. Persönliche Wartezahlen umfassen nur eigene Werkzeugfreigaben und offene Inbox-Vorschläge.
+Qualitätskarten wie **Agents, die Aufmerksamkeit brauchen** und **Verbesserungen, die auf Sie warten**, bleiben in der Organisationsansicht unter **Customize** verfügbar. Entscheidungen, Berechtigungen und Links zur Agent-Verbesserung bleiben erhalten. Persönliche Wartezahlen umfassen eigene Werkzeugfreigaben, offene Chatfragen und offene Inbox-Vorschläge.
 
 Die Ansicht der Organisation zeigt die Karten, die mit Daten antworten, in
 Gruppen. Der Rest - Integrationen, Kanäle, Routinen, Wissens-Sync, Abteilungen,
@@ -327,6 +329,8 @@ Ihnen aus eigener Initiative gebracht hat: was Ihre
 was der nächtliche Blick vorgeschlagen hat. Die Zahl daneben sagt, wie viel
 wartet. Er liest sich wie ein Postfach: eine Zeile je Eintrag, Dringendes
 zuerst, woher und wann, und die Antworten in der Zeile.
+
+**Offene Fragen an Sie** erscheint unter **Alle** und **Dringend**, wenn ein Agent im Webchat auf Ihre Antwort wartet. Der Eintrag zeigt den Chat, den Agenten und den Ablaufzeitpunkt. Öffnen Sie den Eintrag, um im ursprünglichen Chat zu antworten; durch das Öffnen allein verschwindet er nicht. Die Frage zählt als offen, bis der Lauf fortgesetzt oder abgebrochen wird oder die Frage abläuft. Nur die gefragte Person sieht den Eintrag im Posteingang, unabhängig von ihren Freigaberechten.
 
 Filtern Sie nach Herkunft, oder öffnen Sie **Erledigt** für das, was Sie schon
 angenommen oder abgelehnt haben, und holen Sie Abgelehntes zurück. **Was sie

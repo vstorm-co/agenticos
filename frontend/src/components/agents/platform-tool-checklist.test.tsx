@@ -116,6 +116,89 @@ describe("the platform's tools, grouped by what they work on", () => {
     });
   });
 
+  it("reports mixed table approvals including mandatory confirmation and preserves that floor", async () => {
+    const onChange = vi.fn();
+    const tables: PlatformMcpTool[] = [
+      {
+        name: "list_tables",
+        description: "List tables.",
+        group: "tables",
+        writes: false,
+        default_approval_free: true,
+      },
+      {
+        name: "add_record",
+        description: "Add a record.",
+        group: "tables",
+        writes: true,
+        default_approval_free: true,
+      },
+      {
+        name: "delete_table",
+        description: "Delete a table.",
+        group: "tables",
+        writes: true,
+        always_asks: true,
+      },
+    ];
+    render(<Harness tools={tables} onChange={onChange} />);
+    const choice = within(group("Tables")).getByRole("combobox");
+    const deletion = screen.getByRole("button", { name: "Ask first before delete_table" });
+    expect(choice).toHaveTextContent("Per tool");
+    expect(choice).toBeEnabled();
+    await userEvent.click(choice);
+    await userEvent.click(screen.getByRole("option", { name: "Ask first" }));
+    expect(choice).toHaveTextContent("Ask first");
+    await userEvent.click(choice);
+    await userEvent.click(screen.getByRole("option", { name: "Run freely" }));
+    expect(choice).toHaveTextContent("Per tool");
+    expect(deletion).toBeDisabled();
+    expect(deletion).toHaveAttribute("aria-pressed", "true");
+    for (const name of ["list_tables", "add_record"]) {
+      expect(screen.getByRole("button", { name: `Ask first before ${name}` })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    }
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({
+        tool_approval: expect.objectContaining({ delete_table: "never" }),
+      }),
+    );
+  });
+
+  it("shows an all-mandatory administration group as Ask first with only approval selection disabled", async () => {
+    const onChange = vi.fn();
+    render(
+      <Harness
+        tools={[
+          {
+            name: "update_deployment",
+            description: "Update settings.",
+            group: "administration",
+            writes: true,
+            always_asks: true,
+          },
+          {
+            name: "delete_org",
+            description: "Delete a workspace.",
+            group: "administration",
+            writes: true,
+            always_asks: true,
+          },
+        ]}
+        onChange={onChange}
+      />,
+    );
+    const section = within(group("Administration"));
+    expect(section.getByRole("combobox")).toHaveTextContent("Ask first");
+    expect(section.getByRole("combobox")).toBeDisabled();
+    const enable = section.getByRole("checkbox", { name: "Every tool in Administration" });
+    expect(enable).toBeEnabled();
+    await userEvent.click(enable);
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ allowed_tools: [] }));
+  });
+
   it("leaves the tools whose approval is fixed out of their group's choice", async () => {
     const onChange = vi.fn();
     const account: PlatformMcpTool[] = [
@@ -153,7 +236,8 @@ describe("the platform's tools, grouped by what they work on", () => {
     await userEvent.click(choice());
     await userEvent.click(screen.getByRole("option", { name: "Ask first" }));
     expect(onChange).toHaveBeenLastCalledWith({ ...BINDING, approval: "all" });
-    expect(choice()).toHaveTextContent("Ask first");
+    // The language tool still never asks, even when all editable tools ask.
+    expect(choice()).toHaveTextContent("Per tool");
   });
 
   it("goes back to `writes` once one read runs freely again", async () => {

@@ -152,27 +152,18 @@ export default function RAGPage() {
             is nothing to search, which is the list's own error wearing a fact's
             face. */}
         <TabsContent value="search" className="flex flex-1 flex-col">
-          {loading ? (
-            <div
-              aria-busy="true"
-              className="border-border bg-card flex flex-1 flex-col gap-4 rounded-xl border p-4"
-            >
-              <div aria-hidden="true" className="flex flex-col gap-2 sm:flex-row">
-                <Skeleton className="h-9 flex-1" />
-                <div className="flex gap-2">
-                  <Skeleton className="h-9 w-full sm:w-56" />
-                  <Skeleton className="h-9 w-24 shrink-0" />
-                </div>
-              </div>
-            </div>
-          ) : listError ? (
+          {listError ? (
             <ErrorState
               title={t("listFailedTitle")}
               description={t("listFailedDescription")}
               cta={{ label: t("retry"), onClick: () => fetchKBs() }}
             />
           ) : (
-            <SearchTab kbs={sorted} onCreate={mayEdit ? () => setCreateOpen(true) : undefined} />
+            <SearchTab
+              kbs={sorted}
+              loading={loading}
+              onCreate={mayEdit ? () => setCreateOpen(true) : undefined}
+            />
           )}
         </TabsContent>
 

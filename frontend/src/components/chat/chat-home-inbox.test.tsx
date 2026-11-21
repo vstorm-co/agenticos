@@ -124,9 +124,9 @@ it("does not turn a failed read into an empty inbox and retries both reads", asy
   expect(state.refetchPending).toHaveBeenCalledOnce();
 });
 
-it("shows loading before declaring the inbox empty", () => {
+it("reserves the loading area but renders no content or links for an empty inbox", () => {
   state.loading = true;
-  const { rerender } = render(<ChatHomeInbox onDiscuss={vi.fn()} />);
+  const { rerender, container } = render(<ChatHomeInbox onDiscuss={vi.fn()} />);
   expect(screen.getByRole("region", { name: "Daily briefing" })).toHaveAttribute(
     "aria-busy",
     "true",
@@ -134,7 +134,11 @@ it("shows loading before declaring the inbox empty", () => {
   expect(screen.queryByText(/all caught up/)).toBeNull();
   state.loading = false;
   rerender(<ChatHomeInbox onDiscuss={vi.fn()} />);
-  expect(screen.getByText(/all caught up/)).toBeVisible();
+  expect(screen.queryByText(/all caught up/)).not.toBeInTheDocument();
+  expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  expect(screen.queryByRole("region")).not.toBeInTheDocument();
+  expect(container.querySelector(".chat-home-inbox")).toBeEmptyDOMElement();
+  expect(container.querySelector(".chat-home-inbox")).toHaveAttribute("aria-hidden", "true");
 });
 
 it("keeps cached topics visible when a background refresh fails", () => {

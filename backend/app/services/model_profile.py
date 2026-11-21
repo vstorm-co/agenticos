@@ -237,7 +237,7 @@ async def _checked_endpoint(spec: ProviderSpec, base_url: str) -> str:
             "provider's own API, so a custom URL here would be ignored",
             provider=spec.id,
         )
-    return await validate_endpoint_url(base_url)
+    return spec.endpoint(await validate_endpoint_url(base_url))
 
 
 def _check_shape(

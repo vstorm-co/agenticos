@@ -1199,6 +1199,31 @@ describe("x-enum-when", () => {
     expect(onChange).toHaveBeenLastCalledWith({ harness: "codex", model: "anthropic:a" });
   });
 
+  it("restores a remembered model after the save response omits the inactive choice", async () => {
+    const onChange = vi.fn();
+    const form = (value: Record<string, unknown>) => (
+      <SchemaForm
+        schema={CODER}
+        value={value}
+        onChange={onChange}
+        idPrefix="coder"
+        rememberConditionalValues
+      />
+    );
+    const original = { harness: "claude_code", model: "anthropic:a" };
+    const { rerender } = render(form(original));
+    const user = userEvent.setup();
+
+    await user.click(screen.getByLabelText("Coding agent"));
+    await user.click(screen.getByRole("option", { name: "codex" }));
+    expect(onChange).toHaveBeenLastCalledWith({ harness: "codex", model: undefined });
+
+    rerender(form({ harness: "codex" }));
+    await user.click(screen.getByLabelText("Coding agent"));
+    await user.click(screen.getByRole("option", { name: "claude_code" }));
+    expect(onChange).toHaveBeenLastCalledWith(original);
+  });
+
   it("offers nothing for a value the map does not name", async () => {
     render(
       <SchemaForm

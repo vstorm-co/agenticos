@@ -248,10 +248,11 @@ for (const theme of ["light", "dark"] as const) {
         },
       }),
     );
+    let showInbox = true;
     await page.route("**/api/me/suggestions", (route) =>
       route.fulfill({
         json: {
-          items: [1, 2].map((number) => ({
+          items: (showInbox ? [1, 2] : []).map((number) => ({
             id: `00000000-0000-4000-8000-00000000000${number}`,
             kind: "finding",
             status: "open",
@@ -261,7 +262,7 @@ for (const theme of ["light", "dark"] as const) {
             urgent: number === 1,
             created_at: "2026-11-21T09:00:00Z",
           })),
-          total: 2,
+          total: showInbox ? 2 : 0,
         },
       }),
     );
@@ -306,6 +307,15 @@ for (const theme of ["light", "dark"] as const) {
     const modelBox = await model.boundingBox();
     expect(modelBox?.width).toBeGreaterThanOrEqual(180);
     expect(modelBox?.height).toBeGreaterThanOrEqual(43.5);
+    const populated = await composer.boundingBox();
+    showInbox = false;
+    await page.reload();
+    await expect(inbox).toHaveAttribute("aria-hidden", "true");
+    await expect(inbox).toBeEmpty();
+    await expect(page.getByRole("link", { name: "Open inbox", exact: true })).toHaveCount(0);
+    await expect
+      .poll(async () => (await composer.boundingBox())?.y)
+      .toBeCloseTo(populated?.y ?? -1, 0);
     const before = await composer.boundingBox();
     await page.getByRole("textbox", { name: "Type a message..." }).fill("An editable draft");
     expect((await composer.boundingBox())?.y).toBeCloseTo(before?.y ?? -1, 0);

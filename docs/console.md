@@ -112,6 +112,8 @@ Centered phone dialogs keep a 12px gutter on every edge. Compact page headers pl
 
 Contextual sharing opens near the bottom of a phone screen, within the available height above the keyboard. Headers remain fixed while the contents scroll. The mobile conversation list edits titles in place and replaces its contents with sharing; **Back** restores the list. Search replaces the list temporarily. Escape cancels an inline title edit before closing the list. Standard phone form inputs and selects are at least 44px high; text inputs use 16px type. Command search keeps its search field and close control visible while results scroll.
 
+Catalog search fields remain visible and editable while their rows load; loading does not discard a typed filter. An empty Inbox preview on the new-chat page renders no message or link and retains its reserved space above the composer.
+
 On phones, primary page actions stay visible and secondary commands fold behind **More page actions**. Inbox filters and the table format use selects. Settings sections use a horizontal, scrollable tab strip, while the MCP client is selected from a dropdown. Opening a project or workspace file opens its full-screen reader; the back arrow returns to the folders. Workflow step dialogs show one chosen panel at a time: settings, input or output. Switching panels preserves edits; desktop keeps the panels side by side.
 
 Markdown fields and file editors also offer an expand button without discarding the current draft. Skill descriptions and categories can be expanded above the editor. The chat composer uses less space and caps long drafts against the available screen height. Opening navigation focuses the panel, while Tab still reaches its controls. On phones the workflow canvas has a floating full-screen control, opens with the whole flow in view and starts with the minimap hidden.
@@ -197,7 +199,7 @@ may open. Everybody opens on **Me**:
 
 The personal Briefing aligns each title and source with its actions. Discover follows it directly. Recent visuals fit their images inside centered previews. Answered questions stop waiting when the server starts their admitted continuation. Clicking a dismissible toast closes it with a short exit; loading notices remain visible.
 
-Quality-management cards, including **Agents that need attention** and **Improvements waiting for you**, remain available in the organization view through **Customize**. Their decisions, permissions and links to the agent improvement flows are unchanged. Personal waiting counts include only the reader’s tool approvals and open Inbox proposals.
+Quality-management cards, including **Agents that need attention** and **Improvements waiting for you**, remain available in the organization view through **Customize**. Their decisions, permissions and links to the agent improvement flows are unchanged. Personal waiting counts include the reader’s tool approvals, parked chat questions and open Inbox proposals.
 
 The organization's view shows the cards that answer with data, grouped into
 bands. The rest - integrations, channels, routines, knowledge sync, departments,
@@ -311,6 +313,8 @@ when, and the answers in the row. Filter by where they came from, or open
 watches. Shorter rows head your dashboard as **Briefing**, and the empty chat
 with the starter agent offers the first of them as a card, with a link to the
 rest.
+
+**Questions waiting for you** appears under **All** and **Urgent** when a web-chat agent is waiting for your answer. The row shows the chat, agent and expiry time. Open it to answer in the original chat; opening it alone does not clear it. The item counts as waiting until the run continues, is cancelled or the question expires. Only the person the agent asked sees it in Inbox, independently of approval permissions.
 
 What a watch finds that need not be heard at once waits for your morning: at
 the hour your organization's proactivity keeps, one notification and one direct

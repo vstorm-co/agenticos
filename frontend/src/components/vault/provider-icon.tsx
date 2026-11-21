@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, CircleUserRound, KeyRound, TrainFront, type LucideIcon } from "lucide-react";
+import { Box, CircleUserRound, KeyRound, Plug, TrainFront, type LucideIcon } from "lucide-react";
 
 import { CustomMark, useCustomIcons } from "@/components/icons/custom-icons";
 import { GlyphIcon } from "@/components/icons/glyph";
@@ -26,13 +26,12 @@ const SERVICE_MARKS: Readonly<Record<string, LucideIcon>> = {
   litellm: TrainFront,
   // Each person's own accounts, of several vendors: a person, not a brand.
   subscription_accounts: CircleUserRound,
+  // Custom endpoints identify a server rather than a model maker.
+  openai_compatible: Plug,
+  anthropic_compatible: Plug,
 };
 
-/**
- * Provider ids that are a plan or account of a vendor whose mark exists: a
- * Kimi Code plan wears Moonshot's, a Copilot account GitHub's. The vendor's
- * real mark, never a drawn one.
- */
+/** The model maker whose mark identifies a plan or account. */
 const VENDOR_OF: Readonly<Record<string, string>> = {
   alibaba_coding_plan: "alibaba",
   github_copilot: "github",

@@ -19,6 +19,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui";
 import type { McpToolInfo } from "@/lib/mcp-connections-api";
+import { narrowedSelection } from "@/lib/mcp-servers";
 import type { McpApproval, McpToolApproval } from "@/types/agents";
 
 /** Past this many tools the list gets a search box. */
@@ -165,7 +166,7 @@ export function McpToolChecklist({
       if (on) next.add(name);
       else next.delete(name);
     }
-    onChange(chosenTools(tools, next));
+    onChange(narrowedSelection(next, tools, allowed));
   };
 
   const reads = tools.filter((tool) => tool.read_only === true);
@@ -253,7 +254,7 @@ export function McpToolChecklist({
  *
  * `changes` marks a tool that changes something, for a group that mixes reads
  * and changes; `fixed` names why a tool's approval cannot be changed, for a tool
- * that never asks whatever the binding says.
+ * that always or never asks whatever the binding says.
  */
 export function ToolGroup({
   label,
@@ -310,7 +311,9 @@ export function ToolGroup({
           // No value where the tools differ, so the trigger says so; either
           // choice then sets every one of them.
           value={approval === "mixed" ? "" : approval}
-          disabled={disabled}
+          disabled={
+            disabled || (fixed !== undefined && tools.every((tool) => fixed(tool) !== null))
+          }
           onValueChange={(next) => onAsk(next === "ask")}
         >
           <SelectTrigger

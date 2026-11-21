@@ -1,5 +1,5 @@
 ---
-source_sha: "a26f053e3a1c"
+source_sha: "4d830cf0d6da"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -507,6 +507,43 @@ autenticarse.
     `ON DELETE SET NULL`, lo que hace que el segundo caso sea corriente. Un run
     resuelve un perfil sin clave solo cuando este lleva un endpoint; si no, se
     rechaza con el mismo mensaje de «no key configured» que ha tenido siempre.
+
+### Tu propio endpoint { #your-own-endpoint }
+
+| Provider | id | Credencial | Custom URL |
+|---|---|---|---|
+| Custom (OpenAI-compatible) | `openai_compatible` | clave de API | ✓ |
+| Custom (Anthropic-compatible) | `anthropic_compatible` | clave de API | ✓ |
+
+Estos dos son una *forma* de API y no un proveedor. Escribes la dirección de un
+servidor que gestionas tú o de una pasarela en la que confías, y la clave que lo
+autentica. Elige el que corresponda a lo que responde tu endpoint:
+
+| Tu endpoint responde | Elige | La dirección que hay que escribir |
+|---|---|---|
+| `POST /chat/completions` — vLLM, LM Studio, un proxy LiteLLM, casi todas las pasarelas | `openai_compatible` | la raíz `/v1`, por ejemplo `https://llm.example/v1` |
+| `POST /v1/messages` — la forma de API propia de Anthropic | `anthropic_compatible` | la raíz de la API, por ejemplo `https://llm.example` |
+
+Los dos necesitan un endpoint y una clave. No hay ninguna API pública a la que
+recurrir, así que un perfil sin ellos se rechaza en lugar de enviarse a otro
+sitio.
+
+La clave se guarda en la bóveda bajo el nombre del propio provider, lo que allí
+dice que autentica *ese* endpoint y no la API pública de un proveedor. Por eso
+son entradas propias y no un perfil `openai` o `anthropic` con un endpoint: una
+clave archivada bajo el nombre de un proveedor habla de ese proveedor.
+
+!!! info "La dirección de Anthropic no lleva `/v1`"
+
+    El SDK de Anthropic envía a `<endpoint>/v1/messages`, así que el endpoint es
+    la raíz de la API. Una dirección que ya termina en `/v1` se recorta por ti,
+    de modo que ambas formas funcionan, pero la raíz es lo que pide la
+    plataforma.
+
+**Load models** lee la lista del mismo endpoint, con la misma clave, así que el
+desplegable ofrece lo que tu servidor sirve de verdad. El identificador del
+modelo sigue siendo texto libre: un servidor que no publica ninguna lista se
+puede usar escribiendo el identificador a mano.
 
 ### Cuando la credencial no es una clave de API { #when-the-credential-is-not-an-api-key }
 
