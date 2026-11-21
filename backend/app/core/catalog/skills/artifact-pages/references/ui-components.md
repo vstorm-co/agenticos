@@ -1,5 +1,7 @@
 # A small UI kit, chosen for this App
 
+Start from the kit: `lib/agenticos-4.css` already has buttons, inputs, tabs, chips, badges, tables and stat tiles (`references/design-recipes.md` lists every class). The studio below is for a supplied brand or a deliberately different direction; a product-style App uses the kit classes and no CSS of its own.
+
 Read `templates/component-studio.html` for working native controls in three visual directions: warm editorial, precise midnight and playful classroom. It is an original, dependency-free reference, not a new platform library. Copy only the pieces the App needs into its self-contained HTML. Do not load a template path as a browser asset or assume a component exists on `AO`.
 
 Use a few semantic design tokens: page, surface, ink, muted, line, accent and on-accent. Maintain a readable type scale, clear focus rings and touch-sized controls. Choose shapes, density and typography to fit the subject; do not apply one dashboard to every report, game or school exercise. Preserve supplied brand rules. A deliberate composition is more useful than arbitrary gradients, glow, glass cards or decorative badges.

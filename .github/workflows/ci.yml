@@ -960,7 +960,7 @@ jobs:
           name: playwright-report-${{ matrix.shard }}
           overwrite: true
           path: frontend/playwright-report/
-          retention-days: 7
+          retention-days: 2
 
       # The raw per-test output beside the report: the screenshot at the moment
       # of failure, the video, the trace `retain-on-failure` kept, and the
@@ -969,13 +969,13 @@ jobs:
       # a suite the runner killed leaves `test-results/` and no report at all,
       # which is the case #162 was diagnosed without.
       - name: Upload the raw Playwright output and evals screenshots
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-results-${{ matrix.shard }}
           overwrite: true
           path: frontend/test-results/
-          retention-days: 7
+          retention-days: 2
           if-no-files-found: ignore
 
       - name: Show the backend log when a journey fails

@@ -1,414 +1,202 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Supply review — Q3 2026</title>
-    <link rel="stylesheet" href="lib/agenticos-3.css" />
-    <style>
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        background: var(--ao-bg);
-        color: var(--ao-fg);
-        font:
-          16px/1.6 system-ui,
-          sans-serif;
-      }
-      .report {
-        max-inline-size: 1140px;
-        margin: auto;
-        padding: clamp(20px, 5vw, 64px);
-      }
-      .masthead {
-        display: flex;
-        justify-content: space-between;
-        gap: 20px;
-        align-items: baseline;
-        border-block-end: 1px solid var(--ao-border);
-        padding-block-end: 18px;
-      }
-      .kicker {
-        font-size: 11px;
-        font-weight: 650;
-        text-transform: uppercase;
-        letter-spacing: 0.15em;
-        color: var(--ao-muted-fg);
-      }
-      .demo {
-        font-size: 12px;
-        border: 1px solid var(--ao-border);
-        border-radius: 4px;
-        padding: 4px 8px;
-      }
-      .hero {
-        display: grid;
-        grid-template-columns: minmax(0, 1.7fr) minmax(200px, 1fr);
-        gap: 64px;
-        align-items: center;
-        padding-block: 48px;
-      }
-      h1 {
-        font:
-          clamp(42px, 5.5vw, 68px)/1.04 Georgia,
-          serif;
-        letter-spacing: -0.035em;
-        margin: 12px 0 20px;
-        max-inline-size: 15ch;
-      }
-      .lead {
-        font-size: 20px;
-        max-inline-size: 43ch;
-        color: var(--ao-muted-fg);
-      }
-      .metric {
-        border-inline-start: 1px solid var(--ao-border);
-        padding-inline-start: 40px;
-      }
-      .metric strong {
-        display: block;
-        font-size: 100px;
-        letter-spacing: -0.07em;
-        line-height: 1.1;
-      }
-      .metric p {
-        margin: 10px 0;
-        color: var(--ao-muted-fg);
-      }
-      h2 {
-        font-size: 22px;
-        letter-spacing: -0.02em;
-        margin: 0 0 16px;
-      }
-      .review {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-        gap: 52px;
-        border-block-start: 1px solid var(--ao-border);
-        padding-block: 32px;
-      }
-      .bar-row {
-        margin-block: 20px;
-      }
-      .bar-label {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        font-size: 14px;
-      }
-      .bar-track {
-        block-size: 10px;
-        background: var(--ao-muted);
-        margin-block-start: 8px;
-        border-radius: 2px;
-      }
-      .bar {
-        block-size: 100%;
-        inline-size: var(--value);
-        background: #749487;
-        border-radius: 2px;
-      }
-      .bar.hot {
-        background: #b7764c;
-      }
-      .toolbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        flex-wrap: wrap;
-        margin-block: 32px 12px;
-      }
-      .toolbar label {
-        font-size: 14px;
-      }
-      select {
-        font: inherit;
-        color: inherit;
-        background: var(--ao-bg);
-        border: 1px solid var(--ao-border);
-        min-block-size: 40px;
-        padding: 6px 10px;
-        border-radius: 5px;
-      }
-      .table-wrap {
-        overflow-x: auto;
-      }
-      table {
-        border-collapse: collapse;
-        inline-size: 100%;
-        font-size: 14px;
-      }
-      th,
-      td {
-        padding: 14px 10px;
-        text-align: start;
-        border-block-end: 1px solid var(--ao-border);
-      }
-      th {
-        color: var(--ao-muted-fg);
-        font-size: 12px;
-      }
-      .num {
-        text-align: end;
-        font-variant-numeric: tabular-nums;
-      }
-      .recommendation {
-        border-inline-start: 3px solid #b7764c;
-        padding: 4px 0 4px 20px;
-        margin-block: 32px;
-      }
-      .recommendation p {
-        max-inline-size: 70ch;
-      }
-      .source {
-        border-block-start: 1px solid var(--ao-border);
-        padding-block: 24px;
-        font-size: 14px;
-        color: var(--ao-muted-fg);
-      }
-      summary {
-        cursor: pointer;
-        color: var(--ao-fg);
-      }
-      footer {
-        display: flex;
-        justify-content: space-between;
-        gap: 20px;
-        border-block-start: 1px solid var(--ao-border);
-        padding-block-start: 20px;
-        font-size: 12px;
-        color: var(--ao-muted-fg);
-      }
-      :focus-visible {
-        outline: 3px solid #749487;
-        outline-offset: 4px;
-      }
-      [hidden] {
-        display: none !important;
-      }
-      @media (max-width: 700px) {
-        .hero,
-        .review {
-          grid-template-columns: 1fr;
-          gap: 24px;
-        }
-        .hero {
-          padding-block: 32px;
-        }
-        .metric {
-          padding-inline-start: 20px;
-        }
-        .metric strong {
-          font-size: 72px;
-        }
-        footer {
-          flex-direction: column;
-          gap: 4px;
-        }
-      }
-      @media print {
-        .report {
-          max-inline-size: none;
-          padding: 24pt;
-        }
-        .hero {
-          grid-template-columns: 1.7fr 1fr;
-          gap: 32pt;
-          padding-block: 24pt;
-        }
-        h1 {
-          font-size: 38pt;
-        }
-        .metric strong {
-          font-size: 64pt;
-        }
-        .review {
-          grid-template-columns: 1fr 1.2fr;
-          gap: 24pt;
-        }
-        select {
-          display: none;
-        }
-        details {
-          display: block;
-        }
-        table {
-          break-inside: avoid;
-        }
-        a {
-          color: inherit;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <main class="report">
-      <header class="masthead">
-        <span class="kicker">Operations / quarterly review</span
-        ><span class="demo">Illustrative data</span>
-      </header>
-      <section class="hero" aria-label="Executive summary">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Support response times - Q3 2026</title>
+  <link rel="stylesheet" href="lib/agenticos-4.css">
+  <script src="lib/chart-4.5.1.umd.min.js"></script>
+  <script src="lib/lucide-1.46.0.min.js"></script>
+  <script src="lib/agenticos-4.js"></script>
+</head>
+<body>
+  <main class="ao-page">
+    <header class="ao-header">
+      <div>
+        <div class="ao-eyebrow"><i data-lucide="file-text"></i><span id="eyebrow"></span></div>
+        <h1 id="title"></h1>
+        <p class="ao-subtitle" id="subtitle"></p>
+        <div class="ao-meta">
+          <span><i data-lucide="calendar"></i><span id="period"></span></span>
+          <span><i data-lucide="database"></i><span id="source"></span></span>
+        </div>
+      </div>
+      <div class="ao-header-actions">
+        <span class="ao-chip ao-chip-dot ao-chip-warning">Synthetic example data</span>
+      </div>
+    </header>
+
+    <div class="ao-stack">
+      <div class="ao-callout ao-callout-success" role="note">
+        <i data-lucide="circle-check"></i>
+        <div id="answer"></div>
+      </div>
+      <section class="ao-grid-3" id="facts" aria-label="Key facts"></section>
+    </div>
+
+    <section class="ao-section">
+      <div class="ao-section-header">
         <div>
-          <span class="kicker">Q3 2026 · three-supplier sample</span>
-          <h1>One supplier.<br />Most of the delay.</h1>
-          <p class="lead">
-            Fabrikam accounts for 70% of late orders in this demonstration
-            sample. Review its recovery plan before allocating the next batch.
-          </p>
+          <h2 class="ao-section-title"><i data-lucide="line-chart"></i><span id="chart-title"></span></h2>
+          <p class="ao-section-desc" id="chart-desc"></p>
         </div>
-        <div class="metric">
-          <span class="kicker">Delivered on time</span
-          ><strong id="on-time">82.8%</strong>
-          <p id="scope">612 of 739 orders · all three suppliers</p>
-        </div>
-      </section>
-      <section class="review">
+      </div>
+      <div class="ao-card">
+        <div class="ao-chart"><canvas id="chart" role="img" aria-label="Median first response time by month against the target"></canvas></div>
+      </div>
+    </section>
+
+    <section class="ao-section">
+      <div class="ao-section-header">
         <div>
-          <span class="kicker">01 / the evidence</span>
-          <h2>Where delays concentrate</h2>
-          <p>
-            Late means delivered after the confirmed date. Compare the late
-            share, not just the raw count: order volumes differ.
-          </p>
+          <h2 class="ao-section-title"><i data-lucide="layers"></i><span id="table-title"></span></h2>
+          <p class="ao-section-desc" id="table-desc"></p>
         </div>
-        <figure style="margin: 0" aria-label="Late-order share">
-          <div id="bars"></div>
-          <figcaption class="kicker">
-            Scale 0–100% · exact values in the table
-          </figcaption>
-        </figure>
-      </section>
-      <section aria-labelledby="records-title">
-        <div class="toolbar">
-          <h2 id="records-title">Supplier detail</h2>
-          <label for="supplier"
-            >Scope
-            <select id="supplier">
-              <option value="all">All suppliers</option>
-              <option value="Fabrikam">Fabrikam</option>
-              <option value="Contoso">Contoso</option>
-              <option value="Northwind">Northwind</option>
-            </select></label
-          >
+      </div>
+      <div class="ao-card ao-card-flush">
+        <div class="ao-table-wrap">
+          <table class="ao-table" id="table"></table>
         </div>
-        <p id="selection" aria-live="polite">Showing all three suppliers</p>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Supplier</th>
-                <th scope="col" class="num">Orders</th>
-                <th scope="col" class="num">Late orders</th>
-                <th scope="col" class="num">Late share</th>
-              </tr>
-            </thead>
-            <tbody id="rows"></tbody>
-            <tfoot>
-              <tr>
-                <th scope="row">Selected total</th>
-                <td id="total-orders" class="num"></td>
-                <td id="total-late" class="num"></td>
-                <td id="late-share" class="num"></td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </section>
-      <aside class="recommendation">
-        <span class="kicker">02 / proposed response</span>
-        <h2>Validate the cause before changing allocation.</h2>
-        <p>
-          Ask Fabrikam for dated corrective actions and confirm spare capacity
-          with alternative suppliers. This recommendation uses the full sample;
-          the scope filter only changes the displayed evidence and totals.
-        </p>
-      </aside>
-      <details class="source">
-        <summary>Sources, calculation and limitations</summary>
-        <p>
-          All records are original demonstration fixtures, not an ERP export.
-          Period: 1 July–30 September 2026. Late share = late orders ÷ orders.
-          On-time share = (orders − late orders) ÷ orders. No prior-period
-          comparison or causal claim is inferred. Missing suppliers are outside
-          this sample.
-        </p>
-      </details>
-      <footer>
-        <span>Prepared for the procurement team · demonstration report</span
-        ><span>Q3 / 2026</span>
-      </footer>
-    </main>
-    <script>
-      const suppliers = [
-        { name: "Fabrikam", orders: 186, late: 89 },
-        { name: "Contoso", orders: 241, late: 29 },
-        { name: "Northwind", orders: 312, late: 9 },
-      ];
-      const percent = (value) => `${(value * 100).toFixed(1)}%`;
-      function render() {
-        const selected = document.getElementById("supplier").value;
-        const shown = suppliers.filter(
-          (item) => selected === "all" || item.name === selected,
-        );
-        const orders = shown.reduce((sum, item) => sum + item.orders, 0);
-        const late = shown.reduce((sum, item) => sum + item.late, 0);
-        const rows = document.getElementById("rows");
-        const bars = document.getElementById("bars");
-        rows.replaceChildren();
-        bars.replaceChildren();
-        for (const item of shown) {
-          const row = document.createElement("tr");
-          [
-            item.name,
-            item.orders,
-            item.late,
-            percent(item.late / item.orders),
-          ].forEach((value, index) => {
-            const cell = document.createElement(index === 0 ? "th" : "td");
-            if (index === 0) cell.scope = "row";
-            else cell.className = "num";
-            cell.textContent = String(value);
-            row.append(cell);
-          });
-          rows.append(row);
-          const group = document.createElement("div");
-          group.className = "bar-row";
-          const label = document.createElement("div");
-          label.className = "bar-label";
-          const name = document.createElement("span");
-          name.textContent = item.name;
-          const number = document.createElement("strong");
-          number.textContent = percent(item.late / item.orders);
-          label.append(name, number);
-          const track = document.createElement("div");
-          track.className = "bar-track";
-          const bar = document.createElement("div");
-          bar.className = item.name === "Fabrikam" ? "bar hot" : "bar";
-          bar.style.setProperty("--value", percent(item.late / item.orders));
-          track.append(bar);
-          group.append(label, track);
-          bars.append(group);
+      </div>
+    </section>
+
+    <section class="ao-section">
+      <div class="ao-section-header">
+        <h2 class="ao-section-title"><i data-lucide="list-checks"></i>Next steps</h2>
+      </div>
+      <ul class="ao-list" id="steps"></ul>
+    </section>
+
+    <footer class="ao-footer">
+      <span><i data-lucide="info"></i><span id="note"></span></span>
+    </footer>
+  </main>
+
+  <script>
+    // Replace this object; nothing below it needs to change. Numbers stay numbers
+    // here - the page formats them for the reader's language.
+    const data = {
+      eyebrow: "Quarterly report",
+      title: "Support response times - Q3 2026",
+      subtitle: "First replies got faster every month; the slowest queue is the only one still over target.",
+      period: "1 Jul - 30 Sep 2026",
+      source: "Synthetic ticket sample, not a real export",
+      answer: "The median first response is 3.4 hours, 0.9 hours inside the 4-hour target, and 22% faster than last quarter.",
+      facts: [
+        { label: "Median first response", value: 3.4, unit: " h", change: -0.22, percent: true, better: "down", foot: "vs Q2" },
+        { label: "Tickets handled", value: 9840, change: 0.081, percent: true, better: "up", foot: "vs Q2" },
+        { label: "Answered within target", value: 0.91, percent: true, change: 0.04, better: "up", foot: "points vs Q2" },
+      ],
+      chart: {
+        title: "Median first response by month",
+        desc: "Hours, against the 4-hour target.",
+        labels: ["Jul", "Aug", "Sep"],
+        values: [4.1, 3.4, 2.8],
+        target: 4,
+      },
+      table: {
+        title: "By queue",
+        desc: "Billing is the one queue over target.",
+        columns: [{ label: "Queue" }, { label: "Tickets", numeric: true }, { label: "Median (h)", numeric: true, digits: 1 }, { label: "Status" }],
+        rows: [
+          ["Billing", 2210, 4.6, { badge: "Over target", tone: "danger" }],
+          ["Account access", 1980, 3.1, { badge: "On target", tone: "success" }],
+          ["Bug reports", 3120, 3.0, { badge: "On target", tone: "success" }],
+          ["How-to questions", 2530, 2.9, { badge: "On target", tone: "success" }],
+        ],
+      },
+      steps: [
+        { icon: "user-plus", text: "Move two agents from how-to questions to billing for October." },
+        { icon: "book-open", text: "Write macros for the five most common billing questions." },
+        { icon: "gauge", text: "Report the billing median again at the end of October." },
+      ],
+      note: "A reply counts as the first response only when a person wrote it; automatic acknowledgements are excluded.",
+    };
+
+    const { format } = AO;
+    const text = (id, value) => (document.getElementById(id).textContent = value);
+
+    document.title = data.title;
+    for (const key of ["eyebrow", "title", "subtitle", "period", "source", "answer", "note"]) text(key, data[key]);
+    text("chart-title", data.chart.title);
+    text("chart-desc", data.chart.desc);
+    text("table-title", data.table.title);
+    text("table-desc", data.table.desc);
+
+    const facts = document.getElementById("facts");
+    for (const fact of data.facts) {
+      const good = fact.change === 0 ? "" : (fact.change > 0) === (fact.better === "up") ? "ao-up" : "ao-down";
+      const arrow = fact.change > 0 ? "arrow-up-right" : fact.change < 0 ? "arrow-down-right" : "minus";
+      const card = document.createElement("article");
+      card.className = "ao-card ao-stat";
+      card.innerHTML = `
+        <div class="ao-stat-label"></div>
+        <div class="ao-stat-value"></div>
+        <div class="ao-stat-foot"><span class="ao-delta ${good}"><i data-lucide="${arrow}"></i><span></span></span><span></span></div>`;
+      card.querySelector(".ao-stat-label").textContent = fact.label;
+      card.querySelector(".ao-stat-value").textContent = (fact.percent && fact.value <= 1 ? format.percent(fact.value, 0) : format.number(fact.value)) + (fact.unit || "");
+      card.querySelector(".ao-delta span").textContent = format.delta(fact.change, { percent: true });
+      card.querySelector(".ao-stat-foot > span:last-child").textContent = fact.foot;
+      facts.append(card);
+    }
+
+    AO.chart("#chart", () => ({
+      type: "bar",
+      data: {
+        labels: data.chart.labels,
+        datasets: [
+          { type: "bar", label: "Median first response (h)", data: data.chart.values, backgroundColor: AO.color("--ao-series-1") },
+          {
+            type: "line",
+            label: "Target (h)",
+            data: data.chart.labels.map(() => data.chart.target),
+            borderColor: AO.color("--ao-series-3"),
+            backgroundColor: AO.color("--ao-series-3"),
+            borderDash: [5, 4],
+            pointRadius: 0,
+          },
+        ],
+      },
+    }));
+
+    const table = document.getElementById("table");
+    const head = table.createTHead().insertRow();
+    for (const column of data.table.columns) {
+      const th = document.createElement("th");
+      th.textContent = column.label;
+      if (column.numeric) th.className = "ao-num";
+      head.append(th);
+    }
+    const body = table.createTBody();
+    for (const row of data.table.rows) {
+      const tr = body.insertRow();
+      row.forEach((value, i) => {
+        const column = data.table.columns[i];
+        const td = tr.insertCell();
+        if (value && typeof value === "object") {
+          const badge = document.createElement("span");
+          badge.className = "ao-badge ao-badge-" + value.tone;
+          badge.textContent = value.badge;
+          td.append(badge);
+        } else if (column.numeric) {
+          td.className = "ao-num";
+          td.textContent = format.number(value, { minimumFractionDigits: column.digits || 0 });
+        } else {
+          td.className = "ao-strong";
+          td.textContent = value;
         }
-        document.getElementById("on-time").textContent = percent(
-          (orders - late) / orders,
-        );
-        document.getElementById("scope").textContent =
-          `${orders - late} of ${orders} orders · ${selected === "all" ? "all three suppliers" : selected}`;
-        document.getElementById("selection").textContent =
-          selected === "all"
-            ? "Showing all three suppliers"
-            : `Showing ${selected}`;
-        document.getElementById("total-orders").textContent = String(orders);
-        document.getElementById("total-late").textContent = String(late);
-        document.getElementById("late-share").textContent = percent(
-          late / orders,
-        );
-      }
-      document.getElementById("supplier").addEventListener("change", render);
-      render();
-    </script>
-  </body>
+      });
+    }
+
+    const steps = document.getElementById("steps");
+    for (const step of data.steps) {
+      const item = document.createElement("li");
+      item.className = "ao-row";
+      item.innerHTML = '<i data-lucide=""></i><span></span>';
+      item.querySelector("i").setAttribute("data-lucide", step.icon);
+      item.querySelector("span").textContent = step.text;
+      steps.append(item);
+    }
+  </script>
+</body>
 </html>

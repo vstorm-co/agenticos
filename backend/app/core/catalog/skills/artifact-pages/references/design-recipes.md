@@ -22,10 +22,10 @@ result warns about a page that does not.
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Weekly sales - 22 Sep 2026</title>
-  <link rel="stylesheet" href="lib/agenticos-3.css">
+  <link rel="stylesheet" href="lib/agenticos-4.css">
   <script src="lib/chart-4.5.1.umd.min.js"></script>
   <script src="lib/lucide-1.46.0.min.js"></script>
-  <script src="lib/agenticos-3.js"></script>
+  <script src="lib/agenticos-4.js"></script>
 </head>
 <body>
   <main class="ao-page">
@@ -55,7 +55,7 @@ result warns about a page that does not.
 - **The viewport meta**, or a phone shows the page zoomed out.
 - **`lang`** is the reader's language; numbers and dates follow it.
 - **Load order:** the stylesheet, then the libraries the page uses (Chart.js
-  only with a chart), then `lib/agenticos-3.js`, then your own script.
+  only with a chart), then `lib/agenticos-4.js`, then your own script.
 - **`main.ao-page`** holds everything (`ao-page ao-page-narrow` for something to
   read rather than scan).
 - **The header is one block.** `header.ao-header` holds one `div` with, in order,
@@ -78,8 +78,8 @@ addresses:
 
 | File | What it gives you |
 |---|---|
-| `lib/agenticos-3.css` | The product's look, light and dark, and every class below |
-| `lib/agenticos-3.js` | `window.AO`: chart defaults, number formatting, icons, tabs, `AO.onData`, `AO.records` |
+| `lib/agenticos-4.css` | The product's look, light and dark, and every class below |
+| `lib/agenticos-4.js` | `window.AO`: chart defaults, number formatting, icons, tabs, `AO.onData`, `AO.records` |
 | `lib/lucide-1.46.0.min.js` | Lucide icons, as `window.lucide` |
 | `lib/chart-4.5.1.umd.min.js` | Chart.js 4, as `window.Chart` |
 | `lib/d3-7.9.0.min.js` | d3 7, as `window.d3`, for anything Chart.js cannot draw |
@@ -87,17 +87,23 @@ addresses:
 | `lib/topojson-client-3.1.0.min.js`, `lib/world-atlas-2.0.2-110m.js`, `lib/agenticos-worldmap-1.js` | `window.AOWorldMap.draw`: a world map in SVG - countries shaded by a value, pins, routes - with no tile server; load them after d3, in this order |
 | `lib/agenticos-map-2.js` | `window.AOMap.itinerary`: numbered pins in order, pause and replay, stop cards - on map tiles, or as an outline without them |
 
-Anything else you need, inline it: your own script, your own styles, images as
-`data:` URIs. Never paste a whole library in when the set has it.
-`lib/agenticos-2.css`, `lib/agenticos-2.js` and `lib/agenticos-1.css` are still
-served for pages published against them; build new pages on version 3, and load
-the CSS and the JS of the same version.
+Anything else you need, inline it: your own script, images as `data:` URIs.
+Never paste a whole library in when the set has it. `lib/agenticos-1.css`,
+`lib/agenticos-2.css`, `lib/agenticos-2.js`, `lib/agenticos-3.css` and
+`lib/agenticos-3.js` are still served for pages published against them; build
+new pages on version 4, and load the CSS and the JS of the same version.
 
 ## Structural rules
 
-- **Only the kit's classes.** Use the classes in the table below, or inline
-  styles and a `<style>` of your own for anything else. A class that is not in
-  the table does nothing, however likely its name sounds.
+- **Kit classes for layout and look.** Compose the page from the classes in the
+  table below: `ao-stack` and `ao-row` for spacing, `ao-grid-2` to `ao-grid-4`
+  for columns, `ao-card` for a surface. A class that is not in the table does
+  nothing, however likely its name sounds. Do not add a `<style>` block or a
+  class of your own unless the person supplied a brand or design that needs it.
+- **Inline `style` is for run-time values only**: a bar's `width`, a `--value`
+  custom property, a chart or canvas height, a position computed from data. Never
+  for color, font, spacing, border, shadow or layout; those have a class. If no
+  class fits, say what is missing instead of styling around it.
 - **A table** is `table.ao-table` inside `div.ao-table-wrap`, with the header row
   in `<thead>` and the rows in `<tbody>` - from script, `table.createTHead()` and
   `table.createTBody()`, never rows appended straight to the table. Inside a card,
@@ -114,33 +120,36 @@ the CSS and the JS of the same version.
 - **Charts** go in `div.ao-chart` (or `ao-chart-sm`, `ao-chart-lg`) around a
   `canvas`, created with `AO.chart("#id", () => config)`.
 
-## The kit's default style
+## The kit's look
 
-The kit provides neutral, flat product components. They are a starting point,
-not a restriction on generated Apps. Preserve a supplied brand; otherwise choose
-a deliberate, consistent direction using semantic color tokens and a readable
-type hierarchy. Custom classes and a scoped `<style>` block are supported.
+The kit is the product's own design language: Inter on a near-white page, white
+cards with a hairline border, a blue accent for what can be acted on, and
+lime / amber / red / blue for status. Light and dark follow the viewer's setting;
+every pair is checked at AA. Use it as it comes.
 
-- Keep feedback colors meaningful and distinct from decorative accents. A
-  selected option, keyboard focus, error and disabled control must remain legible.
-- Use borders, depth, illustration or colored surfaces when they clarify structure.
-  Avoid effects on every element and unrelated decorative dashboards.
-- Use readable sentence-case labels. A short editorial kicker can be uppercase;
-  do not make body copy or controls difficult to scan.
-- Use icons where they help a label be found. Choose illustration or emoji when
-  it fits the audience; do not replace essential text labels with unexplained symbols.
-- Format numbers with the page's locale. `AO.format.number`, `compact`, `percent`,
-  `currency`, `date` and `delta` are available when the AO script is loaded.
-- `AO.chart` supplies responsive defaults and a neutral palette. A deliberate
-  chart palette may override it; maintain distinguishable series, labels and
-  contrast in every supported theme. `AO.color` reads a token after styling loads.
+- Keep feedback colors meaningful: `ao-badge-success`, `-warning`, `-danger`,
+  `-info` and `ao-delta` with `ao-up` / `ao-down` say something; do not use them
+  to decorate.
+- A page has one `ao-button-primary`; the rest are `ao-button`, `ao-button-ghost`
+  or `ao-button-icon`. A destructive action is `ao-button-danger`.
+- Read the pattern for a job from a template: a number with an icon is
+  `ao-stat-tile`, a switch between views is `ao-tabs ao-tabs-line`, a filter is
+  `ao-chip` (with `aria-pressed`), a person is `ao-initials`, a long table is
+  `ao-table-scroll`.
+- Use sentence-case labels, Lucide icons where they help a label be found, and
+  `AO.format.number`, `compact`, `percent`, `currency`, `date` and `delta` for
+  numbers.
+- `AO.chart` supplies responsive defaults and the nine-colour series palette
+  (`--ao-series-1` to `-9`); `AO.color` reads a token after styling loads.
 
-An organization may have edited this skill to describe its own brand. Follow
-that explicit direction and preserve its meaning in phone and PDF layouts.
+A brand or design the person supplied is the exception: follow it, with a scoped
+`<style>` and custom classes, and keep the phone and PDF layouts working. An
+organization may have edited this skill to describe its own brand; follow that
+direction.
 
 ## Every class
 
-This is every class `lib/agenticos-3.css` defines.
+This is every class `lib/agenticos-4.css` defines.
 
 | Class | For |
 |---|---|
@@ -153,9 +162,11 @@ This is every class `lib/agenticos-3.css` defines.
 | `ao-stack`, `ao-row`, `ao-spacer` | A column with gaps; a wrapping row; the gap that pushes the rest of a row right |
 | `ao-card`, `ao-card-header`, `ao-card-title`, `ao-card-desc`, `ao-card-flush` | A surface; flush for a table or list that runs to its edges |
 | `ao-stat`, `ao-stat-label`, `ao-stat-value`, `ao-stat-foot`, `ao-delta` | A number with its label, its change and what the change is against |
+| `ao-stat-tile`, `ao-stat-icon`, `ao-stat-icon-success`, `ao-stat-icon-warning`, `ao-stat-icon-danger` | A stat card with an icon tile beside the number; the tile's tone |
 | `ao-up`, `ao-down` | Better and worse, on a delta or a word |
 | `ao-kpi-label`, `ao-kpi-value` | Older names for `ao-stat-label` and `ao-stat-value` |
 | `ao-table-wrap`, `ao-table`, `ao-num`, `ao-strong` | A table that scrolls sideways on a phone; a number column; the row's name |
+| `ao-table-scroll` | A table in a 24rem box with its header row pinned |
 | `ao-tabular` | Digits of equal width outside a table |
 | `ao-caption` | A line above a list: how many there are, what it is filtered by |
 | `ao-note` | A line under a list: that it is cut, or that a filter no longer applies |
@@ -163,13 +174,16 @@ This is every class `lib/agenticos-3.css` defines.
 | `ao-loading`, `ao-skeleton` | Before the data: a line with a spinner; a grey bar standing in for text |
 | `ao-empty` | No data, or nothing found |
 | `ao-live` | "Live": a dot saying the records are read when the page is opened |
-| `ao-badge`, `ao-badge-success`, `ao-badge-warning`, `ao-badge-danger`, `ao-badge-info`, `ao-badge-outline` | A status word; `ao-badge-info` is neutral but stands out |
+| `ao-badge`, `ao-badge-success`, `ao-badge-warning`, `ao-badge-danger`, `ao-badge-info`, `ao-badge-outline`, `ao-badge-accent`, `ao-badge-purple` | A status word; `ao-badge-info` is neutral but stands out |
+| `ao-chip`, `ao-chip-accent`, `ao-chip-success`, `ao-chip-warning`, `ao-chip-danger`, `ao-chip-dot` | A tag or a filter; a `button.ao-chip` with `aria-pressed="true"` is picked; a dot before the label |
+| `ao-initials`, `ao-initials-sm`, `ao-initials-lg`, `ao-initials-1`, `ao-initials-2`, `ao-initials-3`, `ao-initials-4`, `ao-initials-5`, `ao-initials-6` | A person in a circle; `data-ao-initials="Name"` fills it, `AO.initials(name)` picks the tone |
 | `ao-callout`, `ao-callout-warning`, `ao-callout-danger`, `ao-callout-success` | The one thing to know, with an icon first |
 | `ao-kv` | A `dl` of labels and values |
-| `ao-progress` | A bar: `<div class="ao-progress"><span style="width: 62%"></span></div>` |
+| `ao-progress`, `ao-progress-lg`, `ao-progress-success`, `ao-progress-warning`, `ao-progress-danger`, `ao-progress-label` | A bar, a place inline style belongs: `<div class="ao-progress"><span style="width: 62%"></span></div>`; a label line above it |
 | `ao-icon`, `ao-icon-box` | An element sized like an icon; an icon in a small square |
-| `ao-tabs`, `ao-tab` | A segmented control; `data-ao-tabs` wires it (below) |
-| `ao-toolbar`, `ao-input`, `ao-select`, `ao-button`, `ao-button-primary` | Filters and controls above what they act on |
+| `ao-tabs`, `ao-tab`, `ao-tabs-line` | A segmented control; add `ao-tabs-line` for an underlined strip; `data-ao-tabs` wires it (below) |
+| `ao-toolbar`, `ao-input`, `ao-select` | Filters and controls above what they act on |
+| `ao-button`, `ao-button-primary`, `ao-button-ghost`, `ao-button-danger`, `ao-button-sm`, `ao-button-lg`, `ao-button-icon` | One primary action; a quiet one; a destructive one; sizes; a square icon-only button |
 | `ao-chart`, `ao-chart-sm`, `ao-chart-lg` | A chart's box: 18rem, 12rem, 24rem high |
 | `ao-legend`, `ao-swatch` | A legend of your own, when the chart's is not enough |
 | `ao-footer` | Sources, method and when it was made, at the bottom |
@@ -190,15 +204,17 @@ Tabs switch panels without script of your own:
 
 ## Start from a template
 
-Three templates are files of this skill. Read the one that fits and replace its
-data rather than starting from an empty page:
+Three templates are files of this skill, all on kit 4, built from kit classes
+with no `<style>` of their own. Read the one that fits and replace its data
+rather than starting from an empty page:
 
-- `templates/dashboard.html` - numbers at a glance: a header, four stats with
-  their change, a tabbed chart, a table, a footer.
+- `templates/analytics-dashboard.html` - numbers at a glance: a header with a
+  range switch, four icon stat tiles with their change, a chart with a line tab
+  strip, a progress panel, a table, a footer.
 - `templates/report.html` - something to read: the answer in a callout, key
-  facts, sections, a table, next steps.
-- `templates/live-table.html` - records from a table that stay current: a
-  binding drawn with `AO.records`, with its loading, empty and unavailable states.
+  facts, a chart, sections, a table, next steps.
+- `templates/records-list.html` - records from a bound table that stay current:
+  a chip filter, `AO.records` with its loading, empty and unavailable states.
 
 Keep static data in one `const data = {...}` at the top of the script, as numbers
 rather than formatted strings, so the next refresh changes one place. Data you

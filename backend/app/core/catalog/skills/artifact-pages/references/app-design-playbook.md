@@ -1,5 +1,7 @@
 # Design an App around its job
 
+Default to the kit: compose layout with `ao-stack`, `ao-row` and `ao-grid-*`, and let the kit supply type, spacing and color. Inline `style` is for run-time values only (a bar width, a chart height). Type scale and token choices below matter when you write your own CSS for a supplied brand or design.
+
 Use a real audience, action and source. Keep supplied branding. Otherwise choose a restrained visual system that fits the subject; an operational view and an editorial report need different reading rhythms.
 
 ## Choose a composition
