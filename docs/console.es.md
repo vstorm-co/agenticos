@@ -1,5 +1,5 @@
 ---
-source_sha: "8e5e5054239f"
+source_sha: "3d6bb8177f35"
 ---
 
 # La consola { #the-console }
@@ -255,7 +255,7 @@ que propuso la revisión nocturna. El número a su lado dice cuánto espera. Se 
 como un buzón: una fila por elemento, lo urgente primero, de dónde vino y
 cuándo, y las respuestas en la fila.
 
-**Preguntas pendientes de tu respuesta** aparece en **Todo** y **Urgente** cuando un agente del chat web espera que respondas. Cada fila muestra la conversación, el agente y cuándo caduca la pregunta. Ábrela para responder en el chat original; abrirla no la elimina. La pregunta cuenta como pendiente hasta que la ejecución se reanuda, se cancela o la pregunta caduca. Solo la persona a quien el agente preguntó ve la fila en la bandeja, independientemente de sus permisos de aprobación.
+**Preguntas pendientes de tu respuesta** aparece en **Todo** y **Urgente** cuando un agente del chat web espera que respondas. Cada fila muestra la conversación, el agente y cuándo caduca la pregunta. Ábrela para responder en el chat original; abrirla no la elimina. La pregunta cuenta como pendiente hasta que la ejecución se reanuda, se cancela o la pregunta caduca. Solo la persona a quien el agente preguntó ve la fila en la bandeja, independientemente de sus permisos de aprobación. Los chats archivados se ocultan hasta que se restauran.
 
 Filtra por su origen, o abre **Hecho** para ver lo que ya aceptaste o
 descartaste y recuperar algo descartado. **What they found** en la tarjeta de

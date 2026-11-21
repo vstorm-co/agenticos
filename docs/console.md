@@ -240,7 +240,7 @@ watches. Shorter rows head your dashboard as **Briefing**, and the empty chat
 with the starter agent offers the first of them as a card, with a link to the
 rest.
 
-**Questions waiting for you** appears under **All** and **Urgent** when a web-chat agent is waiting for your answer. The row shows the chat, agent and expiry time. Open it to answer in the original chat; opening it alone does not clear it. The item counts as waiting until the run continues, is cancelled or the question expires. Only the person the agent asked sees it in Inbox, independently of approval permissions.
+**Questions waiting for you** appears under **All** and **Urgent** when a web-chat agent is waiting for your answer. The row shows the chat, agent and expiry time. Open it to answer in the original chat; opening it alone does not clear it. The item counts as waiting until the run continues, is cancelled or the question expires. Only the person the agent asked sees it in Inbox, independently of approval permissions. Archived chats are hidden until restored.
 
 What a watch finds that need not be heard at once waits for your morning: at
 the hour your organization's proactivity keeps, one notification and one direct

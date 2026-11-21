@@ -1256,6 +1256,9 @@ class ConversationService:
     ) -> WaitingChatQuestionList:
         """Read only what waits on this member, with no run-history or approval grant."""
         user_id = ctx.subject_id
+        participants = await channel_membership.confirmed_participant_threads(
+            self.db, user_id=user_id, organization_id=ctx.organization_id
+        )
         readable = await self.visible_project_ids(user_id, ctx.organization_id, reader=ctx)
         projects = await project_repo.get_many(
             self.db, readable, organization_id=ctx.organization_id
@@ -1268,6 +1271,7 @@ class ConversationService:
             self.db,
             organization_id=ctx.organization_id,
             user_id=user_id,
+            participant_conversation_ids=participants,
             usable_project_ids=usable,
             asked_since=datetime.now(UTC) - expiry,
             skip=skip,

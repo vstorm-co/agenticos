@@ -4160,6 +4160,7 @@ describe("useChat - durable questions resumed on the socket", () => {
 
   it("opens the Inbox-linked question even before its old turn is loaded", async () => {
     useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.setState({ messages: [{ ...askedTurn(), id: "newer", runId: "r-2" }] });
     get.mockResolvedValue(ASKED);
     const { result } = renderHook(() => useChat({ requestedQuestionRunId: "r-1" }), { wrapper });
 
@@ -4170,6 +4171,14 @@ describe("useChat - durable questions resumed on the socket", () => {
     const answer = { answer: "Casual", skipped: false };
     act(() => result.current.sendAskUserResponses([answer]));
     expect(runAnswerFrame()).toMatchObject({ run_id: "r-1", responses: { "ask-1": [answer] } });
+    receive("background_task_turn", {
+      conversation_id: "c-1",
+      agent_id: "agent",
+      resumed_run_id: "r-1",
+    });
+    expect(
+      useChatStore.getState().messages.find((message) => message.id === "newer")?.toolCalls,
+    ).toMatchObject([{ status: "awaiting_answer" }]);
     await act(async () => acknowledgeAnswer());
     expect(result.current.pendingQuestions).toBeNull();
   });

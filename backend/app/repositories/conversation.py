@@ -436,12 +436,15 @@ async def waiting_chat_questions(
     *,
     organization_id: UUID,
     user_id: UUID,
+    participant_conversation_ids: Collection[UUID],
     usable_project_ids: Collection[UUID],
     asked_since: datetime,
     skip: int,
     limit: int,
 ) -> tuple[Sequence[tuple[UUID, UUID, str | None, str, datetime]], int]:
     """Page this person's unexpired web questions in chats they can continue."""
+    # As in the conversation write check, participation alone only permits a
+    # turn in an ownerless, non-project chat. It never replaces an edit share.
     edit_share = select(ConversationShare.id).where(
         ConversationShare.conversation_id == Conversation.id,
         ConversationShare.shared_with == user_id,
@@ -474,9 +477,19 @@ async def waiting_chat_questions(
                 AgentRun.paused_state["question_results"] == {},
             ),
             Conversation.origin.is_distinct_from("workflow"),
+            Conversation.is_archived.is_(False),
             or_(
                 _reachable_by(user_id, (), usable_project_ids),
-                and_(Conversation.project_id.is_(None), edit_share.exists()),
+                and_(
+                    Conversation.project_id.is_(None),
+                    or_(
+                        edit_share.exists(),
+                        and_(
+                            Conversation.user_id.is_(None),
+                            Conversation.id.in_(participant_conversation_ids),
+                        ),
+                    ),
+                ),
             ),
         )
     )

@@ -29,6 +29,7 @@ from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurf
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation
+from app.db.models.conversation_share import ConversationShare
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.project import Project
 from app.db.models.user import User
@@ -36,6 +37,7 @@ from app.repositories import agent_run_repo, voice_call_repo
 from app.repositories.agent_run import ApprovalFilters, ChatAsker
 from app.services.agent_runner import AgentRunnerService
 from app.services.approvals import ApprovalService
+from app.services.channels import membership
 from app.services.conversation import ConversationService
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
@@ -194,6 +196,75 @@ async def test_parked_project_question_is_hidden_after_losing_the_right_to_conti
     assert (await service.list_waiting_questions(_ctx(org, owner), skip=0, limit=5)).total == 1
     viewer = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.VIEWER)
     assert (await service.list_waiting_questions(viewer, skip=0, limit=5)).total == 0
+
+
+async def test_archiving_a_shared_chat_removes_its_question_from_the_inbox(
+    db: AsyncSession,
+) -> None:
+    org, owner = await _org(db)
+    editor = await _user(db)
+    agent = await _agent(db, org)
+    conversation = Conversation(organization_id=org.id, user_id=owner.id)
+    db.add(conversation)
+    await db.flush()
+    db.add(
+        ConversationShare(
+            conversation_id=conversation.id,
+            shared_by=owner.id,
+            shared_with=editor.id,
+            permission="edit",
+        )
+    )
+    run = await _run(db, org, agent, started_by=editor)
+    run.status = RunStatus.AWAITING_ANSWER.value
+    run.conversation_id = conversation.id
+    run.ended_at = datetime.now(UTC)
+    run.paused_state = {"questions": ["ask"]}
+    await db.flush()
+
+    service = ConversationService(db)
+    caller = AuthContext(user_id=editor.id, organization_id=org.id, role=OrgRoleName.MEMBER)
+    assert (await service.list_waiting_questions(caller, skip=0, limit=5)).total == 1
+    conversation.is_archived = True
+    await db.flush()
+    hidden = await service.list_waiting_questions(caller, skip=0, limit=5)
+    assert hidden.total == 0
+    assert hidden.items == []
+
+
+async def test_only_confirmed_participants_can_list_their_questions_in_ownerless_threads(
+    db: AsyncSession,
+) -> None:
+    org, owner = await _org(db)
+    asker = await _user(db)
+    agent = await _agent(db, org)
+    ownerless = Conversation(organization_id=org.id, user_id=None)
+    owned = Conversation(organization_id=org.id, user_id=owner.id)
+    db.add_all([ownerless, owned])
+    await db.flush()
+    for conversation in (ownerless, owned):
+        run = await _run(db, org, agent, started_by=asker)
+        run.status = RunStatus.AWAITING_ANSWER.value
+        run.conversation_id = conversation.id
+        run.ended_at = datetime.now(UTC)
+        run.paused_state = {"questions": ["ask"]}
+    await db.flush()
+
+    service = ConversationService(db)
+    caller = AuthContext(user_id=asker.id, organization_id=org.id, role=OrgRoleName.MEMBER)
+    with patch.object(
+        membership,
+        "confirmed_participant_threads",
+        side_effect=[{ownerless.id, owned.id}, set()],
+    ) as confirmed:
+        visible = await service.list_waiting_questions(caller, skip=0, limit=5)
+        hidden = await service.list_waiting_questions(caller, skip=0, limit=5)
+
+    assert visible.total == 1
+    assert [item.conversation_id for item in visible.items] == [ownerless.id]
+    assert hidden.total == 0
+    assert hidden.items == []
+    confirmed.assert_awaited_with(db, user_id=asker.id, organization_id=org.id)
 
 
 async def _chat_run(

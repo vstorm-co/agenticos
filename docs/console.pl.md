@@ -1,5 +1,5 @@
 ---
-source_sha: "8e5e5054239f"
+source_sha: "3d6bb8177f35"
 ---
 
 # Konsola { #the-console }
@@ -251,7 +251,7 @@ zawężonego do obserwacji. Krótsze wiersze otwierają twój dashboard jako
 **Briefing**, a pusty czat z agentem startowym pokazuje pierwszą z nich jako
 kartę, z linkiem do reszty.
 
-**Pytania czekające na odpowiedź** pojawiają się w widokach **Wszystkie** i **Pilne**, gdy agent w czacie internetowym czeka na Twoją odpowiedź. Wiersz pokazuje czat, agenta i termin wygaśnięcia. Otwórz go, aby odpowiedzieć w pierwotnym czacie; samo otwarcie nie usuwa wpisu. Pytanie liczy się jako oczekujące, dopóki wykonanie nie zostanie wznowione lub anulowane albo pytanie nie wygaśnie. Wpis w Inbox widzi tylko osoba, do której skierowano pytanie, niezależnie od uprawnień do zatwierdzania.
+**Pytania czekające na odpowiedź** pojawiają się w widokach **Wszystkie** i **Pilne**, gdy agent w czacie internetowym czeka na Twoją odpowiedź. Wiersz pokazuje czat, agenta i termin wygaśnięcia. Otwórz go, aby odpowiedzieć w pierwotnym czacie; samo otwarcie nie usuwa wpisu. Pytanie liczy się jako oczekujące, dopóki wykonanie nie zostanie wznowione lub anulowane albo pytanie nie wygaśnie. Wpis w Inbox widzi tylko osoba, do której skierowano pytanie, niezależnie od uprawnień do zatwierdzania. Zarchiwizowane czaty są ukryte do czasu przywrócenia.
 
 To, co obserwacja znajdzie, a co nie musi trafić do ciebie od razu, czeka na
 twój poranek: o godzinie, którą trzyma proaktywność organizacji, jedno

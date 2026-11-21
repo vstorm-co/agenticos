@@ -1,5 +1,5 @@
 ---
-source_sha: "8e5e5054239f"
+source_sha: "3d6bb8177f35"
 ---
 
 # Die Konsole { #the-console }
@@ -256,7 +256,7 @@ was der nächtliche Blick vorgeschlagen hat. Die Zahl daneben sagt, wie viel
 wartet. Er liest sich wie ein Postfach: eine Zeile je Eintrag, Dringendes
 zuerst, woher und wann, und die Antworten in der Zeile.
 
-**Offene Fragen an Sie** erscheint unter **Alle** und **Dringend**, wenn ein Agent im Webchat auf Ihre Antwort wartet. Der Eintrag zeigt den Chat, den Agenten und den Ablaufzeitpunkt. Öffnen Sie den Eintrag, um im ursprünglichen Chat zu antworten; durch das Öffnen allein verschwindet er nicht. Die Frage zählt als offen, bis der Lauf fortgesetzt oder abgebrochen wird oder die Frage abläuft. Nur die gefragte Person sieht den Eintrag im Posteingang, unabhängig von ihren Freigaberechten.
+**Offene Fragen an Sie** erscheint unter **Alle** und **Dringend**, wenn ein Agent im Webchat auf Ihre Antwort wartet. Der Eintrag zeigt den Chat, den Agenten und den Ablaufzeitpunkt. Öffnen Sie den Eintrag, um im ursprünglichen Chat zu antworten; durch das Öffnen allein verschwindet er nicht. Die Frage zählt als offen, bis der Lauf fortgesetzt oder abgebrochen wird oder die Frage abläuft. Nur die gefragte Person sieht den Eintrag im Posteingang, unabhängig von ihren Freigaberechten. Archivierte Chats bleiben ausgeblendet, bis sie wiederhergestellt werden.
 
 Filtern Sie nach Herkunft, oder öffnen Sie **Erledigt** für das, was Sie schon
 angenommen oder abgelehnt haben, und holen Sie Abgelehntes zurück. **Was sie
