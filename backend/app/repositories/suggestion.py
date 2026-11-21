@@ -153,16 +153,34 @@ async def keys_for(db: AsyncSession, *, organization_id: UUID, user_id: UUID) ->
 
 
 async def get_own(
-    db: AsyncSession, suggestion_id: UUID, *, organization_id: UUID, user_id: UUID
+    db: AsyncSession,
+    suggestion_id: UUID,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    lock_generated: bool = False,
 ) -> Suggestion | None:
-    """One proposal, only if it was made to this person in this organization."""
-    result = await db.execute(
-        select(Suggestion).where(
-            Suggestion.id == suggestion_id,
-            Suggestion.organization_id == organization_id,
-            Suggestion.user_id == user_id,
-        )
+    """One person's proposal; decisions claim generated rows before doing work.
+
+    Findings retain the case service's task → outcome → finding lock order.
+    They are never candidates for generated-proposal replacement.
+    """
+    statement = select(Suggestion).where(
+        Suggestion.id == suggestion_id,
+        Suggestion.organization_id == organization_id,
+        Suggestion.user_id == user_id,
     )
+    if lock_generated:
+        result = await db.execute(
+            statement.where(Suggestion.kind != SuggestionKind.FINDING.value)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        generated = result.scalar_one_or_none()
+        if generated is not None:
+            return generated
+        statement = statement.where(Suggestion.kind == SuggestionKind.FINDING.value)
+    result = await db.execute(statement)
     return result.scalar_one_or_none()
 
 

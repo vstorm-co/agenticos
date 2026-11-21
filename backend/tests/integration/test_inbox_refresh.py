@@ -1,21 +1,24 @@
 """Atomic replacement of generated Inbox proposals, against real PostgreSQL."""
 
+import asyncio
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.outcome import Outcome
 from app.db.models.suggestion import Suggestion, SuggestionStatus
 from app.db.models.user import User
 from app.repositories import suggestion_repo, watch_repo
+from app.services.suggestions import SuggestionService
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -279,3 +282,124 @@ async def test_a_failed_new_record_rolls_back_removal_and_restores_old_proposals
     restored = await db.get(Suggestion, old_id)
     assert restored is not None
     assert restored.status == "open"
+
+
+async def _observe_row_wait(engine: AsyncEngine, pid: int, operation: asyncio.Task[bool]) -> bool:
+    async with engine.connect() as connection:
+        observer = await connection.execution_options(isolation_level="AUTOCOMMIT")
+        while not operation.done():
+            result = await observer.execute(
+                text("SELECT wait_event_type FROM pg_stat_activity WHERE pid = :pid"),
+                {"pid": pid},
+            )
+            if result.scalar_one_or_none() == "Lock":
+                return True
+            await asyncio.sleep(0.01)
+    return False
+
+
+@pytest.mark.parametrize("decision", ["accept", "dismiss"])
+async def test_a_decision_claims_the_card_before_refresh_can_replace_it(
+    db: AsyncSession, engine: AsyncEngine, decision: str
+) -> None:
+    people = await _people(db)
+    row = await _proposal(db, people, kind="profile" if decision == "accept" else "routine")
+    row.payload = {"job_title": "Team lead"}
+    identifier = row.id
+    await db.commit()
+    started, release = asyncio.Event(), asyncio.Event()
+
+    class PausingDecision(SuggestionService):
+        async def _own_open(self, ctx: AuthContext, suggestion_id: UUID) -> Suggestion:
+            claimed = await super()._own_open(ctx, suggestion_id)
+            started.set()
+            await release.wait()
+            return claimed
+
+    context = AuthContext(
+        user_id=people.user_id,
+        organization_id=people.organization_id,
+        role=OrgRoleName.MEMBER,
+    )
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def answer() -> str:
+        async with factory() as session:
+            service = PausingDecision(session)
+            answered = (
+                await service.accept(context, identifier)
+                if decision == "accept"
+                else await service.dismiss(context, identifier)
+            )
+            await session.commit()
+            return answered.status
+
+    async with factory() as refresh_session:
+        pid = (await refresh_session.execute(text("SELECT pg_backend_pid()"))).scalar_one()
+        assert isinstance(pid, int)
+
+        async def replace() -> bool:
+            removed = await suggestion_repo.remove_open_generated(
+                refresh_session,
+                organization_id=people.organization_id,
+                user_id=people.user_id,
+                expected_ids={identifier},
+            )
+            await refresh_session.commit()
+            return removed
+
+        answering = asyncio.create_task(answer())
+        replacing: asyncio.Task[bool] | None = None
+        observing: asyncio.Task[bool] | None = None
+        try:
+            await asyncio.wait_for(started.wait(), timeout=5)
+            replacing = asyncio.create_task(replace())
+            observing = asyncio.create_task(_observe_row_wait(engine, pid, replacing))
+            blocked = await asyncio.wait_for(observing, timeout=5)
+            assert blocked, "Refresh must wait for the in-progress user decision"
+            release.set()
+            status = await asyncio.wait_for(answering, timeout=5)
+            removed = await asyncio.wait_for(replacing, timeout=5)
+            assert status == ("accepted" if decision == "accept" else "dismissed")
+            assert removed is False
+        finally:
+            release.set()
+            await asyncio.gather(
+                answering,
+                *(task for task in (replacing, observing) if task is not None),
+                return_exceptions=True,
+            )
+    async with factory() as verification:
+        saved = await verification.get(Suggestion, identifier)
+        assert saved is not None
+        assert saved.status == status
+        if decision == "accept":
+            person = await verification.get(User, people.user_id)
+            assert person is not None
+            assert person.job_title == "Team lead"
+
+
+async def test_finding_reads_keep_the_case_services_lock_order(
+    db: AsyncSession, engine: AsyncEngine
+) -> None:
+    people = await _people(db)
+    finding = await _proposal(db, people, kind="finding")
+    identifier = finding.id
+    await db.commit()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as holding, factory() as reading:
+        await holding.execute(
+            select(Suggestion).where(Suggestion.id == identifier).with_for_update()
+        )
+        found = await asyncio.wait_for(
+            suggestion_repo.get_own(
+                reading,
+                identifier,
+                organization_id=people.organization_id,
+                user_id=people.user_id,
+                lock_generated=True,
+            ),
+            timeout=2,
+        )
+        assert found is not None
+        assert found.kind == "finding"

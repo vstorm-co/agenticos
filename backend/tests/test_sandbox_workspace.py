@@ -6221,7 +6221,8 @@ async def test_creating_a_file_materializes_the_session_and_makes_the_archive_br
     opened = await service.open(_spec(backend="service"), ctx=_ctx(), identity=_identity())
     assert opened is not None
     await opened.workspace.write_bytes("notes.txt", b"kept")
-    assert await service.close(opened) is None
+    closed = await service.close(opened)
+    assert closed is None
     assert row.session_id is not None
     after = await service.listing(_ctx(), conversation_id=uuid4())
     assert after is not None
