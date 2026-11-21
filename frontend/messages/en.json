@@ -832,7 +832,7 @@
     "visualDesignHeading": "Drawing style",
     "platformServerDescription": "This platform's own tools: agents, runs, spend, knowledge bases, skills and members - so the agent can answer questions about the platform and act in it.",
     "platformServerBadge": "Built in",
-    "platformAsksBeforeWrites": "Asks before any change",
+    "platformAsksBeforeWrites": "Asks before consequential actions",
     "platformAsksEveryCall": "Asks before every call",
     "platformAsWhoeverAsks": "Acts as whoever asks",
     "platformActsAsWhoeverAsks": "Every tool acts as the person the agent runs for, with exactly their permissions. Nothing new is granted: what they could not do in the console, the agent cannot do here either.",
@@ -988,7 +988,8 @@
     "removeStarter": "Remove first message {number}",
     "newStarter": "New first message",
     "addStarter": "Add",
-    "platformAlwaysAsksBadge": "always asks: it changes who has authority here",
+    "platformConditionalApproval": "Task writes still ask when they may start or reschedule agent work. You can require confirmation for any other draft or record change.",
+    "platformAlwaysAsksBadge": "always asks for confirmation",
     "platformUngatedBadge": "your own setting, never asks",
     "noKeyForEndpoint": "No key - the endpoint needs none",
     "notAChatModel": "not a chat model",
@@ -8427,7 +8428,9 @@
     "maintenance": {
       "heading": "{app} is under maintenance",
       "body": "The deployment is temporarily closed. Try again shortly.",
-      "adminStrip": "Maintenance mode is on. Everybody but you is locked out."
+      "adminStrip": "Maintenance mode is on. Everybody but you is locked out.",
+      "announcementTitle": "Announcement",
+      "status": "Temporarily unavailable"
     },
     "routines": {
       "title": "Routines",
@@ -17635,9 +17638,14 @@
   "start": {
     "sidebarReminder": {
       "title": "Finish setup",
-      "hint": "Complete your guided setup at your own pace.",
+      "hint": "Add your details, choose how agents help, and try your first task.",
       "snooze": "Remind me tomorrow",
-      "saveFailed": "Could not hide the reminder. Try again."
+      "saveFailed": "Could not hide the reminder. Try again.",
+      "heading": "Make this workspace yours",
+      "manualTitle": "Guided setup",
+      "manualHint": "Return to setup whenever you need, even with reminders turned off.",
+      "manualAction": "Open setup",
+      "snoozeDays": "{days, plural, one {Remind me tomorrow} other {Remind me in # days}}"
     },
     "administration": {
       "title": "Prepare your organization for your team",
@@ -21064,5 +21072,50 @@
     "remove": "Remove connection",
     "loading": "Loading connections…",
     "defaultEndpoint": "Provider default"
+  },
+  "consoleExperience": {
+    "title": "Chat home",
+    "personalHint": "Only in this workspace. Inherit its defaults or choose what appears before a conversation. Deployment availability always applies.",
+    "organizationHint": "Starting defaults for members of this workspace. People can override them in their profile; deployment availability always applies.",
+    "deploymentHint": "Choose which chat-home elements are available across this installation. This changes presentation, never access to resources or agent behavior.",
+    "unavailable": "Unavailable for this deployment.",
+    "inheritShown": "Inherit (shown)",
+    "inheritHidden": "Inherit (hidden)",
+    "show": "Show",
+    "hide": "Hide",
+    "reset": "Use workspace defaults",
+    "retry": "Retry",
+    "items": {
+      "inbox": {
+        "label": "Inbox preview",
+        "hint": "A short preview above the composer. The full Inbox and its approvals stay available."
+      },
+      "starters": {
+        "label": "Prompt suggestions",
+        "hint": "Suggested first messages below the empty composer."
+      },
+      "greeting": {
+        "label": "Welcome greeting",
+        "hint": "The welcome heading before a new conversation. Does not change how agents reply."
+      },
+      "feature_hints": {
+        "label": "Feature hints",
+        "hint": "Product-discovery copy and the / and @ composer hint. Essential labels and tooltips stay visible."
+      }
+    },
+    "remindersTitle": "Setup reminders",
+    "remindersPersonalHint": "Reminders about unfinished setup in this workspace. Turning them off keeps the manual setup link in Settings.",
+    "remindersOrganizationHint": "Starting reminder settings for members. People can override them; deployment availability still applies.",
+    "remindersDeploymentHint": "Allow reminders about unfinished setup. People can always open setup manually from Settings.",
+    "remindersEnabled": "Setup reminders",
+    "remindersFrequency": "Remind again after dismissing",
+    "inheritDays": "{count, plural, one {Inherit (1 day)} other {Inherit (# days)}}",
+    "days": "{count, plural, one {1 day} other {# days}}",
+    "announcementExpiry": "Announcement expires",
+    "announcementExpiryHint": "Optional. Time in {zone}, stored in UTC. The announcement stops appearing after this time.",
+    "maintenanceEnd": "Planned maintenance end",
+    "maintenanceEndHint": "Optional. Time in {zone}, stored in UTC. Informational only; an administrator must end maintenance.",
+    "maintenanceEndInformational": "This is an estimate. Access returns when an administrator ends maintenance.",
+    "invalidTime": "Choose a valid local date and time."
   }
 }

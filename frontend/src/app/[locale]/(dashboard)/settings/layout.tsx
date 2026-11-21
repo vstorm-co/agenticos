@@ -25,7 +25,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
     if (start.current) scrollWithin(start.current, "start", glideOrJump());
   }, [pathname]);
   return (
-    <div ref={start} className="flex flex-1 scroll-mt-16 flex-col space-y-4 lg:scroll-mt-6">
+    <div ref={start} className="flex min-h-0 flex-1 scroll-mt-16 flex-col space-y-4 lg:scroll-mt-6">
       <PageHeader
         title={isMemory ? memory("title") : t("settings")}
         description={isMemory ? memory("description") : t("manageYourAccountIntegrations")}

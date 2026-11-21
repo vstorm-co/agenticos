@@ -4556,7 +4556,9 @@
     "maintenance": {
       "heading": "{app} jest w trakcie konserwacji",
       "body": "Wdrożenie jest chwilowo zamknięte. Spróbuj ponownie za chwilę.",
-      "adminStrip": "Tryb konserwacji jest włączony. Wszyscy poza Tobą są zablokowani."
+      "adminStrip": "Tryb konserwacji jest włączony. Wszyscy poza Tobą są zablokowani.",
+      "announcementTitle": "Ogłoszenie",
+      "status": "Chwilowo niedostępne"
     },
     "routines": {
       "title": "Rutyny",
@@ -10057,7 +10059,7 @@
     "visualDesignHeading": "Styl rysunków",
     "platformServerDescription": "Własne narzędzia tej platformy: agenci, runy, wydatki, bazy wiedzy, skille i członkowie - agent może odpowiadać na pytania o platformę i w niej działać.",
     "platformServerBadge": "Wbudowany",
-    "platformAsksBeforeWrites": "Pyta przed każdą zmianą",
+    "platformAsksBeforeWrites": "Pyta przed istotnymi działaniami",
     "platformAsksEveryCall": "Pyta przed każdym wywołaniem",
     "platformAsWhoeverAsks": "Działa jako osoba, która pyta",
     "platformActsAsWhoeverAsks": "Każde narzędzie działa jako osoba, dla której działa agent, z dokładnie jej uprawnieniami. Nic nowego nie jest przyznawane: czego nie mogła zrobić w konsoli, agent też tu nie zrobi.",
@@ -10213,7 +10215,8 @@
     "removeStarter": "Usuń pierwszą wiadomość {number}",
     "newStarter": "Nowa pierwsza wiadomość",
     "addStarter": "Dodaj",
-    "platformAlwaysAsksBadge": "zawsze pyta: zmienia, kto ma tu uprawnienia",
+    "platformConditionalApproval": "Zmiany zadań nadal wymagają zgody, gdy mogą uruchomić lub przeplanować pracę agenta. Możesz też wymagać potwierdzenia każdej innej zmiany wersji roboczej lub rekordu.",
+    "platformAlwaysAsksBadge": "zawsze wymaga potwierdzenia",
     "platformUngatedBadge": "własne ustawienie, bez zgody",
     "noKeyForEndpoint": "Bez klucza - endpoint go nie wymaga",
     "notAChatModel": "to nie model czatu",
@@ -17408,9 +17411,14 @@
   "start": {
     "sidebarReminder": {
       "title": "Dokończ konfigurację",
-      "hint": "Dokończ konfigurację we własnym tempie.",
+      "hint": "Uzupełnij profil, wybierz pomoc agentów i wykonaj pierwsze zadanie.",
       "snooze": "Przypomnij mi jutro",
-      "saveFailed": "Nie udało się ukryć przypomnienia. Spróbuj ponownie."
+      "saveFailed": "Nie udało się ukryć przypomnienia. Spróbuj ponownie.",
+      "heading": "Dopasuj obszar pracy do siebie",
+      "manualTitle": "Konfiguracja z przewodnikiem",
+      "manualHint": "Wróć do konfiguracji w dowolnym momencie, także przy wyłączonych przypomnieniach.",
+      "manualAction": "Otwórz konfigurację",
+      "snoozeDays": "{days, plural, one {Przypomnij mi jutro} few {Przypomnij mi za # dni} many {Przypomnij mi za # dni} other {Przypomnij mi za # dni}}"
     },
     "administration": {
       "title": "Przygotuj organizację dla swojego zespołu",
@@ -20837,5 +20845,50 @@
     "remove": "Usuń połączenie",
     "loading": "Wczytywanie połączeń…",
     "defaultEndpoint": "Domyślny adres dostawcy"
+  },
+  "consoleExperience": {
+    "title": "Ekran nowego czatu",
+    "personalHint": "Tylko w tym obszarze roboczym. Użyj jego ustawień domyślnych lub wybierz elementy widoczne przed rozmową. Dostępność określona dla instalacji nadal obowiązuje.",
+    "organizationHint": "Ustawienia początkowe dla członków tego obszaru. Każda osoba może je zmienić w swoim profilu; dostępność określona dla instalacji nadal obowiązuje.",
+    "deploymentHint": "Wybierz elementy ekranu nowego czatu dostępne w całej instalacji. Zmienia to wygląd, a nie dostęp do zasobów ani zachowanie agentów.",
+    "unavailable": "Niedostępne w tej instalacji.",
+    "inheritShown": "Dziedzicz (widoczne)",
+    "inheritHidden": "Dziedzicz (ukryte)",
+    "show": "Pokaż",
+    "hide": "Ukryj",
+    "reset": "Użyj ustawień obszaru",
+    "retry": "Spróbuj ponownie",
+    "items": {
+      "inbox": {
+        "label": "Podgląd skrzynki",
+        "hint": "Krótki podgląd nad polem wiadomości. Pełna skrzynka i prośby o zgodę pozostają dostępne."
+      },
+      "starters": {
+        "label": "Propozycje wiadomości",
+        "hint": "Propozycje pierwszych wiadomości pod pustym polem czatu."
+      },
+      "greeting": {
+        "label": "Powitanie",
+        "hint": "Nagłówek powitalny przed nową rozmową. Nie zmienia odpowiedzi agentów."
+      },
+      "feature_hints": {
+        "label": "Podpowiedzi funkcji",
+        "hint": "Opisy ułatwiające odkrywanie funkcji oraz podpowiedź / i @. Niezbędne etykiety i dymki pozostają widoczne."
+      }
+    },
+    "remindersTitle": "Przypomnienia o konfiguracji",
+    "remindersPersonalHint": "Przypomnienia o niedokończonej konfiguracji w tym obszarze. Po ich wyłączeniu ręczny link do konfiguracji pozostaje w Ustawieniach.",
+    "remindersOrganizationHint": "Początkowe ustawienia przypomnień dla członków. Każda osoba może je zmienić; dostępność określona dla instalacji nadal obowiązuje.",
+    "remindersDeploymentHint": "Zezwól na przypomnienia o niedokończonej konfiguracji. Każda osoba może zawsze otworzyć konfigurację ręcznie w Ustawieniach.",
+    "remindersEnabled": "Przypomnienia o konfiguracji",
+    "remindersFrequency": "Przypomnij ponownie po odłożeniu",
+    "inheritDays": "{count, plural, one {Dziedzicz (1 dzień)} few {Dziedzicz (# dni)} many {Dziedzicz (# dni)} other {Dziedzicz (# dnia)}}",
+    "days": "{count, plural, one {1 dzień} few {# dni} many {# dni} other {# dnia}}",
+    "announcementExpiry": "Wygaśnięcie ogłoszenia",
+    "announcementExpiryHint": "Opcjonalne. Czas w strefie {zone}, zapisywany w UTC. Po tym terminie ogłoszenie przestaje się wyświetlać.",
+    "maintenanceEnd": "Planowany koniec prac",
+    "maintenanceEndHint": "Opcjonalne. Czas w strefie {zone}, zapisywany w UTC. Wyłącznie informacja — administrator musi zakończyć tryb konserwacji.",
+    "maintenanceEndInformational": "To przewidywany termin. Dostęp wróci, gdy administrator zakończy tryb konserwacji.",
+    "invalidTime": "Wybierz prawidłową lokalną datę i godzinę."
   }
 }

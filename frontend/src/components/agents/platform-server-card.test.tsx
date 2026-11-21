@@ -87,7 +87,7 @@ describe("the AgenticOS server in the Builder", () => {
       error: null,
     });
     render(<Harness initial={NEW_PLATFORM_BINDING} onChange={vi.fn()} />);
-    await userEvent.click(screen.getByText("Asks before any change"));
+    await userEvent.click(screen.getByText("Asks before consequential actions"));
 
     const language = screen.getByRole("button", { name: "Ask first before set_my_language" });
     expect(language).toBeDisabled();
@@ -98,7 +98,7 @@ describe("the AgenticOS server in the Builder", () => {
   it("narrows the tools, and every tool chosen again is today's tools only", async () => {
     const onChange = vi.fn();
     render(<Harness initial={NEW_PLATFORM_BINDING} onChange={onChange} />);
-    await userEvent.click(screen.getByText("Asks before any change"));
+    await userEvent.click(screen.getByText("Asks before consequential actions"));
 
     await userEvent.click(screen.getByRole("checkbox", { name: "run_agent" }));
     expect(onChange).toHaveBeenLastCalledWith({
@@ -116,7 +116,7 @@ describe("the AgenticOS server in the Builder", () => {
   it("says when a tool runs freely, and is removed from the dialog", async () => {
     const onChange = vi.fn();
     render(<Harness initial={NEW_PLATFORM_BINDING} onChange={onChange} />);
-    await userEvent.click(screen.getByText("Asks before any change"));
+    await userEvent.click(screen.getByText("Asks before consequential actions"));
 
     await userEvent.click(screen.getByRole("button", { name: "Ask first before run_agent" }));
     expect(onChange).toHaveBeenLastCalledWith({
@@ -139,7 +139,7 @@ describe("the AgenticOS server in the Builder", () => {
       tool_approval: { run_agent: "never" as const },
     };
     render(<Harness initial={binding} onChange={vi.fn()} />);
-    expect(screen.getByText("Asks before any change")).toBeInTheDocument();
+    expect(screen.getByText("Asks before consequential actions")).toBeInTheDocument();
   });
 
   it("says a binding that asks before every call does", () => {
@@ -161,7 +161,7 @@ describe("the AgenticOS server in the Builder", () => {
     const listed = tools.getMockImplementation()!;
     tools.mockReturnValue({ tools: [], isLoading: false, error: new Error("Service unavailable") });
     render(<Harness initial={NEW_PLATFORM_BINDING} onChange={vi.fn()} />);
-    await userEvent.click(screen.getByText("Asks before any change"));
+    await userEvent.click(screen.getByText("Asks before consequential actions"));
 
     expect(screen.getByRole("dialog")).toHaveTextContent("Service unavailable");
     expect(screen.queryByRole("checkbox")).toBeNull();
@@ -184,7 +184,7 @@ describe("the AgenticOS server in the Builder", () => {
 
   it("opens nothing for a reader who cannot edit the agent", async () => {
     render(<Harness initial={NEW_PLATFORM_BINDING} onChange={vi.fn()} disabled />);
-    await userEvent.click(screen.getByText("Asks before any change"));
+    await userEvent.click(screen.getByText("Asks before consequential actions"));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

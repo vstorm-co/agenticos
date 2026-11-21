@@ -51,14 +51,20 @@ export const BuildSection = forwardRef<
   );
   const heading = (
     <span
-      className={cn("min-w-0 flex-1", !framed && "flex flex-wrap items-baseline gap-x-3 gap-y-0.5")}
+      className={cn(
+        "min-w-0 flex-1",
+        !framed && "flex items-baseline gap-x-3",
+        !framed && !collapsible && "flex-wrap gap-y-0.5",
+      )}
     >
-      <span className="block text-sm font-medium">{title}</span>
+      <span className="block shrink-0 text-sm font-medium">{title}</span>
       {summary && (
         <span
+          title={typeof summary === "string" ? summary : undefined}
           className={cn(
             "text-muted-foreground block font-normal",
             framed ? "mt-0.5 text-sm leading-relaxed" : "text-[13px] leading-5",
+            !framed && collapsible && "truncate",
           )}
         >
           {summary}

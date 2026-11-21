@@ -894,3 +894,52 @@ class TestWhereANewAccountStarts:
             data=DeploymentSettingsUpdate.model_validate({"default_organization_id": None}),
         )
         assert repo.upsert.await_args.kwargs["update_data"] == {"default_organization_id": None}
+
+
+async def test_console_availability_is_admin_only_and_missing_keys_keep_their_defaults(
+    mock_db_session, repo
+):
+    repo.get.return_value = a_row(chat_home_available={"inbox": False})
+    service = DeploymentSettingsService(mock_db_session)
+    admin = await service.read()
+    assert admin.chat_home_available is not None
+    assert admin.chat_home_available.inbox is False
+    assert admin.chat_home_available.starters is None
+    assert "chat_home_available" not in (await service.branding()).model_dump()
+
+
+@pytest.mark.parametrize("seconds", (-1, 0, 1))
+async def test_announcement_expiry_uses_server_clock_but_planned_end_never_reopens_maintenance(
+    mock_db_session, repo, monkeypatch: pytest.MonkeyPatch, seconds: int
+) -> None:
+    from datetime import timedelta, tzinfo
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz: tzinfo | None = None) -> datetime:
+            return WRITTEN
+
+    monkeypatch.setattr(module, "datetime", Clock)
+    planned_end = WRITTEN - timedelta(hours=1)
+    repo.get.return_value = a_row(
+        announcement="Update window",
+        announcement_expires_at=WRITTEN + timedelta(seconds=seconds),
+        maintenance_mode=True,
+        maintenance_planned_end_at=planned_end,
+    )
+    service = DeploymentSettingsService(mock_db_session)
+    notice = await service.notice()
+    assert notice.message == ("Update window" if seconds > 0 else None)
+    assert notice.maintenance_mode is True
+    assert notice.maintenance_planned_end_at == planned_end
+    assert (await service.read()).announcement == "Update window"
+
+
+def test_notice_deadlines_require_an_offset_and_are_normalized_to_utc() -> None:
+    for field in ("announcement_expires_at", "maintenance_planned_end_at"):
+        with pytest.raises(ValidationError):
+            DeploymentSettingsUpdate.model_validate({field: "2026-11-21T10:00:00"})
+        value = DeploymentSettingsUpdate.model_validate({field: "2026-11-21T12:00:00+02:00"})
+        assert value.model_dump()[field] == datetime(2026, 11, 21, 10, tzinfo=UTC)
+        cleared = DeploymentSettingsUpdate.model_validate({field: None})
+        assert cleared.model_dump(exclude_unset=True) == {field: None}

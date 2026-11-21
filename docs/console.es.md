@@ -1,5 +1,5 @@
 ---
-source_sha: "c5ea2ca61a76"
+source_sha: "b4da0595fe79"
 ---
 
 # La consola { #the-console }
@@ -8,7 +8,9 @@ Los temas predeterminados distinguen el fondo, la barra lateral, las tarjetas y 
 
 Los agregados de uso y gasto del dashboard reutilizan la misma respuesta en memoria para el mismo periodo durante un máximo de 30 minutos. No son contadores en directo: los eventos de ejecución no actualizan estos agregados después de cada ejecución. Una recarga completa del navegador parte de una caché vacía y consulta de nuevo la API. Los diseños guardados solo se solicitan en la vista de organización, donde están disponibles los controles de distribución.
 
-Si el onboarding de tu organización actual no está terminado, el enlace para completar la configuración vuelve a la guía. La acción para recordar mañana oculta la tarjeta durante 24 horas y mantiene un enlace discreto de regreso. La finalización y el aplazamiento se guardan en el servidor para tu pertenencia a la organización. Una consulta de progreso pendiente o fallida no presenta la configuración como incompleta. Vuelves por decisión propia: no se inicia ningún recorrido automáticamente. En el mismo navegador, el enlace recuerda el último paso permitido para la misma cuenta y organización, también tras recargar. No guarda valores del formulario; en otro dispositivo abre de forma segura el inicio predeterminado.
+Si el onboarding de tu organización actual no está terminado, **Completar configuración** vuelve a su guía. Descartar el recordatorio lo pausa durante el intervalo efectivo de 1, 3 o 7 días (un día de forma predeterminada). La finalización y el aplazamiento se guardan en el servidor para tu pertenencia a la organización. Una consulta de progreso pendiente o fallida no presenta la configuración como incompleta.
+
+**Ajustes → Perfil** conserva siempre un enlace manual a la configuración, también cuando los recordatorios están desactivados. El recordatorio tiene una acción clara y una ilustración breve y limitada; el movimiento reducido la mantiene quieta. No se inicia ningún recorrido automáticamente. En el mismo navegador, el enlace recuerda el último paso permitido para esta cuenta y organización sin guardar valores del formulario.
 
 Inbox mantiene el mismo marco de lista, espaciado de filas, marcas de origen, tipografía de títulos y detalles y alineación adaptable de acciones en Todas, Urgentes, Resultados de rutinas, Sugerencias y Terminadas. Las terminadas conservan el estado de la decisión y la acción de recuperar elementos descartados; origen y hora también se ven en el teléfono. Los formularios de aprobación mantienen el mismo margen exterior, sus campos obligatorios y controles de permisos.
 
@@ -173,6 +175,18 @@ La cronología muestra hasta dos elementos de la bandeja, incluido el enlace a a
 El chat principal tiene un cuadro de mensaje ancho. La biblioteca muestra primero los proveedores conectados, con logotipos y nombres que empiezan en mayúscula, y separa el catálogo de los modelos guardados. Pulsar un modelo lo selecciona directamente. Las credenciales que falten se añaden mediante los formularios existentes de Vault dentro del selector, incluidas las credenciales de varios campos. Se conservan los permisos y la validación de modelos. El micrófono y el envío cambian suavemente al escribir.
 
 La búsqueda de conversaciones revisa títulos y texto indexado de mensajes, incluidos los chats archivados que puedes leer. Los resultados muestran fragmentos de texto, coincidencias resaltadas y el número de mensajes coincidentes. Usa las flechas y Enter para abrir un resultado. Los errores ofrecen reintentar en lugar de simular una lista vacía.
+
+## Experiencia de la consola { #console-experience }
+
+Los administradores de la instalación eligen la disponibilidad en **menú de cuenta → Admin → Deployment → Identity**. Los administradores de la organización establecen valores iniciales en sus **AI & services**. Cada miembro puede cambiarlos en **Ajustes → Perfil**, solo para el espacio actual. **Vista previa de la bandeja**, **Sugerencias de mensajes**, **Saludo** e **Indicaciones de funciones** son independientes. Un elemento desactivado para toda la instalación sigue sin estar disponible; los miembros sí pueden cambiar los valores predeterminados de su organización. El tema, el estilo y el idioma siguen siendo de toda la cuenta.
+
+Ocultar la vista previa no retira la bandeja completa ni la cola de aprobaciones. Los espacios del saludo y las sugerencias conservan su altura para que el campo del mensaje no se desplace al cambiar su visibilidad. Las indicaciones de funciones abarcan textos generales de descubrimiento y la indicación de `/` y `@`; las etiquetas esenciales y las ayudas siguen disponibles. Estos ajustes cambian la presentación, no los permisos de recursos ni el comportamiento del agente.
+
+Los **Recordatorios de configuración** siguen la misma jerarquía: disponibilidad de la instalación, valores de la organización y preferencias personales. Elige si aparecen y si el aplazamiento dura 1, 3 o 7 días. El valor predeterminado es un día. El servidor calcula cuándo pueden volver para esta pertenencia; no crea un programa de notificaciones ni una tarea correcta. El enlace manual de configuración del Perfil permanece cuando los recordatorios están desactivados.
+
+Los ajustes de instalación también ofrecen una fecha opcional de **Caducidad del anuncio**. Después del plazo el servidor deja de devolverlo, y las páginas abiertas lo reciben mediante su consulta periódica de avisos. El **Fin previsto del mantenimiento** solo es informativo: nunca vuelve a abrir la aplicación automáticamente. Un administrador termina el mantenimiento expresamente. Los campos muestran la zona horaria del dispositivo y guardan instantes con zona horaria en UTC.
+
+La administración se abre desde el menú de cuenta. Sus ajustes usan pestañas comunes y conservan borradores al cambiar de sección. Memorias y Notas llenan el espacio restante, desplazan sus propias filas y mantienen el pie **1 / 1**. El Architect normal usa la misma familia de retratos generados que otros agentes; las imágenes personales subidas se conservan. Las vistas de la bandeja comparten el diseño de filas, y al arrastrar Kanban se ve la tarjeta real. Los últimos pasos de configuración mantienen el mismo diseño de título, formulario e ilustración; continuar un perfil sin cambios no anuncia que se haya guardado.
 
 ## El dashboard { #the-dashboard }
 
@@ -1157,13 +1171,7 @@ En una organización nueva se selecciona el **AgenticOS** incluido incluso antes
 
 Si no hay un agente publicado disponible, el onboarding ofrece a quien puede preparar un agente **Connect a model**, que elige un modelo y prepara el agente. A los demás les permite abrir un chat de configuración con un borrador accesible del AgenticOS incluido. Los miembros no necesitan permisos de gestión de modelos; reciben orientación de configuración, no el resultado de una tarea de IA. Los borradores inaccesibles siguen bloqueados y un agente publicado accesible tiene prioridad.
 
-Cerrar el aviso inicial o elegir **Ocultar durante 24 horas** lo pausa durante 24 horas
-según la hora del servidor. Después puede reaparecer si la configuración no se ha
-completado y la organización aún necesita el primer inicio. Tras recorrer las preguntas,
-**Finalizar la configuración y abrir la aplicación** registra la finalización para esta
-membresía. No son obligatorios los campos opcionales, las invitaciones, un modelo, un
-agente ni una ejecución de IA. Completar el onboarding y ejecutar una tarea correctamente
-son estados distintos.
+Cerrar la propuesta inicial la pausa durante el intervalo efectivo de 1, 3 o 7 días de esta pertenencia, según la hora del servidor. Puede volver si la configuración sigue incompleta y los recordatorios están activados. Tras las preguntas, **Completar configuración y abrir la app** registra la finalización para esta pertenencia. No hacen falta campos opcionales, invitaciones, un modelo, un agente ni un run de IA. Completar el onboarding y realizar una tarea correctamente son estados separados.
 
 Abre **Get started** desde el panel, la propuesta inicial o la ayuda de una página.
 En escritorio, el aviso del chat flota como una capa translúcida sobre la consola.

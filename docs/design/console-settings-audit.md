@@ -230,3 +230,20 @@ Admission failures remain visible; history admission retains its route feedback.
 No run admission, polling, permissions, schema, choice or published-version
 contract changes. Shared navigation progress is owned by the console router
 adapter rather than patched separately inside each workflow table.
+
+## Guided setup reminder and late-step alignment (2026-11-21)
+
+The incomplete-setup reminder now has meaningful guidance, a decorative portrait and a distinct visible link into the existing account/organization-scoped resume location. The collapsed rail retains a named compass and a small incomplete-state marker. Its brief greeting animation runs twice and is absent with reduced motion; snoozing still uses the server's existing 24-hour contract, with a quiet return link. Loading, errors and confirmed completion do not invent incomplete progress.
+
+Deployment, budget and organization questions now use the same heading/guide/form-and-artwork composition as the first five administration steps. Their loading skeleton follows that layout too. The common sticky navigation remains unchanged, including pending-state locks. Continuing an unchanged profile during onboarding advances without the generic no-change toast; profile writes, validation and explicit error feedback are preserved.
+
+Announcement, administrator maintenance notice and the maintenance screen share restrained theme-aware surfaces, semantic marks and readable wrapped multiline text. Touch dismissal has a 44px target; keyboard focus remains visible. Announcement dismissal is still keyed by the message and safely handles unavailable browser storage. Maintenance retains its mobile clearance and app-admin bypass.
+
+Verification: 87 scoped tests passed across reminder, guided questions, administration, navigation, profile forms and branding. New regressions cover the separate setup action, no-op continuation without a toast/write, and literal multiline announcement text with dismissal. This worker did not run browser QA or global suites for this pass.
+
+
+## Server-resolved reminder policy and manual return (2026-11-21)
+
+The later console-experience policy supersedes the fixed 24-hour reminder wording above: deployment availability, organization defaults and the member's effective preference decide whether a sidebar reminder is shown and whether its snooze lasts 1, 3 or 7 days. The UI uses the effective typed policy and server-computed onboarding state; it stores no local completion or snooze time. Disabled or unresolved policy hides both sidebar variants and suppresses the progress query. A permanent Open setup link in Profile remains available independently and reuses the same sanitized per-account/organization resume location.
+
+Scoped consumer/profile checks: 25 passed. They cover disabled/loading policy, 3/7-day labels with the unchanged dismissal payload, persistent manual navigation and account-scoped resume behavior. The runtime candidate harness is separately verified by its own unit tests; no paid model run is implied by this UI evidence.

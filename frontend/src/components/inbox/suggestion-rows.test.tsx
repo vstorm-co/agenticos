@@ -118,6 +118,19 @@ describe("SuggestionRows", () => {
     await userEvent.click(screen.getByRole("menuitem", { name: "Not now" }));
     expect(state.dismiss).toHaveBeenCalledWith("ack");
   });
+  it.each([false, true])(
+    "uses the same attention badge in full and dense rows (dense=%s)",
+    (dense) => {
+      const { container } = render(
+        <SuggestionRows items={[item("urgent", { urgent: true })]} dense={dense} />,
+      );
+      const priority = container.querySelector("[data-suggestion-priority]");
+      expect(priority).toHaveTextContent("Urgent");
+      expect(priority).toHaveClass("text-warning-ink", "bg-warning/12");
+      expect(priority).not.toHaveClass("text-destructive-ink");
+    },
+  );
+
   it("leads with what cannot wait and says where each came from", () => {
     render(
       <SuggestionRows

@@ -2,15 +2,18 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { CircleDashed, X } from "lucide-react";
+import { ArrowRight, Compass, X } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { AvatarFace } from "@/components/ui/avatar-face";
+import { cn } from "@/lib/utils";
+import styles from "./onboarding-reminder.module.css";
 import { useOnboardingLocationStore } from "@/stores/onboarding-location-store";
-import { safeStartLocation, startLocationKey } from "@/lib/onboarding/start-location";
-import { useMounted } from "@/hooks/use-mounted";
 import { useStart } from "@/hooks/use-start";
-import { useAuthStore, useOrgStore } from "@/stores";
+import { useAuthStore } from "@/stores";
+import { useOnboardingResume } from "./onboarding-resume-link";
+import { useOnboardingReminderPolicy } from "@/components/settings/console-experience-provider";
 
-/** Completion and the 24-hour snooze belong to this membership, never local UI storage. */
+/** Completion, reminder policy and snooze timing are server-owned, never local UI storage. */
 export function OnboardingReminder({
   collapsed = false,
   onNavigate,
@@ -18,16 +21,10 @@ export function OnboardingReminder({
   collapsed?: boolean;
   onNavigate?: () => void;
 }) {
-  const mounted = useMounted();
-  const userId = useAuthStore((state) => state.user?.id);
+  const policy = useOnboardingReminderPolicy();
+  const { href, userId, orgId } = useOnboardingResume();
   const userLoading = useAuthStore((state) => state.isLoading);
-  const orgId = useOrgStore((state) => state.activeOrgId);
-  const state = useStart(!userLoading);
-  const stored = useOnboardingLocationStore((store) =>
-    userId && orgId ? store.startLocations[startLocationKey(userId, orgId)] : undefined,
-  );
-  const href =
-    mounted && orgId ? (safeStartLocation(stored, orgId) ?? "/onboarding") : "/onboarding";
+  const state = useStart(!userLoading && policy.enabled);
   useEffect(() => {
     if (
       userId &&
@@ -40,6 +37,7 @@ export function OnboardingReminder({
   }, [userId, orgId, state.error, state.data]);
   const t = useTranslations("start.sidebarReminder");
   if (
+    !policy.enabled ||
     userLoading ||
     state.waitingForScope ||
     state.isLoading ||
@@ -63,36 +61,37 @@ export function OnboardingReminder({
             : "text-muted-foreground hover:text-foreground focus-visible:ring-ring touch:min-h-11 mx-3 mb-2 flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs outline-none focus-visible:ring-2"
         }
       >
-        <CircleDashed className="size-4 shrink-0" aria-hidden />
+        <span className={cn(styles.railMark, !state.data.dismissed && styles.unfinished)}>
+          <Compass className="size-4 shrink-0" aria-hidden />
+        </span>
         {!collapsed && t("title")}
       </Link>
     );
 
   return (
-    <section
-      aria-label={t("title")}
-      className="border-border/70 bg-muted/35 mx-3 mb-2 shrink-0 rounded-xl border p-3"
-    >
-      <div className="flex items-start gap-2">
-        <Link
-          href={href}
-          onClick={onNavigate}
-          className="focus-visible:ring-ring min-w-0 flex-1 rounded-sm text-sm font-medium outline-none focus-visible:ring-2"
-        >
-          {t("title")}
-        </Link>
+    <section aria-label={t("title")} className={styles.card}>
+      <div className={styles.heading}>
+        <span className={styles.artwork} aria-hidden="true">
+          <AvatarFace seed="agenticos" background={false} />
+          <span className={styles.spark} />
+        </span>
+        <h3>{t("heading")}</h3>
         <button
           type="button"
           disabled={state.save.isPending}
           onClick={() => state.save.mutate({ dismissed: true })}
-          aria-label={t("snooze")}
-          title={t("snooze")}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 -m-1 grid size-7 shrink-0 place-items-center rounded-md outline-none focus-visible:ring-2 disabled:opacity-50"
+          aria-label={t("snoozeDays", { days: policy.snooze_days })}
+          title={t("snoozeDays", { days: policy.snooze_days })}
+          className={styles.dismiss}
         >
           <X className="size-3.5" aria-hidden />
         </button>
       </div>
-      <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{t("hint")}</p>
+      <p className={styles.hint}>{t("hint")}</p>
+      <Link href={href} onClick={onNavigate} className={styles.action}>
+        {t("title")}
+        <ArrowRight className="size-3.5" aria-hidden />
+      </Link>
       {state.save.isError && (
         <p role="alert" className="text-destructive mt-2 text-xs">
           {t("saveFailed")}

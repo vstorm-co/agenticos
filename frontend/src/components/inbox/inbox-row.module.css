@@ -69,3 +69,12 @@
 :global(html[data-motion="reduce"]) .row {
   transition: none;
 }
+
+.controls :is(button, a) {
+  min-block-size: 2.25rem;
+}
+@media (pointer: coarse) {
+  .controls :is(button, a) {
+    min-block-size: 2.75rem;
+  }
+}

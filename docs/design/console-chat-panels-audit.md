@@ -380,3 +380,34 @@ focused, blurred or processing. These overrides are limited to the main-chat
 phone stylesheet; desktop layout and embedded/public composers are unchanged.
 The phone/input unit batch passed 72 tests. Actual 390px geometry and theme proof
 remain the parent browser check, rather than a claim derived from jsdom layout.
+
+## Inbox and table-board follow-up
+
+Inbox rows, the dashboard briefing, chat home preview and suggestion cards now use
+one `SuggestionPriority` warning badge with the same localized Urgent label. Source
+marks share a neutral muted surface; detailed and dense rows keep their intentional
+differences in size and metadata. Long titles can wrap beside attention/status
+badges, and action targets grow to 44px for coarse-pointer devices. Chat preview
+rows still compose an editable question rather than sending it.
+
+Kanban lanes stretch across the board's available height; their content areas can
+grow even when they contain only an empty placeholder. The pointer drag preview
+now renders the real title and the same visible-property renderer as a card,
+including select chips. It uses the source card's measured width/minimum height
+and original pointer grab offset. It is inert and has no duplicate interactive
+controls or motion layout id. Hidden columns stay absent, and Escape cancels the
+preview without writing. The focused Inbox/briefing/chat/Kanban batch passed 115
+tests across seven files, including pointer geometry, fields, hidden-column
+exclusion, empty-lane structure and consistent attention styling. Pixel height
+verification remains the parent browser pass.
+
+## Maintenance notice data freshness
+
+DeploymentGate now passes the current authenticated maintenance message into
+MaintenanceScreen instead of showing the initial branding-context text forever.
+An unanswered poll preserves the initial public fallback; an explicit null message
+clears the previous custom text and uses the localized default. Anonymous visitors
+retain the public branding fallback, including when authenticated notice data was
+already cached. Existing notice styles and administrator bypass remain intact.
+The branding integration batch passed 22 tests, including actual query refetches
+that change and clear the message without reopening the tab.

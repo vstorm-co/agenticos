@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
-import { useArchitectMarkStore } from "@/stores/architect-mark-store";
 
 import { useAssistant, useUpdateAssistant } from "./use-assistant";
 
@@ -36,18 +35,6 @@ describe("useAssistant", () => {
 
     await waitFor(() => expect(result.current.assistant).toEqual(READY));
     expect(apiClient.get).toHaveBeenCalledWith("/assistant");
-  });
-
-  it("names the agent that draws as the Architect's mark, until it wears a picture", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ ...READY, wears_mark: true });
-    const { unmount } = renderHook(() => useAssistant(), { wrapper });
-    await waitFor(() => expect(useArchitectMarkStore.getState().agentId).toBe("a1"));
-    unmount();
-
-    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    vi.mocked(apiClient.get).mockResolvedValue({ ...READY, wears_mark: false });
-    renderHook(() => useAssistant(), { wrapper });
-    await waitFor(() => expect(useArchitectMarkStore.getState().agentId).toBeNull());
   });
 
   it("hands back a failed read, and reads again when asked", async () => {

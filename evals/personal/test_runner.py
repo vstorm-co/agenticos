@@ -219,6 +219,177 @@ class TraceTests(unittest.TestCase):
         self.assertIn("task", rejected.forbidden)
 
 
+class GreetingPolicyTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.cases = {item.id: item for item in runner.load("agenticos")}
+        self.boards = EvalCallRead(tool="agenticos_list_task_boards", args={}, outcome="executed")
+
+    def test_first_greeting_reads_but_never_provisions(self) -> None:
+        case = self.cases["natural-hello"]
+        self.assertEqual(
+            runner.trace_errors(
+                case, answer="Cześć! Mogę utworzyć tablicę zadań?", calls=[self.boards]
+            ),
+            [],
+        )
+        self.assertIn(
+            "first private greeting needs one successful board lookup",
+            runner.trace_errors(case, answer="Cześć!", calls=[]),
+        )
+        self.assertIn(
+            "first private greeting needs one successful board lookup",
+            runner.trace_errors(case, answer="Cześć!", calls=[self.boards, self.boards]),
+        )
+        write = EvalCallRead(tool="agenticos_ensure_task_board", args={}, outcome="blocked")
+        self.assertTrue(runner.trace_errors(case, answer="Cześć!", calls=[self.boards, write]))
+        unrelated = EvalCallRead(tool="agenticos_create_skill", args={}, outcome="blocked")
+        self.assertIn(
+            "greeting attempted an unrelated operation",
+            runner.trace_errors(case, answer="Cześć!", calls=[self.boards, unrelated]),
+        )
+
+    def test_conversation_language_does_not_authorize_greeting_preference_writes(self) -> None:
+        for tool in ("set_my_language", "update_my_profile", "remember"):
+            with self.subTest(tool=tool):
+                call = EvalCallRead(tool=f"agenticos_{tool}", args={}, outcome="blocked")
+                self.assertIn(
+                    "greeting attempted an unrelated operation",
+                    runner.trace_errors(
+                        self.cases["natural-hello"], answer="Cześć!", calls=[self.boards, call]
+                    ),
+                )
+
+    def test_empty_and_populated_boards_require_the_exact_private_reader(self) -> None:
+        from greeting_fixture import TABLE_ID
+
+        tasks = EvalCallRead(
+            tool="agenticos_list_tasks", args={"table_id": str(TABLE_ID)}, outcome="executed"
+        )
+        for key, answer in [
+            ("hello-empty-board", "Cześć! Lista jest pusta. Zbierzemy zadania?"),
+            ("hello-priorities", "Cześć! ORION ma najbliższy termin."),
+        ]:
+            self.assertEqual(
+                runner.trace_errors(self.cases[key], answer=answer, calls=[self.boards, tasks]), []
+            )
+            wrong = tasks.model_copy(update={"args": {"table_id": str(uuid4())}})
+            self.assertIn(
+                "greeting must read only the selected private board once",
+                runner.trace_errors(self.cases[key], answer=answer, calls=[self.boards, wrong]),
+            )
+        self.assertIn(
+            "greeting priorities are not grounded in observed tasks",
+            runner.trace_errors(
+                self.cases["hello-priorities"],
+                answer="Masz ważną naradę.",
+                calls=[self.boards, tasks],
+            ),
+        )
+
+    def test_no_tools_constraints_and_repeat_shared_greetings_stay_quiet(self) -> None:
+        for key in runner.NO_TOOL_GREETINGS:
+            self.assertEqual(runner.trace_errors(self.cases[key], answer="Cześć!", calls=[]), [])
+            self.assertIn(
+                "this greeting must not call tools",
+                runner.trace_errors(self.cases[key], answer="Cześć!", calls=[self.boards]),
+            )
+
+    def test_proposals_need_a_named_platform_record_and_no_draft_tool(self) -> None:
+        research = self.cases["research-working-table-offer"]
+        self.assertIn(
+            "missing structured working table proposal",
+            runner.trace_errors(
+                research, answer="Add the next result to an existing spreadsheet table.", calls=[]
+            ),
+        )
+        for key in ("research-working-table-offer", "news-routine-offer"):
+            with self.subTest(case=key):
+                errors = runner.trace_errors(
+                    self.cases[key],
+                    answer="AgenticOS Table. Routine weekdays at 9:00 to Inbox; shall I prepare it?",
+                    calls=[EvalCallRead(tool="propose_setup", args={}, outcome="blocked")],
+                )
+                self.assertTrue(errors)
+
+    def test_research_and_news_need_a_concrete_proposal_without_activation(self) -> None:
+        self.assertEqual(
+            runner.trace_errors(
+                self.cases["research-working-table-offer"],
+                answer="Najniższa podana cena to 8. Proponuję AgenticOS Table wyników i źródeł; utworzyć ją?",
+                calls=[],
+            ),
+            [],
+        )
+        self.assertEqual(
+            runner.trace_errors(
+                self.cases["news-routine-offer"],
+                answer="Poprawka usuwa awarię parsera. Proponuję rutynę w dni robocze o 9:00 do Inbox; czy ją przygotować?",
+                calls=[],
+            ),
+            [],
+        )
+        write = EvalCallRead(tool="agenticos_create_routine", args={}, outcome="blocked")
+        self.assertTrue(
+            runner.trace_errors(
+                self.cases["news-routine-offer"],
+                answer="Rutyna codziennie do Inbox.",
+                calls=[write],
+            )
+        )
+        self.assertIn(
+            "routine proposal needs a cadence and destination",
+            runner.trace_errors(
+                self.cases["news-routine-offer"], answer="Można to zautomatyzować.", calls=[]
+            ),
+        )
+
+
+class GreetingFixtureTests(unittest.IsolatedAsyncioTestCase):
+    async def test_reads_all_three_states_and_restores_the_real_service(self) -> None:
+        from greeting_fixture import TABLE_ID, greeting_task_reads
+
+        from app.services.tasks import TaskService
+
+        ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
+        service = TaskService(AsyncMock())
+        real_boards = TaskService.boards
+        for state, count in [("absent", 0), ("empty", 1), ("priorities", 1)]:
+            with greeting_task_reads(ctx, state):
+                boards = await service.boards(ctx)
+                self.assertEqual(len(boards), count)
+                if boards:
+                    self.assertEqual(boards[0].scope_kind, "private")
+                    self.assertEqual(boards[0].scope_id, ctx.user_id)
+                    tasks = await service.list_tasks(ctx, TABLE_ID, skip=0, limit=1)
+                    self.assertEqual(len(tasks.items), 1 if state == "priorities" else 0)
+                    self.assertEqual(tasks.has_more, state == "priorities")
+        self.assertIs(TaskService.boards, real_boards)
+
+    async def test_other_tenant_user_and_table_reads_fall_through(self) -> None:
+        from greeting_fixture import TABLE_ID, greeting_task_reads
+
+        from app.services.tasks import TaskService
+
+        ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
+        service = TaskService(AsyncMock())
+        boards = AsyncMock(return_value=[])
+        tasks = AsyncMock()
+        with (
+            patch.object(TaskService, "boards", boards),
+            patch.object(TaskService, "list_tasks", tasks),
+            greeting_task_reads(ctx, "priorities"),
+        ):
+            for other in [
+                AuthContext(user_id=uuid4(), organization_id=ctx.organization_id, role=ctx.role),
+                AuthContext(user_id=ctx.user_id, organization_id=uuid4(), role=ctx.role),
+            ]:
+                await service.boards(other)
+                await service.list_tasks(other, TABLE_ID)
+            await service.list_tasks(ctx, uuid4())
+        self.assertEqual(boards.await_count, 2)
+        self.assertEqual(tasks.await_count, 3)
+
+
 class JudgeTests(unittest.IsolatedAsyncioTestCase):
     async def test_judge_skips_failed_traces_and_respects_limit(self):
         def build_agent(_model: str, **kwargs: object):
@@ -460,7 +631,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                 uuid4(),
                 "fixture",
                 Decimal("0.05"),
-                [cases["sandbox-policy-by-connection"], cases["natural-hello"]],
+                [cases["sandbox-policy-by-connection"], cases["hello-no-tools"]],
             )
         self.assertEqual(status, 1)
         first, next_row = [
@@ -475,7 +646,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
     async def test_refuses_to_use_a_non_eval_environment(self):
         with (
             patch.dict(runner.os.environ, {"AGENTICOS_PERSONAL_EVAL": "0"}),
-            self.assertRaisesRegex(SystemExit, "isolated personal eval Compose stack"),
+            self.assertRaisesRegex(SystemExit, "explicitly isolated test database"),
         ):
             await runner.run_agenticos(runner.argparse.Namespace(), [])
 
@@ -490,6 +661,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                 "Cześć!",
                 SimpleNamespace(
                     id=run_id,
+                    agent_version_id=version_id,
                     status="completed",
                     input_tokens=60,
                     output_tokens=4,
@@ -503,7 +675,14 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         async def session():
             yield object()
 
-        args = Namespace(organization_id=uuid4(), user_id=uuid4(), model_profile=None, max_usd=None)
+        args = Namespace(
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            model_profile=None,
+            max_usd=None,
+            candidate_agent=None,
+            candidate_without_browser=False,
+        )
         scenario = next(item for item in runner.load("agenticos") if item.id == "natural-hello")
         ctx = AuthContext(
             organization_id=args.organization_id,
@@ -585,3 +764,179 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             row = runner.Evidence.model_validate_json(emit.call_args.args[0])
             self.assertEqual(row.attempt, run_id)
             self.assertTrue(row.cost_is_partial)
+
+
+class NativeCandidateTests(unittest.IsolatedAsyncioTestCase):
+    async def test_candidate_preflight_preserves_publication_and_never_installs(self) -> None:
+        source, agent_id, org, user, profile_id = (uuid4() for _ in range(5))
+        original = runner.AgentSpec(
+            name="Customized", instructions="Keep my policy", model_profile_id=uuid4()
+        )
+        original_json = original.model_dump(mode="json")
+        agent = SimpleNamespace(id=agent_id, current_version_id=source)
+        args = Namespace(
+            organization_id=org,
+            user_id=user,
+            candidate_agent=agent_id,
+            candidate_without_browser=False,
+            model_profile=profile_id,
+            max_usd=None,
+        )
+        ctx = AuthContext(user_id=user, organization_id=org, role=OrgRoleName.OWNER)
+
+        @asynccontextmanager
+        async def session():
+            yield AsyncMock()
+
+        @asynccontextmanager
+        async def serve():
+            yield
+
+        with (
+            patch.dict(runner.os.environ, {"AGENTICOS_PERSONAL_EVAL": "1"}),
+            patch.object(runner, "get_db_context", session),
+            patch.object(runner, "job_context", AsyncMock(return_value=ctx)),
+            patch.object(runner.agent_repo, "get", AsyncMock(return_value=agent)),
+            patch.object(runner.agent_repo, "get_shipped_starter", AsyncMock()) as managed,
+            patch.object(
+                runner.agent_repo,
+                "get_version",
+                AsyncMock(return_value=SimpleNamespace(id=source, spec=original_json)),
+            ),
+            patch.object(
+                runner.credential_repo,
+                "get_profile",
+                AsyncMock(return_value=SimpleNamespace(provider="openrouter", model="fixture")),
+            ),
+            patch.object(
+                runner.AgentRegistryService, "get_candidate_spec", AsyncMock()
+            ) as validate,
+            patch.object(runner.ShippedAgentService, "review_update", AsyncMock()) as review,
+            patch.object(runner.AgentRegistryService, "save_draft", AsyncMock()) as save,
+            patch.object(runner.AgentRegistryService, "publish_spec", AsyncMock()) as publish,
+            patch.object(runner, "evaluate_agenticos", AsyncMock(return_value=0)) as evaluate,
+            patch.object(runner, "serve_eval_mcp", serve),
+        ):
+            self.assertEqual(await runner.run_agenticos(args, []), 0)
+            evaluate.assert_not_awaited()
+            candidate = validate.await_args.args[-1]
+            self.assertIsInstance(candidate, runner.UnpublishedCandidate)
+            self.assertNotEqual(candidate.spec.instructions, original.instructions)
+            self.assertEqual(
+                candidate.spec.model_dump(exclude={"instructions"}),
+                original.model_dump(exclude={"instructions"}),
+            )
+            self.assertEqual(original.model_dump(mode="json"), original_json)
+            args.max_usd = Decimal("0.25")
+            self.assertEqual(await runner.run_agenticos(args, []), 0)
+            self.assertEqual(evaluate.await_args.args[3], profile_id)
+            self.assertIsInstance(
+                evaluate.await_args.kwargs["candidate"], runner.UnpublishedCandidate
+            )
+            validate.side_effect = RuntimeError("candidate access refused")
+            with self.assertRaisesRegex(RuntimeError, "access refused"):
+                await runner.run_agenticos(args, [])
+            self.assertEqual(evaluate.await_count, 1)
+            managed.assert_not_awaited()
+            review.assert_not_awaited()
+            save.assert_not_awaited()
+            publish.assert_not_awaited()
+
+    async def test_candidate_receipt_has_source_and_hash_without_published_credit(self) -> None:
+        ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
+        source, agent_id, run_id, profile_id, chat_id = (uuid4() for _ in range(5))
+        candidate = runner.UnpublishedCandidate(
+            spec=runner.AgentSpec(name="Fixture", instructions="Candidate policy")
+        )
+        run = SimpleNamespace(
+            id=run_id,
+            agent_version_id=None,
+            status="completed",
+            input_tokens=10,
+            output_tokens=5,
+            cost_usd=Decimal("0.001"),
+            cost_is_partial=False,
+        )
+        case = next(item for item in runner.load("agenticos") if item.id == "hello-no-tools")
+
+        @asynccontextmanager
+        async def session():
+            yield AsyncMock()
+
+        with (
+            patch.object(runner, "get_db_context", session),
+            patch.object(runner, "open_eval_conversation", AsyncMock(return_value=chat_id)),
+            patch.object(
+                runner.AgentRunnerService, "execute", AsyncMock(return_value=("Cześć!", run))
+            ) as execute,
+            patch.object(
+                runner.intercepted_tool_call_repo, "list_for_run", AsyncMock(return_value=[])
+            ),
+            patch.object(runner, "print", create=True) as emit,
+        ):
+            self.assertEqual(
+                await runner.evaluate_agenticos(
+                    ctx,
+                    agent_id,
+                    source,
+                    profile_id,
+                    "fixture",
+                    Decimal("0.25"),
+                    [case],
+                    candidate=candidate,
+                ),
+                0,
+            )
+            kwargs = execute.await_args.kwargs
+            self.assertIs(kwargs["candidate"], candidate)
+            self.assertIsNone(kwargs["version_id"])
+            self.assertIsInstance(kwargs["isolation"], runner.RunIsolation)
+            self.assertEqual(kwargs["run_limit_usd"], Decimal("0.25"))
+            receipt = runner.Evidence.model_validate_json(emit.call_args.args[0])
+            self.assertIsNone(receipt.agent_version)
+            self.assertEqual(receipt.source_agent_version, source)
+            self.assertEqual(
+                receipt.candidate_instructions_hash,
+                runner.fingerprint(candidate.spec, "instructions"),
+            )
+            run.agent_version_id = source
+            self.assertEqual(
+                await runner.evaluate_agenticos(
+                    ctx,
+                    agent_id,
+                    source,
+                    profile_id,
+                    "fixture",
+                    Decimal("0.25"),
+                    [case],
+                    candidate=candidate,
+                ),
+                1,
+            )
+            receipt = runner.Evidence.model_validate_json(emit.call_args.args[0])
+            self.assertEqual(
+                receipt.errors, ["technical: unexpected candidate version attribution"]
+            )
+            run.status = "failed"
+            run.agent_version_id = None
+            run.conversation_id = chat_id
+            run.error = "Synthetic provider refusal"
+            execute.side_effect = runner.RunFailedError(details={"run_id": str(run_id)})
+            with patch.object(runner.agent_run_repo, "get_run", AsyncMock(return_value=run)):
+                self.assertEqual(
+                    await runner.evaluate_agenticos(
+                        ctx,
+                        agent_id,
+                        source,
+                        profile_id,
+                        "fixture",
+                        Decimal("0.25"),
+                        [case],
+                        candidate=candidate,
+                    ),
+                    1,
+                )
+            receipt = runner.Evidence.model_validate_json(emit.call_args.args[0])
+            self.assertEqual(receipt.errors, ["technical: Synthetic provider refusal"])
+            self.assertIsNone(receipt.agent_version)
+            self.assertEqual(receipt.cost_usd, Decimal("0.001"))

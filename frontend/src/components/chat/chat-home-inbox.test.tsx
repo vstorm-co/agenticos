@@ -92,7 +92,8 @@ it("shows at most two entries and includes older priority items before newer reg
     expect.stringContaining("Topic newer-priority"),
     expect.stringContaining("Topic older-priority"),
   ]);
-  expect(screen.getAllByText("Priority")).toHaveLength(2);
+  expect(screen.getAllByText("Urgent")).toHaveLength(2);
+  expect(screen.getAllByText("Urgent")[0]).toHaveClass("text-warning-ink", "bg-warning/12");
 });
 
 it("makes the entire undated row compose an editable question about the picked item", async () => {

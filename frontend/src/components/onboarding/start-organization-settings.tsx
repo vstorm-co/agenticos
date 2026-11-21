@@ -60,6 +60,7 @@ export function StartOrganizationSettings({
     return <StartBudget org={org} onBack={onBack} onContinue={() => setBudgetDone(true)} />;
   return (
     <StartQuestion
+      stage="organization"
       index={can(Perm.budgetsManage) ? 1 : 0}
       total={can(Perm.budgetsManage) ? 2 : 1}
       title={t("workspaceReadyTitle")}

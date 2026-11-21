@@ -25,8 +25,16 @@ test("pipeline models and instructions belong to the dataset", async ({ page }) 
   const instructions =
     "Generate cases from the published refund policy. Include a clear expected answer.";
   await generator.getByRole("textbox", { name: "Instructions", exact: true }).fill(instructions);
-  await generator.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(generator.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
+  const save = generator.getByRole("button", { name: "Save", exact: true });
+  const saved = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PATCH" &&
+      /\/api\/datasets\/[^/]+$/.test(new URL(response.url()).pathname),
+  );
+  await save.click();
+  expect((await saved).ok()).toBe(true);
+  await expect(save).toBeVisible();
+  await expect(save).toBeDisabled();
   await page.reload();
   await expect(generator.getByRole("textbox", { name: "Instructions", exact: true })).toHaveValue(
     instructions,

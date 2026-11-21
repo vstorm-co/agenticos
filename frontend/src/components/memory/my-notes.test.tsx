@@ -154,3 +154,12 @@ it("does not replace a selected note for an empty relative reference", async () 
   expect(screen.getByRole("link", { name: "Current note" })).toBeInTheDocument();
   expect(showPage).not.toHaveBeenCalled();
 });
+
+it("keeps note rows in their own scroll area with a visible one-page footer", () => {
+  mount();
+  const rows = screen.getByRole("list");
+  expect(rows).toHaveClass("min-h-0", "flex-1", "overflow-auto");
+  expect(screen.getByText("1 / 1")).toBeVisible();
+  expect(screen.getByRole("button", { name: "previousPage" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "nextPage" })).toBeDisabled();
+});

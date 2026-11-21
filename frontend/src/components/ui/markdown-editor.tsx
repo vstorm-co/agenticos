@@ -65,6 +65,8 @@ interface MarkdownEditorProps {
   suggestions?: ReactNode;
   /** Heading and caller-owned controls sharing the editor toolbar. */
   toolbar?: ReactNode;
+  /** Fit document view actions beside a caller-owned compact section heading. */
+  compactToolbar?: boolean;
   /**
    * Draw images in the preview as links instead of fetching them, for text a
    * caller did not write - a model's, or another person's - where an image is a
@@ -105,6 +107,7 @@ export function MarkdownEditor({
   inertImages,
   suggestions,
   toolbar,
+  compactToolbar = false,
 }: MarkdownEditorProps) {
   const t = useTranslations("ui");
   const [ownMode, setOwnMode] = useState<MarkdownMode>("source");
@@ -129,7 +132,7 @@ export function MarkdownEditor({
         <Button
           type="button"
           variant="ghost"
-          size="icon"
+          size={compactToolbar ? "icon-sm" : "icon"}
           data-tour="text-editor-expand"
           aria-label={t("expandEditor", { label })}
           onClick={() => setExpanded(true)}

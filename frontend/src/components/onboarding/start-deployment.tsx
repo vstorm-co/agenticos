@@ -90,6 +90,7 @@ export function StartDeployment({
   };
   return (
     <StartQuestion
+      stage="deployment"
       index={index}
       total={QUESTIONS.length}
       title={t(`${question}Title`)}

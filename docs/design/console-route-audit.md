@@ -42,7 +42,7 @@ Rows marked pending or delegated are not completed reviews.
 | `/admin/users` | source reviewed / retained | Retain server search/sort/pagination and details drawer; destructive/impersonation controls keep their existing confirmation boundaries. |
 | `/agents/[id]/evals/[runId]` | source reviewed / retained | EvalRunView separates denied access, failed reads with Retry, live status and comparison/cases tabs; existing guarded navigation retained. |
 | `/agents/[id]/improve/[session]` | reviewed / changed | ImprovementPage keeps stage navigation, budget/acceptance guards and retryable session reads; added Retry for the initial agent read. |
-| `/agents/[id]` | reviewed / changed | Instructions remain a writing surface. Model is a permanently visible primary section; Variables, Voice and Starters form compact inset rows in one divided settings panel. Reviewers, alerts and tracing retain their independent summaries in Limits. Voice deep links reveal their tab. Inline instructions height follows the viewport with fullscreen retained. Existing models keep Provider/Model visible and fold connection details, automatically revealing missing setup/refusals. Builder tabs, save/publish permissions and test panel retained. |
+| `/agents/[id]` | reviewed / changed | Instructions remain a writing surface. Model is a permanently visible primary section; its Model access disclosure names the effective credential choice. Variables, Voice and Starters form consistent single-line inset rows in one divided settings panel. Reviewers, alerts and tracing retain their independent summaries in Limits. Voice deep links reveal their tab. Inline instructions height follows the viewport with compact view/expand actions and fullscreen retained. Existing models keep Provider/Model visible and fold connection details, automatically revealing missing setup/refusals. Builder tabs, save/publish permissions and test panel retained. |
 | `/agents` | reviewed / changed | Read errors now have Retry; cached rows survive refresh failure. Empty state gives concrete first-agent examples. |
 | `/apps` | reviewed | Gallery already distinguishes access/error/empty and explains Apps capability, report/dashboard examples and private sharing; archived apps remain discoverable. |
 | `/browse/[runId]/[callId]` | source reviewed / retained | Shared BrowserWindow distinguishes loading, unavailable, forbidden and gone states. Remote browser/native takeover was inspected in source; no runtime takeover or visual pass was performed by this workstream. |
@@ -88,7 +88,7 @@ Rows marked pending or delegated are not completed reviews.
 | `/settings/blobby` | source reviewed / retained | Retain desktop-only controls and named appearance/behavior sections; native execution requires the desktop app. |
 | `/settings/desktop` | source reviewed / retained | Retain one browser fallback via `DesktopTab`, with readiness, notification, device, window and pinned preferences inside the native surface. |
 | `/settings/mcp` | source reviewed / retained | Retain compatibility entry into MCP access; empty connected-client state explains what connecting enables. |
-| `/settings/memory` | source reviewed / retained | Retain Memories/Notes separation and personal ownership. Agent choices remain permission-filtered. |
+| `/settings/memory` | source reviewed / retained | Retain Memories/Notes separation and personal ownership. Both lists fill the remaining page height, own row scrolling and retain their footer at one page; agent choices remain permission-filtered. |
 | `/settings/mobile` | source reviewed / retained | Retain separate pairing, phone settings and setup surfaces; device pairing is not performed by this audit. |
 | `/settings/notifications` | source reviewed / retained | Retain named event controls, channel filtering and paging. Mandatory transactional emails remain explanations rather than misleading switches. |
 | `/settings` | source reviewed / retained | Retain redirect to profile; no duplicate overview page. |
@@ -102,7 +102,7 @@ Rows marked pending or delegated are not completed reviews.
 | `/tables/[id]` | reviewed / changed | Saved views, grid/list/kanban, schema and record failure paths inspected. Catalog cards keep size/access/archive/task-board context, omit timestamps and use the same compact spacing as projects/knowledge/datasets. Cold metadata failure now shows its reason and Retry; record queries already have retry. Large Add record forms keep required, document and prefilled values visible and fold optional properties without dropping edits. |
 | `/tables` | reviewed / changed | Archive/filter/error/create/CSV paths inspected. Column types and defaults remain explicit; empty hint names contacts, requests and project records. |
 | `/vault` | source reviewed / changed + targeted tests | Retry refreshes personal/secrets and organization accounts only when authorized; available sections remain usable. Integration mocks check authority; real provider authorization and secret storage runtime were not exercised here. |
-| `/work` | source reviewed / retained | Existing active/history split, encoded conversation links and pending-guarded Stop retained. Source interaction review only; no claim of exercising live background-task cancellation in a browser. |
+| `/work` | source reviewed / retained | Active/history choices share the measured selection indicator while preserving pressed state and counts; encoded conversation links and pending-guarded Stop retained. Source interaction review only; no claim of exercising live background-task cancellation in a browser. |
 | `/workflows/[id]/form-preview` | source reviewed / changed | Saved-draft preview retains exact entry, edit authority, test execution and run link. Add query-owned Retry on read failure; missing form remains distinct. Targeted regression; no public draft exposure. |
 | `/workflows/[id]/logs` | source reviewed / retained | WorkflowLogs uses bounded server filters, pagination, request-field errors and read Retry; linked run details retained. |
 | `/workflows/[id]` | reviewed / changed | Canvas, triggers and settings remain separate. Cold metadata/catalog failure has explicit recovery; cached canvas stays mounted during a refresh failure. Blank rename gets an inline explanation instead of silently failing to autosave. WorkflowSettingsForm already folds execution/history/limits. |
@@ -191,3 +191,51 @@ checks. Native desktop/filesystem/global-shortcut and phone pairing execution
 remain runtime verification limits; their source-reviewed rows are not manual
 QA certifications. Full details and the public transport boundary are retained in
 [the settings audit](console-settings-audit.md).
+
+## Builder and personal-memory refinement
+
+The Build tab keeps Model primary and folds credential choice under its effective
+value. Existing variables, voice and starter editors remain mounted within compact
+rows; instructions share compact view and expand controls. Toolbox capability
+search, illustrated shelves and their independent settings panel retain their
+discoverability. MCP keeps server/tool choices and connection actions together;
+Availability retains publication gates for embeds, exposures and triggers. History
+keeps environment promotion beside immutable versions and restore controls. Evals,
+judge datasets and knowledge gaps use the same tab inset and preserve their
+permission boundaries. No capability, version or resource permission was changed.
+
+Personal-memory tabs now carry height through the list cards into separately
+scrollable rows, with a persistent server pager even at one page. Missing/private
+resource states fill their available frame; the builder still treats 403/404 as
+ambiguous and offers a query-owned Retry without rendering unauthorized controls.
+
+## Follow-up browser evidence, 21 November
+
+The root checked the live isolated preview in the embedded browser. At a
+1280×900 CSS viewport, the personal Memories panel reached y=875 and kept its
+1/1 pager; Notes used the same frame. The task board reached y=874, with equal
+453px lanes and no document-level horizontal overflow. That personal board was
+empty, so full-card dragging is covered by component regressions rather than a
+claimed live drag of the person's data.
+
+The unavailable agent used a single frame from y=117 to y=875, including the
+return, retry and organization hint. Switching to Test opened its Architect with
+an ordinary generated portrait. On the default 403px-wide viewport, Build kept
+its compact instruction controls and model-access disclosure without horizontal
+page overflow. Late setup steps were inspected in both themes; no deployment
+or organization configuration was submitted while inspecting them.
+
+Personal settings exposed all four home-chat choices and reminder intervals.
+A live 3-day override changed the sidebar dismissal label, and hiding Inbox
+removed its new-chat preview while preserving the full Inbox link. Both personal
+overrides were then reset to inheritance. This check caught a missing BFF route;
+the explicit authenticated GET/PATCH forwarder and boundary regressions now
+cover that hop. These observations supplement the source audit, not a manual
+certification of every route, permission combination or runtime.
+
+The default 403×725 browser viewport exposed an additional short-phone issue:
+the welcome area pushed the model rail below the fold. A height-scoped mobile
+spacing adjustment kept both Inbox rows and the two composer rails. The final
+welcome measured 144px high; the editor ended at y=476, controls at y=532 and
+the model/voice rail at y=578, with 44px targets and no document overflow.
+Normal-height phone and desktop geometry retain their existing rules.

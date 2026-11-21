@@ -1,5 +1,5 @@
 ---
-source_sha: "c5ea2ca61a76"
+source_sha: "b4da0595fe79"
 ---
 
 # Konsola { #the-console }
@@ -8,7 +8,9 @@ Domyślne motywy rozróżniają tło strony, sidebar, karty i panele pływające
 
 Agregaty użycia i wydatków dashboardu korzystają z tej samej odpowiedzi w pamięci dla tego samego okresu przez maksymalnie 30 minut. Nie są licznikami na żywo: zdarzenia wykonań nie odświeżają agregatów po każdym wykonaniu. Pełne przeładowanie przeglądarki zaczyna od pustego cache i ponownie pyta API. Zapisane presety układu są pobierane wyłącznie w widoku organizacji, gdzie dostępne są kontrolki układu.
 
-Jeśli onboarding bieżącej organizacji nie został ukończony, **Dokończ konfigurację** prowadzi do konfiguracji z przewodnikiem. **Przypomnij mi jutro** ukrywa kartę na 24 godziny, pozostawiając spokojny link powrotu. Ukończenie i odroczenie są zapisane na serwerze dla twojego członkostwa; ładowanie lub błąd odczytu postępu nie oznacza konfiguracji jako nieukończonej. Wracasz z własnej inicjatywy: przewodnik nie uruchamia się automatycznie. W tej samej przeglądarce link pamięta ostatni dozwolony krok dla tego samego konta i organizacji, także po przeładowaniu. Nie zapisuje wartości formularza; na innym urządzeniu bezpiecznie otwiera domyślny początek.
+Jeśli onboarding bieżącej organizacji nie został ukończony, **Dokończ konfigurację** prowadzi do jej konfiguracji z przewodnikiem. Zamknięcie przypomnienia odkłada je na obowiązujący okres 1, 3 lub 7 dni (domyślnie jeden dzień). Ukończenie i odroczenie są zapisane na serwerze dla twojego członkostwa; ładowanie lub błąd odczytu postępu nie oznacza konfiguracji jako nieukończonej.
+
+**Ustawienia → Profil** zawsze zachowują ręczny link do konfiguracji, również po wyłączeniu przypomnień. Przypomnienie ma wyraźną akcję i krótką animację ilustracji, która respektuje ograniczenie ruchu. Wracasz z własnej inicjatywy: przewodnik nie uruchamia się automatycznie. W tej samej przeglądarce link pamięta ostatni dozwolony krok dla tego konta i organizacji, bez zapisywania wartości formularza.
 
 Inbox zachowuje tę samą ramę listy, odstępy wierszy, oznaczenia źródeł, typografię tytułów i opisów oraz responsywne położenie akcji w zakładkach Wszystkie, Pilne, Wyniki rutyn, Sugestie i Zakończone. Zakończone zachowują status decyzji i przywracanie odrzuconych wpisów; źródło i czas są widoczne także na telefonie. Formularze zgód mają zgodne zewnętrzne odstępy, zachowując wymagane pola i kontrolę uprawnień.
 
@@ -171,6 +173,18 @@ Oś czasu pokazuje do dwóch pozycji z Inboxa, wliczając link do oczekujących 
 Główny czat ma szerokie pole wiadomości. Biblioteka modeli pokazuje najpierw podłączonych dostawców, z logotypami i nazwami od wielkiej litery, oraz rozdziela katalog i zapisane modele. Kliknięcie modelu od razu go wybiera. Brakujące poświadczenia można dodać w formularzach Vaulta z poziomu wyboru modelu, również dla dostawców wymagających kilku pól; nadal obowiązują dotychczasowe uprawnienia i walidacja modeli. Mikrofon i przycisk wysyłania płynnie zmieniają stan podczas pisania.
 
 Wyszukiwanie rozmów obejmuje tytuły i indeksowaną treść wiadomości, także w dostępnych archiwach. Wyniki pokazują fragmenty tekstu, podświetlenia i liczbę pasujących wiadomości. Strzałki i Enter pozwalają otworzyć wynik. Błąd wyszukiwania ma przycisk ponowienia zamiast udawać brak wyników.
+
+## Wygląd i zachowanie konsoli { #console-experience }
+
+Administrator instalacji wybiera dostępność w **menu konta → Administracja → Instalacja → Wygląd i nazwa**. Administrator organizacji ustawia wartości początkowe w jej ustawieniach **AI i usługi**. Każdy członek może je zmienić w **Ustawienia → Profil**, tylko dla bieżącego obszaru roboczego. **Podgląd skrzynki**, **Propozycje wiadomości**, **Powitanie** i **Podpowiedzi funkcji** są niezależne. Element wyłączony dla instalacji pozostaje niedostępny; członek może natomiast zmienić ustawienie domyślne organizacji. Motyw, styl i język nadal dotyczą całego konta.
+
+Ukrycie podglądu skrzynki pozostawia dostęp do pełnej skrzynki i kolejki zgód. Miejsca na powitanie i propozycje zachowują wysokość, więc zmiana widoczności nie przesuwa pola wiadomości. Podpowiedzi funkcji obejmują ogólne opisy funkcji oraz wskazówkę `/` i `@`; niezbędne etykiety pól i dymki pozostają dostępne. Ustawienia zmieniają prezentację, nie uprawnienia do zasobów ani zachowanie agentów.
+
+**Przypomnienia o konfiguracji** mają tę samą hierarchię: dostępność instalacji, ustawienia organizacji i wybór osoby. Możesz zdecydować, czy się pojawiają i czy odroczenie trwa 1, 3 lub 7 dni. Domyślnie to jeden dzień. Serwer oblicza termin powrotu dla tego członkostwa; nie tworzy harmonogramu powiadomień ani udanego zadania. Po wyłączeniu przypomnień ręczny link do konfiguracji pozostaje w Profilu.
+
+Ustawienia instalacji mają też opcjonalny termin **Wygaśnięcia ogłoszenia**. Po tym terminie serwer przestaje zwracać ogłoszenie, a otwarte strony otrzymują zmianę podczas zwykłego odpytywania o komunikaty. **Planowany koniec prac** to wyłącznie informacja: nie otwiera automatycznie aplikacji. Tryb konserwacji kończy administrator. Pola dat pokazują strefę urządzenia i zapisują daty ze strefą w UTC.
+
+Administracja jest dostępna w menu konta. Jej ustawienia używają wspólnych zakładek i zachowują draft podczas przełączania sekcji. Pamięć i Notatki wypełniają pozostały obszar, przewijają własne wiersze i zachowują stopkę **1 / 1**. Zwykły Architect używa tej samej rodziny generowanych portretów co inni agenci; własne przesłane obrazy pozostają zachowane. Widoki skrzynki współdzielą wygląd wierszy, a przeciąganie Kanbana pokazuje rzeczywistą kartę. Późniejsze kroki konfiguracji zachowują spójny układ nagłówka, formularza i ilustracji; kontynuacja niezmienionego profilu nie zgłasza zapisu.
 
 ## Dashboard { #the-dashboard }
 
@@ -1127,12 +1141,7 @@ W nowej organizacji domyślnie wybrany jest dostarczony **AgenticOS**, również
 
 Gdy nie ma dostępnego opublikowanego agenta, onboarding proponuje osobie, która może przygotować agenta, **Połącz model**: wybór modelu i przygotowanie agenta. Pozostałym pozwala otworzyć rozmowę konfiguracyjną z dostępnym draftem dostarczonego AgenticOS. Członek organizacji nie potrzebuje do tego uprawnień do modeli; otrzymuje wskazówki konfiguracyjne, a nie wynik zadania AI. Niedostępne drafty pozostają zablokowane, a dostępny opublikowany agent ma pierwszeństwo.
 
-Zamknięcie banera startowego lub wybranie **Ukryj na 24 godziny** wycisza propozycję na 24
-godziny według czasu serwera. Potem może wrócić, jeśli konfiguracja nie została ukończona,
-a organizacja nadal wymaga pierwszego startu. Po przejściu pytań **Zakończ konfigurację i
-otwórz aplikację** zapisuje ukończenie dla tego członkostwa. Opcjonalne pola, zaproszenia,
-model, agent ani run AI nie są wymagane. Ukończenie onboardingu i udane zadanie to osobne
-stany.
+Zamknięcie propozycji startowej odkłada ją na obowiązujący dla tego członkostwa okres 1, 3 lub 7 dni według czasu serwera. Może wrócić, jeśli konfiguracja pozostaje nieukończona, a przypomnienia są włączone. Po przejściu pytań **Zakończ konfigurację i otwórz aplikację** zapisuje ukończenie dla tego członkostwa. Opcjonalne pola, zaproszenia, model, agent ani run AI nie są wymagane. Ukończenie onboardingu i udane zadanie to osobne stany.
 
 Otwórz **Pierwsze kroki** z dashboardu, propozycji przy pierwszym użyciu lub pomocy
 strony. Na desktopie baner startowy czatu jest półprzezroczystą nakładką nad konsolą.

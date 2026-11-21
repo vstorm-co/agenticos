@@ -1,5 +1,5 @@
 ---
-source_sha: "c5ea2ca61a76"
+source_sha: "b4da0595fe79"
 ---
 
 # Die Konsole { #the-console }
@@ -8,7 +8,9 @@ Die Standarddesigns unterscheiden Seitenfläche, Seitenleiste, Karten und schweb
 
 Nutzungs- und Ausgabenaggregate des Dashboards verwenden dieselbe Antwort im Arbeitsspeicher für dasselbe Zeitfenster bis zu 30 Minuten lang. Sie sind keine Live-Zähler: Ausführungsereignisse aktualisieren diese Aggregate nicht nach jeder Ausführung. Ein vollständiges Neuladen des Browsers beginnt mit leerem Cache und fragt die API erneut ab. Gespeicherte Layout-Vorlagen werden nur in der Organisationsansicht geladen, in der die Anordnungssteuerung verfügbar ist.
 
-Ist das Onboarding Ihrer aktuellen Organisation noch nicht abgeschlossen, führt **Einrichtung abschließen** zur geführten Einrichtung zurück. **Morgen erinnern** blendet die Karte für 24 Stunden aus; ein unauffälliger Rückkehrlink bleibt erhalten. Abschluss und Aufschub werden für Ihre Mitgliedschaft auf dem Server gespeichert. Während des Ladens oder bei fehlgeschlagenen Fortschrittsabfragen wird die Einrichtung nicht als unvollständig bezeichnet. Sie kehren aus eigener Entscheidung zurück: Kein Rundgang startet automatisch. Im selben Browser merkt sich der Link den letzten zulässigen Schritt für dasselbe Konto und dieselbe Organisation, auch nach einem Neuladen. Formularwerte werden nicht gespeichert; auf einem anderen Gerät wird sicher der normale Einstieg geöffnet.
+Ist das Onboarding Ihrer aktuellen Organisation noch nicht abgeschlossen, führt **Einrichtung abschließen** zur geführten Einrichtung zurück. Das Ausblenden pausiert die Erinnerung für das wirksame Intervall von 1, 3 oder 7 Tagen (standardmäßig einen Tag). Abschluss und Aufschub werden für Ihre Mitgliedschaft auf dem Server gespeichert. Während des Ladens oder bei fehlgeschlagenen Fortschrittsabfragen wird die Einrichtung nicht als unvollständig bezeichnet.
+
+**Einstellungen → Profil** behält immer einen manuellen Einrichtungslink, auch bei ausgeschalteten Erinnerungen. Die Erinnerung hat eine klare Aktion und eine kurze, begrenzte Illustration; reduzierte Bewegung hält sie still. Kein Rundgang startet automatisch. Im selben Browser merkt sich der Link den letzten zulässigen Schritt für dieses Konto und diese Organisation, ohne Formularwerte zu speichern.
 
 Der Posteingang verwendet in Alle, Dringend, Routinen-Ergebnisse, Vorschläge und Erledigt denselben Listenrahmen, Zeilenabstand, dieselben Quellenmarkierungen, Titel- und Beschreibungsschriften sowie dieselbe responsive Anordnung der Aktionen. Erledigte Einträge behalten ihren Entscheidungsstatus und die Wiederherstellung abgelehnter Einträge; Quelle und Zeit bleiben auch auf dem Telefon sichtbar. Freigabeformulare verwenden denselben äußeren Abstand und behalten ihre Pflichtfelder und Berechtigungsprüfungen.
 
@@ -173,6 +175,18 @@ Die Zeitleiste zeigt bis zu zwei Posteingangseinträge einschließlich eines Lin
 Der Hauptchat bietet ein breites Eingabefeld. Die Modellbibliothek zeigt verbundene Anbieter zuerst, mit Logos und großgeschriebenen Namen, und trennt Katalog und gespeicherte Modelle. Ein Klick wählt das Modell direkt aus. Fehlende Zugangsdaten lassen sich über die bestehenden Vault-Formulare im Auswahlfenster hinzufügen, auch mehrteilige Anbieterzugangsdaten. Berechtigungen und Modellvalidierung bleiben wirksam. Mikrofon und Senden wechseln beim Schreiben fließend.
 
 Die Gesprächssuche durchsucht Titel und indexierte Nachrichtentexte, einschließlich lesbarer Archive. Ergebnisse zeigen Textauszüge mit hervorgehobenen Treffern und der Anzahl passender Nachrichten. Pfeiltasten und Enter öffnen ein Ergebnis. Suchfehler bieten eine Wiederholung, statt eine leere Liste vorzutäuschen.
+
+## Konsolenerlebnis { #console-experience }
+
+Installationsadministratoren bestimmen die Verfügbarkeit unter **Kontomenü → Admin → Deployment → Identität**. Organisationsadministratoren legen Anfangsvorgaben in den **KI & Dienste** ihrer Organisation fest. Mitglieder können diese unter **Einstellungen → Profil** für den aktuellen Arbeitsbereich ändern. **Posteingangsvorschau**, **Nachrichtenvorschläge**, **Begrüßung** und **Funktionshinweise** sind unabhängig. Ein installationsweit deaktiviertes Element bleibt unverfügbar; Organisationsvorgaben können Mitglieder überschreiben. Theme, Stil und Sprache gelten weiterhin kontoweit.
+
+Eine ausgeblendete Posteingangsvorschau entzieht weder den vollständigen Posteingang noch die Genehmigungswarteschlange. Begrüßung und Vorschläge behalten ihren Platz, sodass sich das Eingabefeld beim Ausblenden nicht verschiebt. Funktionshinweise umfassen allgemeine Einführungstexte und den Hinweis auf `/` und `@`; wesentliche Feldbeschriftungen und Tooltips bleiben verfügbar. Diese Einstellungen ändern die Darstellung, nicht Ressourcenberechtigungen oder Agentenverhalten.
+
+**Einrichtungserinnerungen** folgen derselben Hierarchie: Installationsverfügbarkeit, Organisationsvorgaben und persönliche Auswahl. Bestimmen Sie, ob sie erscheinen und ob das Ausblenden 1, 3 oder 7 Tage dauert. Standard ist ein Tag. Der Server berechnet die Rückkehr für diese Mitgliedschaft; es entsteht weder ein Benachrichtigungszeitplan noch eine erfolgreiche Aufgabe. Der manuelle Einrichtungslink im Profil bleibt auch bei ausgeschalteten Erinnerungen erhalten.
+
+Installationseinstellungen bieten außerdem einen optionalen Zeitpunkt **Ankündigung läuft ab**. Danach liefert der Server die Ankündigung nicht mehr aus; offene Seiten erhalten dies über die reguläre Statusabfrage. **Geplantes Wartungsende** ist nur informativ und öffnet die Anwendung niemals automatisch. Ein Administrator beendet die Wartung ausdrücklich. Datumsfelder zeigen die Gerätezeitzone und speichern Zeitpunkte mit Zeitzone in UTC.
+
+Die Administration befindet sich im Kontomenü. Ihre Einstellungen verwenden gemeinsame Register und bewahren Entwürfe beim Abschnittswechsel. Erinnerungen und Notizen füllen den verbleibenden Arbeitsbereich, scrollen ihre eigenen Zeilen und behalten die Fußzeile **1 / 1**. Der normale Architect nutzt dieselbe Familie generierter Porträts wie andere Agenten; eigene hochgeladene Bilder bleiben erhalten. Posteingangsansichten teilen die Zeilendarstellung, und Kanban zeigt beim Ziehen die tatsächliche Karte. Spätere Einrichtungsschritte behalten den einheitlichen Aufbau aus Überschrift, Formular und Illustration; das Fortsetzen eines unveränderten Profils meldet keinen Speichervorgang.
 
 ## Das Dashboard { #the-dashboard }
 
@@ -1205,13 +1219,7 @@ In einer neuen Organisation ist der mitgelieferte **AgenticOS** bereits vor der 
 
 Wenn kein veröffentlichter Agent verfügbar ist, bietet das Onboarding Personen, die einen Agenten vorbereiten dürfen, **Modell verbinden** an: ein Modell wählen und einen Agenten vorbereiten. Allen anderen bietet es einen zugänglichen Entwurf des mitgelieferten AgenticOS als Einrichtungs-Chat an. Mitglieder können ihn ohne Berechtigung zur Modellverwaltung öffnen; er liefert Einrichtungshinweise statt eines KI-Aufgabenergebnisses. Nicht zugängliche Entwürfe bleiben gesperrt, und ein zugänglicher veröffentlichter Agent hat Vorrang.
 
-Das Schließen des Startbanners oder **Für 24 Stunden ausblenden** pausiert das Angebot für
-24 Stunden nach Serverzeit. Danach kann es wieder erscheinen, wenn die Einrichtung nicht
-abgeschlossen ist und die Organisation weiterhin einen ersten Einstieg benötigt. Nach den
-Fragen speichert **Einrichtung abschließen und App öffnen** den Abschluss für diese
-Mitgliedschaft. Optionale Felder, Einladungen, ein Modell, ein Agent oder ein KI-Lauf sind
-nicht erforderlich. Der Abschluss der Einrichtung und eine erfolgreiche Aufgabe sind
-getrennte Zustände.
+Das Schließen des Startangebots pausiert es nach Serverzeit für das wirksame Intervall dieser Mitgliedschaft von 1, 3 oder 7 Tagen. Es kann zurückkehren, wenn die Einrichtung unvollständig und Erinnerungen eingeschaltet sind. Nach den Fragen speichert **Einrichtung abschließen und App öffnen** den Abschluss für diese Mitgliedschaft. Optionale Felder, Einladungen, ein Modell, ein Agent oder ein KI-Run sind nicht erforderlich. Abgeschlossene Einrichtung und erfolgreiche Aufgabe sind getrennte Zustände.
 
 Öffnen Sie **Erste Schritte** über das Dashboard, den Startvorschlag oder die
 Seitenhilfe. Auf dem Desktop liegt der Starthinweis als halbtransparente Ebene über

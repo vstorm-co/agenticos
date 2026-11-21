@@ -83,6 +83,7 @@ import { formatDate } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import { useOrgStore } from "@/stores";
 import { useAssistant } from "@/hooks/use-assistant";
+import { OrgChatHomeSettings } from "@/components/teams/org-chat-home-settings";
 import { OrganizationProfileSettings } from "@/components/teams/organization-profile-settings";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
@@ -645,6 +646,7 @@ export default function OrgMembersPage({ params }: PageProps) {
               <h2 className="text-sm font-medium">{t("assistantServices")}</h2>
               <p className="text-muted-foreground text-sm">{t("assistantServicesHint")}</p>
             </div>
+            {org && canSettings && <OrgChatHomeSettings org={org} />}
             {canConfigureAssistant && <OrgAssistant orgId={id} />}
             <div data-tour="org-proactivity">
               {org && (

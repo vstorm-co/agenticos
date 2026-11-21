@@ -23,6 +23,8 @@ import { ChatApprovalSelector } from "./chat-approval-selector";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
 import { useMainChat, useMinimalComposer } from "./main-chat-context";
+import { useChatHomeOptions } from "@/components/settings/console-experience-provider";
+import { DEFAULT_CHAT_HOME } from "@/lib/console-experience-api";
 import { ChatHomeInbox } from "./chat-home-inbox";
 import { PersonalModelConnection } from "./personal-model-connection";
 import { SheetRow } from "./composer-sheet";
@@ -1401,6 +1403,8 @@ function ChatUI({
       />
     </span>
   );
+  const configuredHome = useChatHomeOptions();
+  const homeOptions = mainChat ? configuredHome : DEFAULT_CHAT_HOME;
   const showWorkspaceHome =
     !compact && messages.length === 0 && voice.call.phase === "idle" && !isLoadingConversation;
   const showDailyBriefing = showWorkspaceHome && mainChat && !emptyState && !conversationId;
@@ -1472,7 +1476,9 @@ function ChatUI({
                     emptyState((picked) => sendMessage(picked))
                   ) : (
                     <ChatEmptyState
-                      showSuggestions={!drafting}
+                      showSuggestions={!drafting && homeOptions.starters}
+                      showGreeting={homeOptions.greeting}
+                      showDiscoveryHints={homeOptions.feature_hints}
                       suggestionsSlot={!compact ? homeHintsSlot : undefined}
                       onPick={
                         showDailyBriefing ? composeSuggestion : (picked) => sendMessage(picked)
@@ -1683,7 +1689,9 @@ function ChatUI({
                   : "max-w-5xl bg-[linear-gradient(to_bottom,transparent_30%,var(--color-background)_62%)] px-2 pb-2 sm:px-4 sm:pb-4",
               )}
             >
-              {showDailyBriefing && <ChatHomeInbox onDiscuss={composeSuggestion} />}
+              {showDailyBriefing && homeOptions.inbox && (
+                <ChatHomeInbox onDiscuss={composeSuggestion} />
+              )}
               <InterruptedNotice
                 interrupted={interrupted}
                 detached={detachedTurnPending}
@@ -1826,7 +1834,7 @@ function ChatUI({
                             // scope's own selection holds it.
                             agentId={delegatingAgentId}
                             mentionsFromDraft={testingDraft}
-                            hints={messages.length === 0}
+                            hints={messages.length === 0 && homeOptions.feature_hints}
                             disabled={
                               isStopping ||
                               isLoadingConversation ||

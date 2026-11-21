@@ -109,6 +109,7 @@ import * as workflowRuns from "./workflow-runs/[[...path]]/route";
 import * as workflows from "./workflows/[[...path]]/route";
 import * as userLocale from "./users/me/locale/route";
 import * as userPreferences from "./users/me/preferences/route";
+import * as consoleExperience from "./users/me/console-experience/route";
 import * as mySuggestions from "./me/suggestions/[[...path]]/route";
 import * as myOnboarding from "./me/onboarding/[[...path]]/route";
 import * as myWatches from "./me/watches/[[...path]]/route";
@@ -360,6 +361,53 @@ it("mounts self-only preferences reads and edits behind the authenticated forwar
           theme: "dark",
         });
       }
+      fetch.mockClear();
+    }
+  } finally {
+    fetch.mockRestore();
+  }
+});
+
+it("forwards only authenticated console-experience reads and partial edits with their organization", async () => {
+  const { NextRequest } = await import("next/server");
+  const { ACCESS_TOKEN_COOKIE } = await import("@/lib/session-cookie");
+  expect(Object.keys(consoleExperience).sort()).toEqual(["GET", "PATCH"]);
+  const fetch = vi.spyOn(globalThis, "fetch");
+  try {
+    for (const method of ["GET", "PATCH"] as const) {
+      const body = { preferences: { inbox: false }, reminders: { snooze_days: 7 } };
+      const request = new NextRequest("http://localhost/api/users/me/console-experience", {
+        method,
+        headers: { "X-Organization-Id": "org-one", "Content-Type": "application/json" },
+        ...(method === "PATCH" ? { body: JSON.stringify(body) } : {}),
+      });
+      expect((await consoleExperience[method](request)).status).toBe(401);
+      expect(fetch).not.toHaveBeenCalled();
+      request.cookies.set(ACCESS_TOKEN_COOKIE, "own-session");
+      fetch.mockResolvedValueOnce(Response.json({ effective: { inbox: false } }));
+      expect((await consoleExperience[method](request)).status).toBe(200);
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringMatching(/\/api\/v1\/users\/me\/console-experience$/),
+        expect.objectContaining({
+          method,
+          headers: expect.objectContaining({
+            Authorization: "Bearer own-session",
+            "X-Organization-Id": "org-one",
+          }),
+        }),
+      );
+      if (method === "PATCH")
+        expect(await new Response(fetch.mock.calls[0]?.[1]?.body).json()).toEqual(body);
+      fetch.mockClear();
+      fetch.mockResolvedValueOnce(
+        Response.json({ error: { message: "Membership not found" } }, { status: 403 }),
+      );
+      const refused = new NextRequest(request.url, {
+        method,
+        headers: request.headers,
+        ...(method === "PATCH" ? { body: JSON.stringify(body) } : {}),
+      });
+      expect((await consoleExperience[method](refused)).status).toBe(403);
       fetch.mockClear();
     }
   } finally {

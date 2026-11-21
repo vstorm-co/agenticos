@@ -27,6 +27,7 @@ from app.repositories import (
     member_repo,
     organization_repo,
 )
+from app.schemas.console_experience import ChatHomeOverrides, OnboardingReminderOverrides
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationList,
@@ -87,6 +88,12 @@ def _org_read(
     """
     return OrganizationRead(
         id=org.id,
+        onboarding_reminders=OnboardingReminderOverrides.model_validate(org.onboarding_reminders)
+        if org.onboarding_reminders is not None
+        else None,
+        chat_home_defaults=ChatHomeOverrides.model_validate(org.chat_home_defaults)
+        if org.chat_home_defaults is not None
+        else None,
         name=org.name,
         slug=org.slug,
         is_personal=org.is_personal,
@@ -513,6 +520,24 @@ class OrganizationService:
                     "Changing whether pages may show data publicly is not allowed while "
                     "impersonating another account."
                 )
+            )
+
+        if "onboarding_reminders" in data.model_fields_set:
+            org = await organization_repo.set_onboarding_reminders(
+                self.db,
+                org,
+                changes=data.onboarding_reminders.changes()
+                if data.onboarding_reminders is not None
+                else None,
+            )
+
+        if "chat_home_defaults" in data.model_fields_set:
+            org = await organization_repo.set_chat_home_defaults(
+                self.db,
+                org,
+                changes=data.chat_home_defaults.changes()
+                if data.chat_home_defaults is not None
+                else None,
             )
 
         if wants_budget:

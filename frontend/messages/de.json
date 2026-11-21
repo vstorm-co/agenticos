@@ -832,7 +832,7 @@
     "visualDesignHeading": "Zeichenstil",
     "platformServerDescription": "Die eigenen Werkzeuge dieser Plattform: Agents, Runs, Ausgaben, Wissensbasen, Skills und Mitglieder - der Agent kann Fragen zur Plattform beantworten und in ihr handeln.",
     "platformServerBadge": "Eingebaut",
-    "platformAsksBeforeWrites": "Fragt vor jeder Änderung",
+    "platformAsksBeforeWrites": "Fragt vor folgenreichen Aktionen",
     "platformAsksEveryCall": "Fragt vor jedem Aufruf",
     "platformAsWhoeverAsks": "Handelt als die fragende Person",
     "platformActsAsWhoeverAsks": "Jedes Werkzeug handelt als die Person, für die der Agent läuft, mit genau ihren Berechtigungen. Nichts Neues wird gewährt: Was sie in der Konsole nicht durfte, kann der Agent auch hier nicht.",
@@ -988,7 +988,8 @@
     "removeStarter": "Erste Nachricht {number} entfernen",
     "newStarter": "Neue erste Nachricht",
     "addStarter": "Hinzufügen",
-    "platformAlwaysAsksBadge": "fragt immer: ändert, wer hier Befugnisse hat",
+    "platformConditionalApproval": "Aufgabenänderungen fragen weiterhin nach, wenn sie Agentenarbeit starten oder neu planen können. Für jede andere Entwurfs- oder Datensatzänderung kannst du ebenfalls eine Bestätigung verlangen.",
+    "platformAlwaysAsksBadge": "fragt immer nach Bestätigung",
     "platformUngatedBadge": "eigene Einstellung, ohne Freigabe",
     "noKeyForEndpoint": "Kein Schlüssel - der Endpunkt braucht keinen",
     "notAChatModel": "kein Chat-Modell",
@@ -7699,7 +7700,9 @@
     "maintenance": {
       "heading": "{app} ist in Wartung",
       "body": "Das Deployment ist vorübergehend geschlossen. Versuchen Sie es gleich noch einmal.",
-      "adminStrip": "Der Wartungsmodus ist an. Alle außer Ihnen sind ausgesperrt."
+      "adminStrip": "Der Wartungsmodus ist an. Alle außer Ihnen sind ausgesperrt.",
+      "announcementTitle": "Ankündigung",
+      "status": "Vorübergehend nicht verfügbar"
     },
     "routines": {
       "title": "Routinen",
@@ -17321,9 +17324,14 @@
   "start": {
     "sidebarReminder": {
       "title": "Einrichtung abschließen",
-      "hint": "Schließen Sie die geführte Einrichtung in Ihrem eigenen Tempo ab.",
+      "hint": "Ergänzen Sie Ihr Profil, wählen Sie die Hilfe der Agenten und starten Sie Ihre erste Aufgabe.",
       "snooze": "Morgen erinnern",
-      "saveFailed": "Die Erinnerung konnte nicht ausgeblendet werden. Versuchen Sie es erneut."
+      "saveFailed": "Die Erinnerung konnte nicht ausgeblendet werden. Versuchen Sie es erneut.",
+      "heading": "Gestalten Sie Ihren Arbeitsbereich",
+      "manualTitle": "Geführte Einrichtung",
+      "manualHint": "Kehren Sie jederzeit zur Einrichtung zurück, auch bei ausgeschalteten Erinnerungen.",
+      "manualAction": "Einrichtung öffnen",
+      "snoozeDays": "{days, plural, one {Morgen erinnern} other {In # Tagen erinnern}}"
     },
     "administration": {
       "title": "Bereiten Sie die Organisation für Ihr Team vor",
@@ -20750,5 +20758,50 @@
     "remove": "Verbindung entfernen",
     "loading": "Verbindungen werden geladen…",
     "defaultEndpoint": "Standardadresse des Anbieters"
+  },
+  "consoleExperience": {
+    "title": "Chat-Startseite",
+    "personalHint": "Nur in diesem Arbeitsbereich. Übernimm dessen Vorgaben oder wähle die Elemente vor einer Unterhaltung. Die Verfügbarkeit der Installation gilt weiterhin.",
+    "organizationHint": "Anfangsvorgaben für Mitglieder dieses Arbeitsbereichs. Jede Person kann sie im Profil ändern; die Verfügbarkeit der Installation gilt weiterhin.",
+    "deploymentHint": "Wähle die in dieser Installation verfügbaren Elemente der Chat-Startseite. Dies ändert die Darstellung, niemals Ressourcenzugriff oder Agentenverhalten.",
+    "unavailable": "In dieser Installation nicht verfügbar.",
+    "inheritShown": "Übernehmen (sichtbar)",
+    "inheritHidden": "Übernehmen (ausgeblendet)",
+    "show": "Anzeigen",
+    "hide": "Ausblenden",
+    "reset": "Arbeitsbereichsvorgaben verwenden",
+    "retry": "Erneut versuchen",
+    "items": {
+      "inbox": {
+        "label": "Posteingangsvorschau",
+        "hint": "Eine kurze Vorschau über dem Eingabefeld. Der vollständige Posteingang und Genehmigungen bleiben verfügbar."
+      },
+      "starters": {
+        "label": "Nachrichtenvorschläge",
+        "hint": "Vorschläge für erste Nachrichten unter dem leeren Eingabefeld."
+      },
+      "greeting": {
+        "label": "Begrüßung",
+        "hint": "Die Begrüßungsüberschrift vor einer neuen Unterhaltung. Ändert keine Agentenantworten."
+      },
+      "feature_hints": {
+        "label": "Funktionshinweise",
+        "hint": "Einführungstexte und der Hinweis auf / und @ im Eingabefeld. Wesentliche Beschriftungen und Tooltips bleiben sichtbar."
+      }
+    },
+    "remindersTitle": "Einrichtungserinnerungen",
+    "remindersPersonalHint": "Erinnerungen an die unvollständige Einrichtung dieses Arbeitsbereichs. Auch ausgeschaltet bleibt der manuelle Einrichtungslink in den Einstellungen verfügbar.",
+    "remindersOrganizationHint": "Anfangsvorgaben für Erinnerungen an Mitglieder. Jede Person kann sie ändern; die Verfügbarkeit der Installation gilt weiterhin.",
+    "remindersDeploymentHint": "Erinnerungen an eine unvollständige Einrichtung erlauben. Die Einrichtung lässt sich jederzeit manuell über die Einstellungen öffnen.",
+    "remindersEnabled": "Einrichtungserinnerungen",
+    "remindersFrequency": "Nach dem Ausblenden erneut erinnern",
+    "inheritDays": "{count, plural, one {Übernehmen (1 Tag)} other {Übernehmen (# Tage)}}",
+    "days": "{count, plural, one {1 Tag} other {# Tage}}",
+    "announcementExpiry": "Ankündigung läuft ab",
+    "announcementExpiryHint": "Optional. Uhrzeit in {zone}, gespeichert in UTC. Nach diesem Zeitpunkt wird die Ankündigung nicht mehr angezeigt.",
+    "maintenanceEnd": "Geplantes Wartungsende",
+    "maintenanceEndHint": "Optional. Uhrzeit in {zone}, gespeichert in UTC. Nur informativ; ein Administrator muss die Wartung beenden.",
+    "maintenanceEndInformational": "Dies ist eine Schätzung. Der Zugriff kehrt zurück, sobald ein Administrator die Wartung beendet.",
+    "invalidTime": "Wähle ein gültiges lokales Datum mit Uhrzeit."
   }
 }

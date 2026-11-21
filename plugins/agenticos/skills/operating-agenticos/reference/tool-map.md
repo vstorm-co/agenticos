@@ -194,6 +194,8 @@ new body windows support up to 2000 chars.
 | `get_solution_installation` | `agents:edit`; only the caller's receipt in this organization | no |
 | `get_my_preferences` | the caller's own account, `agents:run` for keys | no |
 | `set_my_preferences` | the caller's own account, `agents:run` for keys | yes, theme/style/language only |
+| `get_my_console_experience` | active personal membership, `agents:run` for keys | no, reads presentation availability, defaults and effective preferences |
+| `set_my_console_experience` | active personal membership, `agents:run` for keys | yes, own chat-home and setup-reminder overrides only; omitted fields stay, null inherits |
 
 Use `get_authoring_schema` for solution, agent, workflow or workflow-preparation
 contracts rather than loading those schemas into every tool definition. The API

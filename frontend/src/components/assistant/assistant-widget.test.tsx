@@ -8,7 +8,6 @@ import type { ChatPrompt } from "@/components/chat/chat-container";
 import type { IncomingFiles } from "@/components/chat/chat-input";
 import { useAuthStore, useOrgStore } from "@/stores";
 import { useArchitectAskStore } from "@/stores/architect-ask-store";
-import { useArchitectMarkStore } from "@/stores/architect-mark-store";
 import type { AssistantState } from "@/types/assistant";
 
 import { BUBBLE_VISIBLE_MS } from "./assistant-bubble";
@@ -144,7 +143,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => useArchitectMarkStore.setState({ agentId: null }));
   delete window.__AGENTICOS_SHELL__;
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -154,7 +152,6 @@ afterEach(() => {
 
 describe("the Architect widget", () => {
   it.each([null, 4])("matches the agent avatar after clearing its picture (colour %s)", (color) => {
-    act(() => useArchitectMarkStore.setState({ agentId: "a1" }));
     const cleared = assistant({ avatar_color: color });
     const { container } = render(
       <>

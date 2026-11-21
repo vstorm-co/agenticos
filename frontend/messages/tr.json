@@ -2631,7 +2631,9 @@
     "maintenance": {
       "heading": "{app} bakımda",
       "body": "Dağıtım geçici olarak kapalı. Kısa süre sonra yeniden deneyin.",
-      "adminStrip": "Bakım modu açık. Siz hariç herkesin erişimi engellendi."
+      "adminStrip": "Bakım modu açık. Siz hariç herkesin erişimi engellendi.",
+      "announcementTitle": "Duyuru",
+      "status": "Geçici olarak kullanılamıyor"
     },
     "routines": {
       "title": "Rutinler",
@@ -6887,7 +6889,7 @@
     "visualDesignHeading": "Çizim stili",
     "platformServerDescription": "Bu platformun kendi tool'ları: Agent'lar, run'lar, harcama, bilgi tabanları, skill'ler ve üyeler. Böylece Agent platformla ilgili soruları yanıtlayıp platform üzerinde işlem yapabilir.",
     "platformServerBadge": "Yerleşik",
-    "platformAsksBeforeWrites": "Her değişiklikten önce sorar",
+    "platformAsksBeforeWrites": "Önemli işlemlerden önce sorar",
     "platformAsksEveryCall": "Her çağrıdan önce sorar",
     "platformAsWhoeverAsks": "İstekte bulunan kişi olarak işlem yapar",
     "platformActsAsWhoeverAsks": "Her tool, Agent'ın adına çalıştığı kişinin tam olarak kendi izinleriyle işlem yapar. Yeni izin verilmez: kişinin console'da yapamadığını Agent da burada yapamaz.",
@@ -7043,7 +7045,8 @@
     "removeStarter": "{number}. ilk mesajı kaldır",
     "newStarter": "Yeni ilk mesaj",
     "addStarter": "Ekle",
-    "platformAlwaysAsksBadge": "her zaman sorar: burada kimin yetkisi olduğunu değiştirir",
+    "platformConditionalApproval": "Görev değişiklikleri, ajan çalışmasını başlatabilecek veya yeniden planlayabilecekse yine onay ister. Diğer taslak veya kayıt değişiklikleri için de onay isteyebilirsiniz.",
+    "platformAlwaysAsksBadge": "her zaman onay ister",
     "platformUngatedBadge": "kendi ayarınız, onay istemez",
     "noKeyForEndpoint": "Key yok - endpoint gerektirmiyor",
     "notAChatModel": "chat modeli değil",
@@ -13552,9 +13555,14 @@
   "start": {
     "sidebarReminder": {
       "title": "Kurulumu tamamlayın",
-      "hint": "Rehberli kurulumu kendi hızınızda tamamlayın.",
+      "hint": "Profilinizi tamamlayın, ajanların nasıl yardımcı olacağını seçin ve ilk görevinizi deneyin.",
       "snooze": "Yarın hatırlat",
-      "saveFailed": "Hatırlatıcı gizlenemedi. Tekrar deneyin."
+      "saveFailed": "Hatırlatıcı gizlenemedi. Tekrar deneyin.",
+      "heading": "Çalışma alanınızı size uyarlayın",
+      "manualTitle": "Rehberli kurulum",
+      "manualHint": "Hatırlatıcılar kapalıyken bile istediğiniz zaman kuruluma dönebilirsiniz.",
+      "manualAction": "Kurulumu aç",
+      "snoozeDays": "{days, plural, one {Yarın hatırlat} other {# gün sonra hatırlat}}"
     },
     "administration": {
       "title": "Organizasyonu ekibiniz için hazırlayın",
@@ -16718,5 +16726,50 @@
     "describe": {
       "open": "{name} ile oluştur"
     }
+  },
+  "consoleExperience": {
+    "title": "Sohbet başlangıcı",
+    "personalHint": "Yalnızca bu çalışma alanında geçerlidir. Alanın varsayılanlarını kullanın veya konuşmadan önce görünen öğeleri seçin. Kurulumun kullanılabilirlik sınırları geçerlidir.",
+    "organizationHint": "Bu çalışma alanının üyeleri için başlangıç varsayılanları. Her kullanıcı profilinden değiştirebilir; kurulumun kullanılabilirlik sınırları geçerlidir.",
+    "deploymentHint": "Bu kurulumda kullanılabilen sohbet başlangıcı öğelerini seçin. Yalnızca görünümü değiştirir; kaynak erişimini veya ajan davranışını değiştirmez.",
+    "unavailable": "Bu kurulumda kullanılamıyor.",
+    "inheritShown": "Devral (gösterilir)",
+    "inheritHidden": "Devral (gizlenir)",
+    "show": "Göster",
+    "hide": "Gizle",
+    "reset": "Çalışma alanı varsayılanlarını kullan",
+    "retry": "Yeniden dene",
+    "items": {
+      "inbox": {
+        "label": "Gelen kutusu önizlemesi",
+        "hint": "Mesaj alanının üstünde kısa bir önizleme. Tam gelen kutusu ve onaylar kullanılabilir kalır."
+      },
+      "starters": {
+        "label": "Mesaj önerileri",
+        "hint": "Boş mesaj alanının altında ilk mesaj önerileri."
+      },
+      "greeting": {
+        "label": "Karşılama",
+        "hint": "Yeni bir konuşmadan önceki karşılama başlığı. Ajan yanıtlarını değiştirmez."
+      },
+      "feature_hints": {
+        "label": "Özellik ipuçları",
+        "hint": "Özellikleri tanıtan metinler ve mesaj alanındaki / ile @ ipucu. Gerekli etiketler ve araç ipuçları görünür kalır."
+      }
+    },
+    "remindersTitle": "Kurulum hatırlatıcıları",
+    "remindersPersonalHint": "Bu çalışma alanındaki tamamlanmamış kurulum için hatırlatmalar. Kapatıldığında Ayarlar içindeki elle kurulum bağlantısı kullanılabilir kalır.",
+    "remindersOrganizationHint": "Üyeler için başlangıç hatırlatıcı ayarları. Kullanıcılar değiştirebilir; kurulumun kullanılabilirlik sınırları geçerlidir.",
+    "remindersDeploymentHint": "Tamamlanmamış kurulum için hatırlatmalara izin verin. Kullanıcılar kurulumu Ayarlar üzerinden her zaman elle açabilir.",
+    "remindersEnabled": "Kurulum hatırlatıcıları",
+    "remindersFrequency": "Erteledikten sonra yeniden hatırlat",
+    "inheritDays": "{count, plural, one {Devral (1 gün)} other {Devral (# gün)}}",
+    "days": "{count, plural, one {1 gün} other {# gün}}",
+    "announcementExpiry": "Duyurunun sona ermesi",
+    "announcementExpiryHint": "İsteğe bağlı. Saat {zone} bölgesinde gösterilir ve UTC olarak saklanır. Bu saatten sonra duyuru gösterilmez.",
+    "maintenanceEnd": "Planlanan bakım bitişi",
+    "maintenanceEndHint": "İsteğe bağlı. Saat {zone} bölgesinde gösterilir ve UTC olarak saklanır. Yalnızca bilgi amaçlıdır; bakımı bir yönetici bitirmelidir.",
+    "maintenanceEndInformational": "Bu tahmini bir süredir. Yönetici bakımı bitirdiğinde erişim açılır.",
+    "invalidTime": "Geçerli bir yerel tarih ve saat seçin."
   }
 }

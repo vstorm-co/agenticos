@@ -1,7 +1,15 @@
 # Configuration
 
-All configuration is managed via environment variables, loaded from
+Service configuration is managed through environment variables, loaded from
 `backend/.env` using [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
+
+Console presentation and notice timing are saved in the database through the UI.
+Deployment availability limits which chat-home elements and setup reminders may
+appear; organization defaults and personal membership preferences choose among
+those available elements. Reminder dismissal lasts 1, 3 or 7 days. Announcement
+expiry is enforced by the server, while a planned maintenance end is informational
+and does not reopen the installation. See [Console experience](console.md#console-experience)
+for the controls and inheritance rules.
 
 Settings are defined in `app/core/config.py` and accessed via the global
 `settings` object:

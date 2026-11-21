@@ -62,15 +62,14 @@ export function MemoryPager({
   onPage: (skip: number) => void;
 }) {
   const t = useTranslations("pages.memory");
-  if (total <= size) return null;
   return (
-    <ListCardFootRow className="flex items-center justify-between gap-3">
+    <ListCardFootRow className="mt-auto flex shrink-0 items-center justify-between gap-3">
       <span className="text-muted-foreground text-xs">
         {t("showing", { from: count ? skip + 1 : 0, to: skip + count, total })}
       </span>
       <PageNavigation
         page={Math.floor(skip / size)}
-        pageCount={Math.ceil(total / size)}
+        pageCount={Math.max(1, Math.ceil(total / size))}
         hasNext={skip + count < total}
         onPage={(page) => onPage(page * size)}
       />

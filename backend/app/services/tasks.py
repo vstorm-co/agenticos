@@ -1,6 +1,7 @@
 """Durable tasks backed by scoped Virtual Tables, with transactional lifecycle hooks."""
 
 from contextvars import ContextVar
+from typing import Literal
 from uuid import UUID, uuid5
 
 from pydantic import ValidationError
@@ -33,6 +34,7 @@ from app.schemas.task import (
 )
 from app.schemas.virtual_table import (
     MAX_LABEL,
+    CellValue,
     ColumnDef,
     RecordCreate,
     RecordFilter,
@@ -52,6 +54,54 @@ class TaskService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.tables = VirtualTableService(db)
+
+    async def record_may_schedule_agent_work(
+        self,
+        ctx: AuthContext,
+        table_id: UUID,
+        values: dict[str, CellValue],
+        *,
+        operation: Literal["add", "update", "upsert"],
+        record_id: UUID | None = None,
+        expected_revision: int | None = None,
+    ) -> bool:
+        """Point-read authorized task state; the mutation still checks its revision.
+
+        An upsert may recreate a concurrently deleted row, so only an explicitly
+        non-agent post-state is safe without asking. Published table automations
+        are already authorized and do not change this task-specific decision.
+        """
+        table = await self.tables.describe_table(ctx, table_id)
+        if not table.can_edit:
+            raise AuthorizationError(message="This table cannot be edited")
+        board = await task_repo.for_table(self.db, table_id, ctx.organization_id)
+        if board is None:
+            return False
+        if operation == "upsert":
+            return not (
+                values.get(board.column_ids["next_actor"]) == board.status_ids["actor:user"]
+                or values.get(board.column_ids["status"])
+                in {
+                    board.status_ids[status]
+                    for status in ("done", "cancelled", "waiting_for_user", "blocked")
+                }
+            )
+        cells: dict[str, object]
+        if operation == "add":
+            cells = {str(column.id): column.default for column in table.columns}
+        else:
+            if record_id is None or expected_revision is None:
+                return True
+            record = await task_repo.record(self.db, record_id, ctx.organization_id)
+            if (
+                record is None
+                or record.table_id != table_id
+                or record.revision != expected_revision
+            ):
+                return True
+            cells = dict(record.values)
+        cells.update(values)
+        return task_may_schedule_agent_work(from_cells(board, cells))
 
     async def require_no_agent_execution(self, ctx: AuthContext, agent_id: UUID) -> None:
         """Keep deleting an agent from silently discarding a task's scheduled work."""
@@ -663,3 +713,12 @@ class TaskLifecycle:
                 board.status_ids["actor:agent"],
             } != {str(option.id) for option in column.options if not option.archived}:
                 raise BadRequestError(message="The next-step choices must remain Person and Agent")
+
+
+def task_may_schedule_agent_work(task: TaskFields) -> bool:
+    """The post-state can schedule fresh work, even after an earlier approved run."""
+    return (
+        task.status in {"planned", "in_progress"}
+        and task.next_actor == "agent"
+        and task.assignee_agent_id is not None
+    )

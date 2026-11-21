@@ -76,12 +76,16 @@ interface ChatEmptyStateProps {
   onPick: (prompt: string) => void;
   suggestionsSlot?: HTMLElement | null;
   showSuggestions?: boolean;
+  showGreeting?: boolean;
+  showDiscoveryHints?: boolean;
 }
 
 export function ChatEmptyState({
   onPick,
   suggestionsSlot,
   showSuggestions = true,
+  showGreeting = true,
+  showDiscoveryHints = true,
 }: ChatEmptyStateProps) {
   // Whoever will answer, so the page opens on them rather than on a generic
   // sparkle and a line about streaming and tool calls. The list is the one the
@@ -107,6 +111,8 @@ export function ChatEmptyState({
       loading={waiting}
       suggestionsSlot={showStarters ? suggestionsSlot : null}
       showSuggestions={showSuggestions}
+      showGreeting={showGreeting}
+      showDiscoveryHints={showDiscoveryHints}
       onPick={onPick}
     />
   );
@@ -126,6 +132,8 @@ function Welcome({
   onPick,
   suggestionsSlot,
   showSuggestions,
+  showGreeting,
+  showDiscoveryHints,
 }: WelcomeProps) {
   const t = useTranslations("chat.empty");
   const th = useTranslations("workspaceHome");
@@ -151,6 +159,8 @@ function Welcome({
   return (
     <ChatWelcome
       quiet
+      showGreeting={showGreeting}
+      showLead={!isStarter || showDiscoveryHints}
       showSuggestions={showSuggestions}
       loading={loading}
       suggestionsSlot={suggestionsSlot}

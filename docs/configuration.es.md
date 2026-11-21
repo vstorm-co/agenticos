@@ -1,11 +1,20 @@
 ---
-source_sha: "33ad493d2382"
+source_sha: "b190a21ae0c5"
 ---
 
 # Configuración { #configuration }
 
-Toda la configuración se gestiona con variables de entorno, cargadas desde
+La configuración de los servicios usa variables de entorno, cargadas desde
 `backend/.env` con [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
+
+La presentación de la consola y los plazos de avisos se guardan en la base de datos
+desde la interfaz. La disponibilidad de la instalación limita los elementos del
+inicio del chat y los recordatorios; los valores de la organización y las
+preferencias personales de cada pertenencia eligen entre los disponibles. El
+aplazamiento dura 1, 3 o 7 días. El servidor aplica la caducidad del anuncio; el fin
+previsto del mantenimiento solo informa y no vuelve a abrir la instalación.
+[La experiencia de la consola](console.es.md#console-experience) describe los
+controles y la herencia.
 
 Los ajustes se definen en `app/core/config.py` y se leen a través del objeto
 global `settings`:

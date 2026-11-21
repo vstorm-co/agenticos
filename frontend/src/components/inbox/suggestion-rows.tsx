@@ -10,6 +10,7 @@ import {
   useSuggestionActions,
   useSuggestionSource,
 } from "@/components/chat/suggestion-actions";
+import { SuggestionPriority } from "@/components/chat/suggestion-priority";
 import { Badge, Button, Skeleton } from "@/components/ui";
 import {
   DropdownMenu,
@@ -89,7 +90,7 @@ export function SuggestionRows({
                 className={cn("bg-muted shadow-none", !dense && styles.mark)}
               />
               <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-baseline gap-2">
+                <div className="flex min-w-0 flex-wrap items-baseline gap-2">
                   <p
                     className={cn(
                       "min-w-0",
@@ -119,11 +120,7 @@ export function SuggestionRows({
                       {t("acknowledged")}
                     </Badge>
                   )}
-                  {suggestion.urgent && (
-                    <Badge variant="destructive" className="shrink-0 px-2.5 text-xs">
-                      {t("urgent")}
-                    </Badge>
-                  )}
+                  {suggestion.urgent && <SuggestionPriority />}
                 </div>
                 <span
                   className={dense ? "text-muted-foreground mt-1 block text-xs" : styles.metadata}
@@ -154,6 +151,7 @@ export function SuggestionRows({
               </div>
               <div
                 className={cn(
+                  styles.controls,
                   dense
                     ? "col-start-2 mt-0.5 flex flex-wrap items-center gap-1.5 @[48rem]/widget:col-start-3 @[48rem]/widget:row-start-1 @[48rem]/widget:self-center"
                     : styles.actions,
@@ -162,7 +160,12 @@ export function SuggestionRows({
                 {dense ? (
                   <>
                     {workingChatUrl && (
-                      <Button asChild size="sm" variant="secondary" className="h-8">
+                      <Button
+                        asChild
+                        size="sm"
+                        variant="secondary"
+                        className="h-9 pointer-coarse:h-11"
+                      >
                         <Link href={workingChatUrl}>
                           <MessageSquare className="size-3.5" aria-hidden />
                           {tInbox("openWorkingChat")}
@@ -173,7 +176,7 @@ export function SuggestionRows({
                       type="button"
                       size="sm"
                       variant="secondary"
-                      className="h-8"
+                      className="h-9 pointer-coarse:h-11"
                       onClick={() => take(suggestion)}
                     >
                       {suggestion.kind === "finding" && <Check className="size-3.5" aria-hidden />}
@@ -183,7 +186,7 @@ export function SuggestionRows({
                       type="button"
                       size="sm"
                       variant="ghost"
-                      className="text-muted-foreground h-8"
+                      className="text-muted-foreground h-9 pointer-coarse:h-11"
                       onClick={() => notNow(suggestion)}
                     >
                       <Clock className="size-3.5" aria-hidden />
@@ -192,7 +195,7 @@ export function SuggestionRows({
                   </>
                 ) : (
                   <>
-                    <Button asChild size="sm" variant="ghost" className="h-8">
+                    <Button asChild size="sm" variant="ghost" className="h-9 pointer-coarse:h-11">
                       <Link
                         href={`/chat?new=inbox-${suggestion.id}&discuss=${suggestion.id}&answerer=agenticos`}
                       >
@@ -206,7 +209,7 @@ export function SuggestionRows({
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="text-muted-foreground size-8"
+                          className="text-muted-foreground size-9 pointer-coarse:size-11"
                           aria-label={tInbox("moreActions", { title: suggestion.title })}
                         >
                           <MoreHorizontal className="size-4" aria-hidden />

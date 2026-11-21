@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Badge } from "@/components/ui/badge";
+import { SuggestionPriority } from "./suggestion-priority";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePendingApprovals } from "@/hooks/use-pending-approvals";
@@ -81,11 +81,7 @@ export function ChatHomeInbox({ onDiscuss }: { onDiscuss: (prompt: string) => vo
                         {sourceOf(item)?.name ?? inbox(`source.${item.kind}`)}
                       </span>
                       <span className="chat-home-inbox-title">{item.title}</span>
-                      {item.urgent && (
-                        <Badge variant="warning" className="shrink-0 px-2 py-0 text-[11px]">
-                          {t("urgent")}
-                        </Badge>
-                      )}
+                      {item.urgent && <SuggestionPriority />}
                     </span>
                   </button>
                 </li>

@@ -258,3 +258,11 @@ it("keeps a refused memory retraction open for another decision", async () => {
   await userEvent.click(within(confirm).getByRole("button", { name: "retract" }));
   expect(confirm).toBeInTheDocument();
 });
+
+it("keeps memories scrollable above a persistent one-page footer", () => {
+  mount();
+  expect(screen.getByRole("list")).toHaveClass("min-h-0", "flex-1", "overflow-auto");
+  expect(screen.getByText("1 / 1")).toBeVisible();
+  expect(screen.getByRole("button", { name: "previousPage" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "nextPage" })).toBeDisabled();
+});

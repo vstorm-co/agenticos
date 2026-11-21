@@ -1,11 +1,20 @@
 ---
-source_sha: "33ad493d2382"
+source_sha: "b190a21ae0c5"
 ---
 
 # Konfiguration { #configuration }
 
-Die gesamte Konfiguration läuft über Umgebungsvariablen, die mit
+Die Dienstkonfiguration verwendet Umgebungsvariablen, die mit
 [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) aus `backend/.env` geladen werden.
+
+Konsolendarstellung und Hinweiszeiten werden über die Oberfläche in der Datenbank
+gespeichert. Die Installationsverfügbarkeit begrenzt Elemente der Chat-Startseite
+und Einrichtungserinnerungen; Organisationsvorgaben und persönliche
+Mitgliedschaftseinstellungen wählen daraus aus. Erinnerungen lassen sich für 1, 3
+oder 7 Tage ausblenden. Der Server setzt den Ablauf einer Ankündigung durch. Ein
+geplantes Wartungsende ist nur informativ und öffnet die Installation nicht.
+[Das Konsolenerlebnis](console.de.md#console-experience) beschreibt die Steuerelemente
+und Vererbungsregeln.
 
 Die Settings sind in `app/core/config.py` definiert und werden über das globale
 Objekt `settings` gelesen:

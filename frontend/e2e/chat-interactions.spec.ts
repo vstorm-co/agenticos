@@ -76,25 +76,25 @@ for (const theme of ["light", "dark"] as const) {
           await expect
             .poll(async () => (await model.boundingBox())?.width ?? 0)
             .toBeGreaterThanOrEqual(180);
-          const targets = await actions.locator("button:visible").evaluateAll((buttons) =>
-            buttons.map((button) => {
-              const rect = button.getBoundingClientRect();
-              return {
-                name:
-                  button.getAttribute("aria-label") ??
-                  button.getAttribute("title") ??
-                  button.textContent,
-                width: rect.width,
-                height: rect.height,
-              };
-            }),
-          );
-          expect(targets.length).toBeGreaterThanOrEqual(7);
-          for (const target of targets) {
-            expect(target.width, `${target.name} phone target width`).toBeGreaterThanOrEqual(43.5);
-            expect(target.height, `${target.name} phone target height`).toBeGreaterThanOrEqual(
-              43.5,
-            );
+          const requiredControls = [
+            actions.getByRole("button", { name: "Add to message", exact: true }),
+            actions.getByRole("button", { name: `Agent: ${SEEDED_AGENT_NAME}`, exact: true }),
+            actions.getByRole("button", { name: "Show the files", exact: true }),
+            actions.getByRole("button", { name: "Chat controls", exact: true }),
+            actions.getByRole("button", { name: /^Permission mode:/ }),
+            actions.getByRole("button", { name: "Usage of this conversation", exact: true }),
+            model,
+          ];
+          // Resolve each required control through hydration rather than taking a
+          // one-shot collection snapshot while its context row is changing.
+          for (const control of requiredControls) {
+            await expect(control).toBeVisible();
+            await expect
+              .poll(async () => (await control.boundingBox())?.width ?? 0)
+              .toBeGreaterThanOrEqual(43.5);
+            await expect
+              .poll(async () => (await control.boundingBox())?.height ?? 0)
+              .toBeGreaterThanOrEqual(43.5);
           }
         }
         await expect(scroller.getByText(/^History fixture 6\./)).toBeVisible();
@@ -230,4 +230,89 @@ for (const theme of ["light", "dark"] as const) {
       }
     });
   }
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`short phone home keeps both Inbox rows and full composer visible in ${theme}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 725 });
+    await readAppearanceAs(page, theme);
+    await page.route("**/api/branding/notice", (route) =>
+      route.fulfill({
+        json: {
+          message: "Short phone announcement",
+          level: "info",
+          maintenance_mode: false,
+          maintenance_message: null,
+        },
+      }),
+    );
+    await page.route("**/api/me/suggestions", (route) =>
+      route.fulfill({
+        json: {
+          items: [1, 2].map((number) => ({
+            id: `00000000-0000-4000-8000-00000000000${number}`,
+            kind: "finding",
+            status: "open",
+            title: `Review useful Inbox finding ${number}`,
+            detail: "A compact mobile finding",
+            payload: {},
+            urgent: number === 1,
+            created_at: "2026-11-21T09:00:00Z",
+          })),
+          total: 2,
+        },
+      }),
+    );
+    for (const endpoint of ["approvals", "workflow-approvals"]) {
+      await page.route(`**/api/${endpoint}?*`, (route) =>
+        route.fulfill({ json: { items: [], total: 0 } }),
+      );
+    }
+    await page.route("**/api/users/me/console-experience", async (route) => {
+      if (route.request().method() !== "GET") return route.continue();
+      const response = await route.fetch();
+      const body: unknown = await response.json();
+      if (!body || typeof body !== "object" || Array.isArray(body))
+        throw new Error("Expected membership console preferences");
+      await route.fulfill({
+        response,
+        json: {
+          ...body,
+          effective: {
+            inbox: true,
+            starters: true,
+            greeting: true,
+            feature_hints: true,
+          },
+        },
+      });
+    });
+    await page.goto("/chat");
+    await expect(page.getByText("Short phone announcement", { exact: true })).toBeVisible();
+    const inbox = page.locator(".chat-home-inbox");
+    await expect(inbox).toHaveAttribute("aria-busy", "false");
+    await expect(inbox.locator("li")).toHaveCount(2);
+    const model = page.locator("[data-chat-model]");
+    await expect(model).toBeVisible();
+    const composer = page.locator(".composer-box");
+    await expect
+      .poll(async () => {
+        const box = await composer.boundingBox();
+        return box ? box.y >= 0 && box.y + box.height <= 725 : false;
+      })
+      .toBe(true);
+    const modelBox = await model.boundingBox();
+    expect(modelBox?.width).toBeGreaterThanOrEqual(180);
+    expect(modelBox?.height).toBeGreaterThanOrEqual(43.5);
+    const before = await composer.boundingBox();
+    await page.getByRole("textbox", { name: "Type a message..." }).fill("An editable draft");
+    expect((await composer.boundingBox())?.y).toBeCloseTo(before?.y ?? -1, 0);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(0);
+  });
 }

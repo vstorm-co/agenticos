@@ -3,12 +3,15 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useOnboardingLocationStore } from "@/stores/onboarding-location-store";
 import { startLocationKey } from "@/lib/onboarding/start-location";
+import { OnboardingResumeLink } from "./onboarding-resume-link";
 import { OnboardingReminder } from "./onboarding-reminder";
 
 const env = vi.hoisted(() => ({
   userId: "user",
   loadingUser: false,
   orgId: "org",
+  policy: { enabled: true, snooze_days: 1 as 1 | 3 | 7 },
+  startEnabled: vi.fn(),
   state: {
     isLoading: false,
     waitingForScope: false,
@@ -17,7 +20,15 @@ const env = vi.hoisted(() => ({
     save: { isPending: false, isError: false, mutate: vi.fn() },
   },
 }));
-vi.mock("@/hooks/use-start", () => ({ useStart: () => env.state }));
+vi.mock("@/hooks/use-start", () => ({
+  useStart: (enabled: boolean) => {
+    env.startEnabled(enabled);
+    return env.state;
+  },
+}));
+vi.mock("@/components/settings/console-experience-provider", () => ({
+  useOnboardingReminderPolicy: () => env.policy,
+}));
 vi.mock("@/stores", () => ({
   useAuthStore: <T,>(select: (value: { isLoading: boolean; user: { id: string } }) => T) =>
     select({ isLoading: env.loadingUser, user: { id: env.userId } }),
@@ -29,6 +40,8 @@ beforeEach(() => {
   env.userId = "user";
   env.loadingUser = false;
   env.orgId = "org";
+  env.policy = { enabled: true, snooze_days: 1 };
+  env.startEnabled.mockClear();
   env.state.isLoading = false;
   env.state.waitingForScope = false;
   env.state.error = null;
@@ -130,4 +143,53 @@ it("does not navigate to an invalid hint even if stale UI state contains one", (
   });
   render(<OnboardingReminder />);
   expect(screen.getByRole("link", { name: "Finish setup" })).toHaveAttribute("href", "/onboarding");
+});
+
+it("offers a distinct visible setup action below meaningful guidance", () => {
+  render(<OnboardingReminder />);
+  expect(screen.getByRole("heading", { name: "Make this workspace yours" })).toBeVisible();
+  expect(
+    screen.getByText("Add your details, choose how agents help, and try your first task."),
+  ).toBeVisible();
+  const link = screen.getByRole("link", { name: "Finish setup" });
+  expect(link).toBeVisible();
+  expect(link).not.toContainElement(screen.getByRole("heading"));
+});
+
+it("hides disabled or unresolved policy without requesting progress, retaining manual setup access", () => {
+  env.policy.enabled = false;
+  render(
+    <>
+      <OnboardingReminder />
+      <OnboardingResumeLink />
+    </>,
+  );
+  expect(screen.queryByRole("region", { name: "Finish setup" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Finish setup" })).toBeNull();
+  expect(env.startEnabled).toHaveBeenLastCalledWith(false);
+  expect(screen.getByRole("link", { name: "Open setup" })).toHaveAttribute("href", "/onboarding");
+});
+it.each([3, 7] as const)(
+  "labels the server-owned %s-day snooze without adding local expiry state",
+  async (days) => {
+    env.policy.snooze_days = days;
+    render(<OnboardingReminder />);
+    await userEvent.click(screen.getByRole("button", { name: `Remind me in ${days} days` }));
+    expect(env.state.save.mutate).toHaveBeenCalledExactlyOnceWith({ dismissed: true });
+  },
+);
+it("manual setup resumes this account's sanitized location even when the reminder is off", () => {
+  env.policy.enabled = false;
+  useOnboardingLocationStore
+    .getState()
+    .rememberStartLocation(
+      "user",
+      "org",
+      "/onboarding?start-step=admin.deployment&workspace=org&question=announcement",
+    );
+  render(<OnboardingResumeLink />);
+  expect(screen.getByRole("link", { name: "Open setup" })).toHaveAttribute(
+    "href",
+    "/onboarding?start-step=admin.deployment&workspace=org&question=announcement",
+  );
 });

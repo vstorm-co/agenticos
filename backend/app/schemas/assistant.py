@@ -37,8 +37,8 @@ class AssistantRead(BaseSchema):
     wears_mark: bool = Field(
         default=True,
         description=(
-            "Whether it still wears the mark it shipped with, which the console draws "
-            "in the theme's colours; false once somebody gave it a picture of its own"
+            "Legacy indication that the assistant has its default appearance rather than "
+            "an uploaded replacement. New consoles use the ordinary generated agent avatar."
         ),
     )
     can_use: bool = Field(

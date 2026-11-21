@@ -964,13 +964,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
   if (isLoading) return <BuilderSkeleton tab={tab} />;
   if (agentError instanceof ApiError && (agentError.status === 404 || agentError.status === 403))
     return (
-      <div role="alert" className="space-y-3">
-        <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />
-        <div className="flex justify-center">
-          <Button variant="outline" onClick={() => void refetchAgent()}>
-            {tAgents("retryLoad")}
-          </Button>
-        </div>
+      <div role="alert" className="flex min-h-0 flex-1 flex-col gap-3">
+        <ResourceUnavailable
+          back={ROUTES.AGENTS}
+          label={t("backToAgents")}
+          retry={{ label: tAgents("retryLoad"), onClick: () => void refetchAgent() }}
+        />
       </div>
     );
   if (!agent)
@@ -1808,7 +1807,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
                         </CardTitle>
                         <ContextHelp>{t("agentAposSBehaviour")}</ContextHelp>
                       </div>
-                      <MarkdownModeToggle mode={instructionsMode} onChange={setInstructionsMode} />
+                      <MarkdownModeToggle
+                        compact
+                        mode={instructionsMode}
+                        onChange={setInstructionsMode}
+                      />
                     </>
                   }
                   value={spec.instructions}
@@ -1881,28 +1884,34 @@ export default function AgentBuilderPage({ params }: PageProps) {
                       </p>
                     )}
                   </div>
-                  <fieldset className="space-y-2" data-tour="agent-model-credentials">
-                    <legend className="text-sm font-medium">{t("modelCredentialMode")}</legend>
-                    <div className="grid gap-1 sm:grid-cols-2">
-                      {(["organization", "personal"] as const).map((mode) => (
-                        <label key={mode} className="flex min-h-11 items-center gap-2 text-sm">
-                          <input
-                            type="radio"
-                            className={NATIVE_CHOICE}
-                            name="model-credential-mode"
-                            value={mode}
-                            checked={(spec.model_credential_mode ?? "organization") === mode}
-                            disabled={!canEdit}
-                            onChange={() => update({ model_credential_mode: mode })}
-                          />
-                          {t(mode === "organization" ? "organizationModelKey" : "personalModelKey")}
-                        </label>
-                      ))}
-                    </div>
-                    {spec.model_credential_mode === "personal" && (
-                      <p className="text-muted-foreground text-xs">{t("personalModelLimits")}</p>
-                    )}
-                  </fieldset>
+                  <MoreOptions
+                    label={`${t("modelCredentialMode")} · ${t(spec.model_credential_mode === "personal" ? "personalModelKey" : "organizationModelKey")}`}
+                  >
+                    <fieldset className="space-y-2" data-tour="agent-model-credentials">
+                      <legend className="text-sm font-medium">{t("modelCredentialMode")}</legend>
+                      <div className="grid gap-1 sm:grid-cols-2">
+                        {(["organization", "personal"] as const).map((mode) => (
+                          <label key={mode} className="flex min-h-11 items-center gap-2 text-sm">
+                            <input
+                              type="radio"
+                              className={NATIVE_CHOICE}
+                              name="model-credential-mode"
+                              value={mode}
+                              checked={(spec.model_credential_mode ?? "organization") === mode}
+                              disabled={!canEdit}
+                              onChange={() => update({ model_credential_mode: mode })}
+                            />
+                            {t(
+                              mode === "organization" ? "organizationModelKey" : "personalModelKey",
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                      {spec.model_credential_mode === "personal" && (
+                        <p className="text-muted-foreground text-xs">{t("personalModelLimits")}</p>
+                      )}
+                    </fieldset>
+                  </MoreOptions>
                   <MoreOptions label={t("modelSettings")}>
                     <ModelSettingsForm
                       value={spec.model_settings}
@@ -2025,7 +2034,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             outside the deployment for - and the picker embeds the whole server
             catalog, so it pushed the capability workbench off the top of the
             screen on any organization with more than a handful of servers. */}
-          <TabsContent value="mcp" className="mt-5 space-y-4">
+          <TabsContent value="mcp" className="mt-4 space-y-4">
             <Card data-tour="agent-mcp">
               {/* The passive tour points here rather than at the card: the picker
                 below embeds the whole server catalog, so the card runs well past
@@ -2316,7 +2325,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsContent>
 
           {
-            <TabsContent value="evals" className="mt-6 flex flex-1 flex-col gap-6">
+            <TabsContent value="evals" className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
               {canViewRuns ? (
                 <>
                   {canEdit && (
@@ -2350,13 +2359,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </TabsContent>
           }
           {isJudge && (
-            <TabsContent value="datasets" className="mt-6 flex flex-1 flex-col gap-6">
+            <TabsContent value="datasets" className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
               <JudgeDatasetsCard judgeId={id} />
             </TabsContent>
           )}
           {canViewRuns && (
-            <TabsContent value="gaps" className="mt-6 flex flex-1 flex-col">
-              <div data-tour="agent-gaps" className="flex flex-1 flex-col gap-4">
+            <TabsContent value="gaps" className="mt-4 flex min-h-0 flex-1 flex-col">
+              <div data-tour="agent-gaps" className="flex min-h-0 flex-1 flex-col gap-4">
                 {canEdit && (
                   <ImproveLink
                     agentId={id}

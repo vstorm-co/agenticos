@@ -37,6 +37,10 @@ interface ChatWelcomeProps {
   suggestionsSlot?: HTMLElement | null;
   /** Keep the composer in place while hiding prompts from sight and keyboard. */
   showSuggestions?: boolean;
+  /** Reserve the heading slot while hiding optional home greeting copy. */
+  showGreeting?: boolean;
+  /** Generic discovery copy can be hidden without moving the composer. */
+  showLead?: boolean;
 }
 
 /**
@@ -58,6 +62,8 @@ export function ChatWelcome({
   loading = false,
   suggestionsSlot,
   showSuggestions = true,
+  showGreeting = true,
+  showLead = true,
 }: ChatWelcomeProps) {
   const t = useTranslations("chat.empty");
   const docked = quiet && suggestionsSlot !== undefined;
@@ -198,8 +204,10 @@ export function ChatWelcome({
           </span>
         </div>
         <h2
+          aria-hidden={!showGreeting || undefined}
           className={cn(
             "text-foreground min-h-9 font-medium tracking-tight",
+            !showGreeting && "invisible",
             quiet && "min-h-[2lh] md:min-h-9",
             compact ? "text-lg" : "text-2xl md:text-3xl",
           )}
@@ -207,8 +215,10 @@ export function ChatWelcome({
           {title}
         </h2>
         <p
+          aria-hidden={!showLead || undefined}
           className={cn(
             "text-muted-foreground line-clamp-2 max-w-xl leading-relaxed",
+            !showLead && "invisible",
             quiet && "min-h-[2lh]",
             compact ? "mt-1 text-[13px]" : "mt-2 text-sm",
           )}

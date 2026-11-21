@@ -38,8 +38,8 @@ import { useMounted } from "@/hooks/use-mounted";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePendingApprovals } from "@/hooks/use-pending-approvals";
 import { usePermissions } from "@/hooks/use-permissions";
-import { cn, isAppAdmin } from "@/lib/utils";
-import { useAuthStore, useSidebarStore } from "@/stores";
+import { cn } from "@/lib/utils";
+import { useSidebarStore } from "@/stores";
 import { NAV_GROUPS, isActive, type NavGroup, type NavItem } from "@/lib/nav-sections";
 
 export { NAV_GROUPS, isActive, navSectionFor, type NavDomain } from "@/lib/nav-sections";
@@ -143,16 +143,12 @@ export function SidebarNav({
     if (active) scrollWithin(active, "nearest", "instant");
   }, [collapsed, pathname]);
   const { can } = usePermissions();
-  const { user } = useAuthStore();
   const t = useTranslations("nav");
-  const admin = isAppAdmin(user);
 
   const groups = NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter((item) => !item.permission || can(item.permission)),
-  })).filter(
-    (group) => !group.switcherOnly && group.items.length > 0 && (!group.adminOnly || admin),
-  );
+  })).filter((group) => !group.switcherOnly && !group.adminOnly && group.items.length > 0);
 
   return (
     <nav

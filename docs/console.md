@@ -4,7 +4,9 @@ The default themes distinguish the canvas, sidebar, cards and floating panels. B
 
 Dashboard usage and spending aggregates reuse the same in-memory answer for the same time window for up to 30 minutes. They are not live counters: run events do not refresh these aggregates after every run. A full browser reload starts with a cold cache and asks the API again. Saved layout presets are requested only in the organization view, where their arrangement controls are available.
 
-If your current organization’s onboarding is unfinished, **Finish setup** links back to the guided setup. **Remind me tomorrow** hides the card for 24 hours, while a quiet return link remains. Completion and snoozing follow your membership on the server; loading or failed progress checks never label setup incomplete. Returning is your choice: no tour starts automatically. In the same browser, the link remembers your last allowed step for the same account and organization, including after a reload. It stores no form values; another device safely uses the default entry.
+If your current organization’s onboarding is unfinished, **Finish setup** returns to its guided setup. Dismissing the reminder snoozes it for the effective interval of 1, 3 or 7 days (one day by default). Completion and snoozing follow your membership on the server; loading or failed progress checks never label setup incomplete.
+
+**Settings → Profile** always keeps a manual setup link, including when reminders are off. The reminder has a clear action and a short, bounded illustration animation; reduced motion keeps it still. Returning is your choice: no tour starts automatically. In the same browser, the link remembers the last allowed step for this account and organization without storing form values.
 
 Inbox keeps the same list frame, row spacing, source marks, title/detail typography and responsive action alignment across All, Urgent, Routine results, Suggestions and Done. Done retains its decision badge and Bring back action for dismissed items, with source and time visible on phones too. Approval forms keep the same outer inset while retaining their required fields and permission checks.
 
@@ -157,6 +159,18 @@ Inline web links use the same favicon policy independently of MCP connections. U
 A failed chat run shows its failure separately from the assistant’s answer, outside folded tool work, including after reloading the conversation. A provider content filter is identified explicitly; raw provider responses and unknown historical error strings are not copied into shared transcripts. Partial work remains available, and failed work is not labelled as completed.
 
 Conversation search checks both titles and indexed message text, including archived chats you may read. Results show plain-text excerpts with highlighted matches and message counts. Use the arrow keys and Enter to open a result. Search failures offer a retry instead of appearing as an empty result.
+
+## Console experience { #console-experience }
+
+Deployment administrators choose availability in **account menu → Admin → Deployment → Identity**. Organization administrators set starting defaults in the organization’s **AI & services** settings. Each member can override those defaults in **Settings → Profile**, for the current workspace only. **Inbox preview**, **Prompt suggestions**, **Welcome greeting** and **Feature hints** are independent choices. A deployment-disabled element stays unavailable; a member can override an organization default. Theme, style and language remain account-wide.
+
+Hiding the Inbox preview leaves the full Inbox and approval queue available. Greeting and suggestion slots retain their space, so changing visibility does not reposition the composer. Feature hints control generic discovery copy and the `/` and `@` composer hint; essential field labels and tooltips stay available. These choices change presentation, not resource permissions or agent behavior.
+
+**Setup reminders** follow the same hierarchy: deployment availability, organization defaults, then personal choices. Choose whether they appear and whether dismissal lasts 1, 3 or 7 days. The default is one day. The server calculates the return time for this membership; no notification schedule or successful task is created. Turning reminders off leaves the manual setup link in Profile.
+
+Deployment settings also offer an optional **Announcement expires** time. The server stops returning that announcement after the deadline; open pages receive this through their regular notice poll. **Planned maintenance end** is informational: it never reopens the application. An administrator ends maintenance explicitly. Date fields show the device’s time zone and store aware UTC instants.
+
+Administration is reached from the account menu. Its settings use the shared tabs and preserve drafts when changing sections. Memory and Notes fill their remaining workspace, scroll their own rows and retain a **1 / 1** footer. The ordinary Architect now uses the same generated portrait family as other agents; custom uploads remain intact. Inbox views share their row treatment, and Kanban dragging previews the actual card. Guided setup keeps a consistent heading, form and illustration layout through its later steps; continuing an unchanged profile does not report a save.
 
 ## The dashboard
 
@@ -1096,11 +1110,7 @@ In a new organization, the shipped **AgenticOS** is selected before publication 
 
 When no published agent is available, onboarding offers somebody who may prepare an agent **Connect a model**, which picks a model and prepares one. Everybody else is offered an accessible shipped AgenticOS draft as a setup chat. Members can open it without model-management permissions; it provides configuration guidance, not an AI task result. Inaccessible drafts remain unavailable, and an accessible published agent takes precedence.
 
-Closing the start banner or choosing **Hide for 24 hours** snoozes the offer for 24 hours,
-using server time. It can return afterward if setup is unfinished and the organization still
-needs a first start. After going through the questions, **Finish setup and open the app**
-records completion for this membership. Optional fields, invitations, a model, an agent
-and an AI run are not required. Completion and a successful task are separate states.
+Closing the start offer snoozes it for this membership’s effective 1, 3 or 7 day interval, using server time. It can return if setup is unfinished and reminders are enabled. After the questions, **Finish setup and open the app** records completion for this membership. Optional fields, invitations, a model, an agent and an AI run are not required. Completion and a successful task are separate states.
 
 Open **Get started** from the dashboard, the first-use offer or a page's help.
 On desktop, the chat start notice is a translucent overlay above the console.

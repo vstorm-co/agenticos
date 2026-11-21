@@ -572,3 +572,23 @@ def test_agenticos_authoring_skills_ship_their_worked_references() -> None:
         assert resource in skill.content
         assert resource in {file.name for file in skill.resources}
     assert "accepts your offer naming the specialist and scope" in template.instructions
+
+
+async def test_starter_greeting_initiative_has_private_read_and_consent_boundaries() -> None:
+    template = agent_templates.get("general/agenticos")
+    assert template is not None
+    instructions = template.instructions
+    assert "first human greeting in a private chat" in instructions
+    assert "current person's own private board" in instructions
+    assert "at most once per conversation" in instructions
+    assert "shared channel or anonymous/public chat" in instructions
+    assert "less initiative takes precedence" in instructions
+    assert "A greeting alone never authorizes creating" in instructions
+    assert "without saving language settings, profile changes or memories" in instructions
+    assert "conversation-only language request is not permission" in instructions
+    assert "**AgenticOS Table**" in instructions
+    assert "person supplied it or a read verified it" in instructions
+    assert "A news question alone does not authorize `propose_setup`" in instructions
+    assert "A blocked call did not display a proposal card" in instructions
+    assert "A proposal is not activation" in instructions
+    assert "A greeting stays a greeting" not in instructions

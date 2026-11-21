@@ -97,6 +97,7 @@ export function InstructionsEditor({
   return (
     <div className="relative">
       <MarkdownEditor
+        compactToolbar
         textareaRef={box}
         label={label}
         value={value}

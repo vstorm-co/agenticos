@@ -21,7 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Resume unfinished setup from the sidebar, with a one-day reminder snooze and a scoped return to the last setup step in the same browser.
+- Resume unfinished setup from the sidebar or personal settings, with a clear setup link, progress artwork and organization-scoped return to the last step. Configure reminder availability in deployment settings, defaults in the organization and personal 1/3/7-day snoozes; the default is one day.
+
+- Configure the new-chat Inbox, starter messages, greeting and feature hints independently. Deployment availability constrains organization defaults and each member's personal choices.
+
+- Give announcements an optional expiry time and maintenance notices an informational planned end. Maintenance remains active until an administrator turns it off.
 
 - Let deployment administrators send account recovery emails or copy a one-hour, single-use password reset link from the user inspector. Show users' last activity and active session counts.
 
@@ -45,6 +49,14 @@ Two things are versioned separately from this file and worth knowing about:
 - Let private cloud coding tasks choose Claude Code or Codex per task through one agent, using the initiating person’s own enabled account and an isolated container. Show both account connections in chat while preserving per-account exclusivity, read-only policy and organization-sandbox credentials.
 
 ### Changed
+
+- Let authorized ordinary task and table-record edits, resource creation and draft authoring run without an extra MCP approval by default. Explicit author requirements can tighten these defaults. Execution, schema changes, automation, publication, deletion and administration still require a fresh per-call answer; task writes that can schedule agent work do too.
+
+- Guide AgenticOS to check the person's task board at an initial private greeting, offer structured tables for collected work and suggest routines for recurring questions. Keep creation and activation tied to an explicit request or accepted proposal.
+
+- Use generated Architect avatars consistently, preserving custom uploads. Move administration into the profile menu and use shared tabs for deployment settings. Keep both personal memory tabs and Kanban columns at the available page height, with a full-card drag preview.
+
+- Align urgency labels across Inbox, chat and the dashboard. Refine Agent Builder instruction controls, model-access disclosure and optional-section spacing, and keep all guided setup steps in the same layout.
 
 - Align primary tables with the available page height and keep pagination visible, including one-page lists. Preserve server pagination and embedded table layouts.
 
@@ -84,7 +96,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Give AgenticOS a shorter default prompt with better guidance for full source reading, personal memory, Skills, Context and routines. Delegate only on request or when the user accepts a specific offer.
 
-- Keep Discuss visible on Inbox items and put secondary actions in a menu. Highlight links to console resources and inline code in chat, and show compact approval cards aligned with the composer, including after reload.
+- Open suggested Inbox topics as editable chat drafts and put secondary Inbox actions in a menu. Highlight links to console resources and inline code in chat, and show compact approval cards aligned with the composer, including after reload.
 
 - Ground automatic memory updates in the user's words and give the daily briefing current memory and previous decisions. Check evidence for recurring suggestions and suppress repeats across suggestion types.
 
@@ -139,6 +151,10 @@ Two things are versioned separately from this file and worth knowing about:
 - Wait for a successful credential read before applying a model in chat settings, and let users retry a failed read.
 
 ### Upgrading
+
+- Apply `0347_console_experience.py` and `0348_architect_generated_avatar.py` after the existing merge revisions. Nullable console overrides preserve existing presentation defaults. The avatar backfill clears only the recorded shipped Architect picture, retains uploaded replacements and does not delete picture files.
+
+- Review platform MCP approval defaults before upgrading. To retain confirmation for ordinary writes, set the affected tools to `required` or their platform binding to `all`. Always-confirmed operations cannot use Approve all or standing routine consent to skip their per-call decision.
 
 - Run `alembic upgrade head` to apply `0342_personal_coding_sessions.py`, `0343_bundled_context.py` and the merge revisions through `0346_merge_console_matrix.py`. Update API/workers together before using retained personal coding sessions. Existing workspace rows are unchanged. Sessions remain subject to provider idle expiry; failed tasks without confirmed safe retention are discarded.
 
