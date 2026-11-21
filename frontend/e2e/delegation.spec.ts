@@ -311,6 +311,16 @@ async function addStubModel(page: Page, label: string): Promise<void> {
   // The key picker only appears once a provider has more than one key stored -
   // with exactly one there is nothing to decide. Whichever it lands on is the
   // seed's, and no request is authenticated: the stub does not check.
+  // Existing profiles keep connection details folded; open them before choosing
+  // the credential and endpoint so this run exercises the intended connection.
+  const connectionSettings = page.getByRole("button", { name: /^Connection settings ·/ });
+  if (
+    (await connectionSettings.isVisible()) &&
+    (await connectionSettings.getAttribute("aria-expanded")) === "false"
+  ) {
+    await connectionSettings.click();
+  }
+
   const keyPicker = page.locator('[id$="-add-model-key"]:visible');
   if (await keyPicker.isVisible()) {
     await keyPicker.click();

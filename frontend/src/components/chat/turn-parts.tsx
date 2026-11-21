@@ -10,7 +10,7 @@ import { useTranslations } from "next-intl";
 
 import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
 import { BROWSER_TOOLS, DESKTOP_TOOLS } from "@/lib/browse";
-import { TurnProducedOutputs } from "./turn-produced-outputs";
+import { TurnProducedOutputs, producedCalls } from "./turn-produced-outputs";
 import type { TurnFileSource } from "@/types/chat";
 import { groupWorkParts, isQuestionRun, runsOf, type PartRun } from "@/lib/turn-timeline";
 export { runsOf } from "@/lib/turn-timeline";
@@ -215,6 +215,21 @@ export function TurnParts({
   const groups = groupWorkParts(runs);
   const workCount = groups.filter((group) => group.kind === "work").length;
   const lastWork = groups.findLast((group) => group.kind === "work");
+  const firstBrowserWork = groups.find(
+    (group) => group.kind === "work" && browseCalls(group.runs).length > 0,
+  );
+  // Tab selection spans narration and reasoning groups. Resolve the whole turn
+  // in one stable location so a later page updates its card instead of copying it.
+  const browserCalls = browseCalls(runs);
+  const outputIds = new Set(
+    producedCalls(
+      runs.flatMap((run) =>
+        run.kind === "tools"
+          ? run.parts.flatMap((part) => (part.toolCall ? [part.toolCall] : []))
+          : [],
+      ),
+    ).map((call) => call.id),
+  );
   const rendered = groups.map((group, index) => {
     if (group.kind === "visible") {
       return render(group.run, true, groups[index - 1]?.kind === "work");
@@ -243,12 +258,14 @@ export function TurnParts({
         >
           {group.runs.map((run) => render(run, false))}
         </WorkFold>
-        <TurnBrowses calls={browseCalls(group.runs)} />
+        {group === firstBrowserWork && <TurnBrowses calls={browserCalls} />}
         <TurnCharts calls={chartCalls(group.runs)} />
         <TurnProducedOutputs
           calls={group.runs.flatMap((run) =>
             run.kind === "tools"
-              ? run.parts.flatMap((part) => (part.toolCall ? [part.toolCall] : []))
+              ? run.parts.flatMap((part) =>
+                  part.toolCall && outputIds.has(part.toolCall.id) ? [part.toolCall] : [],
+                )
               : [],
           )}
           fileSource={fileSource}

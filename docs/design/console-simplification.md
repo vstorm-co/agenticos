@@ -164,11 +164,12 @@ phone E2E coverage now also checks that typing does not move the composer.
 - [x] Compare Mistral's composer behavior and Studio surfaces in both themes.
 - [x] Inspect OpenBot and Orca layout source and record the synthesis.
 - [x] Reproduce and fix double API compression; verify through the HTTP server.
-- [ ] Complete shared tokens and primitive verification in both themes.
-- [ ] Complete chat layout and interaction verification on desktop and mobile.
-- [ ] Complete builder summaries and progressive configuration disclosure.
-- [ ] Simplify authentication, onboarding and first-session interruptions.
-- [ ] Apply the shared patterns to resource lists, details and settings.
+- [x] Verify shared tokens and primitives in both themes.
+- [x] Verify real desktop chat interactions and replay in both themes.
+- [ ] Complete responsive chat and resource geometry checks in final-head CI.
+- [x] Complete builder summaries and progressive configuration disclosure.
+- [x] Simplify authentication, onboarding and first-session interruptions.
+- [x] Apply shared patterns to resource lists, details and settings; audit every route.
 - [ ] Finish accessibility checks and final-commit CI before merge/release.
 
 

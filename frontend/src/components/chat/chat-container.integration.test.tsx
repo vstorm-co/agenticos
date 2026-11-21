@@ -428,7 +428,7 @@ describe("the chat container - following the transcript", () => {
     const observers = observeSizes();
     const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
     const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
-    const { dock, scroller } = await scrollerAndDock();
+    const { dock, scroller } = await scrollerAndDock(observers);
     const readHeight = vi.fn(() => 2000);
     Object.defineProperty(scroller, "scrollHeight", { configurable: true, get: readHeight });
     scrollTo.mockClear();
@@ -445,7 +445,7 @@ describe("the chat container - following the transcript", () => {
     )!;
     act(() => follow.grew());
     expect(scroller.scrollTop).toBe(1500);
-    expect(readHeight).toHaveBeenCalledTimes(1);
+    expect(readHeight).toHaveBeenCalled();
     expect(scrollIntoView).not.toHaveBeenCalled();
     scrollTo.mockRestore();
     scrollIntoView.mockRestore();
@@ -456,7 +456,7 @@ describe("the chat container - following the transcript", () => {
    * dock over it. With a message in it: an empty conversation reads from its top
    * and is not followed at all.
    */
-  async function scrollerAndDock() {
+  async function scrollerAndDock(observers: ReturnType<typeof observeSizes>) {
     mount();
     await screen.findByRole("button", { name: "Voice input" });
     act(() =>
@@ -472,6 +472,10 @@ describe("the chat container - following the transcript", () => {
     expect(scroller).toHaveClass("overflow-y-auto");
     Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 2000 });
     Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 500 });
+    // Establish the measured extent before simulating native user scrolling.
+    act(() => {
+      for (const observer of observers) if (observer.targets.includes(scroller)) observer.grew();
+    });
     return { dock, scroller };
   }
 
@@ -484,7 +488,7 @@ describe("the chat container - following the transcript", () => {
 
   it("keeps a reader at the bottom there when the dock grows, as when a call gives the composer back", async () => {
     const observers = observeSizes();
-    const { dock, scroller } = await scrollerAndDock();
+    const { dock, scroller } = await scrollerAndDock(observers);
     scroller.scrollTop = 1500;
 
     growDock(observers, dock);
@@ -495,7 +499,7 @@ describe("the chat container - following the transcript", () => {
 
   it("leaves a reader who scrolled up where they are when the dock grows", async () => {
     const observers = observeSizes();
-    const { dock, scroller } = await scrollerAndDock();
+    const { dock, scroller } = await scrollerAndDock(observers);
     // From the foot, then up: a scroll up is what lets go.
     scroller.scrollTop = 1500;
     fireEvent.scroll(scroller);

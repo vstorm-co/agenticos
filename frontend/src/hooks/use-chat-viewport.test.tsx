@@ -394,3 +394,23 @@ it.each(["wheel", "touch", "PageDown", "End", "scrollbar"])(
     expect(scrolling.scrollTop).toBe(chosen);
   },
 );
+
+it("anchors the revealed question before focus can trigger a resize", () => {
+  const view = render(<Harness messages={[old, sent]} />);
+  const original = HTMLElement.prototype.focus;
+  vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (
+    this: HTMLElement,
+    options,
+  ) {
+    original.call(this, options);
+    if (this.getAttribute("role") === "group") resized?.();
+  });
+  fireEvent.click(view.getByText("Reveal"));
+  expect(view.getByTestId("scroll").scrollTop).toBe(1236);
+});
+it("reveals below the phone toolbar's scroll inset", () => {
+  const view = render(<Harness messages={[old, sent]} />);
+  view.getByTestId("scroll").style.scrollPaddingTop = "80px";
+  fireEvent.click(view.getByText("Reveal"));
+  expect(view.getByTestId("scroll").scrollTop).toBe(1180);
+});

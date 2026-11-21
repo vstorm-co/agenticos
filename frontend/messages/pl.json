@@ -9321,7 +9321,7 @@
       "variables": "{count, plural, =0 {Zmienne systemowe} one {Zmienne systemowe i # własna zmienna} few {Zmienne systemowe i # własne zmienne} other {Zmienne systemowe i # własnych zmiennych}}",
       "voice": "Rozmowy {calls, select, on {włączone} other {wyłączone}} · Dyktowanie {dictation, select, on {włączone} other {wyłączone}}",
       "starters": "{enabled, select, false {Podpowiedzi ukryte} other {{count, plural, =0 {Domyślne podpowiedzi} one {# pierwsza wiadomość} few {# pierwsze wiadomości} other {# pierwszych wiadomości}}}}",
-      "reviewers": "{count, plural, =0 {Brak dodatkowych reviewerów} one {# reviewer} few {# reviewerów} many {# reviewerów} other {# reviewera}}",
+      "reviewers": "{count, plural, =0 {Brak dodatkowych recenzentów} one {# recenzent} few {# recenzenci} many {# recenzentów} other {# recenzenta}}",
       "alerts": "{count, plural, =0 {Powiadomienia wyłączone} one {# włączone powiadomienie} few {# włączone powiadomienia} many {# włączonych powiadomień} other {# włączonego powiadomienia}}",
       "tracing": "{project, select, custom {Własny projekt} other {Projekt instalacji}} · {content, select, none {Bez treści} other {Pełne ślady}}"
     },
@@ -14984,7 +14984,7 @@
     "noMatches": "Żaden dataset nie pasuje",
     "noMatchesBody": "Przeszukiwane są nazwy i opisy.",
     "empty": "Brak datasetów",
-    "emptyBody": "Zapisz przykładowe pytania i oczekiwane odpowiedzi, a następnie uruchom evals agenta. Tych samych przypadków użyjesz do porównania modeli lub wykrycia regresji w nowej wersji.",
+    "emptyBody": "Zapisz przykładowe pytania i oczekiwane odpowiedzi, a następnie uruchom ewaluację agenta. Tych samych przypadków użyjesz do porównania modeli lub wykrycia regresji w nowej wersji.",
     "deleteBody": "Usunięte zostaną wszystkie wersje i przypadki tego datasetu. Runy ewaluacji, które z niego korzystały, stracą pytania, na które odpowiadały.",
     "created": "Utworzono {name}",
     "deleted": "Dataset usunięty",

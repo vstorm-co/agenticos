@@ -22,6 +22,20 @@ const OUTPUT_TOOLS = new Set([
   "edit_file",
 ]);
 
+/** First completed write owns a path's card; later edits update that same file. */
+export function producedCalls(calls: readonly ToolCall[]): ToolCall[] {
+  const files = new Set<string>();
+  return calls.filter((call) => {
+    if (call.status !== "completed" || !OUTPUT_TOOLS.has(toolLookupName(call))) return false;
+    if (["write_file", "edit_file"].includes(toolLookupName(call))) {
+      const path = pathArg(call.args);
+      if (path === null || files.has(path)) return false;
+      files.add(path);
+    }
+    return true;
+  });
+}
+
 /** Produced files and media belong to the answer, never inside diagnostic disclosures. */
 export function TurnProducedOutputs({
   calls,
@@ -30,14 +44,9 @@ export function TurnProducedOutputs({
   calls: readonly ToolCall[];
   fileSource?: TurnFileSource;
 }) {
-  const files = new Set<string>();
-  return calls.map((call) => {
-    if (call.status !== "completed" || !OUTPUT_TOOLS.has(toolLookupName(call))) return null;
+  return producedCalls(calls).map((call) => {
     if (["write_file", "edit_file"].includes(toolLookupName(call))) {
-      const path = pathArg(call.args);
-      if (path === null || files.has(path)) return null;
-      files.add(path);
-      return <ProducedFile key={call.id} path={path} fileSource={fileSource} />;
+      return <ProducedFile key={call.id} path={pathArg(call.args)!} fileSource={fileSource} />;
     }
     return <ProducedOutput key={call.id} call={call} fileSource={fileSource} />;
   });

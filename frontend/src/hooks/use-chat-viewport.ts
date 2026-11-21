@@ -217,12 +217,14 @@ export function useChatViewport(options: ViewportOptions) {
         if (!card) return;
         mode = "reading";
         preserveAnchor = true;
-        const desired = scrolling.scrollTop + card.getBoundingClientRect().top - viewportTop() - 24;
+        const inset = Number.parseFloat(getComputedStyle(scrolling).scrollPaddingTop) || 24;
+        anchor = { element: card, offset: inset };
+        const desired =
+          scrolling.scrollTop + card.getBoundingClientRect().top - viewportTop() - inset;
         const withoutReserve = scrolling.scrollHeight - space.offsetHeight - scrolling.clientHeight;
         space.style.height = `${Math.max(0, Math.ceil(desired - withoutReserve))}px`;
         write(desired);
         card.querySelector<HTMLElement>('[role="group"]')?.focus({ preventScroll: true });
-        remember();
       },
     };
     remember();

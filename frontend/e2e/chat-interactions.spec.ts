@@ -105,6 +105,31 @@ for (const theme of ["light", "dark"] as const) {
         await page
           .getByRole("button", { name: "Answer the agent’s question", exact: true })
           .click();
+        const inset = await scroller.evaluate((element) => ({
+          top: element.getBoundingClientRect().top,
+          padding: Number.parseFloat(getComputedStyle(element).scrollPaddingTop) || 24,
+        }));
+        await test.info().attach("question-reveal-geometry", {
+          body: Buffer.from(
+            JSON.stringify(
+              await scroller.evaluate((element) => {
+                const card = element.querySelector("[data-question-pending]");
+                return {
+                  scrollTop: element.scrollTop,
+                  scrollHeight: element.scrollHeight,
+                  clientHeight: element.clientHeight,
+                  scrollerTop: element.getBoundingClientRect().top,
+                  questionTop: card?.getBoundingClientRect().top,
+                  documentScroll: document.scrollingElement?.scrollTop,
+                };
+              }),
+            ),
+          ),
+          contentType: "application/json",
+        });
+        await expect
+          .poll(async () => (await question.boundingBox())?.y)
+          .toBeCloseTo(inset.top + inset.padding, 0);
         const revealed = await question.boundingBox();
         if (!revealed) throw new Error("Expected the explicitly revealed question");
         const expectQuestionStill = async () => {

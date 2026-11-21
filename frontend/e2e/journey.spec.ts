@@ -150,6 +150,16 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // the one this run bills against. The picker only appears once a provider has
   // more than one key stored for it - with exactly one there is nothing to
   // decide, and the form says which it is using instead.
+  // Existing profiles keep connection details folded; open them before choosing
+  // the credential and endpoint so this run exercises the intended connection.
+  const connectionSettings = page.getByRole("button", { name: /^Connection settings ·/ });
+  if (
+    (await connectionSettings.isVisible()) &&
+    (await connectionSettings.getAttribute("aria-expanded")) === "false"
+  ) {
+    await connectionSettings.click();
+  }
+
   const keyPicker = page.locator('[id$="-add-model-key"]:visible');
   if (await keyPicker.isVisible()) {
     await keyPicker.click();
