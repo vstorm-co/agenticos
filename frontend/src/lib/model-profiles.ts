@@ -14,10 +14,11 @@ export function modelDetail(
 
 /** The catalog sometimes prefixes model names with the model maker. */
 export function catalogModelName(id: string, name?: string): string {
-  const display = name?.trim();
-  if (!display) return id;
-  const separator = id.includes("/") ? display.indexOf(": ") : -1;
-  return separator < 0 ? display : display.slice(separator + 2).trim() || id;
+  const model = subscriptionModelId(id);
+  const display = name ? subscriptionModelId(name.trim()) : undefined;
+  if (!display) return model;
+  const separator = model.includes("/") ? display.indexOf(": ") : -1;
+  return separator < 0 ? display : display.slice(separator + 2).trim() || model;
 }
 
 /** Match the picker’s catalog spelling while respecting a saved custom label. */

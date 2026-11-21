@@ -99,6 +99,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Hide subscription account routing from model catalog names in the chat composer.
+
 - Codex weekly usage remains visible when its secondary quota window is inactive.
 - Browser subscription sign-in explains the local return address and how to finish connecting.
 

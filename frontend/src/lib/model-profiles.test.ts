@@ -5,6 +5,7 @@ import {
   modelDetail,
   modelInUse,
   modelName,
+  catalogModelName,
   modelShortName,
   runsAgents,
   usableForAgents,
@@ -160,4 +161,11 @@ it("keeps opaque subscription account routes out of the displayed model name", (
   expect(modelName({ provider: "subscription_accounts", model, label: "My account model" })).toBe(
     "My account model",
   );
+});
+
+it("removes account routing from catalog captions used by the chat composer", () => {
+  const routed = "account-" + "a".repeat(24) + "/gemini-3-flash";
+  expect(catalogModelName(routed, routed)).toBe("gemini-3-flash");
+  expect(catalogModelName(routed)).toBe("gemini-3-flash");
+  expect(catalogModelName(routed, "Gemini Flash")).toBe("Gemini Flash");
 });
