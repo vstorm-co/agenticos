@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.87.1] - 2026-11-21
+
 ### Changed
 
 - Defer heavy CI on draft PRs until Ready for review, distribute backend tests
@@ -22249,7 +22251,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.87.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.87.1...HEAD
+[1.87.1]: https://github.com/vstorm-co/agenticos/compare/v1.87.0...v1.87.1
 [1.87.0]: https://github.com/vstorm-co/agenticos/compare/v1.86.2...v1.87.0
 [1.86.2]: https://github.com/vstorm-co/agenticos/compare/v1.86.1...v1.86.2
 [1.86.1]: https://github.com/vstorm-co/agenticos/compare/v1.86.0...v1.86.1
