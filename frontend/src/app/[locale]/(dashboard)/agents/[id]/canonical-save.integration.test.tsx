@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Suspense, useSyncExternalStore } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -61,6 +61,7 @@ const state = {
   profilesStatus: "loaded" as ProfilesStatus,
   permissionsLoaded: true,
   saving: false,
+  base: undefined as { id: string; version: number; spec: AgentSpec } | undefined,
   versions: [] as { version: number }[],
   nextPublished: 1,
   // This caller's access to this agent, which the page reads rather than the role.
@@ -78,7 +79,7 @@ vi.mock("@/hooks", async () => {
         id: "a-1",
         slug: "support",
         name: "Support (copy)",
-        status: "draft",
+        status: state.base ? "published" : "draft",
         has_avatar: false,
         ...state.access,
         draft_revision: "base",
@@ -108,7 +109,7 @@ vi.mock("@/hooks", async () => {
     useAgentVersion: () => ({ version: undefined, isLoading: false }),
     useAgentVersions: () => ({ versions: state.versions }),
     useAllAgentVersions: () => ({ versions: [] }),
-    useDraftBase: () => ({ base: undefined }),
+    useDraftBase: () => ({ base: state.base }),
     useCapabilityCatalog: () => ({ capabilities: [] }),
     usePromptVariables: () => ({ variables: [] }),
     useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
@@ -168,6 +169,7 @@ vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }))
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
 vi.mock("@/components/agents/voice-card", () => ({ VoiceCard: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
+vi.mock("@/components/agents/alerts-panel", () => ({ AlertsPanel: () => null }));
 vi.mock("@/components/ui/markdown-editor", () => ({
   MarkdownEditor: () => null,
   MarkdownModeToggle: () => null,
@@ -239,6 +241,7 @@ beforeEach(() => {
   state.permissions = [Perm.agentsEdit];
   state.access = { can_edit: true, can_publish: false };
   state.saving = false;
+  state.base = undefined;
   state.profiles = [MODEL_PROFILE];
   state.profilesStatus = "loaded";
   state.permissionsLoaded = true;
@@ -261,6 +264,31 @@ function serverDraft(spec: AgentSpec): AgentSpec {
 }
 
 describe("canonical draft acknowledgements", () => {
+  it.each([null, { monthly_usd: null }])(
+    "restores the published budget representation (%j) when an autosaved limit is cleared",
+    async (budget) => {
+      const published = { ...INITIAL, budget };
+      state.base = { id: "v1", version: 1, spec: published };
+      store.set(published);
+      saveDraft.mockImplementation(async ({ spec }) => {
+        store.set(spec);
+        return { draft_spec: spec, draft_revision: "saved" };
+      });
+      await mount();
+      expect(screen.getByText("Up to date with agent v1")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("tab", { name: "Limits" }));
+      const monthly = screen.getByRole("spinbutton", { name: "Monthly (USD)" });
+
+      fireEvent.change(monthly, { target: { value: "25" } });
+      await screen.findByText("Draft differs from agent v1");
+      fireEvent.change(monthly, { target: { value: "" } });
+
+      await screen.findByText("Up to date with agent v1");
+      expect(screen.queryByText("Unsaved")).toBeNull();
+      expect(store.get()?.budget).toEqual(budget);
+    },
+  );
+
   it("saves a reordered schema once and releases the draft test panel", async () => {
     saveDraft.mockImplementation(async ({ spec }) => {
       const stored = serverDraft(spec);

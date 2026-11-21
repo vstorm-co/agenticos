@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Reverting an MCP approval or clearing a newly entered monthly budget no longer leaves a published agent with a spurious draft change.
+
 ## [1.87.0] - 2026-11-20
 
 ### Added

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 
 import { bindingKey, McpServerPicker } from "./mcp-server-picker";
 import { NEW_PLATFORM_BINDING } from "./platform-server-card";
@@ -110,6 +111,40 @@ async function settings(description = GITHUB.description) {
 }
 
 describe("McpServerPicker", () => {
+  it("restores the original spec order when an MCP approval change is reverted", async () => {
+    const initial = [bound("c1"), NEW_PLATFORM_BINDING, bound("c2")];
+    const connections = [
+      connection({
+        last_tools: [{ name: "github-create-issue", description: "Create an issue" }],
+      }),
+      connection({ id: "c2", name: "laptop", url: "https://laptop.example/mcp" }),
+    ];
+    const onChange = vi.fn();
+    function Editor() {
+      const [value, setValue] = useState<McpServerRef[]>(initial);
+      return picker({
+        connections,
+        value,
+        onChange: (next) => {
+          onChange(next);
+          setValue(next);
+        },
+      });
+    }
+    const user = userEvent.setup();
+    render(<Editor />);
+    await settings();
+
+    await user.click(screen.getByRole("button", { name: "Ask first before github-create-issue" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.arrayContaining([
+        { ...initial[0], tool_approval: { "github-create-issue": "required" } },
+      ]),
+    );
+    await user.click(screen.getByRole("button", { name: "Ask first before github-create-issue" }));
+    expect(onChange).toHaveBeenLastCalledWith(initial);
+  });
+
   it("names a connection after the catalog server it points at", () => {
     // The connection is called "gh" because the name is a tool prefix. Nobody
     // building an agent is looking for "gh".

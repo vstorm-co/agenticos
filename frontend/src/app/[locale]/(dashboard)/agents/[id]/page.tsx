@@ -163,6 +163,7 @@ import {
   useAgentEnvironments,
   useAgents,
   useAgentVersions,
+  useDraftBase,
   useCapabilityCatalog,
   usePromptVariables,
   useDelegationTree,
@@ -316,6 +317,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // rest itself, so a page that fetched fifty to read one would be fetching a
   // list nothing on it renders.
   const { versions } = useAgentVersions(id, { limit: 1 });
+  const { base: draftBase } = useDraftBase(id);
+  // Older versions could publish an empty budget object for a blank limit.
+  const publishedBudget = draftBase?.spec.budget ?? null;
+  const clearedBudget = publishedBudget?.monthly_usd == null ? publishedBudget : null;
   const { can, isLoaded: permissionsLoaded } = usePermissions();
   // The organization's servers, never the author's own: a personal connection
   // is refused at publish, so offering one would be offering a choice that
@@ -2084,10 +2089,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
                       disabled={!canEdit}
                       onChange={(event) =>
                         update({
-                          budget: {
-                            ...spec.budget,
-                            monthly_usd: event.target.value ? Number(event.target.value) : null,
-                          },
+                          budget: event.target.value
+                            ? { monthly_usd: Number(event.target.value) }
+                            : clearedBudget,
                         })
                       }
                       placeholder={t("noLimit")}

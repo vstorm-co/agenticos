@@ -144,10 +144,21 @@ export function McpServerPicker({
   const platform =
     value.find((ref): ref is PlatformMcpServerRef => ref.account === "platform") ?? null;
 
-  /** Replace every binding this row held with `next` - several, one, or none. */
+  /** Update this row's bindings without moving them ahead of or behind other servers. */
   const rebind = (row: CardRow, next: AccountRef[]) => {
-    const mine = new Set<McpServerRef>(bindingsFor(row, value));
-    onChange([...value.filter((ref) => !mine.has(ref)), ...next]);
+    const current = bindingsFor(row, value);
+    const mine = new Set<McpServerRef>(current);
+    if (next.length < current.length) {
+      // Removing an account leaves the surviving references in their own slots.
+      const retained = new Set<McpServerRef>(next);
+      onChange(value.filter((ref) => !mine.has(ref) || retained.has(ref)));
+      return;
+    }
+    // The dialog edits accounts in place and appends new ones. The length check
+    // above guarantees a replacement for every occupied slot.
+    let index = 0;
+    const updated = value.map((ref) => (mine.has(ref) ? next[index++]! : ref));
+    onChange([...updated, ...next.slice(index)]);
   };
 
   // A connection the catalog does not describe is a custom server somebody
