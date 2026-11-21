@@ -245,3 +245,49 @@ describe("whether evals believe the server's read-only mark", () => {
     expect(latest).toMatchObject({ trustReadOnlyHints: true });
   });
 });
+
+it("clears a search when a different connection is opened", async () => {
+  const props = { setToolPicker: vi.fn(), submitting: false, onSave: vi.fn() };
+  const state: ToolPickerState = {
+    scope: "organization",
+    name: "notion",
+    connection: CONNECTION,
+    tools: TOOLS,
+    checked: new Set(),
+    appliesTo: "connection",
+  };
+  const view = render(<McpToolPickerDialog {...props} toolPicker={state} />);
+  await userEvent.type(screen.getByLabelText("Search tools…"), "fetch");
+  expect(list()).toHaveLength(1);
+  view.rerender(
+    <McpToolPickerDialog
+      {...props}
+      toolPicker={{ ...state, connection: { ...CONNECTION, id: "other" } }}
+    />,
+  );
+  expect(screen.getByLabelText("Search tools…")).toHaveValue("");
+  expect(list()).toHaveLength(3);
+});
+it("links an unprobed server to its actual connection setup", async () => {
+  const set = vi.fn();
+  const state: ToolPickerState = {
+    scope: "organization",
+    name: "notion",
+    connection: { ...CONNECTION, catalog_key: "notion/server" },
+    tools: [],
+    checked: new Set(),
+    appliesTo: "connection",
+  };
+  render(
+    <McpToolPickerDialog
+      toolPicker={state}
+      setToolPicker={set}
+      submitting={false}
+      onSave={vi.fn()}
+    />,
+  );
+  const link = screen.getByRole("link", { name: /Check it on the MCP servers page/ });
+  expect(link).toHaveAttribute("href", "/mcp-servers?server=notion%2Fserver");
+  await userEvent.click(link);
+  expect(set).toHaveBeenCalledWith(null);
+});

@@ -34,6 +34,7 @@ export type SharingResourceType =
   | "context"
   | "secret"
   | "table"
+  | "workflow"
   | "artifact"
   | "dataset"
   | "mcp_connection"

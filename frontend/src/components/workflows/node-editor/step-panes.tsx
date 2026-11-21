@@ -268,7 +268,7 @@ export function OutputPane({
   const updateNodeDetails = useWorkflowEditorStore((state) => state.updateNodeDetails);
   const [confirming, setConfirming] = useState(false);
   const [asking, setAsking] = useState(false);
-  const { start } = useWorkflowRuns(workflowId, asking);
+  const { start } = useWorkflowRuns(workflowId, asking, { startFeedback: "inline" });
   const [draft, setDraft] = useState<string | null>(null);
   const [draftProblem, setDraftProblem] = useState<string | null>(null);
   // The start a test admits from: the first entry (default first) whose branch

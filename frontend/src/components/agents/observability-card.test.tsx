@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render as renderBase, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -45,7 +45,7 @@ function secret(overrides: Partial<Secret> = {}): Secret {
 
 function mount(value: ObservabilitySpec | null = null) {
   const onChange = vi.fn();
-  render(<ObservabilityCard value={value} onChange={onChange} agentName="Support Copilot" />);
+  renderEditor(<ObservabilityCard value={value} onChange={onChange} agentName="Support Copilot" />);
   return { onChange };
 }
 
@@ -284,7 +284,7 @@ describe("the tracing card", () => {
 
   it("cannot be changed by somebody without edit rights", () => {
     const onChange = vi.fn();
-    render(
+    renderEditor(
       <ObservabilityCard
         value={{ token_secret_id: "s-logfire" }}
         onChange={onChange}
@@ -297,4 +297,23 @@ describe("the tracing card", () => {
     expect(screen.getByLabelText("Service name")).toBeDisabled();
     expect(screen.getByLabelText("Environment")).toBeDisabled();
   });
+});
+
+/** Existing editing cases open the same native section a person opens first. */
+function renderEditor(...args: Parameters<typeof renderBase>) {
+  const view = renderBase(...args);
+  for (const summary of view.container.querySelectorAll<HTMLElement>(
+    "details[data-focus-frame] > summary",
+  )) {
+    fireEvent.click(summary);
+  }
+  return view;
+}
+
+it("keeps tracing overrides behind a summary of the active policy", () => {
+  renderBase(
+    <ObservabilityCard value={{ content: "none" }} onChange={vi.fn()} agentName="Support" />,
+  );
+  expect(screen.getByText("Deployment project · Content excluded")).toBeVisible();
+  expect(screen.getByLabelText("Write token")).not.toBeVisible();
 });

@@ -13,6 +13,7 @@ import {
 } from "@/lib/sandbox-workspaces-api";
 
 interface UseAllWorkspaceFilesResult {
+  refetch: () => Promise<void>;
   listing: FlatFileList | null;
   isLoading: boolean;
   error: string | null;
@@ -31,6 +32,7 @@ export function useAllWorkspaceFiles(enabled: boolean): UseAllWorkspaceFilesResu
     data: listing = null,
     isLoading,
     error,
+    refetch,
   } = useQuery({
     queryKey: qk.sandboxWorkspaces.allFiles(),
     queryFn: listAllWorkspaceFiles,
@@ -39,6 +41,9 @@ export function useAllWorkspaceFiles(enabled: boolean): UseAllWorkspaceFilesResu
   });
 
   return {
+    refetch: async () => {
+      await refetch();
+    },
     listing,
     isLoading: enabled && isLoading,
     error: error ? getErrorMessage(error, tErrors, t("failedLoadWorkspaces")) : null,

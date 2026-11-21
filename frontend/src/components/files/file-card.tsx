@@ -4,8 +4,9 @@ import Image from "next/image";
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { CONTROL_FOCUS } from "@/components/ui/control-styles";
 import { FileIcon } from "./file-icon";
-import { DocPeek, Spinner, TextPeek } from "@/components/ui";
+import { IconButton, DocPeek, Spinner, TextPeek } from "@/components/ui";
 import { resolveFileKind, suffixOf } from "@/lib/file-kinds";
 import { cn, formatBytes } from "@/lib/utils";
 
@@ -91,7 +92,7 @@ const CARD =
  * so the row never overflows and the arrows never appear.
  */
 const CHIP =
-  "border-foreground/10 bg-card relative flex w-56 shrink-0 items-center gap-2.5 rounded-xl border px-2.5 py-2 shadow-none";
+  "border-foreground/10 bg-foreground/[0.02] relative flex w-56 shrink-0 items-center gap-2.5 rounded-xl border p-2 shadow-none";
 
 export function FileCard({
   name,
@@ -171,7 +172,7 @@ export function FileCard({
   if (compact) {
     const compactBody = (
       <>
-        <span className="bg-foreground/[0.04] relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+        <span className="bg-foreground/[0.04] relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg">
           {isImage && imageUrl != null ? (
             <Image src={imageUrl} alt={name} fill className="object-cover" unoptimized />
           ) : (
@@ -209,7 +210,10 @@ export function FileCard({
             type="button"
             onClick={onOpen}
             aria-label={t("openFile", { name })}
-            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md text-left"
+            className={cn(
+              CONTROL_FOCUS,
+              "flex min-w-0 flex-1 items-center gap-2.5 rounded-lg text-left",
+            )}
           >
             {compactBody}
           </button>
@@ -220,27 +224,30 @@ export function FileCard({
         {onRemove !== undefined && (
           // Its own hit area rather than a 12px glyph in a corner: at chip height
           // the card is the size the icon used to sit in.
-          <button
+          <IconButton
             type="button"
             onClick={onRemove}
             aria-label={removeLabel ?? t("removeFile", { name })}
-            className="hover:bg-muted text-muted-foreground hover:text-foreground absolute top-1/2 right-1 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded"
+            className="text-muted-foreground absolute top-1/2 right-1 size-8 -translate-y-1/2"
           >
             <X className="h-3.5 w-3.5" />
-          </button>
+          </IconButton>
         )}
       </div>
     );
   }
 
   return (
-    <div className={cn(CARD, onRemove !== undefined && "pr-7", className)}>
+    <div className={cn(CARD, onRemove !== undefined && "pr-10", className)}>
       {onOpen !== undefined ? (
         <button
           type="button"
           onClick={onOpen}
           title={t("openFile", { name })}
-          className="hover:border-foreground/30 -m-2 flex flex-col gap-1.5 rounded-lg border border-transparent p-2 text-left transition-colors"
+          className={cn(
+            CONTROL_FOCUS,
+            "hover:border-foreground/30 -m-2 flex flex-col gap-1.5 rounded-lg border border-transparent p-2 text-left transition-colors",
+          )}
         >
           {body}
         </button>
@@ -251,14 +258,14 @@ export function FileCard({
       {onRemove !== undefined && (
         // Always rendered, never on hover: a hover-only control is unreachable on a
         // touch screen and invisible to anybody who does not think to try.
-        <button
+        <IconButton
           type="button"
           onClick={onRemove}
           aria-label={removeLabel ?? t("removeFile", { name })}
-          className="hover:bg-muted text-muted-foreground hover:text-foreground absolute top-1.5 right-1.5 rounded p-0.5"
+          className="text-muted-foreground absolute top-1 right-1 size-8"
         >
           <X className="h-3 w-3" />
-        </button>
+        </IconButton>
       )}
     </div>
   );
@@ -274,10 +281,12 @@ export function PendingFileCard({
   name,
   size,
   compact = false,
+  imageUrl,
 }: {
   name: string;
   size: number;
   compact?: boolean;
+  imageUrl?: string;
 }) {
   const t = useTranslations("files");
 
@@ -286,8 +295,13 @@ export function PendingFileCard({
   if (compact) {
     return (
       <div className={CHIP}>
-        <span className="bg-foreground/[0.04] flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-          <Spinner className="text-muted-foreground h-3.5 w-3.5" />
+        <span className="bg-foreground/[0.04] relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+          {imageUrl && (
+            <Image src={imageUrl} alt={name} fill className="object-cover opacity-50" unoptimized />
+          )}
+          <span className="bg-card/90 relative flex size-6 items-center justify-center rounded-full">
+            <Spinner className="text-muted-foreground h-3.5 w-3.5" />
+          </span>
         </span>
         <span className="flex min-w-0 flex-col">
           <span title={name} className="truncate text-xs leading-tight font-medium">

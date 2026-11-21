@@ -44,7 +44,7 @@ describe("TableCard", () => {
     expect(screen.getByText("14 records · 1 column")).toBeTruthy();
     expect(screen.getByRole("img", { name: "Team" })).toBeTruthy();
     expect(screen.getByText("Read only")).toBeTruthy();
-    expect(screen.getByText(/^edited /)).toBeTruthy();
+    expect(screen.queryByText(/^edited /)).toBeNull();
     // No description, and none said to be missing.
     expect(screen.queryByText("No description yet.")).toBeNull();
   });

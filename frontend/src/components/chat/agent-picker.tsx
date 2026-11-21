@@ -102,10 +102,11 @@ export function AgentPicker() {
     if (fallback) selectAgent(fallback.id);
   }, [isLoading, isFetching, selected, selectedAgentId, runnable, defaultAgentId, selectAgent]);
 
-  // `?agent=` - a handle or an id - is a link asking for one agent: a
-  // notification opening the starter agent's empty chat, where its suggestions
-  // wait (#2301). Once per link, and after the fallback above so it wins over it.
-  const wanted = useSearchParams().get("agent");
+  // The history filter uses "agent". Older Inbox notifications use the
+  // starter's slug in that parameter, so keep those links working.
+  const params = useSearchParams();
+  const wanted =
+    params.get("answerer") ?? (params.get("agent") === "agenticos" ? "agenticos" : null);
   const handedOver = useRef<string | null>(null);
   useEffect(() => {
     if (!wanted || handedOver.current === wanted) return;

@@ -1,4 +1,6 @@
 "use client";
+
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -52,12 +54,12 @@ export function ChangedAnswers({
     <div className="space-y-3">
       {confirmed.map(row)}
       {pending.length > 0 && (
-        <details className="rounded-lg border p-3">
+        <NativeDisclosure className="rounded-lg border p-3">
           <summary className="cursor-pointer text-sm font-medium">
             {t("notConfirmedYet", { count: pending.length })}
           </summary>
           <div className="mt-3 space-y-3">{pending.map(row)}</div>
-        </details>
+        </NativeDisclosure>
       )}
       <Link className="text-sm underline" href={`/agents/${agentId}/evals/${runId}`}>
         {t("openCheck")}

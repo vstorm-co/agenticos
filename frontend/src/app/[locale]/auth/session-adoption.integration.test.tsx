@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -281,4 +281,17 @@ describe("the dashboard guard", () => {
     expect(client.getQueryData(["sessions", "list", 0])).toBeUndefined();
     expect(useConversationStore.getState().currentConversationId).toBeNull();
   });
+});
+
+it("names password recovery accurately on an incomplete magic link", () => {
+  mountOver(<MagicLinkPage />);
+  expect(screen.getByRole("link", { name: "resetPassword" })).toHaveAttribute(
+    "href",
+    "/forgot-password",
+  );
+  expect(screen.getByRole("link", { name: "signInWithPassword" })).toHaveAttribute(
+    "href",
+    "/login",
+  );
+  expect(apiClient.post).not.toHaveBeenCalled();
 });

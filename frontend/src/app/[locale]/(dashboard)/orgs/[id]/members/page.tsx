@@ -83,6 +83,7 @@ import { formatDate } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import { useOrgStore } from "@/stores";
 import { useAssistant } from "@/hooks/use-assistant";
+import { OrgChatHomeSettings } from "@/components/teams/org-chat-home-settings";
 import { OrganizationProfileSettings } from "@/components/teams/organization-profile-settings";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
@@ -432,7 +433,7 @@ export default function OrgMembersPage({ params }: PageProps) {
       />
 
       <Tabs
-        className="flex flex-1 flex-col"
+        className="flex min-h-0 flex-1 flex-col"
         value={tab}
         onValueChange={(next) => {
           setTabParam(next === "members" ? null : next);
@@ -474,7 +475,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           value="members"
           hidden={tab !== "members"}
           forceMount
-          className="flex-1 flex-col space-y-6 data-[state=active]:flex"
+          className="min-h-0 flex-1 flex-col gap-6 data-[state=active]:flex"
         >
           {/* The table draws its own skeleton from the same column definitions, so
           the header and every column width are already right while it loads -
@@ -539,6 +540,8 @@ export default function OrgMembersPage({ params }: PageProps) {
               />
             ) : (
               <DataTable<OrganizationMember>
+                fillHeight
+                clientPagination
                 stackOnNarrow
                 columns={columns}
                 rows={visibleMembers}
@@ -555,7 +558,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           </ListCard>
 
           {pendingInvitations.length > 0 && (
-            <section className="space-y-3">
+            <section className="max-h-52 shrink-0 space-y-3 overflow-auto">
               <div>
                 <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
                   {t("pendingInvitations")}
@@ -638,14 +641,34 @@ export default function OrgMembersPage({ params }: PageProps) {
           forceMount
           className="space-y-6 data-[state=inactive]:hidden"
         >
-          {org && canSystemServices && <OrgSystemAgents org={org} excludeBriefing />}
-          {canConfigureAssistant && <OrgAssistant orgId={id} />}
-          <div data-tour="org-proactivity">
-            {org && (
-              <OrgProactivity org={org} collapsible defaultOpen={tabParam === "proactivity"} />
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <h2 className="text-sm font-medium">{t("assistantServices")}</h2>
+              <p className="text-muted-foreground text-sm">{t("assistantServicesHint")}</p>
+            </div>
+            {org && canSettings && <OrgChatHomeSettings org={org} />}
+            {canConfigureAssistant && <OrgAssistant orgId={id} />}
+            <div data-tour="org-proactivity">
+              {org && (
+                <OrgProactivity org={org} collapsible defaultOpen={tabParam === "proactivity"} />
+              )}
+            </div>
+            {org && canSettings && (
+              <OrgVoiceSettings org={org} collapsible={tabParam !== "voice"} />
             )}
           </div>
-          {org && canSettings && <OrgVoiceSettings org={org} collapsible={tabParam !== "voice"} />}
+          {org && canSystemServices && (
+            <section
+              className="border-border space-y-3 border-t pt-5"
+              aria-label={t("backgroundServices")}
+            >
+              <div className="space-y-1">
+                <h2 className="text-sm font-medium">{t("backgroundServices")}</h2>
+                <p className="text-muted-foreground text-sm">{t("backgroundServicesHint")}</p>
+              </div>
+              <OrgSystemAgents org={org} excludeBriefing />
+            </section>
+          )}
         </TabsContent>
       </Tabs>
 

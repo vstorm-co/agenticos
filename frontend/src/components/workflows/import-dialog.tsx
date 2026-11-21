@@ -2,7 +2,7 @@
 
 import { Upload, FileJson } from "lucide-react";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useTranslations } from "next-intl";
 
 import {
@@ -86,7 +86,7 @@ export function ImportWorkflowDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className={`${DIALOG_FORM} ${DIALOG_COLUMN}`}>
+      <DialogContent data-workflow-fields className={`${DIALOG_FORM} ${DIALOG_COLUMN}`}>
         <DialogHeader>
           <DialogTitle>{t("importTitle")}</DialogTitle>
           <DialogDescription>

@@ -2494,6 +2494,33 @@ describe("useChat - approvals and questions", () => {
     expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(1);
   });
 
+  it("restores a pending card when the transcript refreshes during the parked read", async () => {
+    let resolveParked!: (rows: unknown) => void;
+    const parkedRead = new Promise((resolve) => {
+      resolveParked = resolve;
+    });
+    get.mockImplementation(async (url: string) => (url.endsWith("/parked") ? parkedRead : false));
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/runs/r-1/parked"));
+
+    act(() => {
+      useChatStore.getState().addMessage({
+        id: "refresh",
+        role: "user",
+        content: "An already saved message",
+        timestamp: new Date(),
+      });
+    });
+    await act(async () => {
+      resolveParked([{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", tool_args: {} }]);
+    });
+
+    expect(result.current.pendingApproval?.actionRequests[0]?.id).toBe("ar-1");
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(1);
+  });
+
   it("leaves a parked step from before runs were stamped on messages alone", async () => {
     // The step still reads "waiting for approval", but there is no run on the
     // message to ask about.
@@ -3087,14 +3114,19 @@ describe("useChat - approvals and questions", () => {
         "awaiting_answer",
       );
       act(() => result.current.sendAskUserResponses([{ answer: "A", skipped: false }]));
+      expect(result.current.submittingQuestions).toBe(true);
+      receive("ask_user_answered", {
+        request_id: sent.mock.calls.find(([frame]) => frame.type === "ask_user_response")?.[0]
+          .request_id,
+      });
       expect(useWorkingStore.getState().waiting["c-1"]).toBeUndefined();
       expect(streaming()?.toolCalls?.find((call) => call.id === "ask-live")?.status).toBe(
-        "running",
+        "completed",
       );
     },
   );
 
-  it("sends the answers and closes the prompt", () => {
+  it("keeps the form until the matching answer acknowledgement", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     receive("ask_user", {
       questions: [{ question: "Which?", options: [{ label: "a" }], allow_custom: false }],
@@ -3102,11 +3134,18 @@ describe("useChat - approvals and questions", () => {
 
     act(() => result.current.sendAskUserResponses([{ answer: "a", skipped: false }]));
 
-    expect(result.current.pendingQuestions).toBeNull();
+    expect(result.current.pendingQuestions).not.toBeNull();
+    expect(result.current.submittingQuestions).toBe(true);
     expect(frame(0)).toEqual({
       type: "ask_user_response",
+      request_id: expect.any(String),
       answers: [{ answer: "a", skipped: false }],
     });
+    receive("ask_user_answered", { request_id: "stale" });
+    expect(result.current.pendingQuestions).not.toBeNull();
+    receive("ask_user_answered", { request_id: frame(0).request_id });
+    expect(result.current.pendingQuestions).toBeNull();
+    expect(result.current.submittingQuestions).toBe(false);
   });
 
   it("keeps the questions on screen when the socket is offline", () => {
@@ -4158,6 +4197,156 @@ describe("useChat - durable questions resumed on the socket", () => {
     receive("user_question_required", { run_id: "r-1", questions: ASKED });
   }
 
+  it("opens the Inbox-linked question even before its old turn is loaded", async () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    get.mockResolvedValue(ASKED);
+    const { result } = renderHook(() => useChat({ requestedQuestionRunId: "r-1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.pendingQuestions?.[0]?.question).toBe("How formal?"));
+    expect(get).toHaveBeenCalledWith("/runs/r-1/questions", {
+      params: { conversation_id: "c-1" },
+    });
+    expect(result.current.questionTarget?.messageId).toBe("question-run:r-1");
+    expect(useChatStore.getState().messages).toHaveLength(1);
+    expect(useChatStore.getState().messages[0]).toMatchObject({
+      id: "question-run:r-1",
+      runId: "r-1",
+      isLocalContinuation: true,
+      toolCalls: [{ id: "ask-1", status: "awaiting_answer" }],
+    });
+    const answer = { answer: "Casual", skipped: false };
+    act(() => result.current.sendAskUserResponses([answer]));
+    expect(runAnswerFrame()).toMatchObject({ run_id: "r-1", responses: { "ask-1": [answer] } });
+    expect(result.current.pendingQuestions).not.toBeNull();
+    act(() =>
+      useChatStore.getState().rereadMessages([{ ...askedTurn(), id: "original-saved-turn" }]),
+    );
+    await act(async () => acknowledgeAnswer());
+    expect(result.current.pendingQuestions).toBeNull();
+    expect(
+      useChatStore
+        .getState()
+        .messages.filter((message) => message.toolCalls?.some((call) => call.id === "ask-1")),
+    ).toHaveLength(1);
+    expect(
+      useChatStore
+        .getState()
+        .messages.find((message) => message.toolCalls?.some((call) => call.id === "ask-1")),
+    ).toMatchObject({
+      id: "original-saved-turn",
+      renderKey: "question-run:r-1",
+      toolCalls: [{ id: "ask-1", status: "completed", result: '{"Tone":"Casual"}' }],
+    });
+  });
+
+  it("gives a linked older question its own anchor beside unrelated nonempty history", async () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage({
+      id: "unrelated-answer",
+      role: "assistant",
+      content: "A different run's answer",
+      timestamp: new Date(),
+      conversationId: "c-1",
+      runId: "different-run",
+    });
+    get.mockResolvedValue(ASKED);
+    const { result } = renderHook(() => useChat({ requestedQuestionRunId: "r-1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.pendingQuestions?.[0]?.question).toBe("How formal?"));
+    expect(result.current.questionTarget?.messageId).toBe("question-run:r-1");
+    expect(useChatStore.getState().messages).toMatchObject([
+      { id: "unrelated-answer", runId: "different-run", content: "A different run's answer" },
+      {
+        id: "question-run:r-1",
+        runId: "r-1",
+        toolCalls: [{ id: "ask-1", status: "awaiting_answer" }],
+      },
+    ]);
+  });
+
+  it("ignores a linked question response after switching conversations during its read", async () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    let resolveQuestion: (questions: typeof ASKED) => void = () => {
+      throw new Error("Read not started");
+    };
+    const pending = new Promise<typeof ASKED>((resolve) => {
+      resolveQuestion = resolve;
+    });
+    get.mockImplementation((path: string) =>
+      path === "/runs/r-1/questions" ? pending : Promise.resolve([]),
+    );
+    const { result, rerender } = renderHook(
+      ({ requested }: { requested: string | null }) =>
+        useChat({ requestedQuestionRunId: requested }),
+      { wrapper, initialProps: { requested: "r-1" as string | null } },
+    );
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith("/runs/r-1/questions", {
+        params: { conversation_id: "c-1" },
+      }),
+    );
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+      rerender({ requested: null });
+    });
+    await act(async () => {
+      resolveQuestion(ASKED);
+      await pending;
+    });
+    expect(result.current.pendingQuestions).toBeNull();
+    expect(result.current.questionTarget).toBeNull();
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(sent.mock.calls.some(([frame]) => frame.type === "answer_run")).toBe(false);
+  });
+
+  it("reuses the matching saved turn for an Inbox link despite stale cached status", async () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const cached = askedTurn();
+    useChatStore.getState().addMessage({
+      ...cached,
+      toolCalls: cached.toolCalls.map((call) => ({ ...call, status: "running" as const })),
+    });
+    useChatStore.getState().addMessage({
+      id: "unrelated-latest-answer",
+      role: "assistant",
+      content: "A different run's answer",
+      timestamp: new Date(),
+      conversationId: "c-1",
+      runId: "different-run",
+    });
+    get.mockResolvedValue(ASKED);
+    const { result } = renderHook(() => useChat({ requestedQuestionRunId: "r-1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.pendingQuestions?.[0]?.question).toBe("How formal?"));
+    expect(get).toHaveBeenCalledWith("/runs/r-1/questions", {
+      params: { conversation_id: "c-1" },
+    });
+    expect(result.current.questionTarget).toMatchObject({
+      messageId: cached.id,
+      toolCallIds: ["ask-1"],
+    });
+    expect(useChatStore.getState().messages.map((message) => message.id)).toEqual([
+      cached.id,
+      "unrelated-latest-answer",
+    ]);
+  });
+
+  it("falls back from an answered Inbox link to the different saved waiting run", async () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    get.mockImplementation((path: string) =>
+      Promise.resolve(path === "/runs/stale/questions" ? [] : ASKED),
+    );
+    const { result } = renderHook(() => useChat({ requestedQuestionRunId: "stale" }), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions?.[0]?.question).toBe("How formal?"));
+    expect(get).toHaveBeenCalledWith("/runs/stale/questions", {
+      params: { conversation_id: "c-1" },
+    });
+    expect(get).toHaveBeenCalledWith("/runs/r-1/questions");
+    expect(result.current.questionTarget?.messageId).toBe("m-1");
+    expect(useChatStore.getState().messages).toHaveLength(1);
+  });
+
   it.each(["ask_user_question", "clarify"])(
     "keeps the %s card after completion and resumes it on the socket",
     async (toolName) => {
@@ -4238,10 +4427,13 @@ describe("useChat - durable questions resumed on the socket", () => {
     });
     expect(sent).toHaveBeenCalledWith({
       type: "ask_user_response",
+      request_id: expect.any(String),
       answers: [{ answer: "EU", skipped: false }],
     });
     expect(sent.mock.calls.filter(([frame]) => frame.type === "answer_run")).toHaveLength(1);
     expect(sent.mock.calls.filter(([frame]) => frame.type === "ask_user_response")).toHaveLength(1);
+    const liveAnswer = sent.mock.calls.find(([frame]) => frame.type === "ask_user_response")?.[0];
+    receive("ask_user_answered", { request_id: liveAnswer.request_id });
     receive("text_delta", { content: "Using the EU numbers." });
     receive("final_result", { output: "Using the EU numbers." });
     await act(async () =>
@@ -7147,4 +7339,11 @@ it("ends an existing streaming segment when a resumed background turn attaches",
   expect(
     useChatStore.getState().messages.find((message) => message.id === "old-segment")?.isStreaming,
   ).toBe(false);
+});
+
+it("adopts a server-created identity when the local conversation already has an ID", () => {
+  useConversationStore.getState().setCurrentConversationId("c-local");
+  renderHook(() => useChat({ conversationId: "c-local" }), { wrapper });
+  receive("conversation_created", { conversation_id: "c-persisted" });
+  expect(useConversationStore.getState().currentConversationId).toBe("c-persisted");
 });

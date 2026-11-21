@@ -27,7 +27,7 @@ import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { PlatformMcpServerRef } from "@/types/agents";
 
-/** What a new binding starts as: every tool, and every one that changes something held. */
+/** What a new binding starts as: every tool, with trusted platform approval defaults. */
 export const NEW_PLATFORM_BINDING: PlatformMcpServerRef = {
   account: "platform",
   allowed_tools: null,
@@ -52,16 +52,18 @@ function ApprovalStatus({ binding }: { binding: PlatformMcpServerRef }) {
  *
  * It needs no connection - it is the platform - and its tools act as whoever the
  * agent runs for, so the card says that rather than whose account it uses. Writes
- * wait for approval from the moment it is switched on; the settings group the
+ * follow trusted approval defaults from the moment it is switched on; the settings group the
  * tools by what they work on, and only a tool named there runs a change freely.
  */
 export function PlatformServerCard({
   binding,
   onChange,
+  onToggle,
   disabled,
 }: {
   binding: PlatformMcpServerRef | null;
   onChange: (next: PlatformMcpServerRef | null) => void;
+  onToggle?: (on: boolean, fallback: PlatformMcpServerRef) => void;
   disabled?: boolean;
 }) {
   const t = useTranslations("agents");
@@ -83,7 +85,8 @@ export function PlatformServerCard({
             checked={isOn}
             disabled={disabled}
             onCheckedChange={(on) => {
-              onChange(on ? NEW_PLATFORM_BINDING : null);
+              if (onToggle) onToggle(on, NEW_PLATFORM_BINDING);
+              else onChange(on ? NEW_PLATFORM_BINDING : null);
               if (on) setOpen(true);
             }}
             aria-label={t("useServerInAgent", { name: appName })}
@@ -109,7 +112,10 @@ export function PlatformServerCard({
           onOpenChange={setOpen}
           name={appName}
           binding={binding}
-          onChange={onChange}
+          onChange={(next) => {
+            if (onToggle && binding === null && next !== null) onToggle(true, next);
+            else onChange(next);
+          }}
           disabled={disabled}
         />
       )}

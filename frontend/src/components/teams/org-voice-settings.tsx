@@ -10,7 +10,8 @@ import { voiceSetupHints } from "@/lib/setup-hints";
 import { ServiceCard } from "@/components/settings/service-card";
 import { OrgTextToSpeechSettings } from "./org-text-to-speech-settings";
 import { OrgVoiceUsage } from "@/components/teams/org-voice-usage";
-import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ProviderRow } from "@/components/vault/provider-row";
+import { ModelLabel } from "@/components/icons/model-icon";
 import { SpeechKeyField } from "@/components/vault/speech-key-field";
 import {
   Alert,
@@ -369,10 +370,7 @@ function DefaultFields(props: FieldsProps) {
                 const label = entry.name;
                 return (
                   <SelectItem key={entry.provider} value={entry.provider} textValue={label}>
-                    <span className="flex items-center gap-2">
-                      <ProviderIcon provider={entry.provider} className="h-3.5 w-3.5" />
-                      {label}
-                    </span>
+                    <ProviderRow provider={entry.provider} name={label} />
                   </SelectItem>
                 );
               })}
@@ -393,7 +391,7 @@ function DefaultFields(props: FieldsProps) {
               <SelectContent>
                 {chosen.models.map((model) => (
                   <SelectItem key={model.id} value={model.id} textValue={model.name}>
-                    {model.name}
+                    <ModelLabel model={model.id} provider={chosen.provider} label={model.name} />
                   </SelectItem>
                 ))}
               </SelectContent>

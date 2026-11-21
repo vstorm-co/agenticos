@@ -115,6 +115,7 @@ export function NewForkDialog({
           <Label htmlFor="new-fork-name">{t("name")}</Label>
           <Input
             id="new-fork-name"
+            data-initial-focus
             value={name}
             maxLength={64}
             onChange={(event) => setName(event.target.value)}

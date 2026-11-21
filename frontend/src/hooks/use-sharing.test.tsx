@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -65,6 +65,20 @@ describe("useSharing", () => {
       subject_user_id: "u-sam",
       level: "use",
     });
+  });
+
+  it("exposes a failed sharing read and retries the same resource", async () => {
+    const refusal = new ApiError(403, "Access denied");
+    vi.mocked(apiClient.get).mockRejectedValueOnce(refusal).mockResolvedValue(SHARING);
+    const { result } = renderHook(() => useSharing("agent", "a1"), { wrapper });
+    await waitFor(() => expect(result.current.error).toBe(refusal));
+    expect(result.current.sharing).toBeUndefined();
+    await act(async () => {
+      await result.current.refetch();
+    });
+    await waitFor(() => expect(result.current.sharing).toEqual(SHARING));
+    expect(result.current.error).toBeNull();
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
   });
 
   it("does not fetch until a resource is selected", () => {
