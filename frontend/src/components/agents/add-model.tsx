@@ -4,7 +4,7 @@ import { useId, useState } from "react";
 import { Check, KeyRound, Plus, Save } from "lucide-react";
 
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
-import { hasKey, runsAgents } from "@/lib/model-profiles";
+import { hasKey, LISTED_AT_ENDPOINT, LISTED_WITH_KEY, runsAgents } from "@/lib/model-profiles";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
 import { InlineSecret } from "@/components/vault/inline-secret";
@@ -176,6 +176,34 @@ export function defaultApi(
 ): ModelApi | null {
   if (capabilities?.native_api == null) return null;
   return baseUrl.trim() === "" ? capabilities.native_api : "chat";
+}
+
+/**
+ * What the endpoint field says about the address it wants.
+ *
+ * The two custom endpoints have to say more than "give one": an address that
+ * is right for a Chat Completions server is wrong for a Messages server, and the
+ * wrong one fails with a 404 that names the path rather than the cause.
+ */
+export function endpointHint(
+  providerId: string,
+  endpointRequired: boolean,
+  t: (key: string) => string,
+): string {
+  switch (providerId) {
+    case "openrouter":
+      return t("openRouterEndpointHint");
+    case "stav":
+      return t("stavEndpointHint");
+    case "otari":
+      return t("otariEndpointHint");
+    case "openai_compatible":
+      return t("openaiCompatibleEndpointHint");
+    case "anthropic_compatible":
+      return t("anthropicCompatibleEndpointHint");
+    default:
+      return endpointRequired ? t("gatewayLitellmProxyModel") : t("optionalPointModelAt");
+  }
 }
 
 /**
@@ -354,8 +382,8 @@ export function AddModel({
     isLoading: loadingModels,
   } = useProviderModels(
     providerId,
-    ["openrouter", "stav", "otari"].includes(providerId) ? listingEndpoint : undefined,
-    ["stav", "otari"].includes(providerId) ? chosenKey || undefined : undefined,
+    LISTED_AT_ENDPOINT.includes(providerId) ? listingEndpoint : undefined,
+    LISTED_WITH_KEY.includes(providerId) ? chosenKey || undefined : undefined,
     (pickedApi ?? startingApi) === "decisions" || ["typesafe", "system-one"].includes(providerId),
   );
 
@@ -447,6 +475,20 @@ export function AddModel({
   const endpointRequired =
     (capabilities?.requires_base_url ?? false) ||
     ((capabilities?.keyless ?? false) && chosenKey === "");
+  const endpointDescription = endpointHint(providerId, endpointRequired, t);
+  // The example an empty endpoint field shows: the shape of the address rather
+  // than a working one. The `/v1` root for a server that answers Chat
+  // Completions, the API root for one that answers Messages.
+  const endpointExample =
+    providerId === "openai_compatible"
+      ? "https://models.example/v1"
+      : providerId === "anthropic_compatible"
+        ? "https://models.example"
+        : (capabilities?.requires_base_url ?? false)
+          ? "https://gateway.example/api/v1"
+          : endpointRequired
+            ? "http://localhost:11434/v1"
+            : null;
   const canSubmit =
     provider !== undefined &&
     model.trim() !== "" &&
@@ -721,17 +763,7 @@ export function AddModel({
             htmlFor={`${fieldId}-add-model-endpoint`}
             label={t("endpoint")}
             error={failure.fields.base_url}
-            description={
-              providerId === "openrouter"
-                ? t("openRouterEndpointHint")
-                : providerId === "stav"
-                  ? t("stavEndpointHint")
-                  : providerId === "otari"
-                    ? t("otariEndpointHint")
-                    : endpointRequired
-                      ? t("gatewayLitellmProxyModel")
-                      : t("optionalPointModelAt")
-            }
+            description={endpointDescription}
           >
             <Input
               id={`${fieldId}-add-model-endpoint`}
@@ -740,13 +772,7 @@ export function AddModel({
                 setBaseUrl(event.target.value);
                 setFailure(NO_FAILURE);
               }}
-              placeholder={
-                capabilities?.requires_base_url
-                  ? "https://gateway.example/api/v1"
-                  : endpointRequired
-                    ? "http://localhost:11434/v1"
-                    : t("leaveEmptyProviderS")
-              }
+              placeholder={endpointExample ?? t("leaveEmptyProviderS")}
               autoComplete="off"
               spellCheck={false}
             />

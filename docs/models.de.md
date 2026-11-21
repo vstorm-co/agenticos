@@ -1,5 +1,5 @@
 ---
-source_sha: "28fef18e676b"
+source_sha: "b1a74fcfa37c"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -449,6 +449,45 @@ zurückfallen könnte, und nichts, womit man authentifizieren könnte.
     `ON DELETE SET NULL`, was den zweiten Fall gewöhnlich macht. Ein Run löst ein
     Profile ohne Key nur dann auf, wenn es einen Endpunkt trägt; sonst wird er mit
     derselben Meldung "no key configured" abgelehnt, die es immer schon gab.
+
+### Eigener Endpunkt { #your-own-endpoint }
+
+| Provider | id | Zugangsdaten | Custom URL |
+|---|---|---|---|
+| Custom (OpenAI-compatible) | `openai_compatible` | API-Key | ✓ |
+| Custom (Anthropic-compatible) | `anthropic_compatible` | API-Key | ✓ |
+
+Diese beiden sind eine API-*Form* und kein Anbieter. Sie tragen die Adresse
+eines Servers ein, den Sie selbst betreiben, oder eines Gateways, dem Sie
+vertrauen, sowie den Schlüssel, der ihn authentifiziert. Wählen Sie das, was zu
+Ihrem Endpunkt passt:
+
+| Ihr Endpunkt beantwortet | Wählen | Die Adresse zum Eintragen |
+|---|---|---|
+| `POST /chat/completions` — vLLM, LM Studio, ein LiteLLM-Proxy, die meisten Gateways | `openai_compatible` | die `/v1`-Wurzel, etwa `https://llm.example/v1` |
+| `POST /v1/messages` — die eigene API-Form von Anthropic | `anthropic_compatible` | die API-Wurzel, etwa `https://llm.example` |
+
+Beide brauchen einen Endpunkt und einen Schlüssel. Es gibt keine öffentliche
+API, auf die man ausweichen könnte, also wird ein Profil ohne beides abgelehnt
+und nicht irgendwohin geschickt.
+
+Der Schlüssel liegt im Tresor unter dem Namen des Providers. Das sagt dort,
+dass er *diesen* Endpunkt authentifiziert und nicht die öffentliche API eines
+Anbieters. Deshalb sind es eigene Einträge und kein `openai`- oder
+`anthropic`-Profil mit einem Endpunkt: Ein Schlüssel unter dem Namen eines
+Anbieters spricht über diesen Anbieter.
+
+!!! info "Die Anthropic-Adresse trägt kein `/v1`"
+
+    Das SDK von Anthropic sendet an `<endpoint>/v1/messages`, der Endpunkt ist
+    also die API-Wurzel. Eine Adresse, die bereits auf `/v1` endet, wird für Sie
+    gekürzt, beide Schreibweisen funktionieren — die Plattform fragt aber nach
+    der Wurzel.
+
+**Load models** liest die Liste vom selben Endpunkt mit demselben Schlüssel, so
+dass die Auswahl genau das anbietet, was Ihr Server ausliefert. Die Modell-ID
+bleibt Freitext: Ein Server ohne veröffentlichte Liste ist trotzdem benutzbar,
+wenn Sie die ID eintippen.
 
 ### Wenn die Zugangsdaten kein API-Key sind { #when-the-credential-is-not-an-api-key }
 
