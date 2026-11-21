@@ -63,6 +63,7 @@ export function useChatViewport(options: ViewportOptions) {
     let writtenExtent = scrolling.scrollHeight;
     let touchY: number | null = null;
     let preserveAnchor = false;
+    let pointerActive = false;
     const viewportTop = () => scrolling.getBoundingClientRect().top;
     const remember = () => {
       const top = viewportTop();
@@ -90,6 +91,7 @@ export function useChatViewport(options: ViewportOptions) {
       remember();
     };
     const resize = () => {
+      if (pointerActive) return;
       const height = docking.offsetHeight;
       setDockHeight((previous) => (previous === height ? previous : height));
       scrolling.style.paddingBottom = `${height}px`;
@@ -137,12 +139,12 @@ export function useChatViewport(options: ViewportOptions) {
         write(desired);
       }
     };
-    const lockReadingAnchor = () => {
+    const lockReadingAnchor = (restore = true) => {
       // Pointer/click may arrive after the browser scrolls a focused control.
       // Keep an existing lock until a deliberate reader gesture releases it.
       if (!preserveAnchor || !anchor?.element.isConnected) read();
       preserveAnchor = true;
-      resize();
+      if (restore) resize();
     };
     const onScroll = () => {
       const top = scrolling.scrollTop;
@@ -204,8 +206,15 @@ export function useChatViewport(options: ViewportOptions) {
         ((event.type === "pointerdown" && transcript.contains(event.target)) ||
           event.target.closest("button, summary, input, textarea"))
       ) {
-        lockReadingAnchor();
+        // Native scroll-into-view may have positioned this press away from the
+        // saved anchor. Restore only after click has chosen its target; moving
+        // the button during pointerdown makes pointerup miss that same button.
+        pointerActive = event.type === "pointerdown";
+        lockReadingAnchor(!pointerActive);
       }
+    };
+    const onPointerEnd = () => {
+      pointerActive = false;
     };
     const observer = new ResizeObserver(resize);
     observer.observe(transcript);
@@ -218,6 +227,8 @@ export function useChatViewport(options: ViewportOptions) {
     scrolling.addEventListener("keydown", onKey);
     scrolling.addEventListener("pointerdown", onPointer, true);
     transcript.addEventListener("click", onPointer, true);
+    window.addEventListener("pointerup", onPointerEnd);
+    window.addEventListener("pointercancel", onPointerEnd);
     controller.current = {
       sent: (id) => {
         sentKey = id;
@@ -250,6 +261,8 @@ export function useChatViewport(options: ViewportOptions) {
       scrolling.removeEventListener("keydown", onKey);
       scrolling.removeEventListener("pointerdown", onPointer, true);
       transcript.removeEventListener("click", onPointer, true);
+      window.removeEventListener("pointerup", onPointerEnd);
+      window.removeEventListener("pointercancel", onPointerEnd);
       controller.current = null;
     };
   }, [options.conversationId, mountedScroller]);

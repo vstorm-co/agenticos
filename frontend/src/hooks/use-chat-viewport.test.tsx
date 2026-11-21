@@ -62,6 +62,7 @@ function Harness({
           <div data-question-pending data-chat-anchor="question">
             <div role="group" tabIndex={-1}>
               Question
+              <button>Question control</button>
             </div>
           </div>
           <div ref={spacer} data-testid="space" />
@@ -439,8 +440,14 @@ it("retains an explicitly revealed question anchor through native pre-click scro
   scrolling.scrollTop = revealed - 255;
   const question = view.container.querySelector<HTMLElement>("[data-question-pending]");
   if (!question) throw new Error("Expected the pending question");
-  fireEvent.pointerDown(question);
-  fireEvent.click(question);
+  const control = view.getByText("Question control");
+  fireEvent.pointerDown(control);
+  fireEvent.scroll(scrolling);
+  act(() => resized?.());
+  // The press and release must hit the same button before restoration.
+  expect(scrolling.scrollTop).toBe(revealed - 255);
+  fireEvent.pointerUp(control);
+  fireEvent.click(control);
   act(() => resized?.());
   expect(scrolling.scrollTop).toBe(revealed);
 
