@@ -11589,6 +11589,7 @@ async def test_resume_refuses_a_changed_resolved_model_endpoint_before_building(
 
 
 @pytest.mark.anyio
+@pytest.mark.security
 @pytest.mark.parametrize("topology", ["published", "inline"])
 @pytest.mark.parametrize("outcome", ["valid", "changed", "missing_namespace"])
 async def test_routine_delegate_consumes_only_its_exact_reviewed_resources(topology, outcome):

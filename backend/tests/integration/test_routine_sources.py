@@ -2133,6 +2133,7 @@ async def test_follow_agent_never_silently_admits_new_account_or_tool_authority(
     assert read_policy(trigger.approved_sources) == policy
 
 
+@pytest.mark.security
 @pytest.mark.parametrize("refusal", ["bad_request", "not_found"])
 async def test_follow_agent_materialization_turns_unavailable_review_into_owner_review(db, refusal):
     from app.core.exceptions import BadRequestError, NotFoundError
