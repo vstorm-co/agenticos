@@ -648,6 +648,12 @@ class MessageRead(MessageBase, TimestampSchema):
         ),
     )
 
+    @field_validator("room_mentions", mode="before")
+    @classmethod
+    def unflushed_row_has_no_mentions(cls, value: object) -> object:
+        """A column default applies on flush, so a row not yet written reads `None`."""
+        return [] if value is None else value
+
 
 class ConversationBase(BaseSchema):
     """Base conversation schema."""

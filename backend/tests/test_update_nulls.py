@@ -61,6 +61,7 @@ from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.project import Project
 from app.db.models.resource_grant import ResourceGrant
+from app.db.models.room_participant import RoomParticipant
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.session import Session
 from app.db.models.skill import Skill, SkillResource
@@ -118,6 +119,7 @@ from app.schemas.project import ProjectUpdate
 from app.schemas.push import ApnsKeyUpdate, PushFocusUpdate, PushPreferencesUpdate
 from app.schemas.resource_grant import VisibilityUpdate
 from app.schemas.retention import RetentionUpdate
+from app.schemas.room_participant import RoomParticipantAutoReplyUpdate
 from app.schemas.sandbox_connection import SandboxConnectionUpdate
 from app.schemas.scoring import DatasetScoringUpdate, JudgeScorerUpdate
 from app.schemas.secret import SecretUpdate
@@ -167,6 +169,8 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AssistantUpdate: OrganizationAssistant,
     ArtifactUpdate: Artifact,
     ChannelBotUpdate: ChannelBot,
+    # One required boolean, written through `room_participant_repo.set_auto_reply`.
+    RoomParticipantAutoReplyUpdate: RoomParticipant,
     ContextFileUpdate: ContextFile,
     DatasetCaseUpdate: DatasetCase,
     # Merged into the stored scoring, a JSONB document, and validated whole there.

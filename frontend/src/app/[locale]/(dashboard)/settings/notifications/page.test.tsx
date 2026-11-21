@@ -111,14 +111,17 @@ describe("the notifications settings page", () => {
       await userEvent.click(next);
     }
 
-    // run_completed, run_failed, artifact_version_published, resource_shared,
-    // budget_warning, mcp_server_down, mcp_server_recovered, ingestion_completed,
-    // ingestion_failed, announcement, suggestion, finding and capability_requested
-    // and the four workflow/page events offer both channels (17*2 = 34); budget_exceeded, approval_requested,
-    // usage_report and agent_usage_report offer only in-app (4*1 = 4). 34 + 4 =
-    // 38; and all twenty-one offer push (#2097), 38 + 21 = 59; plus the three
-    // 76 email/in-app switches plus the 28 selected chat-channel switches.
+    // Every event row offers its own channels plus the one selected chat channel.
+    // The 28 events on t3 give 76 email/in-app/push switches plus 28 chat-channel
+    // switches (104). The two room events, room_mention and room_thread_reply, offer
+    // in-app and push and the chat channel (3 each), so 104 + 6 = 110 across the 30
+    // rows and five pages of six.
     expect(available.has("Run completed - In-app")).toBe(true);
+    for (const channel of ["In-app", "Push"]) {
+      expect(available.has(`Room mentions - ${channel}`)).toBe(true);
+      expect(available.has(`Thread replies - ${channel}`)).toBe(true);
+    }
+    expect(available.has("Room mentions - Email")).toBe(false);
     expect(available.has("Run completed - Email")).toBe(true);
     expect(available.has("Per-agent usage report - In-app")).toBe(true);
     expect(available.has("Per-agent usage report - Email")).toBe(false);
@@ -153,7 +156,7 @@ describe("the notifications settings page", () => {
     ]) {
       expect(available.has(`${event} - Push`)).toBe(true);
     }
-    expect(available.size).toBe(104);
+    expect(available.size).toBe(110);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {

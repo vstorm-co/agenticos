@@ -28,21 +28,31 @@ _SPEC = importlib.util.spec_from_file_location("room_handoff_migration", _PATH)
 assert _SPEC is not None and _SPEC.loader is not None
 _MIGRATION = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_MIGRATION)
+# Revision 0349 reshapes room_submissions after 0341 (a self-referencing foreign key on the
+# scope key, a CHECK on `intent`, partial unique indexes), so 0341 can only be replayed
+# on the layer beneath it.
+_MENTIONS_PATH = (
+    Path(__file__).parents[2] / "alembic" / "versions" / "0349_room_mention_requests.py"
+)
+_MENTIONS_SPEC = importlib.util.spec_from_file_location("room_mention_migration", _MENTIONS_PATH)
+assert _MENTIONS_SPEC is not None and _MENTIONS_SPEC.loader is not None
+_MENTIONS = importlib.util.module_from_spec(_MENTIONS_SPEC)
+_MENTIONS_SPEC.loader.exec_module(_MENTIONS)
 _TABLES = ("room_submissions", "room_lead_policies", "room_routing_proposals", "room_task_links")
 
 
-def migrate(connection, direction):
+def migrate(connection, direction, module=_MIGRATION):
     ctx = MigrationContext.configure(connection, opts={"target_metadata": Base.metadata})
     with ctx.begin_transaction(), Operations.context(ctx):
-        getattr(_MIGRATION, direction)()
+        getattr(module, direction)()
 
 
-async def step(connection, direction):
+async def step(connection, direction, module=_MIGRATION):
     # 0341 builds its scope key CONCURRENTLY and validates its CHECK after commit,
     # neither of which can run inside the fixture's open transaction. Commit first,
     # so Alembic owns the transaction its autocommit_block commits.
     await connection.commit()
-    await connection.run_sync(lambda sync: migrate(sync, direction))
+    await connection.run_sync(lambda sync: migrate(sync, direction, module))
 
 
 def schema(connection):
@@ -78,12 +88,14 @@ async def test_upgrade_preserves_legacy_submission_bytes_and_matches_the_model_s
         room.user,
     )
     query = text(
-        "SELECT to_jsonb(s) - 'intent' - 'lead_policy_revision' FROM room_submissions s WHERE message_id = :message"
+        "SELECT to_jsonb(s) - 'intent' - 'lead_policy_revision' - 'parent_submission_id' - 'dispatch' "
+        "FROM room_submissions s WHERE message_id = :message"
     )
     before = await db.scalar(query, {"message": posted.message.id})
     connection = await db.connection()
     expected_schema = await connection.run_sync(schema)
     try:
+        await step(connection, "downgrade", _MENTIONS)
         await step(connection, "downgrade")
         assert await db.scalar(query, {"message": posted.message.id}) == before
         await step(connection, "upgrade")
@@ -98,16 +110,22 @@ async def test_upgrade_preserves_legacy_submission_bytes_and_matches_the_model_s
                 )
             ).one()
         ) == ("message", None)
+        await step(connection, "upgrade", _MENTIONS)
         assert await connection.run_sync(schema) == expected_schema
         # A plain legacy post does not prevent a clean rollback of an unused feature.
+        await step(connection, "downgrade", _MENTIONS)
         await step(connection, "downgrade")
         assert await db.scalar(query, {"message": posted.message.id}) == before
     finally:
-        # The upgrade commits, so the shared test database must get its tables back.
+        # The upgrades commit, so the shared test database must get its layers back.
         if not await connection.run_sync(
             lambda sync: inspect(sync).has_table("room_lead_policies")
         ):
             await step(connection, "upgrade")
+        if "dispatch" not in await connection.run_sync(
+            lambda sync: {c["name"] for c in inspect(sync).get_columns("room_submissions")}
+        ):
+            await step(connection, "upgrade", _MENTIONS)
 
 
 @pytest.mark.parametrize("evidence", ["policy", "request", "proposal", "accepted_orphan"])
