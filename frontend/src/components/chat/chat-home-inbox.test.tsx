@@ -111,7 +111,9 @@ it("makes the entire undated row compose an editable question about the picked i
   const action = within(latest).getByRole("button", { name: /Topic latest/ });
   expect(within(latest).getAllByRole("button")).toHaveLength(1);
   await userEvent.click(action);
-  expect(discuss).toHaveBeenCalledExactlyOnceWith("Does Inbox item latest need my attention?");
+  expect(discuss).toHaveBeenCalledExactlyOnceWith(
+    "Help me handle this finding and identify the next steps: Topic latest\n\nA summary",
+  );
 });
 
 it("does not turn a failed read into an empty inbox and retries both reads", async () => {
@@ -150,4 +152,20 @@ it("keeps cached topics visible when a background refresh fails", () => {
   );
   expect(screen.getByRole("button", { name: /Topic cached/ })).toBeVisible();
   expect(screen.queryByText(/all caught up/)).not.toBeInTheDocument();
+});
+
+it("prefills the generated actionable request only when its row is chosen", async () => {
+  state.items = [
+    {
+      ...suggestion("prepared"),
+      payload: { chat_prompt: "Set up a weekday morning report from the sales table." },
+    },
+  ];
+  const discuss = vi.fn();
+  render(<ChatHomeInbox onDiscuss={discuss} />);
+  expect(discuss).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: /Topic prepared/ }));
+  expect(discuss).toHaveBeenCalledExactlyOnceWith(
+    "Set up a weekday morning report from the sales table.",
+  );
 });

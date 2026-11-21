@@ -7,6 +7,8 @@ import { ChatContainer, ConversationSidebar } from "@/components/chat";
 import { ChatLayout } from "@/components/chat/chat-layout";
 import { PhoneChatBar } from "@/components/chat/phone-chat-bar";
 import { useMcpOAuthOutcome } from "@/hooks";
+import { useSuggestions } from "@/hooks/use-suggestions";
+import { suggestionChatPrompt } from "@/lib/suggestion-chat-prompt";
 import { useChatWith } from "@/hooks/use-chat-with";
 import { SAFE_AREA_CLEARANCE } from "@/lib/page-clearance";
 import { StartExample } from "@/components/onboarding/start-example";
@@ -15,12 +17,17 @@ import { cn, setUrlParam } from "@/lib/utils";
 
 export default function ChatPage() {
   const params = useSearchParams();
-  const t = useTranslations("inbox");
+  const t = useTranslations("inbox.chatDraft");
   const discuss = params.get("discuss");
-  const composerDraft =
-    discuss && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(discuss)
-      ? { text: t("discussPrompt", { id: discuss }), consume: () => setUrlParam("discuss", null) }
+  const validDiscuss = !!discuss && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(discuss);
+  const suggested = useSuggestions(validDiscuss);
+  const item =
+    validDiscuss && !suggested.isLoading && !suggested.error
+      ? suggested.suggestions.find((suggestion) => suggestion.id === discuss)
       : undefined;
+  const composerDraft = item
+    ? { text: suggestionChatPrompt(item, t), consume: () => setUrlParam("discuss", null) }
+    : undefined;
   const example = startGoal(params.get("example"));
   const requestedConversationId = params.get("id");
   const [questionConversationId, questionRunId] = params.get("question")?.split(":") ?? [];

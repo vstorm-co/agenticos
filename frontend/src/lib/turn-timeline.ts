@@ -1,4 +1,5 @@
 import type { MessagePart, ToolCall } from "@/types";
+import { retainQuestionAnswerResult } from "./question-answers";
 import { toolLookupName } from "./tool-identity";
 import { drawnUnderTheAnswer } from "./turn-extras";
 
@@ -12,7 +13,15 @@ export function mergeToolCall(previous: ToolCall, incoming: Partial<ToolCall>): 
     ["pending", "running", "awaiting_answer", "awaiting_approval"].includes(incoming.status)
   )
     return previous;
-  return { ...previous, ...incoming, result: incoming.result ?? previous.result };
+  const result = incoming.result ?? previous.result;
+  return {
+    ...previous,
+    ...incoming,
+    result:
+      toolLookupName(previous) === "ask_user_question"
+        ? retainQuestionAnswerResult(incoming.args ?? previous.args, previous.result, result)
+        : result,
+  };
 }
 
 /** Preserve arrival order while repeated frames update a call in place. */

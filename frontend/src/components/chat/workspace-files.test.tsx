@@ -903,6 +903,35 @@ describe("the workspace panel", () => {
       ...overrides,
     });
 
+    it("keeps attachments available while explaining an archive that has not been retained", async () => {
+      vi.mocked(apiClient.get).mockResolvedValue(
+        workspace({
+          backend: "service",
+          items: [],
+          total: 0,
+          bytes_total: 0,
+          unreadable_reason: "This host's files could not be read. No workspace for session: c1",
+          unreadable_code: "workspace_not_retained",
+        }),
+      );
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[attachment()]}
+          revision={0}
+        />,
+      );
+      await openPanel();
+      expect(
+        await screen.findByText("Workspace has not been created yet or is no longer retained"),
+      ).toBeVisible();
+      expect(screen.getByText("Attached to the chat")).toBeVisible();
+      expect(screen.getByText("invoice.pdf")).toBeVisible();
+      expect(screen.queryByText(/Nothing yet/)).toBeNull();
+      expect(screen.queryByText("Files are not available right now")).toBeNull();
+    });
+
     it("lists one the agent has no copy of", async () => {
       // The case with no workspace at all: the agent cannot open it, and the person
       // who dragged it in still looks for it here.

@@ -201,6 +201,29 @@ class TestAHostThatCannotBeRead:
         assert response.status_code == 200
         assert "No workspace root" in response.json()["unreadable_reason"]
 
+    async def test_missing_archive_code_is_returned_without_claiming_a_healthy_empty_workspace(
+        self, client: AsyncClient
+    ):
+        _override(
+            conversation=MagicMock(get_conversation=AsyncMock()),
+            workspaces=MagicMock(
+                listing=AsyncMock(
+                    return_value=(
+                        _row(backend="service"),
+                        WorkspaceContents(
+                            entries=[],
+                            unreadable_reason="Archive not created or retained",
+                            unreadable_code="workspace_not_retained",
+                        ),
+                    )
+                )
+            ),
+        )
+        response = await client.get(f"/api/v1/conversations/{CONVERSATION_ID}/workspace")
+        assert response.status_code == 200
+        assert response.json()["unreadable_code"] == "workspace_not_retained"
+        assert response.json()["unreadable_reason"] == "Archive not created or retained"
+
     async def test_a_readable_workspace_carries_no_reason(self, client: AsyncClient):
         _override(
             conversation=MagicMock(get_conversation=AsyncMock()),

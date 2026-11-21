@@ -3,6 +3,7 @@ import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { useChatViewport } from "./use-chat-viewport";
 import type { ChatMessage } from "@/types";
+import { QuestionTurnCard } from "@/components/chat/question-turn-card";
 
 let resized: (() => void) | undefined;
 let bodyHeight = 1200;
@@ -27,12 +28,14 @@ function Harness({
   conversationId = "c",
   mounted = true,
   onChoose,
+  pending,
 }: {
   messages?: ChatMessage[];
   sentTurnId?: string;
   conversationId?: string | null;
   mounted?: boolean;
   onChoose?: () => void;
+  pending?: boolean;
 }) {
   const scroller = useRef<HTMLDivElement>(null),
     content = useRef<HTMLDivElement>(null),
@@ -61,12 +64,31 @@ function Harness({
               New question
             </div>
           )}
-          <div data-question-pending data-chat-anchor="question">
-            <div role="group" tabIndex={-1}>
-              Question
-              <button onClick={onChoose}>Short</button>
+          {pending !== undefined ? (
+            pending && (
+              <QuestionTurnCard
+                calls={[]}
+                interaction={{
+                  id: "live-question",
+                  messageId: "reply",
+                  toolCallIds: [],
+                  questions: [
+                    { question: "Which format?", options: [{ label: "Short" }], allowCustom: true },
+                  ],
+                  submitting: false,
+                  disabled: false,
+                  onAnswer: onChoose ?? (() => {}),
+                }}
+              />
+            )
+          ) : (
+            <div data-question-pending data-chat-anchor="question">
+              <div role="group" tabIndex={-1}>
+                Question
+                <button onClick={onChoose}>Short</button>
+              </div>
             </div>
-          </div>
+          )}
           <div ref={spacer} data-testid="space" />
         </div>
       </div>
@@ -564,4 +586,74 @@ it("releases a reveal lock when Tab moves focus out to the composer", () => {
   expect(view.getByRole("textbox", { name: "Composer" })).toHaveFocus();
   expect(scrolling.style.paddingBottom).toBe("184px");
   expect(scrolling.scrollTop).toBe(revealed - 60);
+});
+
+it("does not jump to the bottom when a live question card first appears", () => {
+  questionTop = 1200;
+  const view = render(<Harness pending={false} />);
+  const scrolling = view.getByTestId("scroll");
+  const editor = view.getByRole("textbox", { name: "Composer" });
+  editor.focus();
+  expect(scrolling.scrollTop).toBe(744);
+  bodyHeight += 550;
+  view.rerender(<Harness pending />);
+  expect(view.getByRole("group", { name: "Question from the assistant" })).toBeInTheDocument();
+  act(() => resized?.());
+  expect(scrolling.scrollTop).toBe(744);
+  expect(editor).toHaveFocus();
+  bodyHeight += 100;
+  view.rerender(<Harness pending messages={[{ ...old, runWaitingFor: "answer" }]} />);
+  act(() => resized?.());
+  expect(scrolling.scrollTop).toBe(744);
+  fireEvent.click(view.getByText("Reveal"));
+  expect(scrolling.scrollTop).toBe(questionTop - 24);
+  expect(view.getByRole("group", { name: "Question from the assistant" })).toHaveFocus();
+});
+
+it("keeps the sent turn stable when a large question exhausts its reserved space", () => {
+  bodyHeight = 1300;
+  const view = render(<Harness messages={[old, sent]} sentTurnId="sent" pending={false} />);
+  const scrolling = view.getByTestId("scroll");
+  expect(scrolling.scrollTop).toBe(1176);
+  bodyHeight = 2000;
+  view.rerender(<Harness messages={[old, sent]} sentTurnId="sent" pending />);
+  act(() => resized?.());
+  act(() => resized?.());
+  expect(scrolling.scrollTop).toBe(1176);
+});
+
+it("opens a saved pending question at the bottom and follows ordinary later content", () => {
+  bodyHeight = 1800;
+  const view = render(<Harness pending />);
+  expect(view.getByTestId("scroll").scrollTop).toBe(1344);
+  bodyHeight += 100;
+  act(() => resized?.());
+  expect(view.getByTestId("scroll").scrollTop).toBe(1444);
+});
+
+it("preserves an intentional reader position when a real pending card is inserted", () => {
+  const view = render(<Harness pending={false} />);
+  const scrolling = view.getByTestId("scroll");
+  fireEvent.wheel(scrolling, { deltaY: -10 });
+  scrolling.scrollTop = 200;
+  fireEvent.scroll(scrolling);
+  bodyHeight += 550;
+  view.rerender(<Harness pending />);
+  act(() => resized?.());
+  expect(scrolling.scrollTop).toBe(200);
+  // Following can be resumed by deliberately scrolling back to the bottom.
+  fireEvent.wheel(scrolling, { deltaY: 10 });
+  scrolling.scrollTop = bodyHeight + dockSize - 600;
+  fireEvent.scroll(scrolling);
+  bodyHeight += 80;
+  act(() => resized?.());
+  expect(scrolling.scrollTop).toBe(bodyHeight + dockSize - 600);
+});
+
+it("does not mistake initial HTTP transcript hydration for a live question arrival", () => {
+  const view = render(<Harness pending={false} messages={[]} />);
+  bodyHeight = 1800;
+  view.rerender(<Harness pending messages={[old]} />);
+  act(() => resized?.());
+  expect(view.getByTestId("scroll").scrollTop).toBe(1344);
 });

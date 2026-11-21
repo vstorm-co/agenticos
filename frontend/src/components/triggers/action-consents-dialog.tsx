@@ -27,7 +27,11 @@ import {
   routineActionKey,
   type RoutineActionOptions,
 } from "@/lib/routine-actions-api";
-import type { RoutineSourceReview } from "@/lib/routine-sources-api";
+import {
+  routineSourceBlockers,
+  type RoutineSourceReview,
+  type RoutineSourceMode,
+} from "@/lib/routine-sources-api";
 
 export function ActionConsentsDialog({
   trigger,
@@ -44,10 +48,21 @@ export function ActionConsentsDialog({
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const sources = useRoutineSources(trigger.agent_id, trigger.id);
   const sourcesData = sources.data;
+  const [sourceChoice, setSourceChoice] = useState<{
+    token: string;
+    mode: RoutineSourceMode;
+  } | null>(null);
+  const sourceMode =
+    (sourceChoice?.token === sourcesData?.review_token ? sourceChoice?.mode : undefined) ??
+    sourcesData?.mode ??
+    "restricted";
+  const sourceNeedsSave =
+    !!sourcesData && (!sourcesData.current || sourceMode !== (sourcesData.mode ?? "restricted"));
   const [saving, setSaving] = useState(false);
   const { data, isLoading, error, replace, refetch } = useRoutineActions(
     trigger.agent_id,
     trigger.id,
+    { enabled: !!sourcesData && sourceMode === "restricted" },
   );
   const [chosen, setChosen] = useState<{ token: string; keys: Set<string> } | null>(null);
   const selected =
@@ -60,13 +75,17 @@ export function ActionConsentsDialog({
     !sources.data ||
     !!sources.error ||
     sources.isLoading ||
-    sources.data.unavailable_sources.length > 0;
-  async function save(data: RoutineActionOptions, sourceReview: RoutineSourceReview) {
+    routineSourceBlockers(sources.data, sourceMode).length > 0;
+  async function save(data: RoutineActionOptions | undefined, sourceReview: RoutineSourceReview) {
+    if (sourceMode === "restricted" && !data) return;
     setSaving(true);
     try {
-      if (onSaved || !sourceReview.current)
-        await sources.replace.mutateAsync(sourceReview.review_token);
-      if (data.can_waive || onSaved) {
+      if (onSaved || sourceNeedsSave)
+        await sources.replace.mutateAsync({
+          review_token: sourceReview.review_token,
+          mode: sourceMode,
+        });
+      if (sourceMode === "restricted" && data && (data.can_waive || onSaved)) {
         await replace.mutateAsync(
           data.can_waive
             ? data.items
@@ -90,12 +109,24 @@ export function ActionConsentsDialog({
         <DialogHeader>
           <DialogTitle>{onSaved ? setup("setupReviewTitle") : t("title")}</DialogTitle>
           <DialogDescription>
-            {onSaved ? setup("setupReviewDescription") : t("description")}
+            {sourceMode === "follow_agent"
+              ? setup("sourceConsents.followApprovals")
+              : onSaved
+                ? setup("setupReviewDescription")
+                : t("description")}
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
-          <SourceConsentsPanel trigger={trigger} showApprove={false} />
-          {isLoading ? (
+          <SourceConsentsPanel
+            trigger={trigger}
+            showApprove={false}
+            mode={sourceMode}
+            disabled={pending}
+            onModeChange={(mode) =>
+              sourcesData && setSourceChoice({ token: sourcesData.review_token, mode })
+            }
+          />
+          {sourceMode === "follow_agent" ? null : isLoading ? (
             <Spinner />
           ) : error ? (
             <ErrorState cta={{ label: t("retry"), onClick: () => void refetch() }} />
@@ -180,7 +211,7 @@ export function ActionConsentsDialog({
               {setup("finishLater")}
             </Button>
           )}
-          {!onSaved && (
+          {!onSaved && sourceMode === "restricted" && (
             <Button
               variant="outline"
               disabled={!data || pending}
@@ -191,16 +222,23 @@ export function ActionConsentsDialog({
           )}
           <Button
             disabled={
-              !data ||
-              (!data.can_waive && !onSaved && sources.data?.current !== false) ||
               pending ||
-              !!error ||
-              overLimit ||
-              sourceUnavailable
+              sourceUnavailable ||
+              (sourceMode === "restricted"
+                ? !data ||
+                  !!error ||
+                  isLoading ||
+                  overLimit ||
+                  (!data.can_waive && !onSaved && !sourceNeedsSave)
+                : !onSaved && !sourceNeedsSave)
             }
-            onClick={data && sourcesData ? () => void save(data, sourcesData) : undefined}
+            onClick={sourcesData ? () => void save(data, sourcesData) : undefined}
           >
-            {onSaved ? setup("enableRoutine") : t("save")}
+            {onSaved
+              ? setup("enableRoutine")
+              : sourceMode === "follow_agent"
+                ? setup("sourceConsents.saveMode")
+                : t("save")}
           </Button>
         </DialogFooter>
       </DialogContent>

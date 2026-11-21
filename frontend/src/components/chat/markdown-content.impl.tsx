@@ -19,6 +19,7 @@ import { CollapsibleBlock } from "./collapsible-block";
 import { LinkFavicon } from "./link-favicon";
 import { MarkdownQuote } from "./markdown-quote";
 import { MarkdownTable } from "./markdown-table";
+import { TurnFileLink } from "./turn-file-links";
 import type { MarkdownContentProps } from "./markdown-content";
 
 const REMARK_PLUGINS = [remarkGfm];
@@ -283,43 +284,45 @@ export const MarkdownContent = memo(function MarkdownContent({
         const PageIcon = !app && href ? consolePageIcon(href, window.location.origin) : null;
         const label = app && textOf(children) === href ? t("openApp") : children;
         return (
-          <a
-            href={href}
-            target={isExternal ? "_blank" : undefined}
-            rel={isExternal ? "noopener noreferrer" : undefined}
-            data-console-link={consoleLink ? "" : undefined}
-            className="text-foreground hover:text-brand-hover decoration-brand hover:decoration-brand inline-flex items-baseline gap-1 font-medium underline decoration-2 underline-offset-[3px] transition-colors"
-            {...props}
-          >
-            {app && (
-              <PanelsTopLeft
-                aria-hidden
-                className="text-foreground/70 inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
-              />
-            )}
-            {PageIcon && (
-              <PageIcon
-                aria-hidden
-                className="text-foreground/70 inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
-              />
-            )}
-            {brand && (
-              <BrandIcon
-                name={brand}
-                className="inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
-              />
-            )}
-            {external && !brand && !inertImages && (
-              <LinkFavicon
-                url={external}
-                className="inline h-[0.95em] w-[0.95em] translate-y-[0.1em]"
-              />
-            )}
-            {label}
-            {isExternal && !brand && inertImages && (
-              <ExternalLink className="text-foreground/60 inline h-[0.8em] w-[0.8em] shrink-0 -translate-y-[1px]" />
-            )}
-          </a>
+          <TurnFileLink href={href} label={children} title={props.title}>
+            <a
+              href={href}
+              target={isExternal ? "_blank" : undefined}
+              rel={isExternal ? "noopener noreferrer" : undefined}
+              data-console-link={consoleLink ? "" : undefined}
+              className="text-foreground hover:text-brand-hover decoration-brand hover:decoration-brand inline-flex items-baseline gap-1 font-medium underline decoration-2 underline-offset-[3px] transition-colors"
+              {...props}
+            >
+              {app && (
+                <PanelsTopLeft
+                  aria-hidden
+                  className="text-foreground/70 inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
+                />
+              )}
+              {PageIcon && (
+                <PageIcon
+                  aria-hidden
+                  className="text-foreground/70 inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
+                />
+              )}
+              {brand && (
+                <BrandIcon
+                  name={brand}
+                  className="inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
+                />
+              )}
+              {external && !brand && !inertImages && (
+                <LinkFavicon
+                  url={external}
+                  className="inline h-[0.95em] w-[0.95em] translate-y-[0.1em]"
+                />
+              )}
+              {label}
+              {isExternal && !brand && inertImages && (
+                <ExternalLink className="text-foreground/60 inline h-[0.8em] w-[0.8em] shrink-0 -translate-y-[1px]" />
+              )}
+            </a>
+          </TurnFileLink>
         );
       },
       p({ children, ...props }) {
