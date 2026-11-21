@@ -13238,7 +13238,7 @@
       "profile": "Bu öneriyi kullanarak profilimi gözden geçirmeme ve güncellememe yardım et: {text}",
       "role_pack": "Önerilen bu rutin grubunu yapılandırmama yardım et: {text}",
       "topic": "Konu: {text}",
-      "schedule": "Önerilen zamanlama (cron): {text}"
+      "schedule": "Önerilen zamanlama: {text}"
     },
     "openWorkingChat": "Sohbeti aç",
     "preferences": "Gelen kutusu tercihleri",

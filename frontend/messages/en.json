@@ -15016,7 +15016,7 @@
       "profile": "Help me review and update my profile using this proposal: {text}",
       "role_pack": "Help me set up this suggested set of routines: {text}",
       "topic": "Topic: {text}",
-      "schedule": "Suggested schedule (cron): {text}"
+      "schedule": "Suggested schedule: {text}"
     },
     "openWorkingChat": "Open conversation",
     "preferences": "Inbox preferences",

@@ -44,7 +44,7 @@ it("uses actionable legacy fields, topic, detail and routine schedule", () => {
       t,
     ),
   ).toBe(
-    "Help me set up this routine: Summarize unanswered tickets\n\nTopic: Support assistant\n\nAnswer customer questions from the help center.\n\nSuggested schedule (cron): 0 9 * * 1-5",
+    "Help me set up this routine: Summarize unanswered tickets\n\nTopic: Support assistant\n\nAnswer customer questions from the help center.\n\nSuggested schedule: 0 9 * * 1-5",
   );
   expect(
     suggestionChatPrompt({ ...item, payload: { request: "Draft the help center agent" } }, t),

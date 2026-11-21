@@ -14235,7 +14235,7 @@
       "profile": "Pomóż mi przejrzeć i zaktualizować profil na podstawie tej propozycji: {text}",
       "role_pack": "Pomóż mi skonfigurować ten proponowany zestaw rutyn: {text}",
       "topic": "Temat: {text}",
-      "schedule": "Proponowany harmonogram (cron): {text}"
+      "schedule": "Proponowany harmonogram: {text}"
     },
     "openWorkingChat": "Otwórz rozmowę",
     "preferences": "Ustawienia Inbox",

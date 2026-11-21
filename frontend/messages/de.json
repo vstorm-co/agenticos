@@ -14702,7 +14702,7 @@
       "profile": "Hilf mir, mein Profil anhand dieses Vorschlags zu prüfen und zu aktualisieren: {text}",
       "role_pack": "Hilf mir, dieses vorgeschlagene Routinenpaket einzurichten: {text}",
       "topic": "Thema: {text}",
-      "schedule": "Vorgeschlagener Zeitplan (Cron): {text}"
+      "schedule": "Vorgeschlagener Zeitplan: {text}"
     },
     "openWorkingChat": "Gespräch öffnen",
     "preferences": "Inbox-Einstellungen",
