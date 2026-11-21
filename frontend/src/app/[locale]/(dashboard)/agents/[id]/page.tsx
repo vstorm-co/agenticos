@@ -186,6 +186,7 @@ import {
   SUBAGENTS_ID,
   THINKING_ID,
   withCapability,
+  withCapabilitySettings,
   enableMcpToolSearch,
   withContextFiles,
   withSkills,
@@ -1004,8 +1005,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const updateCapability = (updated: CapabilityBindingSpec) =>
     update({
-      capabilities: spec.capabilities.map((capability) =>
-        capability.id === updated.id ? updated : capability,
+      capabilities: withCapabilitySettings(
+        spec.capabilities,
+        updated,
+        draftBase?.spec.capabilities,
       ),
     });
 
