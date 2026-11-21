@@ -223,6 +223,17 @@ def create_app(supervisor: Supervisor, token: str, *, reap_seconds: float = 60) 
             await _management(instance, "DELETE", "/credentials", params={"name": name})
         return {"removed": True}
 
+    @app.get("/scopes/{scope}/accounts/{name}/models", dependencies=guarded)
+    async def account_models(scope: str, name: str) -> JsonValue:
+        _checked(_ACCOUNT, name, "account")
+        async with supervisor.use(scope) as instance:
+            listed = await _management(
+                instance, "GET", "/credentials/models", params={"name": name}
+            )
+        if not isinstance(listed, dict) or not isinstance(listed.get("models"), list):
+            raise GatewayError("The account service did not list models", status=502)
+        return {"items": listed["models"]}
+
     @app.delete("/scopes/{scope}", dependencies=guarded)
     async def wipe(scope: str) -> JsonValue:
         await supervisor.wipe(scope)

@@ -118,6 +118,7 @@ async def test_the_client_sends_the_shared_token_and_reads_each_answer() -> None
         ("DELETE", "/scopes/s/logins/st"): {"cancelled": True},
         ("GET", "/scopes/s/accounts"): {"items": [{"name": "a.json", "provider": "claude"}]},
         ("DELETE", "/scopes/s/accounts/a.json"): {"removed": True},
+        ("GET", "/scopes/s/accounts/a.json/models"): {"items": [{"id": "claude-sonnet"}]},
         ("GET", "/scopes/s/v1/models"): {"data": [{"id": "claude-sonnet"}]},
         ("DELETE", "/scopes/s"): {"wiped": True},
     }
@@ -135,6 +136,7 @@ async def test_the_client_sends_the_shared_token_and_reads_each_answer() -> None
     assert await client.accounts("s") == [GatewayAccount(name="a.json", provider="claude")]
     await client.remove_account("s", "a.json")
     assert await client.models("s") == ["claude-sonnet"]
+    assert await client.account_models("s", "a.json") == ["claude-sonnet"]
     await client.wipe("s")
     assert client.model_endpoint("s") == f"{URL}/scopes/s/v1"
     assert {request.headers["authorization"] for request in seen} == {f"Bearer {TOKEN}"}
@@ -199,6 +201,7 @@ async def test_the_service_acts_on_the_callers_own_scope_only(enabled: None) -> 
     fake = AsyncMock(spec=SubscriptionGateway)
     fake.accounts.return_value = []
     fake.models.return_value = ["m"]
+    fake.account_models.return_value = ["m"]
     db = MagicMock()
     service = SubscriptionAccountService(db)
     with (
@@ -207,6 +210,7 @@ async def test_the_service_acts_on_the_callers_own_scope_only(enabled: None) -> 
     ):
         assert await service.accounts(caller) == []
         assert await service.models(caller) == ["m"]
+        assert await service.account_models(caller, "a.json") == ["m"]
         await service.start_login(caller, "antigravity")
         await service.login_status(caller, "st")
         await service.complete_login(caller, "st", "https://localhost/cb")
@@ -217,6 +221,7 @@ async def test_the_service_acts_on_the_callers_own_scope_only(enabled: None) -> 
     for method in (
         "accounts",
         "models",
+        "account_models",
         "start_login",
         "login_status",
         "complete_login",
@@ -532,3 +537,16 @@ async def test_teardown_reads_no_membership_without_a_gateway(disabled: None) ->
     await module.queue_organization_wipe(db, uuid.uuid4())
     await module.queue_wipe_person(db, uuid.uuid4())
     db.execute.assert_not_called()
+
+
+async def test_account_models_route_keeps_the_authenticated_context(
+    routes: tuple[AsyncMock, AuthContext],
+) -> None:
+    service, caller = routes
+    service.account_models.return_value = ["claude-sonnet"]
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        answer = await client.get("/api/v1/subscription-accounts/a.json/models")
+        bad = await client.get("/api/v1/subscription-accounts/bad!name/models")
+    assert answer.status_code == 200 and answer.json() == ["claude-sonnet"]
+    assert bad.status_code == 422
+    service.account_models.assert_awaited_once_with(caller, "a.json")

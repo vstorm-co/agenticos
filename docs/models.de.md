@@ -1,5 +1,5 @@
 ---
-source_sha: "4d830cf0d6da"
+source_sha: "990f03fc2f6a"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -460,6 +460,10 @@ Ein Planschlüssel ist nicht mit dem nutzungsabhängigen API-Schlüssel des Anbi
 Wähle den Vault-Schlüssel und bestätige das Ziel, bevor du Modelle lädst. Ein eigener Katalog verwendet nur diesen Schlüssel und Endpoint. Eine nicht verfügbare Liste lässt die manuelle Modelleingabe zu, statt den allgemeinen API-Katalog einzusetzen. Die Budgetschätzungen von AgenticOS messen nicht dein verbleibendes Abonnementkontingent.
 
 ### Abonnement-Konten { #subscription-accounts }
+
+Beginne im Agenteneditor und in der Modellauswahl des Chats mit **Deine Abonnements**, wähle einen bekannten Anbieter wie **Claude Code (Pro, Max)** oder **ChatGPT (Codex)** und klicke auf **Verbinden**. Die Anmeldung öffnet sich direkt dort und führt zur Modellauswahl zurück. Die Liste stammt aus den verbundenen Konten dieses Anbieters, nicht aus Vermutungen anhand von Modellnamen. Nicht verfügbare Konten bieten eine erneute Anmeldung. Konten lassen sich weiterhin im Profil verwalten und trennen. API-Schlüssel der Organisation bilden eine eigene Gruppe; manuell konfigurierte Gateways und Endpoints stehen unter **Erweitert / eigener Endpoint**. Bestehende Profile mit `subscription_accounts` und `cliproxyapi` behalten ihre API-IDs.
+
+Abonnementmodelle nutzen die Anweisungen und Werkzeuge von AgenticOS in der Laufzeit von Pydantic AI. Sie starten weder Claude Code noch einen anderen Coding-Harness. Unter Capabilities vereint **An Agenten delegieren** die Subagenten, **Claude Code und Codex** und **Weitere installierte Agenten**. Coding Agent bleibt in der Standardvorlage von AgenticOS aktiviert. Die Gruppen folgen täglicher Arbeit, Wissen, Recherche, Ergebnissen, Delegation, Automatisierung und Kanälen; erweiterte Einstellungen stehen eingeklappt am Ende. Innerhalb jeder Gruppe stehen aktivierte Capabilities zuerst, danach empfohlene.
 
 Personen melden sich in der Konsole bei ihren eigenen Abonnements an, und
 Modelle des Anbieters **Subscription accounts** laufen darauf. Unter

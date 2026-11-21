@@ -114,3 +114,32 @@ it("keeps saved models in the catalog and marks the active one", async () => {
   await userEvent.click(screen.getByRole("tab", { name: "Saved models" }));
   expect(screen.getByRole("option", { name: /My Claude/ })).toBeVisible();
 });
+
+it("shows familiar subscriptions before API keys and keeps custom gateways folded", async () => {
+  const p = props();
+  render(
+    <ChatModelLibrary
+      {...p}
+      providers={[
+        ...p.providers,
+        {
+          id: "subscription:claude",
+          label: "Claude Code",
+          connected: null,
+          group: "subscriptions",
+          mark: "anthropic",
+        },
+        { id: "cliproxyapi", label: "Custom gateway", connected: false, group: "custom" },
+      ]}
+    />,
+  );
+  const subscription = screen.getByRole("button", { name: "Claude Code" });
+  expect(providerMarkIn(subscription)).toBe("anthropic");
+  const custom = screen
+    .getByText("Advanced / custom endpoint", { selector: "summary" })
+    .closest("details");
+  expect(custom).not.toHaveAttribute("open");
+  await userEvent.click(screen.getByText("Advanced / custom endpoint", { selector: "summary" }));
+  await userEvent.click(screen.getByRole("button", { name: "Custom gateway" }));
+  expect(p.onProviderChange).toHaveBeenCalledWith("cliproxyapi");
+});

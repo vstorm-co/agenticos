@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTenantGuard, useTenantId } from "@/hooks/use-organizations";
 import { useAuthStore } from "@/stores";
 import { qk } from "@/lib/query-keys";
@@ -9,6 +9,9 @@ import {
   completeSubscriptionSignIn,
   disconnectSubscriptionAccount,
   listSubscriptionAccounts,
+  listSubscriptionAccountModels,
+  subscriptionBelongsTo,
+  type SubscriptionProvider,
   startSubscriptionSignIn,
   subscriptionSignInStatus,
 } from "@/lib/subscription-accounts-api";
@@ -16,6 +19,33 @@ import {
 interface Scope {
   tenant: string | null;
   user: string | undefined;
+}
+
+/** The chosen vendor's actual account catalogs, including models made by other vendors. */
+export function useSubscriptionModels(provider: SubscriptionProvider) {
+  const actions = useSubscriptionAccounts();
+  const accounts = (actions.accounts.data?.items ?? []).filter(
+    (account) =>
+      subscriptionBelongsTo(account, provider) && !account.disabled && !account.unavailable,
+  );
+  const listings = useQueries({
+    queries: accounts.map((account) => ({
+      queryKey: qk.subscriptionAccounts.models(actions.scope, account.name),
+      queryFn: () => listSubscriptionAccountModels(account.name),
+      staleTime: 0,
+      retry: false,
+    })),
+  });
+  return {
+    models: [...new Set(listings.flatMap((listing) => listing.data ?? []))].map((id) => ({
+      id,
+      name: id,
+    })),
+    loading: actions.accounts.isLoading || listings.some((listing) => listing.isFetching),
+    error: actions.accounts.error ?? listings.find((listing) => listing.error)?.error,
+    refetch: () =>
+      Promise.all([actions.accounts.refetch(), ...listings.map((listing) => listing.refetch())]),
+  };
 }
 
 /** The signed-in person's own subscription accounts in the current organization. */

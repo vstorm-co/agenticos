@@ -67,3 +67,9 @@ async def cancel_sign_in(state: SignInState, ctx: Auth, service: SubscriptionAcc
 async def disconnect(name: AccountName, ctx: Auth, service: SubscriptionAccountSvc) -> None:
     """Sign one account out and delete its tokens."""
     await service.remove(ctx, name)
+
+
+@router.get("/{name}/models", response_model=list[str])
+async def account_models(name: AccountName, ctx: Auth, service: SubscriptionAccountSvc) -> Any:
+    """List models advertised by one of the caller's accounts, without guessing from model IDs."""
+    return await service.account_models(ctx, name)

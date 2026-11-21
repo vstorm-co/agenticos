@@ -325,3 +325,16 @@ def test_main_requires_a_long_token(tmp_path: Path) -> None:
         )
     assert stat.S_IMODE((tmp_path / "data").stat().st_mode) == 0o700
     assert run.call_args.kwargs == {"host": "0.0.0.0", "port": 8400}
+
+
+async def test_account_models_are_read_from_the_scopes_management_api(
+    supervisor: Supervisor,
+) -> None:
+    async with gateway(supervisor) as client:
+        answer = await client.get(f"/scopes/{ALICE}/accounts/antigravity-me.json/models")
+        assert answer.status_code == 200
+        assert answer.json() == {"items": [{"id": "claude-via-google"}]}
+        malformed = await client.get(f"/scopes/{ALICE}/accounts/unknown.json/models")
+        assert malformed.status_code == 502
+        bad = await client.get(f"/scopes/{ALICE}/accounts/bad!name/models")
+        assert bad.status_code == 400

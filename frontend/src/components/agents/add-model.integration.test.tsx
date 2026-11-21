@@ -60,6 +60,12 @@ const state = {
   permissions: [] as Permission[],
 };
 
+vi.mock("./subscription-model-form", () => ({
+  SubscriptionModelForm: ({ provider }: { provider: string }) => (
+    <div data-testid="subscription-form">{provider}</div>
+  ),
+}));
+
 const listingRequests = vi.fn();
 const onCreatedSecret = { handler: undefined as ((id: string) => void) | undefined };
 
@@ -187,6 +193,8 @@ function mount(props: Partial<Parameters<typeof AddModel>[0]> = {}) {
 }
 
 async function pickProvider(label: string) {
+  if (label === "Ollama")
+    await userEvent.click(screen.getByRole("button", { name: "Show advanced connections" }));
   await userEvent.click(screen.getByLabelText("Provider"));
   await userEvent.click(screen.getByRole("option", { name: new RegExp(label) }));
 }
@@ -560,10 +568,7 @@ describe("the add-model form", () => {
   it("cannot be used at all when the caller disables it", async () => {
     state.secrets = [secret()];
     mount({ disabled: true });
-    await pickProvider("OpenAI");
-    await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
-
+    expect(screen.getByLabelText("Provider")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
   });
 });
@@ -2009,30 +2014,32 @@ it("does not offer the native decision API for a chat profile", async () => {
   expect(screen.queryByRole("option", { name: "Decisions" })).toBeNull();
 });
 
-it("offers the person's subscription gateway without a key and links its sign-in settings", async () => {
+it("offers familiar subscription names instead of gateway internals", async () => {
   state.purposes = [];
   state.secrets = [];
   state.catalog = [
     capabilities("subscription_accounts", "Subscription accounts", { personal_gateway: true }),
   ];
-  state.models = [{ id: "account-model", name: "Account model" }];
-  state.createProfile.mutateAsync.mockResolvedValue({
-    id: "personal",
-    provider: "subscription_accounts",
-    model: "account-model",
-    chat_capable: true,
-  });
   mount();
-  await pickProvider("Subscription accounts");
-  expect(screen.getByRole("link", { name: "Settings → Profile" })).toHaveAttribute(
-    "href",
-    "/settings/profile",
+  await userEvent.click(screen.getByLabelText("Provider"));
+  expect(screen.getByRole("option", { name: "Claude Code (Pro, Max)" })).toBeInTheDocument();
+  expect(screen.getByRole("option", { name: "ChatGPT (Codex)" })).toBeInTheDocument();
+  expect(screen.queryByRole("option", { name: "Subscription accounts" })).toBeNull();
+});
+
+it("routes a subscription choice to inline setup and keeps old profiles editable", async () => {
+  state.catalog = [
+    capabilities("subscription_accounts", "Subscription accounts", { personal_gateway: true }),
+  ];
+  const { rerender } = render(
+    <AddModel fixedProviderId="subscription_accounts" onCreated={vi.fn()} />,
   );
-  expect(screen.queryByRole("button", { name: "Store a key" })).not.toBeInTheDocument();
-  await userEvent.click(screen.getByLabelText("Model"));
-  await userEvent.click(screen.getByRole("option", { name: /Account model/ }));
-  await userEvent.click(screen.getByRole("button", { name: "Add model" }));
-  expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
-    expect.objectContaining({ provider: "subscription_accounts", secret_id: null }),
+  expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent(
+    "All connected subscriptions",
   );
+  await pickProvider("Claude Code");
+  expect(screen.getByTestId("subscription-form")).toHaveTextContent("claude");
+  rerender(<AddModel key="fixed" fixedProviderId="subscription:codex" onCreated={vi.fn()} />);
+  expect(screen.getByTestId("subscription-form")).toHaveTextContent("codex");
+  expect(screen.queryByRole("combobox", { name: "Provider" })).toBeNull();
 });

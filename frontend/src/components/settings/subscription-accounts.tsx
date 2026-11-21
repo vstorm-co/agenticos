@@ -29,33 +29,11 @@ import {
 import { getErrorMessage } from "@/lib/api-error";
 import {
   SUBSCRIPTION_PROVIDERS,
-  type SubscriptionAccount,
+  SUBSCRIPTION_MARK,
+  subscriptionBelongsTo,
   type SubscriptionProvider,
   type SubscriptionSignIn,
 } from "@/lib/subscription-accounts-api";
-
-/** The vendor mark each sign-in wears; Devin has none and gets the monogram. */
-const MARK: Readonly<Record<SubscriptionProvider, string>> = {
-  claude: "anthropic",
-  codex: "openai",
-  antigravity: "google",
-  xai: "xai",
-  kimi: "moonshotai",
-  "kimi-ai": "moonshotai",
-  devin: "devin",
-  meta: "meta",
-};
-
-/** Accounts CLIProxyAPI files under another provider name than the sign-in's. */
-const FILED_AS: Readonly<Partial<Record<SubscriptionProvider, readonly string[]>>> = {
-  claude: ["claude", "anthropic"],
-  codex: ["codex", "openai"],
-  antigravity: ["antigravity", "gemini"],
-};
-
-function belongsTo(account: SubscriptionAccount, provider: SubscriptionProvider) {
-  return (FILED_AS[provider] ?? [provider]).includes(account.provider.toLowerCase());
-}
 
 /** A person's own subscription accounts, which models on "Subscription accounts" run on. */
 export function SubscriptionAccounts() {
@@ -85,12 +63,12 @@ export function SubscriptionAccounts() {
       ) : (
         <ul className="divide-border divide-y">
           {SUBSCRIPTION_PROVIDERS.map((provider) => {
-            const accounts = rows.filter((account) => belongsTo(account, provider));
+            const accounts = rows.filter((account) => subscriptionBelongsTo(account, provider));
             return (
               <li key={provider} className="flex flex-wrap items-start justify-between gap-3 py-3">
                 <div className="flex min-w-0 items-start gap-3">
                   <span className="bg-muted grid size-9 shrink-0 place-items-center rounded-lg">
-                    <ProviderIcon provider={MARK[provider]} className="size-5" />
+                    <ProviderIcon provider={SUBSCRIPTION_MARK[provider]} className="size-5" />
                   </span>
                   <div className="min-w-0 space-y-1">
                     <p className="text-sm font-medium">{t(`providers.${provider}`)}</p>
@@ -147,7 +125,7 @@ export function SubscriptionAccounts() {
 
 type Actions = ReturnType<typeof useSubscriptionAccounts>;
 
-function SubscriptionSignInDialog({
+export function SubscriptionSignInDialog({
   provider,
   actions,
   onClose,
@@ -213,7 +191,10 @@ function SubscriptionSignInDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("dialogTitle", { name })}</DialogTitle>
-          <DialogDescription>{device ? t("deviceHelp") : t("browserHelp")}</DialogDescription>
+          <DialogDescription>
+            {device ? t("deviceHelp") : t("browserHelp")}
+            <span className="mt-2 block">{t("risk")}</span>
+          </DialogDescription>
         </DialogHeader>
 
         {started === null ? (

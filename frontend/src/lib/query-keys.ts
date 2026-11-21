@@ -44,6 +44,8 @@ export const qk = {
   },
   subscriptionAccounts: {
     mine: (scope: string) => ["subscription-accounts", scope] as const,
+    models: (scope: string, name: string) =>
+      ["subscription-accounts", scope, "models", name] as const,
     signIn: (scope: string, state: string) =>
       ["subscription-accounts", scope, "sign-in", state] as const,
   },

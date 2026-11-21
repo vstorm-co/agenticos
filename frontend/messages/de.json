@@ -1164,7 +1164,6 @@
     "observationRequired": "Wählen Sie das Modell für die Teilnahmeentscheidung.",
     "observationSaveFailed": "Speichern fehlgeschlagen. Ihre Änderungen bleiben im Formular erhalten.",
     "observationSave": "Teilnahmeeinstellungen speichern",
-    "subscriptionAccountsNote": "Jede Person nutzt diese Modelle mit ihren eigenen Konten. Verbinden Sie Ihre unter <link>Einstellungen → Profil</link>.",
     "connectionSettings": "Verbindungseinstellungen · {provider} · {endpoint}",
     "customEndpoint": "Eigener Endpunkt"
   },
@@ -6117,7 +6116,7 @@
       },
       "agent-model-credentials": {
         "title": "Wer den Modellschlüssel bereitstellt",
-        "body": "Nutze den Organisationsschlüssel oder verlange von jedem angemeldeten Chat-Nutzer einen privaten Tresorschlüssel. Modell und Endpunkt bleiben fest; Kanäle und automatische Läufe benötigen den Organisationsschlüssel."
+        "body": "Wähle dein Abonnement und verbinde es hier oder verwende einen API-Schlüssel der Organisation. Eigene Gateways und Endpoints findest du unter den erweiterten Verbindungen. Abonnementmodelle verwenden die Anweisungen und Werkzeuge von AgenticOS; installierte Agenten werden separat unter Delegation konfiguriert."
       }
     },
     "chooseLanguage": "Sprache",
@@ -13565,7 +13564,11 @@
     "reasoning": "Denken und Planen",
     "research": "Das Web",
     "utility": "Alltag",
-    "advanced": "Erweitert"
+    "advanced": "Erweitert",
+    "basics": "Tägliche Arbeit",
+    "outputs": "Erstellen und präsentieren",
+    "delegation": "An Agenten delegieren",
+    "automation": "Automatisierung"
   },
   "audience": {
     "label": "Wer es nutzen darf",
@@ -17490,7 +17493,7 @@
   },
   "subscriptionAccounts": {
     "title": "Abonnement-Konten",
-    "description": "Melden Sie sich bei Ihren eigenen Abonnements für Claude, ChatGPT, Antigravity, Grok, Kimi und weitere an. Modelle des Anbieters „Subscription accounts“ laufen dann auf Ihren Konten, wenn Sie selbst chatten - nie auf denen anderer und nie in Hintergrundarbeit.",
+    "description": "Verbinde deine eigenen Abonnements hier oder direkt in der Modellauswahl. AgenticOS verwendet deine Konten nur in deinen eigenen Chats, niemals für andere Personen oder Hintergrundarbeit.",
     "risk": "Anbieter können die Nutzung eines Abonnements außerhalb ihrer eigenen Apps einschränken und ein Konto dafür sperren. Sie verbinden auf eigenes Risiko.",
     "notConnected": "Nicht verbunden",
     "unavailable": "Nicht verfügbar",
@@ -17511,7 +17514,7 @@
     "finish": "Abschließen",
     "connected": "{name} ist verbunden",
     "providers": {
-      "claude": "Claude (Pro, Max)",
+      "claude": "Claude Code (Pro, Max)",
       "codex": "ChatGPT (Codex)",
       "antigravity": "Google Antigravity",
       "xai": "Grok (xAI)",
@@ -21043,5 +21046,33 @@
     "maintenanceEndHint": "Optional. Uhrzeit in {zone}, gespeichert in UTC. Nur informativ; ein Administrator muss die Wartung beenden.",
     "maintenanceEndInformational": "Dies ist eine Schätzung. Der Zugriff kehrt zurück, sobald ein Administrator die Wartung beendet.",
     "invalidTime": "Wähle ein gültiges lokales Datum mit Uhrzeit."
+  },
+  "modelSources": {
+    "subscriptions": "Deine Abonnements",
+    "organization": "Organisationsmodelle / API-Schlüssel",
+    "custom": "Erweitert / eigener Endpoint",
+    "gateway": "Abonnement-Gateway (eigener Endpoint)",
+    "allSubscriptions": "Alle verbundenen Abonnements",
+    "subscriptionHint": "Nutze Modelle deines Abonnements mit den Anweisungen und Werkzeugen von AgenticOS. Der Coding-Agent des Anbieters wird dabei nicht ausgeführt. Dein Konto wird nur in deinen eigenen interaktiven Chats verwendet.",
+    "unavailable": "Die Anmeldung für Abonnements ist hier nicht aktiviert. Bitte einen Administrator, sie zu aktivieren.",
+    "loading": "Deine Konten werden geladen…",
+    "connected": "Verbunden",
+    "reconnect": "Erneut anmelden",
+    "loadFailed": "Deine Konten oder Modelle konnten nicht geladen werden",
+    "model": "Modell",
+    "chooseModel": "Ein Modell dieses Kontos auswählen",
+    "useModel": "Dieses Modell verwenden",
+    "advanced": "Erweiterte Verbindungen anzeigen",
+    "noModels": "Dieses Konto hat noch keine Modelle gemeldet. Versuche es nach Abschluss der Anmeldung erneut."
+  },
+  "agentDelegation": {
+    "coding_agent": {
+      "name": "Claude Code und Codex",
+      "description": "Delegiere Programmieraufgaben an Claude Code oder Codex in einem Workspace. Dein Hauptagent in AgenticOS führt weiterhin das Gespräch."
+    },
+    "external_acp": {
+      "name": "Weitere installierte Agenten",
+      "description": "Delegiere Aufgaben an Cursor, Qwen Code, Kimi, Hermes oder einen anderen registrierten Agenten. Verbinde und konfiguriere den installierten Agenten separat."
+    }
   }
 }

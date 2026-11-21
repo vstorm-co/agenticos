@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
 import {
   AddModel,
@@ -9,6 +9,8 @@ import {
   modelPlaceholder,
   placeholderWords,
 } from "@/components/agents/add-model";
+import { ModelSourceSelect, modelSourceOptions } from "@/components/agents/model-source-select";
+import { subscriptionFromChoice } from "@/lib/subscription-accounts-api";
 import { ChatModelLibrary } from "./chat-model-library";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { getErrorMessage } from "@/lib/api-error";
@@ -115,6 +117,7 @@ export function ChatModelPicker({
   } | null>(null);
   const edited = draft?.source === sourceKey ? draft : null;
   const providerId = edited?.providerId ?? current?.provider ?? "";
+  const subscription = subscriptionFromChoice(providerId);
   const model = edited?.model ?? current?.model ?? "";
   const setProviderId = (next: string) =>
     setDraft({ source: sourceKey, providerId: next, model: "" });
@@ -145,7 +148,7 @@ export function ChatModelPicker({
     hasCachedListing,
     refetch: refetchModels,
   } = useProviderModels(
-    providerId,
+    subscription ? "" : providerId,
     providerId === "openrouter" ? (endpoint ?? undefined) : undefined,
     effectiveKey?.id,
   );
@@ -315,7 +318,8 @@ export function ChatModelPicker({
   const connectionUnavailable =
     loadingProfiles || profilesStatus === "failed" || !!secretReadError || !!loadingSecrets;
   const endpointForm =
-    requiresEndpoint && !connectionUnavailable ? (
+    (requiresEndpoint || subscription !== undefined || providerId === "subscription_accounts") &&
+    !connectionUnavailable ? (
       <div className="space-y-3">
         {presentation !== "library" &&
           profiles.some(
@@ -350,16 +354,21 @@ export function ChatModelPicker({
   if (presentation === "library" && can(Perm.connectionsManage))
     return (
       <ChatModelLibrary
-        providers={providers.map((entry) => ({
-          id: entry.id,
-          label: entry.label,
+        providers={modelSourceOptions(
+          providers,
+          catalog.some((entry) => entry.personal_gateway),
+          tRoot,
+        ).map((entry) => ({
+          ...entry,
           connected:
-            secretReadError || loadingSecrets
+            entry.group === "subscriptions"
               ? null
-              : secrets.some((secret) => secret.purpose === entry.id) ||
-                profiles.some(
-                  (profile) => profile.provider === entry.id && usableForAgents(profile),
-                ),
+              : secretReadError || loadingSecrets
+                ? null
+                : secrets.some((secret) => secret.purpose === entry.id) ||
+                  profiles.some(
+                    (profile) => profile.provider === entry.id && usableForAgents(profile),
+                  ),
         }))}
         providerId={providerId}
         loadingProviders={loadingPurposes}
@@ -509,43 +518,21 @@ export function ChatModelPicker({
               )}
               <div className="space-y-1.5">
                 <Label htmlFor="chat-model-provider">{t("provider")}</Label>
-                <Select
+                <ModelSourceSelect
+                  id="chat-model-provider"
                   value={providerId}
-                  onValueChange={(next) => {
+                  providers={providers}
+                  subscriptions={catalog.some((entry) => entry.personal_gateway)}
+                  onChange={(next) => {
                     setProviderId(next);
                     setFailure(null);
                   }}
-                >
-                  <SelectTrigger id="chat-model-provider">
-                    <SelectValue placeholder={t("chooseProvider")} />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-80">
-                    {providers.map((entry) => {
-                      const keyed = secrets.some((secret) => secret.purpose === entry.id);
-                      return (
-                        <SelectItem
-                          key={entry.id}
-                          value={entry.id}
-                          // Type-to-search keys off this rather than off the mark's own
-                          // title, which is otherwise part of the item's text.
-                          textValue={entry.label}
-                          // Outside the row: the trigger mirrors an item's text, and a
-                          // tick there reads as "selected" rather than "has a key".
-                          trailing={
-                            keyed && (
-                              <Check className="text-muted-foreground ml-auto h-3.5 w-3.5 shrink-0" />
-                            )
-                          }
-                        >
-                          <ProviderRow provider={entry.id} name={entry.label} />
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+                />
               </div>
 
-              {requiresEndpoint ? (
+              {requiresEndpoint ||
+              subscription !== undefined ||
+              providerId === "subscription_accounts" ? (
                 endpointForm
               ) : (
                 <>

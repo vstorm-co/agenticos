@@ -18,12 +18,9 @@ tools listed.
     renders its picker and its configuration forms from that response. If the two
     disagree, the API is right.
 
-The Builder names each capability in the console's language and explains it in
-plain words: what it lets the agent do, two or three example uses, what it needs
-and what it never does. The names below are the English ones. Five capabilities
-that tune how a run is carried - long conversations, image offload, instruction
-reminders, tool output limits and tool search - are folded under **Advanced**
-until somebody opens it, searches, or switches one on.
+The Builder explains capabilities in the console’s language and groups them by task: everyday work, knowledge and memory, web research, outputs, delegation, automation and channels. Enabled capabilities appear first within each group, followed by recommended ones. Advanced run tuning is folded last and opens when searched. These UI groups do not change the registry categories or stored capability IDs.
+
+**Delegate to agents** contains subagents, **Claude Code & Codex** (`coding_agent`) and **Other installed agents** (`external_acp`). These delegate tasks to another harness; choosing a subscription model instead keeps the Pydantic AI runtime and AgenticOS tools. Coding Agent remains enabled in the default AgenticOS template.
 
 In a capability's settings, limits, cache lifetimes, prompts and other tuning sit
 folded under **Advanced settings**, which opens by itself wherever one of them was

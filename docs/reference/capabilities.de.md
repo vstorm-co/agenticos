@@ -1,5 +1,5 @@
 ---
-source_sha: "b8c1be53f80f"
+source_sha: "48eead872cf1"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -23,13 +23,9 @@ Capabilities decken außerdem Dinge ab, die gar keine Tools sind — deshalb ste
     Konfigurationsformulare aus dieser Antwort. Widersprechen sich die beiden, hat
     die API recht.
 
-Der Builder benennt jede Capability in der Sprache der Konsole und erklärt sie in
-einfachen Worten: was sie den Agenten tun lässt, zwei oder drei Beispiele, was sie
-braucht und was sie nie tut. Die Namen unten sind die deutschen der Konsole. Fünf
-Capabilities, die nur einstellen, wie ein Run getragen wird - lange Gespräche,
-Bilder auslagern, Erinnerung an Anweisungen, Grenzen für Tool-Ergebnisse und
-Tool-Suche -, sind unter **Erweitert** eingeklappt, bis jemand den Bereich öffnet,
-sucht oder eine davon einschaltet.
+Der Builder erklärt Capabilities in der Sprache der Konsole und gruppiert sie nach Aufgaben: tägliche Arbeit, Wissen und Gedächtnis, Webrecherche, Ergebnisse, Delegation, Automatisierung und Kanäle. Innerhalb jeder Gruppe stehen aktivierte Capabilities zuerst, danach empfohlene. Erweiterte Run-Einstellungen stehen eingeklappt am Ende und öffnen sich bei einer Suche. Diese UI-Gruppen ändern weder die Kategorien des Registers noch gespeicherte Capability-IDs.
+
+**An Agenten delegieren** enthält Subagenten, **Claude Code und Codex** (`coding_agent`) und **Weitere installierte Agenten** (`external_acp`). Sie delegieren Aufgaben an einen anderen Harness; ein Abonnementmodell verwendet dagegen weiterhin Pydantic AI und die Werkzeuge von AgenticOS. Coding Agent bleibt in der Standardvorlage von AgenticOS aktiviert.
 
 In den Einstellungen einer Capability liegen Grenzwerte, Cache-Lebensdauern,
 Prompts und andere Feinabstimmung eingeklappt unter **Erweiterte Einstellungen**,

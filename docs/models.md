@@ -420,6 +420,10 @@ Choose the vault key and confirm the destination before loading models. A custom
 
 ### Subscription accounts { #subscription-accounts }
 
+In the agent editor and chat model picker, start with **Your subscriptions**, choose a familiar provider such as **Claude Code (Pro, Max)** or **ChatGPT (Codex)**, then **Connect**. Sign-in opens in place and returns to the model picker; the list comes from that vendor's connected accounts, not a guess based on model names. Unavailable accounts offer **Reconnect**. You can still manage and disconnect accounts in your profile. Organization API keys are a separate group; manually configured gateways and endpoints are under **Advanced / custom endpoint**. Existing `subscription_accounts` and `cliproxyapi` profiles keep their API IDs.
+
+Subscription models use the AgenticOS instructions and tools in the Pydantic AI runtime. They do not launch Claude Code or another coding harness. In Capabilities, **Delegate to agents** groups subagents, **Claude Code & Codex** and **Other installed agents**. Coding Agent remains enabled in the default AgenticOS template. Groups follow everyday work, knowledge, research, outputs, delegation, automation and channels, with advanced tuning collapsed last. Enabled capabilities appear first within each group, followed by recommended ones.
+
 People sign in to their own subscriptions from the console, and models on the
 **Subscription accounts** provider run on them. Under **Settings → Profile →
 Subscription accounts**, each person connects Claude (Pro, Max), ChatGPT (Codex),

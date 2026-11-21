@@ -59,3 +59,40 @@ export const cancelSubscriptionSignIn = (state: string) =>
   apiClient.delete<void>(`/subscription-accounts/sign-ins/${encodeURIComponent(state)}`);
 export const disconnectSubscriptionAccount = (name: string) =>
   apiClient.delete<void>(`/subscription-accounts/${encodeURIComponent(name)}`);
+
+/** The vendor mark each sign-in wears; Devin has none and gets the monogram. */
+export const SUBSCRIPTION_MARK: Readonly<Record<SubscriptionProvider, string>> = {
+  claude: "anthropic",
+  codex: "openai",
+  antigravity: "google",
+  xai: "xai",
+  kimi: "moonshotai",
+  "kimi-ai": "moonshotai",
+  devin: "devin",
+  meta: "meta",
+};
+
+/** Accounts CLIProxyAPI files under another provider name than the sign-in's. */
+const FILED_AS: Readonly<Partial<Record<SubscriptionProvider, readonly string[]>>> = {
+  claude: ["claude", "anthropic"],
+  codex: ["codex", "openai"],
+  antigravity: ["antigravity", "gemini"],
+};
+
+export function subscriptionBelongsTo(
+  account: SubscriptionAccount,
+  provider: SubscriptionProvider,
+): boolean {
+  return (FILED_AS[provider] ?? [provider]).includes(account.provider.toLowerCase());
+}
+
+export function subscriptionChoice(provider: SubscriptionProvider): string {
+  return `subscription:${provider}`;
+}
+
+export function subscriptionFromChoice(choice: string): SubscriptionProvider | undefined {
+  return SUBSCRIPTION_PROVIDERS.find((provider) => subscriptionChoice(provider) === choice);
+}
+
+export const listSubscriptionAccountModels = (name: string) =>
+  apiClient.get<string[]>(`/subscription-accounts/${encodeURIComponent(name)}/models`);

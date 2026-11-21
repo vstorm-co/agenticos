@@ -31,6 +31,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- The model picker lists subscriptions by familiar provider names, connects accounts inline and reads each account’s own model catalog. Organization API keys and advanced custom endpoints stay separate. Capabilities follow task-based groups with enabled and recommended entries first; installed agents are grouped under delegation.
+
 - Add isolated Cursor and Grok CLI API-key templates, native account controls for Cursor, Grok, Kimi, Devin and Vibe, and process-only model selection for Vibe, Kimi, Qwen and Devin. Account changes stop affected runtimes before replacing credentials; launch models must be acknowledged before inference.
 
 - Sign in to your own Claude, ChatGPT, Antigravity, Grok, Kimi, Devin and Meta AI subscriptions under Settings → Profile, and run models on the new **Subscription accounts** provider with them. A bundled `subscription-gateway` service runs a separate CLIProxyAPI process for each person in each organization, only the person's own chats spend their accounts, and leaving an organization deletes the sign-ins.

@@ -1,5 +1,5 @@
 ---
-source_sha: "b8c1be53f80f"
+source_sha: "48eead872cf1"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -22,14 +22,9 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
     página. El Builder dibuja su selector y sus formularios de configuración a
     partir de esa respuesta. Si ambos se contradicen, la API tiene razón.
 
-El Builder nombra cada capability en el idioma de la consola y la explica con
-palabras sencillas: qué le permite hacer al agent, dos o tres ejemplos de uso, qué
-necesita y qué no hace nunca. La consola no tiene traducción al español, así que
-allí se ven los nombres en inglés que da la tabla de la versión inglesa. Cinco
-capabilities que solo ajustan cómo se lleva un run - conversaciones largas,
-imágenes fuera del historial, recordatorio de instrucciones, límites de resultados
-de herramientas y búsqueda de herramientas - quedan plegadas bajo **Advanced**
-hasta que alguien abre el grupo, busca o activa una de ellas.
+El Builder explica las capabilities en el idioma de la consola y las agrupa por tareas: trabajo diario, conocimiento y memoria, investigación web, resultados, delegación, automatización y canales. En cada grupo aparecen primero las capabilities activadas y después las recomendadas. Los ajustes avanzados del run quedan plegados al final y se abren al buscar. Estos grupos de la interfaz no cambian las categorías del registro ni los identificadores guardados.
+
+**Delegate to agents** contiene subagentes, **Claude Code & Codex** (`coding_agent`) y **Other installed agents** (`external_acp`). Delegan tareas a otro harness; elegir un modelo de suscripción conserva el runtime de Pydantic AI y las herramientas de AgenticOS. Coding Agent sigue activado en la plantilla predeterminada de AgenticOS.
 
 En los ajustes de una capability, los límites, la vida de la caché, los prompts y
 el resto del ajuste fino quedan plegados en **Ajustes avanzados**, que se abren

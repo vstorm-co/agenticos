@@ -1,5 +1,5 @@
 ---
-source_sha: "4d830cf0d6da"
+source_sha: "990f03fc2f6a"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -431,6 +431,10 @@ Klucz planu nie jest zamienny z kluczem zwykłego API rozliczanego według użyc
 Przed wczytaniem modeli wybierz klucz z sejfu i potwierdź adres docelowy. Własny katalog korzysta tylko z tego klucza i endpointu; brak listy pozwala wpisać model ręcznie, bez zastępowania jej katalogiem zwykłego API. Szacunki budżetu AgenticOS nie określają pozostałego limitu subskrypcji.
 
 ### Konta subskrypcyjne { #subscription-accounts }
+
+W edytorze agenta i selektorze modeli czatu zacznij od **Twoje subskrypcje**, wybierz rozpoznawalnego dostawcę, np. **Claude Code (Pro, Max)** lub **ChatGPT (Codex)**, i kliknij **Połącz**. Logowanie otwiera się w tym miejscu i wraca do selektora; lista modeli pochodzi z połączonych kont wybranego dostawcy, bez zgadywania na podstawie nazw modeli. Niedostępne konta oferują ponowne logowanie. Kontami nadal możesz zarządzać i rozłączać je w profilu. Klucze API organizacji mają osobną grupę; ręcznie konfigurowane gatewaye i endpointy znajdziesz w **Zaawansowane / własny endpoint**. Dotychczasowe profile `subscription_accounts` i `cliproxyapi` zachowują swoje identyfikatory API.
+
+Modele subskrypcji korzystają z instrukcji i narzędzi AgenticOS w runtime Pydantic AI. Nie uruchamiają Claude Code ani innego harnessu programistycznego. W Capabilities grupa **Delegowanie do agentów** łączy subagentów, **Claude Code i Codex** oraz **Inne zainstalowane agenty**. Coding Agent pozostaje włączony w domyślnym szablonie AgenticOS. Kolejność grup to codzienna praca, wiedza, research, wyniki, delegowanie, automatyzacja i kanały, a zaawansowane ustawienia są zwinięte na końcu. W każdej grupie najpierw są włączone capability, potem zalecane.
 
 Osoby logują się do własnych subskrypcji z konsoli, a modele dostawcy
 **Subscription accounts** działają na nich. W **Ustawienia → Profil → Konta

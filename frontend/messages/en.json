@@ -1164,7 +1164,6 @@
     "observationRequired": "Select the model that decides whether the agent should join.",
     "observationSaveFailed": "Could not save. Your edits remain in this form; try again.",
     "observationSave": "Save participation settings",
-    "subscriptionAccountsNote": "Each person runs these models on their own accounts. Connect yours in <link>Settings → Profile</link>.",
     "connectionSettings": "Connection settings · {provider} · {endpoint}",
     "customEndpoint": "Custom endpoint"
   },
@@ -6238,7 +6237,7 @@
       },
       "agent-model-credentials": {
         "title": "Who supplies the model key",
-        "body": "Use the organization key, or require each signed-in chat user to connect a private vault key. The model and endpoint stay fixed; channels and automatic runs require the organization key."
+        "body": "Choose your subscription and connect it here, or use an organization API key. Custom gateways and endpoints are under advanced connections. Subscription models keep AgenticOS instructions and tools; installed agents are configured separately under delegation."
       }
     },
     "chooseLanguage": "Language",
@@ -13879,7 +13878,11 @@
     "reasoning": "Thinking and planning",
     "research": "The web",
     "utility": "Everyday",
-    "advanced": "Advanced"
+    "advanced": "Advanced",
+    "basics": "Everyday work",
+    "outputs": "Create and present",
+    "delegation": "Delegate to agents",
+    "automation": "Automation"
   },
   "audience": {
     "label": "Who can use it",
@@ -17804,7 +17807,7 @@
   },
   "subscriptionAccounts": {
     "title": "Subscription accounts",
-    "description": "Sign in to your own Claude, ChatGPT, Antigravity, Grok, Kimi and other subscriptions. Models on the \"Subscription accounts\" provider then run on your accounts whenever you are the one chatting - never on anybody else's, and never in background work.",
+    "description": "Connect your own subscriptions here or directly in the model picker. AgenticOS uses your accounts only when you are chatting, never for somebody else or for background work.",
     "risk": "Providers may limit how a subscription is used outside their own apps and can suspend an account for it. You connect at your own risk.",
     "notConnected": "Not connected",
     "unavailable": "Unavailable",
@@ -17825,7 +17828,7 @@
     "finish": "Finish",
     "connected": "{name} is connected",
     "providers": {
-      "claude": "Claude (Pro, Max)",
+      "claude": "Claude Code (Pro, Max)",
       "codex": "ChatGPT (Codex)",
       "antigravity": "Google Antigravity",
       "xai": "Grok (xAI)",
@@ -21357,5 +21360,33 @@
     "maintenanceEndHint": "Optional. Time in {zone}, stored in UTC. Informational only; an administrator must end maintenance.",
     "maintenanceEndInformational": "This is an estimate. Access returns when an administrator ends maintenance.",
     "invalidTime": "Choose a valid local date and time."
+  },
+  "modelSources": {
+    "subscriptions": "Your subscriptions",
+    "organization": "Organization models / API keys",
+    "custom": "Advanced / custom endpoint",
+    "gateway": "Subscription gateway (custom endpoint)",
+    "allSubscriptions": "All connected subscriptions",
+    "subscriptionHint": "Use models from your own subscription with AgenticOS instructions and tools. This does not run the provider’s coding agent. Your account is used only in your own interactive chats.",
+    "unavailable": "Subscription sign-in is not enabled on this deployment. Ask an administrator to enable it.",
+    "loading": "Loading your accounts…",
+    "connected": "Connected",
+    "reconnect": "Reconnect",
+    "loadFailed": "Your accounts or models could not be loaded",
+    "model": "Model",
+    "chooseModel": "Choose a model from this account",
+    "useModel": "Use this model",
+    "advanced": "Show advanced connections",
+    "noModels": "This account has not advertised any models yet. Retry after sign-in finishes."
+  },
+  "agentDelegation": {
+    "coding_agent": {
+      "name": "Claude Code & Codex",
+      "description": "Delegate coding tasks to Claude Code or Codex in a workspace. Your main AgenticOS agent keeps the conversation."
+    },
+    "external_acp": {
+      "name": "Other installed agents",
+      "description": "Delegate tasks to Cursor, Qwen Code, Kimi, Hermes or another registered agent. Connect and configure the installed agent separately."
+    }
   }
 }

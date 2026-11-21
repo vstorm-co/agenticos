@@ -60,6 +60,10 @@ class _Models(_Answer):
     data: list[_Model]
 
 
+class _AccountModels(_Answer):
+    items: list[_Model]
+
+
 class SubscriptionGateway:
     """One deployment's gateway. Refusals keep the gateway's own, already generic, message."""
 
@@ -144,6 +148,12 @@ class SubscriptionGateway:
     async def models(self, scope: str) -> list[str]:
         listed = await self._call(TypeAdapter(_Models), "GET", f"/scopes/{scope}/v1/models")
         return [model.id for model in listed.data]
+
+    async def account_models(self, scope: str, name: str) -> list[str]:
+        listed = await self._call(
+            TypeAdapter(_AccountModels), "GET", f"/scopes/{scope}/accounts/{name}/models"
+        )
+        return [model.id for model in listed.items]
 
     async def wipe(self, scope: str) -> None:
         await self._call(TypeAdapter(JsonValue), "DELETE", f"/scopes/{scope}")

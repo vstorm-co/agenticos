@@ -7880,7 +7880,7 @@
       },
       "agent-model-credentials": {
         "title": "Kto podaje klucz do modelu",
-        "body": "Użyj klucza organizacji lub wymagaj prywatnego klucza w vaulcie od każdego zalogowanego użytkownika czatu. Model i endpoint pozostają stałe; kanały i automatyczne uruchomienia wymagają klucza organizacji."
+        "body": "Wybierz swoją subskrypcję i połącz ją tutaj albo użyj klucza API organizacji. Własne gatewaye i endpointy znajdziesz w zaawansowanych połączeniach. Modele subskrypcji korzystają z instrukcji i narzędzi AgenticOS; zainstalowane agenty konfigurujesz osobno w delegowaniu."
       }
     },
     "chooseLanguage": "Język",
@@ -10454,7 +10454,6 @@
     "observationRequired": "Wybierz model podejmujący decyzję o dołączeniu do rozmowy.",
     "observationSaveFailed": "Nie udało się zapisać. Zmiany pozostały w formularzu; spróbuj ponownie.",
     "observationSave": "Zapisz ustawienia uczestnictwa",
-    "subscriptionAccountsNote": "Każda osoba uruchamia te modele na własnych kontach. Połącz swoje w <link>Ustawienia → Profil</link>.",
     "connectionSettings": "Ustawienia połączenia · {provider} · {endpoint}",
     "customEndpoint": "Własny endpoint"
   },
@@ -14025,7 +14024,11 @@
     "reasoning": "Myślenie i planowanie",
     "research": "Internet",
     "utility": "Na co dzień",
-    "advanced": "Zaawansowane"
+    "advanced": "Zaawansowane",
+    "basics": "Codzienna praca",
+    "outputs": "Tworzenie i prezentacja",
+    "delegation": "Delegowanie do agentów",
+    "automation": "Automatyzacja"
   },
   "audience": {
     "label": "Kto może z tego korzystać",
@@ -17577,7 +17580,7 @@
   },
   "subscriptionAccounts": {
     "title": "Konta subskrypcyjne",
-    "description": "Zaloguj się do swoich subskrypcji Claude, ChatGPT, Antigravity, Grok, Kimi i innych. Modele dostawcy „Subscription accounts” działają wtedy na Twoich kontach, gdy to Ty rozmawiasz - nigdy na cudzych i nigdy w pracy w tle.",
+    "description": "Podłącz własne subskrypcje tutaj lub bezpośrednio w selektorze modeli. AgenticOS korzysta z Twoich kont tylko podczas Twoich rozmów, nigdy dla innych osób ani pracy w tle.",
     "risk": "Dostawcy mogą ograniczać używanie subskrypcji poza własnymi aplikacjami i zawiesić za to konto. Łączysz na własne ryzyko.",
     "notConnected": "Niepołączone",
     "unavailable": "Niedostępne",
@@ -17598,7 +17601,7 @@
     "finish": "Zakończ",
     "connected": "Połączono: {name}",
     "providers": {
-      "claude": "Claude (Pro, Max)",
+      "claude": "Claude Code (Pro, Max)",
       "codex": "ChatGPT (Codex)",
       "antigravity": "Google Antigravity",
       "xai": "Grok (xAI)",
@@ -21130,5 +21133,33 @@
     "maintenanceEndHint": "Opcjonalne. Czas w strefie {zone}, zapisywany w UTC. Wyłącznie informacja — administrator musi zakończyć tryb konserwacji.",
     "maintenanceEndInformational": "To przewidywany termin. Dostęp wróci, gdy administrator zakończy tryb konserwacji.",
     "invalidTime": "Wybierz prawidłową lokalną datę i godzinę."
+  },
+  "modelSources": {
+    "subscriptions": "Twoje subskrypcje",
+    "organization": "Modele organizacji / klucze API",
+    "custom": "Zaawansowane / własny endpoint",
+    "gateway": "Gateway subskrypcji (własny endpoint)",
+    "allSubscriptions": "Wszystkie połączone subskrypcje",
+    "subscriptionHint": "Korzystaj z modeli swojej subskrypcji z instrukcjami i narzędziami AgenticOS. To nie uruchamia agenta programistycznego dostawcy. Konto jest używane tylko w Twoich własnych rozmowach.",
+    "unavailable": "Logowanie do subskrypcji nie jest włączone w tej instalacji. Poproś administratora o jego włączenie.",
+    "loading": "Wczytywanie Twoich kont…",
+    "connected": "Połączono",
+    "reconnect": "Zaloguj ponownie",
+    "loadFailed": "Nie udało się wczytać kont lub modeli",
+    "model": "Model",
+    "chooseModel": "Wybierz model dostępny dla tego konta",
+    "useModel": "Użyj tego modelu",
+    "advanced": "Pokaż zaawansowane połączenia",
+    "noModels": "To konto nie udostępniło jeszcze listy modeli. Spróbuj ponownie po zakończeniu logowania."
+  },
+  "agentDelegation": {
+    "coding_agent": {
+      "name": "Claude Code i Codex",
+      "description": "Deleguj zadania programistyczne do Claude Code lub Codex w workspace. Główny agent AgenticOS nadal prowadzi rozmowę."
+    },
+    "external_acp": {
+      "name": "Inne zainstalowane agenty",
+      "description": "Deleguj zadania do Cursor, Qwen Code, Kimi, Hermes lub innego zarejestrowanego agenta. Zainstalowanego agenta podłączasz i konfigurujesz osobno."
+    }
   }
 }

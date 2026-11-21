@@ -89,6 +89,13 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "2")
             self.end_headers()
             self.wfile.write(b"ok")
+        elif path == "/credentials/models":
+            self._send(
+                200,
+                {"models": [{"id": "claude-via-google"}]}
+                if query.get("name") == "antigravity-me.json"
+                else {"models": "invalid"},
+            )
         elif path == "/credentials" and method == "GET":
             self._send(
                 200,

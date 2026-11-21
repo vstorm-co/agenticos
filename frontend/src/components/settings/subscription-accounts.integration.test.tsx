@@ -69,7 +69,7 @@ it("lists each sign-in with the accounts filed under it, and the risk", async ()
   const antigravity = await rowOf("Google Antigravity");
   expect(await antigravity.findByText("me@example.com")).toBeInTheDocument();
   expect(antigravity.getByRole("button", { name: "Add account" })).toBeInTheDocument();
-  const claude = await rowOf("Claude (Pro, Max)");
+  const claude = await rowOf("Claude Code (Pro, Max)");
   expect(claude.getByText("Not connected")).toBeInTheDocument();
   expect(screen.getByRole("note")).toHaveTextContent("at your own risk");
 });
@@ -118,7 +118,7 @@ it("finishes a browser sign-in with the pasted address, and cancels an abandoned
       : undefined,
   );
   mount();
-  const claude = await rowOf("Claude (Pro, Max)");
+  const claude = await rowOf("Claude Code (Pro, Max)");
   await userEvent.click(claude.getByRole("button", { name: "Connect" }));
   const dialog = await screen.findByRole("dialog");
   const field = await within(dialog).findByLabelText("Address your browser ended on");

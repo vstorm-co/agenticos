@@ -133,6 +133,10 @@ class SubscriptionAccountService:
     async def models(self, ctx: AuthContext) -> list[str]:
         return await _gateway().models(self._scope(ctx))
 
+    async def account_models(self, ctx: AuthContext, name: str) -> list[str]:
+        """Models advertised by this account in the caller's own gateway scope."""
+        return await _gateway().account_models(self._scope(ctx), name)
+
     async def start_login(self, ctx: AuthContext, provider: GatewayProvider) -> LoginStarted:
         started = await _gateway().start_login(self._scope(ctx), provider)
         await record_audit(

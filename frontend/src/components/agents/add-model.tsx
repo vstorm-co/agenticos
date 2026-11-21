@@ -6,6 +6,9 @@ import { Check, KeyRound, Plus, Save } from "lucide-react";
 
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import { hasKey, LISTED_AT_ENDPOINT, LISTED_WITH_KEY, runsAgents } from "@/lib/model-profiles";
+import { ModelSourceSelect } from "./model-source-select";
+import { SubscriptionModelForm } from "./subscription-model-form";
+import { subscriptionFromChoice } from "@/lib/subscription-accounts-api";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
 import { InlineSecret } from "@/components/vault/inline-secret";
@@ -31,8 +34,6 @@ import {
 } from "@/hooks";
 import { KEYED_LISTINGS, KEYED_PLAN_ENDPOINTS } from "@/hooks/use-model-providers";
 import { Perm } from "@/types/permissions";
-import Link from "next/link";
-import { ROUTES } from "@/lib/constants";
 import type { ModelApi, ModelProfile, ModelRegion, ProviderInfo } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
@@ -301,6 +302,16 @@ export function AddModel({
   const [failure, setFailure] = useState(NO_FAILURE);
   const [naming, setNaming] = useState(false);
 
+  const chooseSource = (value: string) => {
+    setPickedProvider(value);
+    setSecretId("");
+    setModel("");
+    setBaseUrl("");
+    setPickedApi(null);
+    setPickedRegion(null);
+    setFailure(NO_FAILURE);
+  };
+
   const providers: SecretPurpose[] = [
     ...purposes.filter(
       (entry) =>
@@ -341,8 +352,14 @@ export function AddModel({
    * `pickedProvider` wins and this stops being consulted.
    */
   const providerId =
-    fixedProviderId ?? pickedProvider ?? soleKeyedProvider(providers, secrets) ?? "";
-  const provider = providers.find((entry) => entry.id === providerId);
+    (fixedProviderId === "subscription_accounts"
+      ? (pickedProvider ?? fixedProviderId)
+      : (fixedProviderId ?? pickedProvider)) ??
+    soleKeyedProvider(providers, secrets) ??
+    "";
+  const found = providers.find((entry) => entry.id === providerId);
+  const provider =
+    found?.id === "cliproxyapi" ? { ...found, label: tRoot("modelSources.gateway") } : found;
   // The purposes list says which providers a *key* can be stored for; only the
   // provider catalog knows whether one accepts an endpoint and whether it can run
   // without a key at all. Both facts are the API's to state - a hardcoded list
@@ -417,7 +434,9 @@ export function AddModel({
   } = useProviderModels(
     KEYED_PLAN_ENDPOINTS.includes(providerId) && manualDiscovery && !confirmedGateway
       ? ""
-      : providerId,
+      : subscriptionFromChoice(providerId)
+        ? ""
+        : providerId,
     [...LISTED_AT_ENDPOINT, ...KEYED_LISTINGS].includes(providerId) ? listingEndpoint : undefined,
     [...LISTED_WITH_KEY, ...KEYED_LISTINGS, "openai_chatgpt"].includes(providerId)
       ? chosenKey || undefined
@@ -631,6 +650,36 @@ export function AddModel({
     }
   };
 
+  const subscription = subscriptionFromChoice(providerId);
+  if (subscription !== undefined || personal)
+    return (
+      <div className="border-border bg-muted/20 space-y-4 rounded-xl border p-4">
+        {(fixedProviderId === undefined || fixedProviderId === "subscription_accounts") && (
+          <FormField htmlFor={`${fieldId}-add-model-provider`} label={t("provider")}>
+            <ModelSourceSelect
+              id={`${fieldId}-add-model-provider`}
+              value={providerId}
+              providers={providers}
+              subscriptions
+              disabled={disabled}
+              onChange={chooseSource}
+            />
+          </FormField>
+        )}
+        {subscription !== undefined ? (
+          <SubscriptionModelForm
+            key={subscription}
+            provider={subscription}
+            disabled={disabled}
+            onCreated={onCreated}
+            onPendingChange={onCreationPendingChange}
+          />
+        ) : (
+          <p className="text-muted-foreground text-xs">{tRoot("modelSources.subscriptionHint")}</p>
+        )}
+      </div>
+    );
+
   return (
     <div className="border-border bg-muted/20 space-y-4 rounded-xl border p-4">
       <div
@@ -642,47 +691,16 @@ export function AddModel({
       >
         {fixedProviderId === undefined && (
           <FormField htmlFor={`${fieldId}-add-model-provider`} label={t("provider")}>
-            <Select
+            <ModelSourceSelect
+              id={`${fieldId}-add-model-provider`}
               value={providerId}
-              onValueChange={(value) => {
-                setPickedProvider(value);
-                setSecretId("");
-                setModel("");
-                setBaseUrl("");
-                setPickedApi(null);
-                setPickedRegion(null);
-                setFailure(NO_FAILURE);
-              }}
-            >
-              <SelectTrigger id={`${fieldId}-add-model-provider`} className="h-10">
-                <SelectValue placeholder={t("chooseProvider")} />
-              </SelectTrigger>
-              <SelectContent className="max-h-80">
-                {providers.map((entry) => {
-                  const keyed = secrets.some((secret) => secret.purpose === entry.id);
-                  return (
-                    <SelectItem
-                      key={entry.id}
-                      value={entry.id}
-                      // The row draws a mark and a mark has a `<title>`, which
-                      // counts as the item's text: without this, type-to-search
-                      // matches the brand rather than the provider's name.
-                      textValue={entry.label}
-                      // Outside the row on purpose: the trigger mirrors an item's
-                      // text, and a tick there would read as "selected" rather
-                      // than "this provider already has a key".
-                      trailing={
-                        keyed && (
-                          <Check className="text-muted-foreground ml-auto h-3.5 w-3.5 shrink-0" />
-                        )
-                      }
-                    >
-                      <ProviderRow provider={entry.id} name={entry.label} />
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+              providers={providers}
+              subscriptions={
+                purpose !== "decision" && catalog.some((entry) => entry.personal_gateway)
+              }
+              disabled={disabled}
+              onChange={chooseSource}
+            />
           </FormField>
         )}
 
@@ -716,21 +734,6 @@ export function AddModel({
           />
         </FormField>
       </div>
-
-      {provider !== undefined && personal && (
-        <p role="note" className="text-muted-foreground text-xs">
-          {t.rich("subscriptionAccountsNote", {
-            link: (chunks) => (
-              <Link
-                href={ROUTES.SETTINGS_PROFILE}
-                className="text-foreground underline underline-offset-4"
-              >
-                {chunks}
-              </Link>
-            ),
-          })}
-        </p>
-      )}
 
       <ConnectionSettings
         collapsed={collapseConnection && selected !== undefined}

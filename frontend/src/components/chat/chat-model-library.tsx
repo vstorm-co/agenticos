@@ -13,11 +13,14 @@ import type { ModelProfile } from "@/types/providers";
 import { modelIdIsWellFormed } from "@/components/agents/add-model";
 import { catalogModelName, modelName } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
 interface LibraryProvider {
   id: string;
   label: string;
   connected: boolean | null;
+  group?: "subscriptions" | "organization" | "custom";
+  mark?: string;
 }
 interface ChatModelLibraryProps {
   providers: LibraryProvider[];
@@ -46,6 +49,7 @@ interface ChatModelLibraryProps {
 export function ChatModelLibrary(props: ChatModelLibraryProps) {
   const t = useTranslations("chat.modelPicker");
   const vault = useTranslations("vault");
+  const sources = useTranslations("modelSources");
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState("catalog");
   const hasCredentials = Boolean(props.credentialPicker || props.credentialForm);
@@ -71,6 +75,10 @@ export function ChatModelLibrary(props: ChatModelLibraryProps) {
   const sorted = [...props.providers].sort(
     (a, b) => Number(b.connected) - Number(a.connected) || a.label.localeCompare(b.label),
   );
+  const inGroup = (entry: LibraryProvider, group: string | boolean | null) =>
+    group === "subscriptions" || group === "custom"
+      ? entry.group === group
+      : entry.group !== "subscriptions" && entry.group !== "custom" && entry.connected === group;
   const row = (
     id: string,
     model: string,
@@ -124,51 +132,63 @@ export function ChatModelLibrary(props: ChatModelLibraryProps) {
             ))}
           </div>
         ) : (
-          [true, false, null].map((connected) => (
-            <div key={String(connected)} className="mb-3">
-              {sorted.some((entry) => entry.connected === connected) && (
-                <p className="text-muted-foreground px-2 py-2 text-[10px] font-medium">
-                  {t(
-                    connected === null
-                      ? "provider"
-                      : connected
-                        ? "connectedProviders"
-                        : "providersWithoutKey",
-                  )}
-                </p>
-              )}
-              {sorted
-                .filter((entry) => entry.connected === connected)
-                .map((entry) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    aria-pressed={props.providerId === entry.id}
-                    onClick={() => {
-                      setQuery("");
-                      setTab("catalog");
-                      props.onProviderChange(entry.id);
-                    }}
-                    className={cn(
-                      CONTROL_FOCUS,
-                      "touch:min-h-11 flex min-h-10 w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs",
-                      props.providerId === entry.id
-                        ? "bg-control-active font-medium"
-                        : "text-muted-foreground hover:bg-muted/70",
-                    )}
-                  >
-                    <ProviderRow
-                      wrap
-                      provider={entry.id}
-                      name={entry.label.charAt(0).toLocaleUpperCase() + entry.label.slice(1)}
-                    />
-                    {connected === false && (
-                      <KeyRound className="ml-auto size-3 shrink-0 opacity-50" aria-hidden />
-                    )}
-                  </button>
-                ))}
-            </div>
-          ))
+          ["subscriptions", true, false, null, "custom"]
+            .filter((group) => sorted.some((entry) => inGroup(entry, group)))
+            .map((connected) => (
+              <ProviderGroup
+                key={String(connected)}
+                advanced={connected === "custom"}
+                active={
+                  connected === "custom" &&
+                  sorted.some((entry) => entry.group === "custom" && entry.id === props.providerId)
+                }
+                title={sources("custom")}
+              >
+                {connected !== "custom" && (
+                  <p className="text-muted-foreground px-2 py-2 text-[10px] font-medium">
+                    {connected === "subscriptions"
+                      ? sources(connected)
+                      : t(
+                          connected === null
+                            ? "provider"
+                            : connected
+                              ? "connectedProviders"
+                              : "providersWithoutKey",
+                        )}
+                  </p>
+                )}
+                {sorted
+                  .filter((entry) => inGroup(entry, connected))
+                  .map((entry) => (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      aria-pressed={props.providerId === entry.id}
+                      onClick={() => {
+                        setQuery("");
+                        setTab("catalog");
+                        props.onProviderChange(entry.id);
+                      }}
+                      className={cn(
+                        CONTROL_FOCUS,
+                        "touch:min-h-11 flex min-h-10 w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs",
+                        props.providerId === entry.id
+                          ? "bg-control-active font-medium"
+                          : "text-muted-foreground hover:bg-muted/70",
+                      )}
+                    >
+                      <ProviderRow
+                        wrap
+                        provider={entry.mark ?? entry.id}
+                        name={entry.label.charAt(0).toLocaleUpperCase() + entry.label.slice(1)}
+                      />
+                      {connected === false && (
+                        <KeyRound className="ml-auto size-3 shrink-0 opacity-50" aria-hidden />
+                      )}
+                    </button>
+                  ))}
+              </ProviderGroup>
+            ))
         )}
       </div>
       <div className="flex min-w-0 flex-col self-start">
@@ -301,5 +321,26 @@ export function ChatModelLibrary(props: ChatModelLibraryProps) {
         )}
       </div>
     </div>
+  );
+}
+
+function ProviderGroup({
+  advanced,
+  active,
+  title,
+  children,
+}: {
+  advanced: boolean;
+  active: boolean;
+  title: string;
+  children: ReactNode;
+}) {
+  return advanced ? (
+    <NativeDisclosure className="mb-3" open={active || undefined}>
+      <summary className="text-muted-foreground cursor-pointer px-2 py-2 text-xs">{title}</summary>
+      {children}
+    </NativeDisclosure>
+  ) : (
+    <div className="mb-3">{children}</div>
   );
 }

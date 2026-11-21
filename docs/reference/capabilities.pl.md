@@ -1,5 +1,5 @@
 ---
-source_sha: "b8c1be53f80f"
+source_sha: "48eead872cf1"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -23,13 +23,9 @@ obejmują też rzeczy, które nie są narzędziami w ogóle — dlatego `thinkin
     strony. Builder rysuje swój wybór i formularze konfiguracji z tej odpowiedzi.
     Jeśli oba źródła się różnią, rację ma API.
 
-Builder nazywa każdą capability w języku konsoli i objaśnia ją prostymi słowami:
-co pozwala zrobić agentowi, dwa lub trzy przykłady użycia, czego wymaga i czego
-nigdy nie robi. Poniższe nazwy są polskimi odpowiednikami nazw z konsoli. Pięć
-capability, które dostrajają sposób prowadzenia runu - długie rozmowy, odciążenie
-z obrazów, przypomnienia instrukcji, limity wyników narzędzi i wyszukiwanie
-narzędzi - jest zwiniętych w grupie **Zaawansowane**, dopóki ktoś jej nie otworzy,
-nie zacznie szukać albo nie włączy jednej z nich.
+Builder wyjaśnia capability w języku konsoli i grupuje je według zadań: codzienna praca, wiedza i pamięć, research w sieci, wyniki, delegowanie, automatyzacja i kanały. W każdej grupie najpierw są włączone capability, potem zalecane. Zaawansowane ustawienia runu są zwinięte na końcu i otwierają się podczas wyszukiwania. Te grupy UI nie zmieniają kategorii rejestru ani zapisanych identyfikatorów capability.
+
+**Delegowanie do agentów** obejmuje subagentów, **Claude Code i Codex** (`coding_agent`) oraz **Inne zainstalowane agenty** (`external_acp`). Przekazują one zadania do innego harnessu; wybór modelu subskrypcji zachowuje runtime Pydantic AI i narzędzia AgenticOS. Coding Agent pozostaje włączony w domyślnym szablonie AgenticOS.
 
 W ustawieniach capability limity, czasy życia cache, prompty i inne strojenie są
 zwinięte pod **Ustawieniami zaawansowanymi**, które otwierają się same, gdy
