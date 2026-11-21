@@ -487,8 +487,12 @@ describe("a workflow's settings", () => {
     const client = new QueryClient();
     const detail = qk.workflows.detail(WORKFLOW.id);
     const list = qk.workflows.list();
+    const catalog = qk.workflows.nodeCatalog();
+    const versions = qk.workflows.versions(WORKFLOW.id);
     client.setQueryData(detail, WORKFLOW);
     client.setQueryData(list, [WORKFLOW]);
+    client.setQueryData(catalog, []);
+    client.setQueryData(versions, []);
 
     let sharing = SHARING;
     vi.mocked(apiClient.get).mockImplementation(async () => sharing);
@@ -513,9 +517,11 @@ describe("a workflow's settings", () => {
     }
 
     await chooseAccess("Only people with access");
-    expect(await screen.findByText(/whose role already grants access/)).toBeInTheDocument();
+    expect(await screen.findByText(/whose role can view all workflows/)).toBeInTheDocument();
     expect(client.getQueryState(detail)?.isInvalidated).toBe(true);
     expect(client.getQueryState(list)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(catalog)?.isInvalidated).toBe(false);
+    expect(client.getQueryState(versions)?.isInvalidated).toBe(false);
 
     await chooseAccess("Everyone in the organization");
     expect(

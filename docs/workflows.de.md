@@ -1,5 +1,5 @@
 ---
-source_sha: "3102c1124f17"
+source_sha: "91d1d5441580"
 ---
 
 # Workflows { #workflows }
@@ -22,7 +22,7 @@ abspielt; der Editor selbst hat keine Führung.
 
 **New workflow** fragt nach einem Namen und dem Zugriff, mit derselben Auswahl wie bei Agenten: alle, nur Sie oder ausgewählte Personen und Abteilungen. Wählen Sie den Startauslöser, ergänzen Sie optional Beschreibung und Tags und klicken Sie auf **Create**. Die Auswahl eines Auslösers erstellt noch keinen Workflow. **Workflow templates** öffnet eine separate Kategoriengalerie; eine Vorlage füllt Name und Beschreibung im Erstellungsformular aus.
 
-Um den Zugriff auf einen bestehenden Workflow zu ändern, öffnen Sie ihn und wählen Sie **More → Settings → Access**. Wählen Sie unter **General access** entweder **Only people with access** oder **Everyone in the organization**. Wenn Sie den Workflow bearbeiten dürfen, können Sie hier auch Personen und Gruppen Zugriff gewähren oder entziehen. Beim Wechsel zu privat bleiben bestehende Freigaben und rollenbasierte Zugriffe erhalten. Die Freigabe gilt auch für bisherige Runs; sie pausiert keine Zeitpläne und deaktiviert keine Webhooks.
+Um den Zugriff auf einen bestehenden Workflow zu ändern, öffnen Sie ihn und wählen Sie **More → Settings → Access**. Wählen Sie unter **General access** entweder **Only people with access** oder **Everyone in the organization**. Wenn Sie den Workflow bearbeiten dürfen, können Sie hier auch Personen und Gruppen Zugriff gewähren oder entziehen. Beim Wechsel zu privat bleiben ausdrückliche Freigaben bestehen, aber der Zugriff über die organisationsweite Sichtbarkeit entfällt. Rollen mit Zugriff auf alle Workflows behalten ihre Berechtigungen. Die Freigabe gilt auch für bisherige Runs; sie pausiert keine Zeitpläne und deaktiviert keine Webhooks.
 
 Der Katalog zeigt Karten und Suche in einem gemeinsamen Panel. **Filters** öffnet Status, Tags und Sortierung und zählt aktive Filter. Bei Ladefehlern erscheint **Retry** statt eines leeren Katalogs. Der Import beginnt mit der Dateiauswahl; **Or paste the file's JSON here** öffnet ein beschriftetes Textfeld.
 

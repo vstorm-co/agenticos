@@ -9048,7 +9048,7 @@
     "visibilityTeam": "Team (wird nicht mehr angeboten)",
     "visibilityTeamReaches": "Jeder, dessen Rolle {resource, select, agent {Team-Agents} skill {Team-Skills} collection {Team-Collections} artifact {Team-Apps} dataset {Team-Datasets} context {Team-Kontextdateien} mcp_connection {Team-MCP-Server} project {Projekte} workflow {Team-Workflows} other {Team-Secrets}} erreicht. Diese Organisation hat keine Teams – wählen Sie eine der beiden Optionen darüber.",
     "visibilityUpdated": "Sichtbarkeit aktualisiert",
-    "workflowPrivateReaches": "Der Eigentümer, die oben aufgeführten Personen und Gruppen sowie alle, deren Rolle bereits Zugriff gewährt, können diesen Workflow weiterhin sehen.",
+    "workflowPrivateReaches": "Der Eigentümer, die oben aufgeführten Personen und Gruppen sowie alle, deren Rolle Zugriff auf alle Workflows gewährt, können diesen Workflow weiterhin sehen.",
     "workflowRuntimeNote": "Die Freigabe gilt auch für bisherige Runs. Sie pausiert keine Zeitpläne und deaktiviert keine Webhooks.",
     "groupsHeading": "Gruppen",
     "membersHeading": "Mitglieder",

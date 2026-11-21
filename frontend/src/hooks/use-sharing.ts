@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -58,12 +57,11 @@ const RESOURCE_KEYS = {
   context: qk.context.all,
   secret: qk.secrets.all,
   table: qk.tables.all,
-  workflow: qk.workflows.all,
   artifact: qk.artifacts.all,
   dataset: qk.datasets.all,
   mcp_connection: qk.mcpConnections.org,
   project: qk.projects.all,
-} as const satisfies Record<SharingResourceType, () => readonly string[]>;
+} as const satisfies Record<Exclude<SharingResourceType, "workflow">, () => readonly string[]>;
 
 /**
  * A resource type's guard may turn a widening into a request for its owner to decide
@@ -102,7 +100,7 @@ export function useSharing(
     enabled: !!resourceId,
   });
 
-  const invalidate = useCallback(async () => {
+  async function invalidate({ keepOpenPage = false } = {}) {
     const queryKey = qk.sharing.detail(resourceType, resourceId ?? "");
     // Cancel an in-flight read before invalidating: invalidateQueries dedupes
     // its refetch onto a fetch already running, so a read that began before this
@@ -111,7 +109,24 @@ export function useSharing(
     // first makes the invalidation dispatch a genuinely new, post-commit fetch.
     await queryClient.cancelQueries({ queryKey });
     await queryClient.invalidateQueries({ queryKey });
-  }, [queryClient, resourceType, resourceId]);
+
+    if (resourceType === "workflow") {
+      // Exact detail match: versions, runs and other queries are nested under it.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.workflows.list() }),
+        queryClient.invalidateQueries({
+          queryKey: qk.workflows.detail(resourceId ?? ""),
+          exact: true,
+        }),
+      ]);
+      return;
+    }
+    await queryClient.invalidateQueries({
+      queryKey: RESOURCE_KEYS[resourceType](),
+      predicate:
+        keepOpenPage && resourceType === "artifact" ? exceptOpenPage(resourceId) : undefined,
+    });
+  }
 
   // A refusal for want of consent is the dialog's to offer a way out of; the rest toast.
   const refused = (error: unknown) => {
@@ -134,9 +149,6 @@ export function useSharing(
     onSuccess: async (result) => {
       if (isDeferred(result)) return requested(result);
       await invalidate();
-      // The resource's own rows show who it reaches - an audience chip - so they
-      // are read again too, as a visibility change already has them read.
-      await queryClient.invalidateQueries({ queryKey: RESOURCE_KEYS[resourceType]() });
       toast.success(t("sharingUpdated"));
     },
     onError: refused,
@@ -152,7 +164,6 @@ export function useSharing(
         : apiClient.delete<void>(`${base}/grants/${subject.id}`),
     onSuccess: async () => {
       await invalidate();
-      await queryClient.invalidateQueries({ queryKey: RESOURCE_KEYS[resourceType]() });
       toast.success(t("accessRemoved"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
@@ -163,13 +174,9 @@ export function useSharing(
       apiClient.patch<ResourceSharing | SharingDeferred>(`${base}/visibility`, { visibility }),
     onSuccess: async (result) => {
       if (isDeferred(result)) return requested(result);
-      await invalidate();
       // An artifact open beside the panel keeps its page: who else may open it
       // changes nothing the viewer is reading.
-      await queryClient.invalidateQueries({
-        queryKey: RESOURCE_KEYS[resourceType](),
-        predicate: resourceType === "artifact" ? exceptOpenPage(resourceId) : undefined,
-      });
+      await invalidate({ keepOpenPage: true });
       toast.success(t("visibilityUpdated"));
     },
     onError: refused,

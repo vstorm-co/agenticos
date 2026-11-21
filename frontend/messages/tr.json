@@ -697,7 +697,7 @@
     "visibilityTeam": "Ekip (artık sunulmuyor)",
     "visibilityTeamReaches": "Rolü ekip {resource, select, agent {agentlarına} skill {skill'lerine} collection {koleksiyonlarına} artifact {uygulamalarına} dataset {datasetler} context {bağlam dosyalarına} mcp_connection {MCP sunucularına} project {projeler} workflow {iş akışlarına} other {gizli bilgilere}} erişim sağlayan herkes. Bu kuruluşta ekip yok - yukarıdaki iki seçenekten birini seçin.",
     "visibilityUpdated": "Görünürlük güncellendi",
-    "workflowPrivateReaches": "İş akışının sahibi, yukarıda listelenen kişiler ve gruplar ile rolü erişim sağlayan herkes bu iş akışını görmeye devam edebilir.",
+    "workflowPrivateReaches": "İş akışının sahibi, yukarıda listelenen kişiler ve gruplar ile rolü tüm iş akışlarını görüntülemeye izin veren herkes bu iş akışını görmeye devam edebilir.",
     "workflowRuntimeNote": "Paylaşım, geçmiş run’lara erişimi de belirler. Zamanlamaları duraklatmaz veya webhook’ları devre dışı bırakmaz.",
     "groupsHeading": "Gruplar",
     "membersHeading": "Üyeler",

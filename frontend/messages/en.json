@@ -9169,7 +9169,7 @@
     "visibilityTeam": "Team (no longer offered)",
     "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} project {projects} workflow {workflows} other {secrets}}. This organization has no teams - pick one of the two above.",
     "visibilityUpdated": "Visibility updated",
-    "workflowPrivateReaches": "The owner, people and groups listed above, and anyone whose role already grants access can still see this workflow.",
+    "workflowPrivateReaches": "The owner, people and groups listed above, and anyone whose role can view all workflows can still see this workflow.",
     "workflowRuntimeNote": "Sharing also controls access to past runs. It does not pause schedules or disable webhooks.",
     "groupsHeading": "Groups",
     "membersHeading": "Members",

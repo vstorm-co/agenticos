@@ -8609,7 +8609,7 @@
     "visibilityTeam": "Zespół (już nieoferowane)",
     "visibilityTeamReaches": "Każdy, czyja rola sięga zespołowych {resource, select, agent {agentów} skill {skilli} collection {kolekcji} artifact {aplikacji} dataset {datasetów} context {plików kontekstu} mcp_connection {serwerów MCP} project {projekty} workflow {workflow} other {sekretów}}. Ta organizacja nie ma zespołów - wybierz jedną z dwóch powyżej.",
     "visibilityUpdated": "Widoczność zaktualizowana",
-    "workflowPrivateReaches": "Ten workflow nadal widzą właściciel, wymienione wyżej osoby i grupy oraz wszyscy, którym dostęp daje ich rola.",
+    "workflowPrivateReaches": "Ten workflow nadal widzą właściciel, wymienione wyżej osoby i grupy oraz wszyscy, których rola pozwala przeglądać wszystkie workflow.",
     "workflowRuntimeNote": "Udostępnianie dotyczy też wcześniejszych runów. Nie wstrzymuje harmonogramów ani nie wyłącza webhooków.",
     "groupsHeading": "Grupy",
     "membersHeading": "Członkowie",
