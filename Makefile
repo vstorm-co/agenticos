@@ -1,4 +1,4 @@
-.PHONY: test-deployment ci-test-db-configure test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token subscription-gateway-token sandbox-workspace sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
+.PHONY: test-backend-shard test-backend-jobs-check test-backend-merge test-deployment ci-test-db-configure test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token subscription-gateway-token sandbox-workspace sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -540,6 +540,20 @@ test:
 	$(if $(findstring xml,$(COV_REPORT)),uv run --directory backend coverage xml -q --fail-under=0 --include="$(PLATFORM_COVERAGE)" || status=1;) \
 	uv run --directory backend coverage report --include="$(PLATFORM_COVERAGE)" || [ $$status -ne 0 ] || status=2; \
 	exit $$status
+
+# CI distributes complete files; only the merged report applies the 100% gate.
+test-backend-shard:
+	$(TEST_DB_START)
+	$(TEST_DB_ENV) uv run --directory backend python ../scripts/ci_backend_shards.py run --index $(BACKEND_SHARD)
+
+test-backend-jobs-check:
+	@test "$(TESTS)" = success
+
+test-backend-merge:
+	uv run --directory backend python ../scripts/ci_backend_shards.py check-reports
+	uv run --directory backend coverage combine coverage-data
+	uv run --directory backend coverage xml -q --fail-under=0 --include="$(PLATFORM_COVERAGE)"
+	uv run --directory backend coverage report --include="$(PLATFORM_COVERAGE)"
 
 # Fast loop while writing code — no coverage, no gate.
 test-fast:

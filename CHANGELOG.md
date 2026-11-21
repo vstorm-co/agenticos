@@ -230,6 +230,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Password reset links issued before this upgrade are invalidated. Request a new recovery email or have a deployment administrator issue a new link; new links are single-use and also expire after a password change.
 
+## [1.87.1] - 2026-11-21
+
+### Changed
+
+- Defer heavy CI on draft PRs until Ready for review, distribute backend tests
+  across four isolated jobs with the unchanged merged 100% coverage gate, and
+  adopt separate PRs with one manual daily release train and urgent hotfixes.
+
 ## [1.87.0] - 2026-11-20
 
 ### Added
@@ -22474,7 +22482,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.87.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.87.1...HEAD
+[1.87.1]: https://github.com/vstorm-co/agenticos/compare/v1.87.0...v1.87.1
 [1.87.0]: https://github.com/vstorm-co/agenticos/compare/v1.86.2...v1.87.0
 [1.86.2]: https://github.com/vstorm-co/agenticos/compare/v1.86.1...v1.86.2
 [1.86.1]: https://github.com/vstorm-co/agenticos/compare/v1.86.0...v1.86.1

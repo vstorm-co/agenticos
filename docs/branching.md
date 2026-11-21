@@ -183,7 +183,8 @@ like when it does is below.
 | `Security Scan` | 10 | 14s |
 | `docs` | 15 | 4m34s |
 | `test-frontend` | 45 | 20m07s |
-| `test` | 90 | 22m25s |
+| `backend-shards` | 45 | — |
+| `test` | 10 | — |
 | `e2e` | 25 | 8m01s |
 
 Most observed times are from run 31116003994, a full matrix on `main`. The backend
@@ -343,7 +344,34 @@ click rather than an essay.
 - `main` is exempt from cancellation, and the way it is exempt is a concurrency
   group carrying `github.run_id` — unique per run, so no `main` run cancels another.
 
+## Draft pull requests
+
+Drafts run backend/frontend lint and dependency/security checks. Backend and
+frontend test suites, the production build, E2E, the docs build and CodeQL wait
+until **Ready for review**. That transition starts the checks without another
+push. Subsequent pushes on a ready PR run the applicable checks as before.
+Returning to draft cancels its superseded run and leaves the light checks active.
+Use focused local tests while iterating; mark the PR ready when you need full CI.
+A draft cannot merge. Ready PRs keep the existing required checks and code-scanning
+protection; changing draft status does not waive them.
+
 ## Release cuts and release trains
+
+Keep separate PRs and use one **manual daily release train** when there are
+Unreleased changes. There is no scheduled cut or automatic publication. The team
+workflow is:
+
+1. During development, use drafts, focused local tests and light CI checks.
+2. Mark the PR Ready for review to start the full applicable CI and CodeQL.
+3. Merge each reviewed, green PR independently. Do not wait for the previous PR's release.
+4. Once per day, prepare one cut containing all merged Unreleased changes. Use a minor bump for features or breaking changes and a patch for fixes only.
+5. Before publishing, require successful CI and CodeQL for the cut merge SHA, including permitted checked-source reuse. Publish the release and tag together. Production deployment retains its separate approval.
+6. Ship urgent hotfixes immediately through the same review, checks, cut and approval process, outside the daily cadence.
+
+Stacked PRs merge in dependency order and may share the same release. Combining
+unrelated changes into one large PR is unnecessary. Each ready PR and each source
+merge still runs its applicable CI: batching releases reduces release overhead,
+not the validation owed by an individual change.
 
 Merge the feature PRs first, then prepare one cut for the train. Select the largest
 bump shipped: `make release-cut BUMP=patch` or `BUMP=minor` prints a plan from fresh

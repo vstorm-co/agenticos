@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.87.0"
+version = "1.87.1"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -1543,6 +1543,7 @@ generator_version = "0.2.17"
 generated_at = "2026-07-26T18:01:04.489757+00:00"
 
 [tool.coverage.run]
+relative_files = true
 # `source` must be packages or directories — coverage silently ignores a file
 # path here, which is how a whole module can sit in this list and never be
 # measured. The platform layer is therefore selected with `include` globs,
