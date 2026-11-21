@@ -338,6 +338,7 @@ export function CapabilityDetail({
           disabled={disabled}
           errors={configErrors}
           copyFor={copyFor}
+          rememberConditionalValues={binding.id === CODING_AGENT_ID}
           onChange={(config) => onChange({ ...binding, config })}
         />
       )}

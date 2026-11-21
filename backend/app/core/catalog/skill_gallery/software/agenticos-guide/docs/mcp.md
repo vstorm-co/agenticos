@@ -333,7 +333,9 @@ it.
 The organization's accounts bind side by side the same way: each of its
 connections to a server is its own binding under its own name, with its own
 tools. In the Builder, a server's settings list its bound accounts with **Add
-another account**. Wherever a run reaches one service through more than one
+another account**. Under **Tools**, choose the account whose tools and approvals
+you want to edit. That edit leaves the other accounts unchanged. Wherever a run
+reaches one service through more than one
 account, one line of its instructions names each account beside its prefix
 and tells the model to ask when it is unclear which one the person means.
 

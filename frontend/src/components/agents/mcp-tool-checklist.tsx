@@ -19,6 +19,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui";
 import type { McpToolInfo } from "@/lib/mcp-connections-api";
+import { narrowedSelection } from "@/lib/mcp-servers";
 import type { McpApproval, McpToolApproval } from "@/types/agents";
 
 /** Past this many tools the list gets a search box. */
@@ -164,7 +165,7 @@ export function McpToolChecklist({
       if (on) next.add(name);
       else next.delete(name);
     }
-    onChange(chosenTools(tools, next));
+    onChange(narrowedSelection(next, tools, allowed));
   };
 
   const reads = tools.filter((tool) => tool.read_only === true);

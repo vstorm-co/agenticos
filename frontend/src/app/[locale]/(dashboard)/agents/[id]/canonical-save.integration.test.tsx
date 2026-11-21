@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Suspense, useSyncExternalStore } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -61,6 +61,7 @@ const state = {
   profilesStatus: "loaded" as ProfilesStatus,
   permissionsLoaded: true,
   saving: false,
+  base: undefined as { id: string; version: number; spec: AgentSpec } | undefined,
   versions: [] as { version: number }[],
   nextPublished: 1,
   // This caller's access to this agent, which the page reads rather than the role.
@@ -78,7 +79,7 @@ vi.mock("@/hooks", async () => {
         id: "a-1",
         slug: "support",
         name: "Support (copy)",
-        status: "draft",
+        status: state.base || state.versions.length > 0 ? "published" : "draft",
         has_avatar: false,
         ...state.access,
         draft_revision: "base",
@@ -108,7 +109,7 @@ vi.mock("@/hooks", async () => {
     useAgentVersion: () => ({ version: undefined, isLoading: false }),
     useAgentVersions: () => ({ versions: state.versions }),
     useAllAgentVersions: () => ({ versions: [] }),
-    useDraftBase: () => ({ base: undefined }),
+    useDraftBase: () => ({ base: state.base }),
     useCapabilityCatalog: () => ({ capabilities: [] }),
     usePromptVariables: () => ({ variables: [] }),
     useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
@@ -168,6 +169,7 @@ vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }))
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
 vi.mock("@/components/agents/voice-card", () => ({ VoiceCard: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
+vi.mock("@/components/agents/alerts-panel", () => ({ AlertsPanel: () => null }));
 vi.mock("@/components/ui/markdown-editor", () => ({
   MarkdownEditor: () => null,
   MarkdownModeToggle: () => null,
@@ -239,6 +241,8 @@ beforeEach(() => {
   state.permissions = [Perm.agentsEdit];
   state.access = { can_edit: true, can_publish: false };
   state.saving = false;
+  state.base = undefined;
+  state.versions = [];
   state.profiles = [MODEL_PROFILE];
   state.profilesStatus = "loaded";
   state.permissionsLoaded = true;
@@ -261,6 +265,45 @@ function serverDraft(spec: AgentSpec): AgentSpec {
 }
 
 describe("canonical draft acknowledgements", () => {
+  it.each([
+    { budget: null, delayed: false },
+    { budget: { monthly_usd: null }, delayed: false },
+    { budget: { monthly_usd: null }, delayed: true },
+  ])(
+    "restores the published budget representation ($budget) with a delayed version read: $delayed",
+    async ({ budget, delayed }) => {
+      const published = { ...INITIAL, budget };
+      const base = { id: "v1", version: 1, spec: published };
+      state.versions = [base];
+      if (!delayed) state.base = base;
+      store.set(published);
+      saveDraft.mockImplementation(async ({ spec }) => {
+        store.set(spec);
+        return { draft_spec: spec, draft_revision: "saved" };
+      });
+      await mount();
+      await userEvent.click(screen.getByRole("tab", { name: "Limits" }));
+      const monthly = screen.getByRole("spinbutton", { name: "Monthly (USD)" });
+
+      fireEvent.change(monthly, { target: { value: "25" } });
+      await waitFor(() => expect(store.get()?.budget).toEqual({ monthly_usd: 25 }));
+      fireEvent.change(monthly, { target: { value: "" } });
+
+      await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(2));
+      const stored = store.get();
+      expect(stored?.budget).toEqual(budget);
+      if (delayed && stored) {
+        await act(async () => {
+          state.base = base;
+          store.set({ ...stored });
+        });
+      }
+      await screen.findByText("Up to date with agent v1");
+      expect(screen.queryByText("Unsaved")).toBeNull();
+      expect(store.get()?.budget).toEqual(budget);
+    },
+  );
+
   it("saves a reordered schema once and releases the draft test panel", async () => {
     saveDraft.mockImplementation(async ({ spec }) => {
       const stored = serverDraft(spec);

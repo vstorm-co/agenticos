@@ -86,7 +86,7 @@ import {
 import { hereForMcpOAuthReturn } from "@/lib/mcp-oauth";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
 import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
-import { bindingKey, McpServerPicker } from "@/components/agents/mcp-server-picker";
+import { McpServerPicker } from "@/components/agents/mcp-server-picker";
 import { McpToolLoadNotice } from "@/components/agents/mcp-tool-load-notice";
 import { StaleReferences } from "@/components/agents/stale-references";
 import { McpServerList } from "@/components/mcp/mcp-server-list";
@@ -163,6 +163,7 @@ import {
   useAgentEnvironments,
   useAgents,
   useAgentVersions,
+  useDraftBase,
   useCapabilityCatalog,
   usePromptVariables,
   useDelegationTree,
@@ -185,6 +186,7 @@ import {
   SUBAGENTS_ID,
   THINKING_ID,
   withCapability,
+  withCapabilitySettings,
   enableMcpToolSearch,
   withContextFiles,
   withSkills,
@@ -208,7 +210,7 @@ import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { DIALOG_CANVAS, DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
-import { narrowedSelection } from "@/lib/mcp-servers";
+import { applyMcpToolSelection, bindingKey } from "@/lib/mcp-servers";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -316,6 +318,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // rest itself, so a page that fetched fifty to read one would be fetching a
   // list nothing on it renders.
   const { versions } = useAgentVersions(id, { limit: 1 });
+  const { base: draftBase } = useDraftBase(id);
   const { can, isLoaded: permissionsLoaded } = usePermissions();
   // The organization's servers, never the author's own: a personal connection
   // is refused at publish, so offering one would be offering a choice that
@@ -352,6 +355,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const openConversation = useConversationStore((state) => state.setCurrentConversationId);
 
   const [spec, setSpec] = useState<AgentSpec | null>(null);
+  const [adoptedBudget, setAdoptedBudget] = useState<AgentSpec["budget"]>(null);
   const [draftRevision, setDraftRevision] = useState<string | null>(null);
   const [draftConflict, setDraftConflict] = useState(false);
   const [problems, setProblems] = useState<string[]>([]);
@@ -425,6 +429,18 @@ export default function AgentBuilderPage({ params }: PageProps) {
     [agent?.draft_spec, agent?.kind],
   );
 
+  function adoptDraft(next: AgentSpec, revision: string | null) {
+    setSpec(next);
+    setDraftRevision(revision);
+    setAdoptedBudget(next.budget);
+  }
+
+  // A blank limit may have been saved as an empty budget object. Until the
+  // published base is known, preserve the shape from the draft we opened, not
+  // from an autosave that may already contain the temporary limit.
+  const budgetBase = draftBase === undefined ? adoptedBudget : draftBase.spec.budget;
+  const clearedBudget = budgetBase?.monthly_usd == null ? (budgetBase ?? null) : null;
+
   // Adopt the server's draft whenever there is nothing local, and not
   // otherwise: every autosave invalidates the agent query, and re-adopting the
   // answer would overwrite whatever was typed while the save was in flight.
@@ -434,8 +450,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // leaves React Query holding the same reference, and gating on the reference
   // moving left the page on its skeleton with no way out.
   if (agent && storedDraft && spec === null) {
-    setSpec(storedDraft);
-    setDraftRevision(agent.draft_revision);
+    adoptDraft(storedDraft, agent.draft_revision);
   }
 
   // This caller on this agent, not their role: a grant widens what the role
@@ -568,10 +583,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     local: spec,
     stored: storedDraft,
     fetchedAt,
-    adopt: (next) => {
-      setSpec(next);
-      setDraftRevision(agent?.draft_revision ?? null);
-    },
+    adopt: (next) => adoptDraft(next, agent?.draft_revision ?? null),
   });
   const saveEditedDraft = useCallback(
     async (next: AgentSpec): Promise<boolean> => {
@@ -604,8 +616,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
     }
     if (!latest.data) return;
     const fresh = latest.data;
-    setSpec(isSystem ? forSystemAgent(fresh.draft_spec) : fresh.draft_spec);
-    setDraftRevision(fresh.draft_revision);
+    adoptDraft(
+      isSystem ? forSystemAgent(fresh.draft_spec) : fresh.draft_spec,
+      fresh.draft_revision,
+    );
     setDraftConflict(false);
     remote.keepMine();
     attempts.current = { payload: "", tries: 0 };
@@ -999,8 +1013,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const updateCapability = (updated: CapabilityBindingSpec) =>
     update({
-      capabilities: spec.capabilities.map((capability) =>
-        capability.id === updated.id ? updated : capability,
+      capabilities: withCapabilitySettings(
+        spec.capabilities,
+        updated,
+        draftBase?.spec.capabilities,
       ),
     });
 
@@ -1458,24 +1474,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
           toolPicker={toolPicker}
           setToolPicker={setToolPicker}
           submitting={false}
-          // Written into the spec rather than onto the connection: this is the
-          // agent's narrowing, and the connection's own allowlist is everybody's.
-          // Every tool checked means "no narrowing from here", which is null - not
-          // a list that would freeze out a tool the server adds later.
           onSave={() => {
             if (toolPicker === null) return;
-            const allowed = narrowedSelection(
+            const next = applyMcpToolSelection(
+              spec.mcp_servers,
+              toolBinding,
               toolPicker.checked,
               toolPicker.tools,
-              // Only a real probe can mean "everything": where the catalogue is
-              // the binding's own names, all-checked is true by construction.
-              toolPicker.connection.last_tools !== null,
             );
-            update({
-              mcp_servers: spec.mcp_servers.map((ref) =>
-                bindingKey(ref) === toolBinding ? { ...ref, allowed_tools: allowed } : ref,
-              ),
-            });
+            if (next !== spec.mcp_servers) update({ mcp_servers: next });
             setToolPicker(null);
             setToolBinding(null);
           }}
@@ -2084,10 +2091,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
                       disabled={!canEdit}
                       onChange={(event) =>
                         update({
-                          budget: {
-                            ...spec.budget,
-                            monthly_usd: event.target.value ? Number(event.target.value) : null,
-                          },
+                          budget: event.target.value
+                            ? { monthly_usd: Number(event.target.value) }
+                            : clearedBudget,
                         })
                       }
                       placeholder={t("noLimit")}

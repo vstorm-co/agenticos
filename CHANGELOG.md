@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Reverting an MCP approval, clearing a newly entered monthly budget, or switching Tool search back to its published Auto setting no longer leaves a published agent with a spurious draft change.
+- Saving an agent's MCP tool picker no longer lets future tools through a pinned allowlist, and tool and approval edits affect only the selected account. Switching an MCP server off and back on in the same picker restores its bindings and restrictions.
+- Switching back to Claude Code in the Coding agent settings restores the compatible read-only mode and model chosen before the switch.
+
 ## [1.87.0] - 2026-11-20
 
 ### Added
