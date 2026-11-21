@@ -17,6 +17,8 @@ no walkthrough.
 
 **New workflow** asks for a name and who can use it, using the same audience picker as agent creation: everyone, only you, or selected people and departments. Choose its starting trigger, optionally add a description and tags, then press **Create**. Selecting a trigger never creates a workflow by itself. **Workflow templates** is a separate category gallery; choosing a template opens this form with its name and description prefilled.
 
+To change who can access an existing workflow, open it and choose **More → Settings → Access**. Under **General access**, choose **Only people with access** or **Everyone in the organization**. If you can edit the workflow, you can also add or remove grants for people and groups here. Switching to private keeps existing grants and role-based access. Sharing also controls access to past runs; it does not pause schedules or disable webhooks.
+
 The catalog keeps its cards and search inside one panel. **Filters** reveals status, tags and sorting, with a count of active filters. Failed loading offers **Retry** instead of an empty catalog. Importing starts with a file picker; **Or paste the file's JSON here** reveals a labelled text field.
 
 The list shows every workflow you can see as a card: its status, who can reach

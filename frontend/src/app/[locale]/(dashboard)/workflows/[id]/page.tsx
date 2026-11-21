@@ -18,6 +18,7 @@ import { useTranslations } from "next-intl";
 
 import { ResourceIcon, ResourceIconPicker } from "@/components/ui/resource-icon";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { LiveRun, LiveRunStop, StaleRun, WorkflowCanvas } from "@/components/workflows/canvas";
 import {
   ConflictBanner,
@@ -114,6 +115,7 @@ const EMPTY_GRAPH: WorkflowGraph = {
 export default function WorkflowEditorPage({ params }: PageProps) {
   const { id } = use(params);
   const t = useTranslations("pages.workflows");
+  const tSharing = useTranslations("sharing");
   const { workflow, isLoading, saveDraft, publish, restore } = useWorkflow(id);
   const actions = useWorkflowActions();
   const exporting = useWorkflowExport();
@@ -373,17 +375,32 @@ export default function WorkflowEditorPage({ params }: PageProps) {
               </div>
             </section>
             {settingsOpen && (
-              <WorkflowSettingsForm
-                workflow={workflow}
-                disabled={!editing}
-                saving={actions.saveSettings.isPending}
-                onSave={(settings) =>
-                  actions.saveSettings.mutate(
-                    { id: workflow.id, settings },
-                    { onSuccess: () => setSettingsOpen(false) },
-                  )
-                }
-              />
+              <>
+                <section
+                  aria-labelledby="workflow-access-heading"
+                  className="space-y-3 border-b pb-6"
+                >
+                  <h3 id="workflow-access-heading" className="text-sm font-medium">
+                    {tSharing("access")}
+                  </h3>
+                  <SharingPanel
+                    resourceType="workflow"
+                    resourceId={workflow.id}
+                    canManage={editing}
+                  />
+                </section>
+                <WorkflowSettingsForm
+                  workflow={workflow}
+                  disabled={!editing}
+                  saving={actions.saveSettings.isPending}
+                  onSave={(settings) =>
+                    actions.saveSettings.mutate(
+                      { id: workflow.id, settings },
+                      { onSuccess: () => setSettingsOpen(false) },
+                    )
+                  }
+                />
+              </>
             )}
           </div>
         </SheetContent>

@@ -1,5 +1,5 @@
 ---
-source_sha: "d3dee8ee5b61"
+source_sha: "3102c1124f17"
 ---
 
 # Workflows { #workflows }
@@ -21,6 +21,8 @@ znajduje się w sekcji **Workflows** w konsoli. Strona **listy** Workflows ma
 ## Tworzenie i duplikowanie workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** wymaga nazwy i wyboru odbiorców, tak jak tworzenie agenta: wszyscy, tylko Ty lub wybrane osoby i działy. Wybierz wyzwalacz, opcjonalnie dodaj opis i tagi, a następnie kliknij **Create**. Sam wybór wyzwalacza nie tworzy workflow. **Workflow templates** otwiera osobną galerię kategorii; wybranie szablonu otwiera ten formularz z uzupełnioną nazwą i opisem.
+
+Aby zmienić dostęp do istniejącego workflow, otwórz go i wybierz **More → Settings → Access**. W sekcji **General access** wybierz **Only people with access** lub **Everyone in the organization**. Jeśli możesz edytować workflow, możesz tu też nadawać i odbierać dostęp osobom i grupom. Zmiana na prywatny nie odbiera istniejących uprawnień ani dostępu wynikającego z roli. Udostępnianie dotyczy też wcześniejszych runów; nie wstrzymuje harmonogramów ani nie wyłącza webhooków.
 
 Katalog trzyma karty i wyszukiwanie we wspólnym panelu. **Filters** odsłania status, tagi i sortowanie oraz pokazuje liczbę aktywnych filtrów. Nieudane pobranie danych daje **Retry** zamiast pustego katalogu. Import zaczyna się od wyboru pliku; **Or paste the file's JSON here** odsłania pole tekstowe z etykietą.
 
