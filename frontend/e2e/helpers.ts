@@ -779,3 +779,16 @@ export async function callApi(
   expect(renewed.ok(), `the session could not be renewed: ${await renewed.text()}`).toBeTruthy();
   return api[method](`/api${path}`, options);
 }
+
+/** Isolate appearance in a test context without mutating the shared owner's profile. */
+export async function readAppearanceAs(page: Page, theme: "light" | "dark"): Promise<void> {
+  for (const path of ["auth/me", "users/me/preferences"]) {
+    await page.route(`**/api/${path}`, async (route) => {
+      if (route.request().method() !== "GET") return route.continue();
+      const response = await route.fetch();
+      const body: unknown = await response.json();
+      if (!body || typeof body !== "object") throw new Error("Expected account appearance data");
+      await route.fulfill({ response, json: { ...body, theme, look: "standard" } });
+    });
+  }
+}

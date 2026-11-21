@@ -36,7 +36,7 @@ export function DisclosureContent({
     }
     if (!open && ref.current?.contains(document.activeElement)) {
       const trigger = triggerId ? document.getElementById(triggerId) : null;
-      if (trigger) trigger.focus();
+      if (trigger) trigger.focus({ preventScroll: true });
       else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     }
   }, [open, triggerId]);

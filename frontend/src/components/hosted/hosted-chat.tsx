@@ -779,7 +779,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logoSrc} alt="" className="h-8 w-8 rounded-md object-cover" />
         )}
-        <h1 className="flex-1 text-lg font-semibold">{config.title}</h1>
+        <h1 className="min-w-0 flex-1 text-lg font-medium wrap-anywhere">{config.title}</h1>
         {config.allow_new_conversation && (
           <Button variant="ghost" size="sm" onClick={startFresh}>
             <MessageSquarePlus className="h-4 w-4" />
@@ -857,9 +857,11 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
           {attached.map((file) => (
             <span
               key={file.id}
-              className="border-border flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
+              className="border-border flex max-w-full min-w-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
             >
-              {file.filename}
+              <span className="min-w-0 truncate" title={file.filename}>
+                {file.filename}
+              </span>
               <button
                 type="button"
                 onClick={() => setAttached((held) => held.filter((one) => one.id !== file.id))}

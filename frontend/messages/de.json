@@ -89,6 +89,14 @@
     "sessionsCouldNotBeRead": "Die Sitzungen konnten nicht gelesen werden."
   },
   "agents": {
+    "buildSummary": {
+      "variables": "{count, plural, =0 {Systemvariablen} one {Systemvariablen und # eigene Variable} other {Systemvariablen und # eigene Variablen}}",
+      "voice": "Anrufe {calls, select, on {an} other {aus}} · Diktat {dictation, select, on {an} other {aus}}",
+      "starters": "{enabled, select, false {Vorschläge ausgeblendet} other {{count, plural, =0 {Standardvorschläge} one {# erste Nachricht} other {# erste Nachrichten}}}}",
+      "reviewers": "{count, plural, =0 {Keine zusätzlichen Reviewer} =1 {1 Reviewer} other {# Reviewer}}",
+      "alerts": "{count, plural, =0 {Benachrichtigungen aus} =1 {1 Benachrichtigung aktiv} other {# Benachrichtigungen aktiv}}",
+      "tracing": "{project, select, custom {Eigenes Projekt} other {Projekt der Installation}} · {content, select, none {Ohne Inhalte} other {Vollständige Traces}}"
+    },
     "voiceUnreportedTokenUsage": "Dieser Anbieter meldet keine Tokenkosten. Anrufe mit Ausgabenlimit können nicht starten; die erfassten Audiokosten sind eine Untergrenze.",
     "accentColour": "Akzentfarbe",
     "actsOutsideWorld": "wirkt auf die Außenwelt",
@@ -1151,7 +1159,9 @@
     "observationAuthorityHint": "Das Entscheidungsmodell hat keine Tools. Automatische Antworten nutzen das Hauptmodell und die gebundenen MCP-Organisationskonten mit ihren Freigaberegeln. Persönliche Konten und andere Aktionstools erfordern eine Erwähnung des Bots durch eine Person. Freigabepflichtige Aufrufe werden nicht automatisch ausgeführt. Beide Modellkosten erscheinen in Aktivität.",
     "observationRequired": "Wählen Sie das Modell für die Teilnahmeentscheidung.",
     "observationSaveFailed": "Speichern fehlgeschlagen. Ihre Änderungen bleiben im Formular erhalten.",
-    "observationSave": "Teilnahmeeinstellungen speichern"
+    "observationSave": "Teilnahmeeinstellungen speichern",
+    "connectionSettings": "Verbindungseinstellungen · {provider} · {endpoint}",
+    "customEndpoint": "Eigener Endpunkt"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1165,7 +1175,7 @@
     "googleNotConfigured": "Die Google-Anmeldung ist für diese Installation nicht eingerichtet.",
     "continueWithProvider": "Weiter mit {provider}",
     "continueWithMicrosoft": "Weiter mit Microsoft",
-    "createHeading": "Richten Sie Ihren <em>Workspace ein.</em>",
+    "createHeading": "Konto erstellen",
     "creatingAccount": "Konto wird erstellt …",
     "dropYourEmailBelow": "Tragen Sie unten Ihre E-Mail-Adresse ein – wir senden Ihnen einen einmaligen Link, um ein neues Passwort zu setzen.",
     "email": "E-Mail",
@@ -1174,7 +1184,6 @@
     "forgotHeading": "Passiert den <em>Besten.</em>",
     "forgotPasswordPrompt": "Passwort vergessen?",
     "forgotShort": "Vergessen?",
-    "getStarted": "Legen wir los",
     "hasAccount": "Sie haben bereits ein Konto?",
     "linkSentHeading": "Link gesendet. <em>Unterwegs zu Ihnen.</em>",
     "loggedOut": "Abgemeldet",
@@ -1195,8 +1204,7 @@
     "magicLink": {
       "errorHeading": "Anmeldung nicht möglich",
       "errorInvalid": "Der Magic Link ist ungültig oder abgelaufen.",
-      "errorMissingToken": "Kein Token übergeben. Fordern Sie einen neuen Anmeldelink an.",
-      "requestNewLink": "Neuen Link anfordern",
+      "errorMissingToken": "Dieser Anmeldelink ist unvollständig. Melde dich mit deinem Passwort an oder setze es zurück.",
       "signInWithPassword": "Mit Passwort anmelden",
       "success": "Angemeldet",
       "successHint": "Weiterleitung zu Ihrem Workspace …",
@@ -1246,13 +1254,12 @@
     "sendResetLink": "Link zum Zurücksetzen senden",
     "sending": "Wird gesendet …",
     "signInFailedRedirecting": "Anmeldung fehlgeschlagen. Weiterleitung …",
-    "signInHeading": "Melden Sie sich in <em>Ihrem Workspace an.</em>",
+    "signInHeading": "Anmelden",
     "signUpWithGithub": "Mit GitHub registrieren",
     "signUpWithGoogle": "Mit Google registrieren",
     "signUpWithProvider": "Mit {provider} registrieren",
     "signUpWithMicrosoft": "Mit Microsoft registrieren",
     "somethingWentWrongPlease": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
-    "welcomeBack": "Willkommen zurück",
     "workspace": "Workspace.",
     "signupInviteOnly": "Dieses Deployment ist nur auf Einladung zugänglich. Sie können sich mit einer Adresse registrieren, die jemand eingeladen hat.",
     "signupDomainsAllowed": "Hier können sich nur Adressen bei {domains} registrieren.",
@@ -1270,6 +1277,13 @@
     "title": "Abrechnung"
   },
   "chat": {
+    "questions": {
+      "heading": "Frage an dich",
+      "answered": "Fragen und Antworten",
+      "submitting": "Antworten werden gesendet…",
+      "details": "Werkzeugdetails",
+      "reveal": "Frage des Agenten beantworten"
+    },
     "loadEarlierMessages": "Ältere Nachrichten laden",
     "accessLevel": "Zugriffsstufe",
     "accessRevoked": "Zugriff widerrufen",
@@ -1293,7 +1307,6 @@
     "approve": "Freigeben",
     "archive": "Archivieren",
     "archivedToast": "Unterhaltung archiviert",
-    "askUserAnswered": "Sie haben geantwortet",
     "askUserAsked": "Hat Sie gefragt",
     "askUserAskedBy": "Gefragt von {name}",
     "attachedFile": "Angehängte Datei",
@@ -1357,9 +1370,9 @@
         "ask_all": "Zu allem fragen"
       },
       "modeHint": {
-        "follow_agent": "Die eigenen Einstellungen des Agents entscheiden, welche Tools einen Menschen brauchen.",
-        "approve_all": "Jeder gebremste Aufruf läuft in dieser Unterhaltung ungefragt. Jeder wird weiterhin auf Ihr Konto protokolliert.",
-        "ask_all": "Vor jedem Tool fragen, das dieser Agent nutzen darf, auch vor denen, die er sonst nicht bremst."
+        "follow_agent": "Freigaberegeln des Agents verwenden.",
+        "approve_all": "Optionale Freigaben in diesem Chat überspringen. Verpflichtende Freigaben gelten weiterhin.",
+        "ask_all": "Vor jedem Tool-Aufruf fragen."
       },
       "modelTitle": "Modell: {model}",
       "whichModelRunsHere": "Auf welchem Modell diese Unterhaltung läuft. Alles andere am Agent bleibt, wie es ist.",
@@ -1552,6 +1565,11 @@
       "onThisComputer": "In {folder} auf diesem Computer",
       "downloadAll": "Als .zip herunterladen",
       "downloadFolder": "{name} als .zip herunterladen",
+      "loadFailed": "Dateien konnten nicht geladen werden",
+      "notAvailable": "Dateien sind derzeit nicht verfügbar",
+      "readNoticeBody": "Versuche erneut, die Dateiverbindung zu prüfen. Du kannst den Chat weiterhin nutzen.",
+      "connectionSettings": "Sandbox-Verbindungen",
+      "technicalDetails": "Technische Details",
       "zipFailed": "Der Ordner konnte nicht heruntergeladen werden."
     },
     "generateShareLink": "Freigabelink erzeugen",
@@ -1899,8 +1917,6 @@
       "searchingWeb": "Durchsucht das Web",
       "setDependency": "Abhängigkeit setzen",
       "settingDependency": "Setzt eine Abhängigkeit",
-      "showFormatted": "Die formatierte Ansicht zeigen",
-      "showRaw": "Argumente und Rohausgabe zeigen",
       "skillResource": "Skill-Ressource",
       "sourceCount": "{count, plural, =1 {1 Quelle} other {# Quellen}}",
       "steeringDelegate": "Steuert einen Delegaten",
@@ -1930,7 +1946,7 @@
       "shareArtifact": "Freigabe einer veröffentlichten Seite anfragen",
       "artifactVersion": "Version {version} · Seite öffnen",
       "artifactUnchanged": "Unverändert, weiterhin Version {version} · Seite öffnen",
-      "askingYou": "Warte auf Ihre Antwort",
+      "askingYou": "Frage an dich",
       "askedYou": "Hat Sie gefragt",
       "notAnsweredYet": "Noch nicht beantwortet",
       "listMemory": "Erinnerungen auflisten",
@@ -2237,13 +2253,7 @@
       }
     },
     "hints": {
-      "mention": "Tippen Sie <key>@</key>, um dem Agent einen Server, einen anderen Agent oder einen Skill zu nennen",
-      "mcp": "Hol die Neuigkeiten der Woche aus <chip></chip> und fasse sie zusammen",
-      "capability": "Nutze <chip></chip>, um die angehängte Tabelle durchzuarbeiten",
-      "agent": "Bitte <chip></chip>, die Zahlen zu prüfen",
-      "skill": "Folge <chip></chip> und entwirf eine Antwort an diesen Kunden",
-      "collection": "Was sagt <chip></chip> zu Kündigungsfristen?",
-      "slash": "Tippen Sie <command></command>, um das Gespräch zusammenzufassen, oder / für alle Befehle"
+      "shortcuts": "Schreibe deinem Agenten. <key>/</key> Befehle · <key>@</key> Ressourcen"
     },
     "visuals": {
       "drawing": "Zeichnet…",
@@ -2546,7 +2556,7 @@
     "browserShownInPanel": "{host} ist im Browserbereich geöffnet",
     "browserOpenPanel": "Neben dem Chat öffnen",
     "browserDock": "Zurück neben den Chat",
-    "browserResize": "Breite des Browserbereichs ändern",
+    "browserResize": "Breite des Seitenbereichs ändern",
     "computerLineUsed": "Hat einen Computer bedient",
     "queuedWaitingForNetwork": "Wartet auf das Netz",
     "queuedNotSent": "Nicht gesendet: {reason}",
@@ -2660,6 +2670,7 @@
     "runFailedTitle": "Ausführung nicht abgeschlossen",
     "runFailedHint": "Es wurde keine abschließende Antwort erstellt. Die bisherigen Schritte stehen oben.",
     "homeInbox": {
+      "openInbox": "Inbox öffnen",
       "title": "Tagesbriefing",
       "urgent": "Wichtig",
       "approvalsLabel": "Genehmigungen",
@@ -6425,7 +6436,7 @@
       "connectMcpServer": "Einen MCP-Server verbinden",
       "connectServer": "Einen Server verbinden",
       "connectServerOrganizationBecomes": "Verbinden Sie einen Server für die Organisation, und er wird hier bindbar. Eine persönliche Verbindung ist für Ihren eigenen Chat und wird beim Veröffentlichen abgelehnt, damit ein Agent, den alle ausführen, nie davon abhängt, wessen Credential dahintersteht.",
-      "createOneGiveInstructions": "Erstellen Sie einen, geben Sie ihm Instruktionen und ein paar Capabilities und veröffentlichen Sie ihn dann.",
+      "createOneGiveInstructions": "Beginnen Sie mit einem Support-Assistenten, einem Recherche-Agenten oder einem Berichtsschreiber. Geben Sie Anweisungen und Werkzeuge vor, testen Sie ein Gespräch und veröffentlichen Sie den Agenten, sobald er bereit ist.",
       "delegateUnreachable": "Ein Agent, den Sie nicht sehen können",
       "delete": "Löschen",
       "delete2": "Löschen",
@@ -6778,7 +6789,7 @@
       "connectorsFailedDescription": "Die Anfrage nach der Konnektorliste ist fehlgeschlagen, ob welche aktiviert sind, ist also unbekannt.",
       "connectorsFailedTitle": "Die Konnektoren konnten nicht geladen werden",
       "createKnowledgeBase": "Wissensdatenbank erstellen",
-      "createOneGiveYour": "Erstellen Sie eine, um Ihrem Assistenten Zugriff auf Dokumente aus Ihren Collections zu geben.",
+      "createOneGiveYour": "Sammeln Sie Handbücher, Richtlinien oder Produktunterlagen in einer Wissensbasis. Binden Sie sie an einen Agenten, damit er beim Antworten passende Textstellen findet.",
       "default": "Standard",
       "delete": "Löschen",
       "deleteCollectionTitle": "{name} löschen?",
@@ -6971,7 +6982,11 @@
       "noMatchingMembers": "Keine Mitglieder entsprechen Ihrer Suche.",
       "lastAction": "Letzte erfasste Aktion",
       "lastActionHint": "Protokollierte Aktionen in diesem Arbeitsbereich. Besuche und Aktionen durch Identitätsübernahme sind nicht enthalten.",
-      "noRecordedAction": "Keine erfasste Aktion"
+      "noRecordedAction": "Keine erfasste Aktion",
+      "assistantServices": "Assistent und Gespräche",
+      "assistantServicesHint": "Hilfe, Aktualisierungen und Sprachgespräche für Mitglieder einrichten.",
+      "backgroundServices": "Hintergrunddienste",
+      "backgroundServicesHint": "Modelle und Budgets für die internen Aufgaben der Plattform."
     },
     "rag": {
       "active": "Aktiv",
@@ -7357,6 +7372,8 @@
       "systemRoleChannelDecision": "Entscheidung zur Kanalteilnahme (System)"
     },
     "sandboxes": {
+      "noAccess": "Kein Zugriff auf Sandbox-Verbindungen",
+      "noAccessBody": "Bitte einen Organisationsadministrator um die Berechtigung, Verbindungen anzuzeigen.",
       "addConnection": "Verbindung hinzufügen",
       "agentsCanStillKeep": "Agents können auch ohne eine Verbindung Dateien aufbewahren: Der gespeicherte Workspace braucht nichts und funktioniert auf jedem Deployment. Registrieren Sie eine Verbindung, wenn ein Agent eine echte Shell braucht.",
       "noSandboxConnectionsYet": "Noch keine Sandbox-Verbindungen",
@@ -7616,7 +7633,7 @@
       "skills": "Skills",
       "skills2": "Skills",
       "sort": "Sortieren",
-      "writeDownSomethingYour": "Schreiben Sie auf, was Ihr Team mehr als einmal erklärt, und jeder Agent kann es lesen.",
+      "writeDownSomethingYour": "Machen Sie einen wiederkehrenden Ablauf zum Skill: eine Prüfcheckliste, ein Berichtsformat oder einen Support-Prozess. Ordnen Sie ihn den Agenten zu, die ihn benötigen.",
       "youCannotSeeOrganization": "Sie können die Skills dieser Organisation nicht sehen"
     },
     "vault": {
@@ -7670,7 +7687,7 @@
       "noContextMatches": "Keine Kontextdatei passt",
       "noContextYet": "Noch keine Kontextdateien",
       "namesDescriptionsSearched": "Geprüft wurden Namen und Beschreibungen. Leeren Sie die Suche, um alles zu sehen.",
-      "addSomethingYourAgents": "Fügen Sie etwas hinzu, das Ihre Agents immer wissen sollten, und jeder von ihnen kann darauf zurückgreifen.",
+      "addSomethingYourAgents": "Fügen Sie kurze Referenzen hinzu: ein Glossar, die Markensprache oder Teamrichtlinien. Binden Sie sie als ständigen Kontext oder bei Bedarf lesbare Datei an einen Agenten.",
       "nobodyHasAddedContext": "Noch hat niemand eine Kontextdatei für diese Organisation hinzugefügt.",
       "newContext2": "Neue Kontextdatei",
       "nameHowItIsReferred": "Der Name ist, wie auf diese Datei verwiesen wird, und er lässt sich nicht ändern. Alles andere hier schon.",
@@ -7813,7 +7830,7 @@
       },
       "empty": {
         "title": "Noch keine Tabellen",
-        "description": "Eine Tabelle ist eine typisierte Menge von Datensätzen, die Ihre Agents, Workflows und Integrationen lesen und schreiben können.",
+        "description": "Verwalten Sie Kontakte, Anfragen oder Projektaufgaben mit typisierten Spalten. Agenten und Workflows können Datensätze lesen und aktualisieren. Beginnen Sie mit einer CSV-Datei oder eigenen Spalten.",
         "filteredTitle": "Keine passende Tabelle"
       },
       "created": "{name} erstellt",
@@ -7944,7 +7961,8 @@
         "required": "Diese Spalte braucht einen Wert.",
         "cancel": "Abbrechen",
         "create": "Datensatz hinzufügen",
-        "created": "Datensatz hinzugefügt."
+        "created": "Datensatz hinzugefügt.",
+        "optionalFields": "{count, plural, =1 {1 weiteres Feld} other {# weitere Felder}}"
       },
       "cardSize": "{records, plural, one {# Datensatz} other {# Datensätze}} · {columns, plural, one {# Spalte} other {# Spalten}}",
       "archive": {
@@ -8565,7 +8583,8 @@
       "runQuestionsTitle": "Dein Agent braucht eine Antwort, um fortzufahren",
       "runQuestionsFailed": "Die Fragen konnten nicht geladen werden.",
       "runQuestionsRetry": "Erneut versuchen",
-      "startRunSchema": "Erwartetes Eingabeschema"
+      "startRunSchema": "Erwartetes Eingabeschema",
+      "nameRequired": "Geben Sie einen Namen für diesen Workflow ein."
     },
     "adminApns": {
       "title": "iPhone-Benachrichtigungen",
@@ -8666,11 +8685,11 @@
       "identityHint": "Name, Erscheinungsbild und rechtliche Links in der Konsole.",
       "access": "Zugang und Konten",
       "accessHint": "Zugangsregeln, Startorganisation und Nutzungslimits festlegen.",
-      "notices": "Mitteilungen",
+      "notices": "Mitteilungen & Wartungsmodus",
       "noticesHint": "Eine Ankündigung anzeigen oder den Wartungsbildschirm einrichten.",
       "services": "Sprache und Mobilgerät",
       "servicesHint": "Audioaufzeichnung und Push-Benachrichtigungen für die mobile App.",
-      "operations": "Wartung",
+      "operations": "Updates & Diagnose",
       "operationsHint": "Anwendungsupdates und Bereitstellungsdiagnose."
     }
   },
@@ -10192,7 +10211,7 @@
     "searchRoutines": "Routinen suchen",
     "noRoutineMatches": "Keine Routine passt dazu.",
     "routineCount": "{count, plural, one {# Routine} other {# Routinen}}",
-    "activityEmptyDescription": "Sobald ein Agent sich selbst ausführen soll, erscheint er hier.",
+    "activityEmptyDescription": "Planen Sie einen wöchentlichen Bericht, reagieren Sie auf ein Ereignis oder überwachen Sie Änderungen in einem verbundenen Dienst. Hier sehen Sie anstehende Ausführungen und pausieren Routinen.",
     "agent": "Agent",
     "chooseAgent": "Agent wählen",
     "sourceWebhook": "API (Ihr eigener Code)",
@@ -12912,7 +12931,8 @@
     "emptyTitle": "Keine verbundenen Anwendungen",
     "emptyWhy": "Fügen Sie AgenticOS zu Claude Code oder einem anderen MCP-Client hinzu und melden Sie sich an; es erscheint hier.",
     "deploymentAdminTitle": "Die gesamte Installation verwalten",
-    "deploymentAdminHint": "Erlaubt Einstellungen und Updates der Installation über die gewählte Organisation hinaus. Nur ein Anwendungsadministrator darf deployment:admin erteilen; Organisationsprofile enthalten diesen Bereich nie."
+    "deploymentAdminHint": "Erlaubt Einstellungen und Updates der Installation über die gewählte Organisation hinaus. Nur ein Anwendungsadministrator darf deployment:admin erteilen; Organisationsprofile enthalten diesen Bereich nie.",
+    "loadFailed": "Die Zugriffsanfrage konnte nicht gelesen werden."
   },
   "liveUpdates": {
     "changedElsewhere": "{actor} hat das {surface} geändert, während Sie es bearbeitet haben. Laden Sie neu, um diese Version zu sehen, oder behalten Sie Ihre Änderungen und speichern Sie darüber.",
@@ -14131,6 +14151,9 @@
     "nativeDesktopOnly": "Dieser Tab ist in der gekoppelten Desktop-App geöffnet. Verwende dort den nativen Browser."
   },
   "remoteAgents": {
+    "optionalSettings": "Authentifizierung und Kennung (optional)",
+    "noAccess": "Kein Zugriff auf Remote-Agenten",
+    "noAccessBody": "Bitte einen Organisationsadministrator um die Berechtigung, Agenten anzuzeigen.",
     "title": "Remote Agents",
     "pageDescription": "Agents anderer Anbieter, an die Ihre Agents über das A2A-Protokoll Arbeit übergeben können. Registrieren Sie einen hier über seine Agent Card und wählen Sie ihn dann in den Delegationseinstellungen eines Agent.",
     "listTitle": "Registrierte Remote Agents",
@@ -14228,8 +14251,10 @@
     "noMatches": "Kein Projekt passt",
     "searchedNames": "Durchsucht werden Namen und Beschreibungen.",
     "noProjectsYet": "Noch keine Projekte",
-    "noProjectsHint": "Ein Projekt hält Anweisungen und Dateien, die jeder Chat darin teilt.",
+    "noProjectsHint": "Halten Sie einen Launch, eine Recherche oder eine Kundenbetreuung an einem Ort zusammen. Gespräche teilen Anweisungen und Dateien; darin erstellte Apps bleiben beim Projekt.",
     "pickTitle": "In einem Projekt arbeiten",
+    "pickEmpty": "Ein Projekt bündelt zusammengehörige Chats, Dateien und Anweisungen. Erstelle eines unter Projekte oder fahre ohne Projekt fort.",
+    "pickNoMatches": "Kein verfügbares Projekt passt zur Suche. Versuche einen anderen Namen oder fahre ohne Projekt fort.",
     "pickHint": "Der Chat liest die Anweisungen des Projekts und arbeitet in seinen Dateien. Er bleibt im Projekt.",
     "noProject": "Kein Projekt",
     "noProjectHint": "Ein normaler Chat",
@@ -14337,7 +14362,8 @@
       "loadFailed": "Projektbegleiter erneut laden",
       "scopeHint": "Das Projekt verwendet eine gemeinsame Aufgabentabelle. Der Zugriff folgt dem Projekt; Personen und Agenten sind verknüpfte Datensätze, und das Feld für den nächsten Schritt steuert die Übergabe.",
       "openTracker": "Agent zur Projektverfolgung"
-    }
+    },
+    "initialSetup": "Anweisungen und Voreinstellungen"
   },
   "voiceGlow": {
     "title": "Diktieranimation",
@@ -14382,7 +14408,9 @@
         "name": "Papier",
         "hint": "Warm, zum Lesen"
       }
-    }
+    },
+    "advancedTitle": "Oberflächendetails",
+    "advancedHint": "Sprachleuchten und die Darstellung von Workflow-Schritten."
   },
   "answerFormat": {
     "title": "Antwortformat",
@@ -14869,7 +14897,7 @@
     "noMatches": "Kein Dataset passt",
     "noMatchesBody": "Durchsucht werden Namen und Beschreibungen.",
     "empty": "Noch keine Datasets",
-    "emptyBody": "Ein Dataset enthält die Testfälle, an denen ein Agent geprüft wird.",
+    "emptyBody": "Speichern Sie Beispielfragen und erwartete Antworten und prüfen Sie einen Agenten mit Evals. Verwenden Sie dieselben Fälle für Modellvergleiche oder Regressionstests einer neuen Version.",
     "deleteBody": "Alle Versionen und Fälle dieses Datasets werden gelöscht. Eval-Runs, die es verwendet haben, verlieren die Fragen, die sie beantwortet haben.",
     "created": "{name} erstellt",
     "deleted": "Dataset gelöscht",
@@ -17596,7 +17624,14 @@
         "task": "Erste Aufgabe"
       },
       "guideName": "AgenticOS",
-      "advancedAccess": "E-Mail-Domains, Startrollen und Kontolimits ↗"
+      "advancedAccess": "E-Mail-Domains, Startrollen und Kontolimits ↗",
+      "announcementTone": "Art der Mitteilung",
+      "advancedSafetyHint": "Lege fest, wann eine Freigabe erforderlich ist und wie öffentliche Links aktuelle Daten nutzen.",
+      "advancedAssistantsHint": "Richte den Assistenten des Arbeitsbereichs und optionale Hintergrundaufgaben ein.",
+      "advancedVoiceHint": "Wähle Transkriptions- und Spracheinstellungen für diesen Arbeitsbereich.",
+      "openGovernanceSettings": "Budget und Freigaben öffnen",
+      "openAssistantSettings": "Assistenteneinstellungen öffnen",
+      "openVoiceSettings": "Spracheinstellungen öffnen"
     }
   },
   "skillImprovement": {

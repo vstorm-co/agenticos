@@ -13,8 +13,16 @@ const bounded = (width: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width
 /** Dock in the available chat width; narrow chats and explicit expansion use the full screen. */
 export function BrowserPanelFrame({
   children,
+  label,
+  contained = false,
+  panelId,
+  layout = "browser",
 }: {
   children: (layout: { fullscreen: boolean; toggleFullscreen: () => void }) => ReactNode;
+  label?: string;
+  contained?: boolean;
+  panelId?: string;
+  layout?: "browser" | "sources";
 }) {
   const t = useTranslations("chat");
   const id = useId();
@@ -28,27 +36,36 @@ export function BrowserPanelFrame({
   return (
     <aside
       ref={panel}
-      id={id}
-      aria-label={t("browserHeading")}
+      id={panelId ?? id}
+      aria-label={label ?? t("browserHeading")}
       data-browser-panel={fullscreen ? "fullscreen" : "docked"}
       style={style}
       className={cn(
-        "bg-background fixed inset-0 z-50 flex min-h-0 min-w-0 flex-col",
+        "bg-card fixed inset-0 z-50 flex min-h-0 min-w-0 flex-col",
+        contained && "absolute",
         !fullscreen &&
-          "@min-[900px]/browser-layout:relative @min-[900px]/browser-layout:inset-auto @min-[900px]/browser-layout:z-20 @min-[900px]/browser-layout:h-full @min-[900px]/browser-layout:w-(--browser-panel-width) @min-[900px]/browser-layout:shrink-0 @min-[900px]/browser-layout:border-l",
+          !contained &&
+          (layout === "browser"
+            ? "@min-[900px]/browser-layout:relative @min-[900px]/browser-layout:inset-auto @min-[900px]/browser-layout:z-20 @min-[900px]/browser-layout:h-full @min-[900px]/browser-layout:w-(--browser-panel-width) @min-[900px]/browser-layout:shrink-0 @min-[900px]/browser-layout:border-l"
+            : "@min-[900px]/sources-layout:relative @min-[900px]/sources-layout:inset-auto @min-[900px]/sources-layout:z-20 @min-[900px]/sources-layout:h-full @min-[900px]/sources-layout:w-(--browser-panel-width) @min-[900px]/sources-layout:shrink-0 @min-[900px]/sources-layout:border-l"),
       )}
     >
-      {!fullscreen && (
+      {!fullscreen && !contained && (
         <Separator
           decorative={false}
           orientation="vertical"
           tabIndex={0}
           aria-label={t("browserResize")}
-          aria-controls={id}
+          aria-controls={panelId ?? id}
           aria-valuemin={MIN_WIDTH}
           aria-valuemax={MAX_WIDTH}
           aria-valuenow={Math.round(width)}
-          className="hover:bg-foreground/10 focus-visible:bg-foreground/10 absolute inset-y-0 left-0 z-30 hidden w-3 -translate-x-1/2 cursor-col-resize touch-none bg-transparent focus-visible:outline-none @min-[900px]/browser-layout:block"
+          className={cn(
+            "hover:bg-foreground/10 focus-visible:bg-foreground/10 absolute inset-y-0 left-0 z-30 hidden w-3 -translate-x-1/2 cursor-col-resize touch-none bg-transparent focus-visible:outline-none",
+            layout === "browser"
+              ? "@min-[900px]/browser-layout:block"
+              : "@min-[900px]/sources-layout:block",
+          )}
           onKeyDown={(event) => {
             if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
             event.preventDefault();

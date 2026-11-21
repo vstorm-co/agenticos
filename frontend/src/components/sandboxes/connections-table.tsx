@@ -14,6 +14,7 @@ interface ConnectionsTableProps {
   onEdit: (connection: SandboxConnectionRecord) => void;
   onInspect: (connection: SandboxConnectionRecord) => void;
   onDelete: (connection: SandboxConnectionRecord) => void;
+  canManage?: boolean;
 }
 
 /** What kind of host this is, in words rather than the stored string. The mark
@@ -50,6 +51,7 @@ export function ConnectionsTable({
   onEdit,
   onInspect,
   onDelete,
+  canManage = true,
 }: ConnectionsTableProps) {
   const t = useTranslations("sandboxes.table");
   const tc = useTranslations("common");
@@ -153,27 +155,31 @@ export function ConnectionsTable({
                 <span className="@max-[64rem]/table:hidden">{t("whatAllows")}</span>
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onEdit(connection)}
-              aria-label={tc("editNamed", { name: connection.name })}
-            >
-              <Pencil className="h-4 w-4" aria-hidden />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onDelete(connection)}
-              aria-label={tc("deleteNamed", { name: connection.name })}
-            >
-              <Trash2 className="h-4 w-4" aria-hidden />
-            </Button>
+            {canManage && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onEdit(connection)}
+                  aria-label={tc("editNamed", { name: connection.name })}
+                >
+                  <Pencil className="h-4 w-4" aria-hidden />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onDelete(connection)}
+                  aria-label={tc("deleteNamed", { name: connection.name })}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                </Button>
+              </>
+            )}
           </div>
         ),
       },
     ],
-    [t, tc, onEdit, onInspect, onDelete],
+    [t, tc, onEdit, onInspect, onDelete, canManage],
   );
 
   return (

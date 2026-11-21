@@ -422,8 +422,7 @@
   font-size: 0.8125rem;
 }
 .chat-layout .chat-home-timeline .chat-home-starters [data-chat-welcome-hints] {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0;
+  row-gap: 0;
 }
 .chat-home-timeline .chat-home-inbox {
   margin-block-end: clamp(1.75rem, 4dvh, 2.75rem);

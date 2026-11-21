@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Bot, Lock, UserRound } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 
@@ -9,6 +10,12 @@ import { AgenticosAttribution } from "@/components/shared/agenticos-attribution"
 import type { DraftCard } from "@/lib/drafts";
 import { BackendApiError, backendFetch } from "@/lib/server-api";
 import { cn, formatDateTime } from "@/lib/utils";
+
+/** A secret share address is not an indexable document or an outbound referrer. */
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+  referrer: "no-referrer",
+};
 
 interface SharedConversationPageProps {
   params: Promise<{ token: string; locale: string }>;

@@ -267,7 +267,9 @@ describe("the Builder's model panel", () => {
     state.profilesStatus = "failed";
     await mount();
 
-    expect(await screen.findByText("Models could not be listed")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Models could not be listed" }),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/organization has no models/)).toBeNull();
     expect(screen.queryByText(/no model yet/)).toBeNull();
   });

@@ -48,8 +48,8 @@ function StepFrame({
       <div className="bg-accent text-foreground mb-2 flex size-11 items-center justify-center rounded-full">
         {icon}
       </div>
-      <h1 className="font-display text-2xl font-bold">{title}</h1>
-      <p className="text-muted-foreground max-w-md text-sm">{body}</p>
+      <h1 className="text-2xl font-medium tracking-tight wrap-anywhere">{title}</h1>
+      <p className="text-muted-foreground max-w-md text-sm wrap-anywhere">{body}</p>
       {children ? <div className="mt-5 w-full">{children}</div> : null}
     </div>
   );
@@ -96,7 +96,7 @@ function Steps({ state, step }: { state: DesktopState; step: Step }) {
             {state.shortcuts.map((binding) => (
               <div
                 key={binding.action}
-                className="flex w-full max-w-sm items-center justify-between gap-4"
+                className="flex w-full max-w-sm flex-wrap items-center justify-between gap-3"
               >
                 <span className="text-sm font-medium">{t(`shortcuts.${binding.action}`)}</span>
                 {binding.accelerator ? (

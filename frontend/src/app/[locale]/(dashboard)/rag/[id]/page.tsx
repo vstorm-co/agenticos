@@ -20,6 +20,7 @@ import {
   TabsTrigger,
 } from "@/components/ui";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
+import { ErrorState } from "@/components/states";
 import { KBDetailSkeleton } from "@/components/rag/kb-detail-skeleton";
 import { KBDetailHeader } from "@/components/rag/kb-detail-header";
 import { KBStatsStrip } from "@/components/rag/kb-stats-strip";
@@ -205,7 +206,10 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   // and shows the "may be stale" banner below instead.
   if (loadFailed) {
     return (
-      <div className="text-destructive flex h-64 items-center justify-center text-sm">{error}</div>
+      <ErrorState
+        description={error ?? undefined}
+        cta={{ label: t("retry"), onClick: () => refresh() }}
+      />
     );
   }
   if (!kb) return null;

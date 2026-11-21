@@ -150,6 +150,11 @@ export function VoiceCard({
       : null;
   // The card renders once the agent has loaded, in the browser, so the hash a
   // link arrived with is there to read.
+  const [linked] = useState(() =>
+    [AGENT_CALLS_ANCHOR, AGENT_DICTATION_ANCHOR].some(
+      (anchor) => window.location.hash === `#${anchor}`,
+    ),
+  );
   const [tab, setTab] = useState<VoiceTab>(() => {
     const hash = window.location.hash;
     if (hash === `#${AGENT_CALLS_ANCHOR}`) return "calls";
@@ -274,8 +279,12 @@ export function VoiceCard({
         data-tour="agent-voice"
         className="scroll-mt-20"
         title={t("voiceTitle")}
+        summary={t("buildSummary.voice", {
+          calls: conversation?.value ? "on" : "off",
+          dictation: dictation ? "on" : "off",
+        })}
         description={t("voiceDescription")}
-        defaultOpen
+        defaultOpen={linked}
       >
         {dictationAnchor}
         {fields}

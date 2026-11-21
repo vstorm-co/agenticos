@@ -197,14 +197,14 @@ export function ChatControls({
         aria-label={t("label")}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
-          panel.current?.focus();
+          panel.current?.focus({ preventScroll: true });
         }}
         side="top"
         align="end"
         sideOffset={12}
         collisionPadding={12}
         tabIndex={-1}
-        className="bg-card flex max-h-[min(680px,var(--radix-popover-content-available-height))] w-[480px] flex-col overflow-hidden rounded-2xl p-0"
+        className="bg-card flex max-h-[min(680px,var(--radix-popover-content-available-height))] w-[min(25rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl p-0"
         // The page tour walks through these settings sections. Its caption takes
         // focus and its overlay takes the pointer - both outside - and closing on
         // either left the next stop pinned to a section that had gone.
@@ -217,8 +217,8 @@ export function ChatControls({
             event.preventDefault();
         }}
       >
-        <div className="flex shrink-0 items-center justify-between px-5 pt-4 pb-3">
-          <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight">
+        <div className="border-border flex shrink-0 items-center justify-between border-b px-4 py-3">
+          <h2 className="flex items-center gap-2 text-sm font-medium">
             <SlidersHorizontal className="text-muted-foreground size-4" aria-hidden />
             {t("label")}
           </h2>
@@ -232,7 +232,7 @@ export function ChatControls({
           </button>
         </div>
         <Tabs value={selectedTab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
-          <TabsList className="mx-5 shrink-0 gap-1 sm:gap-1">
+          <TabsList className="mx-4 mt-3 shrink-0 gap-1 sm:gap-1">
             <TabsTrigger value="model" data-tour="chat-settings-model" className="flex-1 px-2">
               <Cpu className="size-3.5" aria-hidden />
               {t("modelSection")}
@@ -252,9 +252,9 @@ export function ChatControls({
               {t("preferencesTab")}
             </TabsTrigger>
           </TabsList>
-          <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain px-5 py-5">
+          <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain px-4 py-4">
             <TabsContent value="model" forceMount hidden={selectedTab !== "model"} className="mt-0">
-              <p className="text-muted-foreground mb-4 text-[13px] leading-5">
+              <p className="text-muted-foreground mb-3 text-xs leading-5">
                 {t("whichModelRunsHere")}
               </p>
               {personalModel ? (
@@ -347,10 +347,10 @@ export function ChatControls({
                           onApprovalModeChange?.(mode);
                         }}
                         className={cn(
-                          "focus-visible:ring-ring flex w-full items-start justify-between gap-4 rounded-lg border px-3.5 py-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset",
+                          "focus-visible:ring-ring flex w-full items-start justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset",
                           approvalMode === mode
-                            ? "border-foreground/15 bg-foreground/[0.06] text-foreground"
-                            : "text-foreground/80 hover:bg-foreground/[0.035] border-transparent",
+                            ? "border-border bg-control text-foreground"
+                            : "text-foreground hover:bg-muted border-transparent",
                           !offered && "text-muted-foreground cursor-not-allowed border-dashed",
                         )}
                       >
@@ -394,7 +394,7 @@ export function ChatControls({
                       <Link
                         href={`/orgs/${activeOrg.id}/members?tab=governance`}
                         onClick={() => setOpen(false)}
-                        className="text-foreground underline underline-offset-4"
+                        className="text-brand underline underline-offset-4"
                       >
                         {t("waiverSettings")}
                       </Link>
@@ -426,11 +426,11 @@ export function ChatControls({
           </div>
         </Tabs>
 
-        <div className="text-muted-foreground border-border flex shrink-0 items-center justify-between border-t px-5 py-3 text-[11px]">
+        <div className="text-muted-foreground border-border flex shrink-0 items-center justify-between border-t px-4 py-2 text-[11px]">
           <span className="inline-flex items-center gap-1.5">{t("savedAutomatically")}</span>
           <span>{t("escToClose")}</span>
         </div>
-        {usageSlot && <div className="border-border shrink-0 border-t px-5 py-3">{usageSlot}</div>}
+        {usageSlot && <div className="border-border shrink-0 border-t px-4 py-3">{usageSlot}</div>}
       </PopoverContent>
     </Popover>
   );

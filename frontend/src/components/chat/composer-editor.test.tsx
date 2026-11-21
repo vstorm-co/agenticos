@@ -60,22 +60,47 @@ describe("the composer's editor", () => {
     expect(messageOf(box())).toBe("hi");
   });
 
-  it("shows what it suggests until it is focused, then the placeholder", () => {
+  it("keeps its hint on focus and removes it only when the message changes", () => {
+    const props = {
+      mentions: [],
+      onChange: vi.fn(),
+      placeholder: "Type a message...",
+      idle: <p>Use / commands or @ resources</p>,
+    };
+    const { rerender } = render(<ComposerEditor {...props} value="" />);
+    fireEvent.focus(box());
+    expect(screen.getByText("Use / commands or @ resources")).toBeInTheDocument();
+    expect(screen.queryByText("Type a message...")).toBeNull();
+    rerender(<ComposerEditor {...props} value="Hello" />);
+    expect(screen.queryByText("Use / commands or @ resources")).toBeNull();
+    rerender(<ComposerEditor {...props} value="" />);
+    expect(screen.getByText("Use / commands or @ resources")).toBeInTheDocument();
+  });
+
+  it("lets IME confirm text without sending or inserting a newline", () => {
+    const keyDown = vi.fn();
     render(
       <ComposerEditor
         value=""
         mentions={[]}
         onChange={vi.fn()}
+        onKeyDown={keyDown}
         placeholder="Type a message..."
-        idle={<p>try @Notion</p>}
+        idle={<span>Use shortcuts</span>}
       />,
     );
-    expect(screen.getByText("try @Notion")).toBeInTheDocument();
-    fireEvent.focus(box());
-    expect(screen.queryByText("try @Notion")).toBeNull();
-    expect(screen.getByText("Type a message...")).toBeInTheDocument();
-    fireEvent.blur(box());
-    expect(screen.getByText("try @Notion")).toBeInTheDocument();
+    fireEvent.compositionStart(box());
+    expect(screen.queryByText("Use shortcuts")).toBeNull();
+    fireEvent.keyDown(box(), { key: "Enter", isComposing: true });
+    expect(keyDown).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(box());
+    fireEvent.keyDown(box(), { key: "Enter", isComposing: true });
+    expect(keyDown).not.toHaveBeenCalled();
+    fireEvent.keyDown(box(), { key: "Enter", keyCode: 229 });
+    expect(keyDown).not.toHaveBeenCalled();
+    expect(messageOf(box())).toBe("");
+    fireEvent.keyDown(box(), { key: "Enter" });
+    expect(keyDown).toHaveBeenCalledOnce();
   });
 
   it("makes an address a chip once something follows it, so it can still be typed", async () => {

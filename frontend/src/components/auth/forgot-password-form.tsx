@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ArrowLeft, ArrowRight, Mail } from "lucide-react";
 
+import { AuthHeading } from "@/components/auth/auth-heading";
 import { Button, Input, Label } from "@/components/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
@@ -48,9 +49,9 @@ export function ForgotPasswordForm() {
         </div>
         <div className="space-y-2">
           <span className="text-muted-foreground text-sm font-medium">{t("checkYourInbox")}</span>
-          <h1 className="text-foreground text-[2rem] leading-tight font-semibold tracking-tight text-balance [&_em]:not-italic">
+          <AuthHeading>
             {t.rich("linkSentHeading", { em: (chunks) => <em>{chunks}</em> })}
-          </h1>
+          </AuthHeading>
           <p className="text-foreground/70 text-sm">
             {t.rich("resetLinkSent", {
               email,
@@ -75,9 +76,7 @@ export function ForgotPasswordForm() {
         <span className="text-muted-foreground text-sm font-medium">
           {t("forgotPasswordPrompt")}
         </span>
-        <h1 className="text-foreground text-[2rem] leading-tight font-semibold tracking-tight text-balance [&_em]:not-italic">
-          {t.rich("forgotHeading", { em: (chunks) => <em>{chunks}</em> })}
-        </h1>
+        <AuthHeading>{t.rich("forgotHeading", { em: (chunks) => <em>{chunks}</em> })}</AuthHeading>
         <p className="text-foreground/65 text-sm">{t("dropYourEmailBelow")}</p>
       </div>
 

@@ -740,7 +740,8 @@ describe("what the page does with the frames it is sent", () => {
     // Behind the step rather than under it, which is what web chat does: a
     // transcript that opened every finished call is a wall of results.
     expect(screen.queryByText("30 days")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: /Post Invoice/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Working/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Post Invoice/ }));
 
     expect(screen.getByText("30 days")).toBeInTheDocument();
   });
@@ -779,7 +780,62 @@ describe("what the page does with the frames it is sent", () => {
     );
   });
 
-  it("renders the reasoning it was sent, and nothing where it was not", () => {
+  it("keeps generated media visible once while expanded diagnostics stay raw", async () => {
+    render(<HostedChat config={config()} />);
+    act(() =>
+      socket().deliver({
+        type: "tool_call",
+        data: { tool_call_id: "image", tool_name: "generate_image" },
+      }),
+    );
+    act(() =>
+      socket().deliver({
+        type: "tool_result",
+        data: {
+          tool_call_id: "image",
+          content: JSON.stringify({
+            kind: "generated_image",
+            filename: "evidence.png",
+            prompt: "Hosted evidence",
+            token: "scoped",
+          }),
+        },
+      }),
+    );
+    expect(screen.getAllByRole("img", { name: "Hosted evidence" })).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button", { name: /^Working/ }));
+    const step = screen
+      .getAllByRole("button")
+      .find(
+        (button) =>
+          button.getAttribute("aria-expanded") === "false" &&
+          /image/i.test(button.textContent ?? ""),
+      );
+    expect(step).toBeDefined();
+    await userEvent.click(step!);
+    expect(screen.getAllByRole("img", { name: "Hosted evidence" })).toHaveLength(1);
+    expect(screen.getByText(/"kind":\s*"generated_image"/)).toBeVisible();
+  });
+
+  it("does not infer a private workspace for a public produced file", () => {
+    render(<HostedChat config={config()} />);
+    act(() =>
+      socket().deliver({
+        type: "tool_call",
+        data: { tool_call_id: "file", tool_name: "write_file", args: { path: "public-report.md" } },
+      }),
+    );
+    act(() =>
+      socket().deliver({ type: "tool_result", data: { tool_call_id: "file", content: "Written" } }),
+    );
+    expect(screen.getByText("public-report.md")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Open" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Download public-report/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the reasoning it was sent, and nothing where it was not", async () => {
     // The page has no branch that hides it: a page whose operator left
     // `show_thinking` off never receives the frame, which is what makes the
     // setting mean something on a surface with devtools.
@@ -787,7 +843,10 @@ describe("what the page does with the frames it is sent", () => {
 
     act(() => socket().deliver({ type: "thinking_delta", data: { content: "Checking policy." } }));
 
-    expect(screen.getByText("Checking policy.")).toBeInTheDocument();
+    expect(screen.queryByText("Checking policy.")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /^Working/ }));
+    await userEvent.click(screen.getByText("Thought about it"));
+    expect(screen.getByText("Checking policy.")).toBeVisible();
   });
 
   it("keeps one bubble for a turn rather than one per frame", async () => {
@@ -1012,11 +1071,12 @@ describe("a turn laid out the way web chat lays one out", () => {
         data: { tool_call_id: "c1", tool_name: "post_invoice" },
       }),
     );
-    expect(screen.getByText("Running")).toBeInTheDocument();
-
+    const progress = screen.getByRole("button", { name: /^Working/ });
+    expect(progress).toHaveAttribute("aria-expanded", "false");
     act(() => socket().deliver({ type: "complete", data: {} }));
-
-    expect(screen.queryByText("Running")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Working/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Worked · 1 step" })).toBe(progress);
+    expect(progress).toHaveAttribute("aria-expanded", "false");
   });
 
   it("renders the answer as Markdown and the question as plain text", () => {

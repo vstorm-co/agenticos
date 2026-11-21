@@ -44,6 +44,20 @@ async function readyComposer(page: Page) {
 test.describe("Chat", () => {
   test("the composer is live, not merely rendered", async ({ page }) => {
     const input = await readyComposer(page);
+    await expect(
+      page.getByRole("button", { name: `Agent: ${SEEDED_AGENT_NAME}`, exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("region", { name: "Daily briefing" })).toHaveAttribute(
+      "aria-busy",
+      "false",
+    );
+    const hint = page.getByTestId("composer-hints");
+    await expect(hint).toBeVisible();
+    await input.focus();
+    await expect(hint).toBeVisible();
+    const composer = page.locator(".composer-box");
+    const before = await composer.boundingBox();
+    if (!before) throw new Error("Expected the live composer on screen");
 
     // Dictation stays available before a first message; Send appears for a draft.
     await expect(page.getByRole("button", { name: "Voice input" })).toBeVisible();
@@ -52,6 +66,14 @@ test.describe("Chat", () => {
     await input.fill("Hello, AI assistant!");
     await expect(input).toHaveText("Hello, AI assistant!");
     await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
+    await expect(hint).toHaveCount(0);
+    await expect(page.locator("[data-chat-welcome-hints]")).toBeHidden();
+    expect((await composer.boundingBox())?.y).toBeCloseTo(before.y, 0);
+    await input.press("ControlOrMeta+A");
+    await input.press("Backspace");
+    await expect(hint).toBeVisible();
+    await expect(page.locator("[data-chat-welcome-hints]")).toBeVisible();
+    expect((await composer.boundingBox())?.y).toBeCloseTo(before.y, 0);
   });
 
   test("a file picked through the paperclip is attached, not silently dropped", async ({

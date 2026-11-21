@@ -1,12 +1,20 @@
 ---
-source_sha: "bd914baac0af"
+source_sha: "51bdfd333e72"
 ---
 
 # Konsola { #the-console }
 
+Domyślne motywy rozróżniają tło strony, sidebar, karty i panele pływające. Niebieski oznacza linki i fokus klawiatury, a włączone przełączniki są zielone. Nawigacja ma zwykłą grubość tekstu i mocniejszą etykietę aktywnej strony. Podsumowania sekcji Buildera pokazują bieżący model, zmienne, stan głosu i pierwsze wiadomości przed otwarciem edytorów. Logowanie i odzyskiwanie konta korzystają ze wspólnego, krótkiego nagłówka i statycznego panelu marki.
+
 Katalogi zasobów mają większe karty z ikoną, tytułem, opisem i osobną stopką statusu oraz akcji. Agenci, tabele, workflowy, bazy wiedzy, projekty, datasety, serwery MCP, skille, pliki kontekstu, Apps i grupy używają wspólnej ramki, zachowując własne akcje. W Builderze ustawienia są dostępne w spójnych, rozwijanych kartach. Thinking i Answer format są częścią Model settings. First messages pokazuje wbudowane podpowiedzi, gdy agent nie ma własnych. Model jest początkowo otwarty; zwinięcie zachowuje edytory, a linki Voice otwierają odpowiednią sekcję.
 
-W Build sekcja First messages pokazuje karty z ikoną, tytułem i wiadomością. Otwórz kartę, żeby ją edytować. Zapisanie zmian we wbudowanym przykładzie zachowuje pozostałe przykłady w szkicu. Skills, Context i Knowledge search w Toolbox używają list wyboru. Zapisany model czatu pozostaje w Models i w Saved models. Wyłącz Pokazuj podpowiedzi, aby nowy czat pokazywał więcej pozycji Inboxa.
+W Build sekcja First messages pokazuje karty z ikoną, tytułem i wiadomością. Otwórz kartę, żeby ją edytować. Zapisanie zmian we wbudowanym przykładzie zachowuje pozostałe przykłady w szkicu. Skills, Context i Knowledge search w Toolbox używają list wyboru. Zapisany model czatu pozostaje w Models i w Saved models.
+
+Variables, Voice, First messages, Run reviewers, Alerts i Tracing są początkowo zwinięte; podsumowania pokazują bieżącą konfigurację. Rozwiń sekcję, którą chcesz zmienić. Wymagane ustawienia i błędy walidacji pozostają dostępne. Model jest otwarty, a link do ustawień Voice otwiera odpowiednią zakładkę.
+
+Edytor instrukcji dopasowuje wysokość do okna; do dłuższej edycji można go powiększyć. Przy istniejącym modelu Provider i Model pozostają widoczne, a **Ustawienia połączenia** zawierają endpoint, autoryzację, API i region. Brak wymaganej konfiguracji lub błąd pola rozwija tę sekcję.
+
+Przy tworzeniu projektu najpierw podajesz nazwę, miejsce pracy i odbiorców. **Instrukcje i ustawienia domyślne** zawierają opcjonalny opis, instrukcje oraz początkowego agenta. Błąd takiego pola rozwija sekcję. W tabeli z wieloma kolumnami **Dodaj rekord** pokazuje pierwsze pola, wymagane wartości, treść dokumentu i wartości wpisane wcześniej w siatce. Rozwiń **Dodatkowe pola**, aby uzupełnić pozostałe opcjonalne właściwości.
 
 Organizacje mają wyszukiwanie po nazwie i slugu członkostwa, z liczbą wyników w tym samym pasku. Wyczyszczenie wyszukiwania przywraca pełną listę organizacji użytkownika.
 
@@ -100,7 +108,7 @@ Pola profilu mieszczą się w jednym wierszu, gdy jest miejsce; **Zapisz zmiany*
 
 Okna kategorii szablonów dopasowują się do zawartości; wybranie branży agenta lub umiejętności otwiera większą bibliotekę. Na telefonie wybór wyglądu ma postać zwartych wierszy z miniaturami.
 
-Instrukcje agentów i projektów mają jeden zwarty pasek z tytułem, pomocą, przełączaniem źródła i podglądu oraz rozwijaniem. Rozwinięty Markdown zachowuje wybrany tryb źródła lub podglądu. Nieużywane zmienne promptu są początkowo zwinięte; istniejące własne zmienne lub niestandardowa strefa czasu pozostawiają panel otwarty. Rozwinięte edytory tekstu i plików zachowują równe marginesy na telefonie. Pola tekstowe na telefonie używają większej czcionki bez powiększania pól na komputerze.
+Instrukcje agentów i projektów mają jeden zwarty pasek z tytułem, pomocą, przełączaniem źródła i podglądu oraz rozwijaniem. Rozwinięty Markdown zachowuje wybrany tryb źródła lub podglądu. Zmienne promptu są początkowo zwinięte z podsumowaniem konfiguracji; rozwijanie i zwijanie sekcji zachowuje szkic. Rozwinięte edytory tekstu i plików zachowują równe marginesy na telefonie. Pola tekstowe na telefonie używają większej czcionki bez powiększania pól na komputerze.
 
 Na telefonie fokus w polu wiadomości przełącza czat w zwarty wiersz pisania z załącznikami i wysyłaniem. Wybór agenta oraz głos pozostają dostępne pod **+**. Powitanie i sugestie połączeń chowają się na czas pisania, a menu uzupełniania mieści się w dostępnej wysokości. Przejście z tekstu na Wyślij zachowuje stabilny układ.
 
@@ -131,7 +139,9 @@ Nieudany run pokazuje błąd oddzielnie od odpowiedzi agenta, poza zwijanymi nar
 
 Załączniki pozostają wewnątrz pola wiadomości w jednym przewijanym wierszu. Bezpieczne obrazy mają lokalną miniaturę podczas wysyłania; trwające wysyłanie wskazuje animowany wskaźnik bez wymyślonego procentu. Podkreślenia kart i zaznaczenia segmentów płynnie przechodzą między opcjami; przy ograniczeniu animacji zmiana jest natychmiastowa.
 
-Nowy czat pokazuje pod polem wiadomości do czterech promptów bieżącego agenta. Układają się jeden pod drugim. Kliknięcie promptu dodaje go do edytowalnego szkicu. Nad polem znajduje się oś czasu z maksymalnie czterema pozycjami z Inboxa, w tym linkiem do oczekujących zgód. Skrzynka i kolejki zatwierdzeń od razu korzystają z pamięci podręcznej podczas nawigacji; dane pozostają świeże przez 30 sekund, a nieużywane wpisy są przechowywane przez 30 minut. Błąd odświeżania pozostawia widoczne zapisane elementy wraz z ostrzeżeniem. Zmiana konta lub organizacji nadal czyści pamięć podręczną.
+Nowy czat pokazuje pod polem wiadomości do czterech promptów bieżącego agenta, w dwóch kolumnach, gdy jest miejsce. Kliknięcie dodaje prompt do edytowalnego szkicu. Pisanie ukrywa propozycje bez przesuwania pola wiadomości; wyczyszczenie szkicu je przywraca. Fokus w pustym polu pozostawia widoczną stałą wskazówkę o komendach `/` i zasobach `@`. Zatwierdzenie znaku za pomocą IME nie wysyła wiadomości.
+
+Oś czasu pokazuje do dwóch pozycji z Inboxa, wliczając link do oczekujących zgód, i prowadzi do pełnego Inboxa. Ładowanie rezerwuje miejsce na podgląd. Skrzynka i kolejki zatwierdzeń od razu korzystają z pamięci podręcznej podczas nawigacji; dane pozostają świeże przez 30 sekund, a nieużywane wpisy są przechowywane przez 30 minut. Błąd odświeżania pozostawia widoczne zapisane elementy wraz z ostrzeżeniem. Zmiana konta lub organizacji nadal czyści pamięć podręczną.
 
 Główny czat ma szerokie pole wiadomości. Biblioteka modeli pokazuje najpierw podłączonych dostawców, z logotypami i nazwami od wielkiej litery, oraz rozdziela katalog i zapisane modele. Kliknięcie modelu od razu go wybiera. Brakujące poświadczenia można dodać w formularzach Vaulta z poziomu wyboru modelu, również dla dostawców wymagających kilku pól; nadal obowiązują dotychczasowe uprawnienia i walidacja modeli. Mikrofon i przycisk wysyłania płynnie zmieniają stan podczas pisania.
 
@@ -560,9 +570,11 @@ Cofnięcie działa jako trwałe zadanie w izolowanym workspace rozmowy. Snapshot
 
 Snapshoty do cofania mają limit 2 MiB na plik i 16 MiB łącznie dla danych przed zmianą i po niej; większe zmiany można przeglądać bez cofania. Weryfikacja ogranicza też odczyty starszych snapshotów. Przyjmowanych jest sześć żądań na osobę i dwadzieścia na organizację na minutę, z lokalnym limitem podczas awarii Redis. W organizacji działa najwyżej jedno zadanie cofania naraz.
 
-Podczas pracy agenta komunikaty o postępie i następujące po nich wywołania narzędzi pojawiają się w kolejności nadejścia w jednej rozwiniętej osi czasu. Zakończenie uruchomienia zwija historię pod jednym „Worked for…” lub „Thought for…”, pozostawiając pod spodem tylko finalną odpowiedź. Rozwinięcie historii przywraca tę samą kolejność wiadomości i grup narzędzi. Rozumowanie ma osobne, opcjonalne rozwinięcie; jego nagłówki nie tworzą etapów procesu. Pytania i zatwierdzenia zachowują stan oczekiwania do rozwiązania, także przy delegacji. Aktywne karty zatwierdzania i wyniki wizualne pozostają poza zakończoną historią.
+Czat używa tej samej chronologicznej osi na żywo i w historii. Zwykłe wywołania narzędzi i rozumowanie pozostają pod zwiniętymi kontrolkami pracy. Komunikaty o postępie, odpowiedzi, podsumowania pytań i wyniki wizualne zachowują miejsce po zakończeniu uruchomienia. Rozwinięcie pracy pokazuje wywołania bez automatycznego otwierania argumentów. Pytania i zatwierdzenia zachowują stan oczekiwania do rozstrzygnięcia.
 
-Kolejne narzędzia między wiadomościami tworzą zwiniętą grupę; rozwiń ją, aby zobaczyć poszczególne wywołania.
+Rozwinięte kroki narzędzi pokazują surowe argumenty i wyniki. Wykresy, wygenerowane multimedia, utworzone pliki i raporty zmian kodu pojawiają się raz w rozmowie, poza szczegółami pracy. Podglądy korzystają z tego samego uwierzytelnionego lub osadzonego dostępu co rozmowa.
+
+Pytania pojawiają się wewnątrz rozmowy, poza dolnym obszarem pola wiadomości. Podczas wysyłania odpowiedzi opcje pozostają widoczne i zablokowane do potwierdzenia przez serwer. Potwierdzone pytanie zamienia się w krótkie podsumowanie; jedno rozwinięcie pokazuje wszystkie pytania i odpowiedzi. Przycisk nad polem wiadomości prowadzi do oczekującego pytania. Czytanie wcześniejszych wiadomości zachowuje pozycję, a nowe pytania nie przejmują fokusu.
 
 Zatwierdzenia w czacie pozostają jedną prostą kartą przy polu wiadomości: operacja, jej ikona i tytuł zadania lub obiektu, a dodatkowe argumenty pod Details. Przyciski Approve i Reject są obok żądania, a na wąskim ekranie pod nim. Zakończona aktywność ma spokojny znacznik ukończenia, oczekujące kroki osobny status, a działające kroki zachowują ikonę operacji zamiast osobnej animowanej kuli przy każdym wywołaniu.
 
@@ -570,7 +582,7 @@ Ponowne otwarcie czatu odtwarza też zatwierdzenia i pytania narzędzi subagenta
 
 Napływający tekst pozostaje czytelny podczas ładowania modułu formatowania Markdown. Pole wiadomości ma nieprzezroczyste tło i delikatny stan fokusu, bez animowanej ramki i rozmywania treści pod spodem.
 
-Oś czasu w trakcie pracy jest częścią strony. Rozwinięta historia zakończonej pracy ma ograniczoną wysokość i własne przewijanie. Sąsiadujące segmenty jednego agenta i uruchomienia mają wspólne podsumowanie oraz czas rozpoczęcia, także gdy zawierają komunikaty między narzędziami i wznowienia po zatwierdzeniu. Inny agent lub wiadomość użytkownika pomiędzy segmentami rozpoczyna osobny turn. Zakończone i zagnieżdżone wymiany agentów pozostają dostępne, także raporty agentów programistycznych. Otwórz wymianę, aby przeczytać instrukcje, odpowiedź i zwinięte rozumowanie.
+Rozwinięte szczegóły pracy mają ograniczoną wysokość i własne przewijanie zarówno na żywo, jak i w historii. Sąsiadujące segmenty jednego agenta i uruchomienia mają wspólne podsumowanie oraz czas rozpoczęcia, także gdy zawierają komunikaty między narzędziami i wznowienia po zatwierdzeniu. Inny agent lub wiadomość użytkownika pomiędzy segmentami rozpoczyna osobny turn. Zakończone i zagnieżdżone wymiany agentów pozostają dostępne, także raporty agentów programistycznych. Otwórz wymianę, aby przeczytać instrukcje, odpowiedź i zwinięte rozumowanie.
 
 Udane zapisy MCP pokazują karty z linkami do projektów, tabel, zadań, rekordów, agentów, workflow, skilli i Context. Błędy nie tworzą kart sukcesu. Wysłana wiadomość pojawia się blisko góry z miejscem na odpowiedź; ręczne przewijanie zachowuje pozycję. Listy Person i Agent przewijają się w oknie rekordu. Pytania działają także po wznowieniu czatu przez HTTP po zatwierdzeniu operacji.
 

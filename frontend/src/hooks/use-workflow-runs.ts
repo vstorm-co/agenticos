@@ -197,6 +197,8 @@ export function useWorkflowRun(runId: string) {
   return {
     run: run.data ?? null,
     isLoading: run.isLoading,
+    error: run.error ?? nodes.error ?? files.error ?? graph.error,
+    refetch: () => Promise.all([run.refetch(), nodes.refetch(), files.refetch(), graph.refetch()]),
     nodes: nodes.data?.items ?? [],
     files: files.data?.items ?? [],
     logs: logs.data?.items ?? [],

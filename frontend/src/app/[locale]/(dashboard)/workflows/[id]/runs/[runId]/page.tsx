@@ -55,6 +55,8 @@ import {
   useWorkflow,
   useWorkflowRun,
 } from "@/hooks";
+import { ErrorState } from "@/components/states";
+import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { formatRunCostUsd, formatDateTime, formatRunDuration } from "@/lib/utils";
 import { routesErrors } from "@/lib/workflows/ports";
@@ -87,11 +89,30 @@ export default function WorkflowRunPage({ params }: PageProps) {
   const { id, runId } = use(params);
   const t = useTranslations("pages.workflows");
   const locale = useLocale();
-  const { workflow } = useWorkflow(id);
-  const { nodes: catalog, isLoading: catalogLoading } = useNodeCatalog();
+  const common = useTranslations("common");
+  const errors = useTranslations("errors");
+  const { workflow, error: workflowError, refetch: refetchWorkflow } = useWorkflow(id);
+  const {
+    nodes: catalog,
+    isLoading: catalogLoading,
+    error: catalogError,
+    refetch: refetchCatalog,
+  } = useNodeCatalog();
   const router = useRouter();
-  const { run, isLoading, nodes, files, logs, logsError, graph, cancel, retry, resolveStep } =
-    useWorkflowRun(runId);
+  const {
+    run,
+    isLoading,
+    error: readError,
+    refetch,
+    nodes,
+    files,
+    logs,
+    logsError,
+    graph,
+    cancel,
+    retry,
+    resolveStep,
+  } = useWorkflowRun(runId);
   const [resolving, setResolving] = useState<string | null>(null);
   const { can } = usePermissions();
   const inspectNode = useWorkflowEditorStore((state) => state.editNode);
@@ -157,6 +178,23 @@ export default function WorkflowRunPage({ params }: PageProps) {
           ),
         );
   };
+
+  const loadError = workflowError ?? catalogError ?? readError;
+  if (loadError) {
+    return (
+      <ErrorState
+        description={getErrorMessage(loadError, errors)}
+        cta={{
+          label: common("retry"),
+          onClick: () => {
+            if (workflowError) void refetchWorkflow();
+            if (catalogError) void refetchCatalog();
+            if (readError) void refetch();
+          },
+        }}
+      />
+    );
+  }
 
   // As the editor does, the canvas waits for the catalog its cards are drawn from.
   if (isLoading || catalogLoading || run === null || !workflow) {

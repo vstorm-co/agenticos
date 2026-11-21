@@ -117,10 +117,10 @@
 
 /* --- Layer 1: the accent ramp. This is the retheme knob. ----------------- */
 :root {
-  /* Standard emphasis is neutral. Statuses, avatars and provider marks keep
-     meaningful color; custom looks may override the accent ramp. */
-  --brand-h: 265;
-  --brand-c: 0;
+  /* Blue identifies links, selection and focus; status and identity colors
+     keep their own meanings. Primary actions remain neutral. */
+  --brand-h: 255;
+  --brand-c: 0.14;
 
   --brand-50: oklch(97% calc(var(--brand-c) * 0.06) var(--brand-h));
   --brand-100: oklch(94% calc(var(--brand-c) * 0.12) var(--brand-h));
@@ -234,8 +234,8 @@
 
   /* Neutral page chrome. Page, card and floating surfaces have separate roles;
      fields share the raised surface so they stay legible on the page and in dialogs. */
-  --color-sidebar: #f5f5f2;
-  --color-background: #fbfbf9;
+  --color-sidebar: #f4f4f6;
+  --color-background: #fafafa;
   --color-foreground: #242428;
   --color-card: oklch(100% 0 0);
   --color-card-foreground: #242428;
@@ -258,15 +258,15 @@
   --color-action-foreground: #f7f7f9;
   --color-action-hover: #3b3b3b;
   --color-action-active: #232323;
-  --color-secondary: #efefeb;
+  --color-secondary: #eeeef1;
   --color-secondary-foreground: oklch(22% 0.004 265);
-  --color-muted: #efefeb;
-  --color-muted-foreground: #63635f;
+  --color-muted: #eeeef1;
+  --color-muted-foreground: #62626b;
   /* Deeper than `muted`, where the two used to be the same value. `accent` is
      what paints a selected nav row and a hover, and the sidebar it paints them
      on is now a tinted surface of its own - at the muted step the selected row
      was a 1.01:1 difference from the column behind it, which is no difference. */
-  --color-accent: #e6e6e0;
+  --color-accent: #e5e5eb;
   --color-accent-foreground: oklch(22% 0.004 265);
   /* Washed from `oklch(57.7% 0.245 27.325)`, which was the loudest thing on
      any page it appeared on. At this chroma the fill still carries white text
@@ -285,7 +285,7 @@
      the loudest. */
   --color-warning: oklch(64% 0.1 72);
   --color-success: oklch(58% 0.1 155);
-  --color-border: #e1e1dc;
+  --color-border: #dedee5;
   --color-destructive-ink: #a52a34;
   --color-warning-ink: #795000;
   --color-success-ink: #236846;
@@ -405,12 +405,12 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
-    --color-sidebar: #27272a;
-    --color-background: #222224;
+    --color-sidebar: #1f1f23;
+    --color-background: #17171b;
     --color-foreground: #eeeef1;
-    --color-card: #29292c;
+    --color-card: #202024;
     --color-card-foreground: #eeeef1;
-    --color-popover: #323236;
+    --color-popover: #29292f;
     --color-popover-foreground: #eeeef1;
     --color-peek-well: oklch(21.5% 0.0025 265);
     --color-peek-sheet: oklch(25.5% 0.0025 265);
@@ -434,13 +434,13 @@
     --color-brand-subtle: var(--brand-950);
     --color-brand-subtle-hover: var(--brand-900);
     --color-brand-line: var(--brand-800);
-    --color-secondary: #2d2d32;
+    --color-secondary: #29292f;
     --color-secondary-foreground: oklch(95% 0 0);
-    --color-muted: #2d2d32;
-    --color-muted-foreground: #b1b1b9;
-    --color-accent: #38383f;
+    --color-muted: #29292f;
+    --color-muted-foreground: #b0b0ba;
+    --color-accent: #34343c;
     --color-accent-foreground: oklch(95% 0 0);
-    --color-border: #3c3c40;
+    --color-border: #393941;
     --color-destructive-ink: #ffb4b4;
     --color-warning-ink: #f0cc84;
     --color-success-ink: #99d5b1;
@@ -458,12 +458,12 @@
 }
 
 :root.dark {
-  --color-sidebar: #27272a;
-  --color-background: #222224;
+  --color-sidebar: #1f1f23;
+  --color-background: #17171b;
   --color-foreground: #eeeef1;
-  --color-card: #29292c;
+  --color-card: #202024;
   --color-card-foreground: #eeeef1;
-  --color-popover: #323236;
+  --color-popover: #29292f;
   --color-popover-foreground: #eeeef1;
   --color-peek-well: oklch(21.5% 0.0025 265);
   --color-peek-sheet: oklch(25.5% 0.0025 265);
@@ -485,13 +485,13 @@
   --color-brand-subtle: var(--brand-950);
   --color-brand-subtle-hover: var(--brand-900);
   --color-brand-line: var(--brand-800);
-  --color-secondary: #2d2d32;
+  --color-secondary: #29292f;
   --color-secondary-foreground: oklch(95% 0 0);
-  --color-muted: #2d2d32;
-  --color-muted-foreground: #b1b1b9;
-  --color-accent: #38383f;
+  --color-muted: #29292f;
+  --color-muted-foreground: #b0b0ba;
+  --color-accent: #34343c;
   --color-accent-foreground: oklch(95% 0 0);
-  --color-border: #3c3c40;
+  --color-border: #393941;
   --color-destructive-ink: #ffb4b4;
   --color-warning-ink: #f0cc84;
   --color-success-ink: #99d5b1;
@@ -518,13 +518,13 @@
   --color-success-ink: #236846;
   --color-popover: #ffffff;
   --color-popover-foreground: #242428;
-  --color-background: #fafaf8;
+  --color-background: #fafafa;
   --color-foreground: #242428;
   --color-card: #ffffff;
   --color-card-foreground: #242428;
   --color-muted: #eeeef1;
-  --color-muted-foreground: #63635f;
-  --color-border: #e1e1dc;
+  --color-muted-foreground: #62626b;
+  --color-border: #dedee5;
   /* A pinned-light subtree inside a dark root needs the light accent mapping
      too, or its buttons and links keep the root theme's accent. */
   --color-primary: oklch(21% 0.01 250);
@@ -552,7 +552,7 @@
   --series-3: oklch(80% 0.15 78);
   --series-4: oklch(64% 0.19 22);
   --series-5: oklch(58% 0.18 312);
-  --color-sidebar: #f5f5f2;
+  --color-sidebar: #f4f4f6;
   --color-secondary: #eeeef1;
   --color-secondary-foreground: #242428;
   --color-accent: #e5e5ea;
@@ -563,16 +563,16 @@
   --color-destructive-ink: #ffb4b4;
   --color-warning-ink: #f0cc84;
   --color-success-ink: #99d5b1;
-  --color-popover: #323236;
+  --color-popover: #29292f;
   --color-popover-foreground: #eeeef1;
-  --color-sidebar: #27272a;
-  --color-background: #222224;
+  --color-sidebar: #1f1f23;
+  --color-background: #17171b;
   --color-foreground: #eeeef1;
-  --color-card: #29292c;
+  --color-card: #202024;
   --color-card-foreground: #eeeef1;
-  --color-muted: #2d2d32;
-  --color-muted-foreground: #b1b1b9;
-  --color-border: #3c3c40;
+  --color-muted: #29292f;
+  --color-muted-foreground: #b0b0ba;
+  --color-border: #393941;
   --color-primary: oklch(96% 0.003 250);
   --color-primary-foreground: oklch(16% 0.01 250);
   --color-primary-hover: oklch(88% 0.004 250);
@@ -598,9 +598,9 @@
   --series-3: oklch(78% 0.14 78);
   --series-4: oklch(64% 0.17 22);
   --series-5: oklch(62% 0.16 312);
-  --color-secondary: #2d2d32;
+  --color-secondary: #29292f;
   --color-secondary-foreground: oklch(95% 0 0);
-  --color-accent: #38383f;
+  --color-accent: #34343c;
   --color-accent-foreground: oklch(95% 0 0);
 }
 
@@ -842,43 +842,6 @@
     to {
       opacity: 1;
       transform: translateY(0);
-    }
-  }
-
-  /* The empty composer's examples: each slides in from above as the last one
-     slides down and out. Reduced motion swaps them in place. */
-  @keyframes composer-hint-in {
-    from {
-      opacity: 0;
-      transform: translateY(-60%);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  @keyframes composer-hint-out {
-    from {
-      opacity: 1;
-      transform: translateY(0);
-    }
-    to {
-      opacity: 0;
-      transform: translateY(60%);
-    }
-  }
-  .composer-hint-in {
-    animation: composer-hint-in 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-  .composer-hint-out {
-    animation: composer-hint-out 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .composer-hint-in {
-      animation: none;
-    }
-    .composer-hint-out {
-      display: none;
     }
   }
 
@@ -3045,17 +3008,31 @@ body .tour-spotlight {
     order: 0;
     width: 100%;
   }
-  /* A programmatic focus does not mean the person has started writing. */
-  .chat-home-column:has(.chat-input-form[data-editing][data-drafting]) {
-    justify-content: flex-end;
+}
+
+/* Keep the prompt slot's geometry while the person writes. Visibility changes
+   after the fade; inert and aria-hidden already prevent interaction. */
+.chat-welcome-suggestions {
+  opacity: 1;
+  visibility: visible;
+}
+.chat-welcome-suggestions[data-suggestions-hidden] {
+  opacity: 0;
+  visibility: hidden;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="reduce"]) .chat-welcome-suggestions {
+    transition:
+      opacity var(--duration-panel) var(--ease-out),
+      visibility 0s;
   }
-  .chat-home-column:has(.chat-input-form[data-editing][data-drafting]) [data-transcript] {
-    padding-block: 0;
+  :root:not([data-motion="reduce"]) .chat-welcome-suggestions[data-suggestions-hidden] {
+    transition-delay: 0s, var(--duration-panel);
   }
-  .chat-surface:has(.chat-input-form[data-editing][data-drafting]) .chat-empty-state,
-  .chat-surface:has(.chat-input-form[data-editing][data-drafting]) .chat-composer-suggestions,
-  .chat-surface:has(.chat-input-form[data-editing][data-drafting]) .chat-home-hints {
-    display: none;
+  @starting-style {
+    :root:not([data-motion="reduce"]) .chat-welcome-suggestions:not([data-suggestions-hidden]) {
+      opacity: 0;
+    }
   }
 }
 

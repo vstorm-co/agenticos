@@ -1148,36 +1148,33 @@ export default function AgentBuilderPage({ params }: PageProps) {
           />
         )}
         <PageHeader
+          icon={
+            <span className="group relative shrink-0">
+              <AgentAvatar
+                agentId={id}
+                slug={agent.slug}
+                hasAvatar={agent.has_avatar}
+                colorSlot={agent.avatar_color}
+                size="lg"
+                version={avatarVersion}
+              />
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => avatarInput.current?.click()}
+                  disabled={setAvatar.isPending}
+                  aria-label={agent.has_avatar ? t("replaceAvatar") : t("uploadAvatar")}
+                  title={t("squareImagesLookBest")}
+                  className="bg-background/70 text-foreground absolute inset-0 flex items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 disabled:cursor-not-allowed"
+                >
+                  <ImagePlus className="h-5 w-5" />
+                </button>
+              )}
+            </span>
+          }
           title={
-            <span className="flex min-w-0 items-center gap-3">
-              <span className="group relative shrink-0">
-                <AgentAvatar
-                  agentId={id}
-                  slug={agent.slug}
-                  hasAvatar={agent.has_avatar}
-                  colorSlot={agent.avatar_color}
-                  size="lg"
-                  version={avatarVersion}
-                />
-                {canEdit && (
-                  <button
-                    type="button"
-                    onClick={() => avatarInput.current?.click()}
-                    disabled={setAvatar.isPending}
-                    aria-label={agent.has_avatar ? t("replaceAvatar") : t("uploadAvatar")}
-                    title={t("squareImagesLookBest")}
-                    className="bg-background/70 text-foreground absolute inset-0 flex items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 disabled:cursor-not-allowed"
-                  >
-                    <ImagePlus className="h-5 w-5" />
-                  </button>
-                )}
-              </span>
-              {/* One line, whatever the width: the actions wrap under it before
-                the name is broken, and a name longer than the column ends in
-                an ellipsis with the whole of it on hover. */}
-              <span className="truncate" title={agent.name}>
-                {agent.name}
-              </span>
+            <span className="truncate" title={agent.name}>
+              {agent.name}
             </span>
           }
           badges={
@@ -1746,49 +1743,49 @@ export default function AgentBuilderPage({ params }: PageProps) {
         <Tabs value={tab} onValueChange={setTab} className="flex flex-1 flex-col">
           <TabsList>
             <TabsTrigger value="build" data-tour="agent-tab-build">
-              <SlidersHorizontal className="mr-1.5 size-4 shrink-0" aria-hidden />
+              <SlidersHorizontal className="size-4 shrink-0" aria-hidden />
               {t("build")}
             </TabsTrigger>
             <TabsTrigger value="toolbox" data-tour="agent-tab-toolbox">
-              <Wrench className="mr-1.5 size-4 shrink-0" aria-hidden />
+              <Wrench className="size-4 shrink-0" aria-hidden />
               {t("toolbox")}
             </TabsTrigger>
             {
               <TabsTrigger value="mcp" data-tour="agent-tab-mcp">
-                <Plug className="mr-1.5 size-4 shrink-0" aria-hidden />
+                <Plug className="size-4 shrink-0" aria-hidden />
                 {t("mcpServers")}
               </TabsTrigger>
             }
             <TabsTrigger value="limits" data-tour="agent-tab-limits">
-              <ShieldCheck className="mr-1.5 size-4 shrink-0" aria-hidden />
+              <ShieldCheck className="size-4 shrink-0" aria-hidden />
               {t("limits")}
             </TabsTrigger>
             {
               <TabsTrigger value="availability" data-tour="agent-tab-availability">
-                <Radio className="mr-1.5 size-4 shrink-0" aria-hidden />
+                <Radio className="size-4 shrink-0" aria-hidden />
                 {t("availability")}
               </TabsTrigger>
             }
             {(canViewRuns || tab === "evals") && (
               <TabsTrigger value="evals" data-tour="agent-tab-evals">
-                <FlaskConical className="mr-1.5 size-4 shrink-0" aria-hidden />
+                <FlaskConical className="size-4 shrink-0" aria-hidden />
                 {t("evals")}
               </TabsTrigger>
             )}
             {canViewRuns && (
               <TabsTrigger value="gaps" data-tour="agent-tab-gaps">
-                <SearchX className="mr-1.5 size-4 shrink-0" aria-hidden />
+                <SearchX className="size-4 shrink-0" aria-hidden />
                 {tGaps("tab")}
               </TabsTrigger>
             )}
             {isJudge && (
               <TabsTrigger value="datasets">
-                <Database className="mr-1.5 size-4 shrink-0" aria-hidden />
+                <Database className="size-4 shrink-0" aria-hidden />
                 {t("judgeDatasets")}
               </TabsTrigger>
             )}
             <TabsTrigger value="history" data-tour="agent-tab-history">
-              <History className="mr-1.5 size-4 shrink-0" aria-hidden />
+              <History className="size-4 shrink-0" aria-hidden />
               {t("history")}
             </TabsTrigger>
           </TabsList>
@@ -1832,16 +1829,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </CardContent>
             </Card>
 
-            <PromptVariablesPanel
-              system={promptVariables}
-              custom={spec.variables ?? []}
-              timeZone={spec.time_zone ?? "system"}
-              disabled={!canEdit}
-              onInsert={insertVariableAtCaret}
-              onCustomChange={(variables) => update({ variables })}
-              onTimeZoneChange={(time_zone) => update({ time_zone })}
-            />
-
             <div data-agent-build-settings className="space-y-4">
               {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
@@ -1849,6 +1836,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 ref={attachModelCard}
                 data-tour="agent-model"
                 title={t("model")}
+                summary={
+                  profilesStatus === "failed"
+                    ? tAgents("modelsCouldNotBeListed")
+                    : profilesStatus === "pending"
+                      ? tc("loading")
+                      : (profiles.find((profile) => profile.id === spec.model_profile_id)?.label ??
+                        (spec.model_profile_id
+                          ? t("namedMissing", { name: spec.model_profile_id })
+                          : t("organizationDefault")))
+                }
                 description={t("howAgentAsksIts")}
                 open={modelSectionOpen}
                 onOpenChange={setModelSectionOpen}
@@ -1938,6 +1935,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   </MoreOptions>
                 </div>
               </BuildSection>
+
+              <PromptVariablesPanel
+                system={promptVariables}
+                custom={spec.variables ?? []}
+                timeZone={spec.time_zone ?? "system"}
+                disabled={!canEdit}
+                onInsert={insertVariableAtCaret}
+                onCustomChange={(variables) => update({ variables })}
+                onTimeZoneChange={(time_zone) => update({ time_zone })}
+              />
 
               <VoiceCard
                 collapsible

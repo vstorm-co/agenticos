@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -17,7 +17,8 @@ import {
   Skeleton,
   EntityAvatar,
 } from "@/components/ui";
-import { useOrganizations } from "@/hooks";
+import { useOrganizations, useOrganizationList } from "@/hooks";
+import { ErrorState } from "@/components/states";
 import { ROUTES } from "@/lib/constants";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
@@ -53,9 +54,10 @@ export default function OrgsPage() {
   const tc = useTranslations("common");
   const ui = useTranslations("ui");
   const [query, setQuery] = useState("");
-  const { orgs, activeOrgId, fetchOrgs, switchOrg } = useOrganizations();
+  const { orgs, activeOrgId, switchOrg } = useOrganizations();
+  const organizations = useOrganizationList();
+  const isLoading = organizations.isPending;
   const [createOpen, setCreateOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -69,17 +71,6 @@ export default function OrgsPage() {
   if (useChanged(searchParams.get("create")) && searchParams.get("create") === "1") {
     setCreateOpen(true);
   }
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      await fetchOrgs();
-      if (!cancelled) setIsLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchOrgs, searchParams]);
 
   return (
     <div className="flex flex-1 flex-col space-y-4">
@@ -95,12 +86,14 @@ export default function OrgsPage() {
       />
 
       <WorkspacesCard
-        count={isLoading ? null : filteredOrgs.length}
+        count={isLoading || organizations.error ? null : filteredOrgs.length}
         controls={
           <SearchInput value={query} onChange={setQuery} placeholder={t("searchOrganizations")} />
         }
       >
-        {isLoading ? (
+        {organizations.error ? (
+          <ErrorState cta={{ label: tc("retry"), onClick: () => void organizations.refetch() }} />
+        ) : isLoading ? (
           // The same tiles the populated grid draws, as skeletons - a skeleton
           // that draws a different shape is a layout jump on every load.
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -234,7 +227,7 @@ export default function OrgsPage() {
       <CreateOrgDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onCreated={() => fetchOrgs(true)}
+        onCreated={() => void organizations.refetch()}
       />
     </div>
   );

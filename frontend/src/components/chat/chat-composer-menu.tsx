@@ -42,7 +42,7 @@ export function ChatComposerMenu({
         tabIndex={-1}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
-          panel.current?.focus();
+          panel.current?.focus({ preventScroll: true });
         }}
         data-chat-popover
         aria-label={input("addToMessage")}

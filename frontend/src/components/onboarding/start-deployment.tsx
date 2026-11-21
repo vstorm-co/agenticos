@@ -132,7 +132,9 @@ export function StartDeployment({
           onChange={set}
         />
       )}
-      {question === "extras" && <DeploymentExtras maintenance={settings.maintenance_mode} />}
+      {question === "extras" && (
+        <DeploymentExtras maintenance={settings.maintenance_mode} orgId={org.id} />
+      )}
       {failed && (
         <p role="alert" className="text-destructive-ink mt-4 text-sm">
           {t("saveFailed")}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import { useUrlState } from "@/hooks/use-url-state";
 import {
   Bell,
   ChevronRight,
@@ -49,12 +49,11 @@ export function DeploymentSettingsLayout({
   const t = useTranslations("pages.adminSettingsLayout");
   const tc = useTranslations("common");
   const tStart = useTranslations("start.administration");
-  const requestedSection = useSearchParams().get("section");
-  const [active, setActive] = useState<Section>(
-    guided
-      ? "access"
-      : (SECTIONS.find((section) => section.id === requestedSection)?.id ?? "identity"),
-  );
+  const [requestedSection, setSection] = useUrlState("section");
+  const [guidedSection, setGuidedSection] = useState<Section>("access");
+  const active = guided
+    ? guidedSection
+    : (SECTIONS.find((section) => section.id === requestedSection)?.id ?? "identity");
 
   return (
     <div className="space-y-5 pb-6">
@@ -96,7 +95,7 @@ export function DeploymentSettingsLayout({
               type="button"
               aria-current={active === id ? "page" : undefined}
               aria-controls={`deployment-${id}`}
-              onClick={() => setActive(id)}
+              onClick={() => (guided ? setGuidedSection(id) : setSection(id))}
               className={cn(
                 "focus-visible:ring-ring flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-3 text-left text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none",
                 active === id

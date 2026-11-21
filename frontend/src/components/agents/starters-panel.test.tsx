@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render as renderBase, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -6,7 +6,7 @@ import { StartersPanel } from "./starters-panel";
 
 describe("StartersPanel", () => {
   it("opens the section and enables suggestions by default", () => {
-    render(
+    renderEditor(
       <StartersPanel
         starters={[]}
         disabled={false}
@@ -21,7 +21,7 @@ describe("StartersPanel", () => {
 
   it("lets authors opt out of built-in first messages", async () => {
     const onShowStartersChange = vi.fn();
-    render(
+    renderEditor(
       <StartersPanel
         starters={[]}
         showStarters={false}
@@ -39,7 +39,7 @@ describe("StartersPanel", () => {
   });
   it("shows the visual fallbacks as cards and turns them into custom starters only on save", async () => {
     const onChange = vi.fn();
-    render(<StartersPanel starters={[]} draws disabled={false} onChange={onChange} />);
+    renderEditor(<StartersPanel starters={[]} draws disabled={false} onChange={onChange} />);
     const preview = screen.getByRole("button", { name: /Explain it in 3D/ });
     expect(preview).toHaveTextContent(/Show me in 3D how a plane turns/);
     expect(onChange).not.toHaveBeenCalled();
@@ -63,7 +63,7 @@ describe("StartersPanel", () => {
 
   it("opens the editor from a saved starter card and keeps its metadata", async () => {
     const onChange = vi.fn();
-    render(
+    renderEditor(
       <StartersPanel
         starters={["One", "Two"]}
         icons={{ One: "code", Two: "mail" }}
@@ -90,7 +90,7 @@ describe("StartersPanel", () => {
 
   it("can add a new starter once the message has text", async () => {
     const onChange = vi.fn();
-    render(<StartersPanel starters={["One"]} disabled={false} onChange={onChange} />);
+    renderEditor(<StartersPanel starters={["One"]} disabled={false} onChange={onChange} />);
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
     const dialog = screen.getByRole("dialog");
     const save = within(dialog).getByRole("button", { name: "Save" });
@@ -105,7 +105,7 @@ describe("StartersPanel", () => {
 
   it("removes one starter without changing the others", async () => {
     const onChange = vi.fn();
-    render(<StartersPanel starters={["One", "Two"]} disabled={false} onChange={onChange} />);
+    renderEditor(<StartersPanel starters={["One", "Two"]} disabled={false} onChange={onChange} />);
     await userEvent.click(screen.getByRole("button", { name: "Edit One" }));
     await userEvent.click(screen.getByRole("button", { name: "Remove first message 1" }));
     expect(onChange).toHaveBeenCalledWith(["Two"], {}, {});
@@ -113,7 +113,7 @@ describe("StartersPanel", () => {
 
   it("keeps a draft title local when the editor is dismissed", async () => {
     const onChange = vi.fn();
-    render(<StartersPanel starters={["One"]} disabled={false} onChange={onChange} />);
+    renderEditor(<StartersPanel starters={["One"]} disabled={false} onChange={onChange} />);
     const edit = screen.getByRole("button", { name: "Edit One" });
     await userEvent.click(edit);
     await userEvent.type(screen.getByRole("textbox", { name: "Short title (optional)" }), "Draft");
@@ -128,7 +128,7 @@ describe("StartersPanel", () => {
 
   it("keeps invalid submissions from overwriting or exceeding the configured prompts", async () => {
     const onChange = vi.fn();
-    const { rerender } = render(
+    const { rerender } = renderEditor(
       <StartersPanel starters={[]} disabled={false} onChange={onChange} />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
@@ -145,13 +145,26 @@ describe("StartersPanel", () => {
   });
 
   it("offers no fifth starter", async () => {
-    render(<StartersPanel starters={["1", "2", "3", "4"]} disabled={false} onChange={vi.fn()} />);
+    renderEditor(
+      <StartersPanel starters={["1", "2", "3", "4"]} disabled={false} onChange={vi.fn()} />,
+    );
     expect(screen.queryByRole("button", { name: "Add" })).toBeNull();
   });
 
   it("keeps the cards read-only for readers", async () => {
-    render(<StartersPanel starters={["One"]} disabled onChange={vi.fn()} />);
+    renderEditor(<StartersPanel starters={["One"]} disabled onChange={vi.fn()} />);
     expect(screen.getByRole("button", { name: "One" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Add" })).toBeNull();
   });
 });
+
+/** Existing editing cases open the same native section a person opens first. */
+function renderEditor(...args: Parameters<typeof renderBase>) {
+  const view = renderBase(...args);
+  for (const summary of view.container.querySelectorAll<HTMLElement>(
+    "details[data-focus-frame] > summary",
+  )) {
+    fireEvent.click(summary);
+  }
+  return view;
+}

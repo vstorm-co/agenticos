@@ -17,8 +17,12 @@ import { AgentTemplateDialog } from "@/components/agents/agent-template-dialog";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 import { LabelFilter } from "@/components/agents/label-filter";
 import { ListFilters } from "@/components/ui/list-filters";
+import { ErrorState } from "@/components/states";
+import { getErrorMessage } from "@/lib/api-error";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
+  Alert,
+  AlertDescription,
   Button,
   ConfirmDialog,
   ListCard,
@@ -84,6 +88,7 @@ function AgentsCard({
 export default function AgentsPage() {
   const t = useTranslations("pages.agents");
   const tc = useTranslations("common");
+  const tErrors = useTranslations("errors");
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
@@ -107,6 +112,8 @@ export default function AgentsPage() {
     categoryOptions,
     tagOptions,
     isLoading,
+    error,
+    refetch,
     clone,
     archive,
     unarchive,
@@ -252,6 +259,17 @@ export default function AgentsPage() {
         <AgentLimitNotice ceiling={ceiling} id={AGENT_LIMIT_NOTICE_ID} />
       ) : null}
 
+      {error && agents.length > 0 && (
+        <Alert variant="destructive">
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>{getErrorMessage(error, tErrors)}</span>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+              {tc("retry")}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* The header and the controls are static, so they stay put while the
           list loads rather than being replaced by a placeholder of themselves.
           The panel below is equally static - loading, empty and populated all
@@ -259,6 +277,13 @@ export default function AgentsPage() {
       {isLoading ? (
         <AgentsCard visible={null} total={0} controls={galleryControls}>
           <CatalogLoading kind="agent" />
+        </AgentsCard>
+      ) : error && agents.length === 0 ? (
+        <AgentsCard visible={null} total={total} controls={galleryControls}>
+          <ErrorState
+            description={getErrorMessage(error, tErrors)}
+            cta={{ label: tc("retry"), onClick: () => void refetch() }}
+          />
         </AgentsCard>
       ) : (
         <AgentsCard visible={visible.length} total={total} controls={galleryControls}>

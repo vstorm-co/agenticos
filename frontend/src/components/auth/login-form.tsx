@@ -11,6 +11,7 @@ import { DirectoryLoginForm } from "@/components/auth/directory-login-form";
 import { OAuthBlock } from "@/components/auth/oauth-buttons";
 import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
 import { returnToForAttempt } from "@/lib/oauth-return";
+import { AuthHeading } from "@/components/auth/auth-heading";
 import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
@@ -42,6 +43,7 @@ export function LoginForm() {
   const [rejectedAttempts, setRejectedAttempts] = useState(0);
   const passwordRef = useRejectedFieldMotion(rejectedAttempts);
   const errorId = useId();
+  const emailErrorId = useId();
 
   // Somebody already signed in - in this tab, or in another one the session
   // check hears about - goes on to where a sign-in would take them, not to a
@@ -83,10 +85,7 @@ export function LoginForm() {
   return (
     <div className="space-y-8">
       <div className="space-y-2">
-        <span className="text-muted-foreground text-sm font-medium">{t("welcomeBack")}</span>
-        <h1 className="text-foreground text-[2rem] leading-tight font-semibold tracking-tight text-balance [&_em]:not-italic">
-          {t.rich("signInHeading", { em: (chunks) => <em>{chunks}</em> })}
-        </h1>
+        <AuthHeading>{t("signInHeading")}</AuthHeading>
         <p className="text-foreground/65 text-sm">
           {t("noAccount")}{" "}
           <Link
@@ -122,9 +121,12 @@ export function LoginForm() {
               disabled={isLoading}
               autoComplete="email"
               aria-invalid={Boolean(emailTouched && email && !emailValid)}
+              aria-describedby={emailTouched && email && !emailValid ? emailErrorId : undefined}
             />
             {emailTouched && email && !emailValid && (
-              <p className="text-destructive text-xs">{t("emailRequired")}</p>
+              <p id={emailErrorId} className="text-destructive-ink text-xs">
+                {t("pleaseEnterValidEmail")}
+              </p>
             )}
           </div>
 

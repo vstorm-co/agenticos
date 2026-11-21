@@ -119,8 +119,11 @@ export function StartersPanel({
     <BuildSection
       className="@container"
       data-tour="agent-starters"
-      defaultOpen
       title={t("startersTitle")}
+      summary={t("buildSummary.starters", {
+        enabled: String(showStarters),
+        count: starters.length,
+      })}
       description={t("startersHint", { max: MAX_STARTERS })}
       headerEnd={
         !usingDefaults && (

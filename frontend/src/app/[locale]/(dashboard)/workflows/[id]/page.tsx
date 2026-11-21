@@ -16,6 +16,9 @@ import {
 import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
+import { ErrorState } from "@/components/states";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ResourceIcon, ResourceIconPicker } from "@/components/ui/resource-icon";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { LiveRun, LiveRunStop, StaleRun, WorkflowCanvas } from "@/components/workflows/canvas";
@@ -33,6 +36,7 @@ import { TriggerPanel } from "@/components/workflows/triggers";
 import { NodeEditorDialog, StepDataFeed } from "@/components/workflows/node-editor";
 import {
   Button,
+  FormField,
   Input,
   Label,
   Textarea,
@@ -114,11 +118,31 @@ const EMPTY_GRAPH: WorkflowGraph = {
 export default function WorkflowEditorPage({ params }: PageProps) {
   const { id } = use(params);
   const t = useTranslations("pages.workflows");
-  const { workflow, isLoading, saveDraft, publish, restore } = useWorkflow(id);
+  const {
+    workflow,
+    isLoading,
+    error: workflowError,
+    refetch: refetchWorkflow,
+    saveDraft,
+    publish,
+    restore,
+  } = useWorkflow(id);
   const actions = useWorkflowActions();
   const exporting = useWorkflowExport();
   const restoreVersion = useRestoreVersion(restore.mutateAsync);
-  const { nodes, isLoading: catalogLoading } = useNodeCatalog();
+  const {
+    nodes,
+    isLoading: catalogLoading,
+    error: catalogError,
+    refetch: refetchCatalog,
+  } = useNodeCatalog();
+  const tErrors = useTranslations("errors");
+  const tc = useTranslations("common");
+  const readError = workflowError ?? catalogError;
+  const retryRead = () => {
+    void refetchWorkflow();
+    void refetchCatalog();
+  };
   const canEdit = workflow?.can_edit === true;
   // An editor can look without touching: the read-only editor a reader gets.
   const [viewing, setViewing] = useState(false);
@@ -133,6 +157,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [triggersOpen, setTriggersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
   // The test run started from Run, shown on the canvas until the next edit.
   const [liveRunId, setLiveRunId] = useState<string | null>(null);
   // That run once an edit ended its overlay: its page stays one click away.
@@ -168,7 +193,18 @@ export default function WorkflowEditorPage({ params }: PageProps) {
     return <WorkflowEditorLoading />;
   }
 
-  if (!workflow) {
+  const unavailable =
+    workflowError instanceof ApiError && [403, 404].includes(workflowError.status);
+  if (readError && !unavailable && (!workflow || (catalogError && nodes.length === 0))) {
+    return (
+      <ErrorState
+        description={getErrorMessage(readError, tErrors)}
+        cta={{ label: tc("retry"), onClick: retryRead }}
+      />
+    );
+  }
+
+  if (!workflow || unavailable) {
     return (
       <div className="space-y-4">
         <PageHeader
@@ -193,6 +229,16 @@ export default function WorkflowEditorPage({ params }: PageProps) {
     // Fills what the shell's `main` leaves: the editor is a workspace, and a canvas
     // in a fixed-height box scrolls the page instead of the graph.
     <div key={workflow.id} className={WORKFLOW_EDITOR_LAYOUT}>
+      {readError && (
+        <Alert variant="destructive">
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span>{getErrorMessage(readError, tErrors)}</span>
+            <Button variant="outline" size="sm" onClick={retryRead}>
+              {tc("retry")}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
       <PageHeader
         // The canvas is the page: the header gives it the height a list page
         // would keep for breathing room.
@@ -335,20 +381,33 @@ export default function WorkflowEditorPage({ params }: PageProps) {
           <div className="space-y-6 p-5">
             <section className="space-y-4 border-b pb-6">
               <p className="text-muted-foreground text-xs">{t("detailsAutosave")}</p>
-              <div className="space-y-1.5">
-                <Label htmlFor="workflow-name">{t("detailsName")}</Label>
+              <FormField
+                htmlFor="workflow-name"
+                label={t("detailsName")}
+                error={nameError}
+                required
+              >
                 <Input
-                  id="workflow-name"
                   defaultValue={workflow.name}
                   disabled={!editing}
                   maxLength={128}
+                  onChange={() => setNameError(null)}
                   onBlur={(event) => {
                     const name = event.target.value.trim();
-                    if (name && name !== workflow.name)
-                      actions.update.mutate({ id: workflow.id, update: { name } });
+                    if (!name) {
+                      setNameError(t("nameRequired"));
+                      return;
+                    }
+                    if (name !== workflow.name)
+                      actions.update.mutate(
+                        { id: workflow.id, update: { name } },
+                        {
+                          onError: (error) => setNameError(getErrorMessage(error, tErrors)),
+                        },
+                      );
                   }}
                 />
-              </div>
+              </FormField>
               <div className="space-y-1.5">
                 <Label htmlFor="workflow-description">{t("detailsDescription")}</Label>
                 <Textarea

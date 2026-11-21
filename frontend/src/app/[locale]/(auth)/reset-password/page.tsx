@@ -1,3 +1,4 @@
+import { AuthHeading } from "@/components/auth/auth-heading";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -42,10 +43,8 @@ export default async function ResetPasswordPage({ searchParams }: PageProps) {
       <div className="space-y-6">
         <div className="space-y-2">
           <span className="text-muted-foreground text-sm font-medium">{t("resetPassword")}</span>
-          <h1 className="text-foreground text-[2rem] leading-tight font-semibold tracking-tight text-balance">
-            {t("missingExpiredLink")}
-          </h1>
-          <p className="text-foreground/70 text-sm">{t("pageExpectsTokenFrom")}</p>
+          <AuthHeading>{t("missingExpiredLink")}</AuthHeading>
+          <p className="text-muted-foreground text-sm wrap-anywhere">{t("pageExpectsTokenFrom")}</p>
         </div>
         <Link
           href={ROUTES.FORGOT_PASSWORD}

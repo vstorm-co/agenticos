@@ -3,6 +3,8 @@
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
+import { ChevronDown } from "lucide-react";
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { ContextHelp } from "@/components/ui/context-help";
 import { ChoiceGroup } from "@/components/ui/choice-group";
 import { LookPicker } from "@/components/settings/look-picker";
@@ -91,18 +93,6 @@ export function AppearanceSettings() {
               onChange={setLook}
             />
           </Setting>
-          <Setting id="appearance-voice-glow" label={tGlow("title")} hint={t("voiceGlowHint")}>
-            <ChoiceGroup
-              labelledBy="appearance-voice-glow"
-              value={mounted ? glow : undefined}
-              options={GLOW_STYLES.map((value) => ({ value, label: tGlow(value) }))}
-              onChange={setStyle}
-              disabled={reduced}
-            />
-            {reduced && (
-              <p className="text-muted-foreground mt-1.5 text-xs">{tGlow("reducedMotion")}</p>
-            )}
-          </Setting>
           <Setting id="appearance-motion" label={t("motion")} hint={t("motionHint")}>
             <ChoiceGroup
               labelledBy="appearance-motion"
@@ -111,18 +101,46 @@ export function AppearanceSettings() {
               onChange={setMotion}
             />
           </Setting>
-          <Setting
-            id="appearance-workflow-nodes"
-            label={t("workflowNodes")}
-            hint={t("workflowNodesHint")}
-          >
-            <ChoiceGroup
-              labelledBy="appearance-workflow-nodes"
-              value={mounted ? nodeStyle : undefined}
-              options={NODE_STYLES.map((value) => ({ value, label: t(value) }))}
-              onChange={setNodeStyle}
-            />
-          </Setting>
+          <NativeDisclosure className="border-border group/advanced border-t pt-3">
+            <summary className="focus-visible:outline-ring flex cursor-pointer list-none items-center gap-3 rounded-lg py-2 [&::-webkit-details-marker]:hidden">
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">{t("advancedTitle")}</span>
+                <span className="text-muted-foreground mt-1 block text-xs font-normal">
+                  {t("advancedHint")}
+                </span>
+              </span>
+              <ChevronDown
+                className="text-muted-foreground size-4 shrink-0 transition-transform group-open/advanced:rotate-180 motion-reduce:transition-none"
+                aria-hidden
+              />
+            </summary>
+            <div className="space-y-5 pt-4">
+              <Setting id="appearance-voice-glow" label={tGlow("title")} hint={t("voiceGlowHint")}>
+                <ChoiceGroup
+                  labelledBy="appearance-voice-glow"
+                  value={mounted ? glow : undefined}
+                  options={GLOW_STYLES.map((value) => ({ value, label: tGlow(value) }))}
+                  onChange={setStyle}
+                  disabled={reduced}
+                />
+                {reduced && (
+                  <p className="text-muted-foreground mt-1.5 text-xs">{tGlow("reducedMotion")}</p>
+                )}
+              </Setting>
+              <Setting
+                id="appearance-workflow-nodes"
+                label={t("workflowNodes")}
+                hint={t("workflowNodesHint")}
+              >
+                <ChoiceGroup
+                  labelledBy="appearance-workflow-nodes"
+                  value={mounted ? nodeStyle : undefined}
+                  options={NODE_STYLES.map((value) => ({ value, label: t(value) }))}
+                  onChange={setNodeStyle}
+                />
+              </Setting>
+            </div>
+          </NativeDisclosure>
         </div>
       </SectionCard>
     </div>

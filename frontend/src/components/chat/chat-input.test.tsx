@@ -1205,3 +1205,22 @@ it("releases pending image previews when upload fails or the composer unmounts",
   await act(async () => {});
   expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
 });
+
+it("does not move focus from a reader's control when a reply finishes", () => {
+  const onSend = vi.fn();
+  const view = render(
+    <>
+      <button>Inspect source</button>
+      <ChatInput onSend={onSend} isProcessing />
+    </>,
+  );
+  const control = screen.getByRole("button", { name: "Inspect source" });
+  control.focus();
+  view.rerender(
+    <>
+      <button>Inspect source</button>
+      <ChatInput onSend={onSend} isProcessing={false} />
+    </>,
+  );
+  expect(control).toHaveFocus();
+});

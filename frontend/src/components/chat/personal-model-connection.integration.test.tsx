@@ -172,3 +172,11 @@ it("does not read another destination before a signed-in tenant or selected agen
   expect(api.agentModelConnection).not.toHaveBeenCalled();
   expect(screen.queryByRole("form")).not.toBeInTheDocument();
 });
+
+it("allows retrying a failed connection status read", async () => {
+  vi.mocked(api.agentModelConnection).mockRejectedValueOnce(new Error("connection unavailable"));
+  mount();
+  expect(await screen.findByText("connection unavailable")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(await screen.findByLabelText("Your API key")).toBeVisible();
+});

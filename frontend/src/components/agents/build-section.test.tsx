@@ -62,3 +62,13 @@ it("opens when a late deep-link default arrives", () => {
   );
   expect(screen.getByLabelText("Voice model").closest("details")).toHaveAttribute("open");
 });
+
+it("shows the current configuration while the editor is closed", () => {
+  render(
+    <BuildSection title="Model" summary="Sonnet · personal key">
+      <input aria-label="Model name" />
+    </BuildSection>,
+  );
+  expect(screen.getByText("Sonnet · personal key")).toBeVisible();
+  expect(screen.getByLabelText("Model name").closest("details")).not.toHaveAttribute("open");
+});

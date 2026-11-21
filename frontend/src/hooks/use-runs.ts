@@ -175,7 +175,7 @@ export function useRuns(
  * not read are the same absence, and only one of them is the reader's problem.
  */
 export function useRun(runId: string) {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.detail(runId),
     queryFn: () => apiClient.get<AgentRun>(`/runs/${runId}`),
     // Hold the run being read while the next one is in flight. Stepping through
@@ -186,7 +186,7 @@ export function useRun(runId: string) {
     // `data.id` is the run this answer is about, not the one asked for.
     placeholderData: keepPreviousData,
   });
-  return { run: data, isLoading, error };
+  return { run: data, isLoading, error, refetch };
 }
 
 /**

@@ -138,11 +138,7 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
     );
   return (
     <div className={styles.shell}>
-      <div
-        className={styles.frame}
-        data-direction={direction}
-        data-focused={step === "deployment" || step === "organization"}
-      >
+      <div className={styles.frame} data-direction={direction}>
         <nav className={styles.topbar} aria-label={appName}>
           <Link href="/chat" className={styles.brand}>
             <BrandMark size={28} />

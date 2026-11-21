@@ -552,11 +552,14 @@ describe("organization settings tabs", () => {
     expect(document.querySelectorAll('[data-slot="service-card"]')).toHaveLength(7);
   });
 
-  it("shows individual service cards to budget managers without parent groups", async () => {
+  it("groups background services without adding a second interactive disclosure", async () => {
     serve("viewer", [{ permission: Perm.budgetsManage, scope: "all" }]);
     await mount();
     await userEvent.click(await screen.findByRole("tab", { name: "AI & services" }));
-    expect(screen.getAllByRole("heading", { level: 2 })[0]).toHaveTextContent("Memory maintenance");
+    expect(screen.getByRole("heading", { name: "Background services", level: 2 })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Assistant and conversations", level: 2 }),
+    ).toBeVisible();
     expect(screen.queryByRole("button", { name: "Background services" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /Memory maintenance/ }));
     expect(await screen.findByRole("region", { name: "Memory maintenance" })).toBeVisible();

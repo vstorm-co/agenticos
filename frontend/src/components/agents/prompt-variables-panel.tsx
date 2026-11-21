@@ -67,7 +67,11 @@ export function PromptVariablesPanel({
   };
 
   return (
-    <BuildSection defaultOpen title={t("variablesTitle")} description={t("variablesHint")}>
+    <BuildSection
+      title={t("variablesTitle")}
+      description={t("variablesHint")}
+      summary={t("buildSummary.variables", { count: custom.length })}
+    >
       <div className="flex flex-wrap gap-1.5">
         {[...system, ...custom].map((variable) => (
           <Button

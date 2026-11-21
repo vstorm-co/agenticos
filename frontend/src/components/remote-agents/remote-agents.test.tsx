@@ -83,6 +83,7 @@ describe("RemoteAgentList", () => {
 
     expect(onRemove).toHaveBeenCalledWith("ea-1");
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.getByRole("dialog")).toBeVisible();
   });
 
   it("keeps one it was asked to remove when the question is cancelled", async () => {
@@ -120,6 +121,7 @@ describe("RegisterRemoteAgentDialog", () => {
 
     expect(screen.getByRole("button", { name: "Register an agent" })).toBeDisabled();
     await userEvent.type(screen.getByLabelText("Agent card address"), "https://agents.example.com");
+    await userEvent.click(screen.getByText("Authentication and handle (optional)"));
     await userEvent.type(screen.getByLabelText("Handle"), "reviewer");
     await userEvent.click(screen.getByRole("combobox"));
     await userEvent.click(await screen.findByRole("option", { name: /Reviewer key/ }));
@@ -178,5 +180,19 @@ describe("RegisterRemoteAgentDialog", () => {
     await userEvent.type(screen.getByLabelText("Agent card address"), "https://x.example");
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+  it("keeps optional setup out of the initial path and reveals an invalid handle", async () => {
+    mount(vi.fn().mockRejectedValue(new ApiError(409, "Handle taken", {})));
+    expect(
+      screen.getByText("Authentication and handle (optional)").closest("details"),
+    ).not.toHaveAttribute("open");
+    await userEvent.type(screen.getByLabelText("Agent card address"), "https://example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Register an agent" }));
+    expect(await screen.findByText("Handle taken")).toBeVisible();
+    expect(
+      screen.getByText("Authentication and handle (optional)").closest("details"),
+    ).toHaveAttribute("open");
+    await userEvent.type(screen.getByLabelText("Handle"), "fixed");
+    expect(screen.queryByText("Handle taken")).toBeNull();
   });
 });

@@ -12,9 +12,9 @@ import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { cn } from "@/lib/utils";
 import type { ChatMessage, ChatMessageFile, TurnUsage } from "@/types";
 import type { Agent } from "@/types/agents";
-import { ToolCallCard } from "./tool-call-card";
-import { AgentSteps } from "./agent-step";
-import { foldWork, runsOf, TextBubble, ThinkingBlock, TurnParts } from "./turn-parts";
+import { buildAssistantParts } from "@/lib/conversation-to-chat";
+import { groupWorkParts } from "@/lib/turn-timeline";
+import { runsOf, TextBubble, TurnParts } from "./turn-parts";
 import type { PinnedPrompts } from "./chat-container";
 import { CopyButton } from "./copy-button";
 import { MessageSources } from "./message-sources";
@@ -77,7 +77,6 @@ interface MessageItemProps {
    * before it is one line. Opening every finished call made a reopened conversation a
    * wall of results; opening none of them hid the thing that was asked for.
    */
-  openLastStep?: boolean;
   /** The published agent that answered. Absent for the general assistant. */
   /** The agent that produced this turn, when one did. */
   agent?: Agent;
@@ -132,7 +131,6 @@ export const MessageItem = memo(function MessageItem({
   continuesTurn = false,
   endsTurn = true,
   turnUsage,
-  openLastStep = false,
   onRegenerate,
   onFork,
   forkingMessageId = null,
@@ -177,7 +175,19 @@ export const MessageItem = memo(function MessageItem({
   // A stopped turn with work folds it into "Stopped after 12s", which says it; the
   // footer's own marker is for a turn cut off with nothing to fold.
   const stopFolded =
-    message.wasStopped === true && foldWork(runsOf(message.parts ?? []), true) !== null;
+    message.wasStopped === true &&
+    groupWorkParts(
+      runsOf(
+        message.parts?.length
+          ? message.parts
+          : buildAssistantParts(
+              message.toolCalls ?? [],
+              message.content,
+              message.id,
+              message.thinking,
+            ),
+      ),
+    ).some((group) => group.kind === "work");
   // A turn produced something worth a footer if it wrote content *or* left a
   // timeline part - the latter is the ask-only turn that was stopped after
   // answering a question and before any text (#502), which otherwise loses its
@@ -237,6 +247,7 @@ export const MessageItem = memo(function MessageItem({
       // of its own, so the rail lands on the top of the turn and not on a box
       // drawn around it.
       data-message-id={message.id}
+      data-chat-message-key={message.clientMessageId ?? message.renderKey ?? message.id}
       className={cn(
         // The face and the name on one line over the message, as in the
         // Architect's window, and the message under them at the column's full
@@ -389,7 +400,6 @@ export const MessageItem = memo(function MessageItem({
           isUser={isUser}
           mcpServers={mcpServers}
           agents={agents}
-          openLastStep={openLastStep}
           endsTurn={endsTurn}
           onCiteClick={onCiteClick}
         />
@@ -650,7 +660,6 @@ function MessageBody({
   isUser,
   mcpServers,
   agents,
-  openLastStep,
   endsTurn,
   onCiteClick,
 }: {
@@ -658,7 +667,6 @@ function MessageBody({
   isUser: boolean;
   mcpServers: ReturnType<typeof useMcpToolServers>;
   agents: readonly DelegateRef[];
-  openLastStep: boolean;
   /** The run's span is said once, under the turn's last segment. */
   endsTurn: boolean;
   onCiteClick?: (index: number) => void;
@@ -669,18 +677,16 @@ function MessageBody({
   const startedAt =
     (workingSince ? new Date(workingSince) : message.runStartedAt) ?? message.timestamp;
   const t = useTranslations("chat");
-  const parts = message.parts ?? [];
+  const parts = message.parts?.length
+    ? message.parts
+    : !isUser
+      ? buildAssistantParts(message.toolCalls ?? [], message.content, message.id, message.thinking)
+      : [];
   const useParts = !isUser && parts.length > 0;
   const setupPart = parts.find((part) => part.type === "model_setup");
-  const legacyCalls = message.toolCalls ?? [];
 
   // "Thinking…" placeholder - shown until anything streams in.
-  const showPlaceholder =
-    !isUser &&
-    message.isStreaming &&
-    !message.content &&
-    parts.length === 0 &&
-    legacyCalls.length === 0;
+  const showPlaceholder = !isUser && message.isStreaming && !message.content && parts.length === 0;
 
   return (
     <>
@@ -703,14 +709,14 @@ function MessageBody({
         /* Ordered timeline: each part in arrival order, with runs of tool
            calls on one rail. The same component the hosted page renders. */
         <TurnParts
+          messageId={message.id}
           allowSetupActions
           parts={parts}
+          fileSource={message.fileSource}
           isStreaming={Boolean(message.isStreaming)}
           isUser={isUser}
           mcpServers={mcpServers}
           agents={agents}
-          openLastStep={openLastStep}
-          fileSource={message.fileSource}
           onCiteClick={onCiteClick}
           startedAt={startedAt}
           durationMs={endsTurn ? message.runDurationMs : undefined}
@@ -721,13 +727,6 @@ function MessageBody({
       ) : (
         /* Legacy fallback: user / pre-parts messages. */
         <>
-          {!isUser && message.thinking && (
-            <ThinkingBlock
-              text={message.thinking}
-              open={Boolean(message.isStreaming)}
-              isStreaming={Boolean(message.isStreaming)}
-            />
-          )}
           {(message.content || (isUser && message.replyTo)) && (
             <TextBubble
               text={message.content}
@@ -738,22 +737,6 @@ function MessageBody({
               onCiteClick={onCiteClick}
               mentions={isUser ? message.mentions : undefined}
             />
-          )}
-          {legacyCalls.length > 0 && (
-            <div className="w-full">
-              <AgentSteps>
-                {legacyCalls.map((toolCall, step) => (
-                  <ToolCallCard
-                    key={toolCall.id}
-                    toolCall={toolCall}
-                    fileSource={message.fileSource}
-                    mcpServers={mcpServers}
-                    agents={agents}
-                    startOpen={openLastStep && step === legacyCalls.length - 1}
-                  />
-                ))}
-              </AgentSteps>
-            </div>
           )}
         </>
       )}

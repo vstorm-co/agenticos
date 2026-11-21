@@ -14,6 +14,8 @@ export const BuildSection = forwardRef<
     title: string;
     headerEnd?: ReactNode;
     description?: ReactNode;
+    /** Current configuration, readable before opening the editor. */
+    summary?: ReactNode;
     defaultOpen?: boolean;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
@@ -23,6 +25,7 @@ export const BuildSection = forwardRef<
     title,
     headerEnd,
     description,
+    summary,
     defaultOpen = false,
     open: controlled,
     onOpenChange,
@@ -58,7 +61,14 @@ export const BuildSection = forwardRef<
           aria-label={title}
           className="hover:text-muted-foreground flex min-h-12 cursor-pointer list-none items-center gap-3 rounded-xl px-4 py-3 transition-colors outline-none motion-reduce:transition-none sm:px-5 [&::-webkit-details-marker]:hidden"
         >
-          <span className="min-w-0 flex-1 text-sm font-semibold">{title}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium">{title}</span>
+            {summary && (
+              <span className="text-muted-foreground mt-0.5 block text-sm leading-relaxed font-normal">
+                {summary}
+              </span>
+            )}
+          </span>
           {headerEnd}
           <ChevronRight
             className="text-muted-foreground size-4 shrink-0 transition-transform group-open/build:rotate-90 motion-reduce:transition-none"

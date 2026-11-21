@@ -1198,3 +1198,31 @@ it("opens a conversation from its keyboard target and marks the current row", as
   expect(row).toHaveAttribute("aria-current", "page");
   expect(within(list()).getByRole("button", { name: "Filter and sort" })).toBeVisible();
 });
+
+describe("sidebar layout previews", () => {
+  it.each(["compact", "comfortable", "workspace"])(
+    "keeps actions and active chat in the %s preview",
+    async (layout) => {
+      urlParams = new URLSearchParams(`sidebar=${layout}&id=c-1`);
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      mount();
+      const row = await within(list()).findByRole("button", { name: /^Quarterly numbers$/ });
+      expect(list()).toHaveAttribute("data-conversation-sidebar", layout);
+      expect(row).toHaveAttribute("aria-current", "page");
+      expect(row.closest("[data-conversation-layout]")).toHaveAttribute(
+        "data-conversation-layout",
+        layout,
+      );
+      expect(
+        within(list()).getByRole("button", { name: "Conversation actions" }),
+      ).toBeInTheDocument();
+      expect(within(list()).queryAllByTestId("row-agents").length > 0).toBe(layout !== "compact");
+    },
+  );
+  it("falls back to the established layout for an unknown preview", async () => {
+    urlParams = new URLSearchParams("sidebar=unknown");
+    mount();
+    await within(list()).findByRole("button", { name: /^Quarterly numbers$/ });
+    expect(list()).toHaveAttribute("data-conversation-sidebar", "current");
+  });
+});

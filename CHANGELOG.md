@@ -27,7 +27,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Show the same approval cards in Inbox and Activity, with details and inline approval and rejection.
 
-- Let agent authors hide suggested first messages. Keep the new-chat Inbox preview bounded to four rows, with urgent items first.
+- Let agent authors hide suggested first messages. Keep the new-chat Inbox preview bounded to two rows, with urgent items first.
 
 - Search readable chat message text as well as conversation titles, with highlighted excerpts, matching-message counts and keyboard navigation. Reuse the existing full-text index and transcript access checks.
 
@@ -44,6 +44,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Standardize chat Files and Sources panels, compact permission/context/project controls, and keep tool diagnostics raw while showing produced outputs once. Preview conversation list layouts with `sidebar=compact`, `sidebar=comfortable` or `sidebar=workspace`.
+
+- Use neutral light surfaces and progressive disclosure in Agent Builder, onboarding and settings. Edit welcome content directly in its onboarding preview; retain clear loading, empty, permission and retry states throughout resource catalogs.
+
+- Keep chat work collapsed by default during execution and replay. Show questions inline with acknowledged answer receipts, preserve the reader’s viewport, and keep repeated tool frames from duplicating or reopening completed calls.
+
+- Simplify console typography and dark surfaces; use blue focus and links, green enabled switches, and concise authentication screens. Show current configuration in Agent Builder section summaries.
+
+- Keep the empty chat's `/` and `@` hint visible on focus. Hide starter prompts while typing without moving the composer; shorten the Inbox preview and keep a link to the full Inbox.
+
 - Preview agent avatars in the template catalog, including the artwork installed with bundled agents.
 
 - Lighten file editors and file selection in the light theme. Show Model by default in Activity, put background job lists behind paginated disclosures, and align Sandboxes and Channels with the Vault tables.
@@ -52,7 +62,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Move credential selection to a Key tab in the chat model picker and use single-line model labels across shared selectors.
 
-- Simplify Agent Builder section headers and open Variables, Voice, and First messages by default. Move name, description, categories, and tags to the Details dialog in the agent actions menu. Use the standard card surface for MCP servers in both the catalog and Builder.
+- Simplify Agent Builder section headers and fold Variables, Voice, and First messages behind current-configuration summaries. Move name, description, categories, and tags to the Details dialog in the agent actions menu. Use the standard card surface for MCP servers in both the catalog and Builder.
 
 - Keep Back and the primary action in a shared onboarding footer as users move through organization and member setup.
 
@@ -97,6 +107,10 @@ Two things are versioned separately from this file and worth knowing about:
 - Refine the default AgenticOS assistant’s guidance for economical specialist delegation, safe tool-error recovery, editable drafts and artifact verification. Keep media generation tied to available configured tools and preserve personal model, budget and prompt choices during normal default refreshes.
 
 ### Fixed
+
+- Align the queued-message panel with the chat composer. Link disabled approval modes to the active organization’s settings when the member may open them, and identify question steps by their subject.
+
+- Preserve IME text confirmation without sending a message, and associate invalid sign-in email feedback with its field.
 
 - Compress proxied API responses once so browsers can read populated organization, agent and conversation lists.
 

@@ -1,8 +1,16 @@
 # The console
 
+The default themes distinguish the canvas, sidebar, cards and floating panels. Blue identifies links and keyboard focus; enabled switches use green. Navigation uses regular weight with a medium active label. Builder section summaries show the current model, variables, voice state and first messages before opening their editors. Sign-in and account recovery use the same concise heading style and a static identity panel.
+
 Resource galleries share larger cards with an icon, title, description and a separate status/action footer. Agents, tables, workflows, knowledge bases, projects, datasets, MCP servers, skills, context files, Apps and groups use the same frame while retaining their own actions. In the agent Builder, settings use matching collapsible cards. Thinking and Answer format live within Model settings. First messages shows the built-in fallback suggestions when no custom messages are set. Model starts open; closing a section preserves its editors, and Voice links reveal the matching section.
 
 In Build, First messages previews cards with the icon, title and message. Open a card to edit it. Saving a built-in example as a custom message keeps the other examples in the draft. The Skills, Context and Knowledge search pickers in Toolbox use selectable rows. A saved chat model stays visible in Models as well as Saved models.
+
+Variables, Voice, First messages, Run reviewers, Alerts and Tracing start collapsed, with the current configuration visible in each summary. Open the section you want to change; required setup and validation errors remain reachable. Model stays open, and Voice setup links open its matching tab.
+
+The inline instructions editor scales to the window height; expand it for longer editing. For an existing model, Provider and Model stay visible while **Connection settings** holds its endpoint, authorization, API and region; missing required setup or a refused field opens it.
+
+Creating a project asks for its name, workspace and audience first. **Instructions and defaults** holds its optional description, instructions and starting agent; a refusal concerning one of those fields opens the section. In a table with many columns, **Add record** keeps the first fields, required values, document bodies and grid-prefilled values visible. Expand **More fields** to fill the remaining optional properties.
 
 Organizations has a search field for membership names and slugs, with the matching count in the same toolbar. Clearing the search restores the full membership list.
 
@@ -92,7 +100,7 @@ Profile fields share a row when there is room; **Save changes** is available onl
 
 Template category dialogs fit their content; choosing an agent or skill industry opens the larger library. On phones, appearance choices use compact rows with thumbnails.
 
-Agent and project instructions share one compact toolbar for their heading, help, source/preview and expansion. Expanded Markdown keeps the selected source or preview view. Unused prompt variables start folded, while existing custom variables or a custom time zone keep the panel open. Expanded text and file editors keep consistent phone gutters; phone text inputs use larger type without enlarging desktop fields.
+Agent and project instructions share one compact toolbar for their heading, help, source/preview and expansion. Expanded Markdown keeps the selected source or preview view. Prompt variables start folded with a summary of the configured variables; opening and closing the section preserves your draft. Expanded text and file editors keep consistent phone gutters; phone text inputs use larger type without enlarging desktop fields.
 
 On phones, focusing the chat message switches to a compact writing row with attachment and send controls. Agent selection and voice input remain available under **+**. The welcome suggestions and connection suggestions step aside while composing, and completion menus stay within the available height. Moving focus from the draft to Send keeps the layout stable.
 
@@ -239,7 +247,9 @@ Before the first message, Files and context usage remain visible but disabled. T
 
 Attachments stay inside the composer on one scrolling row. Safe images show a local thumbnail while uploading; pending uploads show an indeterminate spinner rather than an invented percentage. Tab underlines and segmented selections glide between choices, with immediate selection when motion is reduced.
 
-New chats show up to four opening prompts from the active agent below the composer. They appear in a single list. Selecting a prompt adds it to an editable draft. The timeline above it previews up to four Inbox entries, including a link to any pending approvals. Inbox and approval reads reuse cached data immediately across navigation, treat reads as fresh for 30 seconds and retain unused entries for 30 minutes. Refresh failures keep cached items visible with a warning. Account and organization switches retain the existing cache-clearing behavior.
+New chats show up to four opening prompts from the active agent below the composer, in two columns when space permits. Selecting one adds it to an editable draft. Typing hides these prompts without moving the composer; clearing the draft restores them. Focusing the empty field keeps its static `/` command and `@` resource hint visible. IME confirmation does not send a message.
+
+The timeline previews up to two Inbox entries, including any pending-approval link, and links to the full Inbox. Loading reserves space for the preview. Inbox and approval reads reuse cached data immediately across navigation, treat reads as fresh for 30 seconds and retain unused entries for 30 minutes. Refresh failures keep cached items visible with a warning. Account and organization switches retain the existing cache-clearing behavior.
 
 Shared console fields, menu rows, pickers, tabs and settings sections use the same compact presentation. Folding an optional form preserves its draft; a required invalid field can reopen its section. Native disclosures share trigger spacing and animate where intrinsic sizing is supported, with ordinary native opening elsewhere. Reduced motion and larger touch targets remain available.
 
@@ -544,9 +554,11 @@ Revert runs as a durable job in an isolated conversation workspace. Shared-scope
 
 Revert snapshots are limited to 2 MiB per file and 16 MiB across their before/after blobs; larger changes remain viewable without undo. Verification also bounds reads of older snapshots. Admission allows six requests per person and twenty per organization per minute, with a local ceiling during Redis outages. Each organization runs at most one revert job at a time.
 
-While an agent works, progress messages and their following tool calls appear in arrival order inside one expanded timeline. Completing the run collapses that history under one “Worked for…” or “Thought for…” control, with only the final answer below it. Opening the history restores the same chronological messages and tool groups. Reasoning remains a separate, optional disclosure; its headings do not create process stages. Questions and approvals keep their waiting status until resolved, including delegated requests. Actionable approval cards and visual results remain visible outside completed history.
+Chat uses the same chronological timeline live and from history. Routine tool calls and reasoning stay behind collapsed work controls. Progress messages, answers, question receipts and visual outputs keep their place when a run finishes. Expanding work reveals the individual calls without automatically opening their arguments. Questions and approvals retain their waiting status until resolved.
 
-Consecutive tool calls between messages share a collapsed group; expand it to inspect individual calls.
+Expanded tool steps show raw arguments and results. Charts, generated media, produced files and coding change reports appear once in the conversation, outside work details. Previews use the same authenticated or hosted access boundary as the conversation.
+
+Questions appear inside the conversation, outside the composer dock. Choices stay visible and disabled while answers are submitted, until the server acknowledges them. An acknowledged question becomes a compact answer receipt; expand it once to read all questions and answers. A button above the composer returns to a pending question. Reading earlier messages preserves your position and incoming questions do not steal focus.
 
 Chat approvals stay in one compact card beside the composer: the operation, its icon and the task or object title, with extra arguments behind Details. Approve and Reject sit beside the request, or below it on narrow screens. Completed activity uses a quiet completion mark, waiting steps keep a distinct status, and running steps retain their operation icon instead of animating a separate orb for every call.
 
@@ -554,7 +566,7 @@ Reopening a chat also restores approvals and questions for delegated tools absen
 
 Incoming text remains readable while its Markdown formatting module loads. The composer uses an opaque surface with a quiet focus state, without a moving border or background blur.
 
-The live timeline follows the page flow; completed, expanded history has a height limit and its own scrolling area. Adjacent segments of the same agent run share one summary and the run’s start time, including progress messages between tools and continuations after approval. A different agent or an intervening user message starts a separate turn. Finished and nested agent exchanges remain available, including coding-agent reports; open an exchange to inspect its instructions, response and collapsed reasoning.
+Expanded work has a height limit and its own scrolling area during both live execution and replay. Adjacent segments of the same agent run share one summary and the run’s start time, including progress messages between tools and continuations after approval. A different agent or an intervening user message starts a separate turn. Finished and nested agent exchanges remain available, including coding-agent reports; open an exchange to inspect its instructions, response and collapsed reasoning.
 
 Successful MCP writes show linked cards for projects, tables, tasks, records, agents, workflows, skills and Context. Errors do not become success cards. After sending a message, the chat places it near the top with space for the answer; scrolling manually keeps your position. Person and Agent pickers scroll inside record dialogs. Questions remain available after an approval resumes a chat through HTTP.
 

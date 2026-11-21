@@ -30,7 +30,12 @@ export default function EvalRunsPage() {
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
   const router = useRouter();
-  const { can, isLoading: isLoadingPermissions } = usePermissions();
+  const {
+    can,
+    isLoading: isLoadingPermissions,
+    error: permissionsError,
+    refetch: retryPermissions,
+  } = usePermissions();
   const [page, setPage] = useState(0);
   const mayRead = can(Perm.runsView);
   const { runs, total, isLoading, error, refetch } = useRecentEvalRuns(PAGE, {
@@ -52,6 +57,17 @@ export default function EvalRunsPage() {
       breadcrumbs={[{ label: tNav("dashboard"), href: ROUTES.DASHBOARD }, { label: t("title") }]}
     />
   );
+
+  if (permissionsError)
+    return (
+      <div className="flex flex-1 flex-col gap-4">
+        {header}
+        <ErrorState
+          description={getErrorMessage(permissionsError, tErrors)}
+          cta={{ label: tc("retry"), onClick: () => void retryPermissions() }}
+        />
+      </div>
+    );
 
   if (!isLoadingPermissions && !mayRead) {
     return (
@@ -84,7 +100,11 @@ export default function EvalRunsPage() {
             icon={FlaskConical}
             title={t("empty.title")}
             description={t("empty.body")}
-            cta={{ label: t("empty.cta"), onClick: () => router.push(ROUTES.DATASETS) }}
+            cta={
+              can(Perm.datasetsView)
+                ? { label: t("empty.cta"), onClick: () => router.push(ROUTES.DATASETS) }
+                : undefined
+            }
           />
         ) : (
           <div className="flex flex-1 flex-col gap-4">

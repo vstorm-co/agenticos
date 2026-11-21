@@ -13,6 +13,7 @@ import { OAuthBlock } from "@/components/auth/oauth-buttons";
 import { SignupClosed } from "@/components/auth/signup-closed";
 import { SignupPolicyNotice } from "@/components/auth/signup-policy-notice";
 import { LegalAnchor } from "@/components/legal/legal-anchor";
+import { AuthHeading } from "@/components/auth/auth-heading";
 import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
@@ -114,10 +115,7 @@ export function RegisterForm() {
   return (
     <div className="space-y-8">
       <div className="space-y-2">
-        <span className="text-muted-foreground text-sm font-medium">{t("getStarted")}</span>
-        <h1 className="text-foreground text-[2rem] leading-tight font-semibold tracking-tight text-balance [&_em]:not-italic">
-          {t.rich("createHeading", { em: (chunks) => <em>{chunks}</em> })}
-        </h1>
+        <AuthHeading>{t("createHeading")}</AuthHeading>
         <p className="text-foreground/65 text-sm">
           {t("hasAccount")}{" "}
           <Link

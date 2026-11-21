@@ -22,7 +22,7 @@ import { MentionMark } from "./mention-chip";
 
 /** What the composer can ask of the editor it types into. */
 export interface ComposerEditorHandle {
-  focus: () => void;
+  focus: (options?: FocusOptions) => void;
   /** Put the caret `offset` characters into the message, after a chip that spans it. */
   setCaret: (offset: number) => void;
   /**
@@ -211,7 +211,7 @@ export function ComposerEditor({
   onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
   onPaste?: (event: ClipboardEvent<HTMLDivElement>) => void;
   placeholder: string;
-  /** Shown instead of the placeholder while the box is empty and not being typed in. */
+  /** Shown instead of the placeholder while the box is empty, even when focused. */
   idle?: ReactNode;
   disabled?: boolean;
   /** Shown, focusable and dimmed, but not editable - the box while a dictation runs. */
@@ -228,7 +228,7 @@ export function ComposerEditor({
   // it at the end.
   const reported = useRef<{ text: string; caret: number } | null>(null);
   const composing = useRef(false);
-  const [focused, setFocused] = useState(false);
+  const [isComposing, setIsComposing] = useState(false);
   // The selection as focus left: a control outside the box - the `+` menu's
   // Dictate - acts on where the person was, which is no longer the document's.
   const leftAt = useRef<{ from: number; to: number } | null>(null);
@@ -244,13 +244,13 @@ export function ComposerEditor({
   useImperativeHandle(ref, () => ({
     // A disabled box takes no focus, as a disabled field does not: the call bar
     // that stands in for the composer keeps the focus it was given.
-    focus: () => {
-      if (!disabled) rootRef.current?.focus();
+    focus: (options) => {
+      if (!disabled) rootRef.current?.focus(options ?? { preventScroll: true });
     },
     setCaret: (offset: number) => {
       const root = rootRef.current;
       if (root === null) return;
-      root.focus();
+      root.focus({ preventScroll: true });
       placeCaret(root, offset);
     },
     selection: () => (rootRef.current && selectionIn(rootRef.current)) ?? leftAt.current,
@@ -304,7 +304,8 @@ export function ComposerEditor({
   return (
     <div className="composer-editor-shell relative [--composer-padding:0.375rem] sm:[--composer-padding:0.625rem]">
       {value === "" &&
-        (idle && !focused ? (
+        !isComposing &&
+        (idle ? (
           idle
         ) : (
           <span
@@ -333,22 +334,25 @@ export function ComposerEditor({
           readOnly && "text-foreground/55",
           className,
         )}
-        onFocus={() => setFocused(true)}
         onBlur={(event) => {
           leftAt.current = selectionIn(event.currentTarget);
-          setFocused(false);
         }}
         onInput={(event) => {
           if (!composing.current) report(event.currentTarget);
         }}
         onCompositionStart={() => {
           composing.current = true;
+          setIsComposing(true);
         }}
         onCompositionEnd={(event) => {
           composing.current = false;
+          setIsComposing(false);
           report(event.currentTarget);
         }}
         onKeyDown={(event) => {
+          // Enter can confirm an IME candidate, including Safari's out-of-order
+          // compositionend. Leave that keystroke to the editor, never the send menu.
+          if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) return;
           onKeyDown?.(event);
           if (event.defaultPrevented) return;
           // Formatting has nowhere to go in a plain message.

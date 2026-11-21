@@ -170,7 +170,7 @@ describe("deployment settings loading", () => {
       { app_name: "Across sections", personal_organizations: false },
       expect.any(Object),
     );
-    fireEvent.click(screen.getByRole("button", { name: /^Maintenance$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Updates & diagnostics$/ }));
     expect(screen.getByText(/^Installed:/)).toBeVisible();
   });
 

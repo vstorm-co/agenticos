@@ -36,12 +36,14 @@ export default function VaultPage() {
   const t = useTranslations("pages.vault");
   const ta = useTranslations("pages.vault.connectedAccounts");
   const tErrors = useTranslations("errors");
+  const common = useTranslations("common");
   const returnTo = usePathname();
   const {
     secrets,
     kinds,
     isLoading: secretsLoading,
     listError,
+    refetch: retrySecrets,
     create: createSecret,
     rotate: rotateSecret,
     remove: removeSecret,
@@ -115,7 +117,19 @@ export default function VaultPage() {
       />
       <div data-tour="vault-keys" className="bg-card overflow-hidden rounded-xl border">
         {errors.map((error, index) => (
-          <ErrorState key={index} description={getErrorMessage(error, tErrors)} className="m-5" />
+          <ErrorState
+            key={index}
+            description={getErrorMessage(error, tErrors)}
+            cta={{
+              label: common("retry"),
+              onClick: () => {
+                void retrySecrets();
+                void personal.refetch();
+                if (canViewOrganization) void organization.refetch();
+              },
+            }}
+            className="m-5"
+          />
         ))}
         {!loading && secrets.length === 0 && accounts.length === 0 ? (
           errors.length === 0 && (

@@ -78,6 +78,7 @@ function initialFilter(param: string | null): Filter {
 export function InboxPage() {
   const t = useTranslations("inbox");
   const ts = useTranslations("common");
+  const tErrors = useTranslations("errors");
   const suggested = useSuggestions();
   const { suggestions } = suggested;
   const [asked, setFilter] = useUrlState("filter");
@@ -192,6 +193,7 @@ export function InboxPage() {
         ) : error ? (
           <ErrorState
             className="m-5 flex-1"
+            description={getErrorMessage(error, tErrors)}
             cta={{ label: ts("retry"), onClick: () => void refetch() }}
           />
         ) : open.length === 0 ? (
@@ -239,6 +241,7 @@ function Decided() {
     return (
       <ErrorState
         className="m-5 flex-1"
+        description={getErrorMessage(error, tErrors)}
         cta={{ label: ts("retry"), onClick: () => void refetch() }}
       />
     );

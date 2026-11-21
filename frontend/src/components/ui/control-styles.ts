@@ -1,6 +1,6 @@
 /** Visible for keyboard users, including forced-colour mode where shadows disappear. */
 export const CONTROL_FOCUS =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground/60";
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
 export const CONTROL_DISABLED = "disabled:cursor-not-allowed disabled:opacity-50";
 

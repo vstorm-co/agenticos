@@ -1,9 +1,10 @@
 import { createElement } from "react";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { MessagePart, ToolCall } from "@/types";
 
+import { QuestionInteractionContext, type QuestionInteraction } from "./question-interaction";
 import { MainChatContext } from "./main-chat-context";
 import { TurnParts, browseCalls, chartCalls, type PartRun } from "./turn-parts";
 
@@ -84,99 +85,39 @@ describe("which calls contribute to a browse summary", () => {
   });
 });
 
-it("keeps narration in place when more work arrives during a live turn", async () => {
-  const { foldWork, runsOf } = await import("./turn-parts");
-  const narration: MessagePart = {
-    id: "narration",
-    type: "text",
-    content: "Checking the existing board.",
-  };
-  const before = foldWork(runsOf([tool("first", "search_tools"), narration]), false, true);
-  const after = foldWork(
-    runsOf([tool("first", "search_tools"), narration, tool("second", "read_file")]),
-    false,
-    true,
-  );
-  expect(before?.folded.map((run) => (run.kind === "other" ? run.part.id : "tools"))).toEqual([
-    "tools",
-    "narration",
-  ]);
-  expect(after?.folded.map((run) => (run.kind === "other" ? run.part.id : "tools"))).toEqual([
-    "tools",
-    "narration",
-    "tools",
-  ]);
-  expect(after?.shown).toEqual([]);
-  expect(after?.steps).toBe(2);
-});
-
-it("leaves a final answer without prior work directly visible", async () => {
-  const { foldWork, runsOf } = await import("./turn-parts");
+it("uses the same work and prose boundaries before and after another tool arrives", async () => {
+  const { groupWorkParts, runsOf } = await import("@/lib/turn-timeline");
+  const narration: MessagePart = { id: "n", type: "text", content: "Checking the board." };
   expect(
-    foldWork(runsOf([{ id: "answer", type: "text", content: "Hello." }]), false, false),
-  ).toBeNull();
+    groupWorkParts(runsOf([tool("first", "search_tools"), narration])).map((group) => group.kind),
+  ).toEqual(["work", "visible"]);
+  expect(
+    groupWorkParts(
+      runsOf([tool("first", "search_tools"), narration, tool("second", "read_file")]),
+    ).map((group) => group.kind),
+  ).toEqual(["work", "visible", "work"]);
 });
 
-it("keeps a report delivered before a question visible after the run resumes", async () => {
-  const { foldWork, runsOf } = await import("./turn-parts");
-  const report: MessagePart = { id: "report", type: "text", content: "Audit findings." };
-  const conclusion: MessagePart = { id: "conclusion", type: "text", content: "No changes made." };
-  const split = foldWork(
-    runsOf([
-      tool("inspect", "read_file"),
-      report,
-      tool("question", "ask_user_question"),
-      tool("follow-up", "read_file"),
-      conclusion,
-    ]),
-  );
-  expect(split?.shown.flatMap((run) => (run.kind === "other" ? [run.part.id] : []))).toEqual([
-    "report",
-    "conclusion",
-  ]);
-  expect(split?.steps).toBe(3);
-  expect(split?.folded.every((run) => run.kind === "tools")).toBe(true);
-});
-
-it("recognizes renamed questions without trusting an external tool with the same name", async () => {
-  const { foldWork, runsOf } = await import("./turn-parts");
-  const report: MessagePart = { id: "report", type: "text", content: "Audit findings." };
+it("recognizes renamed question tools without trusting an external tool with that name", async () => {
+  const { isQuestionRun, runsOf } = await import("@/lib/turn-timeline");
   const question = tool("question", "clarify");
   question.toolCall = { ...question.toolCall!, tool_id: "ask_user_question" };
-  expect(foldWork(runsOf([report, question]))?.shown).toHaveLength(1);
+  expect(isQuestionRun(runsOf([question])[0]!)).toBe(true);
   const external = tool("external", "ask_user_question");
   external.toolCall = { ...external.toolCall!, presentation_kind: "generic" };
-  expect(foldWork(runsOf([report, external]))?.shown).toEqual([]);
+  expect(isQuestionRun(runsOf([external])[0]!)).toBe(false);
 });
 
-it("retains an already delivered report when later work is stopped", async () => {
-  const { foldWork, runsOf } = await import("./turn-parts");
-  const split = foldWork(
-    runsOf([
-      tool("inspect", "read_file"),
-      { id: "report", type: "text", content: "Completed audit." },
-      tool("question", "ask_user_question"),
-      tool("later", "read_file"),
-    ]),
-    true,
-  );
-  expect(split?.shown.map((run) => run.kind === "other" && run.part.id)).toEqual(["report"]);
-});
-
-it("keeps text before a stored question visible and leaves reasoning folded", async () => {
-  const { foldWork, runsOf } = await import("./turn-parts");
-  const split = foldWork(
+it("keeps a stored question and its preceding report outside reasoning", async () => {
+  const { groupWorkParts, runsOf } = await import("@/lib/turn-timeline");
+  const groups = groupWorkParts(
     runsOf([
       { id: "thinking", type: "thinking", content: "Private reasoning." },
       { id: "report", type: "text", content: "Audit findings." },
       { id: "question", type: "ask_user", question: "Apply changes?", answer: "Later" },
     ]),
   );
-  expect(split?.shown.map((run) => run.kind === "other" && run.part.id)).toEqual(["report"]);
-  expect(split?.folded.map((run) => run.kind === "other" && run.part.type)).toEqual([
-    "thinking",
-    "ask_user",
-  ]);
+  expect(groups.map((group) => group.kind)).toEqual(["work", "visible", "visible"]);
 });
 
 it("keeps a telephone receipt visible as a result of the turn", () => {
@@ -211,11 +152,12 @@ it("groups tool calls between progress messages in the live turn", () => {
       isStreaming: true,
       isUser: false,
       mcpServers: [],
-      openLastStep: true,
     }),
   );
-  expect(screen.getByText("read_file")).toBeInTheDocument();
-  expect(screen.getByText("search_tools")).toBeInTheDocument();
+  expect(screen.queryByText("read_file")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: /Working/ }));
+  expect(screen.getByText("read_file")).toBeVisible();
+  expect(screen.getByText("search_tools")).toBeVisible();
 });
 
 it("keeps consecutive live tool and reasoning steps in one activity group", () => {
@@ -235,6 +177,8 @@ it("keeps consecutive live tool and reasoning steps in one activity group", () =
       }),
     ),
   );
+  expect(screen.queryByRole("region")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: /Working/ }));
   const activity = within(screen.getByRole("region"));
   expect(activity.getByText("read_file")).toBeInTheDocument();
   expect(activity.getByText("search_tools")).toBeInTheDocument();
@@ -260,6 +204,7 @@ it("preserves the expanded timeline DOM while parking, resuming and completing a
       mcpServers: [],
     });
   const { rerender } = render(draw("running", true));
+  fireEvent.click(screen.getByRole("button", { name: /Working/ }));
   const step = screen.getByText("create_routine");
   const region = screen.getByRole("region");
   rerender(draw("awaiting_approval", false));
@@ -269,8 +214,8 @@ it("preserves the expanded timeline DOM while parking, resuming and completing a
   expect(screen.getByText("create_routine")).toBe(step);
   rerender(draw("completed", false));
   expect(screen.getByText("create_routine")).toBe(step);
-  expect(step.closest("[inert]")).toHaveAttribute("aria-hidden", "true");
-  expect(screen.queryByRole("region")).toBeNull();
+  expect(screen.getByRole("region")).toBe(region);
+  expect(step).toBeVisible();
 });
 
 it("keeps finished charts visible outside the collapsed work timeline", () => {
@@ -306,3 +251,125 @@ it("uses stable chart identity and excludes pending, failed and external calls",
     ]).map((c) => c.id),
   ).toEqual(["renamed-chart"]);
 });
+
+function pendingQuestion(toolCallIds: string[]): QuestionInteraction {
+  return {
+    id: "interaction",
+    messageId: "answer",
+    toolCallIds,
+    questions: [
+      {
+        header: "Format",
+        question: "Which format?",
+        options: [{ label: "List" }],
+        allowCustom: true,
+      },
+    ],
+    submitting: false,
+    disabled: false,
+    onAnswer: vi.fn(),
+  };
+}
+
+function interactiveTurn(
+  parts: MessagePart[],
+  interaction: QuestionInteraction,
+  messageId = "answer",
+) {
+  return createElement(
+    QuestionInteractionContext.Provider,
+    { value: interaction },
+    createElement(TurnParts, {
+      parts,
+      messageId,
+      isStreaming: false,
+      isUser: false,
+      mcpServers: [],
+    }),
+  );
+}
+
+it("attaches a pending question interaction to its matching recorded invocation exactly once", () => {
+  const question = tool("question", "ask_user_question");
+  question.toolCall = {
+    ...question.toolCall!,
+    status: "awaiting_answer",
+    args: {
+      questions: [{ header: "Format", question: "Which format?", options: [{ label: "List" }] }],
+    },
+  };
+  const interaction = pendingQuestion(["earlier", "question"]);
+  const view = render(interactiveTurn([question], interaction));
+  expect(view.container.querySelectorAll("[data-chat-question]")).toHaveLength(1);
+  expect(screen.getByText("Which format?")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /1\s*List/ }));
+  expect(interaction.onAnswer).toHaveBeenCalledOnce();
+});
+
+it("keeps a pending question visible before its invocation has arrived in the transcript", () => {
+  const view = render(interactiveTurn([tool("read", "read_file")], pendingQuestion(["question"])));
+  expect(view.container.querySelectorAll("[data-question-pending]")).toHaveLength(1);
+  expect(screen.getByText("Which format?")).toBeVisible();
+  expect(screen.queryByText("read_file")).toBeNull();
+});
+
+it("does not attach another message's pending question to this turn", () => {
+  const view = render(
+    interactiveTurn([tool("read", "read_file")], pendingQuestion(["question"]), "older"),
+  );
+  expect(view.container.querySelector("[data-chat-question]")).toBeNull();
+});
+
+it("keeps unmatched historical question diagnostics separate from the current pending question", () => {
+  const previous = tool("previous", "ask_user_question");
+  previous.toolCall = {
+    ...previous.toolCall!,
+    args: {
+      questions: [{ header: "Earlier", question: "Continue?", options: [{ label: "Yes" }] }],
+    },
+    result: '{"Earlier":["Yes"]}',
+  };
+  const view = render(interactiveTurn([previous], pendingQuestion(["question"])));
+  expect(view.container.querySelectorAll("[data-chat-question]")).toHaveLength(2);
+  expect(view.container.querySelectorAll("[data-question-pending]")).toHaveLength(1);
+  expect(screen.getByText("Which format?")).toBeVisible();
+});
+
+it("shows no stale work or question UI for an empty turn", () => {
+  const view = render(
+    createElement(TurnParts, { parts: [], isStreaming: true, isUser: false, mcpServers: [] }),
+  );
+  expect(view.container).toBeEmptyDOMElement();
+});
+
+it("does not turn an invalid chart result into a blank output card", () => {
+  const chart = tool("invalid-chart", "create_chart");
+  chart.toolCall = { ...chart.toolCall!, result: "invalid-chart-result" };
+  render(
+    createElement(TurnParts, { parts: [chart], isStreaming: false, isUser: false, mcpServers: [] }),
+  );
+  expect(screen.queryByRole("figure")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: /Worked/ }));
+  expect(screen.getByText("create_chart")).toBeVisible();
+});
+
+it.each(["answer", "approval"] as const)(
+  "keeps a delegated %s wait in the activity summary",
+  (waitingFor) => {
+    const part = tool("delegate", "task");
+    render(
+      createElement(TurnParts, {
+        parts: [part],
+        isStreaming: false,
+        isUser: false,
+        mcpServers: [],
+        waitingFor,
+      }),
+    );
+    expect(screen.queryByText("task")).toBeNull();
+    const toggle = screen.getByRole("button", { expanded: false });
+    expect(toggle).toHaveTextContent(
+      waitingFor === "answer" ? "Waiting for an answer" : "Waiting for approval",
+    );
+  },
+);

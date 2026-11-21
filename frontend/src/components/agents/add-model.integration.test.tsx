@@ -1385,6 +1385,39 @@ describe("the model the agent is already on", () => {
     } as Parameters<typeof AddModel>[0]["selected"];
   }
 
+  it("keeps the active model visible while folding connection details and retaining endpoint edits", async () => {
+    state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
+    state.catalog = [capabilities("openrouter", "OpenRouter", { supports_base_url: true })];
+    mount({ selected: inUse(), collapseConnection: true });
+    expect(screen.getByLabelText("Provider")).toHaveTextContent("OpenRouter");
+    expect(screen.getByLabelText("Model")).toHaveTextContent("openai/gpt-5.5");
+    expect(screen.getByText("In use")).toBeVisible();
+    expect(screen.queryByLabelText("Endpoint")).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Connection settings · OpenRouter · Default API" }),
+    );
+    const endpoint = screen.getByLabelText("Endpoint");
+    await userEvent.type(endpoint, "https://router.example/v1");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Connection settings · OpenRouter · Custom endpoint" }),
+    );
+    expect(endpoint).not.toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Connection settings · OpenRouter · Custom endpoint" }),
+    );
+    expect(endpoint).toHaveValue("https://router.example/v1");
+  });
+
+  it("reveals missing authorization even when connection details were requested collapsed", () => {
+    state.secrets = [];
+    mount({ selected: inUse(), collapseConnection: true });
+    expect(screen.getByRole("button", { name: /Connection settings/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByText(/No OpenRouter key/)).toBeVisible();
+  });
+
   it("is what the two fields start on", async () => {
     // The panel used to answer "which model" in a line above the form and ask it in
     // the form, which are the same question - so the fields said "Choose a provider"
@@ -1626,12 +1659,19 @@ describe("the model the agent is already on", () => {
         },
       }),
     );
-    mount({ selected: inUse({ provider: "openai", model: "gpt-5", base_url: null }) });
+    mount({
+      selected: inUse({ provider: "openai", model: "gpt-5", base_url: null }),
+      collapseConnection: true,
+    });
+    await userEvent.click(screen.getByRole("button", { name: /Connection settings/ }));
 
     await userEvent.type(screen.getByLabelText("Endpoint"), "http://");
+    await userEvent.click(screen.getByRole("button", { name: /Connection settings/ }));
+    expect(screen.getByLabelText("Endpoint")).not.toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Update model" }));
 
-    expect(await screen.findByText("A model endpoint must include a host")).toBeInTheDocument();
+    expect(await screen.findByText("A model endpoint must include a host")).toBeVisible();
+    expect(screen.getByLabelText("Endpoint")).toBeVisible();
   });
   it.each([
     [null, "https://eu.openrouter.ai/api/v1", "eu.openrouter.ai/api/v1"],

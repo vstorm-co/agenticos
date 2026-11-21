@@ -212,6 +212,12 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("renaming an agent in the Builder", () => {
+  it("names the page after the agent and keeps avatar upload outside the heading", async () => {
+    await mount();
+    const heading = screen.getByRole("heading", { level: 1, name: "Support (copy)" });
+    expect(heading).not.toContainElement(screen.getByRole("button", { name: "Upload avatar" }));
+  });
+
   it("keeps the identity and discovery fields together behind the actions menu", async () => {
     await mount();
     expect(screen.queryByText("Name and description")).not.toBeInTheDocument();

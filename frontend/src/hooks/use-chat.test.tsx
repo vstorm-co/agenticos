@@ -3114,14 +3114,19 @@ describe("useChat - approvals and questions", () => {
         "awaiting_answer",
       );
       act(() => result.current.sendAskUserResponses([{ answer: "A", skipped: false }]));
+      expect(result.current.submittingQuestions).toBe(true);
+      receive("ask_user_answered", {
+        request_id: sent.mock.calls.find(([frame]) => frame.type === "ask_user_response")?.[0]
+          .request_id,
+      });
       expect(useWorkingStore.getState().waiting["c-1"]).toBeUndefined();
       expect(streaming()?.toolCalls?.find((call) => call.id === "ask-live")?.status).toBe(
-        "running",
+        "completed",
       );
     },
   );
 
-  it("sends the answers and closes the prompt", () => {
+  it("keeps the form until the matching answer acknowledgement", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     receive("ask_user", {
       questions: [{ question: "Which?", options: [{ label: "a" }], allow_custom: false }],
@@ -3129,11 +3134,18 @@ describe("useChat - approvals and questions", () => {
 
     act(() => result.current.sendAskUserResponses([{ answer: "a", skipped: false }]));
 
-    expect(result.current.pendingQuestions).toBeNull();
+    expect(result.current.pendingQuestions).not.toBeNull();
+    expect(result.current.submittingQuestions).toBe(true);
     expect(frame(0)).toEqual({
       type: "ask_user_response",
+      request_id: expect.any(String),
       answers: [{ answer: "a", skipped: false }],
     });
+    receive("ask_user_answered", { request_id: "stale" });
+    expect(result.current.pendingQuestions).not.toBeNull();
+    receive("ask_user_answered", { request_id: frame(0).request_id });
+    expect(result.current.pendingQuestions).toBeNull();
+    expect(result.current.submittingQuestions).toBe(false);
   });
 
   it("keeps the questions on screen when the socket is offline", () => {
@@ -4265,10 +4277,13 @@ describe("useChat - durable questions resumed on the socket", () => {
     });
     expect(sent).toHaveBeenCalledWith({
       type: "ask_user_response",
+      request_id: expect.any(String),
       answers: [{ answer: "EU", skipped: false }],
     });
     expect(sent.mock.calls.filter(([frame]) => frame.type === "answer_run")).toHaveLength(1);
     expect(sent.mock.calls.filter(([frame]) => frame.type === "ask_user_response")).toHaveLength(1);
+    const liveAnswer = sent.mock.calls.find(([frame]) => frame.type === "ask_user_response")?.[0];
+    receive("ask_user_answered", { request_id: liveAnswer.request_id });
     receive("text_delta", { content: "Using the EU numbers." });
     receive("final_result", { output: "Using the EU numbers." });
     await act(async () =>
@@ -7174,4 +7189,11 @@ it("ends an existing streaming segment when a resumed background turn attaches",
   expect(
     useChatStore.getState().messages.find((message) => message.id === "old-segment")?.isStreaming,
   ).toBe(false);
+});
+
+it("adopts a server-created identity when the local conversation already has an ID", () => {
+  useConversationStore.getState().setCurrentConversationId("c-local");
+  renderHook(() => useChat({ conversationId: "c-local" }), { wrapper });
+  receive("conversation_created", { conversation_id: "c-persisted" });
+  expect(useConversationStore.getState().currentConversationId).toBe("c-persisted");
 });

@@ -18,7 +18,8 @@ export default function DraftFormPreview({ params }: { params: Promise<{ id: str
   const { id } = use(params);
   const query = useSearchParams();
   const t = useTranslations("workflows.formPage");
-  const { workflow, isLoading, error } = useWorkflow(id);
+  const common = useTranslations("common");
+  const { workflow, isLoading, error, refetch } = useWorkflow(id);
   const { start } = useWorkflowRuns(id);
   const [runId, setRunId] = useState<string | null>(null);
   const graph = workflow?.draft_graph;
@@ -28,7 +29,14 @@ export default function DraftFormPreview({ params }: { params: Promise<{ id: str
       (query.get("entry") === null || candidate.id === query.get("entry")),
   );
   if (isLoading) return <LoadingState variant="pending" className="mx-auto w-full max-w-xl" />;
-  if (error || !node) return <ErrorState title={t("unavailable")} />;
+  if (error)
+    return (
+      <ErrorState
+        title={t("unavailable")}
+        cta={{ label: common("retry"), onClick: () => void refetch() }}
+      />
+    );
+  if (!node) return <ErrorState title={t("unavailable")} />;
   const page = formPageOf(node.config, {
     title: t("title.placeholder"),
     submit: t("submit_label.placeholder"),

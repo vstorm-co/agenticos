@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -18,6 +18,8 @@ export type { QuestionChoice, QuestionPromptAnswer, QuestionPromptItem } from ".
 export interface QuestionPromptProps {
   /** Questions to ask, in order. The card shows one at a time. */
   questions: QuestionPromptItem[];
+  autoFocus?: boolean;
+  embedded?: boolean;
   /** Disable all controls (e.g. while the socket is offline). */
   disabled?: boolean;
   /** Called once with an answer (or a skip) for every question. */
@@ -41,8 +43,15 @@ function shown(answer: QuestionPromptAnswer | undefined, skipped: string): strin
  * has seen all their answers together. × skips everything that is left, which
  * the agent reads as declining.
  */
-export function QuestionPrompt({ questions, disabled = false, onComplete }: QuestionPromptProps) {
+export function QuestionPrompt({
+  questions,
+  disabled = false,
+  onComplete,
+  autoFocus = true,
+  embedded = false,
+}: QuestionPromptProps) {
   const t = useTranslations("ui");
+  const [interacted, setInteracted] = useState(false);
   const [step, setStep] = useState(0);
   const direction = useStepDirection(step);
   const [answers, setAnswers] = useState<(QuestionPromptAnswer | undefined)[]>([]);
@@ -50,8 +59,12 @@ export function QuestionPrompt({ questions, disabled = false, onComplete }: Ques
   const [reached, setReached] = useState(0);
 
   const total = questions.length;
-  if (total === 0) return null;
   const reviewing = step >= total;
+  const reviewRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (reviewing && interacted) reviewRef.current?.focus({ preventScroll: true });
+  }, [reviewing, interacted]);
+  if (total === 0) return null;
 
   const answer = (index: number, given: QuestionPromptAnswer) => {
     const next = [...answers];
@@ -85,7 +98,15 @@ export function QuestionPrompt({ questions, disabled = false, onComplete }: Ques
   );
 
   return (
-    <div className="bg-muted/40 border-foreground/10 overflow-hidden rounded-2xl border">
+    <div
+      onKeyDownCapture={() => {
+        setInteracted(true);
+      }}
+      className={cn(
+        "overflow-hidden rounded-2xl",
+        !embedded && "bg-muted/40 border-foreground/10 border",
+      )}
+    >
       {total > 1 && (
         <div className="flex items-center justify-between gap-3 px-3.5 pt-2.5 pb-1.5">
           <div className="flex items-center gap-2">
@@ -136,7 +157,7 @@ export function QuestionPrompt({ questions, disabled = false, onComplete }: Ques
 
       <div key={step} data-direction={direction} className="wizard-step-in">
         {reviewing ? (
-          <div className="space-y-3 px-4 pb-3">
+          <div ref={reviewRef} tabIndex={-1} className="space-y-3 px-4 pb-3 outline-none">
             <dl className="space-y-2">
               {questions.map((item, index) => (
                 <div key={`${item.header ?? item.question}-${index}`}>
@@ -155,6 +176,7 @@ export function QuestionPrompt({ questions, disabled = false, onComplete }: Ques
           <>
             <QuestionSlide
               item={questions[step]!}
+              autoFocus={autoFocus || interacted}
               previous={answers[step]}
               disabled={disabled}
               onAnswer={(given) => answer(step, given)}

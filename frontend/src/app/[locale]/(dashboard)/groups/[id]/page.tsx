@@ -47,7 +47,7 @@ const KINDS: readonly {
 }[] = [
   { kind: "agent", icon: Bot, heading: "Agents", href: ROUTES.AGENT_DETAIL },
   { kind: "collection", icon: Database, heading: "Collections", href: ROUTES.RAG_DETAIL },
-  { kind: "skill", icon: BookOpen, heading: "Skills", href: () => ROUTES.SKILLS },
+  { kind: "skill", icon: BookOpen, heading: "Skills", href: ROUTES.SKILL_DETAIL },
   { kind: "context", icon: FileText, heading: "Context", href: () => ROUTES.CONTEXT },
   { kind: "artifact", icon: AppWindow, heading: "Apps", href: ROUTES.ARTIFACT_DETAIL },
   { kind: "mcp_connection", icon: Plug, heading: "McpServers", href: () => ROUTES.MCP_SERVERS },

@@ -112,7 +112,14 @@ export default function DatasetPage({ params }: PageProps) {
   const [gradingRestore, setGradingRestore] = useState<{ value: GradingCopy; at: number }>();
   const [restoring, setRestoring] = useState<UnsavedCopy | null>(null);
   const restoringCase = useDatasetCase(id, restoring?.place.slice("case:".length) ?? null);
-  const { dataset, fetchedAt, error: datasetError, update, remove } = useDataset(id);
+  const {
+    dataset,
+    fetchedAt,
+    error: datasetError,
+    refetch: refetchDataset,
+    update,
+    remove,
+  } = useDataset(id);
   // Every read behind the Evals tab and the run it starts takes runs:view.
   const canViewRuns = usePermissions().can(Perm.runsView);
   const { versions } = useDatasetVersions(id);
@@ -162,7 +169,12 @@ export default function DatasetPage({ params }: PageProps) {
     return <ResourceUnavailable back={ROUTES.DATASETS} label={tc("back")} />;
   }
   if (datasetError) {
-    return <ErrorState description={getErrorMessage(datasetError, tErrors)} />;
+    return (
+      <ErrorState
+        description={getErrorMessage(datasetError, tErrors)}
+        cta={{ label: tc("retry"), onClick: () => void refetchDataset() }}
+      />
+    );
   }
   if (dataset === undefined) {
     return <DatasetLoading />;

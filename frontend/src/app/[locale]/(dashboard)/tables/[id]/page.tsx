@@ -265,7 +265,13 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
 
   if (isLoading || (!!table?.default_view_id && !viewIdParam && !tabParam && viewsLoading))
     return <LoadingState variant="pending" />;
-  if (error || !table) return <ErrorState />;
+  if (error || !table)
+    return (
+      <ErrorState
+        description={getErrorMessage(error, tErrors)}
+        cta={{ label: tc("retry"), onClick: () => void refreshTable() }}
+      />
+    );
 
   const canEdit = table.can_edit;
   // On a task board everyone in its audience edits tasks, but only an administrator or

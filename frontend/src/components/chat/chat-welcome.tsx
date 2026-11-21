@@ -35,6 +35,8 @@ interface ChatWelcomeProps {
   loading?: boolean;
   /** The main chat places hints in its home carousel. Undefined keeps them inline. */
   suggestionsSlot?: HTMLElement | null;
+  /** Keep the composer in place while hiding prompts from sight and keyboard. */
+  showSuggestions?: boolean;
 }
 
 /**
@@ -55,6 +57,7 @@ export function ChatWelcome({
   quiet = false,
   loading = false,
   suggestionsSlot,
+  showSuggestions = true,
 }: ChatWelcomeProps) {
   const t = useTranslations("chat.empty");
   const docked = quiet && suggestionsSlot !== undefined;
@@ -64,9 +67,12 @@ export function ChatWelcome({
     <>
       <div
         data-chat-welcome-hints
+        data-suggestions-hidden={!showSuggestions || undefined}
+        inert={!showSuggestions}
+        aria-hidden={!showSuggestions || undefined}
         aria-busy={loading}
         className={cn(
-          "grid",
+          "chat-welcome-suggestions grid",
           quiet
             ? "mt-4 auto-rows-fr gap-2 sm:grid-cols-2"
             : compact

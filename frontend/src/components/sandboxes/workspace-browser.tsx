@@ -18,6 +18,7 @@ import {
 } from "@/components/ui";
 import { useRouter } from "next/navigation";
 
+import { ErrorState } from "@/components/states";
 import { FileViewer } from "@/components/files";
 import { DocumentTile } from "@/components/sandboxes/document-tile";
 import { groupByWorkspace, WorkspaceGroups } from "@/components/sandboxes/workspace-groups";
@@ -89,7 +90,8 @@ const RECENT = 4;
 function FlatFiles() {
   const t = useTranslations("sandboxes");
   const router = useRouter();
-  const { listing, isLoading, error } = useAllWorkspaceFiles(true);
+  const tc = useTranslations("common");
+  const { listing, isLoading, error, refetch } = useAllWorkspaceFiles(true);
   const [opened, setOpened] = useState<FlatFile | null>(null);
   // Newest first: what an agent just made is what this page is opened for.
   const [sort, setSort] = useState<FlatSort>("modified");
@@ -160,7 +162,10 @@ function FlatFiles() {
         </div>
       </div>
     );
-  if (error !== null) return <p className="text-destructive px-5 py-4 text-sm">{error}</p>;
+  if (error !== null)
+    return (
+      <ErrorState description={error} cta={{ label: tc("retry"), onClick: () => void refetch() }} />
+    );
   if (listing === null) return null;
 
   if (listing.items.length === 0)

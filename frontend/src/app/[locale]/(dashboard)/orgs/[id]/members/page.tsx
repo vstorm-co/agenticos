@@ -638,14 +638,33 @@ export default function OrgMembersPage({ params }: PageProps) {
           forceMount
           className="space-y-6 data-[state=inactive]:hidden"
         >
-          {org && canSystemServices && <OrgSystemAgents org={org} excludeBriefing />}
-          {canConfigureAssistant && <OrgAssistant orgId={id} />}
-          <div data-tour="org-proactivity">
-            {org && (
-              <OrgProactivity org={org} collapsible defaultOpen={tabParam === "proactivity"} />
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <h2 className="text-sm font-medium">{t("assistantServices")}</h2>
+              <p className="text-muted-foreground text-sm">{t("assistantServicesHint")}</p>
+            </div>
+            {canConfigureAssistant && <OrgAssistant orgId={id} />}
+            <div data-tour="org-proactivity">
+              {org && (
+                <OrgProactivity org={org} collapsible defaultOpen={tabParam === "proactivity"} />
+              )}
+            </div>
+            {org && canSettings && (
+              <OrgVoiceSettings org={org} collapsible={tabParam !== "voice"} />
             )}
           </div>
-          {org && canSettings && <OrgVoiceSettings org={org} collapsible={tabParam !== "voice"} />}
+          {org && canSystemServices && (
+            <section
+              className="border-border space-y-3 border-t pt-5"
+              aria-label={t("backgroundServices")}
+            >
+              <div className="space-y-1">
+                <h2 className="text-sm font-medium">{t("backgroundServices")}</h2>
+                <p className="text-muted-foreground text-sm">{t("backgroundServicesHint")}</p>
+              </div>
+              <OrgSystemAgents org={org} excludeBriefing />
+            </section>
+          )}
         </TabsContent>
       </Tabs>
 

@@ -240,6 +240,7 @@ it("shows a retry for a failed read instead of claiming nothing waits", async ()
   render(<InboxPage />);
   expect(screen.queryByText("Nothing waits here")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(screen.getByText("offline")).toBeVisible();
   expect(state.refetch).toHaveBeenCalledOnce();
 });
 
@@ -257,6 +258,7 @@ it("lets the person retry a failed Done history read", async () => {
   render(<InboxPage />);
   await chooseFilter("Done");
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(screen.getByText("offline")).toBeVisible();
   expect(state.refetch).toHaveBeenCalledOnce();
 });
 

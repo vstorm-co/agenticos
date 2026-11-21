@@ -65,7 +65,7 @@ it("limits the timeline preview and keeps approval and item links without a visu
   state.pending = 2;
   render(<ChatHomeInbox onDiscuss={vi.fn()} />);
   const list = screen.getByRole("list");
-  expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+  expect(within(list).getAllByRole("listitem")).toHaveLength(1);
   expect(within(list).getAllByRole("link")[0]).toHaveAttribute("href", "/inbox#suggestion-urgent");
   expect(screen.queryByText("Topic c")).toBeNull();
   const approvalLink = screen.getByRole("link", { name: "2 approvals need your attention" });
@@ -74,10 +74,10 @@ it("limits the timeline preview and keeps approval and item links without a visu
   expect(within(approvalLink).getByText("2")).toBeVisible();
   expect(screen.getByRole("region", { name: "Daily briefing" })).toContainElement(approvalLink);
   expect(screen.queryByText("Daily briefing")).toBeNull();
-  expect(screen.queryByRole("link", { name: "Open inbox" })).toBeNull();
+  expect(screen.getByRole("link", { name: "Open inbox" })).toHaveAttribute("href", "/inbox");
 });
 
-it("shows at most four entries and includes older priority items before newer regular items", () => {
+it("shows at most two entries and includes older priority items before newer regular items", () => {
   state.items = [
     ...Array.from({ length: 5 }, (_, index) => ({
       ...suggestion(String(index)),
@@ -91,8 +91,6 @@ it("shows at most four entries and includes older priority items before newer re
   expect(links.map((link) => link.getAttribute("href"))).toEqual([
     "/inbox#suggestion-newer-priority",
     "/inbox#suggestion-older-priority",
-    "/inbox#suggestion-4",
-    "/inbox#suggestion-3",
   ]);
   expect(screen.getAllByText("Priority")).toHaveLength(2);
 });

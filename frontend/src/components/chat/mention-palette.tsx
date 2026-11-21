@@ -40,7 +40,12 @@ export function MentionPalette({
 
   useEffect(() => {
     const row = listRef.current?.querySelector<HTMLElement>(`[data-index="${selectedIndex}"]`);
-    row?.scrollIntoView({ block: "nearest" });
+    const list = listRef.current;
+    if (!list || !row) return;
+    const bounds = list.getBoundingClientRect();
+    const item = row.getBoundingClientRect();
+    if (item.top < bounds.top) list.scrollTop += item.top - bounds.top;
+    else if (item.bottom > bounds.bottom) list.scrollTop += item.bottom - bounds.bottom;
   }, [selectedIndex]);
 
   return (
@@ -49,8 +54,10 @@ export function MentionPalette({
       role="listbox"
       aria-label={t("menu")}
       className={cn(
-        "chat-command-palette border-foreground/10 bg-popover z-20 w-full overflow-hidden rounded-xl border shadow-lg",
-        placement === "inline" ? "relative shrink-0" : "absolute bottom-full left-0 mb-2 max-w-md",
+        "chat-command-palette border-border bg-popover z-20 w-full overflow-hidden rounded-2xl border shadow-lg",
+        placement === "inline"
+          ? "relative shrink-0"
+          : "absolute bottom-full left-0 mb-2 max-w-[25rem]",
       )}
     >
       {full !== undefined ? (
@@ -62,7 +69,7 @@ export function MentionPalette({
       ) : (
         <ul
           ref={listRef}
-          className="max-h-[min(18rem,calc(var(--app-height,100dvh)*0.4))] overflow-y-auto py-1"
+          className="max-h-[min(18rem,calc(var(--app-height,100dvh)*0.4))] scrollbar-thin overflow-y-auto overscroll-contain p-1.5"
         >
           {items.map((item, index) => {
             const heading = index === 0 || items[index - 1]?.kind !== item.kind;
@@ -83,8 +90,8 @@ export function MentionPalette({
                   className={cn(
                     MENU_ROW,
                     COMMAND_ITEM_FOCUS,
-                    "chat-command-palette-row cursor-pointer",
-                    index === selectedIndex ? "bg-foreground/[0.06]" : "hover:bg-foreground/[0.03]",
+                    "chat-command-palette-row cursor-pointer rounded-lg",
+                    index === selectedIndex ? "bg-control" : "hover:bg-muted",
                   )}
                 >
                   <MentionMark item={item} className="h-5 w-5 text-[9px]" />

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { MessageSquare, ShieldCheck } from "lucide-react";
+import { ArrowRight, MessageSquare, ShieldCheck } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePendingApprovals } from "@/hooks/use-pending-approvals";
 import { SuggestionMark, urgentFirst, useSuggestionSource } from "./suggestion-actions";
 
-const PREVIEW_LIMIT = 4;
+const PREVIEW_LIMIT = 2;
 
 /** A priority-ordered preview of the same findings and proposals the Inbox shows. */
 export function ChatHomeInbox({ onDiscuss }: { onDiscuss: (prompt: string) => void }) {
@@ -30,7 +30,7 @@ export function ChatHomeInbox({ onDiscuss }: { onDiscuss: (prompt: string) => vo
   ).slice(0, PREVIEW_LIMIT - Number(pending.count > 0));
   return (
     <section
-      className="chat-home-inbox chat-home-hints chat-composer-width"
+      className="chat-home-inbox chat-home-hints chat-composer-width flex min-h-40 flex-col"
       aria-label={t("title")}
       aria-busy={loading}
     >
@@ -46,9 +46,9 @@ export function ChatHomeInbox({ onDiscuss }: { onDiscuss: (prompt: string) => vo
         </Link>
       )}
       {loading ? (
-        <div className="space-y-2" aria-hidden>
-          <Skeleton className="h-8 rounded-md" />
-          <Skeleton className="h-8 rounded-md" />
+        <div aria-hidden>
+          <Skeleton className="h-14 rounded-md" />
+          <Skeleton className="h-14 rounded-md" />
         </div>
       ) : (
         <>
@@ -112,6 +112,13 @@ export function ChatHomeInbox({ onDiscuss }: { onDiscuss: (prompt: string) => vo
           )}
         </>
       )}
+      <Link
+        href="/inbox"
+        className="text-muted-foreground hover:text-brand mt-auto inline-flex min-h-9 items-center gap-1.5 self-end rounded-md px-2 text-xs"
+      >
+        {t("openInbox")}
+        <ArrowRight className="size-3.5" aria-hidden />
+      </Link>
     </section>
   );
 }

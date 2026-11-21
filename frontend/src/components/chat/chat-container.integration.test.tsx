@@ -326,7 +326,8 @@ describe("the chat container - answering a durable question", () => {
     });
     const answer = screen.getByRole("button", { name: /Casual/ });
     expect(answer).toBeDisabled();
-    expect(answer.closest(".chat-composer-width")).toBeInTheDocument();
+    expect(answer.closest("[data-transcript]")).toBeInTheDocument();
+    expect(answer.closest("[data-chat-dock]")).toBeNull();
     act(() => {
       socket.isConnected = true;
       useChatStore.setState({ messages: [...useChatStore.getState().messages] });
@@ -440,10 +441,10 @@ describe("the chat container - following the transcript", () => {
     expect(readHeight).not.toHaveBeenCalled();
     expect(scrollTo).not.toHaveBeenCalled();
     const follow = observers.find(
-      (observer) => observer.targets.includes(scroller) && !observer.targets.includes(dock),
+      (observer) => observer.targets.includes(scroller) && observer.targets.includes(dock),
     )!;
     act(() => follow.grew());
-    expect(scroller.scrollTop).toBe(2000);
+    expect(scroller.scrollTop).toBe(1500);
     expect(readHeight).toHaveBeenCalledTimes(1);
     expect(scrollIntoView).not.toHaveBeenCalled();
     scrollTo.mockRestore();
@@ -489,7 +490,7 @@ describe("the chat container - following the transcript", () => {
     growDock(observers, dock);
 
     expect(scroller.style.paddingBottom).toBe("148px");
-    expect(scroller.scrollTop).toBe(2000);
+    expect(scroller.scrollTop).toBe(1500);
   });
 
   it("leaves a reader who scrolled up where they are when the dock grows", async () => {
@@ -1039,7 +1040,7 @@ describe("the chat container - where an empty conversation is scrolled", () => {
     const observers = observeSizes();
     const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
     mount();
-    expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
+    expect(document.querySelector<HTMLElement>("[data-chat-scroller]")?.scrollTop).toBe(0);
     expect(scrollTo).not.toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
 
     act(() =>
@@ -1056,7 +1057,7 @@ describe("the chat container - where an empty conversation is scrolled", () => {
     const scroller = dock.previousElementSibling as HTMLElement;
     Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 1500 });
     const follow = observers.find(
-      (observer) => observer.targets.includes(scroller) && !observer.targets.includes(dock),
+      (observer) => observer.targets.includes(scroller) && observer.targets.includes(dock),
     )!;
     act(() => follow.grew());
     expect(scroller.scrollTop).toBe(1500);
@@ -1974,7 +1975,19 @@ describe("starting a new chat", () => {
       briefing.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(editor.compareDocumentPosition(opener) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    await userEvent.click(opener);
+    await userEvent.click(editor);
+    expect(opener).toBeVisible();
+    const hints = opener.closest("[data-chat-welcome-hints]");
+    await userEvent.type(editor, "My own question");
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Find open questions" })).toBeNull(),
+    );
+    expect(hints).toBeInTheDocument();
+    expect(hints).toHaveAttribute("inert");
+    expect(hints).toHaveAttribute("data-suggestions-hidden", "true");
+    await userEvent.clear(editor);
+    const restored = await screen.findByRole("button", { name: "Find open questions" });
+    await userEvent.click(restored);
     await waitFor(() => expect(editor.textContent).toContain(opener.textContent));
     expect(
       socket.send.mock.calls.some(([frame]) =>

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render as renderBase, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -62,7 +62,7 @@ function model(id: string) {
 
 function mount(value: SpeechToTextSpec | null = null) {
   const onChange = vi.fn();
-  render(<VoiceCard value={value} onChange={onChange} />);
+  renderEditor(<VoiceCard value={value} onChange={onChange} />);
   return { onChange };
 }
 
@@ -362,7 +362,7 @@ describe("the agent's Voice card", () => {
   });
 
   it("is read-only for a caller who may not edit the agent", () => {
-    render(<VoiceCard value={null} onChange={vi.fn()} disabled />);
+    renderEditor(<VoiceCard value={null} onChange={vi.fn()} disabled />);
 
     expect(screen.getByRole("radio", { name: "This agent's own" })).toBeDisabled();
     expect(screen.getByLabelText("Language")).toBeDisabled();
@@ -385,7 +385,9 @@ describe("the agent's Voice card", () => {
     });
 
     it("open on their own tab, apart from dictation", async () => {
-      render(<VoiceCard value={null} onChange={vi.fn()} conversation={conversation} disabled />);
+      renderEditor(
+        <VoiceCard value={null} onChange={vi.fn()} conversation={conversation} disabled />,
+      );
       expect(screen.getByRole("tab", { name: "Voice calls" })).toHaveAttribute(
         "aria-selected",
         "true",
@@ -399,7 +401,7 @@ describe("the agent's Voice card", () => {
 
     it("open on Calls for the call button's link", () => {
       window.history.replaceState({}, "", "/agents/a1#agent-voice");
-      render(<VoiceCard value={null} onChange={vi.fn()} conversation={conversation} />);
+      renderEditor(<VoiceCard value={null} onChange={vi.fn()} conversation={conversation} />);
       expect(screen.getByRole("tab", { name: "Voice calls" })).toHaveAttribute(
         "aria-selected",
         "true",
@@ -407,16 +409,22 @@ describe("the agent's Voice card", () => {
       window.history.replaceState({}, "", "/");
     });
 
-    it("opens the Voice section by default without a deep link", () => {
-      render(<VoiceCard collapsible value={null} onChange={vi.fn()} conversation={conversation} />);
-      expect(screen.getByRole("tab", { name: "Voice calls" }).closest("details")).toHaveAttribute(
+    it("keeps Voice collapsed with a readable summary until asked", () => {
+      renderBase(
+        <VoiceCard collapsible value={null} onChange={vi.fn()} conversation={conversation} />,
+      );
+      expect(screen.getByText("Calls off · Dictation off")).toBeVisible();
+      expect(screen.getByText("Calls off · Dictation off").closest("details")).not.toHaveAttribute(
         "open",
       );
+      expect(screen.queryByRole("tab", { name: "Voice calls" })).not.toBeVisible();
     });
 
     it("opens the Voice section on Dictation for a deep link", () => {
       window.history.replaceState({}, "", "/agents/a1#agent-voice-dictation");
-      render(<VoiceCard collapsible value={null} onChange={vi.fn()} conversation={conversation} />);
+      renderBase(
+        <VoiceCard collapsible value={null} onChange={vi.fn()} conversation={conversation} />,
+      );
       const tab = screen.getByRole("tab", { name: "Dictation" });
       expect(tab.closest("details")).toHaveAttribute("open");
       expect(tab).toHaveAttribute("aria-selected", "true");
@@ -425,7 +433,7 @@ describe("the agent's Voice card", () => {
 
     it("give way to the Dictation tab for a link to the dictation setup", () => {
       window.history.replaceState({}, "", "/agents/a1#agent-voice-dictation");
-      render(<VoiceCard value={null} onChange={vi.fn()} conversation={conversation} />);
+      renderEditor(<VoiceCard value={null} onChange={vi.fn()} conversation={conversation} />);
       expect(screen.getByRole("tab", { name: "Dictation" })).toHaveAttribute(
         "aria-selected",
         "true",
@@ -433,4 +441,44 @@ describe("the agent's Voice card", () => {
       window.history.replaceState({}, "", "/");
     });
   });
+});
+
+/** Existing editing cases open the same native section a person opens first. */
+function renderEditor(...args: Parameters<typeof renderBase>) {
+  const view = renderBase(...args);
+  for (const summary of view.container.querySelectorAll<HTMLElement>(
+    "details[data-focus-frame] > summary",
+  )) {
+    fireEvent.click(summary);
+  }
+  return view;
+}
+
+it("summarizes enabled calls and dictation without expanding their fields", () => {
+  renderBase(
+    <VoiceCard
+      collapsible
+      value={{ provider: null, model: null, language: null, secret_id: null, dictation: true }}
+      onChange={vi.fn()}
+      conversation={{
+        value: {
+          provider: "openai",
+          model: "voice-model",
+          deployment: null,
+          base_model: null,
+          secret_id: null,
+          voice: null,
+          language: null,
+          max_call_seconds: null,
+          voice_note: null,
+        },
+        onChange: vi.fn(),
+        hasGuardrails: false,
+      }}
+    />,
+  );
+  expect(screen.getByText("Calls on · Dictation on")).toBeVisible();
+  expect(screen.getByText("Calls on · Dictation on").closest("details")).not.toHaveAttribute(
+    "open",
+  );
 });

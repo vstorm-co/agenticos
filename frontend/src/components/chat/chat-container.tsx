@@ -4,15 +4,7 @@ import { useWorkingStore } from "@/stores/working-store";
 
 import { onRemoteChange } from "@/lib/live-updates";
 import type { Mentionable } from "@/types/mention";
-import {
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useRef,
-  useCallback,
-  useMemo,
-  useState,
-} from "react";
+import { useEffect, useEffectEvent, useRef, useCallback, useMemo, useState } from "react";
 import { Bot, Gauge, PhoneCall, SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ChatMessageFile, ChatPerson } from "@/types";
@@ -67,7 +59,7 @@ import { ConnectServicesCard } from "./connect-services-card";
 import { PendingMessages } from "./pending-messages";
 import { PlanStrip } from "./plan-strip";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
-import { QuestionPrompt } from "@/components/ui";
+import { QuestionInteractionContext } from "./question-interaction";
 import type {
   PendingApproval,
   AskUserQuestion,
@@ -101,9 +93,7 @@ import { useMounted } from "@/hooks/use-mounted";
 import { useOnline } from "@/hooks/use-online";
 import { offlineAvailable } from "@/lib/offline/device-cache";
 import { useSlashCommands } from "@/hooks";
-import { useFollowContent } from "@/hooks/use-follow-content";
-import { useSentTurnAnchor } from "@/hooks/use-sent-turn-anchor";
-import { useReaderScrolledUp } from "@/hooks/use-reader-scrolled-up";
+import { useChatViewport } from "@/hooks/use-chat-viewport";
 import { useFocusAfterCall } from "@/hooks/use-focus-after-call";
 import { useAgentDictation } from "@/hooks/use-agent-dictation";
 import { usePermissions, useVoiceReadiness, useVoiceSession, type VoiceSession } from "@/hooks";
@@ -495,6 +485,8 @@ export function ChatContainer({
     mayRememberApproval,
     sendResumeDecisions,
     pendingQuestions,
+    submittingQuestions,
+    questionTarget,
     sendAskUserResponses,
     pendingConnection,
     sendConnectionResponse,
@@ -658,19 +650,18 @@ export function ChatContainer({
 
   const transcriptRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  // true = user deliberately scrolled up; suppress auto-scroll until they return to bottom
-  const userScrolledUpRef = useRef(false);
-  const sentTurnAnchoredRef = useRef(false);
   const sentTurnSpacerRef = useRef<HTMLDivElement>(null);
-  useSentTurnAnchor(
+  const dockRef = useRef<HTMLDivElement>(null);
+  const { dockHeight, revealQuestion } = useChatViewport({
+    conversationId: currentConversationId,
     messages,
-    scrollContainerRef,
-    transcriptRef,
-    sentTurnSpacerRef,
-    sentTurnAnchoredRef,
     sentTurnId,
-    userScrolledUpRef,
-  );
+    empty: messages.length === 0 && callPhase === "idle",
+    scroller: scrollContainerRef,
+    content: transcriptRef,
+    spacer: sentTurnSpacerRef,
+    dock: dockRef,
+  });
 
   // Clear messages when conversation changes, but NOT when going from null to a new ID
   // (that happens when a new chat is saved - we want to keep the messages)
@@ -729,30 +720,6 @@ export function ChatContainer({
     }
   }, [currentMessages, currentConversationId, rereadMessages, soleAgentId]);
 
-  // Whether the reader has moved up to read, so the transcript stops following.
-  useReaderScrolledUp(scrollContainerRef, userScrolledUpRef);
-
-  // An empty conversation is not followed at all: its welcome reads from the
-  // top, and in a narrow window - the Architect's, the test panel - following
-  // the foot scrolled the greeting and the face above it out of view. A call is
-  // content even before any of its turns is saved: its captions are followed.
-  const empty = messages.length === 0 && callPhase === "idle";
-  const emptyRef = useRef(empty);
-  useEffect(() => {
-    emptyRef.current = empty;
-    const container = scrollContainerRef.current;
-    if (emptyRef.current) {
-      container?.scrollTo({ top: 0 });
-      return;
-    }
-  }, [empty]);
-  // And on growth the messages do not announce: an answer's last words are
-  // revealed over frames after its message has stopped changing.
-  const holdFollow = useCallback(
-    () => emptyRef.current || userScrolledUpRef.current || sentTurnAnchoredRef.current,
-    [],
-  );
-  useFollowContent(scrollContainerRef, transcriptRef, holdFollow);
   // A turn starting here is a thread at work in the list beside it; asked once as
   // it starts, the row shows it at once, and the listing then polls until it ends.
   useEffect(() => {
@@ -931,13 +898,16 @@ export function ChatContainer({
         onMoveQueued={moveQueued}
         transcriptRef={transcriptRef}
         scrollContainerRef={scrollContainerRef}
-        userScrolledUpRef={userScrolledUpRef}
-        sentTurnAnchoredRef={sentTurnAnchoredRef}
+        dockRef={dockRef}
+        dockHeight={dockHeight}
+        onRevealQuestion={revealQuestion}
         sentTurnSpacerRef={sentTurnSpacerRef}
         pendingApproval={pendingApproval}
         onResumeDecisions={sendResumeDecisions}
         mayRememberApproval={mayRememberApproval}
         pendingQuestions={pendingQuestions}
+        submittingQuestions={submittingQuestions}
+        questionTarget={questionTarget}
         onAnswerQuestions={sendAskUserResponses}
         pendingConnection={pendingConnection}
         onConnectionResponse={sendConnectionResponse}
@@ -1065,14 +1035,16 @@ interface ChatUIProps {
   /** The transcript's content, whose growth the scroller follows. */
   transcriptRef: React.RefObject<HTMLDivElement | null>;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
-  /** Whether the reader scrolled up, and the scroller should stay where they left it. */
-  userScrolledUpRef: React.RefObject<boolean>;
-  sentTurnAnchoredRef: React.RefObject<boolean>;
+  dockRef: React.RefObject<HTMLDivElement | null>;
+  dockHeight: number;
+  onRevealQuestion: () => void;
   sentTurnSpacerRef: React.RefObject<HTMLDivElement | null>;
   pendingApproval?: PendingApproval | null;
   onResumeDecisions?: (decisions: Decision[]) => void;
   mayRememberApproval?: boolean;
   pendingQuestions?: AskUserQuestion[] | null;
+  submittingQuestions?: boolean;
+  questionTarget?: { id: string; messageId: string | null; toolCallIds: string[] } | null;
   onAnswerQuestions?: (answers: AskUserAnswer[]) => void;
   /** The service a paused run waits for the person to connect. */
   pendingConnection?: ConnectionRequest | null;
@@ -1142,13 +1114,16 @@ function ChatUI({
   steers = [],
   transcriptRef,
   scrollContainerRef,
-  userScrolledUpRef,
-  sentTurnAnchoredRef,
+  dockRef,
+  dockHeight,
+  onRevealQuestion,
   sentTurnSpacerRef,
   pendingApproval,
   onResumeDecisions,
   mayRememberApproval,
   pendingQuestions,
+  submittingQuestions = false,
+  questionTarget,
   onAnswerQuestions,
   pendingConnection,
   onConnectionResponse,
@@ -1409,34 +1384,6 @@ function ChatUI({
   // Where the files button sits: among the composer's own controls, rather than
   // in a strip of its own down the conversation's right edge.
   const [filesSlot, setFilesSlot] = useState<HTMLSpanElement | null>(null);
-  const dockRef = useRef<HTMLDivElement | null>(null);
-  const [dockHeight, setDockHeight] = useState(0);
-  useLayoutEffect(() => {
-    const dock = dockRef.current;
-    if (!dock) return;
-    const observer = new ResizeObserver(() => setDockHeight(dock.offsetHeight));
-    observer.observe(dock);
-    setDockHeight(dock.offsetHeight);
-    return () => observer.disconnect();
-  }, []);
-  // A taller dock is more padding under the last message, and padding is not
-  // content, so nothing follows it: when the call bar gave way to the composer
-  // at the end of a call, the last message was left under the composer. A reader
-  // at the bottom stays there; one who scrolled up is left where they are.
-  useLayoutEffect(() => {
-    const scroller = scrollContainerRef.current;
-    const empty = messages.length === 0 && voice.call.phase === "idle";
-    if (scroller === null || userScrolledUpRef.current || sentTurnAnchoredRef.current || empty)
-      return;
-    scroller.scrollTop = scroller.scrollHeight;
-  }, [
-    dockHeight,
-    scrollContainerRef,
-    userScrolledUpRef,
-    sentTurnAnchoredRef,
-    messages.length,
-    voice.call.phase,
-  ]);
   const callReady = offerCall && readiness?.available === true;
   const callShown = offerCall && (readiness !== null || readinessFailed);
   // Hidden, not unmounted, during a call: the pill holds its controls, and focus
@@ -1482,7 +1429,7 @@ function ChatUI({
             ref={scrollContainerRef}
             data-chat-scroller
             className={cn(
-              "flex-1 scrollbar-thin overflow-y-auto",
+              "flex-1 scrollbar-thin overflow-y-auto [overflow-anchor:none]",
               showWorkspaceHome && "flex-none overflow-visible pb-0!",
             )}
             style={{
@@ -1525,6 +1472,7 @@ function ChatUI({
                     emptyState((picked) => sendMessage(picked))
                   ) : (
                     <ChatEmptyState
+                      showSuggestions={!drafting}
                       suggestionsSlot={!compact ? homeHintsSlot : undefined}
                       onPick={
                         showDailyBriefing ? composeSuggestion : (picked) => sendMessage(picked)
@@ -1554,14 +1502,33 @@ function ChatUI({
                     {forkedFrom && onOpenForkSource && (
                       <ForkedFrom origin={forkedFrom} onOpen={onOpenForkSource} />
                     )}
-                    <MessageList
-                      messages={messages}
-                      delegations={delegations}
-                      onRegenerate={onRegenerate}
-                      onFork={onFork}
-                      forkingMessageId={forkingMessageId}
-                      pins={pins}
-                    />
+                    <QuestionInteractionContext
+                      value={
+                        pendingQuestions?.length && onAnswerQuestions
+                          ? {
+                              id: questionTarget?.id ?? "question",
+                              messageId:
+                                questionTarget?.messageId ??
+                                messages.findLast((message) => message.role === "assistant")?.id ??
+                                null,
+                              toolCallIds: questionTarget?.toolCallIds ?? [],
+                              questions: pendingQuestions,
+                              submitting: submittingQuestions,
+                              disabled: readOnly || !isConnected || isStopping,
+                              onAnswer: onAnswerQuestions,
+                            }
+                          : null
+                      }
+                    >
+                      <MessageList
+                        messages={messages}
+                        delegations={delegations}
+                        onRegenerate={onRegenerate}
+                        onFork={onFork}
+                        forkingMessageId={forkingMessageId}
+                        pins={pins}
+                      />
+                    </QuestionInteractionContext>
                   </ConversationVisualsProvider>
                 </LiveBrowsesProvider>
               )}
@@ -1654,6 +1621,15 @@ function ChatUI({
               compact && "bg-background",
             )}
           >
+            {pendingQuestions?.length ? (
+              <button
+                type="button"
+                onClick={onRevealQuestion}
+                className="bg-popover text-foreground border-border focus-visible:outline-ring pointer-events-auto absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded-full border px-4 py-2 text-sm shadow-sm focus-visible:outline-2"
+              >
+                {t("questions.reveal")}
+              </button>
+            ) : null}
             {/* Findings and approval decisions sit beside the composer. */}
             {conversationId && !compact && (
               <OutcomeCards
@@ -1691,22 +1667,6 @@ function ChatUI({
                   disabled={readOnly || !isConnected || isStopping}
                   onRespond={onConnectionResponse}
                 />
-              </div>
-            )}
-            {pendingQuestions && pendingQuestions.length > 0 && onAnswerQuestions && (
-              <div
-                className={cn(
-                  "pointer-events-auto mx-auto w-full pb-2",
-                  compact ? "px-3" : "max-w-5xl px-2 sm:px-4",
-                )}
-              >
-                <div className="chat-composer-width">
-                  <QuestionPrompt
-                    questions={pendingQuestions}
-                    disabled={readOnly || !isConnected || isStopping}
-                    onComplete={onAnswerQuestions}
-                  />
-                </div>
               </div>
             )}
             <div

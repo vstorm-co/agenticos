@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -265,11 +265,11 @@ describe("where the panel opens", () => {
     const { container } = open([web(1)]);
 
     expect(container.firstElementChild).toHaveClass(
-      "absolute",
+      "fixed",
       "inset-0",
-      "@min-[48rem]/sources-layout:relative",
+      "@min-[900px]/sources-layout:relative",
     );
-    expect(container.firstElementChild).not.toHaveClass("fixed");
+    expect(screen.getByRole("separator")).toHaveAttribute("aria-valuenow", "55");
   });
 });
 
@@ -287,4 +287,13 @@ it("closes the old sources when navigating to another conversation", () => {
   expect(useSourcesPanelStore.getState().isOpen).toBe(true);
   rerender(<SourcesPanel conversationId="second" />);
   expect(useSourcesPanelStore.getState().isOpen).toBe(false);
+});
+
+it("does not reopen a previously selected source after closing the panel", async () => {
+  open([rag(1, { collection: "support_aa" })]);
+  await userEvent.click(screen.getByRole("button", { name: "Open the original of handbook.pdf" }));
+  expect(screen.getByText("viewing handbook.pdf in kb-1")).toBeVisible();
+  act(() => useSourcesPanelStore.getState().close());
+  act(() => useSourcesPanelStore.getState().open([rag(1, { collection: "support_aa" })]));
+  expect(screen.queryByText("viewing handbook.pdf in kb-1")).toBeNull();
 });

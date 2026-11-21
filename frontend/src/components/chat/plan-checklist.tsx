@@ -29,7 +29,7 @@ const LOOK: Record<
   in_progress: { icon: CircleDot, tint: "text-brand", labelKey: "statusInProgress" },
   completed: { icon: null, tint: "text-success", labelKey: "statusCompleted" },
   cancelled: { icon: Ban, tint: "text-muted-foreground", labelKey: "statusCancelled" },
-  blocked: { icon: OctagonAlert, tint: "text-amber-600", labelKey: "statusBlocked" },
+  blocked: { icon: OctagonAlert, tint: "text-warning-ink", labelKey: "statusBlocked" },
 };
 
 /**
@@ -144,7 +144,7 @@ export function PlanChecklist({
 }) {
   const t = useTranslations("chat.plan");
   const reduced = useReducedMotion();
-  const timing = (transition: Transition) => (reduced ? INSTANT : transition);
+  const timing = (transition: Transition) => (reduced || !live ? INSTANT : transition);
 
   return (
     <ol className={cn("space-y-1.5", className)}>
@@ -156,7 +156,10 @@ export function PlanChecklist({
         return (
           <li
             key={step.id ?? `${index}-${step.content}`}
-            className="step-in flex items-start gap-2.5 text-[13px] leading-relaxed"
+            className={cn(
+              "flex items-start gap-2.5 text-[13px] leading-relaxed",
+              live && !reduced && "step-in",
+            )}
             style={{ animationDelay: `${Math.min(index, 8) * 24}ms` }}
           >
             <span
@@ -226,7 +229,7 @@ export function PlanMeter({
         className="bg-foreground/10 h-1 w-16 shrink-0 overflow-hidden rounded-full"
       >
         <span
-          className="bg-brand block h-full w-full origin-left rounded-full transition-transform duration-500 ease-out"
+          className="bg-brand block h-full w-full origin-left rounded-full transition-transform duration-500 ease-out motion-reduce:transition-none"
           style={{ transform: `scaleX(${percent / 100})` }}
         />
       </span>

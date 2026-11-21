@@ -80,7 +80,15 @@ import { ShareDialog } from "./share-dialog";
 import { useTurnElapsed } from "./work-fold";
 import { formatElapsed } from "@/lib/elapsed";
 
+type SidebarLayout = "current" | "compact" | "comfortable" | "workspace";
+function sidebarLayout(value: string | null): SidebarLayout {
+  return value === "compact" || value === "comfortable" || value === "workspace"
+    ? value
+    : "current";
+}
+
 interface ConversationItemProps {
+  layout?: SidebarLayout;
   conversation: Conversation;
   isActive: boolean;
   onSelect: () => void;
@@ -101,6 +109,7 @@ interface ConversationItemProps {
 const HANDOFF_GRACE_MS = 20_000;
 
 function ConversationItem({
+  layout = "current",
   conversation,
   isActive,
   onSelect,
@@ -196,11 +205,14 @@ function ConversationItem({
 
   return (
     <div
+      data-conversation-layout={layout}
       className={cn(
         // The open row is a fill, as the main sidebar's is - a hairline border
         // and a bar at its edge read as two thin lines around one choice.
         "group relative flex cursor-pointer items-center gap-2.5 rounded-xl px-2.5 py-2 transition-colors",
         isActive ? "bg-accent" : "hover:bg-foreground/5",
+        layout === "compact" && "gap-2 rounded-lg py-2",
+        layout === "comfortable" && "my-1 gap-3 rounded-xl py-3",
       )}
       onClick={onSelect}
     >
@@ -212,17 +224,23 @@ function ConversationItem({
       />
       {/* Agent faces identify who took part; the title leads the text. */}
       <span className="relative shrink-0">
-        {agents.length > 0 || conversation.coding_agents?.length ? (
-          <ConversationAgents
-            agents={agents}
-            codingAgents={conversation.coding_agents}
-            showName={false}
-            size="md"
-            unframed
-          />
+        {layout === "compact" ? (
+          <MessageSquare className="text-muted-foreground size-4" aria-hidden />
         ) : (
-          // A box the size of a face, so every title starts at the same x.
-          <span className="block size-9" aria-hidden />
+          <>
+            {agents.length > 0 || conversation.coding_agents?.length ? (
+              <ConversationAgents
+                agents={agents}
+                codingAgents={conversation.coding_agents}
+                showName={false}
+                size="md"
+                unframed
+              />
+            ) : (
+              // A box the size of a face, so every title starts at the same x.
+              <span className="block size-9" aria-hidden />
+            )}
+          </>
         )}
         {/* An answer arrived while the reader was elsewhere: a badge on the face,
             as a count sits on an app icon - part of the row's own mark rather
@@ -259,7 +277,8 @@ function ConversationItem({
                 weight is the second half of the mark, as in a mail client. */}
           <span
             className={cn(
-              "line-clamp-2 text-[13px] leading-5",
+              "text-[13px] leading-5",
+              layout === "compact" || layout === "workspace" ? "truncate" : "line-clamp-2",
               unread ? "text-foreground font-semibold" : "font-medium",
               !unread && (isActive ? "text-foreground" : "text-foreground/80"),
             )}
@@ -273,7 +292,12 @@ function ConversationItem({
             </span>
           )}
         </div>
-        <p className="text-muted-foreground mt-0.5 truncate text-xs leading-4">
+        <p
+          className={cn(
+            "text-muted-foreground mt-0.5 truncate text-xs leading-4",
+            layout === "compact" && !waiting && !runningSince && "hidden",
+          )}
+        >
           {/* At work, the line says so and for how long, in place of who and
                 when: beside the agent's name it was cut to nothing. The face
                 still says who. */}
@@ -424,6 +448,7 @@ function ConversationItem({
 type ConversationView = "active" | "archived";
 
 interface ConversationListProps {
+  layout?: SidebarLayout;
   conversations: Conversation[];
   total: number;
   view: ConversationView;
@@ -562,6 +587,7 @@ function useBands(
   isArchivedView: boolean,
   datedOrder: boolean,
   shared: Conversation[] = [],
+  groupProjects = true,
 ): Band[] {
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
@@ -578,9 +604,10 @@ function useBands(
     const sharedRows = isArchivedView ? [] : shared;
     const sharedIds = new Set(sharedRows.map((conversation) => conversation.id));
     const visibleRows = conversations.filter((conversation) => !sharedIds.has(conversation.id));
-    const { inProjects, outside: listedRows } = isArchivedView
-      ? { inProjects: [], outside: visibleRows }
-      : byProject(visibleRows, names, ts("unnamedProject"));
+    const { inProjects, outside: listedRows } =
+      isArchivedView || !groupProjects
+        ? { inProjects: [], outside: visibleRows }
+        : byProject(visibleRows, names, ts("unnamedProject"));
     const unread = isArchivedView
       ? []
       : [...listedRows, ...sharedRows].filter(
@@ -635,7 +662,17 @@ function useBands(
           ? [{ key: "rest", heading: null, icon: null, rows: rest }]
           : []),
     ];
-  }, [conversations, currentConversationId, isArchivedView, datedOrder, shared, names, t, ts]);
+  }, [
+    conversations,
+    currentConversationId,
+    isArchivedView,
+    datedOrder,
+    shared,
+    names,
+    t,
+    ts,
+    groupProjects,
+  ]);
 }
 
 /**
@@ -684,6 +721,7 @@ function useBandFolds(bands: Band[], loaded: number, scroller: RefObject<HTMLEle
 }
 
 function ConversationList({
+  layout = "current",
   conversations = [],
   total,
   view,
@@ -714,7 +752,14 @@ function ConversationList({
   };
 
   const isArchivedView = view === "archived";
-  const bands = useBands(conversations, currentConversationId, isArchivedView, datedOrder, shared);
+  const bands = useBands(
+    conversations,
+    currentConversationId,
+    isArchivedView,
+    datedOrder,
+    shared,
+    layout === "current" || layout === "workspace",
+  );
   const scrollerRef = useRef<HTMLDivElement>(null);
   const { isFolded, flip } = useBandFolds(bands, conversations.length, scrollerRef);
   const foldedKeys = bands
@@ -867,6 +912,7 @@ function ConversationList({
                 {!(heading !== null && isFolded(key)) &&
                   rows.map((conversation) => (
                     <ConversationItem
+                      layout={layout}
                       key={conversation.id}
                       conversation={conversation}
                       isActive={conversation.id === currentConversationId}
@@ -1029,7 +1075,9 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     changeHideApi(true);
   };
 
+  const layout = sidebarLayout(searchParams.get("sidebar"));
   const listProps = {
+    layout,
     conversations: rows,
     total: total + (view === "active" ? projectList.total : 0),
     view,
@@ -1152,8 +1200,12 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   return (
     <>
       <aside
+        data-conversation-sidebar={layout}
         className={cn(
           "bg-sidebar-secondary hidden min-h-0 w-64 shrink-0 flex-col md:flex xl:w-72",
+          layout === "compact" && "xl:w-64",
+          layout === "comfortable" && "w-72 xl:w-80",
+          layout === "workspace" && "w-72",
           className,
         )}
       >
