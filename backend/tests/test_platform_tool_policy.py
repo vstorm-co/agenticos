@@ -506,3 +506,31 @@ async def test_fresh_task_execution_floor_blocks_routine_standing_consent() -> N
         )
     execute.assert_not_awaited()
     assert ctx.deps.request_approval.await_args.args[0].always_asks is True
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("missing", ["record", "revision", "both"])
+async def test_update_preflight_without_record_identity_or_revision_never_releases_a_call(
+    missing: str,
+) -> None:
+    from unittest.mock import patch
+    from uuid import uuid4
+
+    from app.services.tasks import TaskService
+
+    service = TaskService(MagicMock())
+    service.tables = MagicMock(describe_table=AsyncMock(return_value=MagicMock(can_edit=True)))
+    with (
+        patch("app.services.tasks.task_repo.for_table", new=AsyncMock(return_value=MagicMock())),
+        patch("app.services.tasks.task_repo.record", new=AsyncMock()) as read,
+    ):
+        assert await service.record_may_schedule_agent_work(
+            MagicMock(),
+            uuid4(),
+            {},
+            operation="update",
+            record_id=None if missing in {"record", "both"} else uuid4(),
+            expected_revision=None if missing in {"revision", "both"} else 1,
+        )
+    read.assert_not_awaited()

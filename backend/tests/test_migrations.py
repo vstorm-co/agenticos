@@ -69,6 +69,13 @@ _HISTORICAL_USER_INSERT = text(
 )
 
 
+# Keep seeds independent of ORM columns introduced after the revision under test.
+_HISTORICAL_ORGANIZATION_INSERT = text(
+    "INSERT INTO organizations (id, name, slug, created_by_user_id, is_personal) "
+    "VALUES (:id, :name, :slug, :owner, false)"
+)
+
+
 def _url(database: str) -> str:
     """The DSN alembic builds, pointed at a different database on that server.
 
@@ -188,7 +195,6 @@ def migration_database() -> Iterator[None]:
 def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs() -> None:
     """0322_coding_task_revert.py and 0323_coding_revert_admission.py preserve legacy diffs."""
     from app.db.models.conversation import Conversation
-    from app.db.models.organization import Organization
 
     result = _alembic("upgrade", "head")
     assert result.returncode == 0, result.stderr
@@ -213,13 +219,18 @@ def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs()
                 _HISTORICAL_USER_INSERT,
                 {"id": owner_id, "email": f"{owner_id}@example.com"},
             )
-            organization = Organization(
-                name="Legacy diff", slug=f"legacy-{uuid4()}", created_by_user_id=owner_id
+            organization_id = uuid4()
+            db.execute(
+                _HISTORICAL_ORGANIZATION_INSERT,
+                {
+                    "id": organization_id,
+                    "name": "Legacy diff",
+                    "slug": f"legacy-{uuid4()}",
+                    "owner": owner_id,
+                },
             )
-            db.add(organization)
-            db.flush()
             conversation = Conversation(
-                organization_id=organization.id, user_id=owner_id, title="Old task"
+                organization_id=organization_id, user_id=owner_id, title="Old task"
             )
             db.add(conversation)
             db.flush()
@@ -230,7 +241,7 @@ def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs()
                 ),
                 {
                     "id": change_id,
-                    "organization": organization.id,
+                    "organization": organization_id,
                     "conversation": conversation.id,
                     "files": json.dumps(files),
                 },
@@ -2388,7 +2399,6 @@ def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
 
     from app.db.models.agent import Agent
     from app.db.models.agent_run import AgentRun
-    from app.db.models.organization import Organization
 
     result = _alembic("downgrade", "base")
     assert result.returncode == 0, result.stderr
@@ -2403,13 +2413,18 @@ def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
                 _HISTORICAL_USER_INSERT,
                 {"id": owner_id, "email": f"{owner_id}@example.com"},
             )
-            org = Organization(
-                name="Legacy activation", slug=f"activation-{uuid4()}", created_by_user_id=owner_id
+            org_id = uuid4()
+            db.execute(
+                _HISTORICAL_ORGANIZATION_INSERT,
+                {
+                    "id": org_id,
+                    "name": "Legacy activation",
+                    "slug": f"activation-{uuid4()}",
+                    "owner": owner_id,
+                },
             )
-            db.add(org)
-            db.flush()
             agent = Agent(
-                name="Legacy", slug=f"legacy-{uuid4()}", organization_id=org.id, draft_spec={}
+                name="Legacy", slug=f"legacy-{uuid4()}", organization_id=org_id, draft_spec={}
             )
             db.add(agent)
             db.flush()
@@ -2420,7 +2435,7 @@ def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
                     "VALUES (:id, :org, :agent, 'schedule', 'completed', 0, 0, 0, false, "
                     "'{\"acts_as_creator\": true}'::jsonb)"
                 ),
-                {"id": run_id, "org": org.id, "agent": agent.id},
+                {"id": run_id, "org": org_id, "agent": agent.id},
             )
             db.commit()
         result = _alembic("upgrade", "head")
@@ -2576,7 +2591,6 @@ def test_github_filter_diagnostic_preserves_existing_routine_policy() -> None:
     """0337_github_filter_diagnostic.py adds a nullable snapshot without widening authors."""
     from app.db.models.agent import Agent
     from app.db.models.agent_trigger import AgentTrigger
-    from app.db.models.organization import Organization
 
     result = _alembic("upgrade", "head")
     assert result.returncode == 0, result.stderr
@@ -2591,20 +2605,25 @@ def test_github_filter_diagnostic_preserves_existing_routine_policy() -> None:
                 _HISTORICAL_USER_INSERT,
                 {"id": owner_id, "email": f"{owner_id}@example.com"},
             )
-            org = Organization(
-                name="Legacy routine", slug=f"routine-{uuid4()}", created_by_user_id=owner_id
+            org_id = uuid4()
+            db.execute(
+                _HISTORICAL_ORGANIZATION_INSERT,
+                {
+                    "id": org_id,
+                    "name": "Legacy routine",
+                    "slug": f"routine-{uuid4()}",
+                    "owner": owner_id,
+                },
             )
-            db.add(org)
-            db.flush()
             agent = Agent(
-                organization_id=org.id, name="Triage", slug=f"triage-{uuid4()}", draft_spec={}
+                organization_id=org_id, name="Triage", slug=f"triage-{uuid4()}", draft_spec={}
             )
             db.add(agent)
             db.flush()
             db.execute(
                 AgentTrigger.__table__.insert().values(
                     id=trigger_id,
-                    organization_id=org.id,
+                    organization_id=org_id,
                     agent_id=agent.id,
                     created_by_user_id=owner_id,
                     trigger_type="event",
@@ -2758,7 +2777,6 @@ def test_matrix_surface_migration_preserves_existing_exposures() -> None:
     from app.db.models.channel_link_request import ChannelLinkRequest
     from app.db.models.channel_observation import ChannelObservation
     from app.db.models.channel_session import ChannelSession
-    from app.db.models.organization import Organization
     from app.services.channels.base import thread_key
     from app.services.channels.matrix_protocol import room_key
 
@@ -2772,14 +2790,19 @@ def test_matrix_surface_migration_preserves_existing_exposures() -> None:
             user = User(email=f"{uuid4()}@example.test", is_active=True, is_app_admin=False)
             db.add(user)
             db.flush()
-            org = Organization(
-                name="Matrix migration", slug=f"matrix-{uuid4()}", created_by_user_id=user.id
+            org_id = uuid4()
+            db.execute(
+                _HISTORICAL_ORGANIZATION_INSERT,
+                {
+                    "id": org_id,
+                    "name": "Matrix migration",
+                    "slug": f"matrix-{uuid4()}",
+                    "owner": user.id,
+                },
             )
-            db.add(org)
-            db.flush()
-            agent = Agent(organization_id=org.id, slug="matrix-migration", name="Matrix migration")
+            agent = Agent(organization_id=org_id, slug="matrix-migration", name="Matrix migration")
             bot = ChannelBot(
-                organization_id=org.id,
+                organization_id=org_id,
                 platform="slack",
                 name="Existing bot",
                 token_encrypted="sealed",
@@ -2787,11 +2810,11 @@ def test_matrix_surface_migration_preserves_existing_exposures() -> None:
             db.add_all([agent, bot])
             db.flush()
             exposure = AgentExposure(
-                organization_id=org.id, agent_id=agent.id, channel_bot_id=bot.id, surface="slack"
+                organization_id=org_id, agent_id=agent.id, channel_bot_id=bot.id, surface="slack"
             )
             db.add(exposure)
             db.flush()
-            existing_id, org_id, agent_id = exposure.id, org.id, agent.id
+            existing_id, agent_id = exposure.id, agent.id
             db.commit()
         result = _alembic("upgrade", "head")
         assert result.returncode == 0, result.stderr
