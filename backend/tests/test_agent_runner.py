@@ -11586,3 +11586,81 @@ async def test_resume_refuses_a_changed_resolved_model_endpoint_before_building(
     build.assert_not_called()
     workspace.assert_not_awaited()
     running.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("topology", ["published", "inline"])
+@pytest.mark.parametrize("outcome", ["valid", "changed", "missing_namespace"])
+async def test_routine_delegate_consumes_only_its_exact_reviewed_resources(topology, outcome):
+    from app.db.models.skill import Skill
+    from app.schemas.routine_sources import RoutineSourcePolicy
+    from app.services.routine_authority import RoutineAuthority
+    from app.services.routine_sources import RoutineSourcesRequired, materialized_behavior
+
+    ctx = _ctx()
+    service = AgentRunnerService(_db())
+    delegate_id = uuid.uuid4() if topology == "published" else None
+    namespace = f"delegate:{uuid.uuid4()}" if topology == "published" else "root:inline:Helper"
+    approved = Skill(
+        id=uuid.uuid4(), name="policy", description="Policy", content="Approved", resources=[]
+    )
+    actual = Skill(
+        id=approved.id,
+        name=approved.name,
+        description=approved.description,
+        content="Changed" if outcome == "changed" else approved.content,
+        resources=[],
+    )
+    policy = RoutineSourcePolicy(
+        mode="follow_agent",
+        id=uuid.uuid4(),
+        consented_by=ctx.subject_id,
+        reviewed_at=datetime.now(UTC),
+        version_id=uuid.uuid4(),
+        scope_hash="a" * 64,
+        spec_hash="b" * 64,
+        behavior=materialized_behavior([approved], [], namespace=namespace),
+    )
+    authority = RoutineAuthority(
+        routine_id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        user_id=ctx.subject_id,
+        root_agent_id=uuid.uuid4(),
+        role=ctx.role,
+        acts_as_creator=True,
+        source_policy=policy,
+    )
+    parent = {"routine_authority": authority}
+    with (
+        patch.object(service, "_bound_collections", new=AsyncMock(return_value={})),
+        patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[actual])),
+        patch.object(service.context, "resolve_for_agent", new=AsyncMock(return_value=[])),
+        patch.object(service, "_add_mirage_terminal", new=AsyncMock()) as terminal,
+    ):
+        if outcome != "valid":
+            with pytest.raises(RoutineSourcesRequired):
+                await service._delegate_resources(
+                    ctx,
+                    AgentSpec(name="Helper", skill_ids=[approved.id]),
+                    agent_id=delegate_id,
+                    shared=[],
+                    parent_resources=parent,
+                    person_id=ctx.subject_id,
+                    behavior_namespace=None if outcome == "missing_namespace" else namespace,
+                )
+            terminal.assert_not_awaited()
+            return
+        resources = await service._delegate_resources(
+            ctx,
+            AgentSpec(name="Helper", skill_ids=[approved.id]),
+            agent_id=delegate_id,
+            shared=[],
+            parent_resources=parent,
+            person_id=ctx.subject_id,
+            behavior_namespace=namespace,
+        )
+    assert resources["skills"] == [actual]
+    assert resources["routine_authority"] is authority
+    assert resources["routine_behavior_namespace"] == namespace
+    assert "routine_behavior_namespace" not in parent
+    terminal.assert_awaited_once()

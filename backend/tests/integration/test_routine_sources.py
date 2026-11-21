@@ -2131,3 +2131,42 @@ async def test_follow_agent_never_silently_admits_new_account_or_tool_authority(
     with pytest.raises(RoutineSourcesRequired):
         await service.require_current(ctx, trigger, expected_id=policy.id)
     assert read_policy(trigger.approved_sources) == policy
+
+
+@pytest.mark.parametrize("refusal", ["bad_request", "not_found"])
+async def test_follow_agent_materialization_turns_unavailable_review_into_owner_review(db, refusal):
+    from app.core.exceptions import BadRequestError, NotFoundError
+
+    ctx, trigger, _, _ = await world(db)
+    service = RoutineSourceService(db)
+    policy = await service.initial(ctx, trigger, mode="follow_agent")
+    error = (
+        BadRequestError(message="Configuration no longer valid")
+        if refusal == "bad_request"
+        else NotFoundError(message="Resource removed")
+    )
+    with (
+        patch.object(service, "_review", new=AsyncMock(side_effect=error)) as review,
+        pytest.raises(RoutineSourcesRequired),
+    ):
+        await service.require_behavior(ctx, trigger, policy)
+    review.assert_awaited_once_with(ctx, trigger, mode="follow_agent", version_id=policy.version_id)
+
+
+async def test_disabled_mcp_binding_adds_no_behavior_authority(db):
+    from app.agents.spec import OrgMcpServerRef
+
+    ctx, _, spec, account = await world(db, mcp=True)
+    assert account is not None
+    service = RoutineSourceService(db)
+    disabled = spec.model_copy(
+        update={
+            "mcp_servers": [
+                OrgMcpServerRef(account="organization", connection_id=account.id, allowed_tools=[])
+            ]
+        }
+    )
+    absent = spec.model_copy(update={"mcp_servers": []})
+    assert await service._behavior(ctx, [disabled], ["root"]) == await service._behavior(
+        ctx, [absent], ["root"]
+    )
