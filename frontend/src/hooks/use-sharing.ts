@@ -35,6 +35,7 @@ const SHARING_ROOT = {
   context: "/context",
   secret: "/secrets",
   table: "/tables",
+  workflow: "/workflows",
   artifact: "/apps",
   dataset: "/datasets",
   // An organization's MCP server, narrowed to the groups that use it (#2072).
@@ -57,6 +58,7 @@ const RESOURCE_KEYS = {
   context: qk.context.all,
   secret: qk.secrets.all,
   table: qk.tables.all,
+  workflow: qk.workflows.all,
   artifact: qk.artifacts.all,
   dataset: qk.datasets.all,
   mcp_connection: qk.mcpConnections.org,

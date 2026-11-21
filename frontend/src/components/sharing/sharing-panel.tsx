@@ -74,6 +74,7 @@ const LEGACY_TEAM = { value: "team" as Visibility, words: "visibilityTeam" };
 const RUNTIME_NOTE: Partial<Record<SharingResourceType, string>> = {
   secret: "secretRuntimeNote",
   collection: "collectionRuntimeNote",
+  workflow: "workflowRuntimeNote",
 };
 
 /**
@@ -229,7 +230,9 @@ export function SharingPanel({
               </SelectContent>
             </Select>
             <p className="text-muted-foreground text-xs">
-              {t(`${current.words}Reaches`, { resource: resourceType })}
+              {resourceType === "workflow" && sharing.visibility === "private"
+                ? t("workflowPrivateReaches")
+                : t(`${current.words}Reaches`, { resource: resourceType })}
             </p>
           </div>
         </div>

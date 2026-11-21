@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Change an existing workflow's audience under **More → Settings → Access**, including organization visibility and grants for individual people or groups.
+
 ## [1.87.0] - 2026-11-20
 
 ### Added
