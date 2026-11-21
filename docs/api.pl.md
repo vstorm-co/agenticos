@@ -1,5 +1,5 @@
 ---
-source_sha: "06839c22a83d"
+source_sha: "58aaa4e50b4b"
 ---
 
 # API HTTP { #the-http-api }
@@ -82,6 +82,8 @@ cofania zgody routines, które działają jako ty. Przebieg takiej routine nadal
 podlega wybranej polityce źródeł, aktualnym uprawnieniom i budżetowi. Nie może tego zrobić credential
 uruchomionego agenta poza twoim prywatnym czatem ani administrator, który się pod
 ciebie podszywa.
+
+Dla rutyn `source_mode=follow_agent` automatyzuje początkową konfigurację w granicach uprawnień twórcy; nie zatwierdza późniejszych rozszerzeń źródeł lub zmian zachowania. Właściciel może jawnie zatwierdzić bieżącą konfigurację przez endpoint źródeł chroniony tokenem przeglądu. Metadane rozdzielają wymagane braki `required_unavailable_sources` od opcjonalnych braków MCP w `unavailable_sources`. Starsza polityka podążania bez dowodu zachowania wymaga przeglądu; istniejące polityki ograniczone zachowują swoje zasady.
 
 Rozmowy też są publiczne: `GET /api/v1/conversations` wypisuje czaty wydawcy
 klucza (`runs:view`), a `POST /api/v1/conversations` z `title` i

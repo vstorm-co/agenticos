@@ -274,6 +274,7 @@ describe("TriggersPanel", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
+      runs_as_creator: true,
       prompt: "Do the thing",
       name: null,
       trigger_type: "schedule",
@@ -683,6 +684,7 @@ describe("TriggersPanel", () => {
     // continuously, which is what "every 2 days" promises. Two days, in seconds.
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
+      runs_as_creator: true,
       prompt: "Every couple of days",
       name: null,
       trigger_type: "schedule",
@@ -834,6 +836,7 @@ describe("TriggersPanel", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
+      runs_as_creator: true,
       prompt: "Daily digest",
       name: null,
       trigger_type: "schedule",
@@ -866,6 +869,7 @@ describe("TriggersPanel", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
+      runs_as_creator: true,
       prompt: "Morning digest",
       name: null,
       trigger_type: "schedule",
@@ -940,6 +944,7 @@ describe("TriggersPanel", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
+      runs_as_creator: true,
       prompt: "Sweep the queue",
       name: null,
       trigger_type: "schedule",

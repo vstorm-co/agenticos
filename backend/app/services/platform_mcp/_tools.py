@@ -2371,8 +2371,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         set it for time-bounded requests. `monthly_budget_usd` is a decimal USD cap.
         `pinned_version_id` keeps one published version; omitted, future fires
         follow the published version. New routines follow the agent's current
-        configuration and your current permissions without a separate access
-        review. An unconnected optional MCP service is unavailable to that run;
+        initial configuration and your current permissions without a separate
+        setup review. Later source/account/tool additions or instruction, skill,
+        context or delegate behavior changes need the owner's access review;
+        publication alone never extends the creator's authority. An unconnected
+        optional MCP service is unavailable to that run;
         it does not block unrelated web research or other available tools. The
         agent's own approvals and mandatory platform/native gates still apply.
         People may optionally freeze reviewed sources under /routines. Existing

@@ -27,12 +27,14 @@ class RoutineSourcePolicy(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     mode: RoutineSourceMode = "restricted"
+    approved_ceiling: Self | None = Field(default=None, exclude_if=lambda value: value is None)
     id: UUID
     consented_by: UUID
     reviewed_at: AwareDatetime
     version_id: UUID
     scope_hash: Fingerprint
     spec_hash: Fingerprint
+    behavior: dict[str, Fingerprint] | None = Field(default=None, max_length=10000)
     mcp_sources: dict[UUID, RoutineSourceAccount] = Field(default_factory=dict, max_length=100)
     mirage_accounts: dict[UUID, UUID] = Field(default_factory=dict, max_length=100)
     secret_sources: dict[UUID, UUID] = Field(default_factory=dict, max_length=100)
@@ -47,6 +49,15 @@ class RoutineSourcePolicy(BaseModel):
 
     @model_validator(mode="after")
     def pair_input_source(self) -> Self:
+        if self.approved_ceiling is not None and (
+            self.mode != "follow_agent"
+            or self.approved_ceiling.mode != "follow_agent"
+            or self.approved_ceiling.approved_ceiling is not None
+            or self.approved_ceiling.behavior is None
+        ):
+            raise ValueError(
+                "An approved ceiling must be one non-nested following behavior snapshot"
+            )
         if (self.project_id is None) != (self.project_hash is None):
             raise ValueError("A project source requires its exact workspace identity")
         if (self.input_connection_id is None) != (self.input_source is None):
@@ -98,6 +109,7 @@ class RoutineSourceReview(BaseModel):
     resources: list[str]
     accounts: list[str]
     unavailable_sources: list[str]
+    required_unavailable_sources: list[str] = Field(default_factory=list)
     items: list[RoutineSourceItem] = Field(
         default_factory=list,
         description="`resources` and `accounts` as named items, which the review shows grouped",

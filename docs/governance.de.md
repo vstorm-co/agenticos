@@ -1,5 +1,5 @@
 ---
-source_sha: "0c49f2ac8606"
+source_sha: "4a5506769583"
 ---
 
 # Governance { #governance }
@@ -2672,7 +2672,9 @@ Die Liste zeigt automatische Pause und Fehlerzahl. Höchstens 50 Beobachtungen p
 
 ## Geprüfte Routinequellen { #routine-sources }
 
-Neue Routinen verwenden `follow_agent`: Jede neue Ausführung erfasst die aktuellen Quellen des gewählten veröffentlichten Agenten und die aktuellen Berechtigungen ihres Erstellers. Fehlende oder unerreichbare optionale MCP-Konten stehen diesem Lauf nicht zur Verfügung; eine ungenutzte GitHub-Bindung blockiert keine Webrecherche. Erforderliche Ereigniseingangskonten und die Erstelleridentität bleiben notwendig. Aktuelle Ressourcenzugriffe, Budgets, lokale Zustimmungen und explizite Agenten- und Plattformfreigaben gelten weiter; dieser Modus erteilt keine dauerhaften Freigabeausnahmen. Änderungen der Identität eines erforderlichen Ereigniseingangskontos benötigen weiterhin eine ausdrückliche Prüfung durch den Eigentümer.
+Neue Routinen genehmigen automatisch die anfänglich verfügbare Konfiguration des veröffentlichten Agenten innerhalb der aktuellen Erstellerberechtigungen. Sichere Quellenentfernungen und reine Modell- oder Anzeigeänderungen des Hauptagenten benötigen keine Prüfung. Neue Quellen, Konten oder Werkzeuge, geänderte Anweisungen oder Variablen sowie Änderungen an Capabilities, tatsächlich verwendeten Skills, Kontext oder delegiertem Verhalten erfordern vor einer weiteren Ausführung die Zugriffsprüfung des Eigentümers. Eine Veröffentlichung des gemeinsamen Agenten erweitert allein keine dauerhafte Befugnis einer Person. Fehlende optionale MCP-Konten blockieren keine unabhängige Arbeit; erforderliche Ereigniseingänge, Identität, Ressourcenzugriffe, Budgets und verbindliche Freigaben gelten weiter.
+
+Eine geänderte fixierte Delegatenversion erfordert eine Prüfung, auch bei einer reinen Modelländerung dieses Delegaten.
 
 Der Eigentümer kann stattdessen `restricted` wählen. Dieser Modus fixiert die geprüfte Quellenkonfiguration, konkrete MCP-Konten, Autorisierungsgenerationen und bekannte Werkzeugnamen. Die Prüfung umfasst fixierte Delegaten, Wissen, Skills, Kontext, Capabilities und entfernte A2A-Registrierungen. Neue Quellen oder geänderte Kontoautorisierung erfordern eine erneute Prüfung. Bestehende Richtlinien ohne Modus bleiben eingeschränkt; ein Upgrade erweitert sie nicht stillschweigend.
 

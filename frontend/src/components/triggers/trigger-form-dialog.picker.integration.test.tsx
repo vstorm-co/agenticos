@@ -310,11 +310,11 @@ it("creates with agent source access without a mandatory approval modal", async 
 
 it.each([
   { signedIn: true, permission: true, impersonated: false, enabled: true },
-  { signedIn: true, permission: false, impersonated: false, enabled: false },
+  { signedIn: true, permission: false, impersonated: false, enabled: true },
   { signedIn: false, permission: true, impersonated: false, enabled: false },
   { signedIn: true, permission: true, impersonated: true, enabled: false },
 ])(
-  "defaults creator access only to an authorized signed-in person: %j",
+  "defaults creator access to the signed-in person independent of role permissions: %j",
   async ({ signedIn, permission, impersonated, enabled }) => {
     const previous = useAuthStore.getState().user;
     useAuthStore.setState({
@@ -337,7 +337,10 @@ it.each([
     const normal = vi.mocked(apiClient.get).getMockImplementation()!;
     vi.mocked(apiClient.get).mockImplementation(async (path, options) =>
       path === "/me/permissions"
-        ? { permissions: permission ? [{ permission: "personal:consent", scope: "all" }] : [] }
+        ? {
+            role: permission ? "owner" : "viewer",
+            permissions: permission ? [{ permission: "personal:consent", scope: "all" }] : [],
+          }
         : normal(path, options),
     );
     const user = userEvent.setup();
@@ -356,6 +359,11 @@ it.each([
       expect(
         dialog.getByText("Runs as you. Your permissions and required approvals still apply."),
       ).toBeVisible();
+      expect(identity).toBeEnabled();
+      await user.click(identity);
+      expect(identity).not.toBeChecked();
+      await user.click(identity);
+      expect(identity).toBeChecked();
       await user.click(identity);
       expect(identity).not.toBeChecked();
       await user.click(dialog.getByRole("button", { name: "Continue" }));

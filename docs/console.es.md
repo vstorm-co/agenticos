@@ -1,5 +1,5 @@
 ---
-source_sha: "478a6600f722"
+source_sha: "d1f9d3257b4e"
 ---
 
 # La consola { #the-console }
@@ -291,7 +291,7 @@ instantánea que querías conservar.
 
 ## Rutinas y seguimientos { #routines-and-watches }
 
-Las rutinas nuevas siguen la configuración actual del agente publicado y los permisos vigentes de su creador. La revisión de acceso independiente es opcional. Las cuentas MCP opcionales ausentes no bloquean tareas ajenas a ellas. Siguen vigentes las aprobaciones explícitas del agente, las obligatorias de la plataforma y el consentimiento de carpetas locales. El diálogo de acceso permite elegir una instantánea revisada de fuentes como límite fijo. Las rutinas revisadas existentes conservan sus restricciones hasta que el propietario cambia el modo; una configuración obligatoria ausente sigue dejándolas en pausa.
+Las rutinas nuevas usan automáticamente la configuración disponible del agente al crearlas, dentro de un límite aprobado de acceso y comportamiento. No requieren una revisión inicial; las cuentas MCP opcionales ausentes no bloquean trabajo independiente. Las ampliaciones posteriores de fuentes o herramientas y los cambios de instrucciones, skills, contexto o delegados requieren revisión del creador antes de ejecutarse. Los cambios solo de modelo y las reducciones seguras permanecen dentro del límite. Siguen vigentes las aprobaciones del agente, las obligatorias de la plataforma y el permiso de carpetas locales. El diálogo puede conservar un snapshot revisado; las rutinas restringidas existentes mantienen su política hasta que el propietario la cambie.
 
 Si **Skip this run** evita una ejecución simultánea, el historial registra el motivo sin iniciar ni cobrar otra ejecución. Puedes detener una ejecución en espera desde el historial cuando el servidor lo permita. Se conserva su coste acumulado y se desbloquea la siguiente ejecución programada. Las omisiones repetidas por la misma ejecución pendiente comparten una entrada del historial.
 

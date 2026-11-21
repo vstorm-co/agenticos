@@ -1,5 +1,5 @@
 ---
-source_sha: "b9e22792a58f"
+source_sha: "3b887e9777b8"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -3165,7 +3165,7 @@ Przy każdej operacji usługa ponownie sprawdza członkostwo w organizacji, dost
 
 Przed utworzeniem cyklicznego raportu ustal strefę czasową, harmonogram i miejsce dostarczenia, w tym użycie tego samego wątku lub nowego wpisu. Wpisz zweryfikowane identyfikatory bota, kanału i wątku oraz pełne zadanie do promptu rutyny, z końcowym dostarczeniem przez `send_chat_message`; kopia w konsoli trafia do dziennika rutyny.
 
-Nowe rutyny korzystają z konfiguracji agenta i uprawnień twórcy bez osobnego przeglądu dostępu. Brak opcjonalnego konta MCP nie blokuje innej pracy. Wysyłanie nadal podlega zgodom agenta i obowiązkowym zabezpieczeniom; nie obiecuj działania bez nadzoru, jeśli potrzebna jest zgoda. Rzeczywista blokada konfiguracji zapisuje rutynę jako wstrzymaną. Napraw istniejącą rutynę zamiast tworzyć duplikaty lub bez uzgodnienia zmieniać współdzielone powiązania agenta.
+Nowe rutyny automatycznie zatwierdzają początkową dostępną konfigurację agenta w granicach uprawnień twórcy. Późniejsze rozszerzenia źródeł lub zmiany zachowania, w tym instrukcji i faktycznie używanych skilli, wymagają przeglądu dostępu przez właściciela. Brak opcjonalnego konta MCP nie blokuje innej pracy. Wysyłanie nadal podlega zgodom agenta i obowiązkowym zabezpieczeniom; nie obiecuj działania bez nadzoru, jeśli potrzebna jest zgoda. Rzeczywista blokada konfiguracji zapisuje rutynę jako wstrzymaną. Napraw istniejącą rutynę zamiast tworzyć duplikaty lub bez uzgodnienia zmieniać współdzielone powiązania agenta.
 
 Długie zadania strumieniują tekst i rzeczywiste etapy narzędzi. W komunikatorach tekstowych bieżący etap pozostaje widoczny także po zdaniu postępu; ograniczone aktualizacje pokazują upływ czasu i zakończone kroki, bez wymyślonego procentu. Końcowa odpowiedź zastępuje stan tymczasowy. Platformy z natywnym strumieniem zachowują własną oś czasu.
 

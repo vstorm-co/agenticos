@@ -1,5 +1,5 @@
 ---
-source_sha: "0c49f2ac8606"
+source_sha: "4a5506769583"
 ---
 
 # Governance { #governance }
@@ -2524,7 +2524,9 @@ La lista muestra la pausa automática y el número de fallos. Se conservan como 
 
 ## Fuentes revisadas de las rutinas { #routine-sources }
 
-Las rutinas nuevas usan `follow_agent`: cada ejecución nueva captura las fuentes actuales del agente publicado elegido y los permisos vigentes del creador. Las cuentas MCP opcionales ausentes o inaccesibles no están disponibles para esa ejecución; una vinculación de GitHub sin utilizar no bloquea la investigación web. Las cuentas obligatorias de entrada de eventos y la identidad del creador siguen siendo necesarias. Siguen vigentes los permisos de recursos, presupuestos, consentimientos locales y aprobaciones explícitas del agente y la plataforma; este modo no concede excepciones permanentes de aprobación. Los cambios de identidad de una cuenta obligatoria de entrada de eventos siguen requiriendo una revisión explícita del propietario.
+Las rutinas nuevas admiten automáticamente la configuración inicialmente disponible del agente publicado dentro de los permisos vigentes del creador. Las eliminaciones seguras de fuentes y los cambios exclusivamente de modelo o presentación del agente principal no requieren revisión. Las fuentes, cuentas o herramientas nuevas, los cambios de instrucciones o variables y los cambios de capacidades, skills efectivos, contexto o comportamiento delegado requieren la revisión de acceso del propietario antes de otra ejecución. Publicar el agente compartido no amplía por sí solo la autoridad permanente de una persona. Las cuentas MCP opcionales ausentes no bloquean otras tareas; siguen vigentes las entradas obligatorias de eventos, identidad, permisos, presupuestos y aprobaciones obligatorias.
+
+Cambiar la versión fijada de un delegado requiere revisión, incluso si su publicación solo modifica el modelo.
 
 El propietario puede elegir `restricted`, que fija la configuración revisada, cuentas MCP concretas, generaciones de autorización y nombres de herramientas conocidos. La revisión incluye delegados fijados, conocimiento, skills, contexto, capacidades y registros A2A remotos. Las fuentes nuevas o cambios en la autorización de una cuenta requieren otra revisión. Las políticas existentes sin modo permanecen restringidas; actualizar no las amplía automáticamente.
 

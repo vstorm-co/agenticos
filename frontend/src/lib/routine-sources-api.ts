@@ -40,6 +40,8 @@ export interface RoutineSourceReview {
   resources: string[];
   accounts: string[];
   unavailable_sources: string[];
+  /** Absent in older responses, where every unavailable source must block saving. */
+  required_unavailable_sources?: string[];
   items?: RoutineSourceItem[];
 }
 
@@ -52,3 +54,13 @@ export const routineSourcesApi = {
   replace: (agentId: string, triggerId: string, consent: RoutineSourceConsent) =>
     apiClient.put<RoutineSourceReview>(path(agentId, triggerId), consent),
 };
+
+/** Missing classifications fail closed; only explicit optional gaps can be inherited. */
+export function routineSourceBlockers(
+  review: RoutineSourceReview,
+  mode: RoutineSourceMode,
+): readonly string[] {
+  return mode === "restricted"
+    ? review.unavailable_sources
+    : (review.required_unavailable_sources ?? review.unavailable_sources);
+}

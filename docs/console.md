@@ -267,7 +267,7 @@ snapshot you meant to keep.
 
 ## Routines and watches
 
-New routines follow the published agent's current configuration and the creator's current permissions. A separate access review is optional. Missing optional MCP accounts do not block unrelated work. The agent's explicit approvals, mandatory platform approvals and native folder consent still apply. Choose a reviewed source snapshot in the access dialog when you want a fixed ceiling. Existing reviewed routines retain their restrictions until their owner changes the mode; a genuinely blocked setup remains paused.
+New routines automatically use the agent's available configuration at creation, within an approved access and behavior ceiling. No initial access review is required; missing optional MCP accounts do not block unrelated work. Later source or tool expansions and changes to instructions, skills, context or delegates require the creator's review before running. Model-only updates and safe removals stay within the ceiling. Agent approvals, mandatory platform approvals and native folder consent still apply. The access dialog can instead keep a reviewed snapshot; existing restricted routines retain that policy until the owner changes it.
 
 If **Skip this run** prevents an overlapping occurrence, history records the reason without starting or charging another run. You can stop a waiting run directly in this history when the server permits it. Stopping preserves its spend and lets the next scheduled occurrence proceed. Repeated skips behind the same unfinished run share one history entry.
 

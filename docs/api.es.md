@@ -1,5 +1,5 @@
 ---
-source_sha: "06839c22a83d"
+source_sha: "58aaa4e50b4b"
 ---
 
 # La API HTTP { #the-http-api }
@@ -84,6 +84,8 @@ y publicar un agente sin retirar el consentimiento de las rutinas que actúan co
 tú. La ejecución de esa rutina sigue sujeta a su política de fuentes elegida, sus permisos vigentes y su
 presupuesto. No puede hacerlo la credencial de ejecución de un agente fuera de tu
 chat privado, ni un administrador que te suplante.
+
+En rutinas, `source_mode=follow_agent` automatiza la configuración inicial dentro de la autoridad del creador; no autoriza ampliaciones posteriores de fuentes o comportamiento. El propietario puede consentir explícitamente la configuración actual mediante el endpoint de fuentes protegido por un token de revisión. Los metadatos separan `required_unavailable_sources` de las ausencias MCP opcionales de `unavailable_sources`. Una política antigua de seguimiento sin prueba de comportamiento requiere revisión; las políticas restringidas existentes conservan sus reglas.
 
 Las conversaciones también son públicas: `GET /api/v1/conversations` lista los
 chats del emisor (`runs:view`), y `POST /api/v1/conversations` con `title` y

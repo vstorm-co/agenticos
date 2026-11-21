@@ -91,3 +91,33 @@ async def test_follow_agent_sending_uses_the_real_agent_and_mandatory_gates(gate
             assert handler.calls == []
             assert callback.await_args.args[0].routine_consented_by is None
         check.assert_awaited_once_with(db, authority.root_agent_id)
+
+
+@pytest.mark.parametrize(
+    "invalid", ["nested", "restricted_parent", "restricted_child", "unproved_child"]
+)
+async def test_an_approved_ceiling_cannot_nest_or_borrow_an_unproved_policy(invalid: str):
+    from pydantic import ValidationError
+
+    base = RoutineSourcePolicy(
+        mode="follow_agent",
+        id=uuid4(),
+        consented_by=uuid4(),
+        reviewed_at=datetime.now(UTC),
+        version_id=uuid4(),
+        scope_hash="a" * 64,
+        spec_hash="b" * 64,
+        behavior={"root": "c" * 64},
+    ).model_dump(mode="json")
+    child = dict(base)
+    parent = {**base, "approved_ceiling": child}
+    if invalid == "nested":
+        child["approved_ceiling"] = dict(base)
+    elif invalid == "restricted_parent":
+        parent["mode"] = "restricted"
+    elif invalid == "restricted_child":
+        child["mode"] = "restricted"
+    else:
+        child["behavior"] = None
+    with pytest.raises(ValidationError, match="non-nested following behavior snapshot"):
+        RoutineSourcePolicy.model_validate(parent)

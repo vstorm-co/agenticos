@@ -47,6 +47,7 @@ const state = vi.hoisted(() => ({
   sourceMode: undefined as "follow_agent" | "restricted" | undefined,
   sourceError: null as Error | null,
   sourceUnavailable: [] as string[],
+  requiredUnavailable: [] as string[] | undefined,
   retry: vi.fn(),
 }));
 vi.mock("@/hooks/use-routine-actions", () => ({
@@ -65,6 +66,7 @@ vi.mock("@/hooks/use-routine-sources", () => ({
       mode: state.sourceMode,
       review_token: "source-review",
       unavailable_sources: state.sourceUnavailable,
+      required_unavailable_sources: state.requiredUnavailable,
     },
     error: state.sourceError,
     isLoading: false,
@@ -82,6 +84,7 @@ describe("routine action consent", () => {
     state.sourceMode = undefined;
     state.sourceError = null;
     state.sourceUnavailable = [];
+    state.requiredUnavailable = [];
     state.error = null;
     state.loading = false;
     state.data.can_waive = true;
@@ -290,6 +293,7 @@ beforeEach(() => {
   state.sourceMode = undefined;
   state.sourceError = null;
   state.sourceUnavailable = [];
+  state.requiredUnavailable = [];
   state.error = null;
   state.loading = false;
   state.data.can_waive = true;
@@ -567,6 +571,42 @@ it("enables explicit follow mode without writing a routine action snapshot", asy
   state.sourceMode = "follow_agent";
   state.sourceCurrent = false;
   state.error = new Error("Unused action catalog unavailable");
+  const enabled = vi.fn();
+  render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} onSaved={enabled} />);
+  await userEvent.click(screen.getByRole("button", { name: "Enable routine" }));
+  expect(state.sourcesSave).toHaveBeenCalledWith({
+    review_token: "source-review",
+    mode: "follow_agent",
+  });
+  expect(state.save).not.toHaveBeenCalled();
+  expect(enabled).toHaveBeenCalledOnce();
+});
+
+it.each(["required", "legacy-unclassified"])(
+  "does not save or enable follow mode with %s unavailable sources",
+  async (classification) => {
+    state.sourceMode = "follow_agent";
+    state.sourceCurrent = false;
+    state.sourceUnavailable = ["Creator identity"];
+    state.requiredUnavailable = classification === "required" ? ["Creator identity"] : undefined;
+    const enabled = vi.fn();
+    const close = vi.fn();
+    render(<ActionConsentsDialog trigger={trigger} onClose={close} onSaved={enabled} />);
+    const save = screen.getByRole("button", { name: "Enable routine" });
+    expect(save).toBeDisabled();
+    await userEvent.click(save);
+    expect(state.sourcesSave).not.toHaveBeenCalled();
+    expect(state.save).not.toHaveBeenCalled();
+    expect(enabled).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+  },
+);
+
+it("allows explicit optional gaps while enabling follow mode", async () => {
+  state.sourceMode = "follow_agent";
+  state.sourceCurrent = false;
+  state.sourceUnavailable = ["Optional mailbox"];
+  state.requiredUnavailable = [];
   const enabled = vi.fn();
   render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} onSaved={enabled} />);
   await userEvent.click(screen.getByRole("button", { name: "Enable routine" }));

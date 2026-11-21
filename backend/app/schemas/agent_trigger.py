@@ -463,7 +463,7 @@ class TriggerCreate(BaseSchema):
     )
     source_mode: RoutineSourceMode = Field(
         default="follow_agent",
-        description="Follow the published agent and current creator permissions, or freeze a reviewed source snapshot.",
+        description="Use the initial approved agent ceiling with current creator permissions; later source or behavior expansions require owner review. Restricted mode freezes all reviewed sources.",
     )
     review_before_activation: bool = Field(
         default=False,

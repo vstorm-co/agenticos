@@ -70,7 +70,7 @@ beforeEach(() => {
     if (path.endsWith("/action-consents"))
       return { can_waive: true, review_token: "actions", items: [] };
     return path === "/me/permissions"
-      ? { permissions: [{ permission: "personal:consent", scope: "all" }] }
+      ? { role: "viewer", permissions: [] }
       : { items: [], total: 0 };
   });
   vi.mocked(apiClient.post).mockResolvedValue({
@@ -105,7 +105,7 @@ async function configure() {
   return { user, dialog, onCreated, onOpenChange, ...view };
 }
 describe("local routine creation", () => {
-  it("creates paused for the native grant, then activates without a second access review", async () => {
+  it("lets a signed-in Viewer with an agent run grant use creator-local access without a role consent permission", async () => {
     const { user, dialog, onCreated } = await configure();
     await user.click(dialog.getByRole("button", { name: "Create" }));
     await waitFor(() => expect(onCreated).toHaveBeenCalled());

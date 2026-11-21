@@ -71,7 +71,6 @@ import { RunAsCreatorField } from "@/components/triggers/run-as-creator-field";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
 import { TriggerTemplateSelector } from "@/components/triggers/trigger-template-picker";
 import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
-import { Perm } from "@/types/permissions";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAgentEnvironments, useAgents } from "@/hooks";
 import { useTriggers } from "@/hooks/use-triggers";
@@ -270,8 +269,7 @@ export function TriggerFormDialog({
   const [runsAsCreatorChoice, setRunsAsCreator] = useState<boolean | null>(
     trigger ? (trigger.runs_as_creator ?? false) : null,
   );
-  const runsAsCreator =
-    runsAsCreatorChoice ?? (me !== null && !impersonating && can(Perm.personalConsent));
+  const runsAsCreator = runsAsCreatorChoice ?? (me !== null && !impersonating);
   const [localTarget, setLocalTarget] = useState<LocalTarget | null>(trigger?.local_target ?? null);
   const [overlap, setOverlap] = useState<TriggerOverlap>(trigger?.overlap ?? "skip");
   const [teamsPost, setTeamsPost] = useState(trigger?.teams_conversation_id ?? NO_TEAMS_POST);
@@ -1036,7 +1034,6 @@ export function TriggerFormDialog({
                   onChange={setRunsAsCreator}
                   type={trigger.trigger_type}
                   isCreator={isCreator}
-                  canConsent={can(Perm.personalConsent)}
                 />
                 <LocalTargetField
                   value={localTarget}
@@ -1222,7 +1219,6 @@ export function TriggerFormDialog({
                 onChange={setRunsAsCreator}
                 type={type}
                 isCreator={isCreator}
-                canConsent={can(Perm.personalConsent)}
               />
               <LocalTargetField
                 value={localTarget}

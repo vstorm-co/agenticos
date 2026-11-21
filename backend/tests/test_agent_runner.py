@@ -9877,7 +9877,16 @@ async def test_a_revoked_routine_is_refused_before_models_or_mcp_connections_are
 @pytest.mark.anyio
 @pytest.mark.security
 @pytest.mark.parametrize(
-    "change", ["not_personal", "personal", "unavailable", "offline_reviewed", "unexpected"]
+    "change",
+    [
+        "not_personal",
+        "personal",
+        "unavailable",
+        "offline_reviewed",
+        "unexpected",
+        "materialized_skill",
+        "materialized_context",
+    ],
 )
 @pytest.mark.parametrize("has_dispatch", [False, True])
 @pytest.mark.parametrize("mode", ["follow_agent", "restricted"])
@@ -9893,7 +9902,43 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
     )
     service = AgentRunnerService(_db())
     agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), kind="agent")
-    spec = AgentSpec(name="Routine")
+    from app.db.models.context import ContextFile
+    from app.db.models.skill import Skill
+    from app.services.routine_sources import materialized_behavior
+
+    approved_skill = Skill(
+        id=uuid.uuid4(), name="policy", description="Policy", content="Approved", resources=[]
+    )
+    changed_skill = Skill(
+        id=approved_skill.id,
+        name="policy",
+        description="Policy",
+        content="Unreviewed instructions",
+        resources=[],
+    )
+    approved_context = ContextFile(
+        id=uuid.uuid4(),
+        name="policy",
+        description="Policy",
+        content="Approved",
+        mode="inject",
+        format="md",
+        enabled=True,
+    )
+    changed_context = ContextFile(
+        id=approved_context.id,
+        name="policy",
+        description="Policy",
+        content="Unreviewed instructions",
+        mode="inject",
+        format="md",
+        enabled=True,
+    )
+    spec = AgentSpec(
+        name="Routine",
+        skill_ids=[approved_skill.id] if change == "materialized_skill" else [],
+        context_ids=[approved_context.id] if change == "materialized_context" else [],
+    )
     check = AsyncMock()
     assert ctx.routine_id is not None
     from app.schemas.routine_sources import RoutineSourcePolicy
@@ -9901,6 +9946,12 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
 
     source_policy = RoutineSourcePolicy(
         mode=mode,
+        behavior=materialized_behavior(
+            [approved_skill] if change == "materialized_skill" else [],
+            [approved_context] if change == "materialized_context" else [],
+        )
+        if mode == "follow_agent"
+        else None,
         root_mcp_ids=(uuid.uuid4(),) if change == "offline_reviewed" else (),
         id=uuid.uuid4(),
         consented_by=ctx.subject_id,
@@ -9949,20 +10000,34 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
         patch.object(
             service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
         ),
-        patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+        patch.object(
+            service.skills,
+            "resolve_for_agent",
+            new=AsyncMock(return_value=[changed_skill] if change == "materialized_skill" else []),
+        ),
+        patch.object(
+            service.context,
+            "resolve_for_agent",
+            new=AsyncMock(
+                return_value=[changed_context] if change == "materialized_context" else []
+            ),
+        ),
         patch(
             "app.services.agent_runner.agent_run_repo.create_run",
             new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
         ) as create,
         patch("app.services.agent_runner.build_agent", return_value=MagicMock()) as build,
     ):
-        if change == "unexpected" or (
-            change in {"unavailable", "offline_reviewed"} and mode == "restricted"
+        if (
+            change == "unexpected"
+            or (change in {"unavailable", "offline_reviewed"} and mode == "restricted")
+            or (change in {"materialized_skill", "materialized_context"} and mode == "follow_agent")
         ):
             from app.services.routine_sources import RoutineSourcesRequired
 
             with pytest.raises(RoutineSourcesRequired):
                 await service.prepare(ctx, agent.id)
+            build.assert_not_called()
             return
         await service.prepare(ctx, agent.id)
     assert create.await_args.kwargs["routine_policy"]["activation_id"] == (

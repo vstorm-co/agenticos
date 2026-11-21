@@ -2374,7 +2374,9 @@ The list shows when a routine was paused automatically and its failure count. He
 
 ## Reviewed routine sources { #routine-sources }
 
-New routines use `follow_agent`: each new execution captures the selected published agent's current sources and the creator's live permissions. Optional MCP accounts that are missing or unreachable are unavailable to that run; an unused GitHub binding does not block web research. Required event-input accounts and creator identity remain necessary. Current resource grants, budgets, native consent and explicit agent/platform approvals still apply; this mode creates no standing approval exceptions. Required event-input identity changes still need an explicit owner review.
+New routines automatically admit the selected published agent's initial available configuration within the creator's current permissions. Safe source removals and changes limited to the root agent’s model or display metadata can follow without review. New sources, accounts or tools, changed instructions or variables, and changed capability, effective skill, context or delegated behavior require the owner's access review before another execution. Publishing a shared agent alone cannot expand a person's standing authority. Missing optional MCP accounts do not block unrelated work; required event inputs, identity, resource grants, budgets and mandatory approvals remain enforced.
+
+Changing a pinned delegate version requires review, including a model-only publication of that delegate.
 
 The owner may instead select `restricted`, which freezes the reviewed source configuration, exact MCP accounts, credential generations and known tool names. Its review includes pinned delegates, knowledge, skills, context, capabilities and remote A2A registrations. New sources or changed account authorization require another review. Existing policies without a mode remain restricted; upgrading does not silently broaden them.
 

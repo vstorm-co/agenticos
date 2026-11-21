@@ -1,5 +1,5 @@
 ---
-source_sha: "0c49f2ac8606"
+source_sha: "4a5506769583"
 ---
 
 # Governance { #governance }
@@ -2513,7 +2513,9 @@ Lista pokazuje automatyczne wstrzymanie i liczbę błędów. Metadane zachowują
 
 ## Zatwierdzone źródła rutyn { #routine-sources }
 
-Nowe rutyny używają trybu `follow_agent`: każde nowe wykonanie zapisuje bieżące źródła wybranego opublikowanego agenta i aktualne uprawnienia twórcy. Brakujące lub nieosiągalne opcjonalne konta MCP są niedostępne dla tego wykonania; nieużywane powiązanie GitHuba nie blokuje wyszukiwania w sieci. Konto wejściowe wyzwalacza zdarzeniowego i tożsamość twórcy nadal są wymagane. Obowiązują aktualne uprawnienia do zasobów, budżety, zgody lokalne i jawne zatwierdzenia agenta oraz platformy; ten tryb nie nadaje stałych wyjątków od zatwierdzania. Zmiana tożsamości wymaganego konta wejściowego zdarzeń nadal wymaga jawnego przeglądu przez właściciela.
+Nowe rutyny automatycznie zatwierdzają początkową dostępną konfigurację opublikowanego agenta w granicach bieżących uprawnień twórcy. Bezpieczne usunięcia źródeł oraz zmiany samego modelu lub etykiet głównego agenta nie wymagają przeglądu. Nowe źródła, konta i narzędzia, zmienione instrukcje lub zmienne oraz zmiany capabilities, faktycznie używanych skilli, kontekstu i delegowanego zachowania wymagają przeglądu dostępu przez właściciela przed kolejnym wykonaniem. Sama publikacja współdzielonego agenta nie rozszerza stałych uprawnień osoby. Brak opcjonalnego konta MCP nie blokuje innej pracy; wymagane wejścia zdarzeń, tożsamość, uprawnienia, budżety i obowiązkowe zatwierdzenia nadal obowiązują.
+
+Zmiana przypiętej wersji delegata wymaga przeglądu, także gdy jego publikacja zmienia tylko model.
 
 Właściciel może wybrać tryb `restricted`, który utrwala zatwierdzoną konfigurację źródeł, konkretne konta MCP, generacje autoryzacji i znane nazwy narzędzi. Przegląd obejmuje przypiętych delegatów, wiedzę, skille, kontekst, capabilities i zdalne rejestracje A2A. Nowe źródła lub zmieniona autoryzacja konta wymagają ponownego przeglądu. Istniejące zasady bez pola trybu pozostają ograniczone; aktualizacja nie rozszerza ich automatycznie.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "b9e22792a58f"
+source_sha: "3b887e9777b8"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -3207,7 +3207,7 @@ Cada operación vuelve a comprobar la pertenencia a la organización, acceso al 
 
 Antes de crear un informe recurrente, acuerda zona horaria, frecuencia y destino, incluido usar el hilo actual o una publicación nueva. Escribe los identificadores verificados del bot, canal e hilo y la tarea completa en el prompt, terminando con `send_chat_message`; la copia de la consola queda en el registro.
 
-Las rutinas nuevas siguen la configuración del agente y los permisos del creador sin una revisión de acceso independiente. Las cuentas MCP opcionales ausentes no bloquean otras tareas. El envío mantiene las aprobaciones del agente y los controles obligatorios; no prometas entrega desatendida si se necesita aprobación. Una configuración obligatoria ausente guarda la rutina en pausa. Repara la rutina existente en vez de duplicarla o cambiar vinculaciones compartidas sin acuerdo.
+Las rutinas nuevas admiten automáticamente la configuración inicialmente disponible del agente dentro de los permisos del creador. Las ampliaciones posteriores de fuentes o comportamiento, incluidas instrucciones o skills efectivos modificados, requieren la revisión de acceso del propietario. Las cuentas MCP opcionales ausentes no bloquean otras tareas. El envío mantiene las aprobaciones del agente y los controles obligatorios; no prometas entrega desatendida si se necesita aprobación. Una configuración obligatoria ausente guarda la rutina en pausa. Repara la rutina existente en vez de duplicarla o cambiar vinculaciones compartidas sin acuerdo.
 
 Las tareas largas transmiten texto y etapas reales de herramientas. En canales de texto la etapa actual sigue visible tras una frase de avance; las actualizaciones limitadas muestran tiempo transcurrido y pasos terminados, sin porcentajes inventados. La respuesta final sustituye el estado temporal. Las plataformas con transmisión nativa conservan su propia cronología.
 

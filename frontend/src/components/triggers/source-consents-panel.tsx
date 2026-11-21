@@ -9,7 +9,11 @@ import { Button, Spinner, ChoiceGroup } from "@/components/ui";
 import { ErrorState } from "@/components/states/error-state";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Trigger } from "@/types/triggers";
-import type { RoutineSourceItem, RoutineSourceMode } from "@/lib/routine-sources-api";
+import {
+  routineSourceBlockers,
+  type RoutineSourceItem,
+  type RoutineSourceMode,
+} from "@/lib/routine-sources-api";
 import { useBranding } from "@/components/branding/branding-provider";
 
 export function SourceConsentsPanel({
@@ -40,6 +44,9 @@ export function SourceConsentsPanel({
     storedMode;
   const changed = mode !== storedMode;
   const pending = disabled || replace.isPending;
+  const blockers = data ? routineSourceBlockers(data, mode) : [];
+  const optionalUnavailable =
+    data?.unavailable_sources.filter((name) => !blockers.includes(name)) ?? [];
   return (
     <section aria-label={t("title")} className="space-y-3 rounded-lg border p-3">
       <h3 className="text-sm font-medium">{t("title")}</h3>
@@ -87,11 +94,11 @@ export function SourceConsentsPanel({
               {t(
                 changed
                   ? "selectionPending"
-                  : mode === "follow_agent"
-                    ? "followCurrent"
-                    : data.current
-                      ? "current"
-                      : "changed",
+                  : !data.current
+                    ? "changed"
+                    : mode === "follow_agent"
+                      ? "followCurrent"
+                      : "current",
               )}
             </p>
             {data.items ? (
@@ -105,11 +112,18 @@ export function SourceConsentsPanel({
             )}
             {data.unavailable_sources.length > 0 && (
               <div className="space-y-2">
-                <p role="status" className="text-sm">
-                  {t(mode === "follow_agent" ? "followUnavailable" : "unavailable", {
-                    names: data.unavailable_sources.join(", "),
-                  })}
-                </p>
+                {blockers.length > 0 && (
+                  <p role="alert" className="text-sm">
+                    {t(mode === "restricted" ? "unavailable" : "requiredUnavailable", {
+                      names: blockers.join(", "),
+                    })}
+                  </p>
+                )}
+                {optionalUnavailable.length > 0 && (
+                  <p role="status" className="text-sm">
+                    {t("followUnavailable", { names: optionalUnavailable.join(", ") })}
+                  </p>
+                )}
                 <Link
                   className="text-sm underline underline-offset-4"
                   href={`${ROUTES.AGENT_DETAIL(trigger.agent_id)}?highlight=agent-mcp`}
@@ -121,11 +135,7 @@ export function SourceConsentsPanel({
             {showApprove && (
               <Button
                 variant="outline"
-                disabled={
-                  pending ||
-                  (mode === "restricted" && data.unavailable_sources.length > 0) ||
-                  (data.current && !changed)
-                }
+                disabled={pending || blockers.length > 0 || (data.current && !changed)}
                 onClick={() => replace.mutate({ review_token: data.review_token, mode })}
               >
                 {t(mode === "follow_agent" ? "saveMode" : "accept")}

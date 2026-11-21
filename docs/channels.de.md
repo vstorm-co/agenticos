@@ -1,5 +1,5 @@
 ---
-source_sha: "b9e22792a58f"
+source_sha: "3b887e9777b8"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -3377,7 +3377,7 @@ Jede Operation prüft erneut Organisationsmitgliedschaft, Agentenzugriff, aktive
 
 Vor einem wiederkehrenden Bericht Zeitzone, Rhythmus und Ziel einschließlich bestehendem Thread oder neuem Beitrag vereinbaren. Verifizierte Bot-, Kanal- und Thread-IDs und die vollständige Aufgabe in den Routineprompt aufnehmen, mit `send_chat_message` als letzter Zustellung; die Konsolenkopie bleibt im Ausführungsprotokoll.
 
-Neue Routinen folgen Agentenkonfiguration und Erstellerberechtigungen ohne separate Zugriffsprüfung. Fehlende optionale MCP-Konten blockieren keine andere Arbeit. Senden unterliegt weiterhin Agentenfreigaben und verbindlichen Kontrollen; bei erforderlicher Freigabe keine unbeaufsichtigte Zustellung versprechen. Tatsächlich fehlende Pflichtkonfiguration speichert die Routine pausiert. Die bestehende Routine reparieren, statt Duplikate anzulegen oder gemeinsam genutzte Agentenbindungen ohne Absprache zu ändern.
+Neue Routinen genehmigen automatisch die anfänglich verfügbare Agentenkonfiguration innerhalb der Erstellerberechtigungen. Spätere Quellen- oder Verhaltenserweiterungen einschließlich geänderter Anweisungen oder tatsächlich verwendeter Skills erfordern die Zugriffsprüfung des Eigentümers. Fehlende optionale MCP-Konten blockieren keine andere Arbeit. Senden unterliegt weiterhin Agentenfreigaben und verbindlichen Kontrollen; bei erforderlicher Freigabe keine unbeaufsichtigte Zustellung versprechen. Tatsächlich fehlende Pflichtkonfiguration speichert die Routine pausiert. Die bestehende Routine reparieren, statt Duplikate anzulegen oder gemeinsam genutzte Agentenbindungen ohne Absprache zu ändern.
 
 Lange Aufgaben streamen Text und tatsächliche Werkzeugschritte. Textkanäle zeigen die laufende Phase auch nach einem Zwischenstand; begrenzte Aktualisierungen nennen verstrichene Zeit und abgeschlossene Schritte, keinen erfundenen Prozentsatz. Die endgültige Antwort ersetzt den Zwischenstatus. Nativ streamende Plattformen behalten ihre eigene Zeitleiste.
 

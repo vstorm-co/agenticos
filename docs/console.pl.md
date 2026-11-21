@@ -1,5 +1,5 @@
 ---
-source_sha: "478a6600f722"
+source_sha: "d1f9d3257b4e"
 ---
 
 # Konsola { #the-console }
@@ -284,7 +284,7 @@ migawkę, którą chciałeś zachować.
 
 ## Rutyny i obserwacje { #routines-and-watches }
 
-Nowe rutyny korzystają z bieżącej konfiguracji opublikowanego agenta i aktualnych uprawnień twórcy. Osobny przegląd dostępu jest opcjonalny. Brak opcjonalnego konta MCP nie blokuje niezwiązanej z nim pracy. Nadal obowiązują jawne zgody agenta, obowiązkowe zgody platformy i zgoda na lokalny folder. W oknie dostępu można wybrać zatwierdzony zestaw źródeł jako stałe ograniczenie. Istniejące rutyny z przeglądem zachowują ograniczenia do zmiany trybu przez właściciela; rzeczywisty brak wymaganej konfiguracji nadal je wstrzymuje.
+Nowe rutyny automatycznie korzystają z dostępnej konfiguracji agenta przy tworzeniu, w zatwierdzonej granicy dostępu i zachowania. Wstępny przegląd dostępu nie jest wymagany; brak opcjonalnego konta MCP nie blokuje niezwiązanej z nim pracy. Późniejsze rozszerzenia źródeł lub narzędzi oraz zmiany instrukcji, skills, kontekstu albo delegatów wymagają przeglądu twórcy przed uruchomieniem. Zmiany samego modelu i bezpieczne ograniczenia pozostają w zatwierdzonej granicy. Nadal obowiązują zgody agenta, obowiązkowe zgody platformy i zgoda na lokalny folder. Okno dostępu pozwala też zachować zatwierdzony snapshot; istniejące ograniczone rutyny zachowują swoją politykę do zmiany przez właściciela.
 
 Gdy **Skip this run** pomija termin z powodu trwającego uruchomienia, historia zapisuje przyczynę bez nowego uruchomienia ani opłat. Jeśli serwer przyznaje Ci prawo do zatrzymania oczekującego uruchomienia, możesz zrobić to bezpośrednio w historii. Zatrzymanie zachowuje naliczone koszty i odblokowuje kolejny termin harmonogramu. Kolejne pominięcia przez ten sam niedokończony przebieg mają jeden wspólny wpis w historii.
 

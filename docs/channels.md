@@ -3050,7 +3050,7 @@ The service rechecks organization membership, agent access, the active binding a
 
 Before creating a recurring report, agree its time zone, cadence and destination, including whether to reuse a thread or start a new post. Put verified bot/channel/thread IDs and the complete task in its prompt, with `send_chat_message` as the final delivery, and select the run log for the console copy.
 
-New routines follow the agent's current configuration and the creator's permissions without a separate access review. Missing optional MCP accounts do not block unrelated work. Sending still follows the agent's approvals and mandatory gates; do not promise unattended delivery if approval is required. A genuinely blocked setup is saved paused. Repair the existing routine rather than creating duplicates or changing shared agent bindings without agreement.
+New routines automatically admit the agent's initial available configuration within the creator's permissions. Later source or behavior expansions need the owner's access review, including changed instructions or effective skills. Missing optional MCP accounts do not block unrelated work. Sending still follows the agent's approvals and mandatory gates; do not promise unattended delivery if approval is required. A genuinely blocked setup is saved paused. Repair the existing routine rather than creating duplicates or changing shared agent bindings without agreement.
 
 Long work streams text and actual tool stages. While a tool runs, text-channel progress retains its current stage after an interim sentence; bounded liveness updates show elapsed time and completed steps, never an invented percentage. The final reply replaces that temporary status. Native streamed platforms keep their own timeline.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "478a6600f722"
+source_sha: "d1f9d3257b4e"
 ---
 
 # Die Konsole { #the-console }
@@ -292,7 +292,7 @@ statt still den Snapshot zu überschreiben, den Sie behalten wollten.
 
 ## Routinen und Beobachtungen { #routines-and-watches }
 
-Neue Routinen folgen der aktuellen Konfiguration des veröffentlichten Agenten und den aktuellen Berechtigungen ihres Erstellers. Eine separate Zugriffsprüfung ist optional. Fehlende optionale MCP-Konten blockieren keine davon unabhängige Arbeit. Explizite Agentenfreigaben, verbindliche Plattformfreigaben und die Zustimmung zu lokalen Ordnern gelten weiterhin. Im Zugriffsdialog lässt sich ein geprüfter Quellenstand als feste Grenze wählen. Bestehende geprüfte Routinen behalten ihre Einschränkungen, bis ihr Eigentümer den Modus ändert; tatsächlich fehlende Pflichtkonfiguration lässt sie pausiert.
+Neue Routinen verwenden bei der Erstellung automatisch die verfügbare Agentenkonfiguration innerhalb einer genehmigten Grenze für Zugriff und Verhalten. Eine anfängliche Zugriffsprüfung ist nicht erforderlich; fehlende optionale MCP-Konten blockieren unabhängige Arbeit nicht. Spätere Erweiterungen von Quellen oder Werkzeugen und Änderungen an Anweisungen, Skills, Kontext oder Delegierten erfordern vor der Ausführung eine Prüfung durch den Ersteller. Reine Modelländerungen und sichere Einschränkungen bleiben innerhalb der Grenze. Agentenfreigaben, verbindliche Plattformfreigaben und die Zustimmung zu lokalen Ordnern gelten weiterhin. Der Zugriffsdialog kann stattdessen einen geprüften Snapshot behalten; bestehende eingeschränkte Routinen behalten ihre Richtlinie, bis der Eigentümer sie ändert.
 
 Verhindert **Skip this run** eine überlappende Ausführung, speichert der Verlauf den Grund ohne neue Ausführung oder Kosten. Sie können eine wartende Ausführung direkt im Verlauf stoppen, wenn der Server dies erlaubt. Ihre bisherigen Kosten bleiben erhalten; der nächste geplante Termin kann wieder starten. Wiederholte Auslassungen wegen desselben unfertigen Laufs teilen sich einen Verlaufseintrag.
 

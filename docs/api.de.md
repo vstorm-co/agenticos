@@ -1,5 +1,5 @@
 ---
-source_sha: "06839c22a83d"
+source_sha: "58aaa4e50b4b"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -89,6 +89,8 @@ die Zustimmung Ihrer als Sie handelnden Routinen zu entziehen. Der Lauf einer
 solchen Routine bleibt an ihre gewählte Quellenrichtlinie, aktuelle Berechtigungen und ihr Budget gebunden. Die
 Laufberechtigung eines Agenten außerhalb Ihres privaten Chats kann das nicht,
 ebenso wenig ein Administrator, der Sie imitiert.
+
+Bei Routinen automatisiert `source_mode=follow_agent` die Ersteinrichtung innerhalb der Erstellerbefugnisse; spätere Quellen- oder Verhaltenserweiterungen werden dadurch nicht genehmigt. Der Eigentümer kann die aktuelle Konfiguration ausdrücklich über den durch Prüftoken geschützten Quellenendpunkt bestätigen. Die Metadaten trennen `required_unavailable_sources` von optionalen MCP-Lücken in `unavailable_sources`. Eine ältere folgende Richtlinie ohne Verhaltensnachweis erfordert eine Prüfung; bestehende eingeschränkte Richtlinien behalten ihre Regeln.
 
 Auch Unterhaltungen sind öffentlich: `GET /api/v1/conversations` listet die Chats
 des Ausstellers (`runs:view`), `POST /api/v1/conversations` mit `title` und

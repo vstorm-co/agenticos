@@ -34,6 +34,7 @@ beforeEach(() => {
     resources: ["Knowledge · id"],
     accounts: ["Work mailbox · id"],
     unavailable_sources: [],
+    required_unavailable_sources: [],
   };
   state.error = null;
   state.loading = false;
@@ -120,3 +121,50 @@ it("requires a review before changing a following routine to a restricted snapsh
   await userEvent.click(screen.getByRole("button", { name: "Approve these sources" }));
   expect(state.save).toHaveBeenCalledWith({ review_token: "exact-review", mode: "restricted" });
 });
+
+it.each(["required", "legacy-unclassified"])(
+  "blocks a follow-mode save for %s unavailable sources and explains what to restore",
+  async (classification) => {
+    if (state.data) {
+      state.data.unavailable_sources = ["Creator identity", "Optional mailbox"];
+      state.data.required_unavailable_sources =
+        classification === "required" ? ["Creator identity"] : undefined;
+    }
+    render(<SourceConsentsPanel trigger={trigger} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Follow agent" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Creator identity");
+    expect(screen.getByRole("alert")).toHaveTextContent("Restore access before saving or enabling");
+    if (classification === "required") {
+      expect(screen.getByRole("alert")).not.toHaveTextContent("Optional mailbox");
+      expect(screen.getByRole("status")).toHaveTextContent("Optional mailbox");
+    } else expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    const save = screen.getByRole("button", { name: "Save access mode" });
+    expect(save).toBeDisabled();
+    await userEvent.click(save);
+    expect(state.save).not.toHaveBeenCalled();
+  },
+);
+
+it.each([false, true])(
+  "describes follow approval status from the authoritative current=%s review",
+  (current) => {
+    if (state.data) {
+      state.data.mode = "follow_agent";
+      state.data.current = current;
+    }
+    render(<SourceConsentsPanel trigger={trigger} />);
+    expect(
+      screen.getByText(
+        /Later access expansions or behavior changes need the routine creator’s review/,
+      ),
+    ).toBeVisible();
+    const approved = "This routine follows the agent within its approved access and behavior.";
+    const changed =
+      "The routine creator must review changed access or behavior before the next run.";
+    expect(screen.getByText(current ? approved : changed)).toBeVisible();
+    expect(screen.queryByText(current ? changed : approved)).not.toBeInTheDocument();
+    const save = screen.getByRole("button", { name: "Save access mode" });
+    if (current) expect(save).toBeDisabled();
+    else expect(save).toBeEnabled();
+  },
+);

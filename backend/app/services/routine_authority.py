@@ -39,7 +39,9 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.agent_trigger import AgentTrigger
+from app.db.models.context import ContextFile
 from app.db.models.project import Project
+from app.db.models.skill import Skill
 from app.db.models.watch import Watch
 from app.db.session import get_db_context
 from app.repositories import (
@@ -71,8 +73,10 @@ from app.services.routine_actions import (
     routine_effect,
 )
 from app.services.routine_sources import (
+    RoutineSourceService,
     RoutineSourcesRequired,
     account_identities,
+    materialized_behavior,
     project_fingerprint,
     read_policy,
     require_bound_sources,
@@ -153,6 +157,18 @@ class RoutineAuthority:
             or (None if project is None else project.id) != self.source_policy.project_id
             or (None if project is None else project_fingerprint(project))
             != self.source_policy.project_hash
+        ):
+            raise RoutineSourcesRequired()
+
+    def require_materialized(
+        self, skills: list[Skill], contexts: list[ContextFile], *, namespace: str = "root"
+    ) -> None:
+        if self.source_policy is None or self.source_policy.mode != "follow_agent":
+            return
+        approved = self.source_policy.behavior
+        if approved is None or any(
+            approved.get(key) != value
+            for key, value in materialized_behavior(skills, contexts, namespace=namespace).items()
         ):
             raise RoutineSourcesRequired()
 
@@ -293,13 +309,23 @@ class RoutineAuthority:
             await self.check_in(db, agent_id)
 
     async def check_in(self, db: AsyncSession, agent_id: UUID) -> None:
+        trigger = None
         if self.routine_kind == "watch":
             await self._watch_in(db)
         else:
-            await self._trigger_in(db)
+            trigger = await self._trigger_in(db)
         await self._actor_in(db, agent_id)
+        if trigger is not None:
+            assert self.source_policy is not None
+            await RoutineSourceService(db).require_behavior(
+                AuthContext(
+                    user_id=self.user_id, organization_id=self.organization_id, role=self.role
+                ),
+                trigger,
+                self.source_policy,
+            )
 
-    async def _trigger_in(self, db: AsyncSession) -> None:
+    async def _trigger_in(self, db: AsyncSession) -> AgentTrigger:
         trigger = await agent_trigger_repo.get(
             db, self.routine_id, organization_id=self.organization_id
         )
@@ -328,6 +354,7 @@ class RoutineAuthority:
                 is None
             ):
                 raise _refused()
+        return trigger
 
     def local_context(self, ctx: AuthContext, *, public_origin: bool) -> AuthContext:
         """A resumed workspace belongs to the original routine owner, never its approver."""

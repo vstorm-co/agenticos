@@ -27,7 +27,11 @@ import {
   routineActionKey,
   type RoutineActionOptions,
 } from "@/lib/routine-actions-api";
-import type { RoutineSourceReview, RoutineSourceMode } from "@/lib/routine-sources-api";
+import {
+  routineSourceBlockers,
+  type RoutineSourceReview,
+  type RoutineSourceMode,
+} from "@/lib/routine-sources-api";
 
 export function ActionConsentsDialog({
   trigger,
@@ -71,7 +75,7 @@ export function ActionConsentsDialog({
     !sources.data ||
     !!sources.error ||
     sources.isLoading ||
-    (sourceMode === "restricted" && sources.data.unavailable_sources.length > 0);
+    routineSourceBlockers(sources.data, sourceMode).length > 0;
   async function save(data: RoutineActionOptions | undefined, sourceReview: RoutineSourceReview) {
     if (sourceMode === "restricted" && !data) return;
     setSaving(true);
