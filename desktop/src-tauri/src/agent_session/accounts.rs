@@ -452,14 +452,17 @@ fn cli_arguments(provider: Provider, action: CliAccountAction) -> Result<Vec<&'s
 
 fn cli_status(output: &str) -> CliAccountStatus {
     let lower = output.to_lowercase();
-    let state =
-        if lower.contains("not logged in") || lower.contains("not authenticated") || lower.contains("logged out") {
-            "signed_out"
-        } else if lower.contains("logged in") || lower.contains("authenticated") {
-            "signed_in"
-        } else {
-            "unknown"
-        };
+    let state = if lower.contains("not logged in")
+        || lower.contains("not authenticated")
+        || lower.contains("unauthenticated")
+        || lower.contains("logged out")
+    {
+        "signed_out"
+    } else if lower.contains("logged in") || lower.contains("authenticated") {
+        "signed_in"
+    } else {
+        "unknown"
+    };
     CliAccountStatus {
         state,
         sign_out_available: true,
@@ -852,7 +855,7 @@ mod cli_tests {
     #[test]
     fn cli_status_does_not_infer_authentication_from_a_successful_command_or_return_identity() {
         assert_eq!(cli_status("status command finished").state, "unknown");
-        for text in ["Not authenticated", "Not logged in", "Logged out"] {
+        for text in ["Not authenticated", "Unauthenticated", "Not logged in", "Logged out"] {
             assert_eq!(cli_status(text).state, "signed_out");
         }
         let status = cli_status("Logged in: private@example.test SECRET-key");
