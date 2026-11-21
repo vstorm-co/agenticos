@@ -112,6 +112,41 @@ async function settings(description = GITHUB.description) {
 }
 
 describe("McpServerPicker", () => {
+  it.each([false, true])(
+    "restores off rows in spec order (reverse restore: %s)",
+    async (reverse) => {
+      const initial = [bound("c1", ["search"]), NEW_PLATFORM_BINDING, bound("c2")];
+      const connections = [
+        connection(),
+        connection({ id: "c2", name: "laptop", url: "https://laptop.example/mcp" }),
+      ];
+      const onChange = vi.fn();
+      function Editor() {
+        const [value, setValue] = useState<McpServerRef[]>(initial);
+        return picker({
+          connections,
+          value,
+          onChange: (next) => {
+            onChange(next);
+            setValue(next);
+          },
+        });
+      }
+      const user = userEvent.setup();
+      render(<Editor />);
+      const github = { name: "Use GitHub in this agent" };
+      const laptop = { name: "Use laptop in this agent" };
+      await user.click(screen.getByRole("switch", github));
+      await user.click(screen.getByRole("switch", laptop));
+      expect(onChange).toHaveBeenLastCalledWith([NEW_PLATFORM_BINDING]);
+
+      await user.click(screen.getByRole("switch", reverse ? laptop : github));
+      await user.click(screen.getByRole("button", { name: "Done" }));
+      await user.click(screen.getByRole("switch", reverse ? github : laptop));
+      expect(onChange).toHaveBeenLastCalledWith(initial);
+    },
+  );
+
   it("restores the original spec order when an MCP approval change is reverted", async () => {
     const initial = [bound("c1"), NEW_PLATFORM_BINDING, bound("c2")];
     const connections = [
@@ -736,6 +771,34 @@ describe("whose account a binding speaks through", () => {
     await userEvent.click(within(dialog).getByRole("switch", { name: "Use GitHub in this agent" }));
 
     expect(onChange).toHaveBeenCalledWith([personal("github")]);
+  });
+
+  it("uses the new account choice made after switching off without dropping tool restrictions", async () => {
+    const policy = { approval: "writes", tool_approval: { search: "required" } } as const;
+    const onChange = vi.fn();
+    function Editor() {
+      const [value, setValue] = useState<McpServerRef[]>([
+        { ...bound("c1", ["search"]), ...policy },
+      ]);
+      return picker({
+        connections: [GH],
+        value,
+        onChange: (next) => {
+          onChange(next);
+          setValue(next);
+        },
+      });
+    }
+    const user = userEvent.setup();
+    render(<Editor />);
+
+    const dialog = await settings();
+    const toggle = within(dialog).getByRole("switch", { name: "Use GitHub in this agent" });
+    await user.click(toggle);
+    expect(onChange).toHaveBeenLastCalledWith([]);
+    await user.click(kind("personal"));
+    await user.click(toggle);
+    expect(onChange).toHaveBeenLastCalledWith([{ ...personal("github", ["search"]), ...policy }]);
   });
 
   it("switches on in the settings with the organization's account when that is chosen", async () => {

@@ -6,7 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AgentBuilderPage from "./page";
 import { ApiError } from "@/lib/api-error";
-import type { AgentSpec, AgentDraftUpdate } from "@/types/agents";
+import { withCapability } from "@/lib/agent-spec";
+import type { AgentSpec, AgentDraftUpdate, CapabilityCatalogEntry } from "@/types/agents";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
@@ -27,6 +28,24 @@ const MODEL_PROFILE = {
   provider: "openai",
   model: "gpt-5",
   secret_id: "s-1",
+};
+
+const TOOL_SEARCH: CapabilityCatalogEntry = {
+  id: "tool_search",
+  name: "Tool search",
+  description: "Find tools on demand.",
+  category: "utility",
+  side_effecting: false,
+  scopes: [],
+  tools: [],
+  contracts: [],
+  config_schema: {
+    type: "object",
+    properties: { strategy: { type: "string", default: "auto", enum: ["auto", "keywords"] } },
+  },
+  requires_secret: null,
+  voice: "live",
+  recommended: null,
 };
 
 const refetchAgent = vi.hoisted(() => vi.fn());
@@ -110,7 +129,7 @@ vi.mock("@/hooks", async () => {
     useAgentVersions: () => ({ versions: state.versions }),
     useAllAgentVersions: () => ({ versions: [] }),
     useDraftBase: () => ({ base: state.base }),
-    useCapabilityCatalog: () => ({ capabilities: [] }),
+    useCapabilityCatalog: () => ({ capabilities: [TOOL_SEARCH] }),
     usePromptVariables: () => ({ variables: [] }),
     useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
     useExposures: () => ({ exposures: [] }),
@@ -303,6 +322,41 @@ describe("canonical draft acknowledgements", () => {
       expect(store.get()?.budget).toEqual(budget);
     },
   );
+
+  it("restores implicit Tool search Auto even before the published version loads", async () => {
+    const capabilities = withCapability([], "tool_search", true);
+    const published = { ...INITIAL, capabilities };
+    const base = { id: "v1", version: 1, spec: published };
+    state.versions = [base];
+    store.set(published);
+    saveDraft.mockImplementation(async ({ spec }) => {
+      store.set(spec);
+      return { draft_spec: spec, draft_revision: "saved" };
+    });
+
+    await mount();
+    await userEvent.click(screen.getByRole("tab", { name: "Toolbox" }));
+    await userEvent.click(screen.getByText("Tool search", { exact: true }));
+
+    const method = screen.getByRole("combobox", { name: "Search method" });
+    await userEvent.click(method);
+    await userEvent.click(await screen.findByRole("option", { name: /^keywords$/i }));
+    await waitFor(() =>
+      expect(store.get()?.capabilities[0]?.config).toEqual({ strategy: "keywords" }),
+    );
+    await userEvent.click(method);
+    await userEvent.click(await screen.findByRole("option", { name: /^auto$/i }));
+    await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(2));
+    const stored = store.get();
+    expect(stored?.capabilities).toEqual(capabilities);
+    if (!stored) throw new Error("Expected an autosaved draft");
+
+    await act(async () => {
+      state.base = base;
+      store.set({ ...stored });
+    });
+    expect(await screen.findByText("Up to date with agent v1")).toBeInTheDocument();
+  });
 
   it("saves a reordered schema once and releases the draft test panel", async () => {
     saveDraft.mockImplementation(async ({ spec }) => {

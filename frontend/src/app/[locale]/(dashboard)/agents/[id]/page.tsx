@@ -355,7 +355,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const openConversation = useConversationStore((state) => state.setCurrentConversationId);
 
   const [spec, setSpec] = useState<AgentSpec | null>(null);
-  const [adoptedBudget, setAdoptedBudget] = useState<AgentSpec["budget"]>(null);
+  const [adoptedDraft, setAdoptedDraft] = useState<AgentSpec | null>(null);
   const [draftRevision, setDraftRevision] = useState<string | null>(null);
   const [draftConflict, setDraftConflict] = useState(false);
   const [problems, setProblems] = useState<string[]>([]);
@@ -432,13 +432,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
   function adoptDraft(next: AgentSpec, revision: string | null) {
     setSpec(next);
     setDraftRevision(revision);
-    setAdoptedBudget(next.budget);
+    setAdoptedDraft(next);
   }
 
-  // A blank limit may have been saved as an empty budget object. Until the
-  // published base is known, preserve the shape from the draft we opened, not
-  // from an autosave that may already contain the temporary limit.
-  const budgetBase = draftBase === undefined ? adoptedBudget : draftBase.spec.budget;
+  // Until the published version is known, restore defaults using the shape
+  // from the draft we opened, not from an autosave with the temporary edit.
+  const settingsBase = draftBase?.spec ?? adoptedDraft;
+  const budgetBase = settingsBase?.budget;
   const clearedBudget = budgetBase?.monthly_usd == null ? (budgetBase ?? null) : null;
 
   // Adopt the server's draft whenever there is nothing local, and not
@@ -1013,11 +1013,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const updateCapability = (updated: CapabilityBindingSpec) =>
     update({
-      capabilities: withCapabilitySettings(
-        spec.capabilities,
-        updated,
-        draftBase?.spec.capabilities,
-      ),
+      capabilities: withCapabilitySettings(spec.capabilities, updated, settingsBase?.capabilities),
     });
 
   const toggleId = (list: string[], value: string) =>

@@ -172,20 +172,20 @@ export function withCapability(
 export function withCapabilitySettings(
   bindings: readonly CapabilityBindingSpec[],
   updated: CapabilityBindingSpec,
-  published: readonly CapabilityBindingSpec[] | undefined,
+  base: readonly CapabilityBindingSpec[] | undefined,
 ): CapabilityBindingSpec[] {
-  const publishedToolSearch =
+  const baseToolSearch =
     updated.id === "tool_search" && updated.config.strategy === "auto"
-      ? published?.find((binding) => binding.id === updated.id)
+      ? base?.find((binding) => binding.id === updated.id)
       : undefined;
   const inheritsAuto =
-    publishedToolSearch !== undefined && !Object.hasOwn(publishedToolSearch.config, "strategy");
+    baseToolSearch !== undefined && !Object.hasOwn(baseToolSearch.config, "strategy");
 
   return bindings.map((binding) => {
     if (binding.id !== updated.id) return binding;
     if (!inheritsAuto || binding.config.strategy === "auto") return updated;
 
-    // Returning to Auto restores the published omission, not an explicit override.
+    // Returning to Auto restores the original omission, not an explicit override.
     // Keep this specific to Tool search: other capability defaults can depend on
     // sibling fields and mean something different when explicitly set.
     const { strategy: _implicit, ...config } = updated.config;

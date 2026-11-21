@@ -8,7 +8,12 @@ import { CardStatus, McpServerCard } from "@/components/mcp/mcp-server-card";
 import { PlatformServerCard } from "./platform-server-card";
 import { Checkbox, Pager, SearchInput, Switch, useListControls } from "@/components/ui";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
-import { entryForConnection, restoreMcpBindings, type McpBindingSlot } from "@/lib/mcp-servers";
+import {
+  bindingKey,
+  entryForConnection,
+  restoreMcpBindings,
+  type McpBindingSlot,
+} from "@/lib/mcp-servers";
 import type { McpConnectionRecord, McpToolInfo } from "@/lib/mcp-connections-api";
 import type { AccountRef } from "@/components/agents/mcp-binding-dialog";
 import type { McpServerRef, PlatformMcpServerRef } from "@/types/agents";
@@ -108,7 +113,7 @@ export function McpServerPicker({
   const { appName } = useBranding();
   const [connectedOnly, setConnectedOnly] = useState(false);
   const [boundOnly, setBoundOnly] = useState(false);
-  const switchedOff = useRef(new Map<string, McpBindingSlot[]>());
+  const switchedOff = useRef<(McpBindingSlot & { row: string })[]>([]);
   const known = new Set(connections.map((connection) => connection.id));
   const catalogKeys = new Set(catalog.map((entry) => entry.key));
   // Of either kind: an organization binding to a connection this organization no
@@ -131,6 +136,25 @@ export function McpServerPicker({
   const platform =
     value.find((ref): ref is PlatformMcpServerRef => ref.account === "platform") ?? null;
 
+  const editBindings = (
+    edit: (ordered: McpServerRef[], offRows: Map<McpServerRef, string>) => McpServerRef[],
+  ) => {
+    const removed = switchedOff.current;
+    const offRows = new Map(removed.map(({ binding, row }) => [binding, row]));
+    // Keep slots for disabled bindings through every edit, but don't save those
+    // bindings to the spec until their row is switched back on.
+    const ordered = edit(restoreMcpBindings(value, removed), offRows);
+    const pending: typeof switchedOff.current = [];
+    const active = ordered.filter((binding, index) => {
+      const row = offRows.get(binding);
+      if (row === undefined) return true;
+      pending.push({ binding, index, row });
+      return false;
+    });
+    switchedOff.current = pending;
+    onChange(active);
+  };
+
   /** Update this row's bindings without moving them ahead of or behind other servers. */
   const rebind = (row: CardRow, next: AccountRef[]) => {
     const current = bindingsFor(row, value);
@@ -138,14 +162,16 @@ export function McpServerPicker({
     if (next.length < current.length) {
       // Removing an account leaves the surviving references in their own slots.
       const retained = new Set<McpServerRef>(next);
-      onChange(value.filter((ref) => !mine.has(ref) || retained.has(ref)));
+      editBindings((ordered) => ordered.filter((ref) => !mine.has(ref) || retained.has(ref)));
       return;
     }
     // The dialog edits accounts in place and appends new ones. The length check
     // above guarantees a replacement for every occupied slot.
-    let index = 0;
-    const updated = value.map((ref) => (mine.has(ref) ? next[index++]! : ref));
-    onChange([...updated, ...next.slice(index)]);
+    editBindings((ordered) => {
+      let index = 0;
+      const updated = ordered.map((ref) => (mine.has(ref) ? next[index++]! : ref));
+      return [...updated, ...next.slice(index)];
+    });
   };
 
   const toggleBindings = (
@@ -153,20 +179,32 @@ export function McpServerPicker({
     current: McpServerRef[],
     on: boolean,
     next: McpServerRef[],
-  ) => {
-    if (!on) {
-      const removed = new Set(current);
-      switchedOff.current.set(
-        key,
-        value.flatMap((binding, index) => (removed.has(binding) ? [{ binding, index }] : [])),
+    preferred?: AccountRef,
+  ) =>
+    editBindings((ordered, offRows) => {
+      if (!on) {
+        for (const binding of current) offRows.set(binding, key);
+        return ordered;
+      }
+      const previous = ordered.filter((binding) => offRows.get(binding) === key);
+      for (const binding of previous) offRows.delete(binding);
+      const [primary] = previous;
+      if (!primary) return [...ordered, ...next];
+      if (!preferred || preferred.account === primary.account) return ordered;
+
+      // An explicit account change isn't an undo. Keep the chosen account's
+      // restrictions if it was bound, or carry them over from the old primary.
+      const saved = previous.find((binding) => bindingKey(binding) === bindingKey(preferred));
+      const replacement = saved ?? {
+        ...preferred,
+        allowed_tools: primary.allowed_tools,
+        approval: primary.approval,
+        ...(primary.tool_approval && { tool_approval: primary.tool_approval }),
+      };
+      return ordered.flatMap((binding) =>
+        binding === primary ? [replacement] : previous.includes(binding) ? [] : [binding],
       );
-      onChange(value.filter((binding) => !removed.has(binding)));
-      return;
-    }
-    const previous = switchedOff.current.get(key);
-    switchedOff.current.delete(key);
-    onChange(previous ? restoreMcpBindings(value, previous) : [...value, ...next]);
-  };
+    });
 
   // A connection the catalog does not describe is a custom server somebody
   // pointed at a URL. It belongs on the gallery under its own name rather than
@@ -258,7 +296,9 @@ export function McpServerPicker({
             <PlatformServerCard
               binding={platform}
               onChange={(next) =>
-                onChange(value.flatMap((ref) => (ref !== platform ? [ref] : next ? [next] : [])))
+                editBindings((ordered) =>
+                  ordered.flatMap((ref) => (ref !== platform ? [ref] : next ? [next] : [])),
+                )
               }
               onToggle={(on, fallback) =>
                 toggleBindings("platform", platform ? [platform] : [], on, [fallback])
@@ -272,8 +312,8 @@ export function McpServerPicker({
             row={row}
             bindings={bindingsFor(row, value)}
             onRebind={(next) => rebind(row, next)}
-            onToggle={(on, fallback) =>
-              toggleBindings(`row:${row.key}`, bindingsFor(row, value), on, fallback)
+            onToggle={(on, fallback, preferred) =>
+              toggleBindings(`row:${row.key}`, bindingsFor(row, value), on, fallback, preferred)
             }
             onTools={onTools}
             onConnect={onConnect}
@@ -359,7 +399,7 @@ function ServerCard({
   row: CardRow;
   bindings: AccountRef[];
   onRebind: (next: AccountRef[]) => void;
-  onToggle: (on: boolean, fallback: AccountRef[]) => void;
+  onToggle: (on: boolean, fallback: AccountRef[], preferred?: AccountRef) => void;
   onTools: (ref: McpServerRef, probed: OrgMcpConnectionRecord, name: string) => void;
   onConnect: (entry: McpCatalogEntry) => void;
   personalTools: McpToolInfo[] | null;
@@ -404,7 +444,7 @@ function ServerCard({
       return;
     }
     if (preferred) {
-      onToggle(true, [preferred]);
+      onToggle(true, [preferred], preferred);
     } else if (connection) {
       onToggle(true, [
         {
