@@ -1,5 +1,5 @@
 ---
-source_sha: "41145ddb3eda"
+source_sha: "b8c6107ce01f"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -444,6 +444,8 @@ Selecciona la clave del almacén y confirma el destino antes de cargar modelos. 
 En el editor del agente y el selector de modelos del chat, empieza por **Your subscriptions**, elige un proveedor conocido como **Claude Code (Pro, Max)** o **ChatGPT (Codex)** y pulsa **Connect**. El inicio de sesión se abre allí mismo y vuelve al selector; la lista procede de las cuentas conectadas de ese proveedor, sin deducirla de los nombres de modelos. Las cuentas no disponibles permiten volver a iniciar sesión. Puedes seguir administrando y desconectando cuentas desde tu perfil. Las claves API de la organización tienen un grupo separado; los gateways y endpoints configurados manualmente están en **Advanced / custom endpoint**. Los perfiles existentes `subscription_accounts` y `cliproxyapi` conservan sus identificadores API.
 
 Los catálogos de chat muestran todas las entradas compatibles con chat, sin limitar la lista silenciosamente a 100 modelos. El selector muestra el número de opciones, si el catálogo está actualizado o es una lista alternativa limitada y permite actualizarlo. OpenRouter muestra la región actual del catálogo; cambiarla es explícito y el nuevo modelo guardado conserva esa región. Los modelos guardados conservan su propia conexión.
+
+Durante la incorporación, **¿Qué suscripciones tienes ya?** permite seleccionar los planes existentes e iniciar sesión antes del primer chat. Es opcional y está disponible para los miembros; estas cuentas siguen siendo personales y no configuran el modelo inicial compartido de la organización.
 
 Si hay varias cuentas personales conectadas, abre la pestaña **Cuenta** y elige la cuenta igual que una clave API guardada. Los modelos de suscripción usan la misma lista con búsqueda que los proveedores API; seleccionar un modelo lo aplica inmediatamente. Al aplicar un modelo se vincula a esa cuenta mediante una ruta opaca; no cambia silenciosamente a otra cuenta. Los perfiles vinculados requieren que la persona tenga esa cuenta conectada. Al reabrir el selector se recuperan la cuenta y el modelo, sin mostrar las rutas de cuenta en los nombres.
 

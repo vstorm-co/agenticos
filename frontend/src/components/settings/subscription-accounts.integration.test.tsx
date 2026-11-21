@@ -122,6 +122,7 @@ it("finishes a browser sign-in with the pasted address, and cancels an abandoned
   await userEvent.click(claude.getByRole("button", { name: "Connect" }));
   const dialog = await screen.findByRole("dialog");
   const field = await within(dialog).findByLabelText("Address your browser ended on");
+  expect(within(dialog).getByText(/localhost on your computer/)).toBeInTheDocument();
   await userEvent.type(field, "http://localhost:54545/callback?code=c&state=st-2");
   await userEvent.click(within(dialog).getByRole("button", { name: "Finish" }));
   expect(apiClient.post).toHaveBeenCalledWith("/subscription-accounts/sign-ins/st-2/callback", {

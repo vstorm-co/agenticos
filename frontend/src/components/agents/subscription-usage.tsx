@@ -11,7 +11,7 @@ export function SubscriptionUsage({ usage }: { usage?: Usage }) {
   const format = useFormatter();
   if (!usage || usage.status === "unavailable" || usage.windows.length === 0) return null;
   return (
-    <NativeDisclosure className="text-muted-foreground text-xs">
+    <NativeDisclosure open className="text-muted-foreground text-xs">
       <summary className="cursor-pointer py-1 font-medium">{t("usageAndLimits")}</summary>
 
       <div className="space-y-3 py-2">

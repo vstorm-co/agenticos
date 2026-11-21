@@ -424,6 +424,8 @@ In the agent editor and chat model picker, start with **Your subscriptions**, ch
 
 Chat catalogs show every chat-capable entry rather than silently stopping at 100. The picker shows the number of choices, whether the catalog is live or a limited fallback, and a refresh action. OpenRouter shows its current catalog region; changing it is explicit and preserves that region when saving the new model. Saved models keep their own connection settings.
 
+During onboarding, **Which subscriptions do you already have?** lets people select their existing plans and sign in before their first chat. This is optional and available to members; these accounts remain personal and do not configure the organization’s shared starter model.
+
 When several personal accounts are connected, open the **Account** tab and choose the account, just as you choose a stored API key. Subscription models use the same searchable list as API providers; selecting a model applies it immediately. Applying a model binds it to that account using an opaque route; it does not silently switch to another account. Account-specific profiles require the caller to have that account connected. The picker restores the account and model when reopened, and keeps account routing out of display names.
 
 **Usage and limits** shows provider-reported Codex and Claude quota windows when available, with remaining percentages, reset times and the observation timestamp. These are passive observations from provider responses, not a live billing probe. Values older than five minutes or past a reset are marked stale; missing quota data is unavailable, never an unused allowance. Other providers may not report compatible quota information.

@@ -131,3 +131,24 @@ def test_gateway_wire_contract_is_independent_of_backend_settings(tmp_path: Path
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_codex_zero_length_secondary_window_does_not_discard_the_weekly_limit() -> None:
+    usage = account_usage(
+        "codex",
+        {
+            "observed_at": NOW.isoformat(),
+            "signals": {
+                "X-Codex-Primary-Used-Percent": "64",
+                "X-Codex-Primary-Window-Minutes": "10080",
+                "X-Codex-Secondary-Used-Percent": "0",
+                "X-Codex-Secondary-Window-Minutes": "0",
+                "X-Codex-Secondary-Reset-After-Seconds": "0",
+            },
+        },
+        now=NOW,
+    )
+    assert usage.status == "available"
+    assert len(usage.windows) == 1
+    assert usage.windows[0].remaining_percent == 36
+    assert usage.windows[0].duration_minutes == 10080

@@ -1,5 +1,5 @@
 ---
-source_sha: "41145ddb3eda"
+source_sha: "b8c6107ce01f"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -435,6 +435,8 @@ Przed wczytaniem modeli wybierz klucz z sejfu i potwierdź adres docelowy. Włas
 W edytorze agenta i selektorze modeli czatu zacznij od **Twoje subskrypcje**, wybierz rozpoznawalnego dostawcę, np. **Claude Code (Pro, Max)** lub **ChatGPT (Codex)**, i kliknij **Połącz**. Logowanie otwiera się w tym miejscu i wraca do selektora; lista modeli pochodzi z połączonych kont wybranego dostawcy, bez zgadywania na podstawie nazw modeli. Niedostępne konta oferują ponowne logowanie. Kontami nadal możesz zarządzać i rozłączać je w profilu. Klucze API organizacji mają osobną grupę; ręcznie konfigurowane gatewaye i endpointy znajdziesz w **Zaawansowane / własny endpoint**. Dotychczasowe profile `subscription_accounts` i `cliproxyapi` zachowują swoje identyfikatory API.
 
 Katalog czatu pokazuje wszystkie pozycje obsługujące czat, zamiast bez informacji kończyć listę na 100 modelach. Selektor pokazuje liczbę opcji, źródło katalogu lub ograniczoną listę zastępczą i pozwala odświeżyć dane. OpenRouter pokazuje bieżący region katalogu; jego zmiana jest jawna, a nowy zapisany model zachowuje ten region. Zapisane modele zachowują własne ustawienia połączenia.
+
+W onboardingu sekcja **Z których subskrypcji już korzystasz?** pozwala zaznaczyć posiadane subskrypcje i zalogować się przed pierwszym czatem. Jest opcjonalna i dostępna dla członków; konta pozostają prywatne i nie konfigurują wspólnego modelu startowego organizacji.
 
 Przy kilku podłączonych kontach osobistych otwórz zakładkę **Konto** i wybierz konto, tak jak zapisany klucz API. Modele subskrypcyjne korzystają z tej samej przeszukiwalnej listy co dostawcy API; kliknięcie modelu od razu go wybiera. Zatwierdzenie modelu przypisuje go do tego konta przez niejawny identyfikator trasy; nie przełącza automatycznie na inne konto. Profil przypisany do konta wymaga, aby osoba uruchamiająca miała to konto podłączone. Selektor po ponownym otwarciu odtwarza konto i model, a identyfikatorów tras nie pokazuje w nazwach modeli.
 

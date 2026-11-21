@@ -5,6 +5,8 @@ import type { Organization } from "@/types";
 import { Perm, type Permission } from "@/types/permissions";
 import { StartAdministration } from "./start-administration";
 
+vi.mock("./start-subscriptions", () => ({ StartSubscriptions: () => null }));
+
 const env = vi.hoisted(() => ({
   orgs: new Array<Organization>(),
   activeId: "personal",

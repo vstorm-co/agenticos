@@ -54,6 +54,10 @@ def account_usage(provider: str, raw: object, *, now: datetime | None = None) ->
                 scale = 100
             if used is None:
                 continue
+            # Codex reports a disabled secondary window with a zero duration.
+            # It must not discard the active primary window.
+            if duration is not None and int(duration) == 0:
+                continue
             percentage = float(used) * scale
             windows.append(
                 UsageWindow(

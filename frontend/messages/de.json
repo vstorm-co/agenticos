@@ -6129,6 +6129,10 @@
       "agent-model-credentials": {
         "title": "Wer den Modellschlüssel bereitstellt",
         "body": "Wähle dein Abonnement und verbinde es hier oder verwende einen API-Schlüssel der Organisation. Eigene Gateways und Endpoints findest du unter den erweiterten Verbindungen. Abonnementmodelle verwenden die Anweisungen und Werkzeuge von AgenticOS; installierte Agenten werden separat unter Delegation konfiguriert."
+      },
+      "start-subscriptions": {
+        "title": "Deine Abonnements verbinden",
+        "body": "Wähle vorhandene Abonnements und melde dich hier an. Diese Konten sind persönlich; ihre Modelle wählst du im Chat."
       }
     },
     "chooseLanguage": "Sprache",
@@ -17516,7 +17520,7 @@
     "retry": "Erneut versuchen",
     "dialogTitle": "{name} verbinden",
     "deviceHelp": "Öffnen Sie die Anmeldeseite, geben Sie diesen Code ein und bestätigen Sie. Dieses Fenster schließt sich von selbst.",
-    "browserHelp": "Öffnen Sie die Anmeldeseite und bestätigen Sie. Ihr Browser landet danach auf einer Adresse, die nicht lädt - kopieren Sie diese ganze Adresse hierher.",
+    "browserHelp": "1. Öffne die Anmeldung und bestätige den Zugriff. 2. Falls die letzte Seite nicht erreichbar ist, kopiere die vollständige Adresse aus der Adressleiste. 3. Füge sie unten ein und schließe die Verbindung ab.",
     "starting": "Anmeldung wird gestartet…",
     "copyCode": "Code kopieren",
     "openSignIn": "Anmeldung bei {name} öffnen",
@@ -17534,7 +17538,8 @@
       "kimi-ai": "Kimi (kimi.com)",
       "devin": "Devin",
       "meta": "Meta AI"
-    }
+    },
+    "localReturnHelp": "Diese Anmeldung kehrt zu localhost auf deinem Computer zurück, nicht zur AgenticOS-Website. Eine Website kann diesen Tab nicht lesen oder eine Seite auf diesem lokalen Port anzeigen. Die Adressleiste enthält weiterhin das Ergebnis für die Kontoverbindung."
   },
   "mirage": {
     "folders": "Ordner",
@@ -17884,6 +17889,12 @@
       "openGovernanceSettings": "Budget und Freigaben öffnen",
       "openAssistantSettings": "Assistenteneinstellungen öffnen",
       "openVoiceSettings": "Spracheinstellungen öffnen"
+    },
+    "subscriptions": {
+      "title": "Welche Abonnements hast du bereits?",
+      "description": "Wähle deine Abonnements und melde dich hier an. Du kannst mehrere Konten verbinden oder ohne Verbindung fortfahren.",
+      "connected": "Verbunden",
+      "hint": "Diese Konten sind persönlich. Wähle ihre Modelle im Chat; sie ersetzen nicht das gemeinsame Modell deiner Organisation."
     }
   },
   "skillImprovement": {

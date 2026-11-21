@@ -1,5 +1,5 @@
 ---
-source_sha: "41145ddb3eda"
+source_sha: "b8c6107ce01f"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -464,6 +464,8 @@ Wähle den Vault-Schlüssel und bestätige das Ziel, bevor du Modelle lädst. Ei
 Beginne im Agenteneditor und in der Modellauswahl des Chats mit **Deine Abonnements**, wähle einen bekannten Anbieter wie **Claude Code (Pro, Max)** oder **ChatGPT (Codex)** und klicke auf **Verbinden**. Die Anmeldung öffnet sich direkt dort und führt zur Modellauswahl zurück. Die Liste stammt aus den verbundenen Konten dieses Anbieters, nicht aus Vermutungen anhand von Modellnamen. Nicht verfügbare Konten bieten eine erneute Anmeldung. Konten lassen sich weiterhin im Profil verwalten und trennen. API-Schlüssel der Organisation bilden eine eigene Gruppe; manuell konfigurierte Gateways und Endpoints stehen unter **Erweitert / eigener Endpoint**. Bestehende Profile mit `subscription_accounts` und `cliproxyapi` behalten ihre API-IDs.
 
 Chatkataloge zeigen alle chatfähigen Einträge, statt die Liste unbemerkt auf 100 Modelle zu begrenzen. Die Auswahl zeigt die Anzahl, den aktuellen Katalog oder eine begrenzte Ersatzliste und eine Aktualisierung an. OpenRouter zeigt die aktuelle Katalogregion; Änderungen erfolgen ausdrücklich und das neu gespeicherte Modell behält die Region. Gespeicherte Modelle behalten ihre eigenen Verbindungseinstellungen.
+
+Im Onboarding können Mitglieder unter **Welche Abonnements hast du bereits?** vorhandene Abonnements auswählen und sich vor dem ersten Chat anmelden. Dies ist optional; die Konten bleiben persönlich und konfigurieren nicht das gemeinsame Startmodell der Organisation.
 
 Bei mehreren verbundenen persönlichen Konten öffnen Sie den Reiter **Konto** und wählen Sie das Konto wie einen gespeicherten API-Schlüssel. Abonnementmodelle verwenden dieselbe durchsuchbare Liste wie API-Anbieter; die Auswahl eines Modells wendet es sofort an. Die Modellauswahl bindet es über eine undurchsichtige Route an dieses Konto; sie wechselt nicht still zu einem anderen Konto. Kontogebundene Profile benötigen das verbundene Konto der ausführenden Person. Beim erneuten Öffnen werden Konto und Modell wiederhergestellt, ohne die Kontoroute im Modellnamen anzuzeigen.
 

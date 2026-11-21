@@ -31,6 +31,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Optional subscription selection and inline sign-in during onboarding, before the first chat.
+
 - Choose a specific personal subscription account for a model, with account-bound routing, restored selection and provider-reported Codex/Claude quota windows when available.
 
 - The model picker lists subscriptions by familiar provider names, connects accounts inline and reads each account’s own model catalog. Organization API keys and advanced custom endpoints stay separate. Capabilities follow task-based groups with enabled and recommended entries first; installed agents are grouped under delegation.
@@ -96,6 +98,9 @@ Two things are versioned separately from this file and worth knowing about:
 - Find unanswered web-chat questions in Inbox and return to their original question cards, including older conversations.
 
 ### Fixed
+
+- Codex weekly usage remains visible when its secondary quota window is inactive.
+- Browser subscription sign-in explains the local return address and how to finish connecting.
 
 - Show the entire chat model catalog, its source and count; make OpenRouter's region explicit and keep regional profiles separate when changing it.
 

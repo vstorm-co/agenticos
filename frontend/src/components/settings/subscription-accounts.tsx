@@ -228,16 +228,19 @@ export function SubscriptionSignInDialog({
               </a>
             </Button>
             {!device && (
-              <FormField htmlFor={`${formId}-redirect`} label={t("redirectLabel")}>
-                <Input
-                  id={`${formId}-redirect`}
-                  value={redirectUrl}
-                  onChange={(event) => setRedirectUrl(event.target.value)}
-                  placeholder="http://localhost:…"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-              </FormField>
+              <div className="space-y-2">
+                <p className="text-muted-foreground text-xs">{t("localReturnHelp")}</p>
+                <FormField htmlFor={`${formId}-redirect`} label={t("redirectLabel")}>
+                  <Input
+                    id={`${formId}-redirect`}
+                    value={redirectUrl}
+                    onChange={(event) => setRedirectUrl(event.target.value)}
+                    placeholder="http://localhost:…"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </FormField>
+              </div>
             )}
             <p className={refused ? "text-destructive text-xs" : "text-muted-foreground text-xs"}>
               {refused ? (status.data?.error ?? t("refused")) : t("waiting")}

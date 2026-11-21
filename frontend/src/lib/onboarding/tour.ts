@@ -1624,6 +1624,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "start-subscriptions",
+    page: ROUTES.ONBOARDING,
+    target: "start-subscriptions",
+    optional: true,
+  },
+  {
     id: "personal-subscription-accounts",
     page: SETTINGS_DETAIL,
     target: "personal-subscription-accounts",

@@ -6250,6 +6250,10 @@
       "agent-model-credentials": {
         "title": "Who supplies the model key",
         "body": "Choose your subscription and connect it here, or use an organization API key. Custom gateways and endpoints are under advanced connections. Subscription models keep AgenticOS instructions and tools; installed agents are configured separately under delegation."
+      },
+      "start-subscriptions": {
+        "title": "Connect your subscriptions",
+        "body": "Select the plans you already have and sign in here. These accounts are personal; choose their models in chat."
       }
     },
     "chooseLanguage": "Language",
@@ -17830,7 +17834,7 @@
     "retry": "Retry",
     "dialogTitle": "Connect {name}",
     "deviceHelp": "Open the sign-in page, enter this code and approve. This window finishes on its own.",
-    "browserHelp": "Open the sign-in page and approve. Your browser then lands on an address that does not load - copy that whole address here.",
+    "browserHelp": "1. Open the sign-in page and approve access. 2. If the final page cannot be reached, copy the complete address from the browser address bar. 3. Paste it below and finish connecting.",
     "starting": "Starting the sign-in…",
     "copyCode": "Copy the code",
     "openSignIn": "Open {name} sign-in",
@@ -17848,7 +17852,8 @@
       "kimi-ai": "Kimi (kimi.com)",
       "devin": "Devin",
       "meta": "Meta AI"
-    }
+    },
+    "localReturnHelp": "This sign-in returns to localhost on your computer, not to the AgenticOS website. A website cannot read that tab or display a page on that local port. The address bar still contains the result needed to finish connecting."
   },
   "mirage": {
     "folders": "Folders",
@@ -18198,6 +18203,12 @@
       "openGovernanceSettings": "Open budget and approvals",
       "openAssistantSettings": "Open assistant settings",
       "openVoiceSettings": "Open voice settings"
+    },
+    "subscriptions": {
+      "title": "Which subscriptions do you already have?",
+      "description": "Select your plans and sign in here. You can connect more than one, or continue without connecting any.",
+      "connected": "Connected",
+      "hint": "Your accounts are personal. Choose their models in chat; they do not replace the shared model for your organization."
     }
   },
   "skillImprovement": {

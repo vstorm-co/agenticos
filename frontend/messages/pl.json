@@ -7892,6 +7892,10 @@
       "agent-model-credentials": {
         "title": "Kto podaje klucz do modelu",
         "body": "Wybierz swoją subskrypcję i połącz ją tutaj albo użyj klucza API organizacji. Własne gatewaye i endpointy znajdziesz w zaawansowanych połączeniach. Modele subskrypcji korzystają z instrukcji i narzędzi AgenticOS; zainstalowane agenty konfigurujesz osobno w delegowaniu."
+      },
+      "start-subscriptions": {
+        "title": "Połącz swoje subskrypcje",
+        "body": "Zaznacz posiadane subskrypcje i zaloguj się tutaj. To konta prywatne; ich modele wybierzesz w czacie."
       }
     },
     "chooseLanguage": "Język",
@@ -17603,7 +17607,7 @@
     "retry": "Spróbuj ponownie",
     "dialogTitle": "Połącz: {name}",
     "deviceHelp": "Otwórz stronę logowania, wpisz ten kod i zatwierdź. To okno zamknie się samo.",
-    "browserHelp": "Otwórz stronę logowania i zatwierdź. Przeglądarka trafi potem na adres, który się nie wczyta - skopiuj tutaj cały ten adres.",
+    "browserHelp": "1. Otwórz stronę logowania i zatwierdź dostęp. 2. Jeśli końcowa strona się nie otworzy, skopiuj cały adres z paska przeglądarki. 3. Wklej go poniżej i dokończ łączenie konta.",
     "starting": "Rozpoczynanie logowania…",
     "copyCode": "Skopiuj kod",
     "openSignIn": "Otwórz logowanie: {name}",
@@ -17621,7 +17625,8 @@
       "kimi-ai": "Kimi (kimi.com)",
       "devin": "Devin",
       "meta": "Meta AI"
-    }
+    },
+    "localReturnHelp": "To logowanie wraca na localhost na Twoim komputerze, a nie na stronę AgenticOS. Strona internetowa nie może odczytać tej karty ani wyświetlić strony na tym lokalnym porcie. Pasek adresu nadal zawiera wynik potrzebny do połączenia konta."
   },
   "mirage": {
     "folders": "Foldery",
@@ -17971,6 +17976,12 @@
       "openGovernanceSettings": "Otwórz budżet i zatwierdzanie",
       "openAssistantSettings": "Otwórz ustawienia asystenta",
       "openVoiceSettings": "Otwórz ustawienia głosu"
+    },
+    "subscriptions": {
+      "title": "Z których subskrypcji już korzystasz?",
+      "description": "Zaznacz swoje subskrypcje i zaloguj się tutaj. Możesz połączyć kilka kont albo kontynuować bez ich łączenia.",
+      "connected": "Połączono",
+      "hint": "Te konta są prywatne. Ich modele wybierzesz w czacie; nie zastępują wspólnego modelu organizacji."
     }
   },
   "skillImprovement": {
