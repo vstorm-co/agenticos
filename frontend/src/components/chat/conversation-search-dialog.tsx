@@ -6,11 +6,11 @@ import { Search } from "lucide-react";
 import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 
-import { COMMAND_ITEM_FOCUS, MENU_ROW } from "@/components/ui/control-styles";
+import { COMMAND_ITEM_FOCUS, MENU_ROW, SEARCH_FIELD_FOCUS } from "@/components/ui/control-styles";
 import { Button, Dialog, DialogContent, DialogTitle, Spinner } from "@/components/ui";
 import { useDebounced } from "@/components/ui/list-controls";
 import { useConversationSearch } from "@/hooks";
-import { DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn, timeAgo } from "@/lib/utils";
 
 /** Plain text only: SQL's emphasis markers are never interpreted as HTML. */
@@ -68,10 +68,15 @@ export function ConversationSearchDialog({
         if (!next) setTerm("");
       }}
     >
-      <DialogContent className={cn(DIALOG_FORM, "gap-0 overflow-hidden p-0 sm:max-w-2xl")}>
+      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN, "gap-0 p-0")}>
         <DialogTitle className="sr-only">{t("searchLabel")}</DialogTitle>
-        <Command shouldFilter={false} label={t("searchLabel")}>
-          <div className="border-border flex items-center gap-2.5 border-b px-4 pr-12">
+        <Command shouldFilter={false} label={t("searchLabel")} className="flex min-h-0 flex-col">
+          <div
+            className={cn(
+              SEARCH_FIELD_FOCUS,
+              "border-border flex shrink-0 items-center gap-2.5 border-b px-4 pr-12",
+            )}
+          >
             <Search className="text-muted-foreground size-4 shrink-0" aria-hidden />
             <Command.Input
               autoFocus
@@ -90,13 +95,20 @@ export function ConversationSearchDialog({
               className="text-destructive flex items-center justify-between gap-3 px-4 py-3 text-sm"
             >
               {t("searchFailed")}
-              <Button size="sm" variant="ghost" onClick={() => void refetch()}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => void refetch()}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") event.stopPropagation();
+                }}
+              >
                 {tc("retry")}
               </Button>
             </div>
           )}
           <Command.List
-            className="max-h-[min(60vh,480px)] min-h-28 overflow-y-auto p-2"
+            className="max-h-[min(60dvh,480px)] min-h-0 flex-1 overflow-y-auto overscroll-contain p-2"
             aria-busy={isFetching}
           >
             {!searching ? (

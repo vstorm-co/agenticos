@@ -50,6 +50,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Keep mobile chat actions within one context panel, with inline renaming, sharing with Back and independently scrolling search results. Refine shared field contrast, touch heights and overlay shadows; show Voice calls and Dictation in one Builder list.
+
 - Let authorized ordinary task and table-record edits, resource creation and draft authoring run without an extra MCP approval by default. Explicit author requirements can tighten these defaults. Execution, schema changes, automation, publication, deletion and administration still require a fresh per-call answer; task writes that can schedule agent work do too.
 
 - Guide AgenticOS to check the person's task board at an initial private greeting, offer structured tables for collected work and suggest routines for recurring questions. Keep creation and activation tied to an explicit request or accepted proposal.

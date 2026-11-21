@@ -1,5 +1,5 @@
 ---
-source_sha: "b4da0595fe79"
+source_sha: "5ddcab2b653c"
 ---
 
 # La consola { #the-console }
@@ -114,7 +114,9 @@ Cuando **Approve everything** no está disponible, los ajustes del chat distingu
 
 El área de mensaje muestra el modo de aprobación activo junto al selector del agente. Abre la etiqueta para cambiar el modo guardado antes de enviar. Se aplican los mismos permisos y la política de la organización que en Chat controls. Las llamadas aprobadas automáticamente conservan sus registros de auditoría aprobados; solo las llamadas realmente pendientes muestran controles para decidir.
 
-Los diálogos mantienen un margen de 12 px en todos los bordes del teléfono. Los encabezados compactos muestran título y acciones en una línea cuando caben. La descripción de Context se abre desde la barra del editor.
+Los diálogos centrados mantienen un margen de 12 px en todos los bordes del teléfono. Los encabezados compactos muestran título y acciones en una línea cuando caben. La descripción de Context se abre desde la barra del editor.
+
+La opción de compartir se abre junto al borde inferior del teléfono y se ajusta al espacio disponible sobre el teclado. El encabezado permanece visible mientras se desplaza el contenido. La lista móvil permite editar títulos en su sitio; compartir sustituye el contenido de la lista y **Atrás** la restaura. La búsqueda sustituye temporalmente la lista. Escape cancela primero la edición del título antes de cerrar la lista. Los campos y selectores normales miden al menos 44 px de alto en el teléfono; el texto de entrada usa 16 px. La búsqueda de comandos mantiene visibles el campo y el botón de cierre al desplazar los resultados.
 
 En el teléfono, las acciones principales siguen visibles y los comandos secundarios se despliegan con **Más acciones de la página**. Inbox y el formato de tabla usan selectores. Los ajustes usan pestañas horizontales desplazables; el cliente MCP se elige en una lista. Los archivos de proyecto o workspace se abren en un visor a pantalla completa; la flecha vuelve a las carpetas. El editor de pasos del workflow muestra un panel elegido: ajustes, entrada o salida. Cambiar de panel conserva las ediciones; en escritorio siguen uno al lado del otro.
 
@@ -308,7 +310,7 @@ Las tarjetas del panel usan filas compactas coherentes, símbolos de servicios y
 
 Un chat nuevo saluda según la hora local y muestra un editor compacto. Los archivos están junto al agente; los ajustes y el escudo de permisos, junto al modelo. El uso de contexto permanece como icono hasta abrirlo.
 
-La cronología encima del editor muestra primero las entradas prioritarias de Inbox. Dentro de cada grupo, las más recientes aparecen primero. Cada entrada muestra su fecha y origen. Haz clic en una fila para abrir la entrada o en el icono de chat para preparar una pregunta sobre ella. El contador de aprobaciones enlaza a su cola. La carga, los errores y la lista vacía tienen estados distintos. El dictado y las llamadas usan la misma superficie ligera que el editor. El widget de Architect comparte el botón principal y los controles de dictado.
+La cronología encima del editor muestra primero las entradas prioritarias de Inbox. Dentro de cada grupo, las más recientes aparecen primero. Cada entrada muestra su origen, sin fecha. Al seleccionar una fila se prepara una pregunta editable en el cuadro de mensaje; Abrir Inbox lleva a la lista completa. El contador de aprobaciones enlaza a su cola. La carga, los errores y la lista vacía tienen estados distintos. El dictado y las llamadas usan la misma superficie ligera que el editor. El widget de Architect comparte el botón principal y los controles de dictado.
 
 Antes del primer mensaje, Archivos y uso de contexto permanecen visibles pero desactivados. El menú de adjuntos muestra directamente sus acciones disponibles. Los ajustes del chat usan secciones compactas para conexiones y aprobaciones recordadas; la vista previa de Inbox muestra origen y prioridad.
 

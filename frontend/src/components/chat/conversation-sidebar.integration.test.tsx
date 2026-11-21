@@ -32,6 +32,7 @@ import * as invalidation from "@/lib/coalesced-invalidation";
 import {
   useAgentSelectionStore,
   useChatBandsStore,
+  useChatSidebarStore,
   useConversationStore,
   useWorkingStore,
   useOrgStore,
@@ -88,6 +89,7 @@ function conversation(id: string, title: string, favourite = false): Conversatio
 /** Whatever the list route should answer with next. */
 function serve(items: ReturnType<typeof conversation>[], total = items.length) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path.endsWith("/shares") || path.includes("/members?")) return { items: [], total: 0 };
     if (path.startsWith("/conversations/search?")) return { items: [] };
     if (path.includes("/messages")) return { items: [], total: 0 };
     if (path.startsWith("/conversations/shared-with-me"))
@@ -131,6 +133,7 @@ afterEach(() => vi.useRealTimers());
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useChatSidebarStore.getState().close();
   urlParams = new URLSearchParams();
   window.history.replaceState({}, "", "/chat");
   useConversationStore.getState().reset();
@@ -1369,3 +1372,63 @@ it.each([
     expect(t("conversationTitle")).toBe(label);
   },
 );
+
+describe("one mobile conversation surface", () => {
+  it("replaces the list with sharing and restores the invoking action without a write", async () => {
+    const user = userEvent.setup();
+    act(() => useChatSidebarStore.getState().open());
+    mount();
+    const sheet = screen.getByRole("dialog", { name: "Chats" });
+    await within(sheet).findByText("Quarterly numbers");
+    const scroller = sheet.querySelector<HTMLDivElement>(".overflow-y-auto");
+    if (!scroller) throw new Error("Conversation scroller missing");
+    scroller.scrollTop = 120;
+    fireEvent.scroll(scroller);
+    await user.click(within(sheet).getByRole("button", { name: "Conversation actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Share" }));
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(within(sheet).getByRole("heading", { name: "Share conversation" })).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: "Back" }));
+    expect(within(sheet).getByRole("button", { name: "Conversation actions" })).toHaveFocus();
+    expect(sheet.querySelector<HTMLDivElement>(".overflow-y-auto")?.scrollTop).toBe(120);
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+
+  it("edits a title inside the existing sheet and cancels without a write", async () => {
+    const user = userEvent.setup();
+    act(() => useChatSidebarStore.getState().open());
+    mount();
+    const sheet = screen.getByRole("dialog", { name: "Chats" });
+    await within(sheet).findByText("Quarterly numbers");
+    await user.click(within(sheet).getByRole("button", { name: "Conversation actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Rename" }));
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    const field = within(sheet).getByRole("textbox", { name: "Rename" });
+    await waitFor(() => expect(field).toHaveFocus());
+    await user.clear(field);
+    await user.type(field, "Unsaved title");
+    await user.keyboard("{Escape}");
+    expect(apiClient.patch).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Chats" })).toBeVisible();
+    expect(within(sheet).getByRole("button", { name: "Conversation actions" })).toHaveFocus();
+    expect(within(sheet).getByText("Quarterly numbers")).toBeVisible();
+  });
+
+  it("replaces the list with search and returns without stacked open dialogs", async () => {
+    const user = userEvent.setup();
+    act(() => useChatSidebarStore.getState().open());
+    mount();
+    const sheet = screen.getByRole("dialog", { name: "Chats" });
+    await within(sheet).findByText("Quarterly numbers");
+    await user.click(within(sheet).getByRole("button", { name: "Search conversations" }));
+    const search = await screen.findByRole("dialog", { name: "Search conversations" });
+    await waitFor(() => expect(within(search).getByRole("combobox")).toHaveFocus());
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Chats" })).not.toBeInTheDocument();
+    await user.click(within(search).getByRole("button", { name: "Close" }));
+    const returned = await screen.findByRole("dialog", { name: "Chats" });
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(within(returned).getByRole("button", { name: "Search conversations" })).toHaveFocus();
+  });
+});

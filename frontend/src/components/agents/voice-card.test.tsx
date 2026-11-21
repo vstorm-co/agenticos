@@ -375,71 +375,74 @@ describe("the agent's Voice card", () => {
       hasGuardrails: false,
     };
 
-    it("are not offered where the page does not ask for them", () => {
+    it("shows dictation without offering unconfigured call controls or tabs", () => {
       mount();
-      expect(screen.queryByRole("tab", { name: "Voice calls" })).toBeNull();
-      expect(screen.getByRole("tab", { name: "Dictation" })).toHaveAttribute(
-        "aria-selected",
-        "true",
-      );
+      expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Voice calls" })).not.toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "Dictation" })).toBeVisible();
     });
-
-    it("open on their own tab, apart from dictation", async () => {
+    it("lists calls and dictation together with read-only controls", () => {
       renderEditor(
         <VoiceCard value={null} onChange={vi.fn()} conversation={conversation} disabled />,
       );
-      expect(screen.getByRole("tab", { name: "Voice calls" })).toHaveAttribute(
-        "aria-selected",
-        "true",
-      );
+      expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+      const calls = screen.getByRole("region", { name: "Voice calls" });
+      const dictation = screen.getByRole("region", { name: "Dictation" });
+      expect(calls).toBeVisible();
+      expect(dictation).toBeVisible();
+      expect(
+        calls.compareDocumentPosition(dictation) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
       expect(screen.getByTestId("voice-conversation-fields")).toHaveTextContent("disabled true");
-      // Dictation's settings are on the other tab, not stacked beneath.
-      expect(screen.queryByLabelText("Language")).toBeNull();
-      await userEvent.click(screen.getByRole("tab", { name: "Dictation" }));
-      expect(screen.getByLabelText("Language")).toBeInTheDocument();
+      expect(screen.getByLabelText("Language")).toBeDisabled();
+      expect(screen.getByRole("switch", { name: "Transcribe with a provider" })).toBeDisabled();
     });
-
-    it("open on Calls for the call button's link", () => {
-      window.history.replaceState({}, "", "/agents/a1#agent-voice");
-      renderEditor(<VoiceCard value={null} onChange={vi.fn()} conversation={conversation} />);
-      expect(screen.getByRole("tab", { name: "Voice calls" })).toHaveAttribute(
-        "aria-selected",
-        "true",
-      );
-      window.history.replaceState({}, "", "/");
+    it("keeps transcription settings editable with dictation off for channel voice notes", async () => {
+      const onChange = vi.fn();
+      renderEditor(<VoiceCard value={null} onChange={onChange} conversation={conversation} />);
+      expect(screen.getByRole("switch", { name: "Transcribe with a provider" })).not.toBeChecked();
+      await userEvent.click(screen.getByLabelText("Language"));
+      await userEvent.click(screen.getByRole("option", { name: "Polish (pl)" }));
+      expect(onChange).toHaveBeenCalledWith({
+        provider: null,
+        model: null,
+        secret_id: null,
+        language: "pl",
+        dictation: false,
+      });
+      expect(screen.getByRole("region", { name: "Voice calls" })).toBeVisible();
     });
-
     it("keeps Voice collapsed with a readable summary until asked", () => {
       renderBase(
         <VoiceCard collapsible value={null} onChange={vi.fn()} conversation={conversation} />,
       );
-      expect(screen.getByText("Calls off · Dictation off")).toBeVisible();
-      expect(screen.getByText("Calls off · Dictation off").closest("details")).not.toHaveAttribute(
-        "open",
-      );
-      expect(screen.queryByRole("tab", { name: "Voice calls" })).not.toBeVisible();
+      const summary = screen.getByText("Calls off · Dictation off");
+      expect(summary).toBeVisible();
+      expect(summary.closest("details")).not.toHaveAttribute("open");
+      expect(screen.getByText("Voice calls")).not.toBeVisible();
+      expect(screen.getByText("Dictation")).not.toBeVisible();
     });
-
-    it("opens the Voice section on Dictation for a deep link", () => {
-      window.history.replaceState({}, "", "/agents/a1#agent-voice-dictation");
-      renderBase(
-        <VoiceCard collapsible value={null} onChange={vi.fn()} conversation={conversation} />,
-      );
-      const tab = screen.getByRole("tab", { name: "Dictation" });
-      expect(tab.closest("details")).toHaveAttribute("open");
-      expect(tab).toHaveAttribute("aria-selected", "true");
-      window.history.replaceState({}, "", "/");
-    });
-
-    it("give way to the Dictation tab for a link to the dictation setup", () => {
-      window.history.replaceState({}, "", "/agents/a1#agent-voice-dictation");
-      renderEditor(<VoiceCard value={null} onChange={vi.fn()} conversation={conversation} />);
-      expect(screen.getByRole("tab", { name: "Dictation" })).toHaveAttribute(
-        "aria-selected",
-        "true",
-      );
-      window.history.replaceState({}, "", "/");
-    });
+    it.each(["agent-voice", "agent-voice-dictation"])(
+      "opens the matching content for #%s",
+      (anchor) => {
+        window.history.replaceState({}, "", `/agents/a1#${anchor}`);
+        renderBase(
+          <VoiceCard collapsible value={null} onChange={vi.fn()} conversation={conversation} />,
+        );
+        const target = document.getElementById(anchor);
+        expect(target).not.toBeNull();
+        expect(target?.closest("details") ?? target?.querySelector("details")).toHaveAttribute(
+          "open",
+        );
+        expect(screen.getByRole("region", { name: "Voice calls" })).toBeVisible();
+        expect(screen.getByRole("region", { name: "Dictation" })).toBeVisible();
+        if (anchor === "agent-voice-dictation") {
+          expect(target).toBe(screen.getByRole("region", { name: "Dictation" }));
+          expect(target).toContainElement(screen.getByLabelText("Language"));
+        }
+        window.history.replaceState({}, "", "/");
+      },
+    );
   });
 });
 

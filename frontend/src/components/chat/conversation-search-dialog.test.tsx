@@ -50,3 +50,16 @@ it("keeps a failed search explicit and offers a retry", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(state.refetch).toHaveBeenCalledOnce();
 });
+
+it("retries with Enter without selecting a cached result", async () => {
+  state.isError = true;
+  const user = userEvent.setup();
+  const onSelect = vi.fn();
+  render(<ConversationSearchDialog open onOpenChange={vi.fn()} onSelect={onSelect} />);
+  await user.type(screen.getByRole("combobox"), "Warsaw");
+  expect(screen.getByRole("option")).toBeVisible();
+  screen.getByRole("button", { name: "Retry" }).focus();
+  await user.keyboard("{Enter}");
+  expect(state.refetch).toHaveBeenCalledOnce();
+  expect(onSelect).not.toHaveBeenCalled();
+});

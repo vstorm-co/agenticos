@@ -3,6 +3,8 @@
 import { ProjectAvatar } from "@/components/projects/project-avatar";
 
 import {
+  createContext,
+  useContext,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -85,6 +87,8 @@ import { ShareDialog } from "./share-dialog";
 import { useTurnElapsed } from "./work-fold";
 import { formatElapsed } from "@/lib/elapsed";
 
+const ConversationSheetContext = createContext(false);
+
 type SidebarLayout = "compact" | "comfortable" | "workspace";
 function sidebarLayout(value: string | null): SidebarLayout {
   return value === "compact" || value === "comfortable" || value === "workspace"
@@ -113,6 +117,61 @@ interface ConversationItemProps {
  *  its run: a turn that short is over by then, and the listing is right. */
 const HANDOFF_GRACE_MS = 20_000;
 
+function RenameConversationForm({
+  value,
+  originalTitle,
+  onChange,
+  onCancel,
+  onSubmit,
+}: {
+  value: string;
+  originalTitle: string;
+  onChange: (value: string) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+}) {
+  const t = useTranslations("chat");
+  const common = useTranslations("common");
+  return (
+    <form
+      data-conversation-rename
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          onCancel();
+        }
+      }}
+    >
+      <Label className="flex flex-col gap-2">
+        {t("conversationTitle")}
+        <Input
+          aria-label={t("rename")}
+          autoFocus
+          onFocus={(event) => event.currentTarget.select()}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          maxLength={255}
+          required
+        />
+      </Label>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          {common("cancel")}
+        </Button>
+        <Button type="submit" disabled={!value.trim() || value.trim() === originalTitle.trim()}>
+          {common("save")}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
 function ConversationItem({
   layout = "workspace",
   conversation,
@@ -129,7 +188,7 @@ function ConversationItem({
 }: ConversationItemProps) {
   const t = useTranslations("chat");
   const tTime = useTranslations("time");
-  const common = useTranslations("common");
+  const inSheet = useContext(ConversationSheetContext);
   const locale = useLocale();
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(conversation.title || "");
@@ -200,6 +259,13 @@ function ConversationItem({
 
   const renaming = useRef(false);
   const actionsButton = useRef<HTMLButtonElement>(null);
+  const returnToActions = useRef(false);
+  useLayoutEffect(() => {
+    if (!isEditing && returnToActions.current) {
+      returnToActions.current = false;
+      actionsButton.current?.focus({ preventScroll: true });
+    }
+  }, [isEditing]);
 
   const favouriteItem = (
     <DropdownMenuItem onSelect={() => onFavourite(conversation.is_favourite !== true)}>
@@ -207,6 +273,20 @@ function ConversationItem({
       {conversation.is_favourite ? t("unfavourite") : t("favourite")}
     </DropdownMenuItem>
   );
+
+  if (inSheet && isEditing)
+    return (
+      <div className="bg-card border-border space-y-3 rounded-xl border p-3">
+        <h3 className="text-sm font-medium">{t("rename")}</h3>
+        <RenameConversationForm
+          value={editTitle}
+          originalTitle={conversation.title ?? ""}
+          onChange={setEditTitle}
+          onCancel={() => setIsEditing(false)}
+          onSubmit={handleRename}
+        />
+      </div>
+    );
 
   return (
     <div
@@ -325,6 +405,7 @@ function ConversationItem({
             variant="ghost"
             size="sm"
             ref={actionsButton}
+            data-conversation-actions={conversation.id}
             aria-label={t("conversationActions")}
             className={cn(
               // Reserve the action slot so revealing it never reflows the title,
@@ -368,6 +449,7 @@ function ConversationItem({
               <DropdownMenuItem
                 onSelect={() => {
                   renaming.current = true;
+                  returnToActions.current = inSheet;
                   setEditTitle(conversation.title ?? "");
                   setIsEditing(true);
                 }}
@@ -410,6 +492,7 @@ function ConversationItem({
       </DropdownMenu>
       <Dialog open={isEditing} onOpenChange={setIsEditing}>
         <DialogContent
+          mobilePresentation="sheet"
           className="sm:max-w-sm"
           aria-describedby={undefined}
           onClick={(event) => event.stopPropagation()}
@@ -421,38 +504,13 @@ function ConversationItem({
           <DialogHeader>
             <DialogTitle>{t("rename")}</DialogTitle>
           </DialogHeader>
-          <form
-            className="space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              handleRename();
-            }}
-          >
-            <Label className="flex flex-col gap-2">
-              {t("conversationTitle")}
-              <Input
-                aria-label={t("rename")}
-                onFocus={(event) => event.currentTarget.select()}
-                value={editTitle}
-                onChange={(event) => setEditTitle(event.target.value)}
-                maxLength={255}
-                required
-              />
-            </Label>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
-                {common("cancel")}
-              </Button>
-              <Button
-                type="submit"
-                disabled={
-                  !editTitle.trim() || editTitle.trim() === (conversation.title ?? "").trim()
-                }
-              >
-                {common("save")}
-              </Button>
-            </DialogFooter>
-          </form>
+          <RenameConversationForm
+            value={editTitle}
+            originalTitle={conversation.title ?? ""}
+            onChange={setEditTitle}
+            onCancel={() => setIsEditing(false)}
+            onSubmit={handleRename}
+          />
         </DialogContent>
       </Dialog>
     </div>
@@ -759,6 +817,9 @@ function ConversationList({
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
   const [shareConversationId, setShareConversationId] = useState<string | null>(null);
+  const inSheet = useContext(ConversationSheetContext);
+  const savedScrollTop = useRef(0);
+  const sharedFrom = useRef<string | null>(null);
 
   const handleSelect = (id: string) => {
     onSelect(id);
@@ -776,6 +837,17 @@ function ConversationList({
   );
   const scrollerRef = useRef<HTMLDivElement>(null);
   const { isFolded, flip } = useBandFolds(bands, conversations.length, scrollerRef);
+  useLayoutEffect(() => {
+    if (!inSheet || shareConversationId !== null || !scrollerRef.current) return;
+    scrollerRef.current.scrollTop = savedScrollTop.current;
+    if (sharedFrom.current) {
+      const opener = Array.from(
+        scrollerRef.current.querySelectorAll<HTMLButtonElement>("[data-conversation-actions]"),
+      ).find((button) => button.dataset.conversationActions === sharedFrom.current);
+      opener?.focus({ preventScroll: true });
+      sharedFrom.current = null;
+    }
+  }, [inSheet, shareConversationId]);
   const foldedKeys = bands
     .filter((band) => isFolded(band.key))
     .map((band) => band.key)
@@ -810,6 +882,18 @@ function ConversationList({
       flip(band.key);
   }, [bands, currentConversationId, isFolded, flip]);
 
+  if (inSheet && shareConversationId)
+    return (
+      <ShareDialog
+        conversationId={shareConversationId}
+        open
+        embedded
+        onOpenChange={(open) => {
+          if (!open) setShareConversationId(null);
+        }}
+      />
+    );
+
   return (
     <>
       {/* Where the archive is said, since the switch to it now sits behind
@@ -836,6 +920,7 @@ function ConversationList({
         className="min-h-0 flex-1 scrollbar-thin overflow-y-auto px-3 pb-3"
         onScroll={(e) => {
           const el = e.currentTarget;
+          savedScrollTop.current = el.scrollTop;
           if (!isLoading && el.scrollHeight - el.scrollTop - el.clientHeight < 100) {
             onLoadMore?.();
           }
@@ -936,7 +1021,10 @@ function ConversationList({
                       onUnarchive={() => onUnarchive(conversation.id)}
                       onFavourite={(favourite) => onFavourite(conversation.id, favourite)}
                       onRename={(title) => onRename(conversation.id, title)}
-                      onShare={() => setShareConversationId(conversation.id)}
+                      onShare={() => {
+                        sharedFrom.current = conversation.id;
+                        setShareConversationId(conversation.id);
+                      }}
                       shared={shared?.some((entry) => entry.id === conversation.id) === true}
                       onLeave={() => onLeaveShared?.(conversation.id)}
                     />
@@ -1271,8 +1359,21 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
 
       {searchDialog}
 
-      <Sheet open={isOpen} onOpenChange={close}>
-        <SheetContent side="left" className="w-80 p-0">
+      <Sheet open={isOpen && !searchOpen} onOpenChange={close}>
+        <SheetContent
+          side="left"
+          className="w-80 p-0"
+          restoreFocus={!searchOpen}
+          onEscapeKeyDown={(event) => {
+            // Let the inline editor cancel before the parent sheet handles Escape.
+            if (
+              event.target instanceof HTMLElement &&
+              event.target.closest("[data-conversation-rename]")
+            ) {
+              event.preventDefault();
+            }
+          }}
+        >
           <SheetHeader className="h-12 px-4">
             <SheetTitle className="min-w-0 flex-1 truncate">{ts("title")}</SheetTitle>
             {toolbar(close)}
@@ -1280,7 +1381,9 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
           </SheetHeader>
           <div className="flex h-[calc(100%-48px)] flex-col">
             {sharedNotice}
-            <ConversationList {...listProps} onNavigate={close} />
+            <ConversationSheetContext.Provider value={true}>
+              <ConversationList {...listProps} onNavigate={close} />
+            </ConversationSheetContext.Provider>
           </div>
         </SheetContent>
       </Sheet>

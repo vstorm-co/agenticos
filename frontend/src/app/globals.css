@@ -302,8 +302,8 @@
      the shadow only lifts the surface off the page - and a heavier one for
      things that float (menus, dialogs). */
   --shadow-card: 0 1px 2px 0 oklch(0% 0 0 / 0.05), 0 1px 3px 0 oklch(0% 0 0 / 0.03);
-  --shadow-float: 0 8px 28px oklch(0% 0 0 / 0.05), 0 1px 4px oklch(0% 0 0 / 0.025);
-  --shadow-dialog: 0 20px 60px -20px oklch(0% 0 0 / 0.3), 0 2px 8px oklch(0% 0 0 / 0.08);
+  --shadow-float: 0 2px 4px oklch(0% 0 0 / 0.04), 0 12px 32px -8px oklch(0% 0 0 / 0.12);
+  --shadow-dialog: 0 2px 8px oklch(0% 0 0 / 0.06), 0 24px 64px -16px oklch(0% 0 0 / 0.18);
 
   /* Typography */
   --font-display: var(--font-display), "Bricolage Grotesque", system-ui, sans-serif;
@@ -328,6 +328,7 @@
   --color-control-hover: color-mix(in oklab, var(--color-card) 87%, var(--color-foreground));
   --color-control-active: color-mix(in oklab, var(--color-card) 82%, var(--color-foreground));
   --color-input: color-mix(in oklab, var(--color-card) 82%, var(--color-foreground));
+  --color-field-border: color-mix(in oklab, var(--color-card) 50%, var(--color-foreground));
   --color-field: color-mix(in oklab, var(--color-card) 94%, var(--color-foreground));
   --color-sidebar-secondary: color-mix(in oklab, var(--color-sidebar) 45%, var(--color-background));
   /* Dataset accents follow the foreground lightness, keeping their hue visible in both themes. */
@@ -2921,6 +2922,16 @@ body .tour-spotlight {
     --dialog-available-height: calc(
       var(--app-height, 100dvh) - var(--shell-inset-top, 0px) - var(--safe-bottom, 0px) - 1.5rem
     );
+  }
+
+  /* Keep contextual edits in one modal surface without covering the whole page.
+     The shared visible-height budget also keeps the bottom above a keyboard. */
+  .console-dialog[data-mobile-presentation="sheet"] {
+    top: calc(var(--dialog-center) + var(--dialog-available-height) / 2);
+    translate: -50% -100%;
+    width: calc(100% - 1rem);
+    max-height: min(var(--dialog-available-height), calc(var(--app-height, 100dvh) * 0.92));
+    border-radius: 1.25rem;
   }
 }
 

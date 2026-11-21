@@ -1,5 +1,5 @@
 ---
-source_sha: "b4da0595fe79"
+source_sha: "5ddcab2b653c"
 ---
 
 # Die Konsole { #the-console }
@@ -114,7 +114,9 @@ Ist **Approve everything** nicht verfügbar, unterscheiden die Chat-Einstellunge
 
 Der Eingabebereich zeigt den aktiven Genehmigungsmodus neben der Agent-Auswahl. Über die Beschriftung lässt sich der gespeicherte Modus vor dem Senden ändern. Es gelten dieselben Berechtigungen und Organisationsrichtlinien wie in Chat controls. Automatisch genehmigte Aufrufe behalten ihre genehmigten Audit-Einträge; nur tatsächlich ausstehende Aufrufe zeigen eine Aufforderung zur Entscheidung.
 
-Dialoge behalten auf dem Smartphone an allen Rändern 12 px Abstand. Kompakte Seitenköpfe zeigen Titel und Aktionen in einer Zeile, wenn genug Platz ist. Die Context-Beschreibung öffnet sich über die Editorleiste.
+Zentrierte Dialoge behalten auf dem Smartphone an allen Rändern 12 px Abstand. Kompakte Seitenköpfe zeigen Titel und Aktionen in einer Zeile, wenn genug Platz ist. Die Context-Beschreibung öffnet sich über die Editorleiste.
+
+Kontextbezogenes Teilen öffnet sich am unteren Rand des Smartphones und bleibt innerhalb des verfügbaren Platzes oberhalb der Tastatur. Der Kopf bleibt sichtbar, während der Inhalt scrollt. In der mobilen Gesprächsliste werden Titel direkt bearbeitet; Teilen ersetzt den Listeninhalt. **Zurück** stellt die Liste wieder her. Die Suche ersetzt die Liste vorübergehend. Escape bricht zuerst die Titelbearbeitung ab, bevor es die Liste schließt. Normale Formularfelder und Auswahlfelder sind auf dem Smartphone mindestens 44 px hoch; Texteingaben verwenden 16 px Schrift. Die Befehlssuche hält Suchfeld und Schließen sichtbar, während Ergebnisse scrollen.
 
 Auf dem Smartphone bleiben die Hauptaktionen sichtbar; weitere Befehle öffnet **Weitere Seitenaktionen**. Inbox-Filter und Tabellenformat werden über Auswahllisten gewählt. Einstellungen haben eine horizontale, scrollbare Tableiste; der MCP-Client wird aus einer Liste gewählt. Projekt- und Workspace-Dateien öffnen sich im Vollbildleser; der Zurück-Pfeil führt zu den Ordnern. Im Workflow-Schritteditor wählst du Einstellungen, Eingabe oder Ausgabe. Beim Wechsel bleiben Änderungen erhalten; auf dem Desktop stehen die Bereiche weiterhin nebeneinander.
 
@@ -309,7 +311,7 @@ Dashboard-Karten verwenden einheitliche kompakte Zeilen, Dienstsymbole und Statu
 
 Ein neuer Chat begrüßt nach lokaler Tageszeit und zeigt ein kompaktes Eingabefeld. Dateien stehen neben dem Agenten, Chat-Einstellungen und Berechtigungsschild neben dem Modell. Die Kontextnutzung bleibt bis zum Öffnen ein Symbol.
 
-Die Zeitleiste über dem Eingabefeld zeigt Einträge mit Priorität zuerst. Innerhalb jeder Gruppe stehen die neuesten Einträge oben. Jede Zeile zeigt ein kurzes Datum und die Quelle. Klicke auf eine Zeile, um den Eintrag zu öffnen, oder auf das Chat-Symbol, um eine Frage dazu vorzubereiten. Der Genehmigungszähler führt zur Entscheidungswarteschlange. Laden, Fehler und leere Listen bleiben getrennte Zustände. Diktat und Anrufe verwenden dieselbe leichte Oberfläche wie das Eingabefeld. Beim Architect-Widget stehen dieselbe Hauptaktion und dieselben Diktierfunktionen zur Verfügung.
+Die Zeitleiste über dem Eingabefeld zeigt Einträge mit Priorität zuerst. Innerhalb jeder Gruppe stehen die neuesten Einträge oben. Jede Zeile zeigt die Quelle, ohne Datum. Ein Klick bereitet eine bearbeitbare Frage im Eingabefeld vor; Inbox öffnen führt zur vollständigen Liste. Der Genehmigungszähler führt zur Entscheidungswarteschlange. Laden, Fehler und leere Listen bleiben getrennte Zustände. Diktat und Anrufe verwenden dieselbe leichte Oberfläche wie das Eingabefeld. Beim Architect-Widget stehen dieselbe Hauptaktion und dieselben Diktierfunktionen zur Verfügung.
 
 Vor der ersten Nachricht bleiben Dateien und Kontextnutzung sichtbar, aber deaktiviert. Das Anhangsmenü zeigt verfügbare Aktionen direkt. Die Chat-Einstellungen verwenden kompakte Abschnitte für Verbindungen und gespeicherte Freigaben; die Inbox-Vorschau zeigt Quelle und Priorität.
 

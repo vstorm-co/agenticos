@@ -108,7 +108,9 @@ When **Approve everything** is unavailable, chat settings distinguish missing ap
 
 The composer shows the active permission mode beside the agent picker. Open the label to change the saved mode before sending. The same permission and organization waiver checks apply as in Chat controls. Automatically granted calls retain approved audit entries; only genuinely pending calls show actionable approval prompts.
 
-Phone dialogs keep a 12px gutter on every edge. Compact page headers place the title and actions on one row when they fit. Context descriptions open from the editor toolbar.
+Centered phone dialogs keep a 12px gutter on every edge. Compact page headers place the title and actions on one row when they fit. Context descriptions open from the editor toolbar.
+
+Contextual sharing opens near the bottom of a phone screen, within the available height above the keyboard. Headers remain fixed while the contents scroll. The mobile conversation list edits titles in place and replaces its contents with sharing; **Back** restores the list. Search replaces the list temporarily. Escape cancels an inline title edit before closing the list. Standard phone form inputs and selects are at least 44px high; text inputs use 16px type. Command search keeps its search field and close control visible while results scroll.
 
 On phones, primary page actions stay visible and secondary commands fold behind **More page actions**. Inbox filters and the table format use selects. Settings sections use a horizontal, scrollable tab strip, while the MCP client is selected from a dropdown. Opening a project or workspace file opens its full-screen reader; the back arrow returns to the folders. Workflow step dialogs show one chosen panel at a time: settings, input or output. Switching panels preserves edits; desktop keeps the panels side by side.
 
@@ -281,7 +283,7 @@ Dashboard cards use the same compact rows, service marks and status labels. Coun
 
 A new chat greets you by local time and shows a compact composer. Files sit beside the agent; chat settings and the permission shield sit beside the model. Context usage stays an icon until opened.
 
-Above the composer, an Inbox timeline shows priority items first and sorts each group newest first, with short dates and source marks. Open a row to read the item or use its chat icon to draft a question about it. Approval counts link to the approval queue. Loading, failure and empty states remain distinct. Dictation and calls use the same light surface as the composer. The Architect widget shares the primary action and dictation controls.
+Above the composer, an Inbox timeline shows priority items first and sorts each group newest first, with source marks and no dates. Selecting a row prepares an editable question in the composer; Open Inbox leads to the full list. Approval counts link to the approval queue. Loading, failure and empty states remain distinct. Dictation and calls use the same light surface as the composer. The Architect widget shares the primary action and dictation controls.
 
 Before the first message, Files and context usage remain visible but disabled. The attachment menu shows its available actions directly. Chat controls use compact sections for connections and remembered approvals; Inbox previews show source and priority.
 

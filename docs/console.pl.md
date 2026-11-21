@@ -1,5 +1,5 @@
 ---
-source_sha: "b4da0595fe79"
+source_sha: "5ddcab2b653c"
 ---
 
 # Konsola { #the-console }
@@ -112,7 +112,9 @@ Gdy **Approve everything** jest niedostępne, ustawienia chatu rozróżniają br
 
 Pole wiadomości pokazuje aktywny tryb zatwierdzania obok wyboru agenta. Kliknij etykietę, aby zmienić zapisany tryb przed wysłaniem. Obowiązują te same uprawnienia i polityka organizacji co w Chat controls. Automatycznie zatwierdzone wywołania zachowują zatwierdzone wpisy audytowe; tylko rzeczywiście oczekujące wywołania pokazują prośby o decyzję.
 
-Na telefonie modale zachowują 12 px marginesu z każdej strony. Zwarte nagłówki mieszczą tytuł i akcje w jednym wierszu, gdy jest na to miejsce. Opis pliku Context rozwija się z paska edytora.
+Na telefonie wyśrodkowane modale zachowują 12 px marginesu z każdej strony. Zwarte nagłówki mieszczą tytuł i akcje w jednym wierszu, gdy jest na to miejsce. Opis pliku Context rozwija się z paska edytora.
+
+Kontekstowe udostępnianie otwiera się przy dolnej krawędzi telefonu i mieści nad klawiaturą. Nagłówek pozostaje widoczny podczas przewijania treści. Mobilna lista rozmów pozwala zmienić tytuł w miejscu, a udostępnianie zastępuje zawartość listy; **Wstecz** ją przywraca. Wyszukiwanie tymczasowo zastępuje listę. Escape anuluje zmianę tytułu, zanim zamknie listę. Zwykłe pola i selecty na telefonie mają co najmniej 44 px wysokości, a tekst w polach ma 16 px. Wyszukiwarka poleceń zachowuje widoczne pole i przycisk zamknięcia podczas przewijania wyników.
 
 Na telefonie główne akcje strony pozostają widoczne, a drugorzędne polecenia rozwija przycisk **Więcej akcji strony**. Filtry Inbox i format tabeli wybiera się selectem. Ustawienia mają poziomy, przewijany pasek zakładek; klienta MCP wybiera się z listy. Plik projektu lub workspace otwiera czytnik na pełnym ekranie, a strzałka wstecz wraca do folderów. Edytor kroku workflow pokazuje jeden wybrany panel: ustawienia, wejście albo wynik. Przełączanie zachowuje edycję; desktop nadal pokazuje panele obok siebie.
 
@@ -300,7 +302,7 @@ Karty dashboardu korzystają ze spójnych, zwartych wierszy, oznaczeń usług i 
 
 Nowy chat wita zależnie od lokalnej pory dnia i pokazuje zwarte pole wiadomości. Pliki są obok agenta, a ustawienia i tarcza uprawnień obok modelu. Zużycie kontekstu pozostaje ikoną do chwili otwarcia szczegółów.
 
-Oś czasu nad polem wiadomości pokazuje najpierw pozycje priorytetowe z Inboxa, a w każdej grupie zaczyna od najnowszych. Przy każdej pozycji widać datę i źródło. Kliknij wiersz, aby otworzyć pozycję, albo ikonę czatu, aby przygotować pytanie na jej temat. Licznik zgód prowadzi do kolejki decyzji. Ładowanie, błąd i pusta lista mają osobne stany. Dyktowanie i połączenia korzystają z tej samej lekkiej powierzchni co pole wiadomości. Widget Architecta korzysta z tego samego przycisku głównego i kontrolek dyktowania.
+Oś czasu nad polem wiadomości pokazuje najpierw pozycje priorytetowe z Inboxa, a w każdej grupie zaczyna od najnowszych. Przy każdej pozycji widać źródło, bez daty. Kliknięcie wiersza przygotowuje pytanie do edycji w polu wiadomości; Otwórz Inbox prowadzi do pełnej listy. Licznik zgód prowadzi do kolejki decyzji. Ładowanie, błąd i pusta lista mają osobne stany. Dyktowanie i połączenia korzystają z tej samej lekkiej powierzchni co pole wiadomości. Widget Architecta korzysta z tego samego przycisku głównego i kontrolek dyktowania.
 
 Przed pierwszą wiadomością pliki i użycie kontekstu pozostają widoczne, ale nieaktywne. Menu załączników pokazuje dostępne akcje od razu. Ustawienia czatu mają zwarte sekcje połączeń i zapamiętanych zgód; podgląd Inbox pokazuje źródło i priorytet.
 

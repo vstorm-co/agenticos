@@ -146,4 +146,4 @@ export const DIALOG_WINDOW =
 
 /** Search stays below the top edge while leaving room for results and the keyboard. */
 export const DIALOG_COMMAND =
-  "[--command-offset:clamp(2rem,calc(var(--app-height,100dvh)*0.12),8rem)] fixed left-1/2 top-[calc(var(--shell-inset-top,0px)+var(--command-offset))] max-h-[calc(var(--dialog-available-height)-var(--command-offset))] w-[min(92vw,640px)] -translate-x-1/2 flex-col overflow-hidden rounded-2xl";
+  "[--command-offset:clamp(0.75rem,calc(var(--app-height,100dvh)*0.05),1.5rem)] sm:[--command-offset:clamp(2rem,calc(var(--app-height,100dvh)*0.12),8rem)] fixed left-1/2 top-[calc(var(--shell-inset-top,0px)+var(--command-offset))] max-h-[min(36rem,calc(var(--dialog-available-height)-var(--command-offset)))] w-[calc(100%-1.5rem)] max-w-[40rem] -translate-x-1/2 flex-col overflow-hidden rounded-2xl";
