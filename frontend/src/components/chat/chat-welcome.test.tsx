@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Ban, Sparkles } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ChatWelcome, WelcomeIcon } from "./chat-welcome";
 
 describe("ChatWelcome", () => {
-  it("puts suggestions below the composer without first rendering them in the greeting", () => {
+  it("puts suggestions into the composer slot without first drawing them in the greeting", () => {
     const target = document.createElement("div");
     document.body.append(target);
     const props = {
@@ -74,4 +74,89 @@ describe("ChatWelcome", () => {
     expect(onRemove).toHaveBeenCalledOnce();
     expect(onPick).not.toHaveBeenCalled();
   });
+});
+
+it("keeps the quiet starter's icon, title and description on view", () => {
+  const { container } = render(
+    <ChatWelcome
+      quiet
+      mark={<span />}
+      title="Welcome"
+      lead="Ready"
+      suggestions={[
+        {
+          key: "draft",
+          icon: Ban,
+          title: "A starter",
+          description: "A short description",
+          prompt: "The full prompt",
+        },
+      ]}
+      onPick={vi.fn()}
+    />,
+  );
+  expect(screen.getByText("A short description")).not.toHaveClass("sr-only");
+  expect(container.querySelector(".lucide-ban")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /A starter\s*A short description/ })).toBeVisible();
+});
+
+it("retains greeting and starter slots when personal preferences hide them", () => {
+  render(
+    <ChatWelcome
+      mark={<span />}
+      title="Welcome back"
+      lead="Discover what you can do"
+      suggestions={[{ key: "first", icon: Ban, title: "First suggestion", prompt: "Start" }]}
+      onPick={vi.fn()}
+      quiet
+      showGreeting={false}
+      showLead={false}
+      showSuggestions={false}
+    />,
+  );
+  expect(screen.getByText("Welcome back")).toHaveClass("invisible");
+  expect(screen.getByText("Welcome back")).toHaveAttribute("aria-hidden", "true");
+  expect(screen.getByText("Discover what you can do")).toHaveClass("invisible");
+  const hints = screen.getByText("First suggestion").closest("[data-chat-welcome-hints]");
+  expect(hints).toHaveAttribute("inert");
+  expect(hints).toHaveAttribute("data-suggestions-hidden", "true");
+});
+
+it("keeps the docked editor focused until a starter click prefills it", async () => {
+  const target = document.createElement("div");
+  document.body.append(target);
+  const onPick = vi.fn();
+  const view = render(
+    <>
+      <div role="textbox" aria-label="Message" contentEditable="true" />
+      <ChatWelcome
+        quiet
+        mark={<span />}
+        title="Welcome"
+        lead="Ready"
+        suggestionsSlot={target}
+        suggestions={[{ key: "a", icon: Ban, title: "A starter", prompt: "Draft a summary" }]}
+        onPick={onPick}
+      />
+    </>,
+  );
+  const editor = screen.getByRole("textbox", { name: "Message" });
+  const starter = screen.getByRole("button", { name: /A starter/ });
+  editor.focus();
+  const press = new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 });
+  fireEvent(starter, press);
+  expect(press.defaultPrevented).toBe(true);
+  expect(editor).toHaveFocus();
+  expect(onPick).not.toHaveBeenCalled();
+  fireEvent.click(starter);
+  expect(editor).toHaveFocus();
+  expect(onPick).toHaveBeenCalledExactlyOnceWith("Draft a summary");
+
+  // Mouse focus protection must not prevent native keyboard activation.
+  starter.focus();
+  await userEvent.keyboard("{Enter}");
+  expect(onPick).toHaveBeenCalledTimes(2);
+  expect(starter).toHaveFocus();
+  view.unmount();
+  target.remove();
 });

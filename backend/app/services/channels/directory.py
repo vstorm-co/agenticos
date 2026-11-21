@@ -85,6 +85,15 @@ PLATFORM_TOOLS: dict[str, tuple[str, ...]] = {
     # privileged Server Members intent, so no roster, details or channel search yet
     # (#2079).
     "discord": ("send_channel_file", "read_channel_history"),
+    # A Matrix bot reads the rooms it has joined like any member: their state,
+    # their members and their history. There is no search of rooms it is not in
+    # (#2081).
+    "matrix": (
+        "send_channel_file",
+        "get_channel_info",
+        "list_channel_members",
+        "read_channel_history",
+    ),
     "imessage": ("send_channel_file",),
     "email": ("send_channel_file",),
     "sms": ("send_channel_file",),

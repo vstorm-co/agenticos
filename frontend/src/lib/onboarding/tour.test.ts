@@ -284,7 +284,6 @@ describe("stepsForPage", () => {
       "chat-local-coding",
       "chat-coding-settings",
       "chat-coding-revert",
-      "chat-background-tasks",
       "chat-plan",
       "chat-visual",
       "chat-model-picker",

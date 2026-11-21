@@ -1,13 +1,13 @@
 "use client";
 
-import { NativeSelect } from "@/components/ui/native-select";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Building2, ArrowRight } from "lucide-react";
-import { Button, Label } from "@/components/ui";
+import { ArrowRight, Building2, Plus } from "lucide-react";
+import { Button } from "@/components/ui";
 import { CreateOrgForm } from "@/components/teams/create-org-form";
 import { EntityAvatar } from "@/components/ui/entity-avatar";
 import type { Organization } from "@/types";
+import { StartActions, StartBack } from "./start-navigation";
 import { StartWorkspacePreview } from "./start-workspace-preview";
 import styles from "./administration.module.css";
 
@@ -22,93 +22,74 @@ export function StartWorkspace({
 }) {
   const t = useTranslations("start.administration");
   const [name, setName] = useState("");
-  const companies = organizations.filter((org) => !org.is_personal);
-  const [createNew, setCreateNew] = useState(companies.length === 0);
+  const [createNew, setCreateNew] = useState(organizations.length === 0);
+  const organization = organizations.find((org) => org.id === activeOrgId) ?? organizations[0];
+
   return (
-    <div className={styles.workspaceChoice}>
-      {createNew && (
-        <div className={styles.workspaceStudio}>
-          <section className={styles.createWorkspace}>
-            <Building2 size={24} aria-hidden className={styles.stageIcon} />
-            <h3>{t("createCompany")}</h3>
-            <p>{t("createCompanyHint")}</p>
-            <CreateOrgForm onCreated={onSelect} onNameChange={setName} />
-          </section>
-          <StartWorkspacePreview name={name} />
-        </div>
-      )}
-      {!createNew && companies.length > 0 && (
-        <div className={styles.workspaceStudio}>
-          <section className={styles.createWorkspace}>
-            <Building2 size={24} aria-hidden className={styles.stageIcon} />
-            <h3>{t("existingCompany")}</h3>
-            <p>{t("existingCompanyHint")}</p>
-            <ul className={styles.workspaceList}>
-              {companies.map((org) => (
-                <li key={org.id}>
-                  <Button variant="outline" onClick={() => onSelect(org.id)}>
-                    <EntityAvatar
-                      seed={org.id}
-                      name={org.name}
-                      imageSrc={`/api/orgs/${org.id}/avatar?v=${org.updated_at ?? ""}`}
-                      hasImage={!!org.avatar_url}
-                      colorSlot={org.avatar_color}
-                      ariaHidden
+    <div className={styles.workspaceStudio}>
+      {createNew ? (
+        <section className={styles.createWorkspace}>
+          <Building2 size={24} aria-hidden className={styles.stageIcon} />
+          <h3>{t("createCompany")}</h3>
+          <p>{t("createCompanyHint")}</p>
+          <CreateOrgForm
+            onCreated={onSelect}
+            onNameChange={setName}
+            renderActions={(actions) => (
+              <StartActions
+                back={
+                  organizations.length > 0 && (
+                    <StartBack
+                      onClick={() => {
+                        setName("");
+                        setCreateNew(false);
+                      }}
                     />
-                    {org.name}
-                    <ArrowRight size={16} aria-hidden />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-            <Button variant="ghost" onClick={() => setCreateNew(true)}>
-              {t("createInstead")}
-            </Button>
-          </section>
-          <StartWorkspacePreview
-            organization={companies.find((org) => org.id === activeOrgId) ?? companies[0]}
-            name={companies.find((org) => org.id === activeOrgId)?.name ?? companies[0]?.name ?? ""}
+                  )
+                }
+              >
+                {actions}
+              </StartActions>
+            )}
           />
-        </div>
-      )}
-      {createNew && companies.length > 0 && (
-        <Button variant="ghost" onClick={() => setCreateNew(false)}>
-          {t("chooseExisting")}
-        </Button>
-      )}
-      {organizations.some((org) => org.is_personal) && (
-        <details className={styles.personalChoice}>
-          <summary>{t("usePersonal")}</summary>
-          <p className={styles.explanation}>{t("personalExplanation")}</p>
-          <Label htmlFor="setup-personal">{t("personalChoice")}</Label>
-          <NativeSelect
-            id="setup-personal"
-            value={activeOrgId ?? ""}
-            onChange={(event) => onSelect(event.target.value)}
-          >
-            <option value="" disabled>
-              {t("selectWorkspace")}
-            </option>
-            {organizations
-              .filter((org) => org.is_personal)
-              .map((org) => (
-                <option key={org.id} value={org.id}>
+        </section>
+      ) : (
+        <section className={styles.createWorkspace}>
+          <Building2 size={24} aria-hidden className={styles.stageIcon} />
+          <h3>{t("existingCompany")}</h3>
+          <p>{t("existingCompanyHint")}</p>
+          <ul className={styles.workspaceList}>
+            {organizations.map((org) => (
+              <li key={org.id}>
+                <Button variant="outline" onClick={() => onSelect(org.id)}>
+                  <EntityAvatar
+                    seed={org.id}
+                    name={org.name}
+                    imageSrc={`/api/orgs/${org.id}/avatar?v=${org.updated_at ?? ""}`}
+                    hasImage={!!org.avatar_url}
+                    colorSlot={org.avatar_color}
+                    ariaHidden
+                  />
                   {org.name}
-                </option>
-              ))}
-          </NativeSelect>
-          {organizations.some((org) => org.id === activeOrgId && org.is_personal) && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (activeOrgId) onSelect(activeOrgId);
-              }}
-            >
-              {t("continuePersonal")}
-            </Button>
-          )}
-        </details>
+                  <ArrowRight size={16} aria-hidden />
+                </Button>
+              </li>
+            ))}
+          </ul>
+          <Button
+            className={styles.newWorkspace}
+            variant="outline"
+            onClick={() => setCreateNew(true)}
+          >
+            <Plus size={16} aria-hidden />
+            {t("createInstead")}
+          </Button>
+        </section>
       )}
+      <StartWorkspacePreview
+        organization={createNew ? undefined : organization}
+        name={createNew ? name : (organization?.name ?? "")}
+      />
     </div>
   );
 }

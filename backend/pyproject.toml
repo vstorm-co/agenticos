@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.85.1"
+version = "1.88.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -652,6 +652,7 @@ include = [
     "app/commands/data_protection.py",
     "app/commands/mcp_audit.py",
     "app/core/permissions.py",
+    "app/core/platform_tool_policy.py",
     "app/core/resource_icons.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
@@ -981,6 +982,8 @@ include = [
     "app/schemas/onboarding.py",
     "app/repositories/onboarding.py",
     "app/services/onboarding.py",
+    "app/schemas/console_experience.py",
+    "app/services/console_experience.py",
     "app/api/routes/v1/me_onboarding.py",
     "app/api/routes/v1/me_dashboard_layout.py",
     "app/repositories/dashboard_preset.py",
@@ -1526,6 +1529,7 @@ generator_version = "0.2.17"
 generated_at = "2026-07-26T18:01:04.489757+00:00"
 
 [tool.coverage.run]
+relative_files = true
 # `source` must be packages or directories — coverage silently ignores a file
 # path here, which is how a whole module can sit in this list and never be
 # measured. The platform layer is therefore selected with `include` globs,
@@ -1549,6 +1553,7 @@ include = [
     "app/commands/data_protection.py",
     "app/commands/mcp_audit.py",
     "app/core/permissions.py",
+    "app/core/platform_tool_policy.py",
     "app/core/resource_icons.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
@@ -1911,6 +1916,8 @@ include = [
     "app/schemas/onboarding.py",
     "app/repositories/onboarding.py",
     "app/services/onboarding.py",
+    "app/schemas/console_experience.py",
+    "app/services/console_experience.py",
     "app/api/routes/v1/me_onboarding.py",
     "app/api/routes/v1/me_dashboard_layout.py",
     "app/repositories/dashboard_preset.py",

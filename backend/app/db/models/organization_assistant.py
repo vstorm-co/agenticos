@@ -37,12 +37,12 @@ class OrganizationAssistant(Base, TimestampMixin):
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sql_true())
     greeting: Mapped[str | None] = mapped_column(Text, nullable=True)
     mark_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    """Where the shipped mark it was installed wearing is stored.
+    """The legacy shipped picture's path, retained as provenance.
 
-    While the agent's picture is still this file, the console draws the mark
-    itself, in the theme's colours, rather than the picture - which is one fixed
-    image, dark on a dark page. A picture an organization uploaded replaces the
-    file and the console shows that instead, as for any agent."""
+    New installations use generated avatars. The avatar backfill only clears a
+    picture matching this path, preserving uploaded replacements and explicit
+    clears. Retaining it does not restore or delete a stored file.
+    """
 
     def __repr__(self) -> str:
         return (

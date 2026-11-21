@@ -21,7 +21,7 @@ from app.api.deps import (
     limit_fork,
     require,
 )
-from app.api.public_api import PUBLIC
+from app.api.public_api import INTERNAL, PUBLIC
 from app.api.responses import content_disposition
 from app.api.routes.v1._artifact_bytes import visual_image_response
 from app.api.routes.v1._workspace_bytes import file_response
@@ -34,10 +34,12 @@ from app.schemas.conversation import (
     ConversationList,
     ConversationRead,
     ConversationReadWithMessages,
+    ConversationSearchList,
     ConversationUpdate,
     MessageCreate,
     MessageList,
     MessageRead,
+    WaitingChatQuestionList,
 )
 from app.schemas.conversation_share import (
     ConversationShareCreate,
@@ -57,9 +59,49 @@ from app.schemas.workspace import (
     WorkspaceFileRead,
     WorkspaceListing,
 )
+from app.services import conversation_search
 from app.services.sandbox_workspace import owner_label, stored_ceiling
 
 router = APIRouter()
+
+
+@router.get(
+    "/search",
+    response_model=ConversationSearchList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def search_conversation_messages(
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    query: str = Query(min_length=1, max_length=500),
+    limit: int = Query(default=40, ge=1, le=50),
+) -> Any:
+    """Search readable message text, including archives, with highlighted snippets.
+
+    Matches use the existing indexed full-text search and the same access rules
+    as reading a transcript. Snippets contain plain text with matched words
+    wrapped in `**`, never trusted HTML. Only the best `limit` threads return.
+    """
+    return {
+        "items": await conversation_search.search(
+            query=query, organization_id=active_org.id, user_id=current_user.id, limit=limit
+        )
+    }
+
+
+@router.get("/waiting-questions", response_model=WaitingChatQuestionList, openapi_extra=INTERNAL)
+async def list_waiting_questions(
+    service: ConversationSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(25, ge=1, le=100),
+) -> Any:
+    """Find unanswered web-chat questions addressed to the signed-in member.
+
+    Returns only navigation metadata. Open the conversation to read and answer
+    the question; access to the approval queue is unrelated.
+    """
+    return await service.list_waiting_questions(ctx, skip=skip, limit=limit)
 
 
 @router.get("/background-tasks", response_model=list[ConversationTaskRead])
@@ -161,6 +203,9 @@ async def list_conversations(
         description="Leave out threads a bot answers in (Slack, Mattermost, Telegram, Teams)",
     ),
     project_id: UUID | None = Query(default=None, description="Only chats started in this project"),
+    project_scope: Literal["include", "only", "exclude"] = Query(
+        "include", description="Include, isolate or exclude project chats from pagination"
+    ),
 ) -> Any:
     """List conversations for the current user.
 
@@ -192,6 +237,7 @@ async def list_conversations(
         hide_api=hide_api,
         hide_channels=hide_channels,
         project_id=project_id,
+        project_scope=project_scope,
         reader=auth,
         for_model=for_model,
     )

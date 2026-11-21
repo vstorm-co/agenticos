@@ -103,3 +103,20 @@ it("retries both reads after the combined list fails", async () => {
   expect(state.refetchTasks).toHaveBeenCalledTimes(1);
   expect(state.refetchWatches).toHaveBeenCalledTimes(1);
 });
+
+it("keeps search mounted and editable through a cold list load", async () => {
+  state.empty = true;
+  state.loading = true;
+  const user = userEvent.setup();
+  const { rerender } = render(<RoutinesList />);
+  const search = screen.getByPlaceholderText("Search routines");
+  await user.type(search, "report");
+  expect(screen.getByRole("status", { name: "Loading" })).toBeVisible();
+  state.empty = false;
+  state.loading = false;
+  rerender(<RoutinesList />);
+  expect(screen.getByPlaceholderText("Search routines")).toBe(search);
+  expect(search).toHaveValue("report");
+  expect(screen.getByText("Weekly report")).toBeVisible();
+  expect(screen.queryByText("Client mail")).not.toBeInTheDocument();
+});

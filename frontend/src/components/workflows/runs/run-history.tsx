@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useLocale, useTranslations } from "next-intl";
 
 import { EmptyState, ErrorState } from "@/components/states";
@@ -230,6 +230,7 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
       }
     >
       <DataTable
+        fillHeight
         columns={columns}
         rows={runs}
         getRowKey={(run) => run.id}
@@ -250,6 +251,7 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
       />
       <div className="mt-auto shrink-0 pt-4">
         <PaginationBar
+          showSinglePage
           page={page}
           pageSize={RUN_HISTORY_PAGE}
           total={total}

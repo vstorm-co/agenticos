@@ -89,6 +89,9 @@ spec:
           volumeMounts:
             - {name: tmp, mountPath: /tmp}
             - {name: cache, mountPath: /app/.next/cache}
+            # Next.js copies a prerendered page here the first time it serves it.
+            # Only this directory: a mount over `.next/server` hides the built app.
+            - {name: route-cache, mountPath: /app/.next/server/route-cache}
           {{- else }}
           {{- if eq $component "api" }}
           command: [uvicorn, app.main:app, --host, "0.0.0.0", --port, "8000", --ws, websockets-sansio]
@@ -136,6 +139,8 @@ spec:
         - name: tmp
           emptyDir: {sizeLimit: 1Gi}
         - name: cache
+          emptyDir: {sizeLimit: 1Gi}
+        - name: route-cache
           emptyDir: {sizeLimit: 1Gi}
         {{- else }}
         {{- include "agenticos.volumes" $ | nindent 8 }}

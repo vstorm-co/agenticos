@@ -207,6 +207,7 @@ export function CasesTable({
   ];
   return (
     <DataTable
+      fillHeight
       className="[&_thead]:bg-foreground/[0.025] [&_th]:text-muted-foreground [&_tbody_tr]:border-border/50 [&_td]:border-border/40 rounded-none border-0 bg-transparent [&_td]:border-r [&_td:last-child]:border-r-0 [&_th]:text-xs [&_th]:font-medium"
       columns={columns}
       rows={cases}

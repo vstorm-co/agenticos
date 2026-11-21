@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { sameLocalTarget } from "@/lib/desktop/local-target-content";
 import { ZoneField, isTimeZone } from "./zone-field";
 import { RoutineDialogFrame } from "./routine-dialog-frame";
@@ -1560,14 +1562,14 @@ function CadenceFields({ choice, onChoice, overlap, onOverlap, ...schedule }: Ca
       )}
       {choice === "custom" && <ScheduleFields {...schedule} />}
       <CadenceSummary {...schedule} />
-      <details className="group">
+      <NativeDisclosure className="group">
         <summary className="text-muted-foreground hover:text-foreground cursor-pointer text-sm font-medium select-none">
           {t("moreOptions")}
         </summary>
         <div className="pt-3">
           <OverlapField value={overlap} onChange={onOverlap} />
         </div>
-      </details>
+      </NativeDisclosure>
     </div>
   );
 }

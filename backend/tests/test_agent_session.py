@@ -1579,6 +1579,25 @@ class TestAskingTheUser:
         # Cleared, or the next question resolves against a future already done.
         assert session._ask_user_future is None
 
+    async def test_correlated_answer_is_acknowledged_after_it_reaches_the_waiting_run(self):
+        session = _session()
+        asked = _next_frame(session)
+        asking = asyncio.create_task(session._ask_user(self._QUESTIONS))
+        await _wait(asked)
+        await session.handle_frame(
+            {"type": "ask_user_response", "request_id": "answer-1", "answers": [{"answer": "eu"}]}
+        )
+        assert await asking == [{"answer": "eu"}]
+        assert _sent_events(session)[-1] == (
+            "ask_user_answered",
+            {"request_id": "answer-1", "asked_by": None},
+        )
+        before = len(_sent_events(session))
+        await session.handle_frame(
+            {"type": "ask_user_response", "request_id": "duplicate", "answers": []}
+        )
+        assert len(_sent_events(session)) == before
+
     async def test_an_answers_payload_that_is_not_a_list_releases_the_run_anyway(self):
         """A client that sent `null`, or an object, would otherwise leave the run
         parked on a future nobody completes. Empty answers render as "(no answer)"

@@ -26,6 +26,7 @@ export function useConsentRequest(requestId: string) {
     queryKey: qk.mcpOauth.request(orgId, requestId),
     queryFn: () => apiClient.get<OAuthConsentRequest>(`/mcp-oauth/requests/${requestId}`),
     retry: false,
+    enabled: requestId !== "",
   });
   const approve = useMutation({
     mutationFn: (choice: OAuthConsentChoice) =>
@@ -38,6 +39,7 @@ export function useConsentRequest(requestId: string) {
     request: request.data ?? null,
     isLoading: request.isLoading,
     error: request.error,
+    refetch: request.refetch,
     approve,
     deny,
   };

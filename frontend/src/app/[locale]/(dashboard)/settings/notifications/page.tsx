@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useState } from "react";
 import {
   ChevronRight,
@@ -118,7 +120,7 @@ export default function NotificationsSettingsPage() {
                 <p className="text-muted-foreground text-xs leading-relaxed">
                   {t(`${email.words}Trigger`)}
                 </p>
-                <details className="group/audience text-muted-foreground pt-1 text-xs">
+                <NativeDisclosure className="group/audience text-muted-foreground pt-1 text-xs">
                   <summary className="hover:text-foreground touch:min-h-11 flex min-h-6 w-fit cursor-pointer list-none items-center gap-1 py-1 [&::-webkit-details-marker]:hidden">
                     <ChevronRight
                       className="h-3 w-3 transition-transform group-open/audience:rotate-90 motion-reduce:transition-none"
@@ -127,7 +129,7 @@ export default function NotificationsSettingsPage() {
                     {t("whoReceivesThis")}
                   </summary>
                   <p className="max-w-2xl pt-1 leading-relaxed">{t(`${email.words}Audience`)}</p>
-                </details>
+                </NativeDisclosure>
               </div>
               <Switch
                 aria-label={t(email.words)}

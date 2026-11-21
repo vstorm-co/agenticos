@@ -71,7 +71,7 @@ export function FormField({
       className={cn(
         layout === "switch"
           ? "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-5 gap-y-1"
-          : "space-y-2",
+          : "space-y-1.5",
         className,
       )}
     >

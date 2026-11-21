@@ -2,16 +2,13 @@
 
 import Link from "next/link";
 import { AvatarFace } from "@/components/ui/avatar-face";
-import { ArrowRight, Building2, CheckCircle2, Compass, ArrowUpRight } from "lucide-react";
+import { ArrowRight, Building2, CheckCircle2, ArrowUpRight } from "lucide-react";
 import { BrandMark } from "@/components/branding/brand-mark";
 import styles from "./workbench.module.css";
 import { useTranslations } from "next-intl";
-import { useRouter } from "@/lib/locale-navigation";
-import { Button } from "@/components/ui";
 import { ErrorState } from "@/components/states";
 import { useStart } from "@/hooks/use-start";
 import { useOrganizations, useOrganizationList } from "@/hooks/use-organizations";
-import { useOnboardingStore } from "@/stores/onboarding-store";
 import { useBranding } from "@/components/branding/branding-provider";
 import { StartLanguage } from "./start-language";
 import { StartNextSteps } from "./start-next-steps";
@@ -32,8 +29,6 @@ export function StartHub() {
   const state = useStart();
   const t = useTranslations("start");
   const { appName } = useBranding();
-  const router = useRouter();
-  const openTour = useOnboardingStore((s) => s.openTour);
   if (
     appAdmin ||
     (activeOrg &&
@@ -133,17 +128,6 @@ export function StartHub() {
             <Building2 size={14} aria-hidden />
             {t("organizations")}
           </Link>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              router.push("/dashboard");
-              openTour();
-            }}
-          >
-            <Compass size={14} aria-hidden />
-            {t("tour")}
-          </Button>
         </footer>
       </div>
     </div>

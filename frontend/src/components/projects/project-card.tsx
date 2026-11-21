@@ -3,13 +3,17 @@
 import { ProjectAvatar } from "@/components/projects/project-avatar";
 
 import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 
 import { AudienceChip } from "@/components/sharing/audience-chip";
-import { Card } from "@/components/ui";
+import {
+  ResourceCard,
+  ResourceCardHeader,
+  ResourceCardDescription,
+  ResourceCardFooter,
+} from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
-import { timeAgo } from "@/lib/utils";
 import type { Project } from "@/types/projects";
 
 /**
@@ -18,42 +22,34 @@ import type { Project } from "@/types/projects";
  */
 export function ProjectCard({ project }: { project: Project }) {
   const t = useTranslations("projects");
-  const tTime = useTranslations("time");
-  const locale = useLocale();
-  const active = project.last_active_at ?? project.updated_at ?? project.created_at;
   return (
-    <Card className="group hover:border-foreground/20 relative h-full transition-colors">
+    <ResourceCard className="min-h-52 p-0">
       <Link
         href={ROUTES.PROJECT_DETAIL(project.id)}
-        className="flex h-full flex-col gap-3 rounded-[inherit] p-4 focus-visible:outline-offset-[-2px]"
+        className="flex h-full flex-1 flex-col rounded-[inherit] p-5 focus-visible:outline-offset-[-2px]"
       >
-        <span className="flex items-center gap-3">
+        <ResourceCardHeader>
           <ProjectAvatar name={project.name} size="lg" />
-          <span className="min-w-0">
-            <span className="block truncate text-sm font-medium">{project.name}</span>
-            {active !== null && (
-              <span className="text-muted-foreground block text-xs">
-                {t("activeWhen", { when: timeAgo(active, tTime, locale) })}
-              </span>
-            )}
-          </span>
-        </span>
-        {project.description && (
-          <span className="text-muted-foreground line-clamp-2 text-sm">{project.description}</span>
-        )}
-        <span className="text-muted-foreground mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <p className="line-clamp-2 font-semibold break-words">{project.name}</p>
+            <AudienceChip visibility={project.visibility} groups={project.shared_groups} />
+          </div>
+        </ResourceCardHeader>
+        <ResourceCardDescription className="my-4 line-clamp-2">
+          {project.description}
+        </ResourceCardDescription>
+        <ResourceCardFooter className="text-muted-foreground border-0 pt-0 text-xs">
           <span className="flex items-center gap-1">
-            <MessageSquare className="h-3.5 w-3.5" aria-hidden />
+            <MessageSquare className="size-3.5" aria-hidden />
             {t("chatCount", { count: project.chat_count })}
           </span>
           {project.default_agent_name && (
-            <span className="truncate">
+            <span className="min-w-0 truncate">
               {t("startsWith", { agent: project.default_agent_name })}
             </span>
           )}
-          <AudienceChip visibility={project.visibility} groups={project.shared_groups} />
-        </span>
+        </ResourceCardFooter>
       </Link>
-    </Card>
+    </ResourceCard>
   );
 }

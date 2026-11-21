@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Activity, ThumbsDown } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { ExportMenu } from "@/components/runs/export-menu";
@@ -96,7 +96,11 @@ export function RunHistoryTab({
   focusedRunId?: string | null;
   initialDurationSort?: boolean;
 }) {
-  const [detailColumns, setDetailColumns] = useState<RunDetailColumn[]>(["surface"]);
+  const [detailColumns, setDetailColumns] = useState<RunDetailColumn[]>([
+    "user",
+    "surface",
+    "model",
+  ]);
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
   const router = useRouter();
@@ -363,6 +367,7 @@ export function RunHistoryTab({
                   />
                   <ListCardFootRow className="shrink-0">
                     <PaginationBar
+                      showSinglePage
                       page={page}
                       pageSize={PAGE_SIZE}
                       total={total}

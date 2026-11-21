@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ChevronsUpDown, LogOut, UserCircle } from "lucide-react";
+import { ChevronsUpDown, LogOut, ShieldCheck, UserCircle } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -15,7 +15,7 @@ import {
 import { DesktopSetupMenuItem } from "@/components/desktop/desktop-setup-menu-item";
 import { ServerSwitch } from "@/components/desktop/server-switch";
 import { useAuth } from "@/hooks";
-import { cn } from "@/lib/utils";
+import { cn, isAppAdmin } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import { AppearanceMenu, LanguageMenu } from "@/components/layout/account-preferences";
 import { useAuthStore } from "@/stores";
@@ -131,6 +131,14 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
             {t("profileAndSettings")}
           </Link>
         </DropdownMenuItem>
+        {isAppAdmin(user) && (
+          <DropdownMenuItem asChild>
+            <Link href={ROUTES.ADMIN}>
+              <ShieldCheck className="h-4 w-4" aria-hidden />
+              {t("adminOverview")}
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DesktopSetupMenuItem />
         <ServerSwitch />
         <DropdownMenuSeparator />
