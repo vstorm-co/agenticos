@@ -35,6 +35,7 @@ const GROUPS = [
       "media",
       "system_reminders",
       "planning",
+      "thinking",
       "guardrails",
     ],
   },

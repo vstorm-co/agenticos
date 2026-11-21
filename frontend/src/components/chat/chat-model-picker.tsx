@@ -118,6 +118,7 @@ export function ChatModelPicker({
   const edited = draft?.source === sourceKey ? draft : null;
   const providerId = edited?.providerId ?? current?.provider ?? "";
   const subscription = subscriptionFromChoice(providerId);
+  const personalSource = subscription !== undefined || providerId === "subscription_accounts";
   const model = edited?.model ?? current?.model ?? "";
   const setProviderId = (next: string) =>
     setDraft({ source: sourceKey, providerId: next, model: "" });
@@ -316,10 +317,11 @@ export function ChatModelPicker({
   );
 
   const connectionUnavailable =
-    loadingProfiles || profilesStatus === "failed" || !!secretReadError || !!loadingSecrets;
+    loadingProfiles ||
+    profilesStatus === "failed" ||
+    (!personalSource && (!!secretReadError || !!loadingSecrets));
   const endpointForm =
-    (requiresEndpoint || subscription !== undefined || providerId === "subscription_accounts") &&
-    !connectionUnavailable ? (
+    (requiresEndpoint || personalSource) && !connectionUnavailable ? (
       <div className="space-y-3">
         {presentation !== "library" &&
           profiles.some(
@@ -415,9 +417,7 @@ export function ChatModelPicker({
         loading={(loadingModels && !hasCachedListing) || loadingProfiles}
         catalogRefreshing={loadingModels}
         applying={createProfile.isPending}
-        disabled={
-          loadingProfiles || profilesStatus === "failed" || !!secretReadError || !!loadingSecrets
-        }
+        disabled={connectionUnavailable}
         onProviderChange={(id) => {
           setProviderId(id);
           setPickedKey(null);
@@ -430,7 +430,7 @@ export function ChatModelPicker({
         }}
         credentialForm={requiresEndpoint ? null : credentialForm}
         failure={
-          profilesStatus === "failed" || secretReadError ? (
+          profilesStatus === "failed" || (!personalSource && secretReadError) ? (
             <p role="alert" className="text-destructive text-xs">
               {t("profilesUnavailable")}{" "}
               <Button
@@ -500,7 +500,7 @@ export function ChatModelPicker({
               id={panelId}
               className="animate-in fade-in space-y-4 pt-5 duration-150 motion-reduce:animate-none"
             >
-              {(profilesStatus === "failed" || secretReadError) && (
+              {(profilesStatus === "failed" || (!personalSource && secretReadError)) && (
                 <p role="alert" className="text-destructive text-xs">
                   {t("profilesUnavailable")}{" "}
                   <Button

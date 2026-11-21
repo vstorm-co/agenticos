@@ -7,9 +7,10 @@ import type { ProviderModel, ProfilesStatus } from "@/hooks/use-model-providers"
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 import type { SecretPurpose } from "@/types/secrets";
-import type { ModelProfile } from "@/types/providers";
+import type { ProviderInfo, ModelProfile } from "@/types/providers";
 import { providerMarkIn } from "@/test-utils/brand-marks";
 
+const providerCatalog: ProviderInfo[] = [];
 const secretRead = { isLoading: false, listError: null as Error | null };
 const listedProfiles = vi.fn<() => ModelProfile[]>(() => []);
 const listedSecrets = vi.fn<() => { id: string; purpose: string }[]>(() => []);
@@ -37,6 +38,7 @@ const held: { permissions: Permission[] } = { permissions: [] };
 vi.mock("@/hooks", () => ({
   useModelProviders: () => ({
     profiles: listedProfiles(),
+    catalog: providerCatalog,
     ...profileRead,
     refetchProfiles,
     createProfile: { mutateAsync, isPending: false },
@@ -68,6 +70,18 @@ vi.mock("@/hooks", () => ({
 vi.mock("@/components/vault/chatgpt-sign-in", () => ({
   InlineChatGPTSignIn: () => <p>ChatGPT sign-in form</p>,
 }));
+
+vi.mock("@/components/agents/add-model", async () => {
+  const actual = await vi.importActual<typeof import("@/components/agents/add-model")>(
+    "@/components/agents/add-model",
+  );
+  return {
+    ...actual,
+    AddModel: ({ fixedProviderId }: { fixedProviderId?: string }) => (
+      <div data-testid="connection-form">{fixedProviderId}</div>
+    ),
+  };
+});
 
 const purpose = (
   id: string,
@@ -119,6 +133,7 @@ async function typeModel(id: string) {
 }
 
 beforeEach(() => {
+  providerCatalog.length = 0;
   secretRead.isLoading = false;
   secretRead.listError = null;
   profileRead.isLoading = false;
@@ -905,3 +920,34 @@ it("applies a catalog model with the explicitly selected provider key", async ()
   );
   expect(onChange).toHaveBeenCalledWith("new-profile");
 });
+
+it.each(["form", "library"] as const)(
+  "keeps personal subscription setup independent of vault failures in %s mode",
+  async (presentation) => {
+    providerCatalog.push({
+      id: "subscription_accounts",
+      name: "Subscription accounts",
+      personal_gateway: true,
+      secret_kind: "api_key",
+      supports_base_url: false,
+      keyless: true,
+      apis: [],
+      native_api: null,
+    });
+    secretRead.listError = new Error("vault offline");
+    renderExpandedPicker(
+      <ChatModelPicker
+        presentation={presentation}
+        value={null}
+        agentModel={null}
+        onChange={vi.fn()}
+      />,
+    );
+    if (presentation === "form") {
+      await userEvent.click(screen.getByRole("combobox", { name: "Provider" }));
+      await userEvent.click(screen.getByRole("option", { name: "Claude Code (Pro, Max)" }));
+    } else await userEvent.click(screen.getByRole("button", { name: "Claude Code (Pro, Max)" }));
+    expect(screen.getByTestId("connection-form")).toHaveTextContent("subscription:claude");
+    expect(screen.queryByText(/could not be loaded/)).toBeNull();
+  },
+);

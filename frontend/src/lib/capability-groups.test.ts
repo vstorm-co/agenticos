@@ -28,6 +28,7 @@ it("puts work first, keeps installed harnesses together, and leaves tuning last"
   const groups = capabilityGroups(
     [
       entry("compaction"),
+      entry("thinking", "reasoning"),
       entry("coding_agent"),
       entry("sandbox"),
       entry("external_acp"),
@@ -46,6 +47,7 @@ it("puts work first, keeps installed harnesses together, and leaves tuning last"
     "advanced",
   ]);
   expect(groups[2]?.entries.map((item) => item.id)).toEqual(["coding_agent", "external_acp"]);
+  expect(groups.at(-1)?.entries.map((item) => item.id)).toEqual(["compaction", "thinking"]);
 });
 
 it("sorts enabled, then recommended, then names within the same group", () => {
