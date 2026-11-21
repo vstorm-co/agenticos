@@ -126,6 +126,7 @@ from app.schemas.agent import (
     MAX_CATEGORIES,
     MAX_TAGS,
     AgentCeiling,
+    AgentDetail,
     AgentDraftRevision,
     AgentRead,
     AgentTemplateCatalog,
@@ -1393,6 +1394,16 @@ class AgentRegistryService:
         """Whether this caller may publish this agent - `may_run`'s counterpart for publish."""
         return _may_change_system_agent(ctx, agent) and await resolve_access(
             self.db, ctx, agent, Perm.AGENTS_PUBLISH, resource_type=AGENT
+        )
+
+    async def detail_for(self, ctx: AuthContext, agent: Agent) -> AgentDetail:
+        """Add the caller's effective permissions to an already-authorized agent response."""
+        return AgentDetail.model_validate(agent).model_copy(
+            update={
+                "can_run": await self.may_run(ctx, agent),
+                "can_edit": await self.may_edit(ctx, agent),
+                "can_publish": await self.may_publish(ctx, agent),
+            }
         )
 
     async def _visible_scope(

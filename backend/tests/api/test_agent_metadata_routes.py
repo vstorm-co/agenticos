@@ -328,6 +328,9 @@ async def test_edit_grant_can_discard_to_the_latest_version_without_publishing(
     assert body["draft_revision"] == agent_draft_revision(published)
     assert body["current_version_id"] == str(agent.current_version_id)
     assert body["tags"] == ["retained"]
+    assert body["can_edit"] is True
+    assert body["can_run"] is True
+    assert body["can_publish"] is True
     assert read.await_args.kwargs["for_update"] is True
     assert newest.await_args.kwargs == {"agent_id": agent.id, "organization_id": _ORGANIZATION_ID}
     assert write.await_args.kwargs["update_data"] == {
