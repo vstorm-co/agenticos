@@ -42,7 +42,9 @@ import { ROUTES } from "@/lib/constants";
 import type { Suggestion } from "@/lib/suggestions-api";
 import { timeAgo } from "@/lib/utils";
 import { usePendingApprovals } from "@/hooks/use-pending-approvals";
+import { useWaitingChatQuestions } from "@/hooks/use-waiting-chat-questions";
 import { ApprovalsWaiting } from "./approvals-waiting";
+import { QuestionsWaiting } from "./questions-waiting";
 import { SuggestionRows } from "./suggestion-rows";
 
 type Filter = "all" | "urgent" | "watches" | "suggestions" | "done";
@@ -86,12 +88,14 @@ export function InboxPage() {
   // A step or a tool call standing still until somebody decides is as urgent as
   // anything here, so it leads the list wherever urgent things are shown.
   const pending = usePendingApprovals();
+  const questions = useWaitingChatQuestions();
   const approvals = pending.count;
   const isLoading = suggested.isLoading || pending.isLoading;
   const error = suggested.error ?? pending.error;
   const refetch = () => Promise.all([suggested.refetch(), pending.refetch()]);
-  const showsApprovals =
-    (filter === "all" || filter === "urgent") && !isLoading && !error && approvals > 0;
+  const showsUrgent = filter === "all" || filter === "urgent";
+  const showsApprovals = showsUrgent && !isLoading && !error && approvals > 0;
+  const showsQuestions = showsUrgent && (questions.items.length > 0 || !!questions.error);
 
   return (
     <div className="flex flex-1 flex-col space-y-4">
@@ -117,11 +121,15 @@ export function InboxPage() {
         }
       />
       <ListCard
-        fill={!showsApprovals && open.length === 0}
+        fill={!showsApprovals && !showsQuestions && open.length === 0}
         namedByPage
         title={t("title")}
         counted={
-          isLoading ? null : error ? "—" : t("waiting", { count: suggestions.length + approvals })
+          isLoading || questions.isLoading
+            ? null
+            : error || questions.error
+              ? "—"
+              : t("waiting", { count: suggestions.length + approvals + questions.count })
         }
         contentClassName="p-0"
         headerTour="inbox-filters"
@@ -184,10 +192,11 @@ export function InboxPage() {
           </>
         }
       >
+        {showsQuestions && <QuestionsWaiting questions={questions} />}
         {showsApprovals && <ApprovalsWaiting />}
         {filter === "done" ? (
           <Decided />
-        ) : isLoading ? (
+        ) : isLoading || (showsUrgent && questions.isLoading) ? (
           <LoadingState variant="skeleton-list" rows={3} className="p-5" />
         ) : error ? (
           <ErrorState
@@ -195,7 +204,7 @@ export function InboxPage() {
             cta={{ label: ts("retry"), onClick: () => void refetch() }}
           />
         ) : open.length === 0 ? (
-          !showsApprovals && <Nothing filter={filter} />
+          !showsApprovals && !showsQuestions && <Nothing filter={filter} />
         ) : (
           <SuggestionRows items={open} expandedDetails />
         )}

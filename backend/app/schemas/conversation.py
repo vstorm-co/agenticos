@@ -679,6 +679,23 @@ class ConversationList(BaseSchema):
     total: int
 
 
+class WaitingChatQuestion(BaseSchema):
+    """A pending question's location, without its private prompt or arguments."""
+
+    run_id: UUID
+    conversation_id: UUID
+    conversation_title: str | None
+    agent_name: str
+    expires_at: datetime
+
+
+class WaitingChatQuestionList(BaseSchema):
+    """One page of the questions the signed-in person can answer in chat."""
+
+    items: list[WaitingChatQuestion]
+    total: int
+
+
 class ChatReader(ChatPerson):
     """Somebody who has had a chat open, and when they last did."""
 

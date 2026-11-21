@@ -678,6 +678,7 @@ export const qk = {
     list: (orgId: string) => ["invitations", orgId] as const,
   },
   conversations: {
+    waitingQuestions: () => ["conversations", "waiting-questions"] as const,
     all: () => ["conversations"] as const,
     /**
      * One page of the sidebar, under the filters it was fetched with.

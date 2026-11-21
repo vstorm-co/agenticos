@@ -165,6 +165,8 @@ export interface ChatPrompt {
 interface ChatContainerProps {
   /** Keep the welcome screen out of a saved conversation's initial load. */
   requestedConversationId?: string | null;
+  /** A saved question opened from Inbox. */
+  requestedQuestionRunId?: string | null;
   /** Sent as soon as the socket is up, once per `id` (#2063). */
   prompt?: ChatPrompt | null;
   /** What an empty conversation shows instead of the generic suggestions. */
@@ -196,6 +198,7 @@ export interface PinnedPrompts {
 
 export function ChatContainer({
   requestedConversationId = null,
+  requestedQuestionRunId = null,
   prompt = null,
   emptyState,
   agentFixed = false,
@@ -501,6 +504,8 @@ export function ChatContainer({
     reportVisual,
   } = useChat({
     conversationId: currentConversationId,
+    requestedQuestionRunId:
+      currentConversationId === requestedConversationId ? requestedQuestionRunId : null,
     onConversationCreated: handleConversationCreated,
     onTurnSaved: handleTurnSaved,
     onTurnInterrupted: handleTurnInterrupted,

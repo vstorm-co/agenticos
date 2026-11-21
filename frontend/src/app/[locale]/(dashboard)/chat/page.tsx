@@ -12,8 +12,12 @@ import { startGoal } from "@/lib/onboarding-api";
 import { cn } from "@/lib/utils";
 
 export default function ChatPage() {
-  const example = startGoal(useSearchParams().get("example"));
-  const requestedConversationId = useSearchParams().get("id");
+  const params = useSearchParams();
+  const example = startGoal(params.get("example"));
+  const requestedConversationId = params.get("id");
+  // Sidebar navigation changes id in place; the Inbox link belongs to its
+  // original conversation, not the next one selected from the sidebar.
+  const [questionConversationId, questionRunId] = params.get("question")?.split(":") ?? [];
   // A consent started from the chat comes back here, and the outcome is in the
   // query string exactly as it is on the servers page.
   useMcpOAuthOutcome();
@@ -31,6 +35,9 @@ export default function ChatPage() {
         <PhoneChatBar />
         <ChatContainer
           requestedConversationId={requestedConversationId}
+          requestedQuestionRunId={
+            questionConversationId === requestedConversationId ? questionRunId : null
+          }
           emptyState={
             example
               ? (onPick) => <StartExample key={example} goal={example} onRun={onPick} />

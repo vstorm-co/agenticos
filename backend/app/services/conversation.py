@@ -11,7 +11,7 @@ import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable, Iterable, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID
 
@@ -35,6 +35,7 @@ from app.agents.failures import stored_failure_summary
 from app.agents.model_context import ModelContextCheck
 from app.agents.steering import STEER_PREFIX
 from app.core.background import spawn_after_commit
+from app.core.config import settings
 from app.core.exceptions import BadRequestError, ConcurrentChangeError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
@@ -72,10 +73,12 @@ from app.schemas.conversation import (
     MessageReplyRef,
     ToolCallComplete,
     ToolCallCreate,
+    WaitingChatQuestion,
+    WaitingChatQuestionList,
 )
 from app.schemas.conversation_share import AdminConversationList, AdminConversationRead
 from app.services import chat_room
-from app.services.access import AGENT, PROJECT, resolve_access, visible_resource_ids
+from app.services.access import AGENT, PROJECT, accessible_ids, resolve_access, visible_resource_ids
 from app.services.channels import membership as channel_membership
 from app.services.file_storage import delete_files_best_effort, delete_prefix_best_effort
 from app.services.generated_media import GeneratedMediaService
@@ -1247,6 +1250,42 @@ class ConversationService:
                 ChatReader(**ChatPerson.of(user).model_dump(), read_at=read_at)
                 for user, read_at in readers.get(conversation.id, [])
             ]
+
+    async def list_waiting_questions(
+        self, ctx: AuthContext, *, skip: int, limit: int
+    ) -> WaitingChatQuestionList:
+        """Read only what waits on this member, with no run-history or approval grant."""
+        user_id = ctx.subject_id
+        readable = await self.visible_project_ids(user_id, ctx.organization_id, reader=ctx)
+        projects = await project_repo.get_many(
+            self.db, readable, organization_id=ctx.organization_id
+        )
+        usable = await accessible_ids(
+            self.db, ctx, projects, Perm.PROJECTS_USE, resource_type=PROJECT
+        )
+        expiry = timedelta(hours=settings.QUESTION_EXPIRY_HOURS)
+        rows, total = await conversation_repo.waiting_chat_questions(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=user_id,
+            usable_project_ids=usable,
+            asked_since=datetime.now(UTC) - expiry,
+            skip=skip,
+            limit=limit,
+        )
+        return WaitingChatQuestionList(
+            items=[
+                WaitingChatQuestion(
+                    run_id=run_id,
+                    conversation_id=conversation_id,
+                    conversation_title=title,
+                    agent_name=agent,
+                    expires_at=asked_at + expiry,
+                )
+                for run_id, conversation_id, title, agent, asked_at in rows
+            ],
+            total=total,
+        )
 
     async def list_conversations(
         self,

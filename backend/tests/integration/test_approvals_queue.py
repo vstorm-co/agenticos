@@ -28,12 +28,15 @@ from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
+from app.db.models.conversation import Conversation
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.project import Project
 from app.db.models.user import User
 from app.repositories import agent_run_repo, voice_call_repo
 from app.repositories.agent_run import ApprovalFilters, ChatAsker
 from app.services.agent_runner import AgentRunnerService
 from app.services.approvals import ApprovalService
+from app.services.conversation import ConversationService
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -117,6 +120,80 @@ async def _approval(db, org: Organization, run: AgentRun, **overrides) -> ToolAp
 
 def _ctx(org: Organization, user: User) -> AuthContext:
     return AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.OWNER)
+
+
+async def test_only_the_person_asked_lists_live_web_questions_in_their_workspace(
+    db: AsyncSession,
+) -> None:
+    org, owner = await _org(db)
+    other_org, other = await _org(db)
+    agent, other_agent = await _agent(db, org), await _agent(db, other_org)
+    conversation = Conversation(organization_id=org.id, user_id=owner.id, title="Delivery")
+    other_conversation = Conversation(organization_id=other_org.id, user_id=owner.id)
+    db.add_all([conversation, other_conversation])
+    await db.flush()
+    now = datetime.now(UTC)
+    older = await _run(db, org, agent, started_by=owner)
+    newer = await _run(db, org, agent, started_by=owner)
+    expired = await _run(db, org, agent, started_by=owner)
+    workflow = await _run(db, org, agent, started_by=owner)
+    answered = await _run(db, org, agent, started_by=owner)
+    another_person = await _run(db, org, agent, started_by=other)
+    another_workspace = await _run(db, other_org, other_agent, started_by=owner)
+    for run in (older, newer, expired, workflow, answered, another_person, another_workspace):
+        run.status = RunStatus.AWAITING_ANSWER.value
+        run.ended_at = now - timedelta(minutes=2)
+        run.conversation_id = conversation.id
+        run.paused_state = {"questions": ["private-question-id"]}
+    newer.ended_at = now - timedelta(minutes=1)
+    expired.ended_at = now - timedelta(hours=25)
+    workflow.surface = RunSurface.WORKFLOW.value
+    answered.status = RunStatus.RUNNING.value
+    another_workspace.conversation_id = other_conversation.id
+    await db.flush()
+    service = ConversationService(db)
+    caller = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.MEMBER)
+
+    first = await service.list_waiting_questions(caller, skip=0, limit=1)
+    second = await service.list_waiting_questions(caller, skip=1, limit=1)
+
+    assert first.total == second.total == 2
+    assert [item.run_id for item in first.items + second.items] == [older.id, newer.id]
+    assert first.items[0].model_dump() == {
+        "run_id": older.id,
+        "conversation_id": conversation.id,
+        "conversation_title": "Delivery",
+        "agent_name": "Clerk",
+        "expires_at": now - timedelta(minutes=2) + timedelta(hours=24),
+    }
+    older.status = RunStatus.RUNNING.value
+    newer.status = RunStatus.CANCELLED.value
+    await db.flush()
+    assert (await service.list_waiting_questions(caller, skip=0, limit=1)).total == 0
+
+
+async def test_parked_project_question_is_hidden_after_losing_the_right_to_continue(
+    db: AsyncSession,
+) -> None:
+    org, owner = await _org(db)
+    agent = await _agent(db, org)
+    project = Project(organization_id=org.id, owner_user_id=owner.id, name="Delivery")
+    db.add(project)
+    await db.flush()
+    conversation = Conversation(organization_id=org.id, user_id=owner.id, project_id=project.id)
+    db.add(conversation)
+    await db.flush()
+    run = await _run(db, org, agent, started_by=owner)
+    run.status = RunStatus.AWAITING_ANSWER.value
+    run.conversation_id = conversation.id
+    run.ended_at = datetime.now(UTC)
+    run.paused_state = {"questions": ["ask"]}
+    await db.flush()
+
+    service = ConversationService(db)
+    assert (await service.list_waiting_questions(_ctx(org, owner), skip=0, limit=5)).total == 1
+    viewer = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.VIEWER)
+    assert (await service.list_waiting_questions(viewer, skip=0, limit=5)).total == 0
 
 
 async def _chat_run(

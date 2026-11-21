@@ -96,6 +96,7 @@ interface ConversationRef {
 
 interface UseChatOptions {
   conversationId?: string | null;
+  requestedQuestionRunId?: string | null;
   onConversationCreated?: (conversationId: string) => void;
   /**
    * An assistant turn reached the database.
@@ -179,8 +180,14 @@ class RunAnswerInterrupted extends Error {}
 export function useChat(options: UseChatOptions = {}) {
   const tErrors = useTranslations("errors");
 
-  const { conversationId, onConversationCreated, onTurnSaved, onTurnInterrupted, testing } =
-    options;
+  const {
+    conversationId,
+    requestedQuestionRunId,
+    onConversationCreated,
+    onTurnSaved,
+    onTurnInterrupted,
+    testing,
+  } = options;
   // Read at send time, like the model and the approval mode below.
   const testingRef = useRef<ChatTesting | undefined>(testing);
   useEffect(() => {
@@ -347,7 +354,7 @@ export function useChat(options: UseChatOptions = {}) {
   const [parkedQuestion, setParkedQuestion] = useState<{
     runId: string;
     calls: { toolCallId: string; count: number }[];
-    messageId: string;
+    messageId: string | null;
   } | null>(null);
   // Runs this hook has already put a parked question up for, as the approvals
   // ref above does for the same reason.
@@ -571,7 +578,7 @@ export function useChat(options: UseChatOptions = {}) {
 
   /** Put an agent's unanswered question back in front of its person (#2064). */
   const offerParkedQuestion = useCallback(
-    (asked: ParkedQuestion[], runId: string, messageId: string) => {
+    (asked: ParkedQuestion[], runId: string, messageId: string | null) => {
       questionOfferedForRef.current.add(runId);
       parkedQuestionRunRef.current = runId;
       liveQuestionRef.current = false;
@@ -2522,6 +2529,7 @@ export function useChat(options: UseChatOptions = {}) {
       answeringQuestionRef.current !== null
     )
       return;
+    const conversation = activeConversationId;
     const askedMessage = [...messages]
       .reverse()
       .find(
@@ -2532,16 +2540,29 @@ export function useChat(options: UseChatOptions = {}) {
           (message.runWaitingFor === "answer" ||
             (message.toolCalls ?? []).some((call) => call.status === "awaiting_answer")),
       );
-    if (askedMessage === undefined || askedMessage.runId === undefined) return;
-    const runId = askedMessage.runId;
+    const requested = conversation ? requestedQuestionRunId : null;
+    const runId = requested ?? askedMessage?.runId;
+    if (runId === undefined) return;
     if (questionOfferedForRef.current.has(runId) || terminalRunIdsRef.current.has(runId)) return;
     questionOfferedForRef.current.add(runId);
-    const conversation = activeConversationId;
     void (async () => {
       try {
-        const asked = await apiClient.get<ParkedQuestion[]>(`/runs/${runId}/questions`);
+        // An Inbox link works even when that run is outside the loaded transcript.
+        const path = `/runs/${encodeURIComponent(runId)}/questions`;
+        const asked =
+          requested && conversation
+            ? await apiClient.get<ParkedQuestion[]>(path, {
+                params: { conversation_id: conversation },
+              })
+            : await apiClient.get<ParkedQuestion[]>(path);
         if (asked.length === 0 || panelsBelongTo.current !== conversation) return;
-        offerParkedQuestion(asked, runId, askedMessage.id);
+        const message =
+          askedMessage?.runId === runId
+            ? askedMessage
+            : chatApi
+                .getState()
+                .messages.findLast((item) => item.role === "assistant" && item.runId === runId);
+        offerParkedQuestion(asked, runId, message?.id ?? null);
       } catch {
         // Quiet, like the approval restore above: the transcript still says the
         // step is waiting, and a toast over it buys nothing. Unmarked so the next
@@ -2555,6 +2576,8 @@ export function useChat(options: UseChatOptions = {}) {
     isProcessing,
     isConnected,
     activeConversationId,
+    requestedQuestionRunId,
+    chatApi,
     offerParkedQuestion,
   ]);
 
@@ -2788,8 +2811,9 @@ export function useChat(options: UseChatOptions = {}) {
       setPendingQuestions(null);
       setParkedQuestion(null);
       parkedQuestionRunRef.current = null;
+      const messageId = parked.messageId;
       const setStatus = (status: "running" | "awaiting_answer") => {
-        const messageId = parked.messageId;
+        if (messageId === null) return;
         for (const call of parked.calls) {
           updateToolCallPart(messageId, call.toolCallId, { status });
         }
@@ -2818,15 +2842,17 @@ export function useChat(options: UseChatOptions = {}) {
             reject,
             accepted: () => {
               if (!stillHere()) return;
+              void queryClient.invalidateQueries({ queryKey: qk.conversations.waitingQuestions() });
+              if (messageId === null) return;
               // This marker arrives only after the runner admits the answers.
               // The correlated result follows the whole continuation, which may
               // run for minutes or ask another question in a different message.
-              updateMessage(parked.messageId, (message) => ({
+              updateMessage(messageId, (message) => ({
                 ...message,
                 runWaitingFor: undefined,
               }));
               for (const call of parked.calls) {
-                updateToolCallPart(parked.messageId, call.toolCallId, { status: "completed" });
+                updateToolCallPart(messageId, call.toolCallId, { status: "completed" });
               }
             },
           };
@@ -2838,15 +2864,18 @@ export function useChat(options: UseChatOptions = {}) {
           });
         });
         if (!stillHere()) return;
-        updateMessage(parked.messageId, (message) => ({ ...message, runWaitingFor: undefined }));
-        for (const call of parked.calls) {
-          const settled = (resumed.settled ?? []).find(
-            (settledCall) => settledCall.tool_call_id === call.toolCallId,
-          );
-          updateToolCallPart(parked.messageId, call.toolCallId, {
-            status: "completed",
-            result: settled?.result,
-          });
+        void queryClient.invalidateQueries({ queryKey: qk.conversations.waitingQuestions() });
+        if (messageId !== null) {
+          updateMessage(messageId, (message) => ({ ...message, runWaitingFor: undefined }));
+          for (const call of parked.calls) {
+            const settled = (resumed.settled ?? []).find(
+              (settledCall) => settledCall.tool_call_id === call.toolCallId,
+            );
+            updateToolCallPart(messageId, call.toolCallId, {
+              status: "completed",
+              result: settled?.result,
+            });
+          }
         }
         showContinuation(
           resumed,
@@ -2871,11 +2900,11 @@ export function useChat(options: UseChatOptions = {}) {
           setPendingQuestions(null);
           liveQuestionRef.current = false;
           setPendingConnection(null);
-          abandonOpenCalls(parked.messageId);
-          const messageId = stream.started ? currentMessageIdRef.current : null;
-          if (messageId !== null) {
-            updateMessage(messageId, (message) => ({ ...message, isStreaming: false }));
-            abandonOpenCalls(messageId);
+          if (messageId !== null) abandonOpenCalls(messageId);
+          const streamedMessageId = stream.started ? currentMessageIdRef.current : null;
+          if (streamedMessageId !== null) {
+            updateMessage(streamedMessageId, (message) => ({ ...message, isStreaming: false }));
+            abandonOpenCalls(streamedMessageId);
           }
           if (stream.started)
             setDelegations((current) =>
@@ -2917,6 +2946,7 @@ export function useChat(options: UseChatOptions = {}) {
       updateMessage,
       showContinuation,
       abandonOpenCalls,
+      queryClient,
       onTurnInterrupted,
       tErrors,
       t,
@@ -3064,6 +3094,7 @@ export function useChat(options: UseChatOptions = {}) {
         useAuthStore.getState().user?.id === account;
       const dismiss = () => {
         queryClient.setQueryData(qk.runs.canStop(tenantId, stopAccountId, parked.runId), false);
+        void queryClient.invalidateQueries({ queryKey: qk.conversations.waitingQuestions() });
         if (parkedQuestion?.runId === parked.runId) {
           setParkedQuestion(null);
           parkedQuestionRunRef.current = null;
