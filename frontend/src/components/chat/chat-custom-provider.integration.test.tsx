@@ -119,7 +119,7 @@ async function mount(presentation: "form" | "library", provider: ProviderInfo) {
   } else {
     await userEvent.click(
       await screen.findByRole("button", {
-        name: new RegExp(provider.name.replace(/[()]/g, "\\$&")),
+        name: provider.name,
       }),
     );
   }
