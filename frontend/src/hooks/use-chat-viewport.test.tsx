@@ -429,3 +429,25 @@ it("attaches the viewport when a suspended transcript mounts after the conversat
   expect(scrolling.scrollTop).toBe(questionTop - 24);
   expect(view.getByRole("group")).toHaveFocus();
 });
+
+it("retains an explicitly revealed question anchor through native pre-click scrolling", () => {
+  const view = render(<Harness />);
+  const scrolling = view.getByTestId("scroll");
+  fireEvent.click(view.getByText("Reveal"));
+  const revealed = scrolling.scrollTop;
+  // Browser focus/scrollIntoView can reposition before pointer/click delivery.
+  scrolling.scrollTop = revealed - 255;
+  const question = view.container.querySelector<HTMLElement>("[data-question-pending]");
+  if (!question) throw new Error("Expected the pending question");
+  fireEvent.pointerDown(question);
+  fireEvent.click(question);
+  act(() => resized?.());
+  expect(scrolling.scrollTop).toBe(revealed);
+
+  // A deliberate reader gesture, unlike that synthetic movement, releases it.
+  fireEvent.wheel(scrolling, { deltaY: -100 });
+  scrolling.scrollTop = revealed - 100;
+  fireEvent.scroll(scrolling);
+  act(() => resized?.());
+  expect(scrolling.scrollTop).toBe(revealed - 100);
+});

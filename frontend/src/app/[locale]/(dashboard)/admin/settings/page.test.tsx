@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -135,22 +136,22 @@ describe("deployment settings loading", () => {
     expect(save).toHaveBeenCalledWith({ app_name: "Updated" }, expect.any(Object));
   });
 
-  it("keeps drafts across sections and discards them without saving", () => {
+  it("keeps drafts across sections and discards them without saving", async () => {
     settings = SAVED;
     loading = false;
     render(<DeploymentSettingsPage />, { wrapper: queryWrapper() });
-    expect(screen.getByRole("button", { name: /^Identity$/ })).toHaveAttribute(
-      "aria-current",
-      "page",
+    expect(screen.getByRole("tab", { name: /^Identity$/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
     );
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "New name" } });
-    fireEvent.click(screen.getByRole("button", { name: "Access & accounts" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Access & accounts" }));
     expect(screen.queryByLabelText("Name")).not.toBeVisible();
-    expect(screen.getByRole("button", { name: "Access & accounts" })).toHaveAttribute(
-      "aria-current",
-      "page",
+    expect(screen.getByRole("tab", { name: "Access & accounts" })).toHaveAttribute(
+      "aria-selected",
+      "true",
     );
-    fireEvent.click(screen.getByRole("button", { name: /^Identity$/ }));
+    await userEvent.click(screen.getByRole("tab", { name: /^Identity$/ }));
     expect(screen.getByLabelText("Name")).toHaveValue("New name");
     fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
     expect(screen.getByLabelText("Name")).toHaveValue("Acme");
@@ -158,19 +159,19 @@ describe("deployment settings loading", () => {
     expect(save).not.toHaveBeenCalled();
   });
 
-  it("saves edited fields from different sections in a single patch", () => {
+  it("saves edited fields from different sections in a single patch", async () => {
     settings = SAVED;
     loading = false;
     render(<DeploymentSettingsPage />, { wrapper: queryWrapper() });
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Across sections" } });
-    fireEvent.click(screen.getByRole("button", { name: "Access & accounts" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Access & accounts" }));
     fireEvent.click(screen.getByRole("switch", { name: "Personal organizations" }));
     fireEvent.click(screen.getByRole("button", { name: /^Save$/ }));
     expect(save).toHaveBeenCalledWith(
       { app_name: "Across sections", personal_organizations: false },
       expect.any(Object),
     );
-    fireEvent.click(screen.getByRole("button", { name: /^Updates & diagnostics$/ }));
+    await userEvent.click(screen.getByRole("tab", { name: /^Updates & diagnostics$/ }));
     expect(screen.getByText(/^Installed:/)).toBeVisible();
   });
 
@@ -183,14 +184,14 @@ describe("deployment settings loading", () => {
   });
 });
 
-it("guides setup from access settings and advances only when edited settings have saved", () => {
+it("guides setup from access settings and advances only when edited settings have saved", async () => {
   settings = SAVED;
   loading = false;
   const next = vi.fn();
   render(<DeploymentSettingsForm onContinue={next} />, { wrapper: queryWrapper() });
-  expect(screen.getByRole("button", { name: "Access & accounts" })).toHaveAttribute(
-    "aria-current",
-    "page",
+  expect(screen.getByRole("tab", { name: "Access & accounts" })).toHaveAttribute(
+    "aria-selected",
+    "true",
   );
   fireEvent.click(screen.getByRole("switch", { name: "Personal organizations" }));
   fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));

@@ -137,6 +137,13 @@ export function useChatViewport(options: ViewportOptions) {
         write(desired);
       }
     };
+    const lockReadingAnchor = () => {
+      // Pointer/click may arrive after the browser scrolls a focused control.
+      // Keep an existing lock until a deliberate reader gesture releases it.
+      if (!preserveAnchor || !anchor?.element.isConnected) read();
+      preserveAnchor = true;
+      resize();
+    };
     const onScroll = () => {
       const top = scrolling.scrollTop;
       if (writtenTop !== null && Math.abs(top - writtenTop) < 1) {
@@ -183,8 +190,7 @@ export function useChatViewport(options: ViewportOptions) {
         event.target instanceof Element &&
         event.target.closest("button, summary")
       ) {
-        preserveAnchor = true;
-        read();
+        lockReadingAnchor();
       }
     };
     const onPointer = (event: MouseEvent) => {
@@ -198,8 +204,7 @@ export function useChatViewport(options: ViewportOptions) {
         ((event.type === "pointerdown" && transcript.contains(event.target)) ||
           event.target.closest("button, summary, input, textarea"))
       ) {
-        preserveAnchor = true;
-        read();
+        lockReadingAnchor();
       }
     };
     const observer = new ResizeObserver(resize);

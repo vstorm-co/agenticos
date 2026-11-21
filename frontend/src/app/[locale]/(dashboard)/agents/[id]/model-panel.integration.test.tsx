@@ -409,6 +409,7 @@ it("keeps sharing and export available to a reader through More actions", async 
 
 it("defaults to the organization key and explains the restrictions when personal access is selected", async () => {
   await mount();
+  await userEvent.click(screen.getByText(/^Model access ·/));
   expect(await screen.findByRole("radio", { name: "Use the organization’s key" })).toBeChecked();
   await userEvent.click(screen.getByRole("radio", { name: "Each user connects their own key" }));
   expect(screen.getByRole("radio", { name: "Each user connects their own key" })).toBeChecked();
@@ -417,6 +418,7 @@ it("defaults to the organization key and explains the restrictions when personal
 it("does not let a viewer change the model credential mode", async () => {
   state.canEdit = false;
   await mount();
+  await userEvent.click(screen.getByText(/^Model access ·/));
   expect(
     await screen.findByRole("radio", { name: "Each user connects their own key" }),
   ).toBeDisabled();
@@ -426,6 +428,7 @@ it("does not ask a personal-key agent builder to connect an organization model k
   state.permissions = [Perm.agentsEdit];
   state.profiles = [{ ...MODEL_PROFILE, missing_key: true }];
   await mount();
+  await userEvent.click(screen.getByText(/^Model access ·/));
   expect(await screen.findByText(/no model yet/)).toBeInTheDocument();
   await userEvent.click(screen.getByRole("radio", { name: /Each user connects their own key/ }));
   expect(screen.queryByText(/no model yet/)).toBeNull();

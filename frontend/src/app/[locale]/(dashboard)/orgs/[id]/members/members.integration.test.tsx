@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import MembersPage from "./page";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
+import { DEFAULT_CHAT_HOME, type ConsoleExperience } from "@/lib/console-experience-api";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore, useOrgStore } from "@/stores";
 import { permissionsOf, ROLE_CATALOG } from "@/test-utils/role-catalog";
@@ -50,6 +51,19 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   permanentRedirect: vi.fn(),
 }));
+
+const CONSOLE_EXPERIENCE: ConsoleExperience = {
+  availability: DEFAULT_CHAT_HOME,
+  organization_defaults: {},
+  preferences: {},
+  effective: DEFAULT_CHAT_HOME,
+  reminders: {
+    availability: true,
+    organization_defaults: {},
+    preferences: {},
+    effective: { enabled: true, snooze_days: 1 },
+  },
+};
 
 const ME = "user-me";
 
@@ -100,6 +114,7 @@ function serve(
   configuration: Partial<Organization> = {},
 ) {
   vi.mocked(apiClient.get).mockImplementation((url: string) => {
+    if (url === "/users/me/console-experience") return Promise.resolve(CONSOLE_EXPERIENCE);
     if (url === "/roles/catalog") return Promise.resolve(ROLE_CATALOG);
     if (url.startsWith("/me/permissions"))
       return Promise.resolve({
@@ -241,6 +256,7 @@ describe("the members table's role control", () => {
     path.mockReturnValue(`/orgs/${URL_ORG}/members`);
     useOrgStore.setState({ activeOrgId: "org-1", refusedOrgIds: [] });
     vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === "/users/me/console-experience") return Promise.resolve(CONSOLE_EXPERIENCE);
       if (url === "/roles/catalog") return Promise.resolve(ROLE_CATALOG);
       if (url.startsWith("/me/permissions")) {
         const asked = useOrgStore.getState().activeOrgId;
@@ -303,6 +319,7 @@ describe("the members table's role control", () => {
     // Offering nothing and being unable to answer are the same pixels and a
     // different fact.
     vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === "/users/me/console-experience") return Promise.resolve(CONSOLE_EXPERIENCE);
       if (url === "/roles/catalog") return Promise.reject(new Error("nope"));
       if (url.startsWith("/me/permissions")) return Promise.resolve(permissionsOf("admin"));
       if (url === "/system-agents")
@@ -502,6 +519,7 @@ describe("organization settings tabs", () => {
     );
     const original = vi.mocked(apiClient.get).getMockImplementation()!;
     vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === "/users/me/console-experience") return Promise.resolve(CONSOLE_EXPERIENCE);
       if (url === "/assistant")
         return Promise.resolve({
           status: "ready",
