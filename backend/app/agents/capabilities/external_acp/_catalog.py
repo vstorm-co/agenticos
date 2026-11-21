@@ -24,7 +24,7 @@ class AcpChoice(BaseModel):
 
 
 class AcpCatalog(BaseModel):
-    configuration_policy: Literal["session", "cli"] = "session"
+    configuration_policy: Literal["session", "cli", "launch"] = "session"
     credentials: RuntimeCredentials | None = None
     refresh_pending: bool = False
     model_prefix: str | None = None
@@ -74,6 +74,23 @@ def _choices(value: object) -> list[AcpChoice]:
 
 def session_catalog(opened: Mapping[str, object]) -> AcpCatalog:
     catalog = AcpCatalog()
+    legacy = opened.get("models")
+    if isinstance(legacy, dict):
+        models = legacy.get("availableModels")
+        if not isinstance(models, list):
+            raise AcpError("The agent returned malformed legacy model settings")
+        choices = _choices(
+            [
+                {"value": item.get("modelId"), "name": item.get("name")}
+                if isinstance(item, dict)
+                else item
+                for item in models
+            ]
+        )
+        current = legacy.get("currentModelId")
+        if not isinstance(current, str) or current not in {choice.id for choice in choices}:
+            raise AcpError("The agent's current model is absent from its catalog")
+        return AcpCatalog(models_exposed=True, models=choices, current_model=current)
     options = opened.get("configOptions", [])
     if not isinstance(options, list):
         raise AcpError("The agent returned malformed session settings.")

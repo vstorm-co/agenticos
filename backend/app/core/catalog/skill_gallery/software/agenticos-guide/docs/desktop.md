@@ -862,8 +862,7 @@ absolute executable path using the **Cursor** template. It launches `agent acp`,
 requires the advertised `cursor_login` method and removes inherited
 `CURSOR_API_KEY` and `CURSOR_AUTH_TOKEN` overrides. Sign-in stays with Cursor;
 AgenticOS does not read token files, change Cursor settings or install its CLI.
-This template supports the CLI account, not an API-key registration. API-key
-isolation remains pending verification.
+This template supports the CLI account, not an API-key registration. The separate **Cursor API key** template is described [below](#native-account-controls-and-launch-models).
 
 Use `inspect_acp_agent` for session model choices and **External model ID** for an
 exact returned ID. An absent picker does not imply account eligibility. Usage is
@@ -931,7 +930,7 @@ Full local access is required; platform-tool forwarding is an explicit option de
 Real account login, credit limits, sign-out and restart/resume need acceptance
 tests. See [Vibe ACP setup](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).
 
-Mistral Vibe reports `configuration_policy=cli`: keep External model ID empty and choose the model through Vibe itself. AgenticOS refuses model overrides before protocol setup because the runtime may persist them as user defaults.
+Mistral Vibe reports `configuration_policy=launch`: choose an advertised External model ID. Desktop sets `VIBE_ACTIVE_MODEL` only in this child; it never invokes Vibe’s settings-writing model operation.
 
 ## Grok Build through ACP { #grok-acp }
 
@@ -939,13 +938,13 @@ Install Grok Build, complete `grok login` (or `grok login --device-auth`), and r
 
 AgenticOS requires the advertised `cached_token` method, rejects a runtime still advertising `xai.api_key`, and requests headless authentication. It neither imports token files nor falls back to a key or another login. Inspect models through `inspect_acp_agent`; account, gateway and plan settings determine availability and billing. This template does not promise that every Grok plan includes Build. Human questions use the live chat card; an empty final answer is an explicit failure.
 
-Re-register after changing accounts. API-key CLI mode is deferred because the vendor's authentication operation can replace saved CLI credentials; use the existing direct xAI model provider for API keys. Real-account login, quotas, cancellation and model access remain acceptance checks. See the [Grok CLI reference](https://docs.x.ai/build/cli/reference).
+Re-register after changing accounts. The separate **Grok API key** template isolates that credential from saved CLI accounts; see [native account controls](#native-account-controls-and-launch-models). Real-account login, quotas, cancellation and model access remain acceptance checks. See the [Grok CLI reference](https://docs.x.ai/build/cli/reference).
 
 ## Kimi Code through ACP { #kimi-acp }
 
 Install Kimi Code CLI, complete `kimi login`, and register the absolute `kimi` path using **Kimi Code**. The template launches `acp` and requires advertised `login` authentication. This operation checks CLI login readiness; AgenticOS does not open a login terminal or import token files. Missing or expired credentials stop the task without trying another method.
 
-Inspect choices with `inspect_acp_agent`. Keep External model ID empty and choose the model in Kimi itself; this template reports `configuration_policy=cli` and refuses model overrides. CLI settings can include custom providers with separate API billing, so a successful login does not establish which subscription pays for the selected model. Human questions, including Kimi's `AskUserQuestion` permission fallback, use the live chat card rather than tool approval.
+Choose an exact Kimi model ID from `inspect_acp_agent`. The source-checked launch host changes only its in-memory configuration; Kimi retains credentials, refresh and billing. Human questions still use the live chat card.
 
 Re-register after changing accounts. Real-account entitlement, quota, reconnect, cancellation and available models remain acceptance checks. This is delegated local execution; it forwards no AgenticOS platform tools by default. See [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).
 
@@ -953,7 +952,7 @@ Re-register after changing accounts. Real-account entitlement, quota, reconnect,
 
 Install a current Qwen Code CLI, run `qwen`, and use `/auth` to choose **Qwen Account with Subscription**. Register the absolute `qwen` path with **Qwen subscription**. The child launches `--acp --auth-type=qwen-subscription` and removes inherited `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` and `DASHSCOPE_API_KEY`. Unsupported CLI versions must be upgraded rather than replaced with an API-key fallback.
 
-This template does not call ACP `authenticate`: the current operation writes user authentication settings, while the advertised methods do not include subscription login. Qwen checks its own saved subscription credentials when opening the session. AgenticOS imports no tokens or OAuth client identity. Keep External model ID empty and choose the subscription model in Qwen; the template reports `configuration_policy=cli` and refuses overrides.
+This template does not call ACP `authenticate`, which can change the saved authentication choice. Qwen uses its own subscription login. An optional advertised model ID is passed through `--model` at launch and must be confirmed before inference.
 
 Qwen Plus/Pro subscription access is distinct from Alibaba Model Studio API keys and Coding/Token Plan endpoints. The discontinued legacy free OAuth allowance is not offered. Plans and quotas require real-account acceptance, alongside expiry/revocation, cancellation, reconnect and available models. Re-register after changing accounts. Platform-tool forwarding is an explicit option described [above](#runtime-platform-tools). See [Qwen authentication](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).
 
@@ -961,7 +960,7 @@ Qwen Plus/Pro subscription access is distinct from Alibaba Model Studio API keys
 
 Install Devin CLI, complete `devin auth login` and check `devin auth status`. Register its absolute `devin` path with **Devin**. The template launches `--permission-mode normal acp`, requires the advertised `devin-browser` method, and rejects extra cloud or permission-bypass flags. Credentials remain in the CLI; AgenticOS does not import them.
 
-This delegates to the local CLI, not the Devin Cloud task API. Inspect models with `inspect_acp_agent`; keep External model ID empty and choose the model in Devin. The template reports `configuration_policy=cli` until session-only model changes are verified. Account policies determine access, billing and enterprise CLI permission; no plan entitlement is promised.
+This delegates to the local CLI, not the Devin Cloud task API. An optional advertised model is passed through `--model` at launch and must be confirmed before inference. Account policies determine access and billing.
 
 Re-register after changing accounts. Login/expiry/revocation, quotas, models, multi-turn resume, cancellation and account replacement require real-account acceptance. Native human-input UI remains unverified. Scoped platform-tool forwarding is an explicit option described [above](#runtime-platform-tools). See [Devin ACP](https://docs.devin.ai/cli/acp/zed) and [commands](https://docs.devin.ai/cli/reference/commands).
 
@@ -1018,3 +1017,13 @@ Desktop runs `HermesACPAgent(session_manager=SessionManager())` in its own proce
 Each initiating member's private conversation gets a separate Hermes home, also bound to the agent, native folder, connection and registration revision. Shared or impersonated runs are refused. The first launch shows the exact home and local setup instructions. Set `HERMES_HOME` to that directory in your terminal and run the selected Python with `-m hermes_cli.main --profile default setup`; for Nous Portal use `-m hermes_cli.main --profile default auth add nous --type oauth`. Configure the model/provider there. No existing home, memory, skills or token files are imported.
 
 Hermes owns credentials, refresh, configured API/subscription billing and native tools. Login and a model catalog do not establish plan entitlement. Usage is unpriced. Stop the run before account changes and register again to invalidate continuations and select a fresh profile. Removing a registration does not delete vendor profile files; retire that home separately when its account is no longer needed. Native tools retain the explicitly approved full local access. Real-account checks are recorded separately in the PR.
+
+## Native account controls and launch models
+
+Under **Settings → Desktop app**, Cursor, Grok, Kimi, Devin and Vibe registrations offer account status, sign-in, reconnect, sign-out and cancellation. Reconnect signs out first. A native confirmation names the executable before mutation; all registrations of that CLI stop, saved continuations and consent are cleared, and new launches wait for the account process to stop. Login remains vendor-owned; codes and credential details never reach the backend. Vibe reports inherited environment keys explicitly and refuses to remove them.
+
+**Cursor API key** requires Desktop’s `CURSOR_API_KEY` and removes `CURSOR_AUTH_TOKEN`. **Grok API key** requires `XAI_API_KEY`, uses a private `GROK_HOME` without copied accounts or settings, and authenticates only as `xai.api_key`. Scoped session data survives process restarts; the CLI-owned `auth.json` is removed on exit and before reuse after a crash. Missing keys or refused authentication never select a saved login. Model discovery uses the same isolated credential path.
+
+Vibe, Kimi, Qwen and Devin model choices apply to the launched process (`configuration_policy=launch`), never to user defaults. The runtime must acknowledge the requested model before any prompt; mismatches and separate reasoning overrides are refused. Leave the model empty to retain the CLI default. Kimi selections require the Python-installed source revision `9ab1286b8fe4e6bcd116949a27ce5e0ac3389c82`; register its `kimi` launcher whose shebang names that environment’s Python. The owned host checks source fingerprints before loading it. A frozen or incompatible CLI is refused for model overrides.
+
+Update API and Desktop together. These controls and protocol tests do not verify real-account plan access, quota or billing; those acceptance tests remain deferred.

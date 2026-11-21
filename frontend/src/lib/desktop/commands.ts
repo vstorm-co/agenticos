@@ -703,6 +703,7 @@ export interface ExternalAgent {
     | "antigravity"
     | "antigravity_api_key"
     | "cursor"
+    | "cursor_api_key"
     | "cline"
     | "cline_api_key"
     | "qwen_subscription"
@@ -716,6 +717,7 @@ export interface ExternalAgent {
     | "devin"
     | "kimi"
     | "grok"
+    | "grok_api_key"
     | "mistral_vibe"
     | "opencode"
     | "opencode_go";
@@ -739,10 +741,12 @@ export function parseExternalAgents(value: unknown): ExternalAgent[] {
       provider !== "antigravity" &&
       provider !== "antigravity_api_key" &&
       provider !== "cursor" &&
+      provider !== "cursor_api_key" &&
       provider !== "cline" &&
       provider !== "cline_api_key" &&
       provider !== "mistral_vibe" &&
       provider !== "grok" &&
+      provider !== "grok_api_key" &&
       provider !== "kimi" &&
       provider !== "hermes" &&
       provider !== "muse" &&
@@ -833,4 +837,31 @@ export async function manageMuseAccount(
 
 export async function cancelMuseAccount(requestId: string): Promise<void> {
   await invokeShell("external_cancel_muse_account", { requestId });
+}
+
+export type CliAccountAction = "status" | "sign_in" | "reconnect" | "sign_out";
+export interface CliAccountStatus {
+  state: "signed_in" | "signed_out" | "environment_key" | "unknown";
+  signOutAvailable: boolean;
+}
+export function parseCliAccountStatus(value: unknown): CliAccountStatus {
+  const fields = record(value, "a CLI account status");
+  const state = fields.state;
+  if (
+    state !== "signed_in" &&
+    state !== "signed_out" &&
+    state !== "environment_key" &&
+    state !== "unknown"
+  )
+    throw new ShellError("malformed", "a CLI credential state");
+  return { state, signOutAvailable: field(fields, "signOutAvailable", isBoolean) };
+}
+export async function manageCliAccount(
+  id: string,
+  requestId: string,
+  action: CliAccountAction,
+): Promise<CliAccountStatus> {
+  return parseCliAccountStatus(
+    await invokeShell("external_cli_account", { id, requestId, action }),
+  );
 }

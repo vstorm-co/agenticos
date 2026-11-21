@@ -45,6 +45,33 @@ struct ConfigOption {
 }
 
 fn choices(value: &Value, category: &str) -> Result<(Option<String>, Vec<Choice>), String> {
+    if category == "model" && value.get("models").is_some() {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct LegacyModel {
+            model_id: String,
+            name: String,
+        }
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct LegacyModels {
+            current_model_id: String,
+            available_models: Vec<LegacyModel>,
+        }
+        let models: LegacyModels = serde_json::from_value(value["models"].clone())
+            .map_err(|_| "The agent returned malformed legacy models.")?;
+        return Ok((
+            Some(models.current_model_id),
+            models
+                .available_models
+                .into_iter()
+                .map(|model| Choice {
+                    value: model.model_id,
+                    name: model.name,
+                })
+                .collect(),
+        ));
+    }
     let selected = value["configOptions"].as_array().and_then(|options| {
         options
             .iter()
@@ -235,17 +262,16 @@ enum Target<'a> {
 /// conversation, and some CLIs choose their model themselves.
 fn readable_catalog(provider: crate::external_agents::Provider) -> bool {
     use crate::external_agents::Provider;
-    !crate::agent_session::cli_managed_models(provider)
-        && !matches!(
-            provider,
-            Provider::Hermes
-                | Provider::Pi
-                | Provider::PiInception
-                | Provider::PiDeepseek
-                | Provider::PiOpenrouter
-                | Provider::Muse
-                | Provider::MuseApiKey
-        )
+    !matches!(
+        provider,
+        Provider::Hermes
+            | Provider::Pi
+            | Provider::PiInception
+            | Provider::PiDeepseek
+            | Provider::PiOpenrouter
+            | Provider::Muse
+            | Provider::MuseApiKey
+    )
 }
 
 async fn probe(target: Target<'_>, directory: &Path) -> Result<Options, String> {
@@ -277,6 +303,11 @@ async fn probe(target: Target<'_>, directory: &Path) -> Result<Options, String> 
             command
         }
     };
+    let _key_profile = if let Target::External(registration) = target {
+        crate::agent_session::key_profile(&mut command, registration.provider).map_err(|refusal| refusal.message)?
+    } else {
+        None
+    };
     command
         .current_dir(directory)
         .env_remove("CLAUDE_CODE_EXECUTABLE")
@@ -304,7 +335,7 @@ async fn probe(target: Target<'_>, directory: &Path) -> Result<Options, String> 
                 if let Some(method) = crate::agent_session::login_method(registration.provider) {
                     advertised_login(&initialized, method)?;
                     let mut parameters = json!({"methodId":method});
-                    if method == "cached_token" {
+                    if matches!(method, "cached_token" | "xai.api_key") {
                         parameters["_meta"] = json!({"headless": true});
                     }
                     request(&mut input, &mut output, 2, "authenticate", parameters).await?;
@@ -472,17 +503,14 @@ mod tests {
             Provider::Cline,
             Provider::Grok,
             Provider::OpenCode,
+            Provider::Kimi,
+            Provider::Devin,
+            Provider::QwenSubscription,
+            Provider::MistralVibe,
         ] {
             assert!(readable_catalog(provider), "{provider:?}");
         }
-        for provider in [
-            Provider::Hermes,
-            Provider::Pi,
-            Provider::PiDeepseek,
-            Provider::Muse,
-            Provider::Kimi,
-            Provider::Devin,
-        ] {
+        for provider in [Provider::Hermes, Provider::Pi, Provider::PiDeepseek, Provider::Muse] {
             assert!(!readable_catalog(provider), "{provider:?}");
         }
     }

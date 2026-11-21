@@ -330,6 +330,7 @@ class NativeConversationModel(Model):
             resume_key=scope,
             platform_tools=True,
             custom_agent_id=self.registration_id,
+            runtime_model=self.native_model,
             # Hermes keeps one home per private conversation; other runtimes ignore it.
             state_scope=private_state_scope(deps),
             pi_key=key,

@@ -129,6 +129,7 @@ def build_acp_toolset(
             custom_agent_id=agent_id,
             pi_key=key,
             pi_model=model_id,
+            runtime_model=model_id,
             state_scope=private_state_scope(ctx.deps),
         )
         try:

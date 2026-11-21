@@ -10780,7 +10780,24 @@
           "waiting": "Warten auf die Anmeldung. Diese Seite geöffnet lassen.",
           "failed": "Kontovorgang nicht abgeschlossen. Native Bestätigung, CLI-Version und Umgebungsschlüssel prüfen und erneut versuchen."
         },
-        "piKeyHelp": "Pi 1.5.2 ist erforderlich. Die Vorlage erhält den gewählten Tresor-API-Schlüssel nur mit deinem eigenen Zugriff darauf. Wähle den passenden Pi-Schlüsselanbieter und eine genaue Modell-ID in der Agentenkonfiguration. Pi nutzt eine isolierte Konfiguration ohne gespeicherte Konten oder gefundene Erweiterungen. Der Schlüssel steht weder in Argumenten noch generierten Dateien. Native Werkzeuge haben vollen lokalen Zugriff; API-Kosten bleiben unbepreist."
+        "piKeyHelp": "Pi 1.5.2 ist erforderlich. Die Vorlage erhält den gewählten Tresor-API-Schlüssel nur mit deinem eigenen Zugriff darauf. Wähle den passenden Pi-Schlüsselanbieter und eine genaue Modell-ID in der Agentenkonfiguration. Pi nutzt eine isolierte Konfiguration ohne gespeicherte Konten oder gefundene Erweiterungen. Der Schlüssel steht weder in Argumenten noch generierten Dateien. Native Werkzeuge haben vollen lokalen Zugriff; API-Kosten bleiben unbepreist.",
+        "cursorApi": "Cursor API-Schlüssel",
+        "grokApi": "Grok API-Schlüssel",
+        "cliAccount": {
+          "status": "Konto prüfen",
+          "sign_in": "Anmelden",
+          "reconnect": "Konto erneut verbinden",
+          "sign_out": "Abmelden",
+          "cancel": "Abbrechen",
+          "waiting": "Schließen Sie den Vorgang im Anmeldefenster der CLI ab.",
+          "signed_in": "Die CLI meldet ein aktives Konto. Der Planzugang wurde nicht geprüft.",
+          "signed_out": "Die CLI ist abgemeldet.",
+          "unknown": "Die CLI meldete keinen bekannten Kontostatus.",
+          "environment_key": "Ein Umgebungsschlüssel ist aktiv. Entfernen Sie ihn zum Abmelden aus der Desktop-Umgebung.",
+          "openSignIn": "Anmeldung beim Anbieter öffnen",
+          "deviceCode": "Gerätecode",
+          "failed": "Der Kontovorgang wurde nicht abgeschlossen. Prüfen Sie die native Bestätigung und die CLI-Installation."
+        }
       }
     },
     "welcome": {

@@ -808,6 +808,7 @@ async def run_local_task(
         fresh_session=fresh_session,
         root=root if folder else None,
         custom_agent_id=custom_agent_id,
+        runtime_model=model,
         pi_key=pi_key,
         pi_model=model if pi_key is not None else None,
         platform_tools=platform_tools,

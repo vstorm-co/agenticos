@@ -31,6 +31,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Add isolated Cursor and Grok CLI API-key templates, native account controls for Cursor, Grok, Kimi, Devin and Vibe, and process-only model selection for Vibe, Kimi, Qwen and Devin. Account changes stop affected runtimes before replacing credentials; launch models must be acknowledged before inference.
+
 - Sign in to your own Claude, ChatGPT, Antigravity, Grok, Kimi, Devin and Meta AI subscriptions under Settings → Profile, and run models on the new **Subscription accounts** provider with them. A bundled `subscription-gateway` service runs a separate CLIProxyAPI process for each person in each organization, only the person's own chats spend their accounts, and leaving an organization deletes the sign-ins.
 
 - Choose any registered Desktop ACP agent, including Antigravity, Cursor, Cline, Grok, OpenCode and Hermes, as the conversation runtime, with the models of its own sign-in read by Desktop and an `EXTERNAL_NATIVE_CONVERSATION_ENABLED` switch (on by default) to withhold it (#3177).

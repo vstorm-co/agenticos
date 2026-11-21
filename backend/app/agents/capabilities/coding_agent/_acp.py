@@ -169,7 +169,9 @@ class DevicePipe:
         pi_key: NativeRuntimeKey | None = None,
         pi_model: str | None = None,
         platform_tools: bool = False,
+        runtime_model: str | None = None,
     ) -> None:
+        self._runtime_model = runtime_model
         self._platform_tools = platform_tools
         self._pi_model = pi_model
         self._pi_key = pi_key
@@ -182,7 +184,7 @@ class DevicePipe:
         self.auth_method: str | None = None
         self.runtime_name: str | None = None
         self.model_prefix: str | None = None
-        self.configuration_policy: Literal["session", "cli"] = "session"
+        self.configuration_policy: Literal["session", "cli", "launch"] = "session"
         self.protocol: Literal["acp", "pi_rpc"] = "acp"
         self.refresh_catalog: bool = False
         self._device = device
@@ -193,6 +195,8 @@ class DevicePipe:
 
     async def open(self) -> None:
         args: dict[str, Any] = {"agent": self._harness}
+        if self._runtime_model is not None:
+            args["runtime_model"] = self._runtime_model
         if self._state_scope is not None:
             args["state_scope"] = self._state_scope
         if self._platform_tools:
@@ -259,7 +263,7 @@ class DevicePipe:
             "configuration_policy",
             "cli" if opened.get("auth_method") == "browser-auth" else "session",
         )
-        if not isinstance(policy, str) or policy not in {"session", "cli"}:
+        if not isinstance(policy, str) or policy not in {"session", "cli", "launch"}:
             await self.close()
             raise AcpError("The Desktop app requires unsupported configuration policy.")
         self.configuration_policy = policy
@@ -272,6 +276,7 @@ class DevicePipe:
                 "cline",
                 "browser-auth",
                 "cached_token",
+                "xai.api_key",
                 "login",
                 "devin-browser",
                 "muse-cli",
@@ -845,6 +850,9 @@ async def _configure_session(
 
 def current_session_model(opened: Mapping[str, object] | None) -> str | None:
     """The session's advertised model, without guessing from a global default."""
+    legacy = (opened or {}).get("models")
+    if isinstance(legacy, dict) and isinstance(legacy.get("currentModelId"), str):
+        return legacy["currentModelId"]
     options = (opened or {}).get("configOptions")
     if isinstance(options, list):
         for option in options:
@@ -889,6 +897,8 @@ async def initialize_session(
                     "Grok account mode requires API-key authentication to be disabled. Check its version and configuration; no prompt was submitted."
                 )
             parameters["_meta"] = {"headless": True}
+        if auth_method == "xai.api_key":
+            parameters["_meta"] = {"headless": True}
         await conversation.request("authenticate", parameters)
     return initialized
 
@@ -911,7 +921,7 @@ async def run_task(
     auth_method: str | None = None,
     model_prefix: str | None = None,
     credential_probe: CredentialProbe | None = None,
-    configuration_policy: Literal["session", "cli"] = "session",
+    configuration_policy: Literal["session", "cli", "launch"] = "session",
     remember: Callable[[str], Awaitable[None]] | None = None,
     steering: SteeringInbox | None = None,
     runtime_questions: RuntimeQuestionsCallback | None = None,
@@ -991,9 +1001,20 @@ async def run_task(
                     raise AcpError(
                         "This registration requires an opencode-go primary model. Inspect its catalog and set an exact Go model ID; no other provider was selected."
                     )
-            configured = await _configure_session(
-                conversation, session_id, opened, model=model, effort=effort
-            )
+            if configuration_policy == "launch":
+                if effort is not None:
+                    raise AcpError(
+                        "This runtime selects its model at launch; separate reasoning overrides are not supported"
+                    )
+                if model is not None and current_session_model(opened) != model:
+                    raise AcpError(
+                        "The runtime did not confirm the requested launch model. No prompt was sent"
+                    )
+                configured = opened or {}
+            else:
+                configured = await _configure_session(
+                    conversation, session_id, opened, model=model, effort=effort
+                )
             if model_prefix is not None and current_session_model(configured) != selected:
                 raise AcpError(
                     "The agent did not confirm the selected Go model. No prompt was submitted."

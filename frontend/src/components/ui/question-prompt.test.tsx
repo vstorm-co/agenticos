@@ -325,3 +325,26 @@ it("localizes synthetic native controls without changing the protocol label", as
     { answer: "", selected: ["approved-wire-value"], skipped: false },
   ]);
 });
+
+it("focuses pointer choices without the browser scrolling them between press and release", async () => {
+  const focus = vi.spyOn(HTMLElement.prototype, "focus");
+  const onComplete = vi.fn();
+  render(
+    <QuestionPrompt
+      questions={[
+        { question: "Format?", options: [{ label: "List" }], allowCustom: false },
+        { question: "Length?", options: [{ label: "Short" }], allowCustom: false },
+      ]}
+      onComplete={onComplete}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: /1\s*List/ }));
+  expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+  await userEvent.click(screen.getByRole("button", { name: /1\s*Short/ }));
+  await userEvent.click(screen.getByRole("button", { name: "Send answers" }));
+  expect(onComplete).toHaveBeenCalledWith([
+    { answer: "", selected: ["List"], skipped: false },
+    { answer: "", selected: ["Short"], skipped: false },
+  ]);
+  focus.mockRestore();
+});

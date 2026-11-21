@@ -38,6 +38,7 @@ interface ProviderCapabilities {
   native_api: "chat" | "responses" | null;
   regions?: ("eu" | "eea" | "global")[];
   api_from_model?: boolean;
+  personal_gateway?: boolean;
 }
 
 const state = {
@@ -1921,4 +1922,32 @@ it("does not offer the native decision API for a chat profile", async () => {
   expect(screen.getByRole("option", { name: "Responses" })).toBeVisible();
   expect(screen.getByRole("option", { name: "Chat Completions" })).toBeVisible();
   expect(screen.queryByRole("option", { name: "Decisions" })).toBeNull();
+});
+
+it("offers the person's subscription gateway without a key and links its sign-in settings", async () => {
+  state.purposes = [];
+  state.secrets = [];
+  state.catalog = [
+    capabilities("subscription_accounts", "Subscription accounts", { personal_gateway: true }),
+  ];
+  state.models = [{ id: "account-model", name: "Account model" }];
+  state.createProfile.mutateAsync.mockResolvedValue({
+    id: "personal",
+    provider: "subscription_accounts",
+    model: "account-model",
+    chat_capable: true,
+  });
+  mount();
+  await pickProvider("Subscription accounts");
+  expect(screen.getByRole("link", { name: "Settings → Profile" })).toHaveAttribute(
+    "href",
+    "/settings/profile",
+  );
+  expect(screen.queryByRole("button", { name: "Store a key" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByLabelText("Model"));
+  await userEvent.click(screen.getByRole("option", { name: /Account model/ }));
+  await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+  expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining({ provider: "subscription_accounts", secret_id: null }),
+  );
 });

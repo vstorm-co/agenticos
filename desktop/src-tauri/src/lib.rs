@@ -1692,6 +1692,7 @@ pub fn run() {
             local_work::local_files,
             local_work::local_file,
             agent_session::accounts::external_muse_account,
+            agent_session::accounts::external_cli_account,
             agent_session::accounts::external_cancel_muse_account,
             external_agents::external_agents,
             external_agents::external_save_agent,

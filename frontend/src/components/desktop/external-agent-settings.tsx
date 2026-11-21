@@ -1,5 +1,6 @@
 "use client";
 
+import { CliAccountControls } from "./cli-account-controls";
 import { MuseAccountControls } from "./muse-account-controls";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useState } from "react";
@@ -35,6 +36,9 @@ export function ExternalAgentSettings() {
               <span className="block truncate font-medium">{agent.name}</span>
               <code className="text-muted-foreground block truncate text-xs">{agent.id}</code>
             </span>
+            {["cursor", "grok", "kimi", "devin", "mistral_vibe"].includes(agent.provider) && (
+              <CliAccountControls id={agent.id} />
+            )}
             {(agent.provider === "muse" || agent.provider === "muse_api_key") && (
               <MuseAccountControls id={agent.id} keyOnly={agent.provider === "muse_api_key"} />
             )}
@@ -95,10 +99,12 @@ export function ExternalAgentSettings() {
                 selected !== "antigravity" &&
                 selected !== "antigravity_api_key" &&
                 selected !== "cursor" &&
+                selected !== "cursor_api_key" &&
                 selected !== "cline" &&
                 selected !== "cline_api_key" &&
                 selected !== "mistral_vibe" &&
                 selected !== "grok" &&
+                selected !== "grok_api_key" &&
                 selected !== "kimi" &&
                 selected !== "hermes" &&
                 selected !== "muse" &&
@@ -122,10 +128,12 @@ export function ExternalAgentSettings() {
                 antigravity: "Antigravity",
                 antigravity_api_key: t("antigravityApi"),
                 cursor: "Cursor",
+                cursor_api_key: t("cursorApi"),
                 cline: "Cline",
                 cline_api_key: t("clineApi"),
                 mistral_vibe: "Mistral Vibe",
                 grok: "Grok",
+                grok_api_key: t("grokApi"),
                 kimi: "Kimi Code",
                 hermes: "Hermes",
                 muse: "Muse",
@@ -153,7 +161,7 @@ export function ExternalAgentSettings() {
                         ? '["--permission-mode","normal","acp"]'
                         : selected === "qwen_subscription"
                           ? '["--acp","--auth-type=qwen-subscription"]'
-                          : selected === "grok"
+                          : selected === "grok" || selected === "grok_api_key"
                             ? '["--no-auto-update","agent","stdio"]'
                             : selected === "mistral_vibe" || selected === "hermes"
                               ? "[]"
@@ -188,6 +196,7 @@ export function ExternalAgentSettings() {
             <option value="kimi">Kimi Code</option>
             {/* i18n-exempt: product name */}
             <option value="grok">Grok</option>
+            <option value="grok_api_key">{t("grokApi")}</option>
             {/* i18n-exempt: product name */}
             <option value="mistral_vibe">Mistral Vibe</option>
             {/* i18n-exempt: product name */}
@@ -195,6 +204,7 @@ export function ExternalAgentSettings() {
             <option value="cline_api_key">{t("clineApi")}</option>
             {/* i18n-exempt: product name */}
             <option value="cursor">Cursor</option>
+            <option value="cursor_api_key">{t("cursorApi")}</option>
             {/* i18n-exempt: product names */}
             <option value="opencode">OpenCode</option>
             {/* i18n-exempt: product names */}

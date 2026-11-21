@@ -241,6 +241,133 @@ fn qwen_subscription_environment(command: &mut tokio::process::Command) {
     }
 }
 
+/// A vendor-owned key store scoped to this child, never the person's saved login.
+pub(crate) struct KeyModeHome(std::path::PathBuf, bool);
+impl Drop for KeyModeHome {
+    fn drop(&mut self) {
+        if self.1 {
+            let _ = std::fs::remove_file(self.0.join("auth.json"));
+        } else {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+}
+
+fn key_mode_home() -> Result<KeyModeHome, Refusal> {
+    let path = std::env::temp_dir().join(format!("agenticos-native-{}", uuid::Uuid::new_v4()));
+    let builder = std::fs::DirBuilder::new();
+    #[cfg(unix)]
+    let builder = {
+        use std::os::unix::fs::DirBuilderExt;
+        let mut builder = builder;
+        builder.mode(0o700);
+        builder
+    };
+    builder
+        .create(&path)
+        .map_err(|_| Refusal::new("denied", "Could not create a private runtime profile."))?;
+    Ok(KeyModeHome(path, false))
+}
+
+fn private_key_directory(path: &Path) -> Result<(), Refusal> {
+    std::fs::create_dir_all(path)
+        .map_err(|_| Refusal::new("denied", "Could not create private Grok session storage."))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))
+            .map_err(|_| Refusal::new("denied", "Could not restrict Grok session storage."))?;
+    }
+    Ok(())
+}
+
+fn kimi_launch(program: &Path) -> Result<(PathBuf, KeyModeHome), Refusal> {
+    use std::io::Read;
+    #[cfg(windows)]
+    if program
+        .file_stem()
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("kimi"))
+    {
+        if let Some(python) = program
+            .parent()
+            .map(|directory| directory.join("python.exe"))
+            .filter(|path| path.is_file())
+        {
+            let directory = key_mode_home()?;
+            std::fs::write(
+                directory.0.join("host.py"),
+                include_str!("../../runtime/kimi_session.py"),
+            )
+            .map_err(|_| Refusal::new("denied", "Could not prepare the Kimi session host."))?;
+            return Ok((python, directory));
+        }
+    }
+    let mut prefix = Vec::new();
+    std::fs::File::open(program)
+        .and_then(|file| file.take(4096).read_to_end(&mut prefix))
+        .map_err(|_| Refusal::new("denied", "Could not read the registered Kimi launcher."))?;
+    let python = std::str::from_utf8(&prefix).ok().and_then(|text| text.lines().next())
+        .and_then(|line| line.strip_prefix("#!")).map(str::trim).map(PathBuf::from)
+        .filter(|path| path.is_absolute() && path.is_file() && path.file_name().is_some_and(|name| name.to_string_lossy().starts_with("python")))
+        .ok_or_else(|| Refusal::new("denied", "Session model selection requires the documented Python-installed Kimi CLI; its launcher must name its interpreter."))?;
+    let directory = key_mode_home()?;
+    std::fs::write(
+        directory.0.join("host.py"),
+        include_str!("../../runtime/kimi_session.py"),
+    )
+    .map_err(|_| Refusal::new("denied", "Could not prepare the Kimi session host."))?;
+    Ok((python, directory))
+}
+
+pub(crate) fn key_profile(
+    command: &mut tokio::process::Command,
+    provider: crate::external_agents::Provider,
+) -> Result<Option<KeyModeHome>, Refusal> {
+    if provider != crate::external_agents::Provider::GrokApiKey {
+        return Ok(None);
+    }
+    let home = key_mode_home()?;
+    command.env("GROK_HOME", &home.0);
+    Ok(Some(home))
+}
+
+fn api_key_environment(
+    command: &mut tokio::process::Command,
+    provider: crate::external_agents::Provider,
+    key: Option<&std::ffi::OsStr>,
+) -> Result<(), Refusal> {
+    let key = key
+        .and_then(std::ffi::OsStr::to_str)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| {
+            Refusal::new(
+                "denied",
+                "This API-key template requires its key in the Desktop environment. No saved login was selected.",
+            )
+        })?;
+    match provider {
+        crate::external_agents::Provider::CursorApiKey => {
+            command
+                .env_remove("CURSOR_AUTH_TOKEN")
+                .env("CURSOR_API_KEY", key)
+                .env("NO_OPEN_BROWSER", "1");
+        }
+        crate::external_agents::Provider::GrokApiKey => {
+            command
+                .env_remove("GROK_CODE_XAI_API_KEY")
+                .env_remove("GROK_AUTH_PROVIDER_COMMAND")
+                .env("XAI_API_KEY", key);
+        }
+        _ => {
+            return Err(Refusal::new(
+                "denied",
+                "This registration does not accept an environment key.",
+            ))
+        }
+    }
+    Ok(())
+}
+
 fn grok_account_environment(command: &mut tokio::process::Command) {
     command
         .env_remove("XAI_API_KEY")
@@ -339,6 +466,17 @@ pub(crate) fn provider_environment(
     if provider == crate::external_agents::Provider::QwenSubscription {
         qwen_subscription_environment(command);
     }
+    if matches!(
+        provider,
+        crate::external_agents::Provider::CursorApiKey | crate::external_agents::Provider::GrokApiKey
+    ) {
+        let variable = if provider == crate::external_agents::Provider::CursorApiKey {
+            "CURSOR_API_KEY"
+        } else {
+            "XAI_API_KEY"
+        };
+        api_key_environment(command, provider, std::env::var_os(variable).as_deref())?;
+    }
     if provider == crate::external_agents::Provider::Grok {
         grok_account_environment(command);
     }
@@ -356,6 +494,8 @@ pub(crate) fn provider_environment(
 struct Keys<'a> {
     pi: Option<&'a pi_keys::Prepared>,
     gemini: Option<&'a GeminiKey>,
+    model: Option<&'a str>,
+    grok_home: Option<&'a Path>,
 }
 
 /// A vault Gemini key the server exported for one Antigravity key-template launch.
@@ -385,10 +525,13 @@ pub(crate) fn login_method(provider: crate::external_agents::Provider) -> Option
     match provider {
         crate::external_agents::Provider::Antigravity => Some("oauth-personal"),
         crate::external_agents::Provider::AntigravityApiKey => Some("gemini-api-key"),
-        crate::external_agents::Provider::Cursor => Some("cursor_login"),
+        crate::external_agents::Provider::Cursor | crate::external_agents::Provider::CursorApiKey => {
+            Some("cursor_login")
+        }
         crate::external_agents::Provider::Cline => Some("cline"),
         crate::external_agents::Provider::MistralVibe => Some("browser-auth"),
         crate::external_agents::Provider::Grok => Some("cached_token"),
+        crate::external_agents::Provider::GrokApiKey => Some("xai.api_key"),
         crate::external_agents::Provider::Kimi => Some("login"),
         crate::external_agents::Provider::Devin => Some("devin-browser"),
         crate::external_agents::Provider::Muse => Some("muse-cli"),
@@ -397,14 +540,11 @@ pub(crate) fn login_method(provider: crate::external_agents::Provider) -> Option
     }
 }
 
-/// CLIs that persist session model changes as user defaults choose their model themselves.
-pub(crate) fn cli_managed_models(provider: crate::external_agents::Provider) -> bool {
+pub(crate) fn launch_models(provider: crate::external_agents::Provider) -> bool {
+    use crate::external_agents::Provider;
     matches!(
         provider,
-        crate::external_agents::Provider::MistralVibe
-            | crate::external_agents::Provider::Kimi
-            | crate::external_agents::Provider::QwenSubscription
-            | crate::external_agents::Provider::Devin
+        Provider::MistralVibe | Provider::Kimi | Provider::QwenSubscription | Provider::Devin
     )
 }
 
@@ -448,6 +588,8 @@ fn spawn_with_pi(
         Keys {
             pi: selected,
             gemini: None,
+            model: None,
+            grok_home: None,
         },
         None,
     )
@@ -462,6 +604,25 @@ fn spawn_with_bridge(
     keys: Keys<'_>,
     bridge: Option<&crate::coding_runtime::Runtime>,
 ) -> Result<Session, Refusal> {
+    let kimi = if provider == crate::external_agents::Provider::Kimi && keys.model.is_some() {
+        Some(kimi_launch(program)?)
+    } else {
+        None
+    };
+    let launch_program = kimi.as_ref().map_or(program, |(python, _)| python.as_path());
+    let mut launch_args = if let Some((_, script)) = &kimi {
+        vec![script.0.join("host.py").to_string_lossy().into_owned()]
+    } else {
+        args.to_vec()
+    };
+    if let Some(model) = keys.model {
+        if matches!(
+            provider,
+            crate::external_agents::Provider::Devin | crate::external_agents::Provider::QwenSubscription
+        ) {
+            launch_args.splice(0..0, ["--model".to_owned(), model.to_owned()]);
+        }
+    }
     let mut command = if let Some(runtime) = bridge {
         let mut command = tokio::process::Command::new(&runtime.node);
         command
@@ -473,13 +634,13 @@ fn spawn_with_bridge(
                     "acp"
                 },
             )
-            .arg(program);
+            .arg(launch_program);
         command
     } else {
-        tokio::process::Command::new(program)
+        tokio::process::Command::new(launch_program)
     };
     command
-        .args(args)
+        .args(launch_args)
         .current_dir(cwd)
         // The adapter must use the same managed CLI that supplied its options.
         .env_remove("CLAUDE_CODE_EXECUTABLE")
@@ -491,12 +652,39 @@ fn spawn_with_bridge(
         .stderr(Stdio::piped())
         .kill_on_drop(true);
     provider_environment(&mut command, provider, keys.gemini)?;
+    if let Some(model) = keys.model {
+        if provider == crate::external_agents::Provider::MistralVibe {
+            command.env("VIBE_ACTIVE_MODEL", model);
+        }
+        if provider == crate::external_agents::Provider::Kimi {
+            command.env_remove("KIMI_MODEL_NAME").env("AGENTICOS_KIMI_MODEL", model);
+        }
+    }
     if let Some(path_env) = path_env {
         command.env("PATH", path_env);
     }
     if let Some(selected) = keys.pi {
         selected.apply(&mut command);
     }
+    let key_profile = if let Some(path) = keys.grok_home {
+        private_key_directory(path)?;
+        // A crash may have left a CLI-owned key. A new launch always needs the
+        // explicit environment key, never yesterday's persisted credential.
+        match std::fs::remove_file(path.join("auth.json")) {
+            Ok(()) => (),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+            Err(_) => {
+                return Err(Refusal::new(
+                    "denied",
+                    "Could not clear the previous Grok key credential.",
+                ))
+            }
+        }
+        command.env("GROK_HOME", path);
+        Some(KeyModeHome(path.to_path_buf(), true))
+    } else {
+        key_profile(&mut command, provider)?
+    };
     let cleanup = keys.pi.map(|selected| selected.agent_dir.clone());
     let mut child = local_work::spawn_tree(command)?;
     let stdin = child.0.stdin().take().expect("piped");
@@ -560,6 +748,8 @@ fn spawn_with_bridge(
         let _ = read_stdout.await;
         let _ = read_stderr.await;
         let code = status.ok().and_then(|status| status.code()).unwrap_or(-1);
+        drop(kimi);
+        drop(key_profile);
         if let Some(directory) = cleanup {
             let _ = tokio::fs::remove_dir_all(directory).await;
         }
@@ -606,6 +796,8 @@ struct OpenArgs {
     pi_key: Option<pi_keys::SelectedKey>,
     #[serde(default)]
     gemini_key: Option<GeminiKey>,
+    #[serde(default)]
+    runtime_model: Option<String>,
     #[serde(default)]
     platform_tools: bool,
     #[serde(default)]
@@ -764,6 +956,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         accepted_protocols,
         pi_key,
         gemini_key,
+        runtime_model,
         platform_tools,
         state_scope,
         root,
@@ -775,6 +968,14 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         return Err(Refusal::new(
             "denied",
             "Native ACP agents require an explicitly selected full-access folder mode.",
+        ));
+    }
+    if runtime_model.as_ref().is_some_and(|model| {
+        model.is_empty() || model.len() > 256 || model.starts_with('-') || model.chars().any(char::is_control)
+    }) {
+        return Err(Refusal::new(
+            "denied",
+            "Choose a model ID of at most 256 characters without control characters.",
         ));
     }
     // The adapter runs as the person, so only a folder granted full access, or
@@ -808,9 +1009,11 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
             crate::external_agents::Provider::Antigravity
                 | crate::external_agents::Provider::AntigravityApiKey
                 | crate::external_agents::Provider::Cursor
+                | crate::external_agents::Provider::CursorApiKey
                 | crate::external_agents::Provider::Cline
                 | crate::external_agents::Provider::MistralVibe
                 | crate::external_agents::Provider::Grok
+                | crate::external_agents::Provider::GrokApiKey
                 | crate::external_agents::Provider::Devin
                 | crate::external_agents::Provider::Kimi
                 | crate::external_agents::Provider::QwenSubscription
@@ -934,6 +1137,12 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         None
     };
     let _changing = crate::external_agents::CHANGING.lock().await;
+    if app.state::<accounts::AccountFlows>().is_busy() {
+        return Err(Refusal::new(
+            "denied",
+            "Finish the native account operation before starting another runtime.",
+        ));
+    }
     let settings = crate::settings::current(app);
     let key = resume_key
         .filter(|key| key.len() == 64 && key.bytes().all(|b| b.is_ascii_hexdigit()))
@@ -960,6 +1169,24 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     }
     // The person can revoke or narrow the grant while the launch dialog is open.
     authorized_root(app, args, &root.to_string_lossy())?;
+    let grok_home = if key.is_some()
+        && external
+            .as_ref()
+            .is_some_and(|entry| entry.provider == crate::external_agents::Provider::GrokApiKey)
+    {
+        use sha2::{Digest, Sha256};
+        let identity =
+            serde_json::to_vec(&key).map_err(|_| Refusal::new("denied", "Could not scope Grok sessions."))?;
+        Some(
+            app.path()
+                .app_data_dir()
+                .map_err(|_| Refusal::new("denied", "Could not open native session storage."))?
+                .join("grok-key-runtime")
+                .join(format!("{:x}", Sha256::digest(identity))),
+        )
+    } else {
+        None
+    };
     let mut session = if let Some(external) = &external {
         if !crate::settings::current(app).external_agents.contains(external) {
             return Err(Refusal::new("denied", "The ACP registration changed. Start again."));
@@ -1041,6 +1268,8 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
                     Keys {
                         pi: Some(&prepared),
                         gemini: None,
+                        model: None,
+                        grok_home: None,
                     },
                     runtime.as_ref().filter(|_| platform_tools),
                 );
@@ -1083,6 +1312,8 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
                     Keys {
                         pi: None,
                         gemini: gemini_key.as_ref(),
+                        model: runtime_model.as_deref(),
+                        grok_home: grok_home.as_deref(),
                     },
                     runtime.as_ref().filter(|_| platform_tools),
                 )?
@@ -1111,8 +1342,8 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     drop(slot);
     let auth_method = external.as_ref().and_then(|item| login_method(item.provider));
     let runtime_name = external.as_ref().map(|item| item.name.as_str());
-    let configuration_policy = if external.as_ref().is_some_and(|item| cli_managed_models(item.provider)) {
-        "cli"
+    let configuration_policy = if external.as_ref().is_some_and(|item| launch_models(item.provider)) {
+        "launch"
     } else {
         "session"
     };
@@ -1358,24 +1589,46 @@ fn take_builtin(map: &mut HashMap<String, Session>, id: crate::local_agents::Age
 }
 
 /// Revocation or replacement discards every process using this local registration.
-pub async fn close_external(app: &AppHandle, id: &str) {
+pub async fn close_external(app: &AppHandle, id: &str) -> Result<(), String> {
     let sessions = app.state::<Sessions>();
-    remove_external(&mut *sessions.map.lock().await, id);
+    let outputs = remove_external(&mut *sessions.map.lock().await, id);
+    for output in outputs {
+        await_stopped(&output).await?;
+    }
+    Ok(())
 }
 
-fn remove_external(map: &mut HashMap<String, Session>, id: &str) {
+async fn await_stopped(output: &Arc<Output>) -> Result<(), String> {
+    tokio::time::timeout(Duration::from_secs(15), async {
+        loop {
+            let changed = output.changed.notified();
+            tokio::pin!(changed);
+            changed.as_mut().enable();
+            if output.with(|kept| kept.exit.is_some()) {
+                break;
+            }
+            changed.await;
+        }
+    })
+    .await
+    .map_err(|_| "The previous runtime has not stopped; credentials were not changed.".to_owned())
+}
+
+fn remove_external(map: &mut HashMap<String, Session>, id: &str) -> Vec<Arc<Output>> {
+    let mut outputs = Vec::new();
     map.retain(|_, session| {
         let matches = session.external_id.as_deref() == Some(id);
         if matches {
             if let Some(kill) = session.kill.take() {
                 let _ = kill.send(());
             }
+            outputs.push(Arc::clone(&session.output));
         }
         !matches
     });
+    outputs
 }
 
-/// Stop every agent: the server is gone, so nothing is listening to them.
 pub async fn close_all(app: &AppHandle) {
     let sessions = app.state::<Sessions>();
     let mut map = sessions.map.lock().await;
@@ -1975,5 +2228,70 @@ mod tests {
         assert_eq!(history.len(), 128);
         let saved = serde_json::to_string(&history).unwrap();
         assert_eq!(serde_json::from_str::<Vec<Remembered>>(&saved).unwrap().len(), 128);
+    }
+}
+
+#[cfg(test)]
+mod key_mode_tests {
+    use super::*;
+    use crate::external_agents::Provider;
+    use std::ffi::OsStr;
+
+    #[test]
+    fn key_templates_require_a_key_and_remove_account_overrides() {
+        for provider in [Provider::CursorApiKey, Provider::GrokApiKey] {
+            let mut command = tokio::process::Command::new("unused");
+            assert!(api_key_environment(&mut command, provider, None).is_err());
+            assert!(api_key_environment(&mut command, provider, Some(OsStr::new("  "))).is_err());
+            api_key_environment(&mut command, provider, Some(OsStr::new("explicit-test-key"))).unwrap();
+            let environment: std::collections::HashMap<_, _> = command.as_std().get_envs().collect();
+            if provider == Provider::CursorApiKey {
+                assert_eq!(environment.get(OsStr::new("CURSOR_AUTH_TOKEN")), Some(&None));
+                assert_eq!(
+                    environment.get(OsStr::new("CURSOR_API_KEY")),
+                    Some(&Some(OsStr::new("explicit-test-key")))
+                );
+            } else {
+                assert_eq!(environment.get(OsStr::new("GROK_CODE_XAI_API_KEY")), Some(&None));
+                assert_eq!(environment.get(OsStr::new("GROK_AUTH_PROVIDER_COMMAND")), Some(&None));
+                assert_eq!(
+                    environment.get(OsStr::new("XAI_API_KEY")),
+                    Some(&Some(OsStr::new("explicit-test-key")))
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn retained_grok_profile_removes_credentials_but_keeps_session_data() {
+        let temporary = key_mode_home().unwrap();
+        let retained = KeyModeHome(temporary.0.clone(), true);
+        private_key_directory(&retained.0).unwrap();
+        std::fs::write(retained.0.join("auth.json"), "vendor-written-key").unwrap();
+        std::fs::write(retained.0.join("session.json"), "continuation").unwrap();
+        drop(retained);
+        assert!(!temporary.0.join("auth.json").exists());
+        assert_eq!(
+            std::fs::read_to_string(temporary.0.join("session.json")).unwrap(),
+            "continuation"
+        );
+    }
+
+    #[test]
+    fn grok_key_profiles_are_private_unique_and_removed_on_drop() {
+        let first = key_mode_home().unwrap();
+        let second = key_mode_home().unwrap();
+        assert_ne!(first.0, second.0);
+        assert!(!first.0.join("auth.json").exists());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(&first.0).unwrap().permissions().mode() & 0o777, 0o700);
+        }
+        std::fs::write(first.0.join("auth.json"), "vendor-written-key").unwrap();
+        let path = first.0.clone();
+        drop(first);
+        assert!(!path.exists());
+        assert!(second.0.exists());
     }
 }

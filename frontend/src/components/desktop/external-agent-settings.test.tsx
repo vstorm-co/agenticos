@@ -429,3 +429,27 @@ it("registers Hermes with an explicit Python environment and owned foreground se
     parseExternalAgents([{ ...registration, provider: "hermes", args: [] }])[0]?.provider,
   ).toBe("hermes");
 });
+
+it.each([
+  ["cursor_api_key", "Cursor API key", ["acp"]],
+  ["grok_api_key", "Grok API key", ["--no-auto-update", "agent", "stdio"]],
+])(
+  "registers the isolated %s template without accepting a credential in its configuration",
+  async (provider, label, args) => {
+    mount();
+    await userEvent.selectOptions(screen.getByLabelText("Setup template"), provider);
+    await userEvent.type(screen.getByLabelText("Absolute executable path"), registration.program);
+    await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("external_save_agent", {
+        registration: {
+          provider,
+          id: provider.replaceAll("_", "-"),
+          name: label,
+          program: registration.program,
+          args,
+        },
+      }),
+    );
+  },
+);

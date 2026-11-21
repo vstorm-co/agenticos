@@ -49,7 +49,9 @@ async def test_primary_streaming_resumes_the_exact_native_receipt_and_sends_only
             custom_agent_id: str | None,
             state_scope: str | None,
             pi_key: object,
+            runtime_model: str | None,
         ) -> None:
+            assert runtime_model is None
             assert platform_tools and state_scope is not None and pi_key is None
             assert (acp_harness, custom_agent_id) == (launched, registration)
             self.scope = resume_key

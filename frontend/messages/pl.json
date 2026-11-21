@@ -14553,7 +14553,24 @@
           "waiting": "Czekam na zakończenie logowania. Zostaw tę stronę otwartą.",
           "failed": "Operacja konta nie została ukończona. Sprawdź potwierdzenie natywne, wersję CLI i klucz środowiskowy, a następnie spróbuj ponownie."
         },
-        "piKeyHelp": "Wymagane jest Pi 1.5.2. Szablon otrzymuje wybrany klucz API ze skarbca tylko wtedy, gdy masz do niego niezależny dostęp. W konfiguracji agenta wybierz zgodnego dostawcę Pi z kluczem i dokładny identyfikator modelu. Pi używa izolowanej konfiguracji bez zapisanych kont i wykrytych rozszerzeń. Klucz nie trafia do argumentów ani generowanych plików. Narzędzia natywne mają pełny dostęp lokalny, a koszt API pozostaje nieznany."
+        "piKeyHelp": "Wymagane jest Pi 1.5.2. Szablon otrzymuje wybrany klucz API ze skarbca tylko wtedy, gdy masz do niego niezależny dostęp. W konfiguracji agenta wybierz zgodnego dostawcę Pi z kluczem i dokładny identyfikator modelu. Pi używa izolowanej konfiguracji bez zapisanych kont i wykrytych rozszerzeń. Klucz nie trafia do argumentów ani generowanych plików. Narzędzia natywne mają pełny dostęp lokalny, a koszt API pozostaje nieznany.",
+        "cursorApi": "Klucz API Cursor",
+        "grokApi": "Klucz API Grok",
+        "cliAccount": {
+          "status": "Sprawdź konto",
+          "sign_in": "Zaloguj się",
+          "reconnect": "Połącz konto ponownie",
+          "sign_out": "Wyloguj się",
+          "cancel": "Anuluj",
+          "waiting": "Dokończ operację konta w oknie logowania CLI.",
+          "signed_in": "CLI zgłasza aktywne konto. Dostęp w ramach planu nie został sprawdzony.",
+          "signed_out": "CLI jest wylogowane.",
+          "unknown": "CLI nie podało rozpoznawanego stanu konta.",
+          "environment_key": "Aktywny jest klucz ze środowiska. Aby się wylogować, usuń go ze środowiska Desktop.",
+          "openSignIn": "Otwórz logowanie dostawcy",
+          "deviceCode": "Kod urządzenia",
+          "failed": "Operacja konta nie została zakończona. Sprawdź natywne potwierdzenie i instalację CLI."
+        }
       }
     },
     "quickAsk": {

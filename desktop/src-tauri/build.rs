@@ -72,6 +72,7 @@ const COMMANDS: &[&str] = &[
     "external_agents",
     "external_save_agent",
     "external_muse_account",
+    "external_cli_account",
     "external_cancel_muse_account",
     "external_remove_agent",
     "external_agent_options",

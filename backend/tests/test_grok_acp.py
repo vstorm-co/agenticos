@@ -142,3 +142,30 @@ async def test_grok_human_question_or_empty_answer_is_not_success(
             for m in computer.agent.seen
         )
     assert computer.ops[-1] == "agent.close"
+
+
+async def test_grok_key_mode_negotiates_the_explicit_key_without_cached_login(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class KeyComputer(Computer):
+        async def call(
+            self, session_id: object, op: str, args: dict[str, object], *, timeout: float
+        ) -> dict[str, object]:
+            result = await super().call(session_id, op, args, timeout=timeout)
+            if op == "agent.open":
+                result.update(auth_method="xai.api_key", runtime_name="Grok API key")
+            return result
+
+    computer = KeyComputer(GrokAgent(methods=["xai.api_key", "cached_token"]))
+    monkeypatch.setattr(workspace_module._hub, "call", computer.call)
+    result = json.loads(
+        await ExternalAcp("grok-key", model_id="account-model")
+        .get_toolset()
+        .tools["run_acp_agent"]
+        .function(_ctx(_local_workspace(), []), "Inspect")
+    )
+    assert result["outcome"] == "completed"
+    auth = [message for message in computer.agent.seen if message.get("method") == "authenticate"]
+    assert [message["params"] for message in auth] == [
+        {"methodId": "xai.api_key", "_meta": {"headless": True}}
+    ]

@@ -1,5 +1,5 @@
 ---
-source_sha: "9887014f4046"
+source_sha: "594c58e1d30b"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -872,8 +872,7 @@ bezwzględną ścieżkę programu za pomocą szablonu **Cursor**. Uruchamia on
 `agent acp`, wymaga reklamowanej metody `cursor_login` i usuwa odziedziczone
 `CURSOR_API_KEY` oraz `CURSOR_AUTH_TOKEN`. Logowanie pozostaje po stronie Cursor;
 AgenticOS nie odczytuje plików tokenów, nie zmienia ustawień i nie instaluje CLI.
-Szablon obsługuje konto CLI, a nie rejestrację klucza API. Izolacja klucza API
-wymaga dalszej weryfikacji.
+Szablon obsługuje konto CLI, a nie rejestrację klucza API. Osobny szablon **Klucz API Cursor** opisano [poniżej](#native-account-controls-and-launch-models).
 
 `inspect_acp_agent` zwraca modele sesji; **ID modelu zewnętrznego** przyjmuje
 dokładne ID z wyniku. Brak pola wyboru nie potwierdza uprawnień konta. Użycie jest
@@ -941,7 +940,7 @@ logowanie przeglądarkowe, a nie delegowane logowanie na zdalnym hoście. Wymaga
 jest pełny dostęp lokalny; przekazywanie narzędzi platformy jest [osobną opcją](#runtime-platform-tools). Logowanie, limity, wylogowanie i wznowienie wymagają odbioru na koncie.
 Zobacz [konfigurację Vibe ACP](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).
 
-Mistral Vibe zgłasza `configuration_policy=cli`: pozostaw puste ID modelu zewnętrznego i wybierz model w Vibe. AgenticOS odmawia zmiany przed rozpoczęciem protokołu, ponieważ runtime może zapisać ją jako ustawienie domyślne użytkownika.
+Mistral Vibe zgłasza `configuration_policy=launch`: wybierz reklamowane ID modelu zewnętrznego. Desktop ustawia `VIBE_ACTIVE_MODEL` tylko dla procesu potomnego, bez operacji zapisującej domyślny model Vibe.
 
 ## Grok Build przez ACP { #grok-acp }
 
@@ -949,13 +948,13 @@ Zainstaluj Grok Build, wykonaj `grok login` (lub `grok login --device-auth`) i z
 
 AgenticOS wymaga reklamowanej metody `cached_token`, odrzuca runtime nadal oferujący `xai.api_key` i żąda logowania bez interakcji. Nie importuje plików tokenów ani nie przełącza się na klucz lub inne logowanie. Modele sprawdzisz przez `inspect_acp_agent`; dostępność i opłaty zależą od konta, gatewaya oraz planu. Szablon nie obiecuje dostępu do Build w każdym planie Grok. Pytania do użytkownika pojawiają się na czacie; pusta odpowiedź końcowa jest jawnym błędem.
 
-Po zmianie konta zarejestruj program ponownie. Tryb klucza API w CLI pozostaje odroczony, ponieważ operacja logowania dostawcy może zastąpić zapisane poświadczenia CLI; do kluczy API służy istniejący bezpośredni provider modeli xAI. Logowanie, limity, anulowanie i dostęp do modeli na prawdziwym koncie pozostają warunkami odbioru. Zobacz [dokumentację Grok CLI](https://docs.x.ai/build/cli/reference).
+Osobny szablon **Klucz API Grok** izoluje klucz od zapisanych kont CLI; zobacz [natywne kontrolki kont](#native-account-controls-and-launch-models).
 
 ## Kimi Code przez ACP { #kimi-acp }
 
 Zainstaluj Kimi Code CLI, wykonaj `kimi login` i zarejestruj bezwzględną ścieżkę `kimi`, wybierając **Kimi Code**. Szablon uruchamia `acp` i wymaga reklamowanej metody `login`. Operacja sprawdza gotowość logowania CLI; AgenticOS nie otwiera terminala logowania ani nie importuje tokenów. Brak lub wygaśnięcie poświadczeń zatrzymuje zadanie bez próbowania innej metody.
 
-Opcje sprawdzisz przez `inspect_acp_agent`. Zostaw External model ID puste i wybierz model w Kimi; szablon raportuje `configuration_policy=cli` i odrzuca nadpisanie modelu. Ustawienia CLI mogą obejmować własnych dostawców z osobnym rozliczaniem API, więc udane logowanie nie ustala, która subskrypcja płaci za model. Pytania do człowieka, w tym wariant uprawnień `AskUserQuestion`, trafiają do karty na czacie zamiast uzyskiwać odpowiedź przez zgodę na narzędzie.
+Wybierz dokładne ID modelu Kimi z `inspect_acp_agent`. Host sprawdzający kod źródłowy zmienia tylko konfigurację w pamięci; poświadczenia, odświeżanie i rozliczenia pozostają po stronie Kimi. Pytania nadal trafiają do karty na czacie.
 
 Po zmianie konta zarejestruj program ponownie. Uprawnienia, limity, ponowne połączenie, anulowanie i modele na prawdziwym koncie pozostają warunkami odbioru. To delegowane wykonanie lokalne domyślnie bez przekazywania narzędzi platformy AgenticOS. Zobacz [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).
 
@@ -963,7 +962,7 @@ Po zmianie konta zarejestruj program ponownie. Uprawnienia, limity, ponowne poł
 
 Zainstaluj aktualne Qwen Code CLI, uruchom `qwen` i przez `/auth` wybierz **Qwen Account with Subscription**. Zarejestruj bezwzględną ścieżkę `qwen`, wybierając **Subskrypcja Qwen**. Proces potomny uruchamia `--acp --auth-type=qwen-subscription` i usuwa odziedziczone `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` oraz `DASHSCOPE_API_KEY`. Nieobsługiwane wersje CLI wymagają aktualizacji zamiast przełączenia na klucz API.
 
-Szablon nie wywołuje ACP `authenticate`: bieżąca operacja zapisuje ustawienia logowania użytkownika, a reklamowane metody nie obejmują logowania subskrypcji. Qwen sprawdza własne zapisane poświadczenia podczas otwierania sesji. AgenticOS nie importuje tokenów ani tożsamości klienta OAuth. Zostaw External model ID puste i wybierz model subskrypcji w Qwen; szablon raportuje `configuration_policy=cli` i odrzuca nadpisania.
+Szablon nie wywołuje ACP `authenticate`, które może zmienić zapisany sposób logowania. Qwen korzysta z własnego konta subskrypcji. Opcjonalne reklamowane ID modelu trafia do `--model` przy starcie i musi zostać potwierdzone przed inferencją.
 
 Subskrypcje Qwen Plus/Pro są odrębne od kluczy API Alibaba Model Studio i endpointów Coding/Token Plan. Wycofany darmowy limit OAuth nie jest oferowany. Plany, limity, wygasanie i cofnięcie logowania, anulowanie, ponowne połączenie oraz modele wymagają odbioru na prawdziwym koncie. Po zmianie konta zarejestruj program ponownie. Przekazywanie narzędzi platformy jest [osobną opcją](#runtime-platform-tools). Zobacz [logowanie Qwen](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).
 
@@ -971,7 +970,7 @@ Subskrypcje Qwen Plus/Pro są odrębne od kluczy API Alibaba Model Studio i endp
 
 Zainstaluj Devin CLI, wykonaj `devin auth login` i sprawdź `devin auth status`. Zarejestruj bezwzględną ścieżkę `devin`, wybierając **Devin**. Szablon uruchamia `--permission-mode normal acp`, wymaga reklamowanej metody `devin-browser` i odrzuca dodatkowe flagi chmurowe lub pomijające zgody. Poświadczenia pozostają w CLI; AgenticOS ich nie importuje.
 
-To delegowanie do lokalnego CLI, nie API zadań Devin Cloud. Modele sprawdzisz przez `inspect_acp_agent`; zostaw External model ID puste i wybierz model w Devin. Szablon raportuje `configuration_policy=cli` do czasu weryfikacji zmian dotyczących wyłącznie sesji. Zasady konta określają dostęp, rozliczanie i firmowe uprawnienie CLI; nie obiecujemy uprawnień konkretnego planu.
+To delegowanie do lokalnego CLI, nie API zadań Devin Cloud. Opcjonalny model z katalogu trafia do `--model` przy starcie i musi zostać potwierdzony przed inferencją. Zasady konta określają dostęp i rozliczenia.
 
 Po zmianie konta zarejestruj program ponownie. Logowanie, wygasanie, cofnięcie zgody, limity, modele, wznowienie, anulowanie i zmiana konta wymagają odbioru na prawdziwym koncie. Natywny interfejs pytań pozostaje niezweryfikowany. Przekazywanie narzędzi platformy jest [osobną opcją](#runtime-platform-tools). Zobacz [Devin ACP](https://docs.devin.ai/cli/acp/zed) i [polecenia](https://docs.devin.ai/cli/reference/commands).
 
@@ -1028,3 +1027,13 @@ Desktop uruchamia `HermesACPAgent(session_manager=SessionManager())` we własnym
 Każda prywatna rozmowa inicjującego użytkownika ma osobny katalog Hermesa, powiązany również z agentem, folderem, połączeniem i rewizją rejestracji. Rozmowy współdzielone i podszywanie się są odrzucane. Pierwszy start pokazuje katalog oraz lokalną instrukcję konfiguracji. Ustaw `HERMES_HOME` na ten katalog i uruchom wybrany Python z `-m hermes_cli.main --profile default setup`; dla Nous Portal użyj `-m hermes_cli.main --profile default auth add nous --type oauth`. Ustaw tam model i dostawcę. Istniejące katalogi, pamięć, umiejętności i pliki tokenów nie są importowane.
 
 Hermes zarządza poświadczeniami, odświeżaniem, rozliczaniem API/subskrypcji i własnymi narzędziami. Logowanie i katalog modeli nie potwierdzają uprawnień planu. Koszt pozostaje nieznany. Przed zmianą konta zatrzymaj zadanie i zarejestruj środowisko ponownie, aby unieważnić wznowienia i wybrać nowy profil. Usunięcie rejestracji nie usuwa plików profilu dostawcy; usuń katalog osobno po zakończeniu używania konta. Natywne narzędzia zachowują jawnie zatwierdzony pełny dostęp lokalny. Testy kont są opisane osobno w PR.
+
+## Natywne kontrolki kont i modele przy starcie { #native-account-controls-and-launch-models }
+
+W **Ustawienia → Aplikacja Desktop** rejestracje Cursor, Grok, Kimi, Devin i Vibe udostępniają stan konta, logowanie, ponowne połączenie, wylogowanie i anulowanie. Ponowne połączenie najpierw wylogowuje konto. Natywne potwierdzenie wskazuje program przed zmianą; wszystkie rejestracje tego CLI są zatrzymywane, wznowienia i zgody usuwane, a nowe starty czekają na zakończenie procesu konta. Logowanie pozostaje po stronie dostawcy; kody i dane poświadczeń nie trafiają do backendu. Vibe jawnie wskazuje klucze środowiskowe i odmawia ich usuwania.
+
+**Klucz API Cursor** wymaga `CURSOR_API_KEY` w środowisku Desktop i usuwa `CURSOR_AUTH_TOKEN`. **Klucz API Grok** wymaga `XAI_API_KEY`, korzysta z prywatnego `GROK_HOME` bez kopiowania kont i ustawień oraz uwierzytelnia się wyłącznie jako `xai.api_key`. Dane sesji w swoim zakresie przetrwają restart procesu; plik `auth.json` dostawcy jest usuwany po zakończeniu i przed ponownym użyciem po awarii. Brak klucza lub odmowa logowania nie wybiera zapisanego konta. Odczyt modeli korzysta z tej samej izolacji poświadczeń.
+
+Wybór modelu Vibe, Kimi, Qwen i Devin dotyczy uruchamianego procesu (`configuration_policy=launch`), a nie ustawień domyślnych użytkownika. Runtime musi potwierdzić model przed promptem; niezgodność i osobne nadpisanie poziomu rozumowania są odrzucane. Puste ID zachowuje domyślny model CLI. Wybór modelu Kimi wymaga instalacji Python ze źródeł w rewizji `9ab1286b8fe4e6bcd116949a27ce5e0ac3389c82`; zarejestruj launcher `kimi`, którego shebang wskazuje Python tego środowiska. Własny host sprawdza odciski źródeł przed uruchomieniem. Binarny lub niezgodny CLI nie przyjmie nadpisania modelu.
+
+Aktualizuj API i Desktop razem. Te kontrolki i testy protokołu nie potwierdzają uprawnień rzeczywistych kont, limitów ani rozliczeń; te testy pozostają odłożone.

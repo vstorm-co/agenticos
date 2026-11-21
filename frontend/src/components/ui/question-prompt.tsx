@@ -115,6 +115,15 @@ function QuestionPromptRound({
       onPointerDownCapture={() => {
         keyboardInput.current = false;
       }}
+      onMouseDownCapture={(event) => {
+        const button = event.target instanceof Element ? event.target.closest("button") : null;
+        if (event.button === 0 && button) {
+          // A native pointer focus can scroll the nested question panel between
+          // press and release, so the click misses the button it started on.
+          event.preventDefault();
+          button.focus({ preventScroll: true });
+        }
+      }}
       className={cn(
         "overflow-hidden rounded-2xl",
         !embedded && "bg-muted/40 border-foreground/10 border",

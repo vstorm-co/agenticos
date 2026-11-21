@@ -12150,7 +12150,24 @@
           "waiting": "Girişin tamamlanması bekleniyor. Bu sayfayı açık tutun.",
           "failed": "Hesap işlemi tamamlanmadı. Yerel onayı, CLI sürümünü ve ortam anahtarını kontrol edip tekrar deneyin."
         },
-        "piKeyHelp": "Pi 1.5.2 gereklidir. Şablon seçili kasa API anahtarını yalnızca bağımsız erişiminiz varsa alır. Aracı yapılandırmasında eşleşen Pi sağlayıcısını ve tam model kimliğini seçin. Pi kayıtlı hesaplar ve keşfedilen uzantılar olmadan yalıtılmış yapılandırma kullanır. Anahtar argümanlara veya üretilen dosyalara yazılmaz. Yerel araçlar tam yerel erişime sahiptir; API ücretleri fiyatlandırılamaz."
+        "piKeyHelp": "Pi 1.5.2 gereklidir. Şablon seçili kasa API anahtarını yalnızca bağımsız erişiminiz varsa alır. Aracı yapılandırmasında eşleşen Pi sağlayıcısını ve tam model kimliğini seçin. Pi kayıtlı hesaplar ve keşfedilen uzantılar olmadan yalıtılmış yapılandırma kullanır. Anahtar argümanlara veya üretilen dosyalara yazılmaz. Yerel araçlar tam yerel erişime sahiptir; API ücretleri fiyatlandırılamaz.",
+        "cursorApi": "Cursor API anahtarı",
+        "grokApi": "Grok API anahtarı",
+        "cliAccount": {
+          "status": "Hesabı denetle",
+          "sign_in": "Oturum aç",
+          "reconnect": "Hesabı yeniden bağla",
+          "sign_out": "Oturumu kapat",
+          "cancel": "İptal",
+          "waiting": "İşlemi CLI oturum açma penceresinde tamamlayın.",
+          "signed_in": "CLI etkin bir hesap bildiriyor. Plan erişimi doğrulanmadı.",
+          "signed_out": "CLI oturumu kapalı.",
+          "unknown": "CLI tanınan bir hesap durumu bildirmedi.",
+          "environment_key": "Ortam anahtarı etkin. Çıkış için Desktop ortamından kaldırın.",
+          "openSignIn": "Sağlayıcı oturumunu aç",
+          "deviceCode": "Cihaz kodu",
+          "failed": "Hesap işlemi tamamlanmadı. Yerel onayı ve CLI kurulumunu denetleyin."
+        }
       }
     },
     "quickAsk": {

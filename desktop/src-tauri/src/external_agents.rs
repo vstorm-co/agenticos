@@ -17,10 +17,12 @@ pub enum Provider {
     Antigravity,
     AntigravityApiKey,
     Cursor,
+    CursorApiKey,
     Cline,
     ClineApiKey,
     MistralVibe,
     Grok,
+    GrokApiKey,
     Kimi,
     QwenSubscription,
     Devin,
@@ -93,6 +95,7 @@ fn checked(input: RegistrationInput) -> Result<Registration, String> {
         Provider::Antigravity
             | Provider::AntigravityApiKey
             | Provider::Cursor
+            | Provider::CursorApiKey
             | Provider::OpenCode
             | Provider::OpenCodeGo
             | Provider::Kimi
@@ -115,7 +118,9 @@ fn checked(input: RegistrationInput) -> Result<Registration, String> {
     if input.provider == Provider::MistralVibe && !input.args.is_empty() {
         return Err("Mistral Vibe requires the vibe-acp executable without arguments.".into());
     }
-    if input.provider == Provider::Grok && input.args != ["--no-auto-update", "agent", "stdio"] {
+    if matches!(input.provider, Provider::Grok | Provider::GrokApiKey)
+        && input.args != ["--no-auto-update", "agent", "stdio"]
+    {
         return Err("Grok requires --no-auto-update agent stdio without extra launch flags.".into());
     }
     if input.provider == Provider::QwenSubscription && input.args != ["--acp", "--auth-type=qwen-subscription"] {
@@ -178,13 +183,15 @@ pub async fn external_save_agent(app: AppHandle, registration: RegistrationInput
         Provider::MuseApiKey => "Muse uses the required META_API_KEY inherited by Desktop. A missing key refuses launch without falling back to a browser login or stored key. The key stays local. This uses the pinned official SDK with an owned foreground muse serve host.",
         Provider::PiInception | Provider::PiDeepseek | Provider::PiOpenrouter => "This Pi API-key template receives only the selected vault key from a member independently allowed to view it. The key reaches this local program in memory and an isolated configuration, never in launch arguments or generated files. The registration must match the selected provider. Saved Pi login and discovered extensions are excluded. Pi 1.5.2 is required. API billing belongs to this key, with unpriced usage in AgenticOS. Native tools run with full local access.",
         Provider::Pi => "Pi uses its own saved configuration, extensions, login and API keys through native RPC. Run pi and choose its provider/model before registration. This runs the CLI with full local access; extensions and native tools retain that access. No platform tools or vault credentials are forwarded, and account/model catalogs do not prove subscription entitlement. Supported human extension dialogs appear in the live AgenticOS chat; secret input stays in Pi login. Charges are unpriced.",
-        Provider::Devin => "Devin CLI uses its own account and advertised browser login. Complete devin auth login and check devin auth status first. Billing and enterprise CLI permission belong to your Devin account. This launches the local ACP agent, not --cloud or the Devin task API. Keep External model ID empty and choose the model in Devin. CLI-owned tools and account data remain with Devin; AgenticOS forwards no platform tools.",
-        Provider::QwenSubscription => "Qwen Code uses its own saved subscription login. Complete /auth in qwen first, choosing Qwen Account with Subscription. The child explicitly selects qwen-subscription and removes inherited OpenAI key, endpoint and model overrides. No authenticate operation or credential import is performed. Keep External model ID empty and choose the subscription model in Qwen. Plan access and quotas require account verification.",
-        Provider::Kimi => "Kimi uses its own configured login and providers. Complete kimi login first. AgenticOS checks login readiness without importing credentials. Custom models can use separately billed APIs; account login alone does not establish subscription billing. Keep External model ID empty and choose the model in Kimi itself. Supported human questions appear in the live AgenticOS chat.",
+        Provider::Devin => "Devin CLI uses its own account and advertised browser login. Complete devin auth login and check devin auth status first. Billing and enterprise CLI permission belong to your Devin account. This launches the local ACP agent, not --cloud or the Devin task API. Choose a model from its catalog; the selection applies only to this launch. CLI-owned tools and account data remain with Devin; AgenticOS forwards no platform tools.",
+        Provider::QwenSubscription => "Qwen Code uses its own saved subscription login. Complete /auth in qwen first, choosing Qwen Account with Subscription. The child explicitly selects qwen-subscription and removes inherited OpenAI key, endpoint and model overrides. No authenticate operation or credential import is performed. Choose an advertised subscription model; it is passed only to this launch. Plan access and quotas require account verification.",
+        Provider::Kimi => "Kimi uses its own configured login and providers. Complete kimi login first. AgenticOS checks login readiness without importing credentials. Custom models can use separately billed APIs; account login alone does not establish subscription billing. Choosing a model uses the source-checked Python host without changing saved defaults. Supported human questions appear in the live AgenticOS chat.",
+        Provider::GrokApiKey => "Grok receives only the required XAI_API_KEY inherited by Desktop and an isolated scoped GROK_HOME. No saved login or provider configuration is copied. The CLI may save this key inside that private profile, whose auth.json is removed when the owned process exits while scoped sessions are retained. Missing keys refuse launch. API billing belongs to this key.",
         Provider::Grok => "Grok uses a cached CLI login. This child removes XAI_API_KEY and GROK_CODE_XAI_API_KEY and disables API-key authentication. The server refuses a runtime still advertising API-key auth. Finish grok login first. Grok account, gateway and plan settings determine billing; no API-key mode is supported by this template.",
-        Provider::MistralVibe => "Vibe owns browser sign-in and API keys. Browser sign-in may provision or reuse an API key; it does not prove Le Chat subscription access. This child disables telemetry and enables Vibe's experimental model catalog. Existing keyring, .env and project settings stay with Vibe. Usage is unpriced.",
+        Provider::MistralVibe => "Vibe owns browser sign-in and API keys. Browser sign-in may provision or reuse an API key; it does not prove Le Chat subscription access. This child disables telemetry and enables Vibe's experimental model catalog. A selected model is set only in the child environment. Existing keyring, .env and project settings stay with Vibe. Usage is unpriced.",
         Provider::Cline => "Cline account login is required. Inherited API keys are removed and provider selection is fixed to Cline. Credit, model availability and any free offerings depend on your Cline account, not on an assumed subscription.",
         Provider::ClineApiKey => "Only the CLINE_API_KEY inherited by Desktop is used, with the provider fixed to Cline. A missing key refuses launch without using saved account credentials. No key is stored by AgenticOS. Cline account/credit terms determine charges.",
+        Provider::CursorApiKey => "Cursor receives only the required CURSOR_API_KEY inherited by Desktop. Auth-token overrides are removed. Missing keys refuse launch; the saved browser login is not selected. API billing belongs to this key.",
         Provider::Cursor => "Cursor uses its own CLI account login; inherited API keys and auth-token overrides are removed. Account, model and on-demand settings determine charges. Sign in with agent login first. API-key registration is not supported by this template.",
         Provider::Antigravity => "Google personal OAuth is required; inherited Gemini API key variables are removed. Google's Additional Terms (section 6) restrict consumer sign-in through third-party tools, and Google may limit or suspend such accounts. You accepted this risk in the console; the Gemini API key template avoids it.",
         Provider::AntigravityApiKey => "A run uses the Gemini key its member chose from the AgenticOS vault, otherwise the GEMINI_API_KEY inherited by Desktop, with the gemini-api-key login. A missing key refuses launch without using the saved Google sign-in. Desktop stores no key. Gemini API pricing and terms determine charges, not a Google AI subscription.",
@@ -207,7 +214,7 @@ pub async fn external_save_agent(app: AppHandle, registration: RegistrationInput
     if settings::current(&app).connection_revision != before {
         return Err("The connection changed. Register the agent again.".into());
     }
-    crate::agent_session::close_external(&app, &registration.id).await;
+    crate::agent_session::close_external(&app, &registration.id).await?;
     let (next, result) = settings::update(&app, |state| {
         if state.connection_revision != before {
             return Err("The connection changed. Register the agent again.");
@@ -232,7 +239,7 @@ fn clear_history(state: &mut settings::Settings, id: &str) {
 #[tauri::command]
 pub async fn external_remove_agent(app: AppHandle, id: String) -> Result<Vec<Registration>, String> {
     let _changing = CHANGING.lock().await;
-    crate::agent_session::close_external(&app, &id).await;
+    crate::agent_session::close_external(&app, &id).await?;
     let (next, ()) = settings::update(&app, |state| {
         state.external_agents.retain(|agent| agent.id != id);
         clear_history(state, &id);

@@ -1016,6 +1016,7 @@ export const qk = {
     agents: () => ["desktop", "agents"] as const,
     externalAgents: () => ["desktop", "external-agents"] as const,
     codingOptions: (harness: string | null) => ["desktop", "coding-options", harness] as const,
+    externalOptionsAll: () => ["desktop", "external-options"] as const,
     externalOptions: (id: string | null) => ["desktop", "external-options", id] as const,
     skills: () => ["desktop", "skills"] as const,
     localFiles: (root: string) => ["desktop", "local", "files", root] as const,
