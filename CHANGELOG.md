@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Discard agent draft.** Reset unpublished Builder edits to the latest published version without creating a version or changing what runs in any environment.
+
 ## [1.87.0] - 2026-11-20
 
 ### Added

@@ -655,6 +655,11 @@ export interface AgentDraftUpdate {
   expected_revision: string;
 }
 
+export interface AgentDraftDiscard {
+  expected_revision: string;
+  expected_version_id: string;
+}
+
 /**
  * The deployment's agents-per-organization limit, and whether this organization
  * is at it - from `GET /agents/ceiling`. Mirrors the backend `AgentCeiling`.

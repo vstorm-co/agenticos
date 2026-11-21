@@ -60,6 +60,7 @@ from app.schemas.agent import (
     AgentClone,
     AgentCreate,
     AgentDetail,
+    AgentDraftDiscard,
     AgentDraftRevision,
     AgentDraftUpdate,
     AgentKnowledgeReach,
@@ -507,6 +508,26 @@ async def save_draft(
     """
     return await service.save_draft(
         ctx, agent_id, data.spec, expected_revision=data.expected_revision
+    )
+
+
+@router.post(
+    "/{agent_id}/draft/discard",
+    response_model=AgentDetail,
+)
+async def discard_draft(
+    agent_id: UUID, data: AgentDraftDiscard, service: AgentRegistrySvc, ctx: Auth
+) -> Any:
+    """Reset the draft to the latest published spec without creating a version.
+
+    Requires edit and view access. Returns 409 without writing if the draft revision or
+    the latest published version changed since confirmation.
+    """
+    return await service.discard_draft(
+        ctx,
+        agent_id,
+        expected_revision=data.expected_revision,
+        expected_version_id=data.expected_version_id,
     )
 
 

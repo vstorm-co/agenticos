@@ -7257,6 +7257,12 @@
       "personalModelLimits": "The model and endpoint stay fixed. Signed-in web chat only. Disable active channels, widgets, hosted pages and routines before publishing. HTTP API runs, background topics, voice, reviewers, separate step models and model fallbacks are not supported. Delegation in signed-in web chat resolves each personal-mode agent for the original caller.",
       "draftChanged": "This draft changed elsewhere. Your edits are still here, but saving is paused. Copy anything you want to keep, then reload the latest draft.",
       "reloadDraft": "Reload latest draft",
+      "discardDraft": "Discard draft",
+      "discardDraftHint": "Reset unpublished edits without publishing.",
+      "discardDraftTitle": "Discard unpublished changes?",
+      "discardDraftBody": "The draft will be reset to version {version}. Unpublished changes will be lost. This does not publish a version or change what runs live.",
+      "draftDiscarded": "Draft reset to the latest published version.",
+      "discardVersionChanged": "A newer version was published. Review it before discarding the draft.",
       "speechUseOrganizationDefaults": "Use organization defaults",
       "speechOrganizationDefaultsHint": "Inherit the organization’s provider, model, voice and key together. Turn off to configure this agent’s own voice."
     },

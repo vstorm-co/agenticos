@@ -6525,6 +6525,12 @@
       "personalModelKey": "Jeder Nutzer verbindet seinen eigenen Schlüssel",
       "personalModelLimits": "Modell und Endpunkt bleiben fest. Nur Web-Chat für angemeldete Nutzer. Deaktiviere vor der Veröffentlichung aktive Kanäle, Widgets, öffentliche Seiten und Routinen. HTTP-API-Läufe, Hintergrundthemen, Sprache, Reviewer, separate Schrittmodelle und Ersatzmodelle werden nicht unterstützt. Bei Delegation im angemeldeten Web-Chat verwendet jeder Agent im persönlichen Modus den Schlüssel des ursprünglichen Aufrufers.",
       "draftChanged": "Dieser Entwurf wurde an anderer Stelle geändert. Deine Eingaben bleiben erhalten, aber das Speichern ist angehalten. Kopiere alles, was du behalten möchtest, und lade dann den neuesten Entwurf.",
+      "discardDraft": "Entwurf verwerfen",
+      "discardDraftHint": "Unveröffentlichte Änderungen ohne Veröffentlichung zurücksetzen.",
+      "discardDraftTitle": "Unveröffentlichte Änderungen verwerfen?",
+      "discardDraftBody": "Der Entwurf wird auf Version {version} zurückgesetzt. Unveröffentlichte Änderungen gehen verloren. Es wird keine Version veröffentlicht, und die aktive Version bleibt unverändert.",
+      "draftDiscarded": "Der Entwurf wurde auf die zuletzt veröffentlichte Version zurückgesetzt.",
+      "discardVersionChanged": "Eine neuere Version wurde veröffentlicht. Prüfe sie, bevor du den Entwurf verwirfst.",
       "reloadDraft": "Neuesten Entwurf laden",
       "speechUseOrganizationDefaults": "Organisationsvorgaben verwenden",
       "speechOrganizationDefaultsHint": "Anbieter, Modell, Stimme und Schlüssel der Organisation gemeinsam übernehmen. Ausschalten, um die eigene Stimme dieses Agents zu konfigurieren."
