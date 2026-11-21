@@ -1,5 +1,5 @@
 ---
-source_sha: "5ddcab2b653c"
+source_sha: "8d1ce26ae47f"
 ---
 
 # Die Konsole { #the-console }
@@ -117,6 +117,8 @@ Der Eingabebereich zeigt den aktiven Genehmigungsmodus neben der Agent-Auswahl. 
 Zentrierte Dialoge behalten auf dem Smartphone an allen Rändern 12 px Abstand. Kompakte Seitenköpfe zeigen Titel und Aktionen in einer Zeile, wenn genug Platz ist. Die Context-Beschreibung öffnet sich über die Editorleiste.
 
 Kontextbezogenes Teilen öffnet sich am unteren Rand des Smartphones und bleibt innerhalb des verfügbaren Platzes oberhalb der Tastatur. Der Kopf bleibt sichtbar, während der Inhalt scrollt. In der mobilen Gesprächsliste werden Titel direkt bearbeitet; Teilen ersetzt den Listeninhalt. **Zurück** stellt die Liste wieder her. Die Suche ersetzt die Liste vorübergehend. Escape bricht zuerst die Titelbearbeitung ab, bevor es die Liste schließt. Normale Formularfelder und Auswahlfelder sind auf dem Smartphone mindestens 44 px hoch; Texteingaben verwenden 16 px Schrift. Die Befehlssuche hält Suchfeld und Schließen sichtbar, während Ergebnisse scrollen.
+
+Die Suchfelder der Kataloge bleiben sichtbar und bedienbar, während die Listen laden; eingegebene Filter bleiben erhalten. Eine leere Inbox-Vorschau auf der Seite für einen neuen Chat zeigt weder Nachricht noch Link und behält ihren reservierten Platz oberhalb des Eingabefelds.
 
 Auf dem Smartphone bleiben die Hauptaktionen sichtbar; weitere Befehle öffnet **Weitere Seitenaktionen**. Inbox-Filter und Tabellenformat werden über Auswahllisten gewählt. Einstellungen haben eine horizontale, scrollbare Tableiste; der MCP-Client wird aus einer Liste gewählt. Projekt- und Workspace-Dateien öffnen sich im Vollbildleser; der Zurück-Pfeil führt zu den Ordnern. Im Workflow-Schritteditor wählst du Einstellungen, Eingabe oder Ausgabe. Beim Wechsel bleiben Änderungen erhalten; auf dem Desktop stehen die Bereiche weiterhin nebeneinander.
 

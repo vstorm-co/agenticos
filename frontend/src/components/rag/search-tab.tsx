@@ -18,7 +18,7 @@ import {
 } from "@/components/ui";
 import { FileIcon } from "@/components/files";
 import { SourceViewer, type CitedFile } from "@/components/kb/source-viewer";
-import { EmptyState, ErrorState } from "@/components/states";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useChanged } from "@/hooks/use-changed";
 import { ROUTES } from "@/lib/constants";
 import { searchDocuments, type RAGSearchResult } from "@/lib/rag-api";
@@ -34,6 +34,7 @@ interface SearchTabProps {
   /** The knowledge bases the caller can read; the search scope options. */
   kbs: KnowledgeBase[];
   onCreate?: () => void;
+  loading?: boolean;
 }
 
 /**
@@ -44,7 +45,7 @@ interface SearchTabProps {
  * base it came from, its source document, page and score - enough for a human
  * to judge the chunk without opening anything.
  */
-export function SearchTab({ kbs, onCreate }: SearchTabProps) {
+export function SearchTab({ kbs, onCreate, loading = false }: SearchTabProps) {
   const t = useTranslations("rag.search");
   const tKb = useTranslations("pages.kb");
   const orgId = useOrgStore((state) => state.activeOrgId) ?? "";
@@ -96,7 +97,7 @@ export function SearchTab({ kbs, onCreate }: SearchTabProps) {
   const runSearch = async () => {
     const trimmed = query.trim();
     const names = collectionNames(scope);
-    if (!trimmed || names.length === 0 || searching.current) return;
+    if (loading || !trimmed || names.length === 0 || searching.current) return;
     const startedIn = orgId;
     const controller = new AbortController();
     searching.current = controller;
@@ -134,20 +135,11 @@ export function SearchTab({ kbs, onCreate }: SearchTabProps) {
     }
   };
 
-  if (kbs.length === 0) {
-    return (
-      <EmptyState
-        icon={Database}
-        title={t("noBasesTitle")}
-        description={t("noBases")}
-        cta={onCreate ? { label: tKb("newKnowledgeBase"), onClick: onCreate } : undefined}
-        className="flex-1"
-      />
-    );
-  }
-
   return (
-    <div className="border-border bg-card flex flex-1 flex-col gap-4 rounded-xl border p-4">
+    <div
+      aria-busy={loading}
+      className="border-border bg-card flex flex-1 flex-col gap-4 rounded-xl border p-4"
+    >
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -167,6 +159,7 @@ export function SearchTab({ kbs, onCreate }: SearchTabProps) {
           />
           <div className="flex gap-2">
             <Select
+              disabled={loading || kbs.length === 0}
               value={scope}
               onValueChange={(next) => {
                 if (next !== scope) {
@@ -189,7 +182,7 @@ export function SearchTab({ kbs, onCreate }: SearchTabProps) {
             </Select>
             <Button
               type="submit"
-              disabled={status === "searching" || !query.trim()}
+              disabled={loading || kbs.length === 0 || status === "searching" || !query.trim()}
               className="rounded-xl"
             >
               <Search className="mr-2 h-4 w-4" />
@@ -199,7 +192,17 @@ export function SearchTab({ kbs, onCreate }: SearchTabProps) {
         </div>
       </form>
 
-      {status === "idle" && (
+      {loading && <LoadingState variant="pending" />}
+      {!loading && kbs.length === 0 && (
+        <EmptyState
+          icon={Database}
+          title={t("noBasesTitle")}
+          description={t("noBases")}
+          cta={onCreate ? { label: tKb("newKnowledgeBase"), onClick: onCreate } : undefined}
+          className="flex-1 border-0 bg-transparent"
+        />
+      )}
+      {!loading && kbs.length > 0 && status === "idle" && (
         <EmptyState
           icon={Search}
           title={t("idleTitle")}

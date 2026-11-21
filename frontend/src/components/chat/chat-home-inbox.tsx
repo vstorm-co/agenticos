@@ -13,6 +13,7 @@ import { SuggestionMark, urgentFirst, useSuggestionSource } from "./suggestion-a
 import styles from "./chat-home-inbox.module.css";
 
 const PREVIEW_LIMIT = 2;
+const INBOX_FRAME = "chat-home-inbox chat-home-hints chat-composer-width flex min-h-40 flex-col";
 
 /** A priority-ordered preview of the same findings and proposals the Inbox shows. */
 export function ChatHomeInbox({ onDiscuss }: { onDiscuss: (prompt: string) => void }) {
@@ -28,12 +29,11 @@ export function ChatHomeInbox({ onDiscuss }: { onDiscuss: (prompt: string) => vo
   const items = urgentFirst(
     suggested.suggestions.toSorted((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)),
   ).slice(0, PREVIEW_LIMIT - Number(pending.count > 0));
+  if (!loading && !failed && !hasCachedContent)
+    return <div className={INBOX_FRAME} aria-hidden="true" />;
+
   return (
-    <section
-      className="chat-home-inbox chat-home-hints chat-composer-width flex min-h-40 flex-col"
-      aria-label={t("title")}
-      aria-busy={loading}
-    >
+    <section className={INBOX_FRAME} aria-label={t("title")} aria-busy={loading}>
       {!loading && pending.count > 0 && (
         <Link
           href="/runs?tab=approvals"
@@ -87,9 +87,7 @@ export function ChatHomeInbox({ onDiscuss }: { onDiscuss: (prompt: string) => vo
                 </li>
               ))}
             </ol>
-          ) : (
-            !failed && pending.count === 0 && <p className="chat-home-inbox-notice">{t("empty")}</p>
-          )}
+          ) : null}
         </>
       )}
       <Link

@@ -144,7 +144,7 @@ export function AgentCard({
         <ResourceCardDescription className="pointer-events-none">
           {agent.description || t("noDescription")}
         </ResourceCardDescription>
-        <ResourceCardFooter className="pointer-events-none">
+        <ResourceCardFooter className="pointer-events-none min-h-12">
           <AgentStatusBadge status={agent.status} compact />
           {attention && <AttentionBadge attention={attention} />}
           {isSystemAgent(agent.kind) &&
@@ -162,7 +162,7 @@ export function AgentCard({
           {footer !== undefined && <div className="w-full text-xs">{footer}</div>}
         </ResourceCardFooter>
 
-        <div className="relative mt-auto flex items-start justify-between gap-2 pt-3">
+        <div className="relative flex items-start justify-between gap-2 pt-3">
           <span
             className="text-muted-foreground pointer-events-none py-2 text-xs"
             title={`@${agent.slug}`}

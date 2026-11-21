@@ -164,3 +164,28 @@ test.describe("Skills", () => {
     await expect(skillCard(page, name)).toHaveCount(0);
   });
 });
+
+test("search stays mounted and keeps typed text through the initial catalog load", async ({
+  page,
+}) => {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(/\/api\/skills(?:\?|$)/, async (route) => {
+    await held;
+    await route.continue();
+  });
+  try {
+    await page.goto("/skills");
+    const search = page.getByPlaceholder("Search skills");
+    await expect(search).toBeVisible();
+    await search.fill("A draft filter");
+    release();
+    await expect(page.getByRole("status", { name: "Loading" })).toHaveCount(0);
+    await expect(search).toHaveValue("A draft filter");
+    await expect(search).toBeFocused();
+  } finally {
+    release();
+  }
+});

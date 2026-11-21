@@ -1,5 +1,5 @@
 ---
-source_sha: "5ddcab2b653c"
+source_sha: "8d1ce26ae47f"
 ---
 
 # Konsola { #the-console }
@@ -115,6 +115,8 @@ Pole wiadomości pokazuje aktywny tryb zatwierdzania obok wyboru agenta. Kliknij
 Na telefonie wyśrodkowane modale zachowują 12 px marginesu z każdej strony. Zwarte nagłówki mieszczą tytuł i akcje w jednym wierszu, gdy jest na to miejsce. Opis pliku Context rozwija się z paska edytora.
 
 Kontekstowe udostępnianie otwiera się przy dolnej krawędzi telefonu i mieści nad klawiaturą. Nagłówek pozostaje widoczny podczas przewijania treści. Mobilna lista rozmów pozwala zmienić tytuł w miejscu, a udostępnianie zastępuje zawartość listy; **Wstecz** ją przywraca. Wyszukiwanie tymczasowo zastępuje listę. Escape anuluje zmianę tytułu, zanim zamknie listę. Zwykłe pola i selecty na telefonie mają co najmniej 44 px wysokości, a tekst w polach ma 16 px. Wyszukiwarka poleceń zachowuje widoczne pole i przycisk zamknięcia podczas przewijania wyników.
+
+Pola wyszukiwania w katalogach pozostają widoczne i dostępne podczas ładowania list; odczyt nie usuwa wpisanego filtra. Pusty podgląd Inboxa na stronie nowego czatu nie pokazuje komunikatu ani linku i zachowuje zarezerwowane miejsce nad polem wiadomości.
 
 Na telefonie główne akcje strony pozostają widoczne, a drugorzędne polecenia rozwija przycisk **Więcej akcji strony**. Filtry Inbox i format tabeli wybiera się selectem. Ustawienia mają poziomy, przewijany pasek zakładek; klienta MCP wybiera się z listy. Plik projektu lub workspace otwiera czytnik na pełnym ekranie, a strzałka wstecz wraca do folderów. Edytor kroku workflow pokazuje jeden wybrany panel: ustawienia, wejście albo wynik. Przełączanie zachowuje edycję; desktop nadal pokazuje panele obok siebie.
 

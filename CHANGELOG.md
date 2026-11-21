@@ -50,6 +50,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Align agent-card separators across short descriptions and attention states. Keep catalog search usable during loading, simplify chat renaming, and leave an empty Inbox preview blank without moving the composer.
+
 - Keep mobile chat actions within one context panel, with inline renaming, sharing with Back and independently scrolling search results. Refine shared field contrast, touch heights and overlay shadows; show Voice calls and Dictation in one Builder list.
 
 - Let authorized ordinary task and table-record edits, resource creation and draft authoring run without an extra MCP approval by default. Explicit author requirements can tighten these defaults. Execution, schema changes, automation, publication, deletion and administration still require a fresh per-call answer; task writes that can schedule agent work do too.
