@@ -1973,6 +1973,28 @@ it("keeps findings beside the composer and leaves approvals to decision cards", 
 });
 
 describe("starting a new chat", () => {
+  beforeEach(() => {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url === "/me/suggestions"
+        ? Promise.resolve({
+            items: [
+              {
+                id: "briefing-finding",
+                kind: "finding",
+                status: "open",
+                title: "Review the weekly summary",
+                detail: "A finding worth discussing",
+                payload: {},
+                urgent: false,
+                created_at: "2026-11-21T09:00:00Z",
+              },
+            ],
+            total: 1,
+          })
+        : base(url),
+    );
+  });
   it("puts the Inbox timeline above the composer and the agent's prompts below it", async () => {
     const base = get.getMockImplementation()!;
     get.mockImplementation((url: string) =>
@@ -1999,7 +2021,8 @@ describe("starting a new chat", () => {
     expect(openers).toHaveLength(2);
     const opener = openers[1]!;
     const editor = screen.getByRole("textbox");
-    const briefing = screen.getByRole("region", { name: "Daily briefing" });
+    const briefing = await screen.findByRole("region", { name: "Daily briefing" });
+    expect(await screen.findByText("Review the weekly summary")).toBeVisible();
     expect(
       briefing.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -2050,7 +2073,8 @@ describe("starting a new chat", () => {
     await screen.findByText("Quiet agent", { selector: ".chat-empty-state p span" });
     expect(screen.queryByRole("button", { name: "Hidden suggested prompt" })).toBeNull();
     expect(document.querySelector("[data-chat-welcome-hints]")).toBeNull();
-    expect(screen.getByRole("region", { name: "Daily briefing" })).toBeVisible();
+    expect(await screen.findByRole("region", { name: "Daily briefing" })).toBeVisible();
+    expect(await screen.findByText("Review the weekly summary")).toBeVisible();
   });
 });
 
