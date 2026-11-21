@@ -1219,10 +1219,10 @@ describe("sidebar layout previews", () => {
       expect(within(list()).queryAllByTestId("row-agents").length > 0).toBe(layout !== "compact");
     },
   );
-  it("falls back to the established layout for an unknown preview", async () => {
-    urlParams = new URLSearchParams("sidebar=unknown");
+  it.each(["", "sidebar=unknown"])("uses the project layout by default for %j", async (query) => {
+    urlParams = new URLSearchParams(query);
     mount();
     await within(list()).findByRole("button", { name: /^Quarterly numbers$/ });
-    expect(list()).toHaveAttribute("data-conversation-sidebar", "current");
+    expect(list()).toHaveAttribute("data-conversation-sidebar", "workspace");
   });
 });

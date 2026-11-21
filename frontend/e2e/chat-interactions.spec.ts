@@ -121,6 +121,8 @@ for (const theme of ["light", "dark"] as const) {
                   scrollerTop: element.getBoundingClientRect().top,
                   questionTop: card?.getBoundingClientRect().top,
                   documentScroll: document.scrollingElement?.scrollTop,
+                  focusedRole: document.activeElement?.getAttribute("role"),
+                  focusedLabel: document.activeElement?.getAttribute("aria-label"),
                 };
               }),
             ),

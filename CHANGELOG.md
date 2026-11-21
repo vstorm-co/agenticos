@@ -44,7 +44,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
-- Standardize chat Files and Sources panels, compact permission/context/project controls, and keep tool diagnostics raw while showing produced outputs once. Preview conversation list layouts with `sidebar=compact`, `sidebar=comfortable` or `sidebar=workspace`.
+- Standardize chat Files and Sources panels, compact permission/context/project controls, and keep tool diagnostics raw while showing produced outputs once. Group conversations by project in the default Workspace layout. Compare alternatives with `sidebar=compact` or `sidebar=comfortable`; `sidebar=workspace` explicitly selects the default.
 
 - Use neutral light surfaces and progressive disclosure in Agent Builder, onboarding and settings. Edit welcome content directly in its onboarding preview; retain clear loading, empty, permission and retry states throughout resource catalogs.
 

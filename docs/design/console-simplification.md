@@ -276,3 +276,5 @@ Additional workstreams have their own source-review ledgers:
 [chat panels](console-chat-panels-audit.md),
 [resources and route inventory](console-route-audit.md), and
 [settings and onboarding](console-settings-audit.md).
+
+The maintainer selected **Workspace — projects** as the default conversation-list layout. Missing or unknown `sidebar` values use that layout; `compact` and `comfortable` remain explicit comparison options.

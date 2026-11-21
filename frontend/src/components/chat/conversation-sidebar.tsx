@@ -80,11 +80,11 @@ import { ShareDialog } from "./share-dialog";
 import { useTurnElapsed } from "./work-fold";
 import { formatElapsed } from "@/lib/elapsed";
 
-type SidebarLayout = "current" | "compact" | "comfortable" | "workspace";
+type SidebarLayout = "compact" | "comfortable" | "workspace";
 function sidebarLayout(value: string | null): SidebarLayout {
   return value === "compact" || value === "comfortable" || value === "workspace"
     ? value
-    : "current";
+    : "workspace";
 }
 
 interface ConversationItemProps {
@@ -109,7 +109,7 @@ interface ConversationItemProps {
 const HANDOFF_GRACE_MS = 20_000;
 
 function ConversationItem({
-  layout = "current",
+  layout = "workspace",
   conversation,
   isActive,
   onSelect,
@@ -721,7 +721,7 @@ function useBandFolds(bands: Band[], loaded: number, scroller: RefObject<HTMLEle
 }
 
 function ConversationList({
-  layout = "current",
+  layout = "workspace",
   conversations = [],
   total,
   view,
@@ -758,7 +758,7 @@ function ConversationList({
     isArchivedView,
     datedOrder,
     shared,
-    layout === "current" || layout === "workspace",
+    layout === "workspace",
   );
   const scrollerRef = useRef<HTMLDivElement>(null);
   const { isFolded, flip } = useBandFolds(bands, conversations.length, scrollerRef);
