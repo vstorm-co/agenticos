@@ -98,6 +98,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Compress proxied API responses once so browsers can read populated organization, agent and conversation lists.
+
 - Update Next.js to 16.4.6 to address cache isolation, image validation and response-header security advisories.
 
 - Keep dictation available from Add to message while the main composer action sends an existing draft. Preserve insertion at the caret without sending the transcript.
