@@ -60,6 +60,7 @@ from app.schemas.agent import (
     AgentClone,
     AgentCreate,
     AgentDetail,
+    AgentDraftDiscard,
     AgentDraftRevision,
     AgentDraftUpdate,
     AgentKnowledgeReach,
@@ -474,22 +475,7 @@ async def list_mentionables(
 async def get_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any:
     """One agent with the spec currently being edited."""
     agent = await service.get(ctx, agent_id)
-    # `model_validate` reads the row's columns and parses `draft_spec` (JSONB) into
-    # `AgentSpec` off the schema field, so this route names only the one value the
-    # row does not carry: `can_run`, `can_edit` and `can_publish` are this caller's,
-    # not the agent's.
-    return AgentDetail.model_validate(agent).model_copy(
-        update={
-            "can_run": await service.may_run(ctx, agent),
-            "can_edit": await service.may_edit(ctx, agent),
-            "can_publish": await service.may_publish(ctx, agent),
-            "can_review_shipped_update": (
-                ShippedAgentService.reviewable(agent)
-                and await service.may_edit(ctx, agent)
-                and await service.may_publish(ctx, agent)
-            ),
-        }
-    )
+    return await service.detail_for(ctx, agent)
 
 
 @router.get("/{agent_id}/shipped-update", response_model=ShippedAgentUpdate, openapi_extra=INTERNAL)
@@ -534,6 +520,28 @@ async def save_draft(
     return await service.save_draft(
         ctx, agent_id, data.spec, expected_revision=data.expected_revision
     )
+
+
+@router.post(
+    "/{agent_id}/draft/discard",
+    response_model=AgentDetail,
+)
+async def discard_draft(
+    agent_id: UUID, data: AgentDraftDiscard, service: AgentRegistrySvc, ctx: Auth
+) -> Any:
+    """Reset the draft to the latest published spec without creating a version.
+
+    Requires edit and view access. Returns 409 without writing if the draft revision or
+    the latest published version changed since confirmation. Returns the restored draft
+    with the caller's effective permissions, like the agent detail endpoint.
+    """
+    agent = await service.discard_draft(
+        ctx,
+        agent_id,
+        expected_revision=data.expected_revision,
+        expected_version_id=data.expected_version_id,
+    )
+    return await service.detail_for(ctx, agent)
 
 
 @router.post(

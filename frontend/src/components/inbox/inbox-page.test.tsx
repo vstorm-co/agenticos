@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InboxPage } from "./inbox-page";
 import type { ToolApproval } from "@/types/runs";
 import type { Suggestion } from "@/lib/suggestions-api";
+import type { WaitingChatQuestion } from "@/lib/chat-questions-api";
 
 /**
  * The inbox (#2301): what waits, narrowed by where it came from, and what was
@@ -91,6 +92,17 @@ vi.mock("@/hooks/use-workflow-approvals", () => ({
 }));
 vi.mock("@/components/dashboard/agent-face", () => ({ AgentFace: () => null }));
 vi.mock("@/components/runs/approval-delegate", () => ({ ApprovalDelegate: () => null }));
+const questions = vi.hoisted(() => ({
+  items: [] as WaitingChatQuestion[],
+  count: 0,
+  error: null as Error | null,
+  isLoading: false,
+  hasNextPage: false,
+  isFetching: false,
+  fetchNextPage: vi.fn(),
+  refetch: vi.fn(),
+}));
+vi.mock("@/hooks/use-waiting-chat-questions", () => ({ useWaitingChatQuestions: () => questions }));
 vi.mock("@/components/assistant/your-suggestions", () => ({
   YourSuggestions: () => <section aria-label="Personal suggestion preferences" />,
 }));
@@ -136,6 +148,14 @@ beforeEach(() => {
   pending.isLoading = false;
   pending.error = null;
   pending.refetch.mockReset();
+  questions.items = [];
+  questions.count = 0;
+  questions.error = null;
+  questions.isLoading = false;
+  questions.hasNextPage = false;
+  questions.isFetching = false;
+  questions.fetchNextPage.mockReset();
+  questions.refetch.mockReset();
   state.open = [];
   state.loading = false;
   state.error = null;
@@ -149,6 +169,75 @@ beforeEach(() => {
   toastError.mockReset();
   decideTool.mockReset();
   decideStep.mockReset();
+});
+
+describe("parked chat questions", () => {
+  beforeEach(() => {
+    questions.items = [
+      {
+        run_id: "run-1",
+        conversation_id: "chat-1",
+        conversation_title: "Delivery",
+        agent_name: "Support",
+        expires_at: "2026-11-22T12:00:00Z",
+      },
+      {
+        run_id: "run-2",
+        conversation_id: "chat-2",
+        conversation_title: null,
+        agent_name: "Clerk",
+        expires_at: "2026-11-22T13:00:00Z",
+      },
+    ];
+    questions.count = 3;
+  });
+
+  it.each([null, "urgent"])(
+    "links to the saved question and counts the full list (%s)",
+    (filter) => {
+      state.filter = filter;
+      render(<InboxPage />);
+      expect(screen.getByRole("heading", { name: "Questions waiting for you" })).toBeVisible();
+      expect(
+        screen.getByRole("link", { name: "Open chat: Delivery, question from Support" }),
+      ).toHaveAttribute("href", "/chat?id=chat-1&question=chat-1%3Arun-1");
+      expect(screen.getByRole("link", { name: /Open chat: Untitled chat/ })).toBeVisible();
+      expect(screen.getByText("3 waiting")).toBeVisible();
+      expect(screen.queryByRole("button", { name: /answer/i })).not.toBeInTheDocument();
+    },
+  );
+
+  it("does not show parked questions under the routine-results filter", () => {
+    state.filter = "watches";
+    render(<InboxPage />);
+    expect(screen.queryByRole("heading", { name: "Questions waiting for you" })).toBeNull();
+  });
+
+  it("keeps questions visible when suggestions fail and can fetch more", async () => {
+    state.error = new Error("suggestions unavailable");
+    questions.hasNextPage = true;
+    render(<InboxPage />);
+    expect(screen.getByText("Delivery")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Show more questions" }));
+    expect(questions.fetchNextPage).toHaveBeenCalledOnce();
+  });
+
+  it("distinguishes failure from having nothing to answer", async () => {
+    questions.items = [];
+    questions.error = new Error("questions unavailable");
+    render(<InboxPage />);
+    expect(screen.queryByText("Nothing waits here")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(questions.refetch).toHaveBeenCalledOnce();
+  });
+
+  it("waits for questions before saying nothing waits", () => {
+    questions.items = [];
+    questions.isLoading = true;
+    render(<InboxPage />);
+    expect(screen.queryByText("Nothing waits here")).toBeNull();
+    expect(screen.queryByText("3 waiting")).toBeNull();
+  });
 });
 
 describe("InboxPage", () => {

@@ -689,12 +689,14 @@
     "share": "Paylaş",
     "sharingUpdated": "Paylaşım güncellendi",
     "visibilityOrg": "Kuruluştaki herkes",
-    "visibilityOrgReaches": "{resource, select, agent {agentları} skill {skill'leri} collection {koleksiyonları} artifact {uygulamaları} dataset {datasetler} context {bağlam dosyalarını} mcp_connection {MCP sunucularını} project {projeler} other {gizli bilgileri}} görüntüleyebilen kuruluştaki herkes.",
+    "visibilityOrgReaches": "{resource, select, agent {agentları} skill {skill'leri} collection {koleksiyonları} artifact {uygulamaları} dataset {datasetler} context {bağlam dosyalarını} mcp_connection {MCP sunucularını} project {projeler} workflow {iş akışlarını} other {gizli bilgileri}} görüntüleyebilen kuruluştaki herkes.",
     "visibilityPrivate": "Yalnızca erişimi olan kişiler",
     "visibilityPrivateReaches": "Yalnızca yukarıda listelenen kişiler. Başka hiç kimse listesinde bu {resource, select, agent {Agent'ı} skill {skill'i} collection {koleksiyonu} artifact {uygulamayı} dataset {datasetler} context {bağlam dosyasını} mcp_connection {MCP sunucusunu} project {proje} other {gizli bilgiyi}} göremez - henüz sahibi yoksa sahibi siz olursunuz.",
     "visibilityTeam": "Ekip (artık sunulmuyor)",
-    "visibilityTeamReaches": "Rolü ekip {resource, select, agent {agentlarına} skill {skill'lerine} collection {koleksiyonlarına} artifact {uygulamalarına} dataset {datasetler} context {bağlam dosyalarına} mcp_connection {MCP sunucularına} project {projeler} other {gizli bilgilere}} erişim sağlayan herkes. Bu kuruluşta ekip yok - yukarıdaki iki seçenekten birini seçin.",
+    "visibilityTeamReaches": "Rolü ekip {resource, select, agent {agentlarına} skill {skill'lerine} collection {koleksiyonlarına} artifact {uygulamalarına} dataset {datasetler} context {bağlam dosyalarına} mcp_connection {MCP sunucularına} project {projeler} workflow {iş akışlarına} other {gizli bilgilere}} erişim sağlayan herkes. Bu kuruluşta ekip yok - yukarıdaki iki seçenekten birini seçin.",
     "visibilityUpdated": "Görünürlük güncellendi",
+    "workflowPrivateReaches": "İş akışının sahibi, yukarıda listelenen kişiler ve gruplar ve tüm iş akışlarına erişebilen roller. Yalnızca paylaşılan iş akışlarına erişen roller, özel olarak ayarlandığında erişimi kaybedebilir.",
+    "workflowRuntimeNote": "Paylaşım, geçmiş run’lara erişimi de belirler. Zamanlamaları duraklatmaz veya webhook’ları devre dışı bırakmaz.",
     "groupsHeading": "Gruplar",
     "membersHeading": "Üyeler",
     "groupSubject": "Grup",
@@ -3326,6 +3328,12 @@
       "delete2": "Sil",
       "deletePermanently": "Kalıcı olarak sil",
       "draftAsStandsWhat": "Taslağın mevcut hâli: bu agenta nelerin ulaştığı ve agentın neleri kullandığı. Kesikli çerçeve, hiçbir şeye bağlı olmayan öğeyi gösterir.",
+      "discardDraft": "Taslağı at",
+      "discardDraftHint": "Yayımlanmamış değişiklikleri yayımlamadan sıfırla.",
+      "discardDraftTitle": "Yayımlanmamış değişiklikler atılsın mı?",
+      "discardDraftBody": "Taslak {version}. sürüme sıfırlanacak. Yayımlanmamış değişiklikler kaybolacak. Yeni bir sürüm yayımlanmaz ve çalışan sürüm değişmez.",
+      "draftDiscarded": "Taslak yayımlanan son sürüme sıfırlandı.",
+      "discardVersionChanged": "Daha yeni bir sürüm yayımlandı. Taslağı atmadan önce yeni sürümü incele.",
       "duplicate": "Çoğalt",
       "eachPublishFreezesSpec": "Her yayımlama bir spec sürümünü sabitler. Run kayıtları kullanılan sürümü tutar; böylece agentın geçen salı ne yaptığı, sonradan yapılan birçok düzenlemeden sonra da açıklanabilir. Geri yükleme, eski sürümün kopyası olarak yeni bir sürüm yayımlar. Zaman çizelgesi geri alma işlemini gösterir; hatalı sürüm hiç yaşanmamış gibi davranmaz.",
       "environments": "Ortamlar",
@@ -6821,6 +6829,7 @@
     "menuDeleteHint": "Tüm sürümleriyle kalıcı olarak siler",
     "channelRunFreelyHint": "Bağlı kanal göndericileri, diğer kişilerin mesajları dahil tüm oda geçmişiyle bu ayarları kullanır. Run freely ek onay olmadan çağrılara izin verir; yalnızca güvendiğiniz araçlar ve odalar için kullanın.",
     "serverTools": "Tool'lar",
+    "toolsForAccount": "Tool ayarlarının uygulanacağı hesap",
     "loadTools": "Tool'larını yükle",
     "toolsAfterConnecting": "{name} hesabı bağlandığında tool'ları listelenir.",
     "toolsSearch": "Tool'larda ara",
@@ -7057,6 +7066,8 @@
     "notAChatModelRefused": "{model} chat modeli değil; Agent bu modelle çalışamaz. Chat modeli seçin.",
     "secretForDifferentService": "\"{name}\" key'i başka bir hizmet için. Bu yapılandırmaya ait bir key seçin.",
     "openRouterEndpointHint": "Genel OpenRouter API'si için boş bırakın veya https://eu.openrouter.ai/api/v1 gibi bölgesel URL girin. AB yönlendirmesi uygun bir OpenRouter planı gerektirir; ZDR, OpenRouter'da ayrıca yapılandırılır.",
+    "openaiCompatibleEndpointHint": "OpenAI'ın Chat Completions API'sine yanıt veren bir sunucunun adresi, /v1 ile biten, örneğin https://models.example/v1.",
+    "anthropicCompatibleEndpointHint": "Anthropic'in Messages API'sine yanıt veren bir sunucunun adresi. Kendi /v1 yolunu taşımaz; SDK onu ekler, bu yüzden https://models.example adresin tamamıdır.",
     "defaultEndpoint": "Varsayılan API",
     "addSeparateModel": "Ayrı model ekle",
     "separateEndpointHint": "Mevcut profili diğer Agent'lar için korumak üzere bu endpoint'i ayrı bir model olarak kaydedin. “Modeli güncelle” kullanıldığı her yerde paylaşılan profili değiştirir.",
@@ -7237,6 +7248,9 @@
       "morningNamed": "Günaydın, {name}",
       "afternoonNamed": "İyi günler, {name}",
       "eveningNamed": "İyi akşamlar, {name}",
+      "waiting": {
+        "questions": "{count, plural, other {# soru}}"
+      },
       "summary": "Agentlarınız bu dönemde <b>{runs, plural, =0 {hiç çalışmadı} =1 {1 kez çalıştı} other {# kez çalıştı}}</b>. {waiting, plural, =0 {Sizden yanıt bekleyen yok.} =1 {Sizden yanıt bekleyen <b>1 çağrı</b> var.} other {Sizden yanıt bekleyen <b># çağrı</b> var.}}"
     },
     "discover": {
@@ -8870,6 +8884,10 @@
       "agent-starters": {
         "title": "İlk mesajlar",
         "body": "Henüz mesaj yazmamış birinin agent’ı açtığında sohbetin önerdiği mesajlar. Yeni kullanıcılar agent’ın amacını bu örneklerden açıklamasından daha çok anlar; bu yüzden her biri agent’ın iyi yanıtlayacağı gerçek bir soru olsun."
+      },
+      "inbox-questions": {
+        "title": "Yanıtınızı bekleyen sorular",
+        "body": "Agentın yanıtınızı beklediği soruları burada bulun. Yanıtlamak için sohbeti açın."
       },
       "inbox-filters": {
         "title": "Kendiliğinden gelenler",
@@ -13198,6 +13216,15 @@
     "openWorkingChat": "Sohbeti aç",
     "preferences": "Gelen kutusu tercihleri",
     "preferencesDescription": "Gelen kutuna hangi otomatik önerilerin ulaşacağını seç.",
+    "questions": {
+      "title": "Yanıtınızı bekleyen sorular",
+      "open": "Sohbeti aç: {conversation}, {agent} tarafından sorulan soru",
+      "untitled": "Başlıksız sohbet",
+      "source": "{agent} · Son yanıt zamanı: {expiry}",
+      "failed": "Bekleyen sorular yüklenemedi.",
+      "retry": "Tekrar dene",
+      "loadMore": "Daha fazla soru göster"
+    },
     "approvals": {
       "title": "Onay bekleyenler",
       "open": "Onayları aç"

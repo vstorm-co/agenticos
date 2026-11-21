@@ -764,6 +764,7 @@
     "menuDeleteHint": "Gone for good, with every version",
     "channelRunFreelyHint": "Linked channel senders use these settings with the full room history, including messages from other people. Run freely allows calls without another confirmation; use it only for tools and rooms you trust.",
     "serverTools": "Tools",
+    "toolsForAccount": "Account for tool settings",
     "loadTools": "Load its tools",
     "toolsAfterConnecting": "Its tools are listed once a {name} account is connected.",
     "toolsSearch": "Search tools",
@@ -1000,6 +1001,8 @@
     "notAChatModelRefused": "{model} is not a chat model - an agent cannot run on it. Choose a chat model.",
     "secretForDifferentService": "Key \"{name}\" is for a different service. Choose a key for this configuration.",
     "openRouterEndpointHint": "Leave empty for the global OpenRouter API, or enter a regional URL such as https://eu.openrouter.ai/api/v1. EU routing requires an eligible OpenRouter plan; ZDR is configured separately on OpenRouter.",
+    "openaiCompatibleEndpointHint": "The address of a server that answers OpenAI's Chat Completions API, ending in /v1, such as https://models.example/v1.",
+    "anthropicCompatibleEndpointHint": "The address of a server that answers Anthropic's Messages API. It carries no /v1 of its own; the SDK adds that, so https://models.example is the whole address.",
     "defaultEndpoint": "Default API",
     "addSeparateModel": "Add separate model",
     "separateEndpointHint": "Save this endpoint as a separate model to keep the current profile for other agents. “Update model” changes the shared profile wherever it is used.",
@@ -3761,6 +3764,7 @@
       "nothingWaiting": "Nothing is waiting on you.",
       "waitingOn": "Waiting on you: <b>{items}</b>.",
       "waiting": {
+        "questions": "{count, plural, one {# question} other {# questions}}",
         "approvals": "{count, plural, =1 {1 call} other {# calls}}",
         "review": "{count, plural, =1 {1 answer to review} other {# answers to review}}",
         "suites": "{count, plural, =1 {1 failing suite} other {# failing suites}}",
@@ -5829,6 +5833,10 @@
         "title": "First messages",
         "body": "What the chat offers somebody opening this agent with nothing said yet. A newcomer learns what the agent is for from these more than from its description, so make each one a real question it answers well."
       },
+      "inbox-questions": {
+        "title": "Questions waiting for you",
+        "body": "Find questions an agent is waiting for you to answer. Open the chat to reply."
+      },
       "inbox-filters": {
         "title": "What came to you on its own",
         "body": "Findings from your watches and the nightly suggestions, urgent first. Filter by where they came from, or open Done to bring back one you declined."
@@ -7306,6 +7314,12 @@
       "personalModelLimits": "The model and endpoint stay fixed. Signed-in web chat only. Disable active channels, widgets, hosted pages and routines before publishing. HTTP API runs, background topics, voice, reviewers, separate step models and model fallbacks are not supported. Delegation in signed-in web chat resolves each personal-mode agent for the original caller.",
       "draftChanged": "This draft changed elsewhere. Your edits are still here, but saving is paused. Copy anything you want to keep, then reload the latest draft.",
       "reloadDraft": "Reload latest draft",
+      "discardDraft": "Discard draft",
+      "discardDraftHint": "Reset unpublished edits without publishing.",
+      "discardDraftTitle": "Discard unpublished changes?",
+      "discardDraftBody": "The draft will be reset to version {version}. Unpublished changes will be lost. This does not publish a version or change what runs live.",
+      "draftDiscarded": "Draft reset to the latest published version.",
+      "discardVersionChanged": "A newer version was published. Review it before discarding the draft.",
       "speechUseOrganizationDefaults": "Use organization defaults",
       "speechOrganizationDefaultsHint": "Inherit the organization’s provider, model, voice and key together. Turn off to configure this agent’s own voice."
     },
@@ -9222,12 +9236,14 @@
     "share": "Share",
     "sharingUpdated": "Sharing updated",
     "visibilityOrg": "Everyone in the organization",
-    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} project {projects} other {secrets}} at all.",
+    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} project {projects} workflow {workflows} other {secrets}} at all.",
     "visibilityPrivate": "Only people with access",
     "visibilityPrivateReaches": "Only the people listed above. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} artifact {app} dataset {dataset} context {context file} mcp_connection {MCP server} project {project} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
     "visibilityTeam": "Team (no longer offered)",
-    "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} project {projects} other {secrets}}. This organization has no teams - pick one of the two above.",
+    "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} project {projects} workflow {workflows} other {secrets}}. This organization has no teams - pick one of the two above.",
     "visibilityUpdated": "Visibility updated",
+    "workflowPrivateReaches": "The owner, people and groups listed above, and roles that can access all workflows. Roles limited to shared workflows can lose access when you make it private.",
+    "workflowRuntimeNote": "Sharing also controls access to past runs. It does not pause schedules or disable webhooks.",
     "groupsHeading": "Groups",
     "membersHeading": "Members",
     "groupSubject": "Group",
@@ -14980,6 +14996,15 @@
     "openWorkingChat": "Open conversation",
     "preferences": "Inbox preferences",
     "preferencesDescription": "Choose which automatic suggestions reach your Inbox.",
+    "questions": {
+      "title": "Questions waiting for you",
+      "open": "Open chat: {conversation}, question from {agent}",
+      "untitled": "Untitled chat",
+      "source": "{agent} · Expires {expiry}",
+      "failed": "Couldn’t load waiting questions.",
+      "retry": "Retry",
+      "loadMore": "Show more questions"
+    },
     "approvals": {
       "title": "Approval requests",
       "open": "Open approvals"
@@ -16635,7 +16660,10 @@
     "rated": "{count, plural, =1 {1 answer rated down} other {# answers rated down}}",
     "failed": "{count, plural, =1 {1 failed run} other {# failed runs}}",
     "suites": "{count, plural, =1 {1 failing suite} other {# failing suites}}",
-    "improveLabel": "Needs attention: {reasons}. Improve this agent"
+    "improveLabel": "Needs attention: {reasons}. Improve this agent",
+    "tabLabel": "Needs attention: {reasons}",
+    "improvementWaiting": "an improvement waits for you",
+    "gapsLabel": "{count, plural, =1 {1 open knowledge gap} other {# open knowledge gaps}}"
   },
   "improvement": {
     "attributionUnconfirmed": "Change {number}: the result is not confirmed.",

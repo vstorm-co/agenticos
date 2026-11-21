@@ -1,5 +1,5 @@
 ---
-source_sha: "2df099ce061d"
+source_sha: "e679e735c63f"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -372,7 +372,9 @@ nicht ein.
 Die Konten der Organisation binden auf dieselbe Weise nebeneinander: Jede ihrer
 Connections zu einem Server ist ein eigenes Binding unter eigenem Namen, mit
 eigenen Tools. Im Builder listen die Einstellungen eines Servers seine
-gebundenen Konten mit **Add another account**. Wo ein Run einen Dienst über mehr
+gebundenen Konten mit **Add another account**. Wähle unter **Tools** das Konto,
+dessen Tools und Freigaben du bearbeiten möchtest. Die anderen Konten bleiben
+unverändert. Wo ein Run einen Dienst über mehr
 als ein Konto erreicht, nennt eine Zeile seiner Anweisungen jedes Konto neben
 seinem Präfix und weist das Modell an nachzufragen, wenn unklar ist, welches die
 Person meint.

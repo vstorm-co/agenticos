@@ -4,7 +4,7 @@ import { useId, useState, type ReactNode } from "react";
 import { Check, KeyRound, Plus, Save } from "lucide-react";
 
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
-import { hasKey, runsAgents } from "@/lib/model-profiles";
+import { hasKey, LISTED_AT_ENDPOINT, LISTED_WITH_KEY, runsAgents } from "@/lib/model-profiles";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
 import { InlineSecret } from "@/components/vault/inline-secret";
@@ -33,6 +33,8 @@ import type { ModelApi, ModelProfile, ModelRegion, ProviderInfo } from "@/types/
 import { useTranslations } from "next-intl";
 
 interface AddModelProps {
+  /** The caller owns the provider choice; do not draw a second selector. Remount on change. */
+  fixedProviderId?: string;
   /** Keep an existing model’s connection details behind a readable summary. */
   collapseConnection?: boolean;
   purpose?: "chat" | "decision";
@@ -182,6 +184,34 @@ export function defaultApi(
 }
 
 /**
+ * What the endpoint field says about the address it wants.
+ *
+ * The two custom endpoints have to say more than "give one": an address that
+ * is right for a Chat Completions server is wrong for a Messages server, and the
+ * wrong one fails with a 404 that names the path rather than the cause.
+ */
+export function endpointHint(
+  providerId: string,
+  endpointRequired: boolean,
+  t: (key: string) => string,
+): string {
+  switch (providerId) {
+    case "openrouter":
+      return t("openRouterEndpointHint");
+    case "stav":
+      return t("stavEndpointHint");
+    case "otari":
+      return t("otariEndpointHint");
+    case "openai_compatible":
+      return t("openaiCompatibleEndpointHint");
+    case "anthropic_compatible":
+      return t("anthropicCompatibleEndpointHint");
+    default:
+      return endpointRequired ? t("gatewayLitellmProxyModel") : t("optionalPointModelAt");
+  }
+}
+
+/**
  * What this form can mark, for `submitFailure`.
  *
  * Every refusal `POST /model-profiles` gives names one of these three now: a
@@ -220,6 +250,7 @@ export function endpointProfileLabel(
 }
 
 export function AddModel({
+  fixedProviderId,
   onCreated,
   onCreationPendingChange,
   onCancel,
@@ -288,7 +319,8 @@ export function AddModel({
    * somebody may already be typing in. The moment anybody picks anything,
    * `pickedProvider` wins and this stops being consulted.
    */
-  const providerId = pickedProvider ?? soleKeyedProvider(providers, secrets) ?? "";
+  const providerId =
+    fixedProviderId ?? pickedProvider ?? soleKeyedProvider(providers, secrets) ?? "";
   const provider = providers.find((entry) => entry.id === providerId);
   // The purposes list says which providers a *key* can be stored for; only the
   // provider catalog knows whether one accepts an endpoint and whether it can run
@@ -359,8 +391,8 @@ export function AddModel({
     isLoading: loadingModels,
   } = useProviderModels(
     providerId,
-    ["openrouter", "stav", "otari"].includes(providerId) ? listingEndpoint : undefined,
-    ["stav", "otari"].includes(providerId) ? chosenKey || undefined : undefined,
+    LISTED_AT_ENDPOINT.includes(providerId) ? listingEndpoint : undefined,
+    LISTED_WITH_KEY.includes(providerId) ? chosenKey || undefined : undefined,
     (pickedApi ?? startingApi) === "decisions" || ["typesafe", "system-one"].includes(providerId),
   );
 
@@ -452,6 +484,20 @@ export function AddModel({
   const endpointRequired =
     (capabilities?.requires_base_url ?? false) ||
     ((capabilities?.keyless ?? false) && chosenKey === "");
+  const endpointDescription = endpointHint(providerId, endpointRequired, t);
+  // The example an empty endpoint field shows: the shape of the address rather
+  // than a working one. The `/v1` root for a server that answers Chat
+  // Completions, the API root for one that answers Messages.
+  const endpointExample =
+    providerId === "openai_compatible"
+      ? "https://models.example/v1"
+      : providerId === "anthropic_compatible"
+        ? "https://models.example"
+        : (capabilities?.requires_base_url ?? false)
+          ? "https://gateway.example/api/v1"
+          : endpointRequired
+            ? "http://localhost:11434/v1"
+            : null;
   const canSubmit =
     provider !== undefined &&
     model.trim() !== "" &&
@@ -558,50 +604,58 @@ export function AddModel({
 
   return (
     <div className="border-border bg-muted/20 space-y-4 rounded-xl border p-4">
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-        <FormField htmlFor={`${fieldId}-add-model-provider`} label={t("provider")}>
-          <Select
-            value={providerId}
-            onValueChange={(value) => {
-              setPickedProvider(value);
-              setSecretId("");
-              setModel("");
-              setBaseUrl("");
-              setPickedApi(null);
-              setPickedRegion(null);
-              setFailure(NO_FAILURE);
-            }}
-          >
-            <SelectTrigger id={`${fieldId}-add-model-provider`} className="h-10">
-              <SelectValue placeholder={t("chooseProvider")} />
-            </SelectTrigger>
-            <SelectContent className="max-h-80">
-              {providers.map((entry) => {
-                const keyed = secrets.some((secret) => secret.purpose === entry.id);
-                return (
-                  <SelectItem
-                    key={entry.id}
-                    value={entry.id}
-                    // The row draws a mark and a mark has a `<title>`, which
-                    // counts as the item's text: without this, type-to-search
-                    // matches the brand rather than the provider's name.
-                    textValue={entry.label}
-                    // Outside the row on purpose: the trigger mirrors an item's
-                    // text, and a tick there would read as "selected" rather
-                    // than "this provider already has a key".
-                    trailing={
-                      keyed && (
-                        <Check className="text-muted-foreground ml-auto h-3.5 w-3.5 shrink-0" />
-                      )
-                    }
-                  >
-                    <ProviderRow provider={entry.id} name={entry.label} />
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-        </FormField>
+      <div
+        className={
+          fixedProviderId === undefined
+            ? "grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]"
+            : "grid gap-4"
+        }
+      >
+        {fixedProviderId === undefined && (
+          <FormField htmlFor={`${fieldId}-add-model-provider`} label={t("provider")}>
+            <Select
+              value={providerId}
+              onValueChange={(value) => {
+                setPickedProvider(value);
+                setSecretId("");
+                setModel("");
+                setBaseUrl("");
+                setPickedApi(null);
+                setPickedRegion(null);
+                setFailure(NO_FAILURE);
+              }}
+            >
+              <SelectTrigger id={`${fieldId}-add-model-provider`} className="h-10">
+                <SelectValue placeholder={t("chooseProvider")} />
+              </SelectTrigger>
+              <SelectContent className="max-h-80">
+                {providers.map((entry) => {
+                  const keyed = secrets.some((secret) => secret.purpose === entry.id);
+                  return (
+                    <SelectItem
+                      key={entry.id}
+                      value={entry.id}
+                      // The row draws a mark and a mark has a `<title>`, which
+                      // counts as the item's text: without this, type-to-search
+                      // matches the brand rather than the provider's name.
+                      textValue={entry.label}
+                      // Outside the row on purpose: the trigger mirrors an item's
+                      // text, and a tick there would read as "selected" rather
+                      // than "this provider already has a key".
+                      trailing={
+                        keyed && (
+                          <Check className="text-muted-foreground ml-auto h-3.5 w-3.5 shrink-0" />
+                        )
+                      }
+                    >
+                      <ProviderRow provider={entry.id} name={entry.label} />
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </FormField>
+        )}
 
         {/*
           The provider's catalog, searchable, and still able to carry an id that
@@ -743,17 +797,7 @@ export function AddModel({
               htmlFor={`${fieldId}-add-model-endpoint`}
               label={t("endpoint")}
               error={failure.fields.base_url}
-              description={
-                providerId === "openrouter"
-                  ? t("openRouterEndpointHint")
-                  : providerId === "stav"
-                    ? t("stavEndpointHint")
-                    : providerId === "otari"
-                      ? t("otariEndpointHint")
-                      : endpointRequired
-                        ? t("gatewayLitellmProxyModel")
-                        : t("optionalPointModelAt")
-              }
+              description={endpointDescription}
             >
               <Input
                 id={`${fieldId}-add-model-endpoint`}
@@ -762,13 +806,7 @@ export function AddModel({
                   setBaseUrl(event.target.value);
                   setFailure(NO_FAILURE);
                 }}
-                placeholder={
-                  capabilities?.requires_base_url
-                    ? "https://gateway.example/api/v1"
-                    : endpointRequired
-                      ? "http://localhost:11434/v1"
-                      : t("leaveEmptyProviderS")
-                }
+                placeholder={endpointExample ?? t("leaveEmptyProviderS")}
                 autoComplete="off"
                 spellCheck={false}
               />

@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, KeyRound, TrainFront, type LucideIcon } from "lucide-react";
+import { Box, KeyRound, Plug, TrainFront, type LucideIcon } from "lucide-react";
 
 import { CustomMark, useCustomIcons } from "@/components/icons/custom-icons";
 import { GlyphIcon } from "@/components/icons/glyph";
@@ -24,6 +24,11 @@ const SERVICE_MARKS: Readonly<Record<string, LucideIcon>> = {
   e2b: Box,
   // No icon set carries LiteLLM; its own mark is the bullet-train emoji.
   litellm: TrainFront,
+  // The two custom endpoints are not a brand: they are the organization's own
+  // server, reached at an address somebody types. A plug says that, where a
+  // monogram would spell out the first letter of an id nobody reads.
+  openai_compatible: Plug,
+  anthropic_compatible: Plug,
 };
 
 /** Every provider id with a mark - what the monochrome pin in the test iterates. */

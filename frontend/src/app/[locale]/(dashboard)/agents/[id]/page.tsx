@@ -7,7 +7,7 @@ import { BuildSection } from "@/components/agents/build-section";
 import { MoreOptions } from "@/components/ui/more-options";
 
 import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
-import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { use, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
@@ -32,6 +32,7 @@ import {
   TrendingUp,
   Upload,
   Radio,
+  RotateCcw,
   SearchX,
   UserPlus,
   X,
@@ -69,6 +70,7 @@ import { StartersPanel } from "@/components/agents/starters-panel";
 import { runsAgents, usableForAgents } from "@/lib/model-profiles";
 import { glideOrJump } from "@/lib/motion";
 import { insertVariable } from "@/lib/variable-completion";
+import { useAgentTabAttention } from "@/hooks/use-agent-tab-attention";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { AssistantStrip } from "@/components/authoring/assistant-strip";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
@@ -91,7 +93,7 @@ import {
 import { hereForMcpOAuthReturn } from "@/lib/mcp-oauth";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
 import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
-import { bindingKey, McpServerPicker } from "@/components/agents/mcp-server-picker";
+import { McpServerPicker } from "@/components/agents/mcp-server-picker";
 import { McpToolLoadNotice } from "@/components/agents/mcp-tool-load-notice";
 import { StaleReferences } from "@/components/agents/stale-references";
 import { McpServerList } from "@/components/mcp/mcp-server-list";
@@ -119,6 +121,7 @@ import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcu
 import { VersionHistory } from "@/components/agents/version-history";
 import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
 import { gapStatus } from "@/lib/knowledge-gap-status";
+import { AttentionDot } from "@/components/agents/attention-dot";
 import { ImproveButton, ImproveLink } from "@/components/agents/improve-link";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -169,6 +172,7 @@ import {
   useAgentEnvironments,
   useAgents,
   useAgentVersions,
+  useDraftBase,
   useCapabilityCatalog,
   usePromptVariables,
   useDelegationTree,
@@ -191,6 +195,7 @@ import {
   SUBAGENTS_ID,
   THINKING_ID,
   withCapability,
+  withCapabilitySettings,
   enableMcpToolSearch,
   withContextFiles,
   withSkills,
@@ -214,7 +219,7 @@ import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { DIALOG_CANVAS, DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
-import { narrowedSelection } from "@/lib/mcp-servers";
+import { applyMcpToolSelection, bindingKey } from "@/lib/mcp-servers";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -265,6 +270,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tAgents = useTranslations("agents");
   const tErrors = useTranslations("errors");
   const tGaps = useTranslations("knowledgeGaps");
+  const tAttention = useTranslations("attention");
   const tAnswer = useTranslations("answerFormat");
   const { id } = use(params);
   // A link from an eval run lands on the tab it names: its Evals, the History
@@ -284,6 +290,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     error: agentError,
     refetch: refetchAgent,
     saveDraft,
+    discardDraft,
     validate,
     publish,
     rollback,
@@ -322,6 +329,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // rest itself, so a page that fetched fifty to read one would be fetching a
   // list nothing on it renders.
   const { versions } = useAgentVersions(id, { limit: 1 });
+  const { base: draftBase } = useDraftBase(id);
   const { can, isLoaded: permissionsLoaded } = usePermissions();
   // The organization's servers, never the author's own: a personal connection
   // is refused at publish, so offering one would be offering a choice that
@@ -358,8 +366,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const openConversation = useConversationStore((state) => state.setCurrentConversationId);
 
   const [spec, setSpec] = useState<AgentSpec | null>(null);
+  const [adoptedBudget, setAdoptedBudget] = useState<AgentSpec["budget"]>(null);
+  const [adoptedCapabilities, setAdoptedCapabilities] = useState<AgentSpec["capabilities"]>([]);
   const [draftRevision, setDraftRevision] = useState<string | null>(null);
   const [draftConflict, setDraftConflict] = useState(false);
+  const [discardTarget, setDiscardTarget] = useState<{
+    id: string;
+    version: number;
+    revision: string;
+  } | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
   // The subset of them that names an input, so the capability whose
   // configuration was refused marks the box rather than only saying so in
@@ -426,13 +441,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   // A system agent's stored draft can hold what its save refuses and its page
   // cannot show, so none of that is adopted, compared or sent.
+  const draftSpec = agent?.draft_spec;
+  const kind = agent?.kind;
   const storedDraft = useMemo(
-    () =>
-      agent?.draft_spec && isSystemAgent(agent.kind)
-        ? forSystemAgent(agent.draft_spec)
-        : agent?.draft_spec,
-    [agent?.draft_spec, agent?.kind],
+    () => (draftSpec && isSystemAgent(kind) ? forSystemAgent(draftSpec) : draftSpec),
+    [draftSpec, kind],
   );
+
+  function adoptDraft(next: AgentSpec, revision: string | null) {
+    setSpec(next);
+    setDraftRevision(revision);
+    setAdoptedBudget(next.budget);
+    setAdoptedCapabilities(next.capabilities);
+  }
+
+  // A blank limit may have been saved as an empty budget object. Until the
+  // published base is known, preserve the shape from the draft we opened, not
+  // from an autosave that may already contain the temporary limit.
+  const budgetBase = draftBase === undefined ? adoptedBudget : draftBase.spec.budget;
+  const clearedBudget = budgetBase?.monthly_usd == null ? (budgetBase ?? null) : null;
 
   // Adopt the server's draft whenever there is nothing local, and not
   // otherwise: every autosave invalidates the agent query, and re-adopting the
@@ -443,8 +470,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // leaves React Query holding the same reference, and gating on the reference
   // moving left the page on its skeleton with no way out.
   if (agent && storedDraft && spec === null) {
-    setSpec(storedDraft);
-    setDraftRevision(agent.draft_revision);
+    adoptDraft(storedDraft, agent.draft_revision);
   }
 
   // This caller on this agent, not their role: a grant widens what the role
@@ -502,6 +528,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const couldStartEvals = !isSystem && agent?.can_run === true;
   const runsADataset = useRunsADataset({ enabled: couldStartEvals && (canViewRuns || canEdit) });
   const canStartEvals = canViewRuns && couldStartEvals && runsADataset;
+  // Said by a description rather than a label: the tab keeps its own name.
+  const tabAttention = useAgentTabAttention(id, {
+    enabled: canViewRuns && agent !== undefined && !isSystem,
+    canEdit,
+  });
+  const evalsWhy = useId();
+  const gapsWhy = useId();
+  const evalsReason =
+    tabAttention.evals.length > 0
+      ? tAttention("tabLabel", { reasons: tabAttention.evals.join(", ") })
+      : undefined;
+  const gapsReason =
+    tabAttention.gaps > 0 ? tAttention("gapsLabel", { count: tabAttention.gaps }) : undefined;
   // Testing the draft runs it - the editors' work in progress - on a dataset.
   const canTestDraft = canStartEvals && canEdit;
   const [testingDraft, setTestingDraft] = useState(false);
@@ -577,14 +616,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
     local: spec,
     stored: storedDraft,
     fetchedAt,
-    adopt: (next) => {
-      setSpec(next);
-      setDraftRevision(agent?.draft_revision ?? null);
-    },
+    adopt: (next) => adoptDraft(next, agent?.draft_revision ?? null),
   });
   const saveEditedDraft = useCallback(
     async (next: AgentSpec): Promise<boolean> => {
-      if (draftConflict || draftRevision === null) return false;
+      if (discardTarget !== null || draftConflict || draftRevision === null) return false;
       try {
         const saved = await storeDraft({ spec: next, expected_revision: draftRevision });
         setDraftRevision(saved.draft_revision);
@@ -603,7 +639,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         return false;
       }
     },
-    [draftConflict, draftRevision, storeDraft, isSystem],
+    [discardTarget, draftConflict, draftRevision, storeDraft, isSystem],
   );
   const reloadDraft = async (): Promise<void> => {
     const latest = await refetchAgent();
@@ -613,13 +649,63 @@ export default function AgentBuilderPage({ params }: PageProps) {
     }
     if (!latest.data) return;
     const fresh = latest.data;
-    setSpec(isSystem ? forSystemAgent(fresh.draft_spec) : fresh.draft_spec);
-    setDraftRevision(fresh.draft_revision);
+    adoptDraft(
+      isSystem ? forSystemAgent(fresh.draft_spec) : fresh.draft_spec,
+      fresh.draft_revision,
+    );
     setDraftConflict(false);
     remote.keepMine();
     attempts.current = { payload: "", tries: 0 };
   };
   const attempts = useRef<{ payload: string; tries: number }>({ payload: "", tries: 0 });
+  function showRefusal(found: SpecRefusal) {
+    setProblems(found.problems);
+    setConfigProblems(found.fields);
+    setFixes(found.fixes);
+  }
+
+  /**
+   * Store the draft, and stop if it did not store.
+   *
+   * `validate` asks the server about the draft it holds, so running it after a
+   * failed save reports on a spec nobody is looking at - and reports it as the
+   * verdict on the one on screen. `saveDraft` has already said what went wrong.
+   */
+  async function persist(): Promise<boolean> {
+    if (!spec || remote.held || storing) return false;
+    return saveEditedDraft(spec);
+  }
+
+  /**
+   * Store, validate, and then *ask* - publishing is the one click on this page
+   * that changes what every channel, widget and API call answers with, and the
+   * dialog is where that is said before it happens rather than after.
+   */
+  async function handlePublish() {
+    if (!(await persist())) return;
+    const found = await validate();
+    showRefusal(found);
+    if (found.problems.length === 0) setPublishOpen(true);
+  }
+
+  const discard = async (): Promise<void> => {
+    if (discardTarget === null || storing || discardDraft.isPending) return;
+    try {
+      const saved = await discardDraft.mutateAsync({
+        expected_revision: discardTarget.revision,
+        expected_version_id: discardTarget.id,
+      });
+      adoptDraft(saved.draft_spec, saved.draft_revision);
+      attempts.current = { payload: "", tries: 0 };
+      showRefusal({ problems: [], fields: [], fixes: [] });
+      setDiscardTarget(null);
+    } catch (error) {
+      const reason = error instanceof ApiError ? error.details?.reason : null;
+      if (reason === "draft_changed") setDraftConflict(true);
+      if (reason === "draft_changed" || reason === "published_version_changed")
+        setDiscardTarget(null);
+    }
+  };
   useEffect(() => {
     // A blank name is a 422 from the spec, so it waits here with the field
     // saying why rather than spending both attempts on a refusal.
@@ -629,6 +715,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
       !storedDraft ||
       !isDirty ||
       storing ||
+      discardTarget !== null ||
       remote.held ||
       draftConflict ||
       !spec.name.trim()
@@ -646,7 +733,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
       void saveEditedDraft(spec);
     }, 1200);
     return () => clearTimeout(timer);
-  }, [spec, storedDraft, isDirty, canEdit, saveEditedDraft, storing, remote.held, draftConflict]);
+  }, [
+    spec,
+    storedDraft,
+    isDirty,
+    canEdit,
+    saveEditedDraft,
+    storing,
+    discardTarget,
+    remote.held,
+    draftConflict,
+  ]);
 
   // Asked once per visit, and only of someone who may publish: the dialog still
   // validates first and still asks before anything goes live.
@@ -984,6 +1081,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
   if (isSystem) return <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />;
 
   const isPublished = agent.status === "published";
+  const canDiscard =
+    canEdit &&
+    isPublished &&
+    draftBase !== undefined &&
+    draftRevision !== null &&
+    (!sameJson(agent.draft_spec, draftBase.spec) || !sameJson(spec, draftBase.spec));
 
   // The Memory tab exists only when the capability is bound; a bare binding reads as
   // what the builder returns for one (native, both shapes on).
@@ -1007,8 +1110,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const updateCapability = (updated: CapabilityBindingSpec) =>
     update({
-      capabilities: spec.capabilities.map((capability) =>
-        capability.id === updated.id ? updated : capability,
+      capabilities: withCapabilitySettings(
+        spec.capabilities,
+        updated,
+        draftBase?.spec.capabilities ?? adoptedCapabilities,
       ),
     });
 
@@ -1038,36 +1143,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
     skillIds: spec.skill_ids,
     onSkillToggle: (skillId: string) => setSkills(toggleId(spec.skill_ids, skillId)),
   };
-
-  /**
-   * Store the draft, and stop if it did not store.
-   *
-   * `validate` asks the server about the draft it holds, so running it after a
-   * failed save reports on a spec nobody is looking at - and reports it as the
-   * verdict on the one on screen. `saveDraft` has already said what went wrong.
-   */
-  async function persist(): Promise<boolean> {
-    if (!spec || remote.held || storing) return false;
-    return saveEditedDraft(spec);
-  }
-
-  /**
-   * Store, validate, and then *ask* - publishing is the one click on this page
-   * that changes what every channel, widget and API call answers with, and the
-   * dialog is where that is said before it happens rather than after.
-   */
-  async function handlePublish() {
-    if (!(await persist())) return;
-    const found = await validate();
-    showRefusal(found);
-    if (found.problems.length === 0) setPublishOpen(true);
-  }
-
-  function showRefusal(found: SpecRefusal) {
-    setProblems(found.problems);
-    setConfigProblems(found.fields);
-    setFixes(found.fixes);
-  }
 
   /** Rewrite the draft as the refusal offered, save it and check it again - publishing stays a click of its own. */
   async function handleFix(fix: SpecFix) {
@@ -1312,6 +1387,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   )}
                   {canEdit && (
                     <>
+                      {canDiscard && (
+                        <DropdownMenuItem
+                          className={DESCRIBED_ITEM}
+                          disabled={storing || draftConflict || remote.held}
+                          onSelect={() =>
+                            setDiscardTarget({
+                              id: draftBase.id,
+                              version: draftBase.version,
+                              revision: draftRevision,
+                            })
+                          }
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                          <DropdownMenuItemText
+                            label={t("discardDraft")}
+                            description={t("discardDraftHint")}
+                          />
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem
                         className={DESCRIBED_ITEM}
                         onSelect={() => avatarInput.current?.click()}
@@ -1544,24 +1638,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
           toolPicker={toolPicker}
           setToolPicker={setToolPicker}
           submitting={false}
-          // Written into the spec rather than onto the connection: this is the
-          // agent's narrowing, and the connection's own allowlist is everybody's.
-          // Every tool checked means "no narrowing from here", which is null - not
-          // a list that would freeze out a tool the server adds later.
           onSave={() => {
             if (toolPicker === null) return;
-            const allowed = narrowedSelection(
+            const next = applyMcpToolSelection(
+              spec.mcp_servers,
+              toolBinding,
               toolPicker.checked,
               toolPicker.tools,
-              // Only a real probe can mean "everything": where the catalogue is
-              // the binding's own names, all-checked is true by construction.
-              toolPicker.connection.last_tools !== null,
             );
-            update({
-              mcp_servers: spec.mcp_servers.map((ref) =>
-                bindingKey(ref) === toolBinding ? { ...ref, allowed_tools: allowed } : ref,
-              ),
-            });
+            if (next !== spec.mcp_servers) update({ mcp_servers: next });
             setToolPicker(null);
             setToolBinding(null);
           }}
@@ -1637,6 +1722,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
         </PublishDialog>
         {testingDraft && (
           <StartEvalDialog agentId={id} target="compare" onOpenChange={setTestingDraft} />
+        )}
+
+        {discardTarget !== null && (
+          <ConfirmDialog
+            open
+            onOpenChange={(open) => !open && setDiscardTarget(null)}
+            title={t("discardDraftTitle")}
+            description={t("discardDraftBody", { version: discardTarget.version })}
+            confirmLabel={t("discardDraft")}
+            loading={discardDraft.isPending || storing}
+            destructive
+            onConfirm={discard}
+          />
         )}
 
         {confirming === "archive" && (
@@ -1738,6 +1836,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </div>
         )}
 
+        {evalsReason && (
+          <span id={evalsWhy} className="sr-only">
+            {evalsReason}
+          </span>
+        )}
+        {gapsReason && (
+          <span id={gapsWhy} className="sr-only">
+            {gapsReason}
+          </span>
+        )}
         <Tabs value={tab} onValueChange={setTab} className="flex flex-1 flex-col">
           <TabsList>
             <TabsTrigger value="build" data-tour="agent-tab-build">
@@ -1765,14 +1873,30 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </TabsTrigger>
             }
             {(canViewRuns || tab === "evals") && (
-              <TabsTrigger value="evals" data-tour="agent-tab-evals">
-                <FlaskConical className="size-4 shrink-0" aria-hidden />
+              <TabsTrigger
+                value="evals"
+                data-tour="agent-tab-evals"
+                aria-describedby={evalsReason ? evalsWhy : undefined}
+                title={evalsReason}
+              >
+                <span className="relative inline-flex shrink-0" aria-hidden>
+                  <FlaskConical className="size-4" />
+                  {evalsReason && <AttentionDot testId="evals-attention" />}
+                </span>
                 {t("evals")}
               </TabsTrigger>
             )}
             {canViewRuns && (
-              <TabsTrigger value="gaps" data-tour="agent-tab-gaps">
-                <SearchX className="size-4 shrink-0" aria-hidden />
+              <TabsTrigger
+                value="gaps"
+                data-tour="agent-tab-gaps"
+                aria-describedby={gapsReason ? gapsWhy : undefined}
+                title={gapsReason}
+              >
+                <span className="relative inline-flex shrink-0" aria-hidden>
+                  <SearchX className="size-4" />
+                  {gapsReason && <AttentionDot testId="gaps-attention" />}
+                </span>
                 {tGaps("tab")}
               </TabsTrigger>
             )}
@@ -2155,10 +2279,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
                       disabled={!canEdit}
                       onChange={(event) =>
                         update({
-                          budget: {
-                            ...spec.budget,
-                            monthly_usd: event.target.value ? Number(event.target.value) : null,
-                          },
+                          budget: event.target.value
+                            ? { monthly_usd: Number(event.target.value) }
+                            : clearedBudget,
                         })
                       }
                       placeholder={t("noLimit")}

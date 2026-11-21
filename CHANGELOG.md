@@ -21,6 +21,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Find unanswered web-chat questions in Inbox and return to their original question cards, including older conversations.
+
+- Configure custom OpenAI-compatible and Anthropic-compatible model endpoints, with explicit authenticated model discovery.
+
+- Mark agent Evals and Knowledge gaps tabs with accessible attention reasons and open attention cards on Evals.
+
+- Discard unpublished agent draft changes back to the latest published version, with revision checks and confirmation.
+
+- Change an existing workflow's audience under **More → Settings → Access**, including organization visibility and grants for individual people or groups.
+
 - Resume unfinished setup from the sidebar or personal settings, with a clear setup link, progress artwork and organization-scoped return to the last step. Configure reminder availability in deployment settings, defaults in the organization and personal 1/3/7-day snoozes; the default is one day.
 
 - Configure the new-chat Inbox, starter messages, greeting and feature hints independently. Deployment availability constrains organization defaults and each member's personal choices.
@@ -129,6 +139,12 @@ Two things are versioned separately from this file and worth knowing about:
 - Refine the default AgenticOS assistant’s guidance for economical specialist delegation, safe tool-error recovery, editable drafts and artifact verification. Keep media generation tied to available configured tools and preserve personal model, budget and prompt choices during normal default refreshes.
 
 ### Fixed
+
+- Honor the configured MCP workflow timeout for transport reads while retaining a separate three-second connection limit (#3214). Ambiguous writes are not replayed.
+
+- Retry an OpenRouter reasoning-refusal response once without altering recorded reasoning or retrying an already-started stream.
+
+- Preserve MCP account policies, pinned tools and agent configuration when reverting Builder edits.
 
 - Preserve URL chips when copying or cutting composer text. Keep question reveal buttons stable on phones, and give the model control a full row beside Send. Inbox preview rows now prepare an editable message without sending it.
 

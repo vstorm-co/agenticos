@@ -2435,6 +2435,34 @@ class TestAQuestionTheRunParkedOn:
         assert response.json()[0]["tool_call_id"] == "ask-1"
         assert response.json()[0]["questions"][0]["header"] == "Tone"
 
+    @pytest.mark.security
+    async def test_a_question_link_for_another_conversation_cannot_load_the_card(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        run = self._run()
+        service = MagicMock(get_run=AsyncMock(return_value=run), parked_questions=AsyncMock())
+        async with as_role("viewer", {deps.get_agent_runner_service: lambda: service}) as client:
+            response = await client.get(
+                _url(f"/runs/{run.id}/questions"), params={"conversation_id": str(uuid4())}
+            )
+        assert response.status_code == 200
+        assert response.json() == []
+        service.parked_questions.assert_not_called()
+
+    async def test_a_viewer_can_list_their_questions(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        service = MagicMock(
+            list_waiting_questions=AsyncMock(return_value={"items": [], "total": 0})
+        )
+        async with as_role("viewer", {deps.get_conversation_service: lambda: service}) as client:
+            response = await client.get(
+                _url("/conversations/waiting-questions"), params={"skip": "2", "limit": "3"}
+            )
+        assert response.status_code == 200
+        assert response.json() == {"items": [], "total": 0}
+        assert service.list_waiting_questions.call_args.kwargs == {"skip": 2, "limit": 3}
+
     async def test_an_answer_continues_the_run_and_says_what_it_did(
         self, as_role: ClientFactory, synthetic_roles: None
     ) -> None:

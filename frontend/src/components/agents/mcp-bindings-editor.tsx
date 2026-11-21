@@ -10,7 +10,7 @@ import {
   useConnectEntry,
   useSignInOwn,
 } from "@/components/agents/connect-server-dialog";
-import { bindingKey, McpServerPicker } from "@/components/agents/mcp-server-picker";
+import { McpServerPicker } from "@/components/agents/mcp-server-picker";
 import { McpToolLoadNotice } from "@/components/agents/mcp-tool-load-notice";
 import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
@@ -19,7 +19,7 @@ import { enableMcpToolSearch } from "@/lib/agent-spec";
 import { getErrorMessage } from "@/lib/api-error";
 import { toolsForBinding } from "@/lib/binding-tools";
 import { hereForMcpOAuthReturn } from "@/lib/mcp-oauth";
-import { narrowedSelection } from "@/lib/mcp-servers";
+import { applyMcpToolSelection, bindingKey } from "@/lib/mcp-servers";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import type { AgentSpec, McpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
@@ -150,24 +150,15 @@ export function McpBindingsEditor({
         toolPicker={toolPicker}
         setToolPicker={setToolPicker}
         submitting={false}
-        // Written into the spec rather than onto the connection: this is the
-        // agent's narrowing, and the connection's own allowlist is everybody's.
-        // Every tool checked means "no narrowing from here", which is null - not
-        // a list that would freeze out a tool the server adds later.
         onSave={() => {
           if (toolPicker === null) return;
-          const allowed = narrowedSelection(
+          const next = applyMcpToolSelection(
+            value,
+            toolBinding,
             toolPicker.checked,
             toolPicker.tools,
-            // Only a real probe can mean "everything": where the catalogue is
-            // the binding's own names, all-checked is true by construction.
-            toolPicker.connection.last_tools !== null,
           );
-          setServers(
-            value.map((ref) =>
-              bindingKey(ref) === toolBinding ? { ...ref, allowed_tools: allowed } : ref,
-            ),
-          );
+          if (next !== value) setServers(next);
           setToolPicker(null);
           setToolBinding(null);
         }}

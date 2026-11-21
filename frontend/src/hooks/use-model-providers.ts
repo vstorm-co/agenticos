@@ -13,7 +13,12 @@ import { toast } from "sonner";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { invalidateSpeechSettings } from "@/lib/dictation-api";
-import { modelInUse, runsAgents } from "@/lib/model-profiles";
+import {
+  LISTED_ONLY_AT_ENDPOINT,
+  LISTED_WITH_KEY,
+  modelInUse,
+  runsAgents,
+} from "@/lib/model-profiles";
 import { qk } from "@/lib/query-keys";
 import type {
   ModelApi,
@@ -311,8 +316,8 @@ export function useProviderModels(
     ...providerModelsQuery(providerId, baseUrl, secretId, decision),
     enabled:
       providerId !== "" &&
-      !(providerId === "otari" && !baseUrl) &&
-      !(["stav", "otari"].includes(providerId) && baseUrl && !secretId),
+      !(LISTED_ONLY_AT_ENDPOINT.includes(providerId) && !baseUrl) &&
+      !(LISTED_WITH_KEY.includes(providerId) && baseUrl && !secretId),
   });
 
   // Both fields this fills choose a model to talk to, so a speech or embedding

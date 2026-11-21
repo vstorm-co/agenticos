@@ -931,6 +931,52 @@ async def test_otari_discovery_never_defaults_a_key_to_the_hosted_gateway() -> N
     factory.assert_not_called()
 
 
+@pytest.mark.anyio
+async def test_a_custom_provider_without_an_endpoint_has_no_listing() -> None:
+    """It exists only at an endpoint the caller names, so there is nothing to ask
+    before one is named."""
+    for provider in ("openai_compatible", "anthropic_compatible"):
+        with patch(f"{MODULE}._client") as factory:
+            assert await models_for(provider, api_key="k") == ([], "unlisted")
+        factory.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_a_custom_endpoint_is_listed_where_the_sdk_reaches_it() -> None:
+    """The path the SDK itself uses, not the one a vendor's API answers on.
+
+    Anthropic's SDK posts to `<endpoint>/v1/messages`, so its models are listed
+    at `<endpoint>/v1/models` - while an OpenAI-compatible endpoint already is
+    the `/v1` root and lists at `<endpoint>/models`.
+    """
+    received: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        received.append(request)
+        return httpx.Response(200, json={"data": [{"id": "llama3.3"}]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            models, source = await models_for(
+                "anthropic_compatible", api_key="k", base_url="https://models.example"
+            )
+    assert source == "live"
+    assert [model.id for model in models] == ["llama3.3"]
+    assert str(received[0].url) == "https://models.example/v1/models"
+    assert received[0].headers["x-api-key"] == "k"
+
+    received.clear()
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            models, source = await models_for(
+                "openai_compatible", api_key="k", base_url="https://models.example/v1"
+            )
+    assert source == "live"
+    assert [model.id for model in models] == ["llama3.3"]
+    assert str(received[0].url) == "https://models.example/v1/models"
+    assert received[0].headers["Authorization"] == "Bearer k"
+
+
 def test_otari_catalog_prices_direct_selectors_but_not_routing_aliases() -> None:
     from app.services.model_catalog import priced_model
 

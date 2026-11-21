@@ -199,7 +199,7 @@ may open. Everybody opens on **Me**:
 
 The personal Briefing aligns each title and source with its actions. Discover follows it directly. Recent visuals fit their images inside centered previews. Answered questions stop waiting when the server starts their admitted continuation. Clicking a dismissible toast closes it with a short exit; loading notices remain visible.
 
-Quality-management cards, including **Agents that need attention** and **Improvements waiting for you**, remain available in the organization view through **Customize**. Their decisions, permissions and links to the agent improvement flows are unchanged. Personal waiting counts include only the reader’s tool approvals and open Inbox proposals.
+Quality-management cards, including **Agents that need attention** and **Improvements waiting for you**, remain available in the organization view through **Customize**. Their decisions, permissions and links to the agent improvement flows are unchanged. Personal waiting counts include the reader’s tool approvals, parked chat questions and open Inbox proposals.
 
 The organization's view shows the cards that answer with data, grouped into
 bands. The rest - integrations, channels, routines, knowledge sync, departments,
@@ -313,6 +313,8 @@ when, and the answers in the row. Filter by where they came from, or open
 watches. Shorter rows head your dashboard as **Briefing**, and the empty chat
 with the starter agent offers the first of them as a card, with a link to the
 rest.
+
+**Questions waiting for you** appears under **All** and **Urgent** when a web-chat agent is waiting for your answer. The row shows the chat, agent and expiry time. Open it to answer in the original chat; opening it alone does not clear it. The item counts as waiting until the run continues, is cancelled or the question expires. Only the person the agent asked sees it in Inbox, independently of approval permissions.
 
 What a watch finds that need not be heard at once waits for your morning: at
 the hour your organization's proactivity keeps, one notification and one direct

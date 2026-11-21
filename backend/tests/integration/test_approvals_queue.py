@@ -16,10 +16,10 @@ import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import null, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.permissions import AuthContext, OrgRoleName
@@ -28,12 +28,16 @@ from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
+from app.db.models.conversation import Conversation
+from app.db.models.conversation_share import ConversationShare
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.project import Project
 from app.db.models.user import User
 from app.repositories import agent_run_repo, voice_call_repo
 from app.repositories.agent_run import ApprovalFilters, ChatAsker
-from app.services.agent_runner import AgentRunnerService
+from app.services.agent_runner import AgentRunnerService, PausedRunState
 from app.services.approvals import ApprovalService
+from app.services.conversation import ConversationService
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -117,6 +121,226 @@ async def _approval(db, org: Organization, run: AgentRun, **overrides) -> ToolAp
 
 def _ctx(org: Organization, user: User) -> AuthContext:
     return AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.OWNER)
+
+
+async def test_only_the_person_asked_lists_live_web_questions_in_their_workspace(
+    db: AsyncSession,
+) -> None:
+    org, owner = await _org(db)
+    other_org, other = await _org(db)
+    agent, other_agent = await _agent(db, org), await _agent(db, other_org)
+    conversation = Conversation(organization_id=org.id, user_id=owner.id, title="Delivery")
+    other_conversation = Conversation(organization_id=other_org.id, user_id=owner.id)
+    db.add_all([conversation, other_conversation])
+    await db.flush()
+    now = datetime.now(UTC)
+    older = await _run(db, org, agent, started_by=owner)
+    newer = await _run(db, org, agent, started_by=owner)
+    expired = await _run(db, org, agent, started_by=owner)
+    workflow = await _run(db, org, agent, started_by=owner)
+    answered = await _run(db, org, agent, started_by=owner)
+    another_person = await _run(db, org, agent, started_by=other)
+    another_workspace = await _run(db, other_org, other_agent, started_by=owner)
+    for run in (older, newer, expired, workflow, answered, another_person, another_workspace):
+        run.status = RunStatus.AWAITING_ANSWER.value
+        run.ended_at = now - timedelta(minutes=2)
+        run.conversation_id = conversation.id
+        run.paused_state = {"questions": ["private-question-id"]}
+    newer.ended_at = now - timedelta(minutes=1)
+    expired.ended_at = now - timedelta(hours=25)
+    workflow.surface = RunSurface.WORKFLOW.value
+    answered.status = RunStatus.RUNNING.value
+    another_workspace.conversation_id = other_conversation.id
+    await db.flush()
+    service = ConversationService(db)
+    caller = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.MEMBER)
+
+    first = await service.list_waiting_questions(caller, skip=0, limit=1)
+    second = await service.list_waiting_questions(caller, skip=1, limit=1)
+
+    assert first.total == second.total == 2
+    assert [item.run_id for item in first.items + second.items] == [older.id, newer.id]
+    assert first.items[0].model_dump() == {
+        "run_id": older.id,
+        "conversation_id": conversation.id,
+        "conversation_title": "Delivery",
+        "agent_name": "Clerk",
+        "expires_at": now - timedelta(minutes=2) + timedelta(hours=24),
+    }
+    older.status = RunStatus.RUNNING.value
+    newer.status = RunStatus.CANCELLED.value
+    await db.flush()
+    assert (await service.list_waiting_questions(caller, skip=0, limit=1)).total == 0
+
+
+async def test_parked_project_question_is_hidden_after_losing_the_right_to_continue(
+    db: AsyncSession,
+) -> None:
+    org, owner = await _org(db)
+    agent = await _agent(db, org)
+    project = Project(organization_id=org.id, owner_user_id=owner.id, name="Delivery")
+    db.add(project)
+    await db.flush()
+    conversation = Conversation(organization_id=org.id, user_id=owner.id, project_id=project.id)
+    db.add(conversation)
+    await db.flush()
+    run = await _run(db, org, agent, started_by=owner)
+    run.status = RunStatus.AWAITING_ANSWER.value
+    run.conversation_id = conversation.id
+    run.ended_at = datetime.now(UTC)
+    run.paused_state = {"questions": ["ask"]}
+    await db.flush()
+
+    service = ConversationService(db)
+    assert (await service.list_waiting_questions(_ctx(org, owner), skip=0, limit=5)).total == 1
+    viewer = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.VIEWER)
+    assert (await service.list_waiting_questions(viewer, skip=0, limit=5)).total == 0
+
+
+@pytest.mark.parametrize(
+    "scope_state", ["omitted", "explicit-none", "sql-null", "empty", "scoped", "api"]
+)
+async def test_waiting_questions_match_production_run_creation_and_unscoped_nulls(
+    db: AsyncSession, scope_state: str
+) -> None:
+    org, owner = await _org(db)
+    agent = await _agent(db, org)
+    conversation = Conversation(organization_id=org.id, user_id=owner.id)
+    db.add(conversation)
+    await db.flush()
+    if scope_state == "omitted":
+        run = await agent_run_repo.create_run(
+            db,
+            organization_id=org.id,
+            agent_id=agent.id,
+            agent_version_id=None,
+            user_id=owner.id,
+            conversation_id=conversation.id,
+            surface=RunSurface.WEB.value,
+            model_label="QA",
+            started_at=datetime.now(UTC),
+        )
+    else:
+        scopes = (
+            [] if scope_state == "empty" else ["agents:run"] if scope_state == "scoped" else None
+        )
+        run = await agent_run_repo.create_run(
+            db,
+            organization_id=org.id,
+            agent_id=agent.id,
+            agent_version_id=None,
+            user_id=owner.id,
+            conversation_id=conversation.id,
+            surface=RunSurface.API.value if scope_state == "api" else RunSurface.WEB.value,
+            model_label="QA",
+            started_at=datetime.now(UTC),
+            key_scopes=scopes,
+        )
+    state = PausedRunState(messages=[], tool_call_ids={}, questions=["ask"])
+    await agent_run_repo.finish_run(
+        db,
+        run=run,
+        status=RunStatus.AWAITING_ANSWER.value,
+        input_tokens=0,
+        output_tokens=0,
+        cost_usd=Decimal(0),
+        cost_is_partial=False,
+        ended_at=datetime.now(UTC),
+        paused_state=state.model_dump(mode="json"),
+    )
+    if scope_state == "sql-null":
+        await db.execute(update(AgentRun).where(AgentRun.id == run.id).values(key_scopes=null()))
+    queue = await ConversationService(db).list_waiting_questions(_ctx(org, owner), skip=0, limit=5)
+    expected = [] if scope_state in {"empty", "scoped", "api"} else [run.id]
+    assert queue.total == len(expected)
+    assert [item.run_id for item in queue.items] == expected
+
+
+@pytest.mark.parametrize("stored_results", ["default", "legacy-null", "empty", "accepted"])
+async def test_waiting_questions_handle_real_serialization_and_legacy_json_null(
+    db: AsyncSession, stored_results: str
+) -> None:
+    org, owner = await _org(db)
+    agent = await _agent(db, org)
+    conversation = Conversation(organization_id=org.id, user_id=owner.id)
+    db.add(conversation)
+    await db.flush()
+    run = await _run(db, org, agent, started_by=owner)
+    run.conversation_id = conversation.id
+    run.status = RunStatus.AWAITING_ANSWER.value
+    run.ended_at = datetime.now(UTC)
+    state = PausedRunState(messages=[], tool_call_ids={}, questions=["ask"])
+    payload = state.model_dump(mode="json")
+    if stored_results == "legacy-null":
+        payload["question_results"] = None
+    elif stored_results == "empty":
+        payload["question_results"] = {}
+    elif stored_results == "accepted":
+        payload["question_results"] = {"ask": {"Tone": ["Casual"]}}
+    run.paused_state = payload
+    await db.flush()
+    queue = await ConversationService(db).list_waiting_questions(_ctx(org, owner), skip=0, limit=5)
+    assert queue.total == (0 if stored_results == "accepted" else 1)
+    assert [item.run_id for item in queue.items] == (
+        [] if stored_results == "accepted" else [run.id]
+    )
+
+
+async def test_archived_edit_shared_question_is_not_an_actionable_inbox_item(db) -> None:
+    org, owner = await _org(db)
+    editor = await _user(db)
+    db.add(OrganizationMember(organization_id=org.id, user_id=editor.id, role="member"))
+    agent = await _agent(db, org)
+    conversation = Conversation(organization_id=org.id, user_id=owner.id, title="Shared QA")
+    db.add(conversation)
+    await db.flush()
+    db.add(
+        ConversationShare(
+            conversation_id=conversation.id,
+            shared_by=owner.id,
+            shared_with=editor.id,
+            permission="edit",
+        )
+    )
+    run = await _run(db, org, agent, started_by=editor)
+    run.conversation_id = conversation.id
+    run.status = RunStatus.AWAITING_ANSWER.value
+    run.ended_at = datetime.now(UTC)
+    run.paused_state = {"questions": ["ask"]}
+    await db.flush()
+    ctx = AuthContext(user_id=editor.id, organization_id=org.id, role=OrgRoleName.MEMBER)
+    service = ConversationService(db)
+    assert (await service.list_waiting_questions(ctx, skip=0, limit=5)).total == 1
+    await service.archive_conversation(conversation.id, organization_id=org.id, user_id=owner.id)
+    assert (await service.list_waiting_questions(ctx, skip=0, limit=5)).total == 0
+
+
+async def test_ownerless_channel_web_question_requires_current_confirmed_participation(db) -> None:
+    org, user = await _org(db)
+    agent = await _agent(db, org)
+    conversation = Conversation(organization_id=org.id, user_id=None)
+    db.add(conversation)
+    await db.flush()
+    run = await _run(db, org, agent, started_by=user)
+    run.conversation_id = conversation.id
+    run.status = RunStatus.AWAITING_ANSWER.value
+    run.ended_at = datetime.now(UTC)
+    run.paused_state = {"questions": ["ask"]}
+    await db.flush()
+    with patch(
+        "app.services.conversation.channel_membership.confirmed_participant_threads",
+        new_callable=AsyncMock,
+    ) as confirmed:
+        service = ConversationService(db)
+        confirmed.return_value = {conversation.id}
+        assert (await service.list_waiting_questions(_ctx(org, user), skip=0, limit=5)).total == 1
+        confirmed.assert_awaited_with(db, user_id=user.id, organization_id=org.id)
+        confirmed.return_value = set()
+        assert (await service.list_waiting_questions(_ctx(org, user), skip=0, limit=5)).total == 0
+        confirmed.return_value = {conversation.id}
+        run.surface = RunSurface.SLACK.value
+        await db.flush()
+        assert (await service.list_waiting_questions(_ctx(org, user), skip=0, limit=5)).total == 0
 
 
 async def _chat_run(

@@ -1838,6 +1838,91 @@ it("never discovers Otari on auto-selection or typing and reconfirms a changed d
   );
 });
 
+describe("a custom endpoint", () => {
+  it("creates an OpenAI-compatible profile from the endpoint and the key it is given", async () => {
+    // The organization's own server, reached at an address somebody types. The
+    // model list is the endpoint's own, read with the key that authenticates it.
+    state.purposes = [
+      ...state.purposes,
+      purpose("openai_compatible", "Custom (OpenAI-compatible)"),
+    ];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("openai_compatible", "Custom (OpenAI-compatible)", {
+        supports_base_url: true,
+        requires_base_url: true,
+        apis: ["chat"],
+      }),
+    ];
+    state.secrets = [secret({ id: "s-custom", name: "Gateway key", purpose: "openai_compatible" })];
+    state.models = [{ id: "llama3.3", name: "Llama 3.3" }];
+    mount();
+    await pickProvider("Custom \\(OpenAI-compatible\\)");
+    await userEvent.type(screen.getByLabelText("Endpoint"), "https://models.example/v1");
+    // The endpoint is the whole address, so nothing is asked of it until the
+    // address is confirmed - there is nowhere else to ask.
+    expect(listingRequests).toHaveBeenLastCalledWith(
+      "openai_compatible",
+      undefined,
+      "s-custom",
+      false,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Load models" }));
+    expect(listingRequests).toHaveBeenLastCalledWith(
+      "openai_compatible",
+      "https://models.example/v1",
+      "s-custom",
+      false,
+    );
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /Llama 3.3/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(state.createProfile.mutateAsync).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        provider: "openai_compatible",
+        model: "llama3.3",
+        secret_id: "s-custom",
+        base_url: "https://models.example/v1",
+        api: null,
+      }),
+    );
+  });
+
+  it("says what an Anthropic-compatible endpoint is, and asks for no API", async () => {
+    // Anthropic's SDK posts to `<endpoint>/v1/messages`, so the endpoint is the
+    // API root. An address that is right for a Chat Completions server is wrong
+    // for a Messages one, and the wrong one fails with a 404 that names the
+    // path rather than the cause.
+    state.purposes = [
+      ...state.purposes,
+      purpose("anthropic_compatible", "Custom (Anthropic-compatible)"),
+    ];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("anthropic_compatible", "Custom (Anthropic-compatible)", {
+        supports_base_url: true,
+        requires_base_url: true,
+      }),
+    ];
+    state.secrets = [
+      secret({ id: "s-messages", name: "Messages key", purpose: "anthropic_compatible" }),
+    ];
+    mount();
+    await pickProvider("Custom \\(Anthropic-compatible\\)");
+    expect(screen.getByText(/answers Anthropic's Messages API/)).toBeInTheDocument();
+    // One API means no choice to offer, so no field asks for it.
+    expect(screen.queryByLabelText("API")).toBeNull();
+    await userEvent.type(screen.getByLabelText("Endpoint"), "https://models.example");
+    await userEvent.click(screen.getByRole("button", { name: "Load models" }));
+    expect(listingRequests).toHaveBeenLastCalledWith(
+      "anthropic_compatible",
+      "https://models.example",
+      "s-messages",
+      false,
+    );
+  });
+});
+
 describe("native decision model setup", () => {
   it("uses the provider model and inline vault key flow for decisions", async () => {
     state.catalog = [

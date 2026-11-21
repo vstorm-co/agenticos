@@ -1,10 +1,14 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Suspense, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
 import type { WorkflowDetail } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+import type { ResourceSharing, Visibility } from "@/types/sharing";
 
 import WorkflowEditorPage from "./page";
 
@@ -85,7 +89,20 @@ const WORKFLOW: WorkflowDetail = {
   },
 };
 
-vi.mock("@/hooks", () => ({
+const SHARING: ResourceSharing = {
+  resource_type: "workflow",
+  resource_id: WORKFLOW.id,
+  owner_user_id: null,
+  visibility: "org",
+  grants: [],
+};
+
+vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), patch: vi.fn() } }));
+
+vi.mock("@/hooks", async () => ({
+  useSharing: (await import("@/hooks/use-sharing")).useSharing,
+  useMembers: () => ({ members: [] }),
+  useGroups: () => ({ groups: [] }),
   useWorkflowTableDrift: () => undefined,
   useWorkflow: () => ({
     // What the server answers: `can_edit` is this caller's reach to this
@@ -193,12 +210,14 @@ vi.mock("@/components/workflows/editor", () => ({
 
 // The page reads its route params with `use()`, so the first render suspends and
 // the tree only exists after that promise settles — awaited here.
-async function renderPage() {
+async function renderPage(client = new QueryClient()) {
   await act(async () => {
     render(
-      <Suspense fallback={null}>
-        <WorkflowEditorPage params={Promise.resolve({ id: "w1" })} />
-      </Suspense>,
+      <QueryClientProvider client={client}>
+        <Suspense fallback={null}>
+          <WorkflowEditorPage params={Promise.resolve({ id: "w1" })} />
+        </Suspense>
+      </QueryClientProvider>,
     );
   });
 }
@@ -511,11 +530,18 @@ describe("a workflow's settings", () => {
     );
   });
 
-  it("opens from the header and saves what the form hands over, then closes", async () => {
-    await renderPage();
-
+  async function openSettings() {
     await userEvent.click(screen.getByRole("button", { name: "More" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Settings" }));
+  }
+
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockResolvedValue(SHARING);
+  });
+
+  it("opens from the header and saves what the form hands over, then closes", async () => {
+    await renderPage();
+    await openSettings();
     await userEvent.click(screen.getByRole("button", { name: "save settings" }));
 
     expect(actions.saveSettings.mutate).toHaveBeenCalledWith(
@@ -523,5 +549,66 @@ describe("a workflow's settings", () => {
       expect.anything(),
     );
     expect(screen.queryByRole("button", { name: "save settings" })).toBeNull();
+  });
+
+  it("changes general access in both directions without saving workflow settings", async () => {
+    const client = new QueryClient();
+    const detail = qk.workflows.detail(WORKFLOW.id);
+    const list = qk.workflows.list();
+    client.setQueryData(detail, WORKFLOW);
+    client.setQueryData(list, [WORKFLOW]);
+    const catalog = [...qk.workflows.all(), "nodes"];
+    client.setQueryData(catalog, ["unrelated node catalog"]);
+
+    let sharing = SHARING;
+    vi.mocked(apiClient.get).mockImplementation(async () => sharing);
+    vi.mocked(apiClient.patch).mockImplementation(async (_path, body) => {
+      sharing = { ...sharing, visibility: (body as { visibility: Visibility }).visibility };
+      return sharing;
+    });
+
+    await renderPage(client);
+    expect(apiClient.get).not.toHaveBeenCalled();
+    await openSettings();
+    expect(screen.getByRole("region", { name: "Access" })).toBeInTheDocument();
+
+    const select = await screen.findByRole("combobox", { name: "General access" });
+    expect(select).toHaveTextContent("Everyone in the organization");
+    expect(apiClient.get).toHaveBeenCalledWith("/workflows/w1/sharing");
+
+    async function chooseAccess(label: string) {
+      await waitFor(() => expect(select).toBeEnabled());
+      await userEvent.click(select);
+      await userEvent.click(await screen.findByRole("option", { name: label }));
+    }
+
+    await chooseAccess("Only people with access");
+    expect(await screen.findByText(/roles that can access all workflows/)).toBeInTheDocument();
+    expect(client.getQueryState(detail)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(list)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(catalog)?.isInvalidated).toBe(false);
+
+    await chooseAccess("Everyone in the organization");
+    expect(
+      await screen.findByText("Everyone in the organization who can view workflows at all."),
+    ).toBeInTheDocument();
+    expect(vi.mocked(apiClient.patch).mock.calls).toEqual([
+      ["/workflows/w1/sharing/visibility", { visibility: "private" }],
+      ["/workflows/w1/sharing/visibility", { visibility: "org" }],
+    ]);
+    expect(actions.update.mutate).not.toHaveBeenCalled();
+    expect(actions.saveSettings.mutate).not.toHaveBeenCalled();
+  });
+
+  it("shows access without sharing controls to a viewer", async () => {
+    state.canEdit = false;
+    await renderPage();
+    await openSettings();
+
+    expect(await screen.findByRole("combobox", { name: "General access" })).toBeDisabled();
+    expect(
+      screen.queryByRole("combobox", { name: "Add a person or group" }),
+    ).not.toBeInTheDocument();
+    expect(apiClient.patch).not.toHaveBeenCalled();
   });
 });

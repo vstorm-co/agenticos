@@ -4197,6 +4197,64 @@ describe("useChat - durable questions resumed on the socket", () => {
     receive("user_question_required", { run_id: "r-1", questions: ASKED });
   }
 
+  it("opens the Inbox-linked question even before its old turn is loaded", async () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    get.mockResolvedValue(ASKED);
+    const { result } = renderHook(() => useChat({ requestedQuestionRunId: "r-1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.pendingQuestions?.[0]?.question).toBe("How formal?"));
+    expect(get).toHaveBeenCalledWith("/runs/r-1/questions", {
+      params: { conversation_id: "c-1" },
+    });
+    expect(result.current.questionTarget?.messageId).toBe("question-run:r-1");
+    expect(useChatStore.getState().messages).toHaveLength(1);
+    expect(useChatStore.getState().messages[0]).toMatchObject({
+      id: "question-run:r-1",
+      runId: "r-1",
+      isLocalContinuation: true,
+      toolCalls: [{ id: "ask-1", status: "awaiting_answer" }],
+    });
+    const answer = { answer: "Casual", skipped: false };
+    act(() => result.current.sendAskUserResponses([answer]));
+    expect(runAnswerFrame()).toMatchObject({ run_id: "r-1", responses: { "ask-1": [answer] } });
+    expect(result.current.pendingQuestions).not.toBeNull();
+    act(() =>
+      useChatStore.getState().rereadMessages([{ ...askedTurn(), id: "original-saved-turn" }]),
+    );
+    await act(async () => acknowledgeAnswer());
+    expect(result.current.pendingQuestions).toBeNull();
+    expect(
+      useChatStore
+        .getState()
+        .messages.filter((message) => message.toolCalls?.some((call) => call.id === "ask-1")),
+    ).toHaveLength(1);
+    expect(
+      useChatStore
+        .getState()
+        .messages.find((message) => message.toolCalls?.some((call) => call.id === "ask-1")),
+    ).toMatchObject({
+      id: "original-saved-turn",
+      renderKey: "question-run:r-1",
+      toolCalls: [{ id: "ask-1", status: "completed", result: '{"Tone":"Casual"}' }],
+    });
+  });
+
+  it("falls back from an answered Inbox link to the different saved waiting run", async () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    get.mockImplementation((path: string) =>
+      Promise.resolve(path === "/runs/stale/questions" ? [] : ASKED),
+    );
+    const { result } = renderHook(() => useChat({ requestedQuestionRunId: "stale" }), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions?.[0]?.question).toBe("How formal?"));
+    expect(get).toHaveBeenCalledWith("/runs/stale/questions", {
+      params: { conversation_id: "c-1" },
+    });
+    expect(get).toHaveBeenCalledWith("/runs/r-1/questions");
+    expect(result.current.questionTarget?.messageId).toBe("m-1");
+    expect(useChatStore.getState().messages).toHaveLength(1);
+  });
+
   it.each(["ask_user_question", "clarify"])(
     "keeps the %s card after completion and resumes it on the socket",
     async (toolName) => {

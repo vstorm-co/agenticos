@@ -1,5 +1,5 @@
 ---
-source_sha: "2945cec5a53b"
+source_sha: "1ff509a177a4"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -420,6 +420,43 @@ ani nic, czym się uwierzytelnić.
     czyni ten drugi przypadek czymś zwyczajnym. Run rozwiązuje profil bez klucza
     tylko wtedy, gdy niesie on endpoint; w przeciwnym razie jest odrzucany z tym
     samym komunikatem „no key configured”, który miał zawsze.
+
+### Własny endpoint { #your-own-endpoint }
+
+| Provider | id | Poświadczenie | Custom URL |
+|---|---|---|---|
+| Custom (OpenAI-compatible) | `openai_compatible` | klucz API | ✓ |
+| Custom (Anthropic-compatible) | `anthropic_compatible` | klucz API | ✓ |
+
+Te dwa to *kształt* API, a nie dostawca. Wpisujesz adres serwera, który
+prowadzisz, albo bramki, której ufasz, oraz klucz, który ją uwierzytelnia.
+Wybierz ten, który pasuje do tego, co odpowiada Twój endpoint:
+
+| Twój endpoint odpowiada | Wybierz | Adres do wpisania |
+|---|---|---|
+| `POST /chat/completions` — vLLM, LM Studio, proxy LiteLLM, większość bramek | `openai_compatible` | katalog `/v1`, na przykład `https://llm.example/v1` |
+| `POST /v1/messages` — własny kształt API Anthropic | `anthropic_compatible` | katalog API, na przykład `https://llm.example` |
+
+Oba potrzebują endpointu i klucza. Nie ma żadnego publicznego API, do którego
+można by się wycofać, więc profil bez nich jest odrzucany, a nie kierowany
+gdzieś indziej.
+
+Klucz jest przechowywany w sejfie pod nazwą samego providera, więc w sejfie
+widać, że uwierzytelnia *ten* endpoint, a nie publiczne API dostawcy. Dlatego
+to osobne pozycje, a nie profil `openai` albo `anthropic` z adresem: klucz
+zapisany pod nazwą dostawcy mówi o tym dostawcy.
+
+!!! info "Adres Anthropic nie zawiera `/v1`"
+
+    SDK Anthropic wysyła żądanie na `<endpoint>/v1/messages`, więc endpointem
+    jest katalog API. Adres, który już kończy się na `/v1`, jest przycięty,
+    więc oba zapisy działają — ale to katalog API jest tym, o co pyta
+    platforma.
+
+**Load models** czyta listę z tego samego endpointu, tym samym kluczem, więc
+lista w polu oferuje to, co Twój serwer faktycznie udostępnia. Identyfikator
+modelu pozostaje wolnym tekstem: serwer, który nie publikuje listy, nadal da
+się użyć, wpisując identyfikator ręcznie.
 
 ### Kiedy poświadczeniem nie jest klucz API { #when-the-credential-is-not-an-api-key }
 
