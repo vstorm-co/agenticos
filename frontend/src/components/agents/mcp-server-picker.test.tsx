@@ -180,6 +180,41 @@ describe("McpServerPicker", () => {
     },
   );
 
+  it("keeps a newly enabled row when another server's off/on batch is still open", async () => {
+    const github = { ...bound("c1"), allowed_tools: ["github-search"] };
+    const laptop = bound("c2");
+    const initial = [github, NEW_PLATFORM_BINDING];
+    const onChange = vi.fn();
+    function Editor() {
+      const [value, setValue] = useState<McpServerRef[]>(initial);
+      return picker({
+        connections: [
+          connection(),
+          connection({ id: "c2", name: "laptop", url: "https://laptop.example/mcp" }),
+        ],
+        value,
+        onChange: (next) => {
+          onChange(next);
+          setValue(next);
+        },
+      });
+    }
+    render(<Editor />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("switch", { name: "Use GitHub in this agent" }));
+    expect(onChange).toHaveBeenLastCalledWith([NEW_PLATFORM_BINDING]);
+    await user.click(screen.getByRole("switch", { name: "Use laptop in this agent" }));
+    await user.keyboard("{Escape}");
+    expect(onChange).toHaveBeenLastCalledWith([NEW_PLATFORM_BINDING, laptop]);
+    await user.click(screen.getByRole("switch", { name: "Use laptop in this agent" }));
+    expect(onChange).toHaveBeenLastCalledWith([NEW_PLATFORM_BINDING]);
+    for (const name of ["laptop", "GitHub"]) {
+      await user.click(screen.getByRole("switch", { name: `Use ${name} in this agent` }));
+      await user.keyboard("{Escape}");
+    }
+    expect(onChange).toHaveBeenLastCalledWith([...initial, laptop]);
+  });
+
   it("honors an explicit account change while the server is switched off", async () => {
     const onChange = vi.fn();
     function Editor() {

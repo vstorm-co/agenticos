@@ -47,10 +47,10 @@ test.describe("Chat", () => {
     await expect(
       page.getByRole("button", { name: `Agent: ${SEEDED_AGENT_NAME}`, exact: true }),
     ).toBeVisible();
-    await expect(page.getByRole("region", { name: "Daily briefing" })).toHaveAttribute(
-      "aria-busy",
-      "false",
-    );
+    // A confirmed empty Inbox keeps its space without exposing an empty region.
+    const briefing = page.locator(".chat-home-inbox");
+    await expect(briefing).toBeVisible();
+    await expect(briefing).not.toHaveAttribute("aria-busy", "true");
     const hint = page.getByTestId("composer-hints");
     await expect(hint).toBeVisible();
     await input.focus();

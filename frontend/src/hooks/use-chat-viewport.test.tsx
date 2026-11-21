@@ -26,11 +26,13 @@ function Harness({
   sentTurnId,
   conversationId = "c",
   mounted = true,
+  onChoose,
 }: {
   messages?: ChatMessage[];
   sentTurnId?: string;
   conversationId?: string | null;
   mounted?: boolean;
+  onChoose?: () => void;
 }) {
   const scroller = useRef<HTMLDivElement>(null),
     content = useRef<HTMLDivElement>(null),
@@ -62,12 +64,15 @@ function Harness({
           <div data-question-pending data-chat-anchor="question">
             <div role="group" tabIndex={-1}>
               Question
+              <button onClick={onChoose}>Short</button>
             </div>
           </div>
           <div ref={spacer} data-testid="space" />
         </div>
       </div>
-      <div ref={dock} data-testid="dock" />
+      <div ref={dock} data-testid="dock">
+        <input aria-label="Composer" />
+      </div>
       <button onClick={revealQuestion}>Reveal</button>
     </>
   );
@@ -172,6 +177,7 @@ it("does not follow incoming content after the reader opens a historical disclos
   const scrolling = view.getByTestId("scroll");
   scrolling.scrollTop = 200;
   fireEvent.pointerDown(view.getByText("History control"));
+  fireEvent.click(view.getByText("History control"));
   bodyHeight += 400;
   act(() => resized?.());
   expect(scrolling.scrollTop).toBe(200);
@@ -242,6 +248,7 @@ it("ignores aborted touches and non-scrolling keys without releasing following",
   fireEvent.keyDown(scrolling, { key: "Tab" });
   fireEvent.keyDown(scrolling, { key: "Enter" });
   fireEvent.pointerDown(scrolling);
+  fireEvent.pointerUp(window);
   bodyHeight += 100;
   act(() => resized?.());
   expect(scrolling.scrollTop).toBe(844);
@@ -316,13 +323,15 @@ it("treats a scrollbar move upward as reading and leaves unrelated pointer event
   act(() => resized?.());
   expect(scrolling.scrollTop).toBe(200);
 });
-it("preserves the chosen anchor against focus scrolling during question activation", () => {
+it("preserves the chosen anchor after focus scrolling and control activation", () => {
   const view = render(<Harness />);
   const scrolling = view.getByTestId("scroll");
   scrolling.scrollTop = 200;
   fireEvent.click(view.getByText("History control"));
   scrolling.scrollTop = 150;
   fireEvent.scroll(scrolling);
+  expect(scrolling.scrollTop).toBe(150);
+  fireEvent.click(view.getByText("History control"));
   expect(scrolling.scrollTop).toBe(200);
 });
 it("releases the reader lock for a real wheel gesture", () => {
@@ -430,17 +439,25 @@ it("attaches the viewport when a suspended transcript mounts after the conversat
   expect(view.getByRole("group")).toHaveFocus();
 });
 
-it("retains an explicitly revealed question anchor through native pre-click scrolling", () => {
-  const view = render(<Harness />);
+it("keeps native pre-click coordinates stable and restores the revealed anchor after activation", () => {
+  const chosen = vi.fn();
+  const view = render(<Harness onChoose={chosen} />);
   const scrolling = view.getByTestId("scroll");
   fireEvent.click(view.getByText("Reveal"));
   const revealed = scrolling.scrollTop;
   // Browser focus/scrollIntoView can reposition before pointer/click delivery.
-  scrolling.scrollTop = revealed - 255;
-  const question = view.container.querySelector<HTMLElement>("[data-question-pending]");
-  if (!question) throw new Error("Expected the pending question");
-  fireEvent.pointerDown(question);
-  fireEvent.click(question);
+  scrolling.scrollTop = revealed - 262;
+  fireEvent.scroll(scrolling);
+  act(() => resized?.());
+  expect(scrolling.scrollTop).toBe(revealed - 262);
+  const choice = view.getByText("Short");
+  fireEvent.pointerDown(choice);
+  act(() => resized?.());
+  expect(scrolling.scrollTop).toBe(revealed - 262);
+  fireEvent.pointerUp(choice);
+  expect(scrolling.scrollTop).toBe(revealed - 262);
+  fireEvent.click(choice);
+  expect(chosen).toHaveBeenCalledOnce();
   act(() => resized?.());
   expect(scrolling.scrollTop).toBe(revealed);
 
@@ -450,4 +467,101 @@ it("retains an explicitly revealed question anchor through native pre-click scro
   fireEvent.scroll(scrolling);
   act(() => resized?.());
   expect(scrolling.scrollTop).toBe(revealed - 100);
+});
+
+it("finishes a released pointer without a click and restores deferred dock measurements", () => {
+  vi.useFakeTimers();
+  try {
+    const view = render(<Harness />);
+    const scrolling = view.getByTestId("scroll");
+    scrolling.scrollTop = 200;
+    fireEvent.pointerDown(view.getByText("History control"));
+    dockSize = 184;
+    act(() => resized?.());
+    expect(scrolling.style.paddingBottom).toBe("144px");
+    fireEvent.pointerUp(window);
+    act(() => vi.advanceTimersByTime(20));
+    expect(scrolling.style.paddingBottom).toBe("184px");
+    expect(scrolling.scrollTop).toBe(200);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("cancels a native pointer gesture without leaving the viewport frozen", () => {
+  const view = render(<Harness />);
+  fireEvent.click(view.getByText("Reveal"));
+  const scrolling = view.getByTestId("scroll");
+  const revealed = scrolling.scrollTop;
+  scrolling.scrollTop = revealed - 262;
+  fireEvent.scroll(scrolling);
+  fireEvent.pointerDown(view.getByText("Short"));
+  fireEvent.pointerCancel(window);
+  expect(scrolling.scrollTop).toBe(revealed);
+  dockSize = 180;
+  act(() => resized?.());
+  expect(scrolling.style.paddingBottom).toBe("180px");
+});
+
+it.each(["unmount", "conversation"])(
+  "cancels the pending pointer release frame on %s",
+  (change) => {
+    vi.useFakeTimers();
+    try {
+      const cancel = vi.spyOn(window, "cancelAnimationFrame");
+      const view = render(<Harness />);
+      const scrolling = view.getByTestId("scroll");
+      scrolling.scrollTop = 200;
+      fireEvent.pointerDown(view.getByText("History control"));
+      fireEvent.pointerUp(window);
+      if (change === "unmount") view.unmount();
+      else view.rerender(<Harness conversationId="other" />);
+      expect(cancel).toHaveBeenCalled();
+      const top = scrolling.scrollTop;
+      act(() => vi.advanceTimersByTime(20));
+      expect(scrolling.scrollTop).toBe(top);
+    } finally {
+      vi.useRealTimers();
+    }
+  },
+);
+
+it("restores an actual extent-changing layout clamp before pointer activation", () => {
+  const view = render(<Harness />);
+  fireEvent.click(view.getByText("Reveal"));
+  const scrolling = view.getByTestId("scroll");
+  const revealed = scrolling.scrollTop;
+  bodyHeight -= 100;
+  scrolling.scrollTop = revealed - 262;
+  fireEvent.scroll(scrolling);
+  expect(scrolling.scrollTop).toBe(revealed);
+});
+
+it("does not mistake repeated controller scroll notifications for a native control scroll", () => {
+  const view = render(<Harness />);
+  fireEvent.click(view.getByText("Reveal"));
+  const scrolling = view.getByTestId("scroll");
+  const revealed = scrolling.scrollTop;
+  fireEvent.scroll(scrolling);
+  fireEvent.scroll(scrolling);
+  questionTop += 100;
+  bodyHeight += 100;
+  act(() => resized?.());
+  expect(scrolling.scrollTop).toBe(revealed + 100);
+});
+
+it("releases a reveal lock when Tab moves focus out to the composer", () => {
+  const view = render(<Harness />);
+  fireEvent.click(view.getByText("Reveal"));
+  const scrolling = view.getByTestId("scroll");
+  const revealed = scrolling.scrollTop;
+  fireEvent.keyDown(view.getByText("Short"), { key: "Tab" });
+  view.getByRole("textbox", { name: "Composer" }).focus();
+  scrolling.scrollTop = revealed - 60;
+  fireEvent.scroll(scrolling);
+  dockSize = 184;
+  act(() => resized?.());
+  expect(view.getByRole("textbox", { name: "Composer" })).toHaveFocus();
+  expect(scrolling.style.paddingBottom).toBe("184px");
+  expect(scrolling.scrollTop).toBe(revealed - 60);
 });

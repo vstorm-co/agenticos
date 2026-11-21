@@ -2678,7 +2678,6 @@ export function useChat(options: UseChatOptions = {}) {
         : null;
     const runId = requested ?? askedMessage?.runId;
     if (runId === undefined) return;
-    if (questionOfferedForRef.current.has(runId) || terminalRunIdsRef.current.has(runId)) return;
     questionOfferedForRef.current.add(runId);
     let settled = false;
     let cancelled = false;

@@ -26,6 +26,12 @@ Reviewed against base `c9ba226598091f56a231d2f2c39d506e9e2bbbe6` on 21 November 
 
 No additional confirmed blockers were found in #3204 or #3205's reviewed scope. This is a bounded review of the incoming changes and their affected callers, not a guarantee that unrelated platform behavior is defect-free.
 
+## Browser regressions found in the combined head
+
+- On a 390 × 725 viewport, two Inbox rows occupied 156px but the empty placeholder reserved 140px. Reserve the same minimum for both states. Direct browser measurements reproduced the original −16px composer shift and then confirmed a 0px difference in both themes.
+- A native control scroll could be restored between Playwright resolving a click position and dispatching the click, so the second question's option was missed. Defer restoration through pointer activation, retain the original reading anchor, and release the deferred state on cancellation, intentional navigation or teardown. The unchanged failing question/replay journey passed with native clicks in a standalone local browser run; no model was invoked by that controlled socket journey.
+- Layout tests that require visible Inbox content now seed a real finding. Composer readiness checks also accept the intentionally hidden, confirmed empty state. Full CI still owns the complete regression and coverage result.
+
 ## Verification contract
 
 Scoped frontend tests cover sharing invalidation, builder toggles/defaults/discard, question recovery/receipts, waiting counts and custom-provider chat forms. Backend tests cover provider validation/resolution, bounded reasoning retry, draft revision/access and question visibility. PostgreSQL cases exercise archived edit shares and live versus removed channel participants. MCP timeout tests use a real local FastMCP HTTP server, including a six-second response with a ninety-second configured budget, a short deadline, uncertain writes and cancellation.

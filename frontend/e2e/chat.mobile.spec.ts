@@ -27,10 +27,10 @@ test.describe("Chat on a phone", () => {
     await expect(
       page.getByRole("button", { name: `Agent: ${SEEDED_AGENT_NAME}`, exact: true }),
     ).toBeVisible();
-    await expect(page.getByRole("region", { name: "Daily briefing" })).toHaveAttribute(
-      "aria-busy",
-      "false",
-    );
+    // Empty Inbox content stays hidden while its space remains reserved.
+    const briefing = page.locator(".chat-home-inbox");
+    await expect(briefing).toBeVisible();
+    await expect(briefing).not.toHaveAttribute("aria-busy", "true");
     await input.tap();
     await expect(page.getByTestId("composer-hints")).toBeVisible();
     const composer = page.locator(".composer-box");
