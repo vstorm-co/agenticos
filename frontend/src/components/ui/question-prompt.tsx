@@ -51,7 +51,8 @@ export function QuestionPrompt({
   embedded = false,
 }: QuestionPromptProps) {
   const t = useTranslations("ui");
-  const [interacted, setInteracted] = useState(false);
+  const keyboardInput = useRef(false);
+  const [focusStep, setFocusStep] = useState(false);
   const [step, setStep] = useState(0);
   const direction = useStepDirection(step);
   const [answers, setAnswers] = useState<(QuestionPromptAnswer | undefined)[]>([]);
@@ -62,9 +63,14 @@ export function QuestionPrompt({
   const reviewing = step >= total;
   const reviewRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (reviewing && interacted) reviewRef.current?.focus({ preventScroll: true });
-  }, [reviewing, interacted]);
+    if (reviewing && focusStep) reviewRef.current?.focus({ preventScroll: true });
+  }, [reviewing, focusStep]);
   if (total === 0) return null;
+
+  const goToStep = (next: number) => {
+    setFocusStep(keyboardInput.current);
+    setStep(next);
+  };
 
   const answer = (index: number, given: QuestionPromptAnswer) => {
     const next = [...answers];
@@ -74,7 +80,7 @@ export function QuestionPrompt({
       onComplete([given]);
       return;
     }
-    setStep(index + 1);
+    goToStep(index + 1);
     setReached(Math.max(reached, index + 1));
   };
 
@@ -100,7 +106,10 @@ export function QuestionPrompt({
   return (
     <div
       onKeyDownCapture={() => {
-        setInteracted(true);
+        keyboardInput.current = true;
+      }}
+      onPointerDownCapture={() => {
+        keyboardInput.current = false;
       }}
       className={cn(
         "overflow-hidden rounded-2xl",
@@ -114,7 +123,7 @@ export function QuestionPrompt({
               <button
                 type="button"
                 disabled={disabled}
-                onClick={() => setStep(step - 1)}
+                onClick={() => goToStep(step - 1)}
                 aria-label={t("previousQuestion")}
                 className="text-muted-foreground hover:text-foreground -ml-1 rounded-md p-0.5"
               >
@@ -132,7 +141,7 @@ export function QuestionPrompt({
                   key={`${item.header ?? item.question}-${index}`}
                   type="button"
                   disabled={disabled || index > reached}
-                  onClick={() => setStep(index)}
+                  onClick={() => goToStep(index)}
                   aria-label={t("goToQuestion", { step: index + 1 })}
                   className="flex min-h-8 w-6 shrink-0 items-center justify-center rounded-md"
                 >
@@ -176,7 +185,7 @@ export function QuestionPrompt({
           <>
             <QuestionSlide
               item={questions[step]!}
-              autoFocus={autoFocus || interacted}
+              autoFocus={autoFocus || focusStep}
               previous={answers[step]}
               disabled={disabled}
               onAnswer={(given) => answer(step, given)}

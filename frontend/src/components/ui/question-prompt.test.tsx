@@ -207,4 +207,19 @@ describe("QuestionPrompt", () => {
       screen.getByRole("button", { name: "Send answers" }).parentElement?.parentElement,
     ).toHaveFocus();
   });
+  it("does not restart inline-question focus when tabbing between options", async () => {
+    render(<QuestionPrompt questions={[AUDIENCE]} onComplete={vi.fn()} autoFocus={false} />);
+    const first = screen.getByRole("button", { name: /Everyone/ });
+    first.focus();
+    await userEvent.tab();
+    expect(screen.getByRole("button", { name: /My team/ })).toHaveFocus();
+    await userEvent.tab({ shift: true });
+    expect(first).toHaveFocus();
+  });
+  it("lets Shift+Tab leave a custom input without autofocus pulling it back", async () => {
+    render(<QuestionPrompt questions={[FREE]} onComplete={vi.fn()} autoFocus={false} />);
+    screen.getByPlaceholderText("Type your answer…").focus();
+    await userEvent.tab({ shift: true });
+    expect(screen.getByRole("button", { name: "Dismiss questions" })).toHaveFocus();
+  });
 });
