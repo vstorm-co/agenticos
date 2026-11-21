@@ -16,17 +16,22 @@ export function SubscriptionUsage({ usage }: { usage?: Usage }) {
 
       <div className="space-y-3 py-2">
         {usage.status === "stale" && <p>{t("usageStale")}</p>}
-        {usage.windows.map((window) => (
-          <div key={window.kind} className="space-y-1.5">
+        {usage.windows.map((window, index) => (
+          <div key={`${window.kind}:${index}`} className="space-y-1.5">
             <div className="flex items-center justify-between gap-3">
               <span>
-                {window.duration_minutes === 300
-                  ? t("fiveHourWindow")
-                  : window.duration_minutes === 10080
-                    ? t("weeklyWindow")
-                    : window.duration_minutes
-                      ? t("minutesWindow", { minutes: window.duration_minutes })
-                      : t("usageWindow")}
+                {window.label ??
+                  (window.duration_minutes === 300
+                    ? t("fiveHourWindow")
+                    : window.duration_minutes === 10080
+                      ? t("weeklyWindow")
+                      : window.duration_minutes === 1440
+                        ? t("dailyWindow")
+                        : window.duration_minutes && window.duration_minutes % 60 === 0
+                          ? t("hoursWindow", { hours: window.duration_minutes / 60 })
+                          : window.duration_minutes
+                            ? t("minutesWindow", { minutes: window.duration_minutes })
+                            : t("usageWindow"))}
               </span>
               <span className="text-foreground font-medium">
                 {t("usageRemaining", {

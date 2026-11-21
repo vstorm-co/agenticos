@@ -23,6 +23,7 @@ from starlette.background import BackgroundTask
 from app.subscription_gateway._account_data import account_prefix, account_usage
 
 from ._instances import GatewayError, Instance, Supervisor
+from ._usage import antigravity_usage, codex_usage
 
 PROVIDERS = frozenset({"claude", "codex", "antigravity", "kimi", "kimi-ai", "xai", "devin", "meta"})
 """Sign-ins CLIProxyAPI's management API supports; anything else is refused."""
@@ -258,6 +259,33 @@ def create_app(supervisor: Supervisor, token: str, *, reap_seconds: float = 60) 
         async with supervisor.use(scope) as instance:
             await _management(instance, "DELETE", "/credentials", params={"name": name})
         return {"removed": True}
+
+    @app.get("/scopes/{scope}/accounts/{name}/usage", dependencies=guarded)
+    async def usage(scope: str, name: str) -> JsonValue:
+        _checked(_ACCOUNT, name, "account")
+        async with supervisor.use(scope) as instance:
+            row = await _account(instance, name)
+            provider = row.get("provider")
+            if provider == "antigravity":
+                auth_index = row.get("auth_index")
+                if not isinstance(auth_index, str) or not auth_index:
+                    raise GatewayError(
+                        "Reconnect this account before reading its limits", status=409
+                    )
+                return (await antigravity_usage(instance, auth_index)).model_dump(mode="json")
+            if provider == "codex":
+                claims = row.get("id_token")
+                account_id = claims.get("chatgpt_account_id") if isinstance(claims, dict) else None
+                auth_index = row.get("auth_index")
+                if (
+                    isinstance(account_id, str)
+                    and isinstance(auth_index, str)
+                    and re.fullmatch(r"[A-Za-z0-9_-]{1,256}", account_id)
+                ):
+                    return (await codex_usage(instance, auth_index, account_id)).model_dump(
+                        mode="json"
+                    )
+            return account_usage(str(provider), row.get("quota")).model_dump(mode="json")
 
     @app.get("/scopes/{scope}/accounts/{name}/models", dependencies=guarded)
     async def account_models(scope: str, name: str) -> JsonValue:

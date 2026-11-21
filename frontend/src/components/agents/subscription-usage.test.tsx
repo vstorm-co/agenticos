@@ -24,8 +24,10 @@ it("shows provider windows, reset times and the observation timestamp", () => {
             resets_at: "2026-11-22T22:00:00Z",
           },
           { kind: "five_hour", remaining_percent: 50, duration_minutes: 300, resets_at: null },
-          { kind: "secondary", remaining_percent: 25, duration_minutes: 60, resets_at: null },
+          { kind: "secondary", remaining_percent: 25, duration_minutes: 90, resets_at: null },
           { kind: "seven_day", remaining_percent: 0, duration_minutes: null, resets_at: null },
+          { kind: "provider", remaining_percent: 30, duration_minutes: 1440, resets_at: null },
+          { kind: "provider", remaining_percent: 20, duration_minutes: 120, resets_at: null },
         ],
       }}
     />,
@@ -33,10 +35,12 @@ it("shows provider windows, reset times and the observation timestamp", () => {
   expect(screen.getByText("Weekly limit")).toBeInTheDocument();
   expect(screen.getByText("39% left")).toBeInTheDocument();
   expect(screen.getByText("5-hour window")).toBeInTheDocument();
-  expect(screen.getByText("60-minute window")).toBeInTheDocument();
+  expect(screen.getByText("90-minute window")).toBeInTheDocument();
   expect(screen.getByText("Usage window")).toBeInTheDocument();
   expect(screen.getByText(/Updated after provider responses/)).toBeInTheDocument();
-  expect(screen.getAllByRole("progressbar")).toHaveLength(4);
+  expect(screen.getByText("Daily limit")).toBeInTheDocument();
+  expect(screen.getByText("2-hour window")).toBeInTheDocument();
+  expect(screen.getAllByRole("progressbar")).toHaveLength(6);
 });
 
 it("labels stale observations instead of presenting them as current limits", () => {

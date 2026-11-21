@@ -4777,7 +4777,8 @@
     "monitoring": "Überwachung",
     "backgroundWork": "Arbeit im Hintergrund",
     "desktopApp": "Desktop-App",
-    "developerAccess": "API & MCP"
+    "developerAccess": "API & MCP",
+    "subscriptions": "Abonnements"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -21097,7 +21098,11 @@
     "usageRemaining": "{remaining} übrig",
     "usageConsumed": "Verbrauchtes Kontingent",
     "usageResets": "Zurücksetzung: {time}",
-    "usageObserved": "Gemeldet am {time}. Aktualisierung nach Anbieterantworten."
+    "usageObserved": "Gemeldet am {time}. Aktualisierung nach Anbieterantworten.",
+    "refreshUsage": "Limits aktualisieren",
+    "usageFailed": "Die Limits konnten nicht aktualisiert werden. Bitte erneut versuchen.",
+    "dailyWindow": "Tageslimit",
+    "hoursWindow": "{hours}-Stunden-Fenster"
   },
   "agentDelegation": {
     "coding_agent": {

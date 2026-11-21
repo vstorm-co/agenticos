@@ -77,6 +77,7 @@ beforeEach(() => {
     model: "claude-via-google",
   });
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path.endsWith("/usage")) return { status: "unavailable", observed_at: null, windows: [] };
     if (path.endsWith("/models")) {
       if (failModels) throw new Error("offline");
       return models;
@@ -285,7 +286,7 @@ it("uses the same searchable list as API providers and moves account settings in
   expect(screen.queryByText("Connected")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("tab", { name: "Account" }));
   expect(await screen.findByText("Connected")).toBeInTheDocument();
-  expect(screen.queryByText(/has not reported usage/)).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Refresh limits" })).toBeInTheDocument();
   await userEvent.click(screen.getByRole("tab", { name: "Models" }));
   await userEvent.click(await screen.findByRole("option", { name: "claude-via-google" }));
   await waitFor(() => expect(selected).toHaveBeenCalled());

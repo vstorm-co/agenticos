@@ -12,6 +12,7 @@ import {
   selectSubscriptionAccountModel,
   listSubscriptionAccountModels,
   subscriptionBelongsTo,
+  readSubscriptionUsage,
   type SubscriptionProvider,
   startSubscriptionSignIn,
   subscriptionSignInStatus,
@@ -110,6 +111,19 @@ export function useSubscriptionSignInStatus(scope: string, state: string | null)
     refetchInterval: (query) =>
       query.state.error || (query.state.data && query.state.data.status !== "wait") ? false : 3000,
     refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
+/** Poll only while a view of this account’s limits is mounted. */
+export function useSubscriptionUsage(name: string, enabled: boolean) {
+  const actions = useSubscriptionAccounts();
+  return useQuery({
+    queryKey: qk.subscriptionAccounts.usage(actions.scope, name),
+    queryFn: () => readSubscriptionUsage(name),
+    enabled: actions.ready && enabled,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
     retry: false,
   });
 }

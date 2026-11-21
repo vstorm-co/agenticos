@@ -1,5 +1,5 @@
 ---
-source_sha: "b8c6107ce01f"
+source_sha: "59728d39c017"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -449,7 +449,7 @@ Durante la incorporación, **¿Qué suscripciones tienes ya?** permite seleccion
 
 Si hay varias cuentas personales conectadas, abre la pestaña **Cuenta** y elige la cuenta igual que una clave API guardada. Los modelos de suscripción usan la misma lista con búsqueda que los proveedores API; seleccionar un modelo lo aplica inmediatamente. Al aplicar un modelo se vincula a esa cuenta mediante una ruta opaca; no cambia silenciosamente a otra cuenta. Los perfiles vinculados requieren que la persona tenga esa cuenta conectada. Al reabrir el selector se recuperan la cuenta y el modelo, sin mostrar las rutas de cuenta en los nombres.
 
-**Uso y límites** muestra las ventanas de cuota notificadas por Codex y Claude cuando están disponibles: porcentaje restante, hora de reinicio y fecha de observación. Son observaciones pasivas de las respuestas del proveedor, no consultas de facturación en directo. Los datos de más de cinco minutos o posteriores a un reinicio se marcan como desactualizados; la ausencia de datos nunca se interpreta como cuota sin usar. Otros proveedores pueden no ofrecer información de cuota compatible.
+**Configuración → Suscripciones** muestra cada cuenta conectada por separado con ventanas de cuota, porcentaje restante, barras de progreso y fechas de reinicio. La pestaña **Cuenta** del selector usa la misma vista para todas las cuentas del proveedor elegido. Codex y Antigravity leen metadatos de cuota sin llamar a un modelo; Antigravity conserva grupos de modelos separados. Claude muestra observaciones pasivas de las respuestas del proveedor. Los datos se actualizan como máximo cada minuto con la vista abierta y también de forma manual. Las observaciones antiguas se marcan como desactualizadas. Los errores se muestran; la falta de datos nunca significa una cuota completa.
 
 Todos los grupos de conexiones se muestran inmediatamente. Las suscripciones conectadas muestran un indicador de estado y la identidad de la cuenta; añadir otra cuenta es una acción secundaria. Al volver a abrir el selector se recuperan el origen de la suscripción y el modelo del perfil de suscripción guardado.
 

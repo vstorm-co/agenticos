@@ -14,7 +14,8 @@ export const SUBSCRIPTION_PROVIDERS = [
 export type SubscriptionProvider = (typeof SUBSCRIPTION_PROVIDERS)[number];
 
 export interface SubscriptionUsageWindow {
-  kind: "primary" | "secondary" | "five_hour" | "seven_day";
+  kind: "primary" | "secondary" | "five_hour" | "seven_day" | "provider";
+  label?: string | null;
   remaining_percent: number;
   duration_minutes: number | null;
   resets_at: string | null;
@@ -117,3 +118,6 @@ export const selectSubscriptionAccountModel = (name: string, model: string) =>
     `/subscription-accounts/${encodeURIComponent(name)}/model-selection`,
     { model },
   );
+
+export const readSubscriptionUsage = (name: string) =>
+  apiClient.get<SubscriptionUsage>(`/subscription-accounts/${encodeURIComponent(name)}/usage`);

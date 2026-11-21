@@ -152,7 +152,8 @@
     "whatsNewDone": "Rozumiem",
     "monitoring": "Monitorowanie",
     "backgroundWork": "Praca w tle",
-    "developerAccess": "API i MCP"
+    "developerAccess": "API i MCP",
+    "subscriptions": "Subskrypcje"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -21184,7 +21185,11 @@
     "usageRemaining": "Pozostało {remaining}",
     "usageConsumed": "Wykorzystany limit",
     "usageResets": "Odnowienie: {time}",
-    "usageObserved": "Dane z {time}. Aktualizacja po odpowiedziach dostawcy."
+    "usageObserved": "Dane z {time}. Aktualizacja po odpowiedziach dostawcy.",
+    "refreshUsage": "Odśwież limity",
+    "usageFailed": "Nie udało się odświeżyć limitów. Spróbuj ponownie.",
+    "dailyWindow": "Limit dzienny",
+    "hoursWindow": "Okno {hours} godz."
   },
   "agentDelegation": {
     "coding_agent": {

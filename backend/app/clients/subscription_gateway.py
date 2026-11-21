@@ -156,6 +156,11 @@ class SubscriptionGateway:
         listed = await self._call(TypeAdapter(_Models), "GET", f"/scopes/{scope}/v1/models")
         return [model.id for model in listed.data]
 
+    async def account_usage(self, scope: str, name: str) -> AccountUsage:
+        return await self._call(
+            TypeAdapter(AccountUsage), "GET", f"/scopes/{scope}/accounts/{name}/usage"
+        )
+
     async def account_models(self, scope: str, name: str) -> list[str]:
         listed = await self._call(
             TypeAdapter(_AccountModels), "GET", f"/scopes/{scope}/accounts/{name}/models"

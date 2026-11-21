@@ -1631,7 +1631,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
   {
     id: "personal-subscription-accounts",
-    page: SETTINGS_DETAIL,
+    page: ROUTES.SETTINGS_SUBSCRIPTIONS,
     target: "personal-subscription-accounts",
     optional: true,
   },
@@ -1719,6 +1719,7 @@ export function pageKey(path: string): string {
     return ORG_MEMBERS;
   }
   if (path.startsWith(`${ROUTES.GROUPS}/`)) return GROUP_DETAIL;
+  if (path === ROUTES.SETTINGS_SUBSCRIPTIONS) return ROUTES.SETTINGS_SUBSCRIPTIONS;
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
   if (path.startsWith(`${ROUTES.DOCUMENTS}/`)) return WORKSPACE_DETAIL;
   if (path.startsWith(`${ROUTES.PROJECTS}/`)) return PROJECT_DETAIL;

@@ -34,6 +34,7 @@ from app.core.secret_kinds import ApiKeySecret
 from app.repositories import member as member_repo
 from app.services.background_jobs import enqueue
 from app.services.personal_model_key import personal_connection_owner
+from app.subscription_gateway.contracts import AccountUsage
 from app.worker.jobs import WIPE_SUBSCRIPTION_ACCOUNTS, WipeSubscriptionAccounts
 
 
@@ -133,6 +134,10 @@ class SubscriptionAccountService:
 
     async def models(self, ctx: AuthContext) -> list[str]:
         return await _gateway().models(self._scope(ctx))
+
+    async def account_usage(self, ctx: AuthContext, name: str) -> AccountUsage:
+        """Read limits only for an account in the caller's own scope."""
+        return await _gateway().account_usage(self._scope(ctx), name)
 
     async def account_models(self, ctx: AuthContext, name: str) -> list[str]:
         """Models advertised by this account in the caller's own gateway scope."""

@@ -43,6 +43,8 @@ export const qk = {
     mine: (scope: string) => ["coding-accounts", scope] as const,
   },
   subscriptionAccounts: {
+    usage: (scope: string, name: string) =>
+      ["subscription-accounts", scope, "usage", name] as const,
     mine: (scope: string) => ["subscription-accounts", scope] as const,
     models: (scope: string, name: string) =>
       ["subscription-accounts", scope, "models", name] as const,

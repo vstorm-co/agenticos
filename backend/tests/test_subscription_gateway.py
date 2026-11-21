@@ -417,3 +417,46 @@ async def test_account_selection_refuses_unusable_or_unregistered_routes(
     assert _server._model_ids({"models": [None, {"id": 1}, {"id": "ok"}]}) == ["ok"]
     with pytest.raises(GatewayError):
         _server._model_ids([])
+
+
+async def test_account_quota_route_uses_only_the_named_scope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.subscription_gateway.contracts import AccountUsage
+
+    supervisor = Supervisor(tmp_path, "unused", spawn=sleeper, probe=always)
+    row: dict[str, JsonValue] = {"name": "a.json", "provider": "antigravity", "auth_index": "mine"}
+
+    async def management(
+        _instance: _instances.Instance, _method: str, _path: str, **_kwargs: object
+    ) -> JsonValue:
+        return {"files": [row]}
+
+    monkeypatch.setattr(_server, "_management", management)
+    quota = AsyncMock(return_value=AccountUsage())
+    monkeypatch.setattr(_server, "antigravity_usage", quota)
+    monkeypatch.setattr(_server, "codex_usage", quota)
+    async with gateway(supervisor) as client:
+        assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).status_code == 200
+        assert quota.await_args.args[0].scope == ALICE
+        assert quota.await_args.args[1] == "mine"
+        row.pop("auth_index")
+        assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).status_code == 409
+        row["provider"] = "codex"
+        row["auth_index"] = "mine"
+        row["id_token"] = {"chatgpt_account_id": "account"}
+        assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).status_code == 200
+        assert quota.await_args.args[2] == "account"
+        row["id_token"] = None
+        assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).json()[
+            "status"
+        ] == "unavailable"
+        row["provider"] = "claude"
+        calls = quota.await_count
+        assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).json()[
+            "status"
+        ] == "unavailable"
+        assert quota.await_count == calls
+        assert (await client.get(f"/scopes/{ALICE}/accounts/missing.json/usage")).status_code == 404

@@ -4,7 +4,6 @@ import { ChatHomePreferences } from "@/components/settings/chat-home-preferences
 import { OnboardingResumeLink } from "@/components/onboarding/onboarding-resume-link";
 import { AppearanceSettings } from "@/components/settings/appearance-settings";
 import { CodingAccounts } from "@/components/settings/coding-accounts";
-import { SubscriptionAccounts } from "@/components/settings/subscription-accounts";
 import { PersonalModelKeys } from "@/components/settings/personal-model-keys";
 import { ChatAccounts } from "@/components/settings/chat-accounts";
 import { ForgetMe } from "@/components/memory/forget-me";
@@ -20,7 +19,6 @@ export default function ProfileSettingsPage() {
       <div className="bg-card min-w-0 self-start rounded-2xl border px-5 pb-2 sm:px-6">
         <ChatAccounts />
         <CodingAccounts />
-        <SubscriptionAccounts />
       </div>
       <div className="bg-card min-w-0 rounded-2xl border px-5 pb-2 sm:px-6">
         <AppearanceSettings />

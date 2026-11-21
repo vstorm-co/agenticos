@@ -4898,7 +4898,8 @@
     "whatsNewDone": "Got it",
     "monitoring": "Monitoring",
     "backgroundWork": "Background work",
-    "developerAccess": "API & MCP"
+    "developerAccess": "API & MCP",
+    "subscriptions": "Subscriptions"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -21411,7 +21412,11 @@
     "usageRemaining": "{remaining} left",
     "usageConsumed": "Used quota",
     "usageResets": "Resets {time}",
-    "usageObserved": "Reported {time}. Updated after provider responses."
+    "usageObserved": "Reported {time}. Updated after provider responses.",
+    "refreshUsage": "Refresh limits",
+    "usageFailed": "Could not update limits. Try refreshing again.",
+    "dailyWindow": "Daily limit",
+    "hoursWindow": "{hours}-hour window"
   },
   "agentDelegation": {
     "coding_agent": {

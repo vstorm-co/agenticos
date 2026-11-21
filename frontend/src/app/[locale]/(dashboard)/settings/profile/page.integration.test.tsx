@@ -113,10 +113,8 @@ it("places connected accounts before appearance in reading and keyboard order", 
     .getAllByRole("heading", { level: 2 })
     .map((heading) => heading.textContent);
   expect(headings.indexOf("Connected accounts")).toBeLessThan(headings.indexOf("Coding accounts"));
-  expect(headings.indexOf("Coding accounts")).toBeLessThan(
-    headings.indexOf("Subscription accounts"),
-  );
-  expect(headings.indexOf("Subscription accounts")).toBeLessThan(headings.indexOf("Appearance"));
+  expect(headings.indexOf("Coding accounts")).toBeLessThan(headings.indexOf("Appearance"));
+  expect(screen.queryByRole("heading", { name: "Subscription accounts" })).not.toBeInTheDocument();
 });
 
 it("keeps a manual route into guided setup alongside appearance and chat preferences", () => {

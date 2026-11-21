@@ -16,7 +16,7 @@ import {
 } from "@/components/ui";
 import { ErrorState } from "@/components/states";
 import { ModelCombobox } from "./model-combobox";
-import { SubscriptionUsage } from "./subscription-usage";
+import { SubscriptionAccountUsage } from "./subscription-account-usage";
 import { SubscriptionSignInDialog } from "@/components/settings/subscription-accounts";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useSubscriptionAccounts, useSubscriptionModels } from "@/hooks/use-subscription-accounts";
@@ -200,7 +200,12 @@ export function SubscriptionModelForm({
             </Button>
           )}
         </div>
-        {connected && <SubscriptionUsage usage={account.usage} />}
+        {own.map((entry, index) => (
+          <div key={entry.name} className="border-border space-y-2 border-t pt-3">
+            {own.length > 1 && <p className="text-xs font-medium">{identity(entry, index)}</p>}
+            <SubscriptionAccountUsage account={entry} />
+          </div>
+        ))}
         <p className="text-muted-foreground text-xs">{t("subscriptionHint")}</p>
       </div>
       {connecting && (

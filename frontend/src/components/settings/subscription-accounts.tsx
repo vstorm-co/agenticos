@@ -3,10 +3,8 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { Check, Copy, ExternalLink, TriangleAlert } from "lucide-react";
+import { Check, Copy, ExternalLink } from "lucide-react";
 import {
-  Alert,
-  AlertDescription,
   Badge,
   Button,
   Dialog,
@@ -20,6 +18,7 @@ import {
   Input,
 } from "@/components/ui";
 import { ErrorState } from "@/components/states";
+import { SubscriptionAccountUsage } from "@/components/agents/subscription-account-usage";
 import { SectionCard } from "@/components/settings/settings-section";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import {
@@ -44,6 +43,11 @@ export function SubscriptionAccounts() {
   const listed = actions.accounts.data;
   if (listed !== undefined && !listed.enabled) return null;
   const rows = listed?.items ?? [];
+  const providers = [...SUBSCRIPTION_PROVIDERS].sort(
+    (a, b) =>
+      Number(rows.some((account) => subscriptionBelongsTo(account, b))) -
+      Number(rows.some((account) => subscriptionBelongsTo(account, a))),
+  );
   const failure = (error: unknown) => toast.error(getErrorMessage(error, errors));
   return (
     <SectionCard
@@ -51,10 +55,6 @@ export function SubscriptionAccounts() {
       description={<p>{t("description")}</p>}
       tour="personal-subscription-accounts"
     >
-      <Alert variant="warning" role="note" className="mb-3">
-        <TriangleAlert aria-hidden />
-        <AlertDescription>{t("risk")}</AlertDescription>
-      </Alert>
       {actions.accounts.error ? (
         <ErrorState
           title={t("loadFailed")}
@@ -62,38 +62,41 @@ export function SubscriptionAccounts() {
         />
       ) : (
         <ul className="divide-border divide-y">
-          {SUBSCRIPTION_PROVIDERS.map((provider) => {
+          {providers.map((provider) => {
             const accounts = rows.filter((account) => subscriptionBelongsTo(account, provider));
             return (
               <li key={provider} className="flex flex-wrap items-start justify-between gap-3 py-3">
-                <div className="flex min-w-0 items-start gap-3">
+                <div className="flex min-w-0 flex-1 items-start gap-3">
                   <span className="bg-muted grid size-9 shrink-0 place-items-center rounded-lg">
                     <ProviderIcon provider={SUBSCRIPTION_MARK[provider]} className="size-5" />
                   </span>
-                  <div className="min-w-0 space-y-1">
+                  <div className="min-w-0 flex-1 space-y-1">
                     <p className="text-sm font-medium">{t(`providers.${provider}`)}</p>
                     {accounts.length === 0 && (
                       <p className="text-muted-foreground text-xs">{t("notConnected")}</p>
                     )}
                     {accounts.map((account) => (
-                      <div key={account.name} className="flex flex-wrap items-center gap-2">
-                        <span className="truncate text-xs">
-                          {account.email ?? account.label ?? account.name}
-                        </span>
-                        {(account.disabled || account.unavailable) && (
-                          <Badge variant="outline">{t("unavailable")}</Badge>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2 text-xs"
-                          disabled={actions.disconnect.isPending}
-                          onClick={() =>
-                            void actions.disconnect.mutateAsync(account.name).catch(failure)
-                          }
-                        >
-                          {t("disconnect")}
-                        </Button>
+                      <div key={account.name} className="space-y-2 py-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="truncate text-xs">
+                            {account.email ?? account.label ?? account.name}
+                          </span>
+                          {(account.disabled || account.unavailable) && (
+                            <Badge variant="outline">{t("unavailable")}</Badge>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs"
+                            disabled={actions.disconnect.isPending}
+                            onClick={() =>
+                              void actions.disconnect.mutateAsync(account.name).catch(failure)
+                            }
+                          >
+                            {t("disconnect")}
+                          </Button>
+                        </div>
+                        <SubscriptionAccountUsage account={account} />
                       </div>
                     ))}
                   </div>
@@ -111,6 +114,9 @@ export function SubscriptionAccounts() {
           })}
         </ul>
       )}
+      <p role="note" className="text-muted-foreground mt-4 text-xs">
+        {t("risk")}
+      </p>
       {connecting && (
         <SubscriptionSignInDialog
           key={`${actions.scope}:${connecting}`}

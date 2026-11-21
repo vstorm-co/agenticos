@@ -118,6 +118,7 @@ async def test_the_client_sends_the_shared_token_and_reads_each_answer() -> None
         ("DELETE", "/scopes/s/logins/st"): {"cancelled": True},
         ("GET", "/scopes/s/accounts"): {"items": [{"name": "a.json", "provider": "claude"}]},
         ("DELETE", "/scopes/s/accounts/a.json"): {"removed": True},
+        ("GET", "/scopes/s/accounts/a.json/usage"): {"status": "unavailable", "windows": []},
         ("GET", "/scopes/s/accounts/a.json/models"): {"items": [{"id": "claude-sonnet"}]},
         ("POST", "/scopes/s/accounts/a.json/model-selection"): {
             "model": "account-test/claude-sonnet"
@@ -139,6 +140,7 @@ async def test_the_client_sends_the_shared_token_and_reads_each_answer() -> None
     assert await client.accounts("s") == [GatewayAccount(name="a.json", provider="claude")]
     await client.remove_account("s", "a.json")
     assert await client.models("s") == ["claude-sonnet"]
+    assert (await client.account_usage("s", "a.json")).status == "unavailable"
     assert await client.account_models("s", "a.json") == ["claude-sonnet"]
     assert (
         await client.select_account_model("s", "a.json", "claude-sonnet")
@@ -207,6 +209,7 @@ async def test_the_service_acts_on_the_callers_own_scope_only(enabled: None) -> 
     fake = AsyncMock(spec=SubscriptionGateway)
     fake.accounts.return_value = []
     fake.models.return_value = ["m"]
+    fake.account_usage.return_value = client_module.AccountUsage()
     fake.account_models.return_value = ["m"]
     fake.select_account_model.return_value = client_module.SelectedAccountModel(
         model="account-test/m"
@@ -219,6 +222,7 @@ async def test_the_service_acts_on_the_callers_own_scope_only(enabled: None) -> 
     ):
         assert await service.accounts(caller) == []
         assert await service.models(caller) == ["m"]
+        assert (await service.account_usage(caller, "a.json")).status == "unavailable"
         assert await service.account_models(caller, "a.json") == ["m"]
         assert (await service.select_account_model(caller, "a.json", "m")).model == "account-test/m"
         await service.start_login(caller, "antigravity")
@@ -231,6 +235,7 @@ async def test_the_service_acts_on_the_callers_own_scope_only(enabled: None) -> 
     for method in (
         "accounts",
         "models",
+        "account_usage",
         "account_models",
         "select_account_model",
         "start_login",
@@ -585,3 +590,16 @@ async def test_account_model_selection_route_keeps_the_authenticated_context(
     assert answer.status_code == 200 and answer.json() == {"model": "account-test/claude"}
     assert bad.status_code == long.status_code == 422
     service.select_account_model.assert_awaited_once_with(caller, "a.json", "claude")
+
+
+async def test_account_usage_route_keeps_the_authenticated_context(
+    routes: tuple[AsyncMock, AuthContext],
+) -> None:
+    service, caller = routes
+    service.account_usage.return_value = client_module.AccountUsage()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        answer = await client.get("/api/v1/subscription-accounts/a.json/usage")
+        bad = await client.get("/api/v1/subscription-accounts/bad!name/usage")
+    assert answer.status_code == 200 and answer.json()["status"] == "unavailable"
+    assert bad.status_code == 422
+    service.account_usage.assert_awaited_once_with(caller, "a.json")

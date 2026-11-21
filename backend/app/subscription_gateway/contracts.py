@@ -7,7 +7,8 @@ from pydantic import BaseModel, Field
 
 
 class UsageWindow(BaseModel):
-    kind: Literal["primary", "secondary", "five_hour", "seven_day"]
+    kind: Literal["primary", "secondary", "five_hour", "seven_day", "provider"]
+    label: str | None = Field(default=None, max_length=250)
     remaining_percent: float = Field(ge=0, le=100, allow_inf_nan=False)
     duration_minutes: int | None = Field(default=None, gt=0)
     resets_at: datetime | None = None

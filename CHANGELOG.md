@@ -31,6 +31,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- A dedicated Subscriptions settings tab with per-account usage bars and reset times, live quota metadata for Codex and Antigravity, and separate Antigravity model-group windows.
+
 - Optional subscription selection and inline sign-in during onboarding, before the first chat.
 
 - Choose a specific personal subscription account for a model, with account-bound routing, restored selection and provider-reported Codex/Claude quota windows when available.

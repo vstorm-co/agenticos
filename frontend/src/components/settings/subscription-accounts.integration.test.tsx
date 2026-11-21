@@ -50,9 +50,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   signInStatus = "wait";
   vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
-    path.startsWith("/subscription-accounts/sign-ins/")
-      ? { status: signInStatus, error: null }
-      : { enabled: true, items: [ACCOUNT] },
+    path.endsWith("/usage")
+      ? { status: "unavailable", observed_at: null, windows: [] }
+      : path.startsWith("/subscription-accounts/sign-ins/")
+        ? { status: signInStatus, error: null }
+        : { enabled: true, items: [ACCOUNT] },
   );
   vi.mocked(apiClient.delete).mockResolvedValue(undefined);
 });
@@ -212,4 +214,38 @@ it("says why an account could not be disconnected", async () => {
   const antigravity = await rowOf("Google Antigravity");
   await userEvent.click(await antigravity.findByRole("button", { name: "Disconnect" }));
   await waitFor(() => expect(toast.error).toHaveBeenCalled());
+});
+
+it("keeps several accounts of the same provider and their quota windows separate", async () => {
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path.endsWith("/usage"))
+      return {
+        status: "available",
+        observed_at: null,
+        windows: [
+          {
+            kind: "provider",
+            label: "Gemini · Weekly",
+            remaining_percent: path.includes("first.json") ? 39 : 75,
+            duration_minutes: 10080,
+            resets_at: null,
+          },
+        ],
+      };
+    return {
+      enabled: true,
+      items: [
+        { ...ACCOUNT, name: "first.json", email: "first@example.com" },
+        { ...ACCOUNT, name: "second.json", email: "second@example.com" },
+      ],
+    };
+  });
+  mount();
+  expect(await screen.findByText("39% left")).toBeInTheDocument();
+  expect(await screen.findByText("75% left")).toBeInTheDocument();
+  expect(screen.getAllByRole("progressbar")).toHaveLength(2);
+  expect(screen.getByText("first@example.com")).toBeInTheDocument();
+  expect(screen.getByText("second@example.com")).toBeInTheDocument();
+  expect(apiClient.get).toHaveBeenCalledWith("/subscription-accounts/first.json/usage");
+  expect(apiClient.get).toHaveBeenCalledWith("/subscription-accounts/second.json/usage");
 });

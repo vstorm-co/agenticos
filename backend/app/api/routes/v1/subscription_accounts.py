@@ -18,6 +18,7 @@ from app.schemas.subscription_account import (
     SubscriptionSignInStart,
     SubscriptionSignInStatus,
 )
+from app.subscription_gateway.contracts import AccountUsage
 
 router = APIRouter()
 
@@ -82,3 +83,9 @@ async def select_account_model(
 ) -> Any:
     """Select a listed model on this account, returning its opaque account-specific route."""
     return await service.select_account_model(ctx, name, data.model)
+
+
+@router.get("/{name}/usage", response_model=AccountUsage)
+async def account_usage(name: AccountName, ctx: Auth, service: SubscriptionAccountSvc) -> Any:
+    """Read per-account subscription windows and reset times without making a model call."""
+    return await service.account_usage(ctx, name)
