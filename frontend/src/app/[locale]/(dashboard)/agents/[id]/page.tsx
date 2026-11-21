@@ -319,9 +319,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // list nothing on it renders.
   const { versions } = useAgentVersions(id, { limit: 1 });
   const { base: draftBase } = useDraftBase(id);
-  // Older versions could publish an empty budget object for a blank limit.
-  const publishedBudget = draftBase?.spec.budget ?? null;
-  const clearedBudget = publishedBudget?.monthly_usd == null ? publishedBudget : null;
   const { can, isLoaded: permissionsLoaded } = usePermissions();
   // The organization's servers, never the author's own: a personal connection
   // is refused at publish, so offering one would be offering a choice that
@@ -358,6 +355,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const openConversation = useConversationStore((state) => state.setCurrentConversationId);
 
   const [spec, setSpec] = useState<AgentSpec | null>(null);
+  const [adoptedBudget, setAdoptedBudget] = useState<AgentSpec["budget"]>(null);
   const [draftRevision, setDraftRevision] = useState<string | null>(null);
   const [draftConflict, setDraftConflict] = useState(false);
   const [problems, setProblems] = useState<string[]>([]);
@@ -431,6 +429,18 @@ export default function AgentBuilderPage({ params }: PageProps) {
     [agent?.draft_spec, agent?.kind],
   );
 
+  function adoptDraft(next: AgentSpec, revision: string | null) {
+    setSpec(next);
+    setDraftRevision(revision);
+    setAdoptedBudget(next.budget);
+  }
+
+  // A blank limit may have been saved as an empty budget object. Until the
+  // published base is known, preserve the shape from the draft we opened, not
+  // from an autosave that may already contain the temporary limit.
+  const budgetBase = draftBase === undefined ? adoptedBudget : draftBase.spec.budget;
+  const clearedBudget = budgetBase?.monthly_usd == null ? (budgetBase ?? null) : null;
+
   // Adopt the server's draft whenever there is nothing local, and not
   // otherwise: every autosave invalidates the agent query, and re-adopting the
   // answer would overwrite whatever was typed while the save was in flight.
@@ -440,8 +450,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // leaves React Query holding the same reference, and gating on the reference
   // moving left the page on its skeleton with no way out.
   if (agent && storedDraft && spec === null) {
-    setSpec(storedDraft);
-    setDraftRevision(agent.draft_revision);
+    adoptDraft(storedDraft, agent.draft_revision);
   }
 
   // This caller on this agent, not their role: a grant widens what the role
@@ -574,10 +583,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     local: spec,
     stored: storedDraft,
     fetchedAt,
-    adopt: (next) => {
-      setSpec(next);
-      setDraftRevision(agent?.draft_revision ?? null);
-    },
+    adopt: (next) => adoptDraft(next, agent?.draft_revision ?? null),
   });
   const saveEditedDraft = useCallback(
     async (next: AgentSpec): Promise<boolean> => {
@@ -610,8 +616,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
     }
     if (!latest.data) return;
     const fresh = latest.data;
-    setSpec(isSystem ? forSystemAgent(fresh.draft_spec) : fresh.draft_spec);
-    setDraftRevision(fresh.draft_revision);
+    adoptDraft(
+      isSystem ? forSystemAgent(fresh.draft_spec) : fresh.draft_spec,
+      fresh.draft_revision,
+    );
     setDraftConflict(false);
     remote.keepMine();
     attempts.current = { payload: "", tries: 0 };
