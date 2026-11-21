@@ -475,6 +475,13 @@ async def waiting_chat_questions(
             AgentRun.status == RunStatus.AWAITING_ANSWER.value,
             AgentRun.ended_at > asked_since,
             AgentRun.paused_state["questions"] != [],
+            # Resume refuses nonempty private history without destination proof.
+            # Do not turn the navigation read into a broader stored-state validator.
+            or_(
+                AgentRun.paused_state["messages"].astext.is_(None),
+                AgentRun.paused_state["messages"] == [],
+                func.jsonb_typeof(AgentRun.paused_state["history_provenance"]) == "object",
+            ),
             or_(
                 AgentRun.paused_state["question_results"].astext.is_(None),
                 AgentRun.paused_state["question_results"] == {},

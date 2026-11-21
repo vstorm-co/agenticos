@@ -19,6 +19,13 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic_ai.messages import (
+    ModelMessagesTypeAdapter,
+    ModelRequest,
+    ModelResponse,
+    ToolCallPart,
+    UserPromptPart,
+)
 from sqlalchemy import null, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
@@ -35,6 +42,7 @@ from app.db.models.project import Project
 from app.db.models.user import User
 from app.repositories import agent_run_repo, voice_call_repo
 from app.repositories.agent_run import ApprovalFilters, ChatAsker
+from app.schemas.conversation import HistoryProvenance
 from app.services.agent_runner import AgentRunnerService, PausedRunState
 from app.services.approvals import ApprovalService
 from app.services.conversation import ConversationService
@@ -123,6 +131,41 @@ def _ctx(org: Organization, user: User) -> AuthContext:
     return AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.OWNER)
 
 
+def _waiting_question_state(agent: Agent, question_id: str = "ask") -> PausedRunState:
+    return PausedRunState(
+        messages=ModelMessagesTypeAdapter.dump_python(
+            [
+                ModelRequest(parts=[UserPromptPart("Choose the reply tone")]),
+                ModelResponse(
+                    parts=[
+                        ToolCallPart(
+                            "ask_user_question",
+                            {
+                                "questions": [
+                                    {
+                                        "header": "Tone",
+                                        "question": "Which tone?",
+                                        "options": [{"label": "Formal"}, {"label": "Casual"}],
+                                    }
+                                ]
+                            },
+                            tool_call_id=question_id,
+                        )
+                    ]
+                ),
+            ],
+            mode="json",
+        ),
+        tool_call_ids={},
+        questions=[question_id],
+        history_provenance=HistoryProvenance(
+            agent_id=agent.id,
+            configuration_digest="a" * 64,
+            mcp_destination_digest="b" * 64,
+        ),
+    )
+
+
 async def test_only_the_person_asked_lists_live_web_questions_in_their_workspace(
     db: AsyncSession,
 ) -> None:
@@ -145,7 +188,9 @@ async def test_only_the_person_asked_lists_live_web_questions_in_their_workspace
         run.status = RunStatus.AWAITING_ANSWER.value
         run.ended_at = now - timedelta(minutes=2)
         run.conversation_id = conversation.id
-        run.paused_state = {"questions": ["private-question-id"]}
+        run.paused_state = _waiting_question_state(
+            other_agent if run is another_workspace else agent, "private-question-id"
+        ).model_dump(mode="json")
     newer.ended_at = now - timedelta(minutes=1)
     expired.ended_at = now - timedelta(hours=25)
     workflow.surface = RunSurface.WORKFLOW.value
@@ -188,7 +233,7 @@ async def test_parked_project_question_is_hidden_after_losing_the_right_to_conti
     run.status = RunStatus.AWAITING_ANSWER.value
     run.conversation_id = conversation.id
     run.ended_at = datetime.now(UTC)
-    run.paused_state = {"questions": ["ask"]}
+    run.paused_state = _waiting_question_state(agent).model_dump(mode="json")
     await db.flush()
 
     service = ConversationService(db)
@@ -236,7 +281,7 @@ async def test_waiting_questions_match_production_run_creation_and_unscoped_null
             started_at=datetime.now(UTC),
             key_scopes=scopes,
         )
-    state = PausedRunState(messages=[], tool_call_ids={}, questions=["ask"])
+    state = _waiting_question_state(agent)
     await agent_run_repo.finish_run(
         db,
         run=run,
@@ -256,6 +301,55 @@ async def test_waiting_questions_match_production_run_creation_and_unscoped_null
     assert [item.run_id for item in queue.items] == expected
 
 
+@pytest.mark.parametrize("has_history", [True, False])
+@pytest.mark.parametrize("proof", ["missing", "json-null", "object"])
+async def test_waiting_questions_exclude_only_history_requiring_missing_destination_proof(
+    db: AsyncSession, has_history: bool, proof: str
+) -> None:
+    org, owner = await _org(db)
+    agent = await _agent(db, org)
+    conversation = Conversation(organization_id=org.id, user_id=owner.id)
+    db.add(conversation)
+    await db.flush()
+    run = await agent_run_repo.create_run(
+        db,
+        organization_id=org.id,
+        agent_id=agent.id,
+        agent_version_id=None,
+        user_id=owner.id,
+        conversation_id=conversation.id,
+        surface=RunSurface.WEB.value,
+        model_label="QA",
+        started_at=datetime.now(UTC),
+    )
+    state = _waiting_question_state(agent)
+    payload = state.model_dump(mode="json")
+    if not has_history:
+        payload["messages"] = []
+    if proof == "missing":
+        payload.pop("history_provenance")
+    elif proof == "json-null":
+        payload["history_provenance"] = None
+    # All cases have valid stored-state shape; missing proof is a domain refusal,
+    # not a way to bypass the model or destination-verification boundary.
+    parsed = PausedRunState.model_validate(payload)
+    blocked_by_resume_guard = bool(parsed.messages) and parsed.history_provenance is None
+    await agent_run_repo.finish_run(
+        db,
+        run=run,
+        status=RunStatus.AWAITING_ANSWER.value,
+        input_tokens=0,
+        output_tokens=0,
+        cost_usd=Decimal(0),
+        cost_is_partial=False,
+        ended_at=datetime.now(UTC),
+        paused_state=payload,
+    )
+    queue = await ConversationService(db).list_waiting_questions(_ctx(org, owner), skip=0, limit=5)
+    assert queue.total == (0 if blocked_by_resume_guard else 1)
+    assert [item.run_id for item in queue.items] == ([] if blocked_by_resume_guard else [run.id])
+
+
 @pytest.mark.parametrize("stored_results", ["default", "legacy-null", "empty", "accepted"])
 async def test_waiting_questions_handle_real_serialization_and_legacy_json_null(
     db: AsyncSession, stored_results: str
@@ -269,7 +363,7 @@ async def test_waiting_questions_handle_real_serialization_and_legacy_json_null(
     run.conversation_id = conversation.id
     run.status = RunStatus.AWAITING_ANSWER.value
     run.ended_at = datetime.now(UTC)
-    state = PausedRunState(messages=[], tool_call_ids={}, questions=["ask"])
+    state = _waiting_question_state(agent)
     payload = state.model_dump(mode="json")
     if stored_results == "legacy-null":
         payload["question_results"] = None
@@ -306,7 +400,7 @@ async def test_archived_edit_shared_question_is_not_an_actionable_inbox_item(db)
     run.conversation_id = conversation.id
     run.status = RunStatus.AWAITING_ANSWER.value
     run.ended_at = datetime.now(UTC)
-    run.paused_state = {"questions": ["ask"]}
+    run.paused_state = _waiting_question_state(agent).model_dump(mode="json")
     await db.flush()
     ctx = AuthContext(user_id=editor.id, organization_id=org.id, role=OrgRoleName.MEMBER)
     service = ConversationService(db)
@@ -325,7 +419,7 @@ async def test_ownerless_channel_web_question_requires_current_confirmed_partici
     run.conversation_id = conversation.id
     run.status = RunStatus.AWAITING_ANSWER.value
     run.ended_at = datetime.now(UTC)
-    run.paused_state = {"questions": ["ask"]}
+    run.paused_state = _waiting_question_state(agent).model_dump(mode="json")
     await db.flush()
     with patch(
         "app.services.conversation.channel_membership.confirmed_participant_threads",
