@@ -62,7 +62,7 @@ import type {
   ToolApproval,
   WireQuestion,
 } from "@/types/runs";
-import { questionAnswerResult } from "@/lib/question-answers";
+import { questionAnswerResult, retainQuestionAnswerResult } from "@/lib/question-answers";
 import { toAskUserQuestions } from "@/lib/ask-user-questions";
 import {
   applyDelegationFrame,
@@ -378,6 +378,7 @@ export function useChat(options: UseChatOptions = {}) {
     messageId: string | null;
     questions: AskUserQuestion[];
     answers: AskUserAnswer[];
+    toolCallIds: string[];
   } | null>(null);
   const pendingRunAnswerRef = useRef<{
     requestId: string;
@@ -1624,13 +1625,18 @@ export function useChat(options: UseChatOptions = {}) {
           if (!message) break;
           const questionCalls = (message.toolCalls ?? []).filter(
             (call) =>
-              call.status === "awaiting_answer" && toolLookupName(call) === "ask_user_question",
+              submitted.toolCallIds.includes(call.id) &&
+              toolLookupName(call) === "ask_user_question",
           );
           if (questionCalls.length > 0) {
             for (const call of questionCalls)
               updateToolCallPart(message.id, call.id, {
                 status: "completed",
-                result: questionAnswerResult(submitted.questions, submitted.answers),
+                result: retainQuestionAnswerResult(
+                  { questions: submitted.questions },
+                  questionAnswerResult(submitted.questions, submitted.answers),
+                  call.result ?? "{}",
+                ),
               });
           } else {
             updateMessage(message.id, (message) => ({
@@ -3187,6 +3193,15 @@ export function useChat(options: UseChatOptions = {}) {
         messageId: currentMessageIdRef.current,
         questions: pendingQuestions ?? [],
         answers,
+        toolCallIds: (
+          chatApi.getState().messages.find((message) => message.id === currentMessageIdRef.current)
+            ?.toolCalls ?? []
+        )
+          .filter(
+            (call) =>
+              call.status === "awaiting_answer" && toolLookupName(call) === "ask_user_question",
+          )
+          .map((call) => call.id),
       };
       setSubmittingQuestions(true);
       sendMessage({
@@ -3198,7 +3213,7 @@ export function useChat(options: UseChatOptions = {}) {
           : {}),
       });
     },
-    [parkedQuestion, answerParkedQuestion, isConnected, sendMessage, pendingQuestions],
+    [parkedQuestion, answerParkedQuestion, isConnected, sendMessage, pendingQuestions, chatApi],
   );
 
   /** Release a run paused on `connect_account`: `true` once connected, `false` to go on without. */

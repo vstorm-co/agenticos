@@ -179,3 +179,15 @@ it("keeps repeated writes to one file as a single produced document", () => {
   );
   expect(screen.getAllByText("report.md")).toHaveLength(1);
 });
+
+it("does not show a file card when a completed SDK write reports an explicit failure", () => {
+  const view = render(
+    <TurnProducedOutputs
+      calls={[
+        call("write_file", "Error: Permission denied", { args: { path: "never-created.txt" } }),
+        call("edit_file", { error: "Failed to edit" }, { args: { path: "not-edited.txt" } }),
+      ]}
+    />,
+  );
+  expect(view.container).toBeEmptyDOMElement();
+});

@@ -9966,11 +9966,24 @@ async def test_a_revoked_routine_is_refused_before_models_or_mcp_connections_are
 
 @pytest.mark.anyio
 @pytest.mark.security
-@pytest.mark.parametrize("change", ["not_personal", "personal", "unavailable"])
+@pytest.mark.parametrize(
+    "change",
+    [
+        "not_personal",
+        "personal",
+        "unavailable",
+        "offline_reviewed",
+        "unexpected",
+        "materialized_skill",
+        "materialized_context",
+    ],
+)
 @pytest.mark.parametrize("has_dispatch", [False, True])
+@pytest.mark.parametrize("mode", ["follow_agent", "restricted"])
 async def test_routine_origin_and_live_tool_guard_are_attached_during_preparation(
-    change, has_dispatch: bool
+    change, has_dispatch: bool, mode
 ) -> None:
+    from app.agents.mcp import McpSourceIdentity
     from app.agents.routine_authority import RoutineGuard
     from app.services.routine_authority import RoutineAuthority
 
@@ -9979,13 +9992,57 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
     )
     service = AgentRunnerService(_db())
     agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), kind="agent")
-    spec = AgentSpec(name="Routine")
+    from app.db.models.context import ContextFile
+    from app.db.models.skill import Skill
+    from app.services.routine_sources import materialized_behavior
+
+    approved_skill = Skill(
+        id=uuid.uuid4(), name="policy", description="Policy", content="Approved", resources=[]
+    )
+    changed_skill = Skill(
+        id=approved_skill.id,
+        name="policy",
+        description="Policy",
+        content="Unreviewed instructions",
+        resources=[],
+    )
+    approved_context = ContextFile(
+        id=uuid.uuid4(),
+        name="policy",
+        description="Policy",
+        content="Approved",
+        mode="inject",
+        format="md",
+        enabled=True,
+    )
+    changed_context = ContextFile(
+        id=approved_context.id,
+        name="policy",
+        description="Policy",
+        content="Unreviewed instructions",
+        mode="inject",
+        format="md",
+        enabled=True,
+    )
+    spec = AgentSpec(
+        name="Routine",
+        skill_ids=[approved_skill.id] if change == "materialized_skill" else [],
+        context_ids=[approved_context.id] if change == "materialized_context" else [],
+    )
     check = AsyncMock()
     assert ctx.routine_id is not None
     from app.schemas.routine_sources import RoutineSourcePolicy
     from app.services.routine_sources import spec_fingerprint
 
     source_policy = RoutineSourcePolicy(
+        mode=mode,
+        behavior=materialized_behavior(
+            [approved_skill] if change == "materialized_skill" else [],
+            [approved_context] if change == "materialized_context" else [],
+        )
+        if mode == "follow_agent"
+        else None,
+        root_mcp_ids=(uuid.uuid4(),) if change == "offline_reviewed" else (),
         id=uuid.uuid4(),
         consented_by=ctx.subject_id,
         reviewed_at=datetime.now(UTC),
@@ -10002,7 +10059,24 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
         acts_as_creator=change == "personal",
         source_policy=source_policy,
     )
+    resolved = ResolvedMcpToolsets(
+        toolsets=[],
+        unavailable=[UnavailablePersonalService("github", "not_connected")]
+        if change in {"unavailable", "offline_reviewed"}
+        else [],
+        sources={
+            uuid.uuid4(): McpSourceIdentity(
+                endpoint_hash="a" * 64, authorization_generation=uuid.uuid4()
+            )
+        }
+        if change == "unexpected"
+        else {},
+    )
     with (
+        patch(
+            "app.services.agent_runner.build_toolsets_for_agent",
+            new=AsyncMock(return_value=resolved),
+        ),
         patch.object(RoutineAuthority, "check", new=check),
         patch.object(
             service.registry,
@@ -10016,31 +10090,34 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
         patch.object(
             service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
         ),
-        patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+        patch.object(
+            service.skills,
+            "resolve_for_agent",
+            new=AsyncMock(return_value=[changed_skill] if change == "materialized_skill" else []),
+        ),
+        patch.object(
+            service.context,
+            "resolve_for_agent",
+            new=AsyncMock(
+                return_value=[changed_context] if change == "materialized_context" else []
+            ),
+        ),
         patch(
             "app.services.agent_runner.agent_run_repo.create_run",
             new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
         ) as create,
         patch("app.services.agent_runner.build_agent", return_value=MagicMock()) as build,
     ):
-        if change == "unavailable":
+        if (
+            change == "unexpected"
+            or (change in {"unavailable", "offline_reviewed"} and mode == "restricted")
+            or (change in {"materialized_skill", "materialized_context"} and mode == "follow_agent")
+        ):
             from app.services.routine_sources import RoutineSourcesRequired
 
-            with (
-                patch(
-                    "app.services.agent_runner.build_toolsets_for_agent",
-                    new=AsyncMock(
-                        return_value=ResolvedMcpToolsets(
-                            toolsets=[],
-                            unavailable=[
-                                SimpleNamespace(catalog_key="github", gap="not_connected")
-                            ],
-                        )
-                    ),
-                ),
-                pytest.raises(RoutineSourcesRequired),
-            ):
+            with pytest.raises(RoutineSourcesRequired):
                 await service.prepare(ctx, agent.id)
+            build.assert_not_called()
             return
         await service.prepare(ctx, agent.id)
     assert create.await_args.kwargs["routine_policy"]["activation_id"] == (
@@ -10140,6 +10217,7 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
         source_policy=None,
         require_project=MagicMock(),
         require_local_target=MagicMock(),
+        require_materialized=MagicMock(),
         mcp_sources=None,
     )
     receipt = WatchReadReceipt(activation_at=datetime.now(UTC))
@@ -11599,3 +11677,82 @@ async def test_resume_refuses_a_changed_resolved_model_endpoint_before_building(
     build.assert_not_called()
     workspace.assert_not_awaited()
     running.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("topology", ["published", "inline"])
+@pytest.mark.parametrize("outcome", ["valid", "changed", "missing_namespace"])
+async def test_routine_delegate_consumes_only_its_exact_reviewed_resources(topology, outcome):
+    from app.db.models.skill import Skill
+    from app.schemas.routine_sources import RoutineSourcePolicy
+    from app.services.routine_authority import RoutineAuthority
+    from app.services.routine_sources import RoutineSourcesRequired, materialized_behavior
+
+    ctx = _ctx()
+    service = AgentRunnerService(_db())
+    delegate_id = uuid.uuid4() if topology == "published" else None
+    namespace = f"delegate:{uuid.uuid4()}" if topology == "published" else "root:inline:Helper"
+    approved = Skill(
+        id=uuid.uuid4(), name="policy", description="Policy", content="Approved", resources=[]
+    )
+    actual = Skill(
+        id=approved.id,
+        name=approved.name,
+        description=approved.description,
+        content="Changed" if outcome == "changed" else approved.content,
+        resources=[],
+    )
+    policy = RoutineSourcePolicy(
+        mode="follow_agent",
+        id=uuid.uuid4(),
+        consented_by=ctx.subject_id,
+        reviewed_at=datetime.now(UTC),
+        version_id=uuid.uuid4(),
+        scope_hash="a" * 64,
+        spec_hash="b" * 64,
+        behavior=materialized_behavior([approved], [], namespace=namespace),
+    )
+    authority = RoutineAuthority(
+        routine_id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        user_id=ctx.subject_id,
+        root_agent_id=uuid.uuid4(),
+        role=ctx.role,
+        acts_as_creator=True,
+        source_policy=policy,
+    )
+    parent = {"routine_authority": authority}
+    with (
+        patch.object(service, "_bound_collections", new=AsyncMock(return_value={})),
+        patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[actual])),
+        patch.object(service.context, "resolve_for_agent", new=AsyncMock(return_value=[])),
+        patch.object(service, "_add_mirage_terminal", new=AsyncMock()) as terminal,
+    ):
+        if outcome != "valid":
+            with pytest.raises(RoutineSourcesRequired):
+                await service._delegate_resources(
+                    ctx,
+                    AgentSpec(name="Helper", skill_ids=[approved.id]),
+                    agent_id=delegate_id,
+                    shared=[],
+                    parent_resources=parent,
+                    person_id=ctx.subject_id,
+                    behavior_namespace=None if outcome == "missing_namespace" else namespace,
+                )
+            terminal.assert_not_awaited()
+            return
+        resources = await service._delegate_resources(
+            ctx,
+            AgentSpec(name="Helper", skill_ids=[approved.id]),
+            agent_id=delegate_id,
+            shared=[],
+            parent_resources=parent,
+            person_id=ctx.subject_id,
+            behavior_namespace=namespace,
+        )
+    assert resources["skills"] == [actual]
+    assert resources["routine_authority"] is authority
+    assert resources["routine_behavior_namespace"] == namespace
+    assert "routine_behavior_namespace" not in parent
+    terminal.assert_awaited_once()

@@ -214,6 +214,7 @@ export default defineConfig({
         "src/components/inbox/approvals-waiting.tsx",
         "src/components/chat/turn-extras.tsx",
         "src/components/chat/turn-files.tsx",
+        "src/components/chat/turn-file-links.tsx",
         "src/components/chat/turn-shortcuts.tsx",
         "src/components/chat/setup-proposals.tsx",
         "src/components/chat/skill-shortcut.tsx",

@@ -606,7 +606,13 @@ class TestOneLook:
         watch = _watch(urgent=True)
         reading = WatchReading(
             findings=[
-                Found(key="1", title="Review #1", url="https://github.com/o/r/pull/1", urgent=True),
+                Found(
+                    key="1",
+                    title="Review #1",
+                    url="https://github.com/o/r/pull/1",
+                    urgent=True,
+                    chat_prompt="Prepare a review of pull request #1 and its failing checks.",
+                ),
                 Found(key="2", title="Review #2", url="javascript:void(0)"),
                 Found(key="3", title="Seen before", urgent=True),
             ]
@@ -630,6 +636,11 @@ class TestOneLook:
         first, second, _ = (call.kwargs for call in propose.await_args_list)
         assert first["urgent"] is True and second["urgent"] is False
         assert first["payload"]["url"].startswith("https://") and second["payload"]["url"] is None
+        assert (
+            first["payload"]["chat_prompt"]
+            == "Prepare a review of pull request #1 and its failing checks."
+        )
+        assert "chat_prompt" not in second["payload"]
         finding.assert_awaited_once()
 
     async def test_a_nonurgent_watch_keeps_urgent_findings_in_the_inbox(self):

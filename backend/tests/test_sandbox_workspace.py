@@ -11,6 +11,7 @@ refusals worth more than the feature itself:
 """
 
 import errno
+import json
 import logging
 import os
 import threading
@@ -6114,3 +6115,116 @@ async def test_personal_coding_teardown_selection_requires_an_owner_boundary() -
     with pytest.raises(ValueError, match="requires an owner"):
         await agent_workspace.list_personal_coding(db)
     db.execute.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "session,detail,status,code",
+    [
+        (None, "No workspace for session: sc-deadbeef-cafe", 404, "workspace_not_retained"),
+        ("sc-deadbeef-cafe", "No workspace for session: sc-deadbeef-cafe", 404, None),
+        (None, "Not Found", 404, None),
+        (None, "No workspace for session: another-session", 404, None),
+        (None, "No workspace for session: sc-deadbeef-cafe", 401, None),
+        (None, "This service keeps no workspaces on disk", 409, None),
+        (None, "Could not reach the sandbox service", None, None),
+    ],
+)
+async def test_missing_archive_is_not_confused_with_empty_files_or_a_connection_fault(
+    monkeypatch, mock_db_session, session, detail, status, code
+):
+    from pydantic_ai_backends import remote as remote_module
+
+    class Archive(_ClosesItsClient):
+        def __init__(self, url, token="", timeout=None):
+            pass
+
+        def ls(self, session_id, path="."):
+            raise WorkspaceArchiveError(json.dumps({"detail": detail}), status)
+
+        def trees(self, session_ids, path=".", *, max_depth, max_entries):
+            return {
+                session_id: WorkspaceArchiveError(json.dumps({"detail": detail}), status)
+                for session_id in session_ids
+            }
+
+    monkeypatch.setattr(remote_module, "WorkspaceArchive", Archive)
+    _serve(monkeypatch, _resolved())
+    row = _row(backend="service", session_id=session, connection_id=uuid4())
+    monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+    service = SandboxWorkspaceService(mock_db_session)
+    found = await service.listing(_ctx(), conversation_id=uuid4())
+    assert found is not None
+    assert found[1].entries == []
+    assert found[1].unreadable_code == code
+    assert detail in found[1].unreadable_reason
+    batched = await service._host_trees(_ctx(), [row])
+    assert batched[0].unreadable_code == code
+    assert detail in batched[0].unreadable_reason
+
+
+async def test_legacy_archive_without_a_recorded_session_still_lists_real_files(
+    monkeypatch, mock_db_session
+):
+    from pydantic_ai_backends import remote as remote_module
+
+    class Archive(_ClosesItsClient):
+        def __init__(self, url, token="", timeout=None):
+            pass
+
+        def ls(self, session_id, path="."):
+            return [{"path": "notes.txt", "size": 4, "is_dir": False}]
+
+    monkeypatch.setattr(remote_module, "WorkspaceArchive", Archive)
+    _serve(monkeypatch, _resolved())
+    row = _row(backend="service", session_id=None, connection_id=uuid4())
+    monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+    found = await SandboxWorkspaceService(mock_db_session).listing(_ctx(), conversation_id=uuid4())
+    assert found is not None
+    assert found[1].entries[0]["path"] == "notes.txt"
+    assert found[1].unreadable_reason is None and found[1].unreadable_code is None
+
+
+async def test_creating_a_file_materializes_the_session_and_makes_the_archive_browsable(
+    monkeypatch, mock_db_session, sandboxes
+):
+    mock_db_session.add = MagicMock()
+    from pydantic_ai_backends import remote as remote_module
+
+    row = _row(backend="service", session_id=None, connection_id=uuid4())
+    for method in ("get_by_key", "touch"):
+        monkeypatch.setattr(workspace_repo, method, AsyncMock(return_value=row))
+    monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+    mock_db_session.get = AsyncMock(return_value=row)
+
+    async def record_session(db, *, workspace, session_id):
+        workspace.session_id = session_id
+        return workspace
+
+    monkeypatch.setattr(workspace_repo, "record_session", record_session)
+    _serve(monkeypatch, _resolved())
+
+    class Archive(_ClosesItsClient):
+        def __init__(self, url, token="", timeout=None):
+            pass
+
+        def ls(self, session_id, path="."):
+            if not (sandboxes.root / "notes.txt").exists():
+                raise WorkspaceArchiveError(
+                    json.dumps({"detail": f"No workspace for session: {session_id}"}), 404
+                )
+            return [{"path": "notes.txt", "size": 4, "is_dir": False}]
+
+    monkeypatch.setattr(remote_module, "WorkspaceArchive", Archive)
+    service = SandboxWorkspaceService(mock_db_session)
+    before = await service.listing(_ctx(), conversation_id=uuid4())
+    assert before is not None and before[1].unreadable_code == "workspace_not_retained"
+    opened = await service.open(_spec(backend="service"), ctx=_ctx(), identity=_identity())
+    assert opened is not None
+    await opened.workspace.write_bytes("notes.txt", b"kept")
+    closed = await service.close(opened)
+    assert closed is None
+    assert row.session_id is not None
+    after = await service.listing(_ctx(), conversation_id=uuid4())
+    assert after is not None
+    assert after[1].unreadable_reason is None and after[1].unreadable_code is None
+    assert after[1].entries[0]["path"] == "notes.txt"

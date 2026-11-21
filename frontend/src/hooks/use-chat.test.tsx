@@ -7412,3 +7412,88 @@ it("clears native submission when the runtime closes before acknowledging", () =
   receive("ask_user_answered", { request_id: frame.request_id });
   expect(result.current.pendingQuestions).toBeNull();
 });
+it.each([false, true])(
+  "keeps question receipts through result-before-ACK and history (server correction: %s)",
+  (corrected) => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    const questions = [
+      {
+        header: "Dzień agendy",
+        question: "Który dzień?",
+        options: [{ label: "Czwartek" }],
+        allow_custom: true,
+      },
+      {
+        header: "Format",
+        question: "Jaki format?",
+        options: [{ label: "Krótki" }],
+        allow_custom: true,
+      },
+    ];
+    receive("model_request_start", {});
+    receive("tool_call", {
+      tool_name: "ask_user_question",
+      tool_call_id: "ask-receipt",
+      args: { questions },
+    });
+    receive("ask_user", { questions });
+    const messageId = useChatStore.getState().messages.at(-1)!.id;
+    act(() =>
+      result.current.sendAskUserResponses([
+        { answer: "", selected: ["Czwartek"], skipped: false },
+        { answer: "", selected: ["Krótki"], skipped: false },
+      ]),
+    );
+    const submission = sent.mock.calls.find(([frame]) => frame.type === "ask_user_response")?.[0];
+    receive("tool_result", {
+      tool_call_id: "ask-receipt",
+      content: corrected ? JSON.stringify({ "Dzień agendy": ["Piątek"], Format: ["Długi"] }) : "{}",
+    });
+    expect(result.current.pendingQuestions).not.toBeNull();
+    receive("ask_user_answered", { request_id: submission.request_id });
+    const call = () =>
+      useChatStore.getState().messages.find((message) => message.id === messageId)?.toolCalls?.[0];
+    const expected = corrected
+      ? { "Dzień agendy": ["Piątek"], Format: ["Długi"] }
+      : { "Dzień agendy": ["Czwartek"], Format: ["Krótki"] };
+    expect(JSON.parse(String(call()?.result))).toEqual(expected);
+    expect(result.current.pendingQuestions).toBeNull();
+    receive("tool_result", {
+      tool_call_id: "ask-receipt",
+      content: JSON.stringify({ "Dzień agendy": "", Format: null }),
+    });
+    expect(JSON.parse(String(call()?.result))).toEqual(expected);
+    act(() => {
+      useChatStore.getState().updateMessage(messageId, (message) => ({
+        ...message,
+        isStreaming: false,
+        isTemporaryId: false,
+      }));
+      const message = useChatStore.getState().messages.find((message) => message.id === messageId)!;
+      useChatStore.getState().rereadMessages([
+        {
+          ...message,
+          toolCalls: message.toolCalls?.map((tool) => ({ ...tool, result: "{}" })),
+          parts: message.parts?.map((part) =>
+            part.toolCall ? { ...part, toolCall: { ...part.toolCall, result: "{}" } } : part,
+          ),
+        },
+      ]);
+    });
+    expect(JSON.parse(String(call()?.result))).toEqual(expected);
+    const merged = useChatStore.getState().messages.find((message) => message.id === messageId)!;
+    expect(
+      JSON.parse(String(merged.parts?.find((part) => part.toolCall)?.toolCall?.result)),
+    ).toEqual(expected);
+    expect(merged.parts?.filter((part) => part.type === "ask_user")).toHaveLength(0);
+    receive("tool_result", {
+      tool_call_id: "ask-receipt",
+      content: JSON.stringify({ "Dzień agendy": ["Piątek"], Format: "(skipped)" }),
+    });
+    expect(JSON.parse(String(call()?.result))).toEqual({
+      "Dzień agendy": ["Piątek"],
+      Format: "(skipped)",
+    });
+  },
+);

@@ -107,6 +107,15 @@ function serve(triggers: Trigger[]) {
   });
 }
 
+function allowPersonalConsent() {
+  const normal = vi.mocked(apiClient.get).getMockImplementation()!;
+  vi.mocked(apiClient.get).mockImplementation(async (path, options) =>
+    path === "/me/permissions"
+      ? { permissions: [{ permission: "personal:consent", scope: "all" }] }
+      : normal(path, options),
+  );
+}
+
 async function mount({ canCreate = true } = {}) {
   render(<TriggersPanel agentId={AGENT_ID} canCreate={canCreate} />, { wrapper });
   await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
@@ -264,8 +273,8 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      review_before_activation: true,
-      is_active: false,
+      source_mode: "follow_agent",
+      runs_as_creator: true,
       prompt: "Do the thing",
       name: null,
       trigger_type: "schedule",
@@ -417,11 +426,14 @@ describe("TriggersPanel", () => {
     useAuthStore.setState({ user: { id: "me" } as never });
     serve([]);
     vi.mocked(apiClient.post).mockResolvedValue(trigger());
+    allowPersonalConsent();
     await mount();
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("checkbox", { name: /Run as me/ }));
+    await waitFor(() =>
+      expect(within(dialog).getByRole("checkbox", { name: /Run as me/ })).toBeChecked(),
+    );
     expect(within(dialog).getByText(/It can save notes for you/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Read my inbox");
@@ -571,6 +583,7 @@ describe("TriggersPanel", () => {
         next_fire_at: null,
       }),
     ]);
+    allowPersonalConsent();
     await mount();
 
     await user.click(await screen.findByRole("button", { name: "Edit" }));
@@ -670,8 +683,8 @@ describe("TriggersPanel", () => {
     // `*/2` on day-of-month resets at each month boundary; an interval repeats
     // continuously, which is what "every 2 days" promises. Two days, in seconds.
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      review_before_activation: true,
-      is_active: false,
+      source_mode: "follow_agent",
+      runs_as_creator: true,
       prompt: "Every couple of days",
       name: null,
       trigger_type: "schedule",
@@ -822,8 +835,8 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      review_before_activation: true,
-      is_active: false,
+      source_mode: "follow_agent",
+      runs_as_creator: true,
       prompt: "Daily digest",
       name: null,
       trigger_type: "schedule",
@@ -855,8 +868,8 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      review_before_activation: true,
-      is_active: false,
+      source_mode: "follow_agent",
+      runs_as_creator: true,
       prompt: "Morning digest",
       name: null,
       trigger_type: "schedule",
@@ -930,8 +943,8 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      review_before_activation: true,
-      is_active: false,
+      source_mode: "follow_agent",
+      runs_as_creator: true,
       prompt: "Sweep the queue",
       name: null,
       trigger_type: "schedule",
