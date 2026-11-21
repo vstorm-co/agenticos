@@ -200,9 +200,10 @@ def platform_action_options(
     Only for a routine acting as its creator, the only way it reaches the
     platform at all. A read asks nobody, so it is not listed. Standing consent
     may only stand in for an approval the binding itself does not demand: a
-    tool the agent asks before - the default for every change - is listed but
+    tool the agent asks before is listed but
     cannot be chosen, so a routine can keep the agent's approvals or add to
-    them, never release one.
+    them, never release one. Trusted draft/record defaults use the same resolver;
+    mandatory and conditional execution floors remain enforced on every call.
     """
     ref = next((ref for ref in spec.mcp_servers if isinstance(ref, PlatformMcpServerRef)), None)
     if ref is None or not as_creator:
@@ -230,7 +231,10 @@ def platform_action_options(
             consented=False,
             waivable=not tool.always_asks
             and not approval_needed(
-                policy, read_only=False, own=ref.tool_approval.get(tool.name, "default")
+                policy,
+                read_only=False,
+                own=ref.tool_approval.get(tool.name, "default"),
+                default_allow=tool.default_approval_free,
             ),
         )
         for tool in sorted(tools, key=lambda tool: groups.index(tool.group))

@@ -34,8 +34,9 @@ describe("the model combobox", () => {
 
     await userEvent.click(screen.getByRole("combobox"));
 
-    expect(screen.getByText("anthropic/claude-opus-5")).toBeInTheDocument();
-    expect(screen.getByText("openai/gpt-5.6-sol")).toBeInTheDocument();
+    expect(screen.getByText("Claude Opus 5")).toBeInTheDocument();
+    expect(screen.getByText("GPT-5.6 Sol")).toBeInTheDocument();
+    expect(screen.queryByText("anthropic/claude-opus-5")).not.toBeInTheDocument();
   });
 
   it("finds a model by its name, not only by its id", async () => {
@@ -45,8 +46,8 @@ describe("the model combobox", () => {
     await userEvent.click(screen.getByRole("combobox"));
     await userEvent.type(screen.getByPlaceholderText("Search models…"), "Gemini");
 
-    expect(screen.getByText("google/gemini-3.6-flash")).toBeInTheDocument();
-    expect(screen.queryByText("openai/gpt-5.6-sol")).toBeNull();
+    expect(screen.getByText("Gemini 3.6 Flash")).toBeInTheDocument();
+    expect(screen.queryByText("GPT-5.6 Sol")).toBeNull();
   });
 
   it("accepts a model that is not in the list", async () => {
@@ -71,6 +72,7 @@ describe("the model combobox", () => {
     await userEvent.type(screen.getByPlaceholderText("Search models…"), "anthropic/claude-opus-5");
 
     expect(screen.queryByText("not in the list")).toBeNull();
+    expect(screen.getByRole("option", { name: /Claude Opus 5/ })).toBeVisible();
   });
 
   it("says when the list is this deployment's shortlist rather than the provider's", async () => {
@@ -86,6 +88,7 @@ describe("the model combobox", () => {
   it("reads a context window in the unit a person uses", async () => {
     mount({ value: "anthropic/claude-opus-5" });
 
+    expect(screen.getByRole("combobox")).toHaveTextContent("Claude Opus 5");
     expect(screen.getByText("1M ctx")).toBeInTheDocument();
   });
 

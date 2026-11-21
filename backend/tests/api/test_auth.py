@@ -370,10 +370,12 @@ async def test_a_wrong_current_password_is_refused_with_a_401(
 async def test_login_invalid_credentials(
     client_with_mock_service: AsyncClient,
     mock_user_service: MagicMock,
-):
-    """Test login with invalid credentials."""
+) -> None:
+    """The credential reason survives the API envelope without changing its code."""
     mock_user_service.authenticate = ServiceMock(
-        side_effect=AuthenticationError(message="Invalid credentials")
+        side_effect=AuthenticationError(
+            message="Invalid credentials", details={"reason": "invalid_credentials"}
+        )
     )
 
     response = await client_with_mock_service.post(
@@ -381,6 +383,8 @@ async def test_login_invalid_credentials(
         data={"username": "test@example.com", "password": "wrongpassword"},
     )
     assert response.status_code == 401
+    assert response.json()["error"]["code"] == "AUTHENTICATION_ERROR"
+    assert response.json()["error"]["details"] == {"reason": "invalid_credentials"}
 
 
 @pytest.mark.anyio

@@ -1,5 +1,5 @@
 ---
-source_sha: "28fef18e676b"
+source_sha: "1ff509a177a4"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -450,6 +450,45 @@ zurückfallen könnte, und nichts, womit man authentifizieren könnte.
     Profile ohne Key nur dann auf, wenn es einen Endpunkt trägt; sonst wird er mit
     derselben Meldung "no key configured" abgelehnt, die es immer schon gab.
 
+### Eigener Endpunkt { #your-own-endpoint }
+
+| Provider | id | Zugangsdaten | Custom URL |
+|---|---|---|---|
+| Custom (OpenAI-compatible) | `openai_compatible` | API-Key | ✓ |
+| Custom (Anthropic-compatible) | `anthropic_compatible` | API-Key | ✓ |
+
+Diese beiden sind eine API-*Form* und kein Anbieter. Sie tragen die Adresse
+eines Servers ein, den Sie selbst betreiben, oder eines Gateways, dem Sie
+vertrauen, sowie den Schlüssel, der ihn authentifiziert. Wählen Sie das, was zu
+Ihrem Endpunkt passt:
+
+| Ihr Endpunkt beantwortet | Wählen | Die Adresse zum Eintragen |
+|---|---|---|
+| `POST /chat/completions` — vLLM, LM Studio, ein LiteLLM-Proxy, die meisten Gateways | `openai_compatible` | die `/v1`-Wurzel, etwa `https://llm.example/v1` |
+| `POST /v1/messages` — die eigene API-Form von Anthropic | `anthropic_compatible` | die API-Wurzel, etwa `https://llm.example` |
+
+Beide brauchen einen Endpunkt und einen Schlüssel. Es gibt keine öffentliche
+API, auf die man ausweichen könnte, also wird ein Profil ohne beides abgelehnt
+und nicht irgendwohin geschickt.
+
+Der Schlüssel liegt im Tresor unter dem Namen des Providers. Das sagt dort,
+dass er *diesen* Endpunkt authentifiziert und nicht die öffentliche API eines
+Anbieters. Deshalb sind es eigene Einträge und kein `openai`- oder
+`anthropic`-Profil mit einem Endpunkt: Ein Schlüssel unter dem Namen eines
+Anbieters spricht über diesen Anbieter.
+
+!!! info "Die Anthropic-Adresse trägt kein `/v1`"
+
+    Das SDK von Anthropic sendet an `<endpoint>/v1/messages`, der Endpunkt ist
+    also die API-Wurzel. Eine Adresse, die bereits auf `/v1` endet, wird für Sie
+    gekürzt, beide Schreibweisen funktionieren — die Plattform fragt aber nach
+    der Wurzel.
+
+**Load models** liest die Liste vom selben Endpunkt mit demselben Schlüssel, so
+dass die Auswahl genau das anbietet, was Ihr Server ausliefert. Die Modell-ID
+bleibt Freitext: Ein Server ohne veröffentlichte Liste ist trotzdem benutzbar,
+wenn Sie die ID eintippen.
+
 ### Wenn die Zugangsdaten kein API-Key sind { #when-the-credential-is-not-an-api-key }
 
 | Provider | id | Zugangsdaten |
@@ -670,11 +709,13 @@ als Dropdown ausgeliefert, auf das der Provider mit 404 antwortet. Ein Modell,
 das der Snapshot kennt, aber nicht bepreist, hat schlicht kein Fenster — das ist
 das unten beschriebene Null.
 
+Die Modellauswahl verwendet beim Öffnen die Liste des Deployments. Ein kontospezifischer Live-Katalog wird nicht abgerufen. Die GPT-6.2-Einträge wurden über den Codex App Server geprüft. Das Kontextfenster bleibt leer, bis es im Preiskatalog steht.
+
 | Provider | Kuratierte Ids |
 |---|---|
 | `anthropic` | `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`, `claude-haiku-4-5` |
 | `openai` | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.3-codex` |
-| `openai_codex` | dieselben vier wie `openai` |
+| `openai_codex` | GPT-6.2 Sol und Astra, GPT-6.1 Sol und Terra, GPT-6 Sol, Astra und Luna sowie frühere Codex-IDs |
 | `google` | `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview` |
 | `deepseek` | `deepseek-v4-pro`, `deepseek-v4-flash` |
 | `xai` | `grok-4.5`, `grok-4.3` |

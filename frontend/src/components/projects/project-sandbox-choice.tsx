@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useState } from "react";
 import { useProject } from "@/hooks/use-projects";
 import { useQuery } from "@tanstack/react-query";
@@ -250,7 +252,7 @@ export function ProjectSandboxSummary({ project }: { project: Project }) {
 export function ProjectSandboxExplanation() {
   const t = useTranslations("projects.sandbox");
   return (
-    <details className="text-muted-foreground text-xs leading-relaxed">
+    <NativeDisclosure className="text-muted-foreground text-xs leading-relaxed">
       <summary className="hover:text-foreground cursor-pointer py-1 font-medium">
         {t("howItWorks")}
       </summary>
@@ -262,6 +264,6 @@ export function ProjectSandboxExplanation() {
           </div>
         ))}
       </dl>
-    </details>
+    </NativeDisclosure>
   );
 }

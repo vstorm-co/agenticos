@@ -605,6 +605,10 @@ class TestApprovalMarks:
 
         platform = platform_spec("aos_key", allowed_tools=None, approval="writes")
         assert platform.ungated == PLATFORM_UNGATED_TOOLS
+        assert platform.trust_read_only_hints is True
+        assert not McpServerSpec(
+            name="notion", url="https://mcp.notion.com/mcp"
+        ).trust_read_only_hints
         assert platform.tool_approval == {}
         assert McpServerSpec(name="notion", url="https://mcp.notion.com/mcp").ungated == frozenset()
         assert _make_toolset(platform).ungated == frozenset(

@@ -159,7 +159,9 @@ function PathTreeRow<N extends PathTreeNode>({
         aria-selected={isSelected}
         className={cn(
           "group/file relative flex min-h-9 items-center rounded-lg transition-colors duration-[var(--duration-fast)]",
-          isSelected ? "bg-accent" : "hover:bg-accent/60",
+          isSelected
+            ? "bg-foreground/7 dark:bg-accent"
+            : "hover:bg-foreground/4 dark:hover:bg-accent/60",
         )}
       >
         <button
@@ -187,7 +189,7 @@ function PathTreeRow<N extends PathTreeNode>({
     <li role="treeitem" aria-expanded={isOpen} aria-selected={false}>
       <div
         {...rowInteractions?.(node)}
-        className="group/file hover:bg-accent/60 flex min-h-9 items-center gap-1 rounded-lg transition-colors duration-[var(--duration-fast)]"
+        className="group/file hover:bg-foreground/4 dark:hover:bg-accent/60 flex min-h-9 items-center gap-1 rounded-lg transition-colors duration-[var(--duration-fast)]"
       >
         <button
           type="button"

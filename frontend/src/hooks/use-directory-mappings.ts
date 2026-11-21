@@ -29,7 +29,7 @@ export function useDirectoryMappings(orgId: string, enabled: boolean) {
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.organizations.directoryMappings(orgId),
     queryFn: () => listDirectoryMappings(orgId),
     enabled,
@@ -57,5 +57,5 @@ export function useDirectoryMappings(orgId: string, enabled: boolean) {
     onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
   });
 
-  return { mappings: data?.items ?? [], isLoading, error, create, remove };
+  return { mappings: data?.items ?? [], isLoading, error, refetch, create, remove };
 }

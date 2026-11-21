@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { DeveloperAccess } from "./developer-access";
+import AccessSettingsPage from "@/app/[locale]/(dashboard)/settings/api-keys/page";
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(window.location.search),
@@ -13,6 +14,12 @@ vi.mock("./mcp-connect", () => ({ McpConnect: () => <p>Connect a client</p> }));
 vi.mock("./connected-apps", () => ({ ConnectedApps: () => <p>Connected clients</p> }));
 
 afterEach(() => window.history.replaceState(null, "", "/"));
+
+it.each(["", "?access=mcp"])("lands on MCP from the API settings route %s", (query) => {
+  window.history.replaceState(null, "", `/settings/api-keys${query}`);
+  render(<AccessSettingsPage />);
+  expect(screen.getByRole("tab", { name: "MCP clients" })).toHaveAttribute("aria-selected", "true");
+});
 
 it("keeps legacy MCP entry points on MCP and records a switch to API in the URL", async () => {
   window.history.replaceState(null, "", "/settings/mcp");

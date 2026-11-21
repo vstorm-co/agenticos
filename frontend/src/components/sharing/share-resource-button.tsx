@@ -5,7 +5,7 @@ import { UserPlus } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui";
-import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { SharingResourceType } from "@/types/sharing";
 import { SharingPanel } from "./sharing-panel";
@@ -51,11 +51,17 @@ export function ShareResourceButton({
         <span className={cn(compact && "max-md:sr-only")}>{t("share")}</span>
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className={cn(DIALOG_SCROLL, DIALOG_FORM)}>
+        <DialogContent mobilePresentation="sheet" className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
           <DialogHeader>
             <DialogTitle>{t("shareNamed", { name })}</DialogTitle>
           </DialogHeader>
-          <SharingPanel resourceType={resourceType} resourceId={resourceId} canManage={canManage} />
+          <div className={DIALOG_BODY}>
+            <SharingPanel
+              resourceType={resourceType}
+              resourceId={resourceId}
+              canManage={canManage}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </>

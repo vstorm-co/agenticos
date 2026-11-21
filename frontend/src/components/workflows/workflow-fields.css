@@ -1,0 +1,5 @@
+/* Workflow text editing keeps a stable surface; focus and refusal borders stay shared. */
+[data-workflow-fields] input.bg-field:enabled:hover,
+[data-workflow-fields] textarea.bg-field:enabled:hover {
+  background-color: var(--color-field);
+}

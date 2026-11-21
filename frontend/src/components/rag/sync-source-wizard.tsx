@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useStepDirection } from "@/hooks/use-step-direction";
 import { Copy, Plus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -115,6 +116,7 @@ export function SyncSourceWizard({
   const tErrors = useTranslations("errors");
   const [chosenMode, setMode] = useState<Mode>("new");
   const [step, setStep] = useState<Step>("source");
+  const direction = useStepDirection(STEPS.findIndex((item) => item.id === step));
   const [form, setForm] = useState<SyncSourceCreate>(() =>
     editing
       ? syncSourceForm(editing)
@@ -364,7 +366,11 @@ export function SyncSourceWizard({
           )}
         </DialogHeader>
 
-        <div key={step} className="wizard-step-in min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
+        <div
+          key={step}
+          data-direction={direction}
+          className="wizard-step-in min-h-0 scrollbar-thin overflow-y-auto px-6 py-5"
+        >
           {mode === "clone" ? (
             <CloneStep
               integrations={orgIntegrations}

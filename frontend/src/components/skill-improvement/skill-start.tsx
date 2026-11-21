@@ -5,7 +5,7 @@ import { SectionCard } from "@/components/settings/settings-section";
 import { EmptyState } from "@/components/states";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useLocale, useTranslations } from "next-intl";
 
 import { limitText, limitValue, sessionLimit, usd } from "@/components/evals/format";

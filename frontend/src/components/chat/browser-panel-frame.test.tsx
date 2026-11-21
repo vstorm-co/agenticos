@@ -67,3 +67,35 @@ it("bounds pointer resizing and removes the native blocker when the drag ends", 
   }
   vi.unstubAllGlobals();
 });
+
+it("keeps Sources at a readable bounded pixel width while leaving room for the chat", () => {
+  const view = render(
+    <BrowserPanelFrame sizing="sources" layout="sources">
+      {() => <span>Sources</span>}
+    </BrowserPanelFrame>,
+  );
+  const resize = screen.getByRole("separator");
+  expect(resize).toHaveAttribute("aria-valuenow", "400");
+  expect(
+    view.container.querySelector("aside")?.style.getPropertyValue("--browser-panel-width"),
+  ).toBe("min(400px, 38%)");
+  fireEvent.keyDown(resize, { key: "Home" });
+  expect(resize).toHaveAttribute("aria-valuenow", "360");
+  fireEvent.keyDown(resize, { key: "ArrowLeft" });
+  expect(resize).toHaveAttribute("aria-valuenow", "376");
+  fireEvent.keyDown(resize, { key: "End" });
+  expect(resize).toHaveAttribute("aria-valuenow", "420");
+  fireEvent.keyDown(resize, { key: "ArrowLeft" });
+  expect(resize).toHaveAttribute("aria-valuenow", "420");
+  vi.stubGlobal("PointerEvent", MouseEvent);
+  Object.defineProperty(resize, "setPointerCapture", { value: vi.fn() });
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 1200, 700),
+  );
+  fireEvent.pointerDown(resize, { button: 0 });
+  fireEvent.pointerMove(resize, { clientX: 810 });
+  expect(resize).toHaveAttribute("aria-valuenow", "390");
+  fireEvent.pointerUp(resize);
+  fireEvent(resize, new MouseEvent("dblclick", { bubbles: true }));
+  expect(resize).toHaveAttribute("aria-valuenow", "400");
+});

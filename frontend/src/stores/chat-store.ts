@@ -1,5 +1,7 @@
 "use client";
 
+import { canonicalParts, mergeToolCall } from "@/lib/turn-timeline";
+
 import { retainNextSteps } from "@/lib/next-step-events";
 
 import { create, createStore, type StateCreator } from "zustand";
@@ -161,7 +163,7 @@ const chatState: StateCreator<ChatState> = (set) => ({
           ? {
               ...msg,
               toolCalls: msg.toolCalls?.map((tc) =>
-                tc.id === toolCallId ? { ...tc, ...update } : tc,
+                tc.id === toolCallId ? mergeToolCall(tc, update) : tc,
               ),
             }
           : msg,
@@ -204,8 +206,15 @@ const chatState: StateCreator<ChatState> = (set) => ({
         msg.id === messageId
           ? {
               ...msg,
-              parts: [...(msg.parts ?? []), { id: clientId(), type: "tool", toolCall }],
-              toolCalls: [...(msg.toolCalls || []), toolCall],
+              parts: canonicalParts([
+                ...(msg.parts ?? []),
+                { id: clientId(), type: "tool", toolCall },
+              ]),
+              toolCalls: msg.toolCalls?.some((call) => call.id === toolCall.id)
+                ? msg.toolCalls.map((call) =>
+                    call.id === toolCall.id ? mergeToolCall(call, toolCall) : call,
+                  )
+                : [...(msg.toolCalls ?? []), toolCall],
             }
           : msg,
       ),
@@ -219,11 +228,11 @@ const chatState: StateCreator<ChatState> = (set) => ({
               ...msg,
               parts: msg.parts?.map((p) =>
                 p.type === "tool" && p.toolCall && p.toolCall.id === toolCallId
-                  ? { ...p, toolCall: { ...p.toolCall, ...update } }
+                  ? { ...p, toolCall: mergeToolCall(p.toolCall, update) }
                   : p,
               ),
               toolCalls: msg.toolCalls?.map((tc) =>
-                tc.id === toolCallId ? { ...tc, ...update } : tc,
+                tc.id === toolCallId ? mergeToolCall(tc, update) : tc,
               ),
             }
           : msg,

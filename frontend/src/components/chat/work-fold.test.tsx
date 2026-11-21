@@ -87,7 +87,8 @@ describe("WorkFold", () => {
     expect(screen.getByText("the steps")).toBeInTheDocument();
 
     fireEvent.click(line);
-    expect(screen.queryByText("the steps")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    expect(screen.getByText("the steps").closest("[inert]")).toHaveAttribute("aria-hidden", "true");
   });
 
   it("counts the steps when the length is not known", () => {

@@ -22,9 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { useSecrets } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
-import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { ExternalAgent, ExternalAgentCreate } from "@/types/external-agents";
 
@@ -58,6 +59,13 @@ export function RegisterRemoteAgentDialog({
   const [secretId, setSecretId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, setPending] = useState(false);
+  const [optionalOpen, setOptionalOpen] = useState(false);
+  const clearError = (field: string) =>
+    setErrors((current) => {
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
   const keys = secrets.filter((secret) => secret.kind === "api_key");
 
   const reset = () => {
@@ -65,6 +73,7 @@ export function RegisterRemoteAgentDialog({
     setSlug("");
     setSecretId(null);
     setErrors({});
+    setOptionalOpen(false);
   };
 
   async function submit() {
@@ -84,6 +93,7 @@ export function RegisterRemoteAgentDialog({
         { fields: ["card_url", "slug", "secret_id"], identifiedBy: "slug" },
         tErrors,
       );
+      if (failure.fields.slug || failure.fields.secret_id) setOptionalOpen(true);
       // A card that could not be read is a refusal about the address, which the
       // server states as a sentence rather than a field: it goes on that field.
       setErrors(
@@ -100,88 +110,116 @@ export function RegisterRemoteAgentDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) reset();
+        reset();
         onOpenChange(next);
       }}
     >
-      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
+      <DialogContent dismissible={!pending} className={cn(DIALOG_CONFIRM, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{t("registerTitle")}</DialogTitle>
           <DialogDescription>{t("registerDescription")}</DialogDescription>
         </DialogHeader>
 
-        <div className={cn(DIALOG_BODY, "space-y-5")}>
-          <FormField
-            label={t("cardUrl")}
-            htmlFor="remote-agent-card"
-            error={errors.card_url}
-            description={t("cardUrlHint")}
-          >
-            <Input
-              id="remote-agent-card"
-              type="url"
-              inputMode="url"
-              // i18n-exempt: an example address, the same in every language
-              placeholder="https://agents.example.com"
-              value={cardUrl}
-              onChange={(event) => setCardUrl(event.target.value)}
-              autoComplete="off"
-              maxLength={1000}
-            />
-          </FormField>
-
-          <FormField
-            label={t("handle")}
-            htmlFor="remote-agent-slug"
-            error={errors.slug}
-            description={t("handleHint")}
-          >
-            <Input
-              id="remote-agent-slug"
-              value={slug}
-              onChange={(event) => setSlug(event.target.value)}
-              autoComplete="off"
-              maxLength={64}
-            />
-          </FormField>
-
-          <FormField
-            label={t("key")}
-            htmlFor="remote-agent-key"
-            error={errors.secret_id}
-            description={t("keyHint")}
-          >
-            <Select
-              value={secretId ?? NO_KEY}
-              onValueChange={(next) => setSecretId(next === NO_KEY ? null : next)}
+        <div className={cn(DIALOG_BODY, "space-y-4")}>
+          <fieldset disabled={pending} className="space-y-4">
+            <FormField
+              label={t("cardUrl")}
+              htmlFor="remote-agent-card"
+              error={errors.card_url}
+              description={t("cardUrlHint")}
             >
-              <SelectTrigger id="remote-agent-key">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_KEY}>{t("noKey")}</SelectItem>
-                {keys.map((secret) => (
-                  <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
-                    <ProviderRow
-                      provider={secret.purpose ?? "custom"}
-                      name={secret.name}
-                      hint={secret.hint}
-                    />
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormField>
-          <InlineSecret
-            kind="api_key"
-            purpose={PURPOSE}
-            suggestedName={t("suggestedKeyName")}
-            onCreated={setSecretId}
-          />
+              <Input
+                id="remote-agent-card"
+                type="url"
+                inputMode="url"
+                // i18n-exempt: an example address, the same in every language
+                placeholder="https://agents.example.com"
+                value={cardUrl}
+                onChange={(event) => {
+                  setCardUrl(event.target.value);
+                  clearError("card_url");
+                }}
+                autoComplete="off"
+                maxLength={1000}
+              />
+            </FormField>
+
+            <NativeDisclosure
+              open={optionalOpen}
+              onToggle={(event) => setOptionalOpen(event.currentTarget.open)}
+              className="border-border rounded-xl border px-3 py-2"
+            >
+              <summary className="text-muted-foreground text-sm">{t("optionalSettings")}</summary>
+              <div className="space-y-4 pt-3 pb-1">
+                <FormField
+                  label={t("handle")}
+                  htmlFor="remote-agent-slug"
+                  error={errors.slug}
+                  description={t("handleHint")}
+                >
+                  <Input
+                    id="remote-agent-slug"
+                    value={slug}
+                    onChange={(event) => {
+                      setSlug(event.target.value);
+                      clearError("slug");
+                    }}
+                    autoComplete="off"
+                    maxLength={64}
+                  />
+                </FormField>
+
+                <FormField
+                  label={t("key")}
+                  htmlFor="remote-agent-key"
+                  error={errors.secret_id}
+                  description={t("keyHint")}
+                >
+                  <Select
+                    value={secretId ?? NO_KEY}
+                    onValueChange={(next) => {
+                      setSecretId(next === NO_KEY ? null : next);
+                      clearError("secret_id");
+                    }}
+                  >
+                    <SelectTrigger id="remote-agent-key">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_KEY}>{t("noKey")}</SelectItem>
+                      {keys.map((secret) => (
+                        <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
+                          <ProviderRow
+                            provider={secret.purpose ?? "custom"}
+                            name={secret.name}
+                            hint={secret.hint}
+                          />
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+                <InlineSecret
+                  kind="api_key"
+                  purpose={PURPOSE}
+                  suggestedName={t("suggestedKeyName")}
+                  onCreated={setSecretId}
+                  disabled={pending}
+                />
+              </div>
+            </NativeDisclosure>
+          </fieldset>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            disabled={pending}
+            onClick={() => {
+              reset();
+              onOpenChange(false);
+            }}
+          >
             {t("cancel")}
           </Button>
           <Button onClick={submit} disabled={cardUrl.trim().length < 8 || pending}>

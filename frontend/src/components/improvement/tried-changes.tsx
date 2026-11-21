@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useTranslations } from "next-intl";
 import { useAttemptChanges, useImprovementEvidence } from "@/hooks/use-improvements";
 import { subjectOf } from "@/lib/improvement-subject";
@@ -21,7 +23,7 @@ export function TriedChanges({ session }: { session: Improvement }) {
       {tried.map((round, index) => {
         const heldBack = round.number > session.max_iterations;
         return (
-          <details key={round.id} open={index === 0} className="rounded-xl border p-4">
+          <NativeDisclosure key={round.id} open={index === 0} className="rounded-xl border p-4">
             <summary className="cursor-pointer text-sm font-medium">
               {heldBack
                 ? t("heldBack")
@@ -32,7 +34,7 @@ export function TriedChanges({ session }: { session: Improvement }) {
                   })}
             </summary>
             {round.batch_id && !heldBack && <AttemptProposals session={session} round={round} />}
-          </details>
+          </NativeDisclosure>
         );
       })}
     </section>

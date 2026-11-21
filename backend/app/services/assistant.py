@@ -58,9 +58,6 @@ from app.services.skills import LibraryRefresh, SkillService
 logger = logging.getLogger(__name__)
 
 TEMPLATE_KEY = agent_templates.ARCHITECT_KEY
-# Its mark, worn as an ordinary agent picture so every place an agent's face is
-# drawn - the catalog, a picker, the transcript, Slack - draws the Architect's.
-AVATAR = agent_templates.TEMPLATES_ROOT / TEMPLATE_KEY / "avatar.png"
 """The shipped template every organization's assistant is installed from."""
 RECENT_FAILURE = timedelta(days=1)
 """How far back a failed run is still worth the bubble raising."""
@@ -451,9 +448,7 @@ class AssistantService:
                 ),
             },
         )
-        return await self.registry.set_avatar(
-            installer, agent.id, file_data=AVATAR.read_bytes(), content_type="image/png"
-        )
+        return agent
 
     async def _publish_when_possible(self, organization_id: UUID, agent: Agent) -> Agent:
         """Publish the draft on the organization's first chat model, once it has one.

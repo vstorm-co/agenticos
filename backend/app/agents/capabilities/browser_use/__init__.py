@@ -120,13 +120,11 @@ class WebBrowserConfig(BaseModel):
             "runs, not a process in the API container."
         ),
     )
-    """Defaulted rather than required, and the default is refused at publish.
+    """Built in inherits the deployment endpoint when this value is empty.
 
-    Every capability has to be buildable from an empty config - that is what the
-    registry's drift test does to enumerate the tools each one offers. So the
-    demand for an endpoint is made where it can be made with a sentence a person
-    reads, in `validate_cdp_url`, and an agent that somehow holds a blank one gets
-    a tool that refuses instead of one that fails on its first call.
+    No browser connection is opened while building the agent. An unconfigured or
+    unavailable deployment browser is reported by its tools, leaving the rest
+    of the agent usable. Explicit endpoints still require the operator allowlist.
     """
     allowed_domains: list[str] | None = Field(
         title="Allowed domains",
@@ -295,14 +293,24 @@ def connection_problems(config: WebBrowserConfig, *, has_secret: bool) -> list[s
     return problems
 
 
+def cdp_endpoint(config: WebBrowserConfig) -> str:
+    """Resolve the deployment browser without opening a network connection."""
+    if config.connection == "local":
+        return ""
+    return config.cdp_url or (
+        settings.BROWSER_SIGN_IN_CDP_URL if config.connection == "built_in" else ""
+    )
+
+
 def validate_cdp_url(config: WebBrowserConfig) -> None:
     """Refuse a `cdp_url` this deployment's operator has not vetted.
 
     `cdp_url` lives in an agent spec, which anyone holding `edit` on that agent
     writes, so it is tenant-controlled: the request is made by this deployment, to
     an address somebody else named, so the operator lists the hosts in
-    `BROWSER_CDP_ALLOWED_HOSTS`, and an empty list refuses browser automation
-    outright rather than defaulting to something.
+    `BROWSER_CDP_ALLOWED_HOSTS`. An empty list refuses configured browser
+    endpoints; a missing built-in endpoint leaves the agent usable and is
+    reported only by the tool.
 
     **Not the SSRF guard**, which is what this used to be and which is wrong here
     in both directions. `validate_webhook_url` admits only a *public* address, so
@@ -324,18 +332,22 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
     allowlist names it: that browser is deployment config, never an author's.
 
     Raises:
-        UrlRefusedError: The URL is missing, malformed, not a CDP scheme, names
-            the page renderer, or names a host this deployment does not allow.
+        UrlRefusedError: A proxy's required CDP endpoint is missing, or the endpoint
+            is malformed, uses another scheme, names the page renderer, or names
+            a host this deployment does not allow.
     """
     if config.connection in ("hosted", "local"):
         # The hosted browser is the endpoint; `connection_problems` checks it.
         return
-    if not config.cdp_url:
+    endpoint = cdp_endpoint(config)
+    if not endpoint and config.connection == "built_in":
+        return
+    if not endpoint:
         raise UrlRefusedError(
             "Browser automation needs a cdp_url: the Chromium DevTools endpoint "
             "of the browser service this agent should drive"
         )
-    parsed = urlsplit(config.cdp_url)
+    parsed = urlsplit(endpoint)
     if parsed.scheme not in _CDP_SCHEMES or not parsed.hostname:
         raise UrlRefusedError("A cdp_url must be an http, https, ws or wss URL with a host")
     try:
@@ -347,7 +359,7 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
         _ = parsed.port
     except ValueError as exc:
         raise UrlRefusedError(f"The cdp_url has an invalid port: {exc}") from exc
-    if is_renderer(config.cdp_url):
+    if is_renderer(endpoint):
         # Before the allowlist, so listing the renderer there by mistake still
         # refuses it: that browser draws people's records for `preview_artifact`
         # and is the operator's alone. Matched by name, as the allowlist is; an
@@ -501,7 +513,7 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
             locale=config.locale,
             credential=credential,
         ),
-        cdp_url="" if config.connection == "local" else config.cdp_url,
+        cdp_url=cdp_endpoint(config),
         allowed_domains=config.allowed_domains,
         max_steps=config.max_steps,
         candidate_cap=config.candidate_cap,

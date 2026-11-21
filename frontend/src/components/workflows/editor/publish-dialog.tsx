@@ -221,7 +221,7 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
             {t("publish")}
           </Button>
         </DialogTrigger>
-        <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
+        <DialogContent data-workflow-fields className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
           <DialogHeader>
             <DialogTitle>{t("publishTitleVersion", { version: next })}</DialogTitle>
             <DialogDescription>{t("publishDescription")}</DialogDescription>

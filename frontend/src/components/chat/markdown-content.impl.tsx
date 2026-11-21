@@ -272,12 +272,12 @@ export const MarkdownContent = memo(function MarkdownContent({
         // `https:host` on an `http:` console, leave it without starting
         // `https://`, and with no target they leave in this tab. An absolute `http(s)://` address on this
         // console still opens in a new tab, as before.
+        const offsite = href ? offsiteUrl(href, window.location.origin) : null;
         const external =
-          app || !href
-            ? null
-            : (offsiteUrl(href, window.location.origin) ??
-              (/^https?:\/\//i.test(href) ? href : null));
+          app || !href ? null : (offsite ?? (/^https?:\/\//i.test(href) ? href : null));
         const isExternal = external !== null;
+        const consoleLink =
+          !!href && offsite === null && (href.startsWith("/") || /^https?:\/\//i.test(href));
         const brand = external ? brandForUrl(external) : null;
         // A console page the agent points at wears the sidebar's mark for it.
         const PageIcon = !app && href ? consolePageIcon(href, window.location.origin) : null;
@@ -287,6 +287,7 @@ export const MarkdownContent = memo(function MarkdownContent({
             href={href}
             target={isExternal ? "_blank" : undefined}
             rel={isExternal ? "noopener noreferrer" : undefined}
+            data-console-link={consoleLink ? "" : undefined}
             className="text-foreground hover:text-brand-hover decoration-brand hover:decoration-brand inline-flex items-baseline gap-1 font-medium underline decoration-2 underline-offset-[3px] transition-colors"
             {...props}
           >
