@@ -667,3 +667,34 @@ async def test_task_inventory_marks_a_bounded_page_incomplete(
     tasks = packet.current_state["tasks"]
     assert isinstance(tasks, list) and len(tasks) == 100
     assert packet.current_state["tasks_complete"] is False
+
+
+async def test_routine_snapshot_keeps_actual_state_and_timezone_fields(db: AsyncSession) -> None:
+    from datetime import UTC, datetime
+
+    from app.db.models.agent_trigger import AgentTrigger
+    from app.services.proactive._context_snapshot import current_packet
+
+    user, org, agent, _, _, ctx = await _world(db)
+    trigger = AgentTrigger(
+        organization_id=org.id,
+        agent_id=agent.id,
+        created_by_user_id=user.id,
+        name="Weekly report",
+        prompt="Prepare the report",
+        next_fire_at=datetime.now(UTC),
+        is_active=False,
+        schedule_kind="cron",
+        cron_expression="0 18 * * 4",
+        time_zone="Europe/Warsaw",
+    )
+    db.add(trigger)
+    await db.flush()
+    packet = await current_packet(db, ctx, user, now=datetime.now(UTC), starter_id=agent.id)
+    rows = packet.current_state["routines"]
+    assert isinstance(rows, list) and len(rows) == 1
+    row = rows[0]
+    assert isinstance(row, dict)
+    assert row["is_active"] is False
+    assert row["time_zone"] == "Europe/Warsaw"
+    assert isinstance(row["setup_required"], bool)

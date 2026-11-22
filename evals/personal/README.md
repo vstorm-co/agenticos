@@ -160,14 +160,15 @@ responsibility, feature availability and usage, memory corrections and erasure.
 The additional adversarial cases cover authenticated Ask user answers, corrections,
 deleted routines, citations that do not support a claim, incomplete resource pages,
 revoked cached evidence, expired questions and timezone-aware schedules.
-Thirty-two cases are marked `holdout`. Keep that partition separate when tuning.
+Thirty-two cases are marked `holdout`. Their labels remain useful for reporting, but cases inspected during implementation are no longer an unseen holdout. Report that exposure rather than claiming independent validation.
 
 These are desired-behavior fixtures, not another 44 successes for the older
 `NightlyReading` schema. Their references and counter-examples need semantic
 review. The existing 222-case corpus and its scores remain separate. The packets
 use the platform's `DatasetCaseContent` JSONL format, so the normal Dataset import
-and evaluation path can consume them; the background replay's fixed four-request
-adapter does not exercise their richer state.
+and evaluation path can consume them. `run.py` remains the older narrow-contract
+replay. `context_run.py` compares that reader with the production context pipeline
+and memory transcript selection.
 
 ```sh
 cd backend
@@ -186,3 +187,33 @@ The Python background runner also accepts a resolved Pydantic AI `Model` and an
 explicit `model_label`. This preserves a configured authenticated gateway without
 copying credentials into report files or silently switching to a public endpoint.
 Its CLI model-name behavior is unchanged.
+
+
+### Paired context replay
+
+From the repository root, choose the model explicitly:
+
+```sh
+uv run --directory backend python ../evals/personal/context_run.py \
+  --model "openrouter:YOUR_CONFIGURED_MODEL" \
+  --report /tmp/context-paired.jsonl --max-usd 3
+```
+
+Use repeated `--case <case-id>` for a focused replay. Python callers can pass a
+resolved Pydantic AI `Model` to `run_context` to retain a deployment's configured
+gateway. Keep credentials in that deployment; never copy them into a report.
+
+The new path indexes each conversation separately in 16,000-character segments,
+uses the production citation and ownership checks, proposes up to four cards and
+independently verifies cards and starters. The replay does not mutate product
+resources or activate proposed work. Current database authorization, checkpoint
+persistence, erasure, resumption and unchanged-read behavior are covered separately
+by `tests/integration/test_personal_context_cache.py`.
+
+Every model request, repair and judge call records its output, usage, latency and
+provider-reported cost. The explicit USD limit stops admission after known spend
+reaches it; one admitted request can exceed the remaining amount. Missing cost
+information stops the replay. Preserve failed attempts when calculating total
+spend. A model judge is an aid to review, not a human usefulness rating. Report
+technical failures separately, and do not merge these scores with the original
+222-case corpus.

@@ -56,7 +56,9 @@ async def current_packet(
     project_page = await ProjectService(db).list_projects(ctx, skip=0, limit=100)
     projects = [
         json_record(
-            item.model_dump(mode="json", include={"id", "name", "description", "updated_at"})
+            item.model_dump(
+                mode="json", include={"id", "name", "description", "owner_user_id", "updated_at"}
+            )
         )
         for item in project_page.items
     ]
@@ -64,7 +66,8 @@ async def current_packet(
     agents = [
         json_record(
             item.model_dump(
-                mode="json", include={"id", "name", "description", "status", "updated_at"}
+                mode="json",
+                include={"id", "name", "description", "status", "owner_user_id", "updated_at"},
             )
         )
         for item in agent_rows
@@ -84,12 +87,15 @@ async def current_packet(
                     "id",
                     "name",
                     "prompt",
-                    "enabled",
+                    "is_active",
                     "agent_id",
                     "created_by_user_id",
                     "cron_expression",
-                    "timezone",
-                    "activation_status",
+                    "time_zone",
+                    "setup_required",
+                    "setup_issues",
+                    "paused_for_budget",
+                    "auto_stopped_at",
                     "last_fired_at",
                 },
             )
