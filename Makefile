@@ -1,4 +1,4 @@
-.PHONY: ci-test-db-configure ci-media-inspector ci-browser-runtime-check test-backend-jobs-check test-backend-reports-check test-backend-merge test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-workspace sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
+.PHONY: ci-test-db-configure ci-media-inspector ci-browser-runtime-check test-backend-jobs-check test-backend-reports-check test-backend-merge test-backend-partition-check backend-file-times test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-workspace sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -545,8 +545,8 @@ ci-browser-runtime-check:
 test:
 	$(TEST_DB_START)
 	@status=0; paths=tests/; \
-	$(if $(BACKEND_SHARD),paths=$$(uv run --quiet --directory backend python ../scripts/ci_backend_shard.py $(BACKEND_SHARD) tests) || exit 1;) \
-	$(TEST_DB_ENV) $(if $(BACKEND_SHARD),COVERAGE_FILE=.coverage.shard$(BACKEND_SHARD_INDEX)) uv run --directory backend pytest $$paths -v --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4 || status=$$?; \
+	$(if $(BACKEND_SHARD),paths=$$(uv run --quiet --directory backend python ../scripts/ci_backend_shard.py $(BACKEND_SHARD) tests) || exit 1; printf '%s\n' $$paths > backend/.shard$(BACKEND_SHARD_INDEX)-files.txt;) \
+	$(TEST_DB_ENV) $(if $(BACKEND_SHARD),COVERAGE_FILE=.coverage.shard$(BACKEND_SHARD_INDEX)) uv run --directory backend pytest $$paths -v --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4 $(if $(BACKEND_SHARD),--junitxml=junit-shard$(BACKEND_SHARD_INDEX).xml) || status=$$?; \
 	$(if $(BACKEND_SHARD),test -s backend/.coverage.shard$(BACKEND_SHARD_INDEX) || status=1;,$(TEST_GATE)) \
 	exit $$status
 
@@ -561,6 +561,18 @@ test-backend-reports-check:
 
 # `unset COVERAGE_FILE`: combined into a file named by an inherited COVERAGE_FILE,
 # such as a shard's own data file, `combine` erased that shard's data first.
+# The shards' file lists must partition the suite: every test file in exactly one
+# shard. `ci_backend_shard.py` splits by recorded times, which are a second input,
+# so this proves the split rather than trusting it.
+test-backend-partition-check:
+	uv run --quiet --directory backend python ../scripts/ci_backend_shard.py verify tests \
+		$(foreach shard,$(shell seq 1 $(BACKEND_SHARDS)),.shard$(shard)-files.txt)
+
+# Seconds per backend test file from the shards' JUnit reports. The next run's
+# `changes` job fetches this from the last green full run to balance the shards.
+backend-file-times:
+	cd backend && uv run --quiet python ../scripts/ci_backend_shard.py times junit-shard*.xml > backend-file-times.json
+
 test-backend-merge:
 	@status=0; unset COVERAGE_FILE; \
 	(cd backend && uv run coverage combine -q .coverage.shard*) || exit 1; \

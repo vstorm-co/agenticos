@@ -108,6 +108,10 @@ CI_ONLY_TARGETS = {
     "test-backend-jobs-check",
     "test-backend-reports-check",
     "test-backend-merge",
+    # Proves the time-balanced shards ran every file exactly once, and records the
+    # seconds per file the next run balances on. Both read the shards' outputs.
+    "test-backend-partition-check",
+    "backend-file-times",
     # `downgrade base` against CI's throwaway `test_db` is a rollback test;
     # against a laptop's `backend/.env` it is somebody's afternoon.
     "test-migrations",
