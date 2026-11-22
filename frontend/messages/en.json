@@ -3001,7 +3001,6 @@
     },
     "roomRouting": {
       "askLead": "Ask lead",
-      "askLeadNamed": "Ask lead: {name}",
       "askLeadHint": "The lead can answer or propose up to three tasks. You review proposals before any task starts.",
       "pinnedLeadHint": "This room uses an earlier published lead version. Proposals still need your acceptance before tasks start.",
       "title": "Lead & tasks",
