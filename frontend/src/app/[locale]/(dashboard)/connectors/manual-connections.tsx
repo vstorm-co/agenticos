@@ -26,7 +26,8 @@ export function ManualConnections() {
   const t = useTranslations("pages.mcp-servers");
   const tMcp = useTranslations("mcp");
   const tErrors = useTranslations("errors");
-  const { rows, isLoading, error } = useMcpServers();
+  const common = useTranslations("common");
+  const { rows, isLoading, error, retry } = useMcpServers();
   const { can } = usePermissions();
 
   if (isLoading) {
@@ -60,7 +61,10 @@ export function ManualConnections() {
     // and "0 servers" over a failure would state it as fact.
     return (
       <ListCard fill namedByPage title={tMcp("servers")} counted={null}>
-        <ErrorState description={getErrorMessage(error, tErrors)} />
+        <ErrorState
+          description={getErrorMessage(error, tErrors)}
+          cta={{ label: common("retry"), onClick: () => void retry() }}
+        />
       </ListCard>
     );
   }

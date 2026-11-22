@@ -2019,8 +2019,8 @@ function ChatUI({
       {pendingQuestions &&
         pendingQuestions.length > 0 &&
         onAnswerQuestions &&
-        // The main transcript shows its own question inline; a thread panel has none.
-        root !== null &&
+        // A personal transcript shows its question inline; rooms and threads use this dock.
+        (root !== null || roomProjectId !== null) &&
         matchesAction(actionThreadRoots.questions, root) && (
           <div className="pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
             <QuestionPrompt
@@ -2239,7 +2239,7 @@ function ChatUI({
                     )}
                     <QuestionInteractionContext
                       value={
-                        pendingQuestions?.length && onAnswerQuestions
+                        pendingQuestions?.length && onAnswerQuestions && roomProjectId === null
                           ? {
                               id: questionTarget?.id ?? "question",
                               messageId:
@@ -2364,7 +2364,7 @@ function ChatUI({
               compact && "bg-background",
             )}
           >
-            {pendingQuestions?.length && threadRootId === null ? (
+            {pendingQuestions?.length && threadRootId === null && roomProjectId === null ? (
               <button
                 type="button"
                 // Blurring the disabled composer on press can collapse its phone
@@ -2637,10 +2637,12 @@ function ChatUI({
                                     <AgentPicker />
                                   </fieldset>
                                 )}
-                                <ChatApprovalSelector
-                                  onChange={onApprovalModeChange}
-                                  disabled={isProcessing || readOnly || manualCompacting}
-                                />
+                                {!mainChat && (
+                                  <ChatApprovalSelector
+                                    onChange={onApprovalModeChange}
+                                    disabled={isProcessing || readOnly || manualCompacting}
+                                  />
+                                )}
                                 {!agentFixed && (
                                   <span className="contents max-md:hidden">
                                     <ProjectChip
@@ -2661,82 +2663,99 @@ function ChatUI({
                             // A phone's row keeps +, the agent, the microphone and
                             // send; these move into its `+` sheet as rows.
                             phoneRows={
-                              <>
-                                {!agentFixed && (
-                                  <SheetRow icon={Bot} label={t("rail.agent")}>
-                                    <fieldset disabled={manualCompacting} className="contents">
-                                      <AgentPicker />
-                                    </fieldset>
-                                  </SheetRow>
-                                )}
-                                {offerCall && !onCall && (
-                                  <SheetRow
-                                    icon={PhoneCall}
-                                    label={t("input.callAgent", {
-                                      agent: callAgent?.name ?? t("rail.agent"),
-                                    })}
-                                  >
-                                    <VoiceCallButton
-                                      readiness={readiness}
-                                      failed={readinessFailed}
-                                      disabled={isProcessing || readOnly || manualCompacting}
-                                      onStart={startCall}
-                                      setUpHref={agentCallsHref}
-                                      publishedOnly={testingDraft}
-                                    />
-                                  </SheetRow>
-                                )}
-                                <SheetRow
-                                  icon={SlidersHorizontal}
-                                  label={t("input.modelAndApprovals")}
-                                >
-                                  <fieldset disabled={manualCompacting} className="contents">
+                              mainChat && (!offerCall || onCall) ? undefined : (
+                                <>
+                                  {!agentFixed && !mainChat && (
+                                    <SheetRow icon={Bot} label={t("rail.agent")}>
+                                      <fieldset disabled={manualCompacting} className="contents">
+                                        <AgentPicker />
+                                      </fieldset>
+                                    </SheetRow>
+                                  )}
+                                  {offerCall && !onCall && (
+                                    <SheetRow
+                                      icon={PhoneCall}
+                                      label={t("input.callAgent", {
+                                        agent: callAgent?.name ?? t("rail.agent"),
+                                      })}
+                                    >
+                                      <VoiceCallButton
+                                        readiness={readiness}
+                                        failed={readinessFailed}
+                                        disabled={isProcessing || readOnly || manualCompacting}
+                                        onStart={startCall}
+                                        setUpHref={agentCallsHref}
+                                        publishedOnly={testingDraft}
+                                      />
+                                    </SheetRow>
+                                  )}
+                                  {!mainChat && (
+                                    <SheetRow
+                                      icon={SlidersHorizontal}
+                                      label={t("input.modelAndApprovals")}
+                                    >
+                                      <fieldset disabled={manualCompacting} className="contents">
+                                        <ChatControls
+                                          onModelProfileChange={onModelProfileChange}
+                                          onApprovalModeChange={onApprovalModeChange}
+                                          agentModel={agentModel}
+                                          agentCapabilities={agentCapabilities}
+                                        />
+                                      </fieldset>
+                                    </SheetRow>
+                                  )}
+                                  {!mainChat && (
+                                    <SheetRow icon={Gauge} label={t("input.contextUsed")}>
+                                      <UsageMeter
+                                        usage={lastUsage}
+                                        workspace={workspace}
+                                        total={conversationCost}
+                                        contextWindow={contextWindow}
+                                      />
+                                    </SheetRow>
+                                  )}
+                                </>
+                              )
+                            }
+                            actionsSlot={
+                              <span className="contents max-md:hidden">
+                                <div data-chat-actions>
+                                  {mainChat && (
                                     <ChatControls
+                                      settingsOnly
+                                      agentCapabilities={agentCapabilities}
+                                    />
+                                  )}
+                                  {mainChat && (
+                                    <ChatApprovalSelector
+                                      iconOnly
+                                      onChange={onApprovalModeChange}
+                                      disabled={isProcessing || readOnly || manualCompacting}
+                                    />
+                                  )}
+                                  <fieldset disabled={manualCompacting}>
+                                    <ChatControls
+                                      usageSlot={
+                                        <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                                          <span>{t("input.contextUsed")}</span>{" "}
+                                          <UsageMeter
+                                            key={`${conversationId ?? "new"}:${messages.length === 0}`}
+                                            iconOnly={mainChat}
+                                            beforeFirstMessage={mainChat && messages.length === 0}
+                                            usage={lastUsage}
+                                            workspace={workspace}
+                                            total={conversationCost}
+                                            contextWindow={contextWindow}
+                                          />
+                                        </div>
+                                      }
                                       onModelProfileChange={onModelProfileChange}
                                       onApprovalModeChange={onApprovalModeChange}
                                       agentModel={agentModel}
                                       agentCapabilities={agentCapabilities}
                                     />
                                   </fieldset>
-                                </SheetRow>
-                                <SheetRow icon={Gauge} label={t("input.contextUsed")}>
-                                  <UsageMeter
-                                    usage={lastUsage}
-                                    workspace={workspace}
-                                    total={conversationCost}
-                                    contextWindow={contextWindow}
-                                  />
-                                </SheetRow>
-                              </>
-                            }
-                            actionsSlot={
-                              <span className="contents max-md:hidden">
-                                {/* Wide screens only, as is the panel it opens. */}
-                                <UsageMeter
-                                  usage={lastUsage}
-                                  workspace={workspace}
-                                  total={conversationCost}
-                                  contextWindow={contextWindow}
-                                />
-                                <fieldset disabled={manualCompacting}>
-                                  <ChatControls
-                                    usageSlot={
-                                      <div className="text-muted-foreground flex items-center gap-2 text-xs">
-                                        <span>{t("input.contextUsed")}</span>{" "}
-                                        <UsageMeter
-                                          usage={lastUsage}
-                                          workspace={workspace}
-                                          total={conversationCost}
-                                          contextWindow={contextWindow}
-                                        />
-                                      </div>
-                                    }
-                                    onModelProfileChange={onModelProfileChange}
-                                    onApprovalModeChange={onApprovalModeChange}
-                                    agentModel={agentModel}
-                                    agentCapabilities={agentCapabilities}
-                                  />
-                                </fieldset>
+                                </div>
                                 {/* The call stands in Send's place, as one that can
                                   start or one that says why it cannot - except
                                   during the call, when it waits here, hidden, for

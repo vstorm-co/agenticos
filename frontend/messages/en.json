@@ -1796,9 +1796,7 @@
       "searchModeTitles": "Conversation title",
       "noMessageSearchResults": "No messages match.",
       "searchFailed": "Search failed. Try again.",
-      "retrySearch": "Try again",
-      "searchMatches": "{count, plural, one {# matching message} other {# matching messages}}",
-      "searchKeys": "↑ ↓ to navigate · Enter to open · Esc to close"
+      "retrySearch": "Try again"
     },
     "skipComment": "Skip comment",
     "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",
@@ -15829,7 +15827,6 @@
     "loading": "Loading your appearance…",
     "loadError": "Your saved appearance could not be loaded.",
     "retry": "Try again",
-    "advancedTitle": "Interface details",
     "advancedHint": "Voice glow and the appearance of workflow steps."
   },
   "answerFormat": {
