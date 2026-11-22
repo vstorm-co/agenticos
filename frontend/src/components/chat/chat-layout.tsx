@@ -107,16 +107,33 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
           library && "h-[min(29rem,var(--radix-popover-content-available-height,29rem))]",
         )}
       >
-        <div className="border-border flex items-center justify-between border-b px-4 py-2 text-xs font-medium">
+        <div className="border-border bg-popover sticky top-0 z-10 flex items-center justify-between gap-2 border-b px-4 py-2 text-xs font-medium">
           {t("modelSection")}
-          <button
-            type="button"
-            aria-label={common("close")}
-            onClick={() => setOpen(false)}
-            className="hover:bg-muted grid size-7 place-items-center rounded-md"
-          >
-            <X className="size-3.5" aria-hidden />
-          </button>
+          <div className="ml-auto flex min-w-0 items-center gap-1">
+            {modelProfileId !== null && agent?.published_model && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="min-w-0 text-xs"
+                onClick={() => {
+                  change(null);
+                  setOpen(false);
+                }}
+              >
+                <RotateCcw aria-hidden className="size-3.5 shrink-0" />
+                <span className="truncate">{t("backAgentAposS")}</span>
+              </Button>
+            )}
+            <button
+              type="button"
+              aria-label={common("close")}
+              onClick={() => setOpen(false)}
+              className="hover:bg-muted grid size-7 place-items-center rounded-md"
+            >
+              <X className="size-3.5" aria-hidden />
+            </button>
+          </div>
         </div>
         {agent?.personal_model_key ? (
           <PersonalModelConnection agentId={selectedAgentId} manage />
@@ -136,23 +153,6 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
               setOpen(false);
             }}
           />
-        )}
-        {modelProfileId !== null && agent?.published_model && (
-          <div className="border-border border-t px-3 py-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start text-xs"
-              onClick={() => {
-                change(null);
-                setOpen(false);
-              }}
-            >
-              <RotateCcw aria-hidden className="size-3.5" />
-              {t("backAgentAposS")}
-            </Button>
-          </div>
         )}
       </PopoverContent>
     </Popover>

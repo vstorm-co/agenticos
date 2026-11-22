@@ -43,7 +43,12 @@ it("restores the agent model, persists the cleared override and closes the picke
   const onChange = vi.fn();
   render(<ChatComposerControls desktop={false} harnesses={[]} onModelProfileChange={onChange} />);
   await userEvent.click(screen.getByRole("button", { name: "Model" }));
-  await userEvent.click(screen.getByRole("button", { name: "Back to the agent's own model" }));
+  const restore = screen.getByRole("button", { name: "Back to the agent's own model" });
+  expect(
+    restore.compareDocumentPosition(screen.getByText("Model catalog")) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  await userEvent.click(restore);
   expect(state.update).toHaveBeenCalledWith({ modelProfileId: null });
   expect(onChange).toHaveBeenCalledWith(null);
   expect(screen.queryByText("Model catalog")).not.toBeInTheDocument();
