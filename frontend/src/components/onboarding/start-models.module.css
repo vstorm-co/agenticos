@@ -117,9 +117,7 @@
   position: sticky;
   inset-block-start: 0;
   z-index: 1;
-  background: var(--color-card);
-  border-start-start-radius: 0.875rem;
-  border-start-end-radius: 0.875rem;
+  background: var(--color-background);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -192,6 +190,11 @@
   color: var(--color-muted-foreground);
   font-size: 0.75rem;
   line-height: 1.6;
+}
+.catalogFooter > div {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 0.75rem;
 }
 .empty {
   padding: 1.5rem 1rem;

@@ -269,7 +269,8 @@ it("creates a model on the specifically selected Vault account", async () => {
   await userEvent.click(screen.getByRole("option", { name: /Research account/ }));
   expect(screen.getByText("Using Vault key: Research account")).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Browse models" }));
-  await userEvent.type(screen.getByPlaceholderText("Search models…"), "model-479");
+  await userEvent.click(screen.getByPlaceholderText("Search models…"));
+  await userEvent.paste("model-479");
   await userEvent.click(screen.getByRole("option", { name: "Model 479" }));
   await waitFor(() =>
     expect(apiClient.post).toHaveBeenCalledWith(

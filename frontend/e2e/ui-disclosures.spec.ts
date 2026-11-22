@@ -2,6 +2,14 @@ import { expect, test } from "./fixtures";
 import { AUTH_STATE, DRAFT_AGENT_NAME, openAgent } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "motion-storage",
+      JSON.stringify({ state: { motion: "system" }, version: 0 }),
+    );
+  });
+});
 
 for (const reducedMotion of ["no-preference", "reduce"] as const) {
   test(`service disclosures preserve drafts and keyboard access with motion=${reducedMotion}`, async ({

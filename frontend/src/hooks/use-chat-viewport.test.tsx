@@ -341,6 +341,34 @@ it("restores the reading anchor when layout clamps scrolling before resize deliv
   act(() => resized?.());
   expect(scrolling.scrollTop).toBe(200);
 });
+it("restores a locked reading anchor immediately when layout clamps the scrollbar", () => {
+  const view = render(<Harness />);
+  const scrolling = view.getByTestId("scroll");
+  scrolling.scrollTop = 200;
+  fireEvent.click(view.getByText("History control"));
+  bodyHeight -= 400;
+  scrolling.scrollTop = 150;
+  fireEvent.scroll(scrolling);
+  expect(scrolling.scrollTop).toBe(200);
+  // Browsers can acknowledge the restored position more than once.
+  fireEvent.scroll(scrolling);
+  fireEvent.scroll(scrolling);
+  bodyHeight += 100;
+  act(() => resized?.());
+  expect(scrolling.scrollTop).toBe(200);
+});
+it("allows Tab focus to scroll away from a locked reading anchor", () => {
+  const view = render(<Harness />);
+  const scrolling = view.getByTestId("scroll");
+  scrolling.scrollTop = 200;
+  fireEvent.click(view.getByText("History control"));
+  fireEvent.keyDown(view.getByText("History control"), { key: "Tab" });
+  scrolling.scrollTop = 250;
+  fireEvent.scroll(scrolling);
+  bodyHeight += 100;
+  act(() => resized?.());
+  expect(scrolling.scrollTop).toBe(250);
+});
 
 it("treats a scrollbar move upward as reading and leaves unrelated pointer events alone", () => {
   const view = render(<Harness />);

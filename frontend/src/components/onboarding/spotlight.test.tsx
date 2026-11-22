@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useMotionStore } from "@/stores/motion-store";
 
 import {
   isTypingTarget,
@@ -219,6 +220,7 @@ describe("keepClearOf", () => {
 });
 
 describe("prefersReducedMotion", () => {
+  beforeEach(() => useMotionStore.setState({ motion: "system" }));
   afterEach(() => vi.unstubAllGlobals());
 
   it("reads the reader's motion preference", () => {

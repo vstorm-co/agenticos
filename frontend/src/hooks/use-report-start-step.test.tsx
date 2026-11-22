@@ -108,6 +108,42 @@ it("does not replace completion with an older progress response", async () => {
     completed: true,
   });
 });
+it.each(["organization", "account", "logout"])(
+  "discards a queued report after the active %s changes without a stale error notice",
+  async (scope) => {
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const pending = Promise.withResolvers<typeof result>();
+    vi.mocked(apiClient.patch).mockReturnValueOnce(pending.promise);
+    const { rerender } = renderHook(
+      ({ step, enabled }: { step: StartStep; enabled: boolean }) =>
+        useReportStartStep(step, org, enabled),
+      {
+        wrapper: makeWrapper(client),
+        initialProps: { step: "member.profile" as StartStep, enabled: true },
+      },
+    );
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalledTimes(1));
+    rerender({ step: "member.context", enabled: true });
+    act(() => {
+      rerender({ step: "member.context", enabled: false });
+      if (scope === "organization") useOrgStore.setState({ activeOrgId: "another" });
+      else if (scope === "logout") useAuthStore.setState({ user: null });
+      else
+        useAuthStore.setState({
+          user: {
+            id: "another-person",
+            email: "two@example.com",
+            is_active: true,
+            created_at: "2026-11-22",
+          },
+        });
+    });
+    await act(async () => pending.resolve(result));
+    await waitFor(() => expect(client.isMutating()).toBe(0));
+    expect(apiClient.patch).toHaveBeenCalledTimes(1);
+    expect(notices.error).not.toHaveBeenCalled();
+  },
+);
 it("does not retry a historical step after moving to a newer step", async () => {
   vi.mocked(apiClient.patch).mockRejectedValueOnce(new Error("refused"));
   const { rerender } = renderHook(

@@ -293,11 +293,14 @@
 .experience[data-onboarding-variant="studio"] :global([data-start-content]) {
   grid-row: 3;
   min-block-size: 0;
-  padding-block: 20px 28px;
+  padding-block: 0 28px;
   padding-inline: 4px 20px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-content] > section) {
+  padding-block-start: 20px;
 }
 .experience[data-onboarding-variant="studio"]
   :global([data-start-content] > section):has([data-start-catalog], [data-chat-model-library]) {

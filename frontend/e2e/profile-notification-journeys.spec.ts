@@ -68,10 +68,12 @@ for (const device of [
         release = colorHeld.release;
         await page.getByRole("radio", { name: `Colour ${color}`, exact: true }).click();
         await colorHeld.started;
-        await expect(page.getByLabel("Display name", { exact: true })).toBeDisabled();
+        await expect(page.getByLabel("Display name", { exact: true })).toBeEnabled();
+        await page.getByLabel("Display name", { exact: true }).fill(name);
         await expect(page.getByLabel("Your role", { exact: true })).toBeDisabled();
         colorHeld.release();
         await expect(page.getByLabel("Display name", { exact: true })).toBeEnabled();
+        await expect(page.getByLabel("Display name", { exact: true })).toHaveValue(name);
         await colorHeld.remove();
         const colorSaved = updated("PATCH", "/api/users/me");
         await page.getByRole("radio", { name: `Colour ${color}`, exact: true }).click();

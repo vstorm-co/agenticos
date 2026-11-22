@@ -113,6 +113,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Seal the model catalog's sticky search against the scroll edge on desktop and mobile, and discard queued onboarding progress from a previous account or organization.
+
 - Keep the normal chat composer visible beside agent questions. Stop pauses queued follow-ups until explicit resume instead of sending them after cancellation.
 
 - Use one tab-to-content spacing across every dashboard view, align sidebar project rows with primary navigation and add model refresh controls to remaining catalogs and saved-profile selectors.

@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useMotionStore } from "@/stores/motion-store";
 
 import { useLinger, useSmoothText, wordCut } from "./use-smooth-text";
 
@@ -9,6 +10,7 @@ function stubMotion(reduce: boolean) {
 
 describe("useSmoothText", () => {
   beforeEach(() => {
+    useMotionStore.setState({ motion: "system" });
     vi.useFakeTimers({
       toFake: [
         "requestAnimationFrame",
