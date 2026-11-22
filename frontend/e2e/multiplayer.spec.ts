@@ -95,7 +95,14 @@ async function mentionAgent(page: Page, box: Locator, name: string): Promise<voi
   await box.fill("");
   // A mention query holds no whitespace; the list matches names with it folded out.
   await box.pressSequentially(`@${name.replace(/\s+/g, "")}`);
-  await page.getByRole("option", { name: `${name}, Agents` }).click();
+  // The thread panel's list can sit outside the viewport, where a click cannot land;
+  // the composer's own keyboard path picks the highlighted option wherever it is drawn.
+  const option = page.getByRole("option", { name: `${name}, Agents` });
+  await expect(async () => {
+    if ((await option.getAttribute("aria-selected")) !== "true") await box.press("ArrowDown");
+    await expect(option).toHaveAttribute("aria-selected", "true", { timeout: 500 });
+  }).toPass();
+  await box.press("Enter");
   const add = page.getByRole("button", { name: "Add and mention", exact: true });
   await expect(async () => {
     if (await add.isVisible()) await add.click();
