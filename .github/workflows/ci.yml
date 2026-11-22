@@ -176,6 +176,7 @@ jobs:
         with:
           name: backend-shard-times
           path: ${{ runner.temp }}/times/backend-file-times.json
+          overwrite: true
           retention-days: 1
 
   lint:
@@ -491,6 +492,7 @@ jobs:
         with:
           name: backend-file-times
           path: backend/backend-file-times.json
+          overwrite: true
           if-no-files-found: error
           retention-days: 30
 
