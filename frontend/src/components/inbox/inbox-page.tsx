@@ -63,8 +63,8 @@ const FILTER_ICONS: Record<Filter, LucideIcon> = {
 const KEEPS: Record<Exclude<Filter, "done">, (item: Suggestion) => boolean> = {
   all: () => true,
   urgent: (item) => item.urgent === true,
-  watches: (item) => item.kind === "finding",
-  suggestions: (item) => item.kind !== "finding",
+  watches: (item) => item.kind === "finding" && item.payload.personal_context !== true,
+  suggestions: (item) => item.kind !== "finding" || item.payload.personal_context === true,
 };
 
 /** `?filter=watches` from the Watches card opens the inbox already narrowed. */

@@ -95,7 +95,8 @@ async def open_generated_people(db: AsyncSession, *, organization_id: UUID) -> d
         .where(
             Suggestion.organization_id == organization_id,
             Suggestion.status == SuggestionStatus.OPEN.value,
-            Suggestion.kind != SuggestionKind.FINDING.value,
+            (Suggestion.kind != SuggestionKind.FINDING.value)
+            | Suggestion.payload["personal_context"].as_boolean().is_(True),
             Suggestion.watch_id.is_(None),
             Suggestion.outcome_id.is_(None),
         )
@@ -121,7 +122,10 @@ async def remove_open_generated(
     rows = list(result.scalars().all())
     if len(rows) != len(expected_ids) or any(
         row.status != SuggestionStatus.OPEN.value
-        or row.kind == SuggestionKind.FINDING.value
+        or (
+            row.kind == SuggestionKind.FINDING.value
+            and row.payload.get("personal_context") is not True
+        )
         or row.watch_id is not None
         or row.outcome_id is not None
         for row in rows

@@ -9,42 +9,16 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Literal
-
-from pydantic import AwareDatetime, BaseModel, ConfigDict, JsonValue
 
 BACKEND = Path(__file__).resolve().parents[2] / "backend"
 if BACKEND.is_dir():
     sys.path.insert(0, str(BACKEND))
 
 from app.schemas.dataset import DatasetCaseContent
+from app.schemas.personal_context import ContextPacket
 from app.services.dataset_files import parse
 
 DATASET = Path(__file__).with_name("datasets") / "context.jsonl"
-
-
-class ContextTurn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    id: str
-    thread_id: str
-    occurred_at: AwareDatetime
-    speaker_id: str
-    role: Literal["user", "assistant"]
-    text: str
-
-
-class ContextPacket(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    as_of: AwareDatetime
-    subject_id: str
-    audience: Literal["private", "shared"]
-    profile: dict[str, JsonValue]
-    messages: list[ContextTurn]
-    memory: list[dict[str, JsonValue]]
-    tool_receipts: list[dict[str, JsonValue]]
-    current_state: dict[str, JsonValue]
-    available_features: list[dict[str, JsonValue]]
-    changed_source_ids: list[str]
 
 
 def load_context_cases(path: Path = DATASET) -> list[DatasetCaseContent]:

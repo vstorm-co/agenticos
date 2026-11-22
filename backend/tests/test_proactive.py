@@ -1506,7 +1506,9 @@ class TestTheSweep:
     async def test_the_worker_side_hands_each_job_to_its_module(self):
         service = ProactiveService(MagicMock())
         with (
-            patch.object(NightlyLook, "look", new=AsyncMock(return_value=2)),
+            patch(
+                "app.services.proactive._personal.PersonalLook.look", new=AsyncMock(return_value=2)
+            ),
             patch(f"{PACK}.install", new=AsyncMock(return_value=3)),
             patch(f"{WELCOME}.welcome", new=AsyncMock(return_value=1)),
         ):

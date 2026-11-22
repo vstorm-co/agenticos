@@ -1599,6 +1599,34 @@ class AgentTriggerService:
             routine_id=trigger.id,
             routine_kind="trigger",
         )
+        if (
+            trigger.created_by_user_id is not None
+            and await member_repo.get_active(
+                self.db, organization_id=ctx.organization_id, user_id=trigger.created_by_user_id
+            )
+            is not None
+        ):
+            from app.repositories import personal_context as context_repo
+            from app.services.proactive import ProactiveService
+
+            await context_repo.save(
+                self.db,
+                organization_id=ctx.organization_id,
+                user_id=trigger.created_by_user_id,
+                key=f"removed-routine:{trigger.id}",
+                payload={
+                    "id": str(trigger.id),
+                    "name": trigger.name,
+                    "kind": "routine",
+                    "deleted_at": datetime.now(UTC).isoformat(),
+                    "requested_by_user_id": str(ctx.user_id),
+                },
+            )
+            await ProactiveService(self.db).queue_context_change(
+                ctx.organization_id,
+                trigger.created_by_user_id,
+                event_id=f"removed-routine:{trigger.id}",
+            )
         await agent_trigger_repo.delete(self.db, trigger)
         await record_audit(
             self.db,

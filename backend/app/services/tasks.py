@@ -656,6 +656,20 @@ class TaskLifecycle:
             ):
                 raise BadRequestError(message="Choose a person who can access this task's scope")
         await self._schedule(ctx, board, record, link, fields)
+        from app.services.proactive import ProactiveService
+
+        people = {
+            person
+            for person in (
+                fields.assignee_user_id,
+                board.scope_id if board.scope_kind == "private" else None,
+            )
+            if person is not None
+        }
+        for person in people:
+            await ProactiveService(self.db).queue_context_change(
+                ctx.organization_id, person, event_id=f"task:{record.id}:{record.revision}"
+            )
 
     async def _schedule(
         self,

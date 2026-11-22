@@ -1892,6 +1892,42 @@ class PersonRequest(NamedTuple):
     run: AgentRun | None
 
 
+def retained_prompt_admitted() -> ColumnElement[bool]:
+    following = aliased(Message)
+    preceding = aliased(Message)
+    answered_by_a_lost_run = (
+        select(
+            and_(
+                following.role == "assistant",
+                following.model_name.is_not(None),
+                following.run_id.is_(None),
+            )
+        )
+        .where(
+            following.conversation_id == Message.conversation_id,
+            following.ordinal > Message.ordinal,
+        )
+        .order_by(following.ordinal)
+        .limit(1)
+        .scalar_subquery()
+    )
+    under_a_prompt = (
+        select(preceding.role == "user")
+        .where(
+            preceding.conversation_id == Message.conversation_id,
+            preceding.ordinal < Message.ordinal,
+        )
+        .order_by(preceding.ordinal.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    return and_(
+        Message.run_id.is_(None),
+        answered_by_a_lost_run,
+        func.coalesce(under_a_prompt, False).is_(False),
+    )
+
+
 async def person_requests_since(
     db: AsyncSession, *, organization_id: UUID, user_id: UUID, since: datetime, limit: int
 ) -> list[PersonRequest]:
@@ -1924,34 +1960,6 @@ async def person_requests_since(
     never reached the edge either, and only the run's spec can say what it would
     have done.
     """
-    following = aliased(Message)
-    preceding = aliased(Message)
-    answered_by_a_lost_run = (
-        select(
-            and_(
-                following.role == "assistant",
-                following.model_name.is_not(None),
-                following.run_id.is_(None),
-            )
-        )
-        .where(
-            following.conversation_id == Message.conversation_id,
-            following.ordinal > Message.ordinal,
-        )
-        .order_by(following.ordinal)
-        .limit(1)
-        .scalar_subquery()
-    )
-    under_a_prompt = (
-        select(preceding.role == "user")
-        .where(
-            preceding.conversation_id == Message.conversation_id,
-            preceding.ordinal < Message.ordinal,
-        )
-        .order_by(preceding.ordinal.desc())
-        .limit(1)
-        .scalar_subquery()
-    )
     result = await db.execute(
         select(Message, AgentRun)
         .join(Conversation, Conversation.id == Message.conversation_id)
@@ -1962,11 +1970,7 @@ async def person_requests_since(
             Message.guardrail_refused.is_(False),
             or_(
                 AgentRun.status != RunStatus.RUNNING,
-                and_(
-                    Message.run_id.is_(None),
-                    answered_by_a_lost_run,
-                    func.coalesce(under_a_prompt, False).is_(False),
-                ),
+                retained_prompt_admitted(),
             ),
             Message.created_at >= since,
             or_(

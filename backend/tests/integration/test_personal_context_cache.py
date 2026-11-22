@@ -1,0 +1,567 @@
+"""Real source revision fences and membership-scoped checkpoint persistence."""
+
+from uuid import uuid4
+
+import pytest
+from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models.conversation import Message
+from app.repositories import personal_context as cache
+from tests.integration.test_system_agents import _chat_run, _transcript, _world
+
+pytestmark = pytest.mark.anyio
+
+
+async def test_revisions_notice_edits_refusals_and_native_answer_changes(db: AsyncSession) -> None:
+    user, org, agent, version, *_ = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    await _transcript(
+        db, conversation, run, [("user", "A real request"), ("assistant", "A response")]
+    )
+    first = await cache.conversation_revision(
+        db, organization_id=org.id, conversation_id=conversation.id
+    )
+    assert len(first) == 64
+    assert (
+        await cache.conversation_revision(
+            db, organization_id=uuid4(), conversation_id=conversation.id
+        )
+        == "missing"
+    )
+    message = await db.scalar(
+        select(Message).where(Message.conversation_id == conversation.id, Message.role == "user")
+    )
+    assert message is not None
+    await db.execute(
+        text("UPDATE messages SET content = 'Edited request' WHERE id = :id"), {"id": message.id}
+    )
+    second = await cache.conversation_revision(
+        db, organization_id=org.id, conversation_id=conversation.id
+    )
+    assert second != first
+    message.guardrail_refused = True
+    await db.flush()
+    assert (
+        await cache.conversation_revision(
+            db, organization_id=org.id, conversation_id=conversation.id
+        )
+        != second
+    )
+    page = await cache.transcript_page(
+        db, organization_id=org.id, conversation_id=conversation.id, after=-1, since=run.started_at
+    )
+    assert all(row.role != "user" for row, _ in page)
+
+
+@pytest.mark.security
+async def test_checkpoint_identity_cannot_cross_a_membership_or_tenant(db: AsyncSession) -> None:
+    user, org, *_ = await _world(db)
+    await cache.save(
+        db, organization_id=org.id, user_id=user.id, key="reading", payload={"fingerprint": "first"}
+    )
+    await cache.save(
+        db,
+        organization_id=org.id,
+        user_id=user.id,
+        key="reading",
+        payload={"fingerprint": "second"},
+    )
+    assert await cache.load(db, organization_id=org.id, user_id=user.id) == {
+        "reading": {"fingerprint": "second"}
+    }
+    assert await cache.load(db, organization_id=uuid4(), user_id=user.id) == {}
+    assert len(await cache.for_user(db, user_id=user.id)) == 1
+    with pytest.raises(IntegrityError):
+        async with db.begin_nested():
+            await cache.save(
+                db, organization_id=uuid4(), user_id=user.id, key="reading", payload={}
+            )
+    await cache.retain(db, organization_id=org.id, user_id=user.id, keys=["reading"])
+    assert await cache.load(db, organization_id=org.id, user_id=user.id)
+    await cache.erase(db, organization_id=org.id, user_id=user.id)
+    assert await cache.load(db, organization_id=org.id, user_id=user.id) == {}
+
+
+async def test_incremental_read_reuses_committed_index_without_model_calls(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pydantic import BaseModel
+
+    from app.schemas.personal_context import ContextDigest, PersonalReading, VerifiedReading
+    from app.services.proactive._personal import PersonalLook
+    from app.services.proactive._thinker import ProactiveThinker
+
+    user, org, agent, version, model, _ = await _world(db)
+    agent.slug = "agenticos"
+    org.proactive_enabled = True
+    org.proactive_model_profile_id = model.id
+    run, conversation = await _chat_run(db, org, agent, version, user, input_tokens=10)
+    await _transcript(db, conversation, run, [("user", "Hello"), ("assistant", "How can I help?")])
+    await db.commit()
+    calls: list[type[BaseModel]] = []
+
+    async def think(self: ProactiveThinker, ctx: object, **kwargs: object) -> BaseModel:
+        output = kwargs["output_type"]
+        assert isinstance(output, type) and issubclass(output, BaseModel)
+        assert output in {ContextDigest, PersonalReading, VerifiedReading}
+        calls.append(output)
+        return output()
+
+    monkeypatch.setattr(ProactiveThinker, "think", think)
+    assert await PersonalLook(db).look(org.id, user.id) == 0
+    await db.commit()
+    assert calls == [ContextDigest, PersonalReading]
+    assert f"conversation:{conversation.id}" in await cache.load(
+        db, organization_id=org.id, user_id=user.id
+    )
+    calls.clear()
+    assert await PersonalLook(db).look(org.id, user.id) == 0
+    assert calls == []
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("change", ["opt_out", "membership", "source_edit", "disabled"])
+async def test_source_changes_while_extracting_cannot_write_a_checkpoint(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, change: str
+) -> None:
+    from app.repositories import member_repo
+    from app.schemas.personal_context import ContextDigest
+    from app.services.proactive._personal import PersonalLook
+    from app.services.proactive._thinker import ProactiveThinker
+
+    user, org, agent, version, model, _ = await _world(db)
+    agent.slug = "agenticos"
+    org.proactive_enabled = True
+    org.proactive_model_profile_id = model.id
+    run, conversation = await _chat_run(db, org, agent, version, user, input_tokens=10)
+    await _transcript(db, conversation, run, [("user", "Hello"), ("assistant", "Welcome")])
+    await db.commit()
+
+    async def changed(self: ProactiveThinker, ctx: object, **kwargs: object) -> ContextDigest:
+        if change == "opt_out":
+            user.proactive_opt_out = True
+        elif change == "disabled":
+            org.proactive_enabled = False
+        elif change == "membership":
+            member = await member_repo.get_active(db, organization_id=org.id, user_id=user.id)
+            assert member is not None
+            member.role = "viewer"
+        else:
+            await db.execute(
+                text("UPDATE messages SET content = 'Changed' WHERE conversation_id = :id"),
+                {"id": conversation.id},
+            )
+        await db.commit()
+        return ContextDigest()
+
+    monkeypatch.setattr(ProactiveThinker, "think", changed)
+    assert await PersonalLook(db).look(org.id, user.id) == 0
+    assert await cache.load(db, organization_id=org.id, user_id=user.id) == {}
+
+
+async def test_large_source_resumes_from_committed_segments(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pydantic import BaseModel
+
+    from app.schemas.personal_context import ContextDigest, PersonalReading
+    from app.services.proactive._context_pipeline import CHUNK_CHARS
+    from app.services.proactive._personal import MAX_NEW_CHUNKS, PersonalLook
+    from app.services.proactive._thinker import ProactiveThinker
+
+    user, org, agent, version, model, _ = await _world(db)
+    agent.slug = "agenticos"
+    org.proactive_enabled = True
+    org.proactive_model_profile_id = model.id
+    run, conversation = await _chat_run(db, org, agent, version, user, input_tokens=10)
+    await _transcript(db, conversation, run, [("user", "x" * (CHUNK_CHARS * MAX_NEW_CHUNKS + 5))])
+    await db.commit()
+    stages: list[type[BaseModel]] = []
+
+    async def think(self: ProactiveThinker, ctx: object, **kwargs: object) -> BaseModel:
+        output = kwargs["output_type"]
+        assert isinstance(output, type) and issubclass(output, BaseModel)
+        stages.append(output)
+        return output()
+
+    monkeypatch.setattr(ProactiveThinker, "think", think)
+    assert await PersonalLook(db).look(org.id, user.id) == 0
+    await db.commit()
+    stored = await cache.load(db, organization_id=org.id, user_id=user.id)
+    assert len(stored) == MAX_NEW_CHUNKS
+    assert stages == [ContextDigest] * MAX_NEW_CHUNKS
+    stages.clear()
+    assert await PersonalLook(db).look(org.id, user.id) == 0
+    await db.commit()
+    assert stages == [ContextDigest, PersonalReading]
+    assert f"conversation:{conversation.id}" in await cache.load(
+        db, organization_id=org.id, user_id=user.id
+    )
+
+
+async def test_owned_due_task_can_be_proposed_without_any_new_chat(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from app.repositories import suggestion_repo
+    from app.schemas.personal_context import (
+        PersonalAdvice,
+        PersonalReading,
+        SourceEvidence,
+        VerifiedReading,
+    )
+    from app.schemas.task import TaskCreate, TaskUpdate
+    from app.services.proactive._context_snapshot import current_packet
+    from app.services.proactive._personal import PersonalLook
+    from app.services.proactive._thinker import ProactiveThinker
+    from app.services.tasks import TaskService
+
+    user, org, agent, _, model, ctx = await _world(db)
+    agent.slug = "agenticos"
+    org.proactive_enabled = True
+    org.proactive_model_profile_id = model.id
+    task = await TaskService(db).create(
+        ctx, TaskCreate(title="Review the release", due_at=datetime.now(UTC) - timedelta(days=1))
+    )
+    await db.commit()
+    packet = await current_packet(db, ctx, user, now=datetime.now(UTC), starter_id=agent.id)
+    assert packet.current_state["due_state"] == {str(task.id): "overdue"}
+    proposal = PersonalAdvice(
+        identity="review-release",
+        kind="task",
+        title="Review the release",
+        detail="The private task is overdue.",
+        chat_prompt="Open my release review task.",
+        resource_ids=[str(task.id)],
+        evidence=[SourceEvidence(source_id=f"task:{task.id}", quote="Review the release")],
+    )
+
+    async def think(
+        self: ProactiveThinker, ctx: object, **kwargs: object
+    ) -> PersonalReading | VerifiedReading:
+        if kwargs["output_type"] is PersonalReading:
+            return PersonalReading(opportunities=[proposal], starters=["Review my release task"])
+        assert kwargs["output_type"] is VerifiedReading
+        return VerifiedReading(approved_identities=[proposal.identity])
+
+    monkeypatch.setattr(ProactiveThinker, "think", think)
+    assert await PersonalLook(db).look(org.id, user.id) == 1
+    await db.commit()
+    open_rows = await suggestion_repo.list_open(db, organization_id=org.id, user_id=user.id)
+    assert len(open_rows) == 1 and open_rows[0].payload["personal_context"] is True
+    assert await suggestion_repo.open_generated_people(db, organization_id=org.id) == {user.id: 1}
+    await TaskService(db).update(
+        ctx, task.id, TaskUpdate(title=task.title, status="done", expected_revision=task.revision)
+    )
+    await db.commit()
+
+    async def empty(self: ProactiveThinker, ctx: object, **kwargs: object) -> PersonalReading:
+        return PersonalReading()
+
+    monkeypatch.setattr(ProactiveThinker, "think", empty)
+    assert await PersonalLook(db).look(org.id, user.id) == 0
+    await db.commit()
+    assert await suggestion_repo.list_open(db, organization_id=org.id, user_id=user.id) == []
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "reason", ["missing", "inactive", "opt_out", "disabled", "starter", "membership"]
+)
+async def test_unavailable_person_or_disabled_role_never_calls_a_model(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, reason: str
+) -> None:
+    from app.services.proactive._personal import PersonalLook
+    from app.services.proactive._thinker import ProactiveThinker
+
+    user, org, agent, _, model, _ = await _world(db)
+    agent.slug = "agenticos" if reason != "starter" else "different"
+    org.proactive_enabled = reason != "disabled"
+    org.proactive_model_profile_id = model.id
+    if reason == "inactive":
+        user.is_active = False
+    if reason == "opt_out":
+        user.proactive_opt_out = True
+    if reason == "membership":
+        await db.execute(
+            text("DELETE FROM organization_members WHERE user_id = :id"), {"id": user.id}
+        )
+    await db.commit()
+
+    async def unexpected(*args: object, **kwargs: object) -> None:
+        pytest.fail("Ineligible personal reads must not call a model")
+
+    monkeypatch.setattr(ProactiveThinker, "think", unexpected)
+    assert await PersonalLook(db).look(org.id, uuid4() if reason == "missing" else user.id) == 0
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "change",
+    ["opt_out", "membership", "source_edit", "disabled", "profile", "conversation_revoked"],
+)
+async def test_final_delivery_rechecks_person_source_and_current_state(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, change: str
+) -> None:
+    from app.repositories import member_repo, suggestion_repo
+    from app.schemas.personal_context import ContextDigest, PersonalReading
+    from app.services.proactive._personal import PersonalLook
+    from app.services.proactive._thinker import ProactiveThinker
+
+    user, org, agent, version, model, _ = await _world(db)
+    agent.slug = "agenticos"
+    org.proactive_enabled = True
+    org.proactive_model_profile_id = model.id
+    run, conversation = await _chat_run(db, org, agent, version, user, input_tokens=10)
+    await _transcript(db, conversation, run, [("user", "Hello"), ("assistant", "Welcome")])
+    await db.commit()
+
+    async def changed(
+        self: ProactiveThinker, ctx: object, **kwargs: object
+    ) -> ContextDigest | PersonalReading:
+        if kwargs["output_type"] is ContextDigest:
+            return ContextDigest()
+        if change == "opt_out":
+            user.proactive_opt_out = True
+        elif change == "disabled":
+            org.proactive_enabled = False
+        elif change == "membership":
+            member = await member_repo.get_active(db, organization_id=org.id, user_id=user.id)
+            assert member is not None
+            member.role = "viewer"
+        elif change == "profile":
+            user.job_title = "A changed role"
+        elif change == "conversation_revoked":
+            conversation.user_id = None
+        else:
+            await db.execute(
+                text("UPDATE messages SET content = 'Changed' WHERE conversation_id = :id"),
+                {"id": conversation.id},
+            )
+        await db.commit()
+        return PersonalReading()
+
+    monkeypatch.setattr(ProactiveThinker, "think", changed)
+    assert await PersonalLook(db).look(org.id, user.id) == 0
+    assert await suggestion_repo.list_open(db, organization_id=org.id, user_id=user.id) == []
+    assert "reading" not in await cache.load(db, organization_id=org.id, user_id=user.id)
+
+
+async def test_transcript_pages_keep_first_turn_native_answers_and_call_identity(
+    db: AsyncSession,
+) -> None:
+    import json
+    from datetime import UTC, datetime
+
+    from app.db.models.conversation import ToolCall
+    from app.services.proactive._personal import PersonalLook
+
+    user, org, agent, version, _, ctx = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user, input_tokens=10)
+    await _transcript(
+        db,
+        conversation,
+        run,
+        [("user", "First request")] + [("assistant", f"Response {i}") for i in range(101)],
+    )
+    message = await db.scalar(
+        select(Message)
+        .where(Message.conversation_id == conversation.id, Message.role == "assistant")
+        .order_by(Message.ordinal)
+    )
+    assert message is not None
+    for identity, kind, result in [
+        ("ask_user_question", None, json.dumps({"When": ["Thursday 18:00"]})),
+        ("native_search", None, "untrusted external body"),
+        (None, "generic", "untrusted remote question"),
+    ]:
+        db.add(
+            ToolCall(
+                message_id=message.id,
+                tool_call_id=str(uuid4()),
+                tool_name="Question",
+                tool_id=identity,
+                presentation_kind=kind,
+                args={"questions": [{"header": "When", "question": "When?"}]},
+                result=result,
+                status="completed",
+                started_at=datetime.now(UTC),
+            )
+        )
+    await db.flush()
+    turns, receipts = await PersonalLook(db)._turns(
+        ctx, conversation, datetime.min.replace(tzinfo=UTC)
+    )
+    assert turns[0].text == "First request"
+    assert len(turns) == 103
+    assert any(turn.text == "Thursday 18:00" for turn in turns)
+    assert len(receipts) == 2
+    assert not any("untrusted" in turn.text for turn in turns)
+
+
+@pytest.mark.security
+async def test_cached_evidence_is_exported_only_while_readable_and_erased_with_memory(
+    db: AsyncSession,
+) -> None:
+    from app.repositories import personal_data_repo
+    from app.services.personal_data import PersonalDataService
+
+    user, org, agent, version, *_ = await _world(db)
+    _, conversation = await _chat_run(db, org, agent, version, user)
+    key = f"conversation:{conversation.id}"
+    await cache.save(
+        db,
+        organization_id=org.id,
+        user_id=user.id,
+        key=key,
+        payload={"quote": "My private context"},
+    )
+    assert (await PersonalDataService(db)._work_context(user.id))[0]["payload"] == {
+        "quote": "My private context"
+    }
+    row = (await cache.for_user(db, user_id=user.id))[0]
+    assert str(user.id) in repr(row)
+    conversation.user_id = None
+    await db.flush()
+    assert await PersonalDataService(db)._work_context(user.id) == []
+    await personal_data_repo.forget_briefings_of(db, user.id, organization_id=org.id)
+    assert await cache.load(db, organization_id=org.id, user_id=user.id) == {}
+
+
+@pytest.mark.parametrize("fail_stage", ["extract", "propose"])
+async def test_model_refusal_retains_existing_personal_proposals(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, fail_stage: str
+) -> None:
+    from app.db.models.suggestion import Suggestion, SuggestionKind
+    from app.schemas.personal_context import ContextDigest
+    from app.services.proactive._personal import PersonalLook
+    from app.services.proactive._thinker import ProactiveThinker
+
+    user, org, agent, version, model, _ = await _world(db)
+    agent.slug = "agenticos"
+    org.proactive_enabled = True
+    org.proactive_model_profile_id = model.id
+    run, conversation = await _chat_run(db, org, agent, version, user, input_tokens=10)
+    await _transcript(db, conversation, run, [("user", "A request")])
+    existing = Suggestion(
+        organization_id=org.id,
+        user_id=user.id,
+        kind=SuggestionKind.FINDING.value,
+        title="Existing useful proposal",
+        detail="Keep me on failure",
+        payload={"personal_context": True},
+        dedupe_key="keep-on-failure",
+    )
+    db.add(existing)
+    await db.commit()
+
+    async def refuse(self: ProactiveThinker, ctx: object, **kwargs: object) -> ContextDigest | None:
+        if fail_stage == "extract" or kwargs["output_type"] is not ContextDigest:
+            return None
+        return ContextDigest()
+
+    monkeypatch.setattr(ProactiveThinker, "think", refuse)
+    assert await PersonalLook(db).look(org.id, user.id) == 0
+    await db.refresh(existing)
+    assert existing.status == "open" and existing.detail == "Keep me on failure"
+
+
+async def test_context_cache_migration_round_trips_its_membership_contract(
+    db: AsyncSession,
+) -> None:
+    from importlib.util import module_from_spec, spec_from_file_location
+    from pathlib import Path
+
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from sqlalchemy import Connection, inspect
+
+    spec = spec_from_file_location(
+        "personal_context_migration",
+        Path(__file__).parents[2] / "alembic/versions/0349_personal_work_context.py",
+    )
+    assert spec is not None and spec.loader is not None
+    migration = module_from_spec(spec)
+    spec.loader.exec_module(migration)
+
+    def round_trip(connection: Connection) -> None:
+        with Operations.context(MigrationContext.configure(connection)):
+            migration.downgrade()
+            assert "personal_context_cache" not in inspect(connection).get_table_names()
+            migration.upgrade()
+        reflected = inspect(connection)
+        assert {column["name"] for column in reflected.get_columns("personal_context_cache")} == {
+            "organization_id",
+            "user_id",
+            "source_key",
+            "payload",
+            "created_at",
+            "updated_at",
+        }
+        foreign = reflected.get_foreign_keys("personal_context_cache")
+        assert len(foreign) == 1
+        assert foreign[0]["referred_table"] == "organization_members"
+        assert foreign[0]["options"]["ondelete"] == "CASCADE"
+
+    await (await db.connection()).run_sync(round_trip)
+
+
+async def test_empty_refused_and_failed_text_does_not_enter_the_index(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from datetime import UTC, datetime
+    from unittest.mock import AsyncMock
+
+    from app.db.models.agent_run import RunStatus
+    from app.services.proactive._personal import PersonalLook
+
+    user, org, agent, version, _, ctx = await _world(db)
+    run, conversation = await _chat_run(
+        db, org, agent, version, user, status=RunStatus.FAILED, input_tokens=0
+    )
+    look = PersonalLook(db)
+    assert await look._turns(ctx, conversation, datetime.min.replace(tzinfo=UTC)) == ([], [])
+    await _transcript(
+        db, conversation, run, [("user", "Refused input"), ("assistant", "No model output")]
+    )
+    monkeypatch.setattr(PersonalLook, "_past_the_input_edge", AsyncMock(return_value=[]))
+    assert await look._turns(ctx, conversation, datetime.min.replace(tzinfo=UTC)) == ([], [])
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("stage", ["checkpoint", "delivery"])
+async def test_an_erasure_during_a_read_fences_checkpoints_and_delivery(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, stage: str
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.repositories import audit_log_repo
+    from app.schemas.personal_context import ContextDigest, PersonalReading
+    from app.services.proactive._personal import PersonalLook
+    from app.services.proactive._thinker import ProactiveThinker
+
+    user, org, agent, version, model, _ = await _world(db)
+    agent.slug = "agenticos"
+    org.proactive_enabled = True
+    org.proactive_model_profile_id = model.id
+    run, conversation = await _chat_run(db, org, agent, version, user, input_tokens=10)
+    await _transcript(db, conversation, run, [("user", "A private request")])
+    await db.commit()
+
+    async def think(
+        self: ProactiveThinker, ctx: object, **kwargs: object
+    ) -> ContextDigest | PersonalReading:
+        extracting = kwargs["output_type"] is ContextDigest
+        if (stage == "checkpoint" and extracting) or (stage == "delivery" and not extracting):
+            monkeypatch.setattr(audit_log_repo, "memory_erased_since", AsyncMock(return_value=True))
+        return ContextDigest() if extracting else PersonalReading()
+
+    monkeypatch.setattr(ProactiveThinker, "think", think)
+    assert await PersonalLook(db).look(org.id, user.id) == 0
+    stored = await cache.load(db, organization_id=org.id, user_id=user.id)
+    assert "reading" not in stored
+    if stage == "checkpoint":
+        assert stored == {}

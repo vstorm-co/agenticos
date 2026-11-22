@@ -51,6 +51,12 @@ def _decided(suggestion, status):
     return suggestion
 
 
+@pytest.fixture(autouse=True)
+def context_change_dispatch():
+    with patch(f"{SERVICE}.ProactiveService.queue_context_change", new=AsyncMock()):
+        yield
+
+
 class TestDeciding:
     async def test_accepting_a_profile_update_saves_it_to_the_account(self):
         suggestion = _suggestion(
@@ -102,7 +108,10 @@ class TestDeciding:
                     side_effect=lambda _db, suggestion, status: _decided(suggestion, status)
                 ),
             ),
-            patch(f"{SERVICE}.ProactiveService", return_value=MagicMock(queue_role_pack=queue)),
+            patch(
+                f"{SERVICE}.ProactiveService",
+                return_value=MagicMock(queue_role_pack=queue, queue_context_change=AsyncMock()),
+            ),
         ):
             await SuggestionService(MagicMock()).accept(CTX, suggestion.id)
 
@@ -119,13 +128,16 @@ class TestDeciding:
                 ),
             ),
             patch(f"{SERVICE}.user_repo.update", new=AsyncMock()) as update,
-            patch(f"{SERVICE}.ProactiveService") as proactive,
+            patch(
+                f"{SERVICE}.ProactiveService",
+                return_value=MagicMock(queue_context_change=AsyncMock()),
+            ) as proactive,
         ):
             accepted = await SuggestionService(MagicMock()).accept(CTX, suggestion.id)
 
         assert accepted.status == SuggestionStatus.ACCEPTED.value
         update.assert_not_awaited()
-        proactive.assert_not_called()
+        proactive.return_value.queue_role_pack.assert_not_called()
 
     async def test_declining_keeps_it_as_dismissed(self):
         suggestion = _suggestion("agent", {"request": "r"})
