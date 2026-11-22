@@ -1,9 +1,9 @@
 """Real source revision fences and membership-scoped checkpoint persistence."""
 
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -245,7 +245,9 @@ async def test_owned_due_task_can_be_proposed_without_any_new_chat(
         if kwargs["output_type"] is PersonalReading:
             return PersonalReading(opportunities=[proposal], starters=["Review my release task"])
         assert kwargs["output_type"] is VerifiedReading
-        return VerifiedReading(approved_identities=[proposal.identity])
+        return VerifiedReading(
+            approved_identities=[proposal.identity], approved_starter_indices=[0]
+        )
 
     monkeypatch.setattr(ProactiveThinker, "think", think)
     assert await PersonalLook(db).look(org.id, user.id) == 1
@@ -532,7 +534,7 @@ async def test_empty_refused_and_failed_text_does_not_enter_the_index(
 
 
 @pytest.mark.security
-@pytest.mark.parametrize("stage", ["checkpoint", "delivery"])
+@pytest.mark.parametrize("stage", ["checkpoint", "completed_index", "delivery"])
 async def test_an_erasure_during_a_read_fences_checkpoints_and_delivery(
     db: AsyncSession, monkeypatch: pytest.MonkeyPatch, stage: str
 ) -> None:
@@ -555,6 +557,10 @@ async def test_an_erasure_during_a_read_fences_checkpoints_and_delivery(
         self: ProactiveThinker, ctx: object, **kwargs: object
     ) -> ContextDigest | PersonalReading:
         extracting = kwargs["output_type"] is ContextDigest
+        if stage == "completed_index" and extracting:
+            monkeypatch.setattr(
+                audit_log_repo, "memory_erased_since", AsyncMock(side_effect=[False, True])
+            )
         if (stage == "checkpoint" and extracting) or (stage == "delivery" and not extracting):
             monkeypatch.setattr(audit_log_repo, "memory_erased_since", AsyncMock(return_value=True))
         return ContextDigest() if extracting else PersonalReading()
@@ -565,3 +571,99 @@ async def test_an_erasure_during_a_read_fences_checkpoints_and_delivery(
     assert "reading" not in stored
     if stage == "checkpoint":
         assert stored == {}
+
+
+@pytest.mark.security
+async def test_a_decision_racing_final_replacement_is_not_lost(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.db.models.suggestion import Suggestion, SuggestionKind, SuggestionStatus
+    from app.repositories import suggestion_repo
+    from app.schemas.personal_context import PersonalReading
+    from app.services.proactive._personal import PersonalLook
+    from app.services.proactive._thinker import ProactiveThinker
+
+    user, org, agent, _, model, _ = await _world(db)
+    agent.slug = "agenticos"
+    org.proactive_enabled = True
+    org.proactive_model_profile_id = model.id
+    existing = Suggestion(
+        organization_id=org.id,
+        user_id=user.id,
+        kind=SuggestionKind.FINDING.value,
+        title="Existing",
+        detail="A previous suggestion",
+        payload={"personal_context": True},
+        dedupe_key="racing-decision",
+    )
+    db.add(existing)
+    await db.commit()
+    original = suggestion_repo.remove_open_generated
+
+    async def raced(
+        session: AsyncSession, *, organization_id: UUID, user_id: UUID, expected_ids: set[UUID]
+    ) -> bool:
+        await suggestion_repo.decide(
+            session, suggestion=existing, status=SuggestionStatus.DISMISSED
+        )
+        return await original(
+            session, organization_id=organization_id, user_id=user_id, expected_ids=expected_ids
+        )
+
+    async def reading(*args: object, **kwargs: object) -> PersonalReading:
+        return PersonalReading()
+
+    monkeypatch.setattr(ProactiveThinker, "think", reading)
+    monkeypatch.setattr(suggestion_repo, "remove_open_generated", raced)
+    assert await PersonalLook(db).look(org.id, user.id) == 0
+    await db.refresh(existing)
+    assert existing.status == "dismissed"
+
+
+async def test_retained_model_output_remains_indexable_without_a_run_row(db: AsyncSession) -> None:
+    from datetime import UTC, datetime
+
+    from app.db.models.agent_run import AgentRun
+    from app.services.proactive._personal import PersonalLook
+
+    user, org, agent, version, _, ctx = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user, input_tokens=10)
+    await _transcript(
+        db,
+        conversation,
+        run,
+        [("user", "A retained request"), ("assistant", "A retained model answer")],
+    )
+    await db.execute(
+        text(
+            "UPDATE messages SET model_name = 'retained-model' WHERE conversation_id = :id AND role = 'assistant'"
+        ),
+        {"id": conversation.id},
+    )
+    await db.execute(delete(AgentRun).where(AgentRun.id == run.id))
+    turns, _ = await PersonalLook(db)._turns(ctx, conversation, datetime.min.replace(tzinfo=UTC))
+    assert any(turn.text == "A retained model answer" for turn in turns)
+
+
+async def test_task_inventory_marks_a_bounded_page_incomplete(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from datetime import UTC, datetime
+    from unittest.mock import AsyncMock
+
+    from app.schemas.task import BoardEnsure, TaskCreate, TaskList
+    from app.services.proactive._context_snapshot import current_packet
+    from app.services.tasks import TaskService
+
+    user, _, agent, _, _, ctx = await _world(db)
+    service = TaskService(db)
+    task = await service.create(ctx, TaskCreate(title="One private task"))
+    await service.ensure_board(ctx, BoardEnsure(scope="organization"))
+    page = TaskList(
+        items=[task.model_copy(update={"id": uuid4()}) for _ in range(100)], has_more=False
+    )
+    monkeypatch.setattr(TaskService, "list_tasks", AsyncMock(return_value=page))
+    packet = await current_packet(db, ctx, user, now=datetime.now(UTC), starter_id=agent.id)
+    tasks = packet.current_state["tasks"]
+    assert isinstance(tasks, list) and len(tasks) == 100
+    assert packet.current_state["tasks_complete"] is False

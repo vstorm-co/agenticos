@@ -25,7 +25,7 @@ from app.schemas.personal_context import (
     WorkTopic,
 )
 
-EXTRACTOR_VERSION = "personal-work-v1"
+EXTRACTOR_VERSION = "personal-work-v2"
 CHUNK_CHARS = 16000
 MAX_SELECTED_TOPICS = 12
 
@@ -96,7 +96,12 @@ already answered choice or phrases an unknown as a fact, repair that card in
 corrections, preserving its identity and exact supporting evidence. Do not repair
 invented obligations or unrelated work; reject those. A confirmed human answer
 must be retained, without asking the same question again. Approved identities are
-unchanged cards; corrections are complete replacement cards. Empty output is valid."""
+unchanged cards; corrections are complete replacement cards. Check each starter
+against the same evidence and current state; return only its zero-based index when
+safe. A starter must not repeat an unverified assistant claim about a live resource.
+Cite the human request for an automation or reusable agent, not just the assistant's
+response. A correction may use other supplied original quotes to repair the evidence
+of the same job; it may not invent a new identity or a different kind. Empty output is valid."""
 
 
 class ContextModel(Protocol):
@@ -198,6 +203,15 @@ def evidence_sources(packet: ContextPacket) -> dict[str, str]:
 def supported(evidence: SourceEvidence, sources: Mapping[str, str]) -> bool:
     text = sources.get(evidence.source_id)
     return text is not None and " ".join(evidence.quote.split()) in " ".join(text.split())
+
+
+def source_excerpt(evidence: SourceEvidence, sources: Mapping[str, str]) -> str:
+    """Keep literal neighboring context so a quoted task does not lose its intent."""
+    source = " ".join(sources[evidence.source_id].split())
+    quote = " ".join(evidence.quote.split())
+    offset = source.index(quote)
+    start = max(0, offset - (500 - len(quote)) // 2)
+    return source[start : start + 500].strip()
 
 
 def chunks(messages: Sequence[ContextTurn]) -> list[list[ContextTurn]]:
@@ -308,6 +322,9 @@ async def extract_context(reader: ContextModel, packet: ContextPacket) -> Contex
             ref for topic in result.topics for ref in topic.evidence if not supported(ref, sources)
         ]
         if not invalid:
+            for topic in result.topics:
+                for ref in topic.evidence:
+                    ref.quote = source_excerpt(ref, sources)
             return result
         material["citation_repair"] = {
             "invalid": [ref.model_dump(mode="json") for ref in invalid],
@@ -358,7 +375,10 @@ async def propose_context(
         "sources": {
             key: "\n".join(
                 dict.fromkeys(
-                    ref.quote for topic in topics for ref in topic.evidence if ref.source_id == key
+                    source_excerpt(ref, sources)
+                    for topic in topics
+                    for ref in topic.evidence
+                    if ref.source_id == key
                 )
             )
             if key.startswith("message:")
@@ -409,9 +429,20 @@ async def propose_context(
             and (card.kind != "feature_tip" or card.feature_id in features)
         )
 
-    eligible = [card for card in reading.opportunities if eligible_card(card)]
-    if not eligible:
-        return reading.model_copy(update={"opportunities": []})
+    eligible = [
+        card
+        for card in reading.opportunities
+        if all(supported(ref, sources) for ref in card.evidence)
+        and set(card.resource_ids) <= resource_ids
+        and (card.kind != "feature_tip" or card.feature_id in features)
+    ]
+    if not eligible and not reading.starters:
+        return PersonalReading()
+    verifier_sources = dict(material["sources"])
+    for card in eligible:
+        for ref in card.evidence:
+            if ref.source_id not in verifier_sources:
+                verifier_sources[ref.source_id] = ref.quote
     verified = await reader.read(
         stage="verify",
         instructions=VERIFY_INSTRUCTIONS,
@@ -420,26 +451,16 @@ async def propose_context(
             "subject_id": packet.subject_id,
             "audience": packet.audience,
             "current_state": packet.current_state,
+            "profile": packet.profile,
+            "memory": packet.memory,
             "available_features": packet.available_features,
             "candidates": [card.model_dump(mode="json") for card in eligible],
             "source_metadata": {
-                ref.source_id: chronology[ref.source_id]
-                for card in eligible
-                for ref in card.evidence
-                if ref.source_id in chronology
+                key: value for key, value in chronology.items() if key in verifier_sources
             },
-            "original_sources": {
-                ref.source_id: "\n".join(
-                    dict.fromkeys(
-                        other.quote
-                        for candidate in eligible
-                        for other in candidate.evidence
-                        if other.source_id == ref.source_id
-                    )
-                )
-                for card in eligible
-                for ref in card.evidence
-            },
+            "original_sources": verifier_sources,
+            "topics": [topic.model_dump(mode="json") for topic in topics],
+            "starters": reading.starters,
         },
         output_type=VerifiedReading,
     )
@@ -457,15 +478,20 @@ async def propose_context(
         for card in verified.corrections
         if eligible_card(card)
         and card.kind == originals[card.identity].kind
-        and {(ref.source_id, ref.quote) for ref in card.evidence}
-        <= {(ref.source_id, ref.quote) for ref in originals[card.identity].evidence}
+        and all(supported(ref, verifier_sources) for ref in card.evidence)
     }
     return reading.model_copy(
         update={
             "opportunities": [
                 corrections.get(card.identity, card)
                 for card in eligible
-                if card.identity in verified.approved_identities or card.identity in corrections
-            ]
+                if (card.identity in verified.approved_identities and eligible_card(card))
+                or card.identity in corrections
+            ],
+            "starters": [
+                value
+                for index, value in enumerate(reading.starters)
+                if index in verified.approved_starter_indices
+            ],
         }
     )

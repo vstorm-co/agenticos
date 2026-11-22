@@ -1,6 +1,6 @@
 """Source-attributed input and proposals shared by background work and offline replay."""
 
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, JsonValue, model_validator
 
@@ -86,6 +86,9 @@ class VerifiedReading(BaseModel):
     model_config = ConfigDict(extra="forbid")
     approved_identities: list[str] = Field(default_factory=list, max_length=4)
     corrections: list[PersonalAdvice] = Field(default_factory=list, max_length=4)
+    approved_starter_indices: list[Annotated[int, Field(ge=0, le=3)]] = Field(
+        default_factory=list, max_length=4
+    )
 
 
 class ConversationContext(BaseModel):

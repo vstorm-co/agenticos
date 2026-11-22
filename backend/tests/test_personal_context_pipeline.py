@@ -150,7 +150,9 @@ def test_retrieval_drops_completed_and_noise_and_combines_real_evidence() -> Non
 async def test_extraction_rejects_fabricated_citations_and_preserves_failure() -> None:
     assert await extract_context(Reader(extract=None), packet()) is None
     expected = ContextDigest(topics=[topic()])
-    assert await extract_context(Reader(extract=expected), packet()) == expected
+    extracted = await extract_context(Reader(extract=expected), packet())
+    assert extracted is not None and extracted.topics[0].identity == expected.topics[0].identity
+    assert extracted.topics[0].evidence[0].quote == packet().messages[0].text
     with pytest.raises(ModelRetry):
         await extract_context(
             Reader(
@@ -202,7 +204,10 @@ async def test_assistant_claims_cannot_establish_a_personal_automation_request()
     source = (
         packet().messages[0].model_copy(update={"role": "assistant", "speaker_id": "assistant"})
     )
-    reader = Reader(propose=PersonalReading(opportunities=[card()]))
+    reader = Reader(
+        propose=PersonalReading(opportunities=[card()]),
+        verify=VerifiedReading(approved_identities=[card().identity]),
+    )
     result = await propose_context(reader, packet(messages=[source.model_dump()]), [])
     assert result is not None
     assert result.opportunities == []
@@ -332,7 +337,12 @@ async def test_proposals_cannot_borrow_other_tasks_or_invent_a_resource(change: 
         evidence=[SourceEvidence(source_id="task:t", quote="Review this release")],
     )
     result = await propose_context(
-        Reader(propose=PersonalReading(opportunities=[proposed])), value, []
+        Reader(
+            propose=PersonalReading(opportunities=[proposed]),
+            verify=VerifiedReading(approved_identities=[proposed.identity]),
+        ),
+        value,
+        [],
     )
     assert result is not None and result.opportunities == []
 
@@ -417,3 +427,64 @@ async def test_conversation_inventory_pages_every_visible_source(
         AsyncMock(side_effect=[(rows[:100], 101), (rows[100:], 101)]),
     )
     assert await PersonalLook(AsyncMock())._conversations(ctx) == rows
+
+
+async def test_verification_can_recover_intent_lost_by_a_narrow_quote() -> None:
+    user = (
+        packet()
+        .messages[0]
+        .model_copy(
+            update={
+                "text": "Build me an agent that does this: prepare a team agenda every Thursday."
+            }
+        )
+    )
+    assistant = user.model_copy(
+        update={
+            "id": "response",
+            "role": "assistant",
+            "speaker_id": "assistant",
+            "text": "I created an agent for the agenda.",
+        }
+    )
+    value = packet(messages=[user.model_dump(), assistant.model_dump()])
+    proposed = card(
+        evidence=[SourceEvidence(source_id="message:response", quote="I created an agent")]
+    )
+    fixed = card(
+        evidence=[SourceEvidence(source_id="message:m", quote="Build me an agent that does this")]
+    )
+    result = await propose_context(
+        Reader(
+            propose=PersonalReading(
+                opportunities=[proposed],
+                starters=["Fix my existing agent", "Prepare my weekly agenda"],
+            ),
+            verify=VerifiedReading(corrections=[fixed], approved_starter_indices=[1]),
+        ),
+        value,
+        [
+            ContextDigest(
+                topics=[
+                    topic(
+                        evidence=[
+                            SourceEvidence(
+                                source_id="message:m", quote="prepare a team agenda every Thursday"
+                            )
+                        ]
+                    )
+                ]
+            )
+        ],
+    )
+    assert result is not None and result.opportunities == [fixed]
+    assert result.starters == ["Prepare my weekly agenda"]
+
+
+async def test_starters_are_checked_even_without_a_candidate_card() -> None:
+    result = await propose_context(
+        Reader(propose=PersonalReading(starters=["An unsupported task"]), verify=VerifiedReading()),
+        packet(),
+        [],
+    )
+    assert result == PersonalReading()
