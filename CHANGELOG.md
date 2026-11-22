@@ -46,8 +46,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- Migration `backend/alembic/versions/0349_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
-- Migration `backend/alembic/versions/0350_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
 
 ## [1.90.0] - 2026-11-22
 
