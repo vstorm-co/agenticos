@@ -873,6 +873,20 @@ describe("RoomThreadPanel", () => {
     expect(readCalls()).toEqual([]);
   });
 
+  it("skips a read for a row that left the transcript in the same update that made it visible", async () => {
+    const { container } = render(view(), { wrapper });
+    await screen.findByText("Saved reply A");
+    const show = trackVisibility(container);
+    // One batch: the scroll reads reply-a from the DOM, the transcript then drops it, so the
+    // read effect sees a visible cursor the current transcript no longer holds.
+    act(() => {
+      show("reply-a");
+      useChatStore.setState({ messages: [] });
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(readCalls()).toEqual([]);
+  });
+
   it("reports a failed read and does not mark the thread read", async () => {
     const { container } = render(view(), { wrapper });
     await screen.findByText("Saved reply A");
