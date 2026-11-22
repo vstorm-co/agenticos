@@ -3,18 +3,9 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { BuildSection } from "./build-section";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Input,
-  Label,
-  Textarea,
-} from "@/components/ui";
+import { Button, Input, Label, Textarea } from "@/components/ui";
 import { useModelProviders } from "@/hooks";
 import { usableForAgents } from "@/lib/model-profiles";
 import type { RunReviewerSpec } from "@/types/agents";
@@ -60,12 +51,12 @@ export function ReviewersCard({ value, onChange, disabled }: ReviewersCardProps)
     ]);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("reviewersTitle")}</CardTitle>
-        <CardDescription>{t("reviewersDescription")}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <BuildSection
+      title={t("reviewersTitle")}
+      description={t("reviewersDescription")}
+      summary={t("buildSummary.reviewers", { count: reviewers.length })}
+    >
+      <div className="space-y-4">
         {reviewers.map((reviewer, index) => (
           <div key={index} className="bg-muted/40 space-y-3 rounded-xl p-3">
             <div className="flex items-end gap-2">
@@ -136,8 +127,8 @@ export function ReviewersCard({ value, onChange, disabled }: ReviewersCardProps)
             {t("addReviewer")}
           </Button>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </BuildSection>
   );
 }
 

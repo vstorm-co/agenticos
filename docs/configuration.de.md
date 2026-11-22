@@ -1,11 +1,20 @@
 ---
-source_sha: "321cae7a1b30"
+source_sha: "b190a21ae0c5"
 ---
 
 # Konfiguration { #configuration }
 
-Die gesamte Konfiguration läuft über Umgebungsvariablen, die mit
+Die Dienstkonfiguration verwendet Umgebungsvariablen, die mit
 [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) aus `backend/.env` geladen werden.
+
+Konsolendarstellung und Hinweiszeiten werden über die Oberfläche in der Datenbank
+gespeichert. Die Installationsverfügbarkeit begrenzt Elemente der Chat-Startseite
+und Einrichtungserinnerungen; Organisationsvorgaben und persönliche
+Mitgliedschaftseinstellungen wählen daraus aus. Erinnerungen lassen sich für 1, 3
+oder 7 Tage ausblenden. Der Server setzt den Ablauf einer Ankündigung durch. Ein
+geplantes Wartungsende ist nur informativ und öffnet die Installation nicht.
+[Das Konsolenerlebnis](console.de.md#console-experience) beschreibt die Steuerelemente
+und Vererbungsregeln.
 
 Die Settings sind in `app/core/config.py` definiert und werden über das globale
 Objekt `settings` gelesen:
@@ -88,7 +97,11 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 
 Für Bilder in Produktionskanälen setzen Sie `VISUAL_RENDER_CDP_URL=http://visual-render:9222` und `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` in `backend/.env`. `scripts/deploy.sh` aktiviert dann das Profil `visuals` in `docker-compose-prod.yml`; beim manuellen Start ergänzen Sie `--profile visuals`.
 
-Öffentliches Browsen benötigt einen separaten Browser: setzen Sie `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` und `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Das Deployment aktiviert das Profil `browser`. Setzen Sie `browser_use.cdp_url` des Agents auf `http://browser:9222` und veröffentlichen Sie seinen Entwurf. Nur der Proxy erlaubt ausgehenden Verkehr; Squid verweigert private und Metadaten-Adressen. Behalten Sie `VISUAL_RENDER_CDP_URL=http://visual-render:9222` für isoliertes Zeichnen. Ohne Domain-Einschränkung sind öffentliche Seiten erlaubt; eine ausdrückliche Domain-Liste gilt weiterhin.
+Öffentliches Browsen benötigt einen separaten Browser: setzen Sie `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` und `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Das Deployment aktiviert das Profil `browser`. Agents mit **Built in** verwenden `BROWSER_SIGN_IN_CDP_URL`, wenn ihr eigenes `cdp_url` leer ist. Nur der Proxy erlaubt ausgehenden Verkehr; Squid verweigert private und Metadaten-Adressen. Behalten Sie `VISUAL_RENDER_CDP_URL=http://visual-render:9222` für isoliertes Zeichnen. Ohne Domain-Einschränkung sind öffentliche Seiten erlaubt; eine ausdrückliche Domain-Liste gilt weiterhin.
+
+AgenticOS verwendet standardmäßig **Built in** mit bis zu 100 Schritten pro Aufruf und **Computer use → Docker / Sandbox** mit der Laufzeit `desktop`. Diese enthält auch die Workbench-Werkzeuge für Code und Dokumente. Ohne Container-Verbindung bleiben Desktop und persönliche Cloud-Coding-Werkzeuge deaktiviert. Ein fehlender Browser-Endpunkt oder unerreichbarer Browser-Container betrifft nur Browser-Aufrufe; der Agent kann weiterhin veröffentlicht werden und mit seinen anderen Werkzeugen antworten. Konfigurierte Endpunkte benötigen weiterhin die Host-Freigabe des Betreibers.
+
+AgenticOS arbeitet selbstständig, sofern der Nutzer nicht ausdrücklich Subagents oder parallele Agent-Arbeit verlangt. Unter Delegates ist der Zugriff auf alle zugänglichen veröffentlichten Agents der aktuellen Organisation aktiviert. Berechtigungen gelten weiterhin, ausdrücklich festgelegte Versionen bleiben erhalten und unbeaufsichtigte Routinen erhalten diesen Katalog nicht. Dynamische Spezialisten sind deaktiviert.
 
 Der Renderer veröffentlicht keinen Port, hat keinen Internetzugang, bedient API und Worker und ist auf 1 CPU und 1 GiB RAM begrenzt. Veröffentlichte Backend-Images enthalten das Extra `browser`; eigene Images benötigen `EXTRAS="--extra browser"`. Schlägt das Rendern fehl, erklärt die Kanalantwort ausdrücklich, dass das Bild nicht angehängt werden konnte. Jeder Rendervorgang erlaubt höchstens 256 Anfragen und 32 ausstehende Antworten; Kartenkacheln teilen zusätzlich `RATE_LIMIT_MAP_TILES_PER_MINUTE` zwischen Renderern.
 
@@ -225,7 +238,7 @@ Wo welcher Issuer liegt, und was zu registrieren ist:
 
 | Anbieter | Issuer | Redirect-URI registrieren als |
 | --- | --- | --- |
-| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect-URI der Plattform **Web** in der App-Registrierung. `openid`, `email`, `profile` unter API-Berechtigungen erteilen |
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect-URI der Plattform **Web** in der App-Registrierung. `openid`, `email`, `profile` unter API-Berechtigungen erteilen. Unter **Token configuration** die optionalen Claims `email` und `xms_edov` zum **ID**-Token hinzufügen |
 | **Okta** | `https://<org>.okta.com` (oder `/oauth2/<id>` eines eigenen Authorization Servers) | Sign-in-Redirect-URI einer **Web**-Anwendung |
 | **Keycloak** | `https://<host>/realms/<realm>` | Valid Redirect URI eines vertraulichen Clients mit aktiviertem Standard Flow |
 
@@ -241,6 +254,13 @@ Zwei Dinge verlangt die Plattform von jedem Anbieter, auf den sie gerichtet wird
   unbestätigte Adresse heißt, dass bei diesem Anbieter jeder die Arbeitsadresse
   eines anderen beanspruchen kann — und die Domain-Erlaubnisliste unten steht
   darauf, dass eine Adresse etwas bedeutet.
+  Bei Entra muss der Claim im **ID-Token** stehen: sein UserInfo-Endpunkt
+  liefert nur `sub`, `name`, `family_name`, `given_name`, `picture` und
+  `email`. `OIDC_VERIFIED_CLAIM` muss einen Claim benennen, dessen *Wert* für eine
+  bestätigte Adresse wahr ist; einer, den jedes Token trägt, etwa `sub`, bestätigt
+  nichts und wird nicht akzeptiert. Eine abgewiesene Anmeldung protokolliert
+  `oauth_callback_claims_rejected` mit der gescheiterten Bedingung (`reason`) und
+  den Namen, nie den Werten, der erhaltenen Claims.
 - **Ein stabiles `sub`.** Das Konto hängt daran und nicht an der Adresse, sodass
   jemand, der heiratet oder dessen Domain gekauft wird, die eigene Historie
   behält — und der nächste Inhaber einer frei gewordenen Adresse sie nicht erbt.

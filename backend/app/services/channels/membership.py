@@ -94,6 +94,17 @@ async def is_still_member(bot: ChannelBot, platform_chat_id: str, platform_user_
     that fails open is not one. Each cause is logged; the answer - either
     answer - is cached for :data:`MEMBERSHIP_TTL_SECONDS`.
     """
+    if bot.platform == "matrix":
+        from app.services.channels.identity_scope import canonical_matrix_server
+        from app.services.channels.matrix_protocol import audience_of, server_fingerprint
+
+        try:
+            server, _ = audience_of(platform_chat_id)
+            current = canonical_matrix_server(bot.api_base_url)
+            if server != server_fingerprint(current):
+                return False
+        except ValueError:
+            return False
     key = _key(bot.id, platform_chat_id, platform_user_id)
     cached = await _cached(key)
     if cached is not None:

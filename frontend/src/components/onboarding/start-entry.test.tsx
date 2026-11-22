@@ -1,7 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
+import { useAuthStore } from "@/stores/auth-store";
+import { useOnboardingLocationStore } from "@/stores/onboarding-location-store";
+import { startLocationKey } from "@/lib/onboarding/start-location";
 import { StartEntry } from "./start-entry";
 const env = vi.hoisted(() => ({
+  completed: false,
   automatic: true,
   entry: "",
   resume: false,
@@ -16,7 +20,7 @@ const env = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({
   useSearchParams: () =>
     new URLSearchParams(
-      `${env.automatic ? "welcome=1" : ""}&entry=${env.entry}${env.resume ? "&start-step=member.context" : ""}`,
+      `${env.automatic ? "welcome=1" : ""}&entry=${env.entry}${env.resume ? "&start-step=member.context&workspace=org" : ""}`,
     ),
 }));
 vi.mock("@/lib/locale-navigation", () => ({ useRouter: () => ({ replace: env.replace }) }));
@@ -25,6 +29,8 @@ vi.mock("@/hooks/use-start", () => ({
     data: env.noOrg
       ? undefined
       : {
+          organization_id: "org",
+          completed: env.completed,
           dismissed: env.dismissed,
           has_result: false,
           has_activity: env.activity,
@@ -39,6 +45,9 @@ vi.mock("@/hooks/use-organizations", () => ({
 }));
 vi.mock("./start-hub", () => ({ StartHub: () => <h1>Workspace setup</h1> }));
 beforeEach(() => {
+  useAuthStore.setState({ user: null });
+  useOnboardingLocationStore.setState({ startLocations: {} });
+  env.completed = false;
   Object.assign(env, {
     automatic: true,
     entry: "",
@@ -127,3 +136,30 @@ it.each(["pending", "orgPending"] as const)(
     expect(screen.queryByRole("heading", { name: "Workspace setup" })).not.toBeInTheDocument();
   },
 );
+
+it("remembers a safe current step without entry metadata and clears it after completion", async () => {
+  env.automatic = false;
+  env.entry = "joined";
+  env.resume = true;
+  useAuthStore.setState({
+    user: {
+      id: "user",
+      email: "user@example.com",
+      is_active: true,
+      created_at: "2026-01-01T00:00:00Z",
+    },
+  });
+  const view = render(<StartEntry />);
+  await waitFor(() =>
+    expect(
+      useOnboardingLocationStore.getState().startLocations[startLocationKey("user", "org")],
+    ).toBe("/onboarding?start-step=member.context&workspace=org"),
+  );
+  env.completed = true;
+  view.rerender(<StartEntry />);
+  await waitFor(() =>
+    expect(
+      useOnboardingLocationStore.getState().startLocations[startLocationKey("user", "org")],
+    ).toBeUndefined(),
+  );
+});

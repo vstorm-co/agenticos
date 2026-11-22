@@ -17,7 +17,14 @@ import WorkflowRunPage from "./page";
  * is not shown cannot answer 403.
  */
 
-const state = vi.hoisted(() => ({ can: true, canEdit: false }));
+const state = vi.hoisted(() => ({
+  can: true,
+  canEdit: false,
+  workflowError: null as Error | null,
+  catalogError: null as Error | null,
+  refetchWorkflow: vi.fn(),
+  refetchCatalog: vi.fn(),
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -25,8 +32,17 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/hooks", async (original) => ({
   ...(await original<typeof import("@/hooks")>()),
-  useWorkflow: () => ({ workflow: { id: "w1", name: "Flow", can_edit: state.canEdit } }),
-  useNodeCatalog: () => ({ nodes: [], isLoading: false }),
+  useWorkflow: () => ({
+    workflow: { id: "w1", name: "Flow", can_edit: state.canEdit },
+    error: state.workflowError,
+    refetch: state.refetchWorkflow,
+  }),
+  useNodeCatalog: () => ({
+    nodes: [],
+    isLoading: false,
+    error: state.catalogError,
+    refetch: state.refetchCatalog,
+  }),
   usePermissions: () => ({ can: () => state.can }),
   useCausingRun: () => ({ causing: null, refused: false }),
 }));
@@ -112,6 +128,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.can = true;
   state.canEdit = false;
+  state.workflowError = null;
+  state.catalogError = null;
 });
 afterEach(() => useWorkflowEditorStore.getState().teardown());
 
@@ -324,4 +342,36 @@ describe("the step list", () => {
     expect(screen.queryByText("Pending")).toBeNull();
     expect(screen.getByText("1 of 1")).toBeInTheDocument();
   });
+});
+
+it("offers recovery when reading the run fails instead of showing a permanent skeleton", async () => {
+  seed({ status: "succeeded" }, "succeeded");
+  vi.mocked(runsApi.getWorkflowRun).mockRejectedValueOnce(new Error("run unavailable"));
+  await renderPage();
+  expect(await screen.findByText("run unavailable")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(await screen.findByRole("link", { name: "See in Logs" })).toBeVisible();
+});
+
+it.each(["listWorkflowRunNodes", "listWorkflowRunFiles", "getWorkflowRunGraph"] as const)(
+  "retries a failed constituent read: %s",
+  async (method) => {
+    seed({ status: "succeeded" }, "succeeded");
+    vi.mocked(runsApi[method]).mockRejectedValueOnce(new Error("detail unavailable"));
+    await renderPage();
+    expect(await screen.findByText("detail unavailable")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("link", { name: "See in Logs" })).toBeVisible();
+  },
+);
+
+it.each(["workflow", "catalog"] as const)("retries the failed %s query owner", async (owner) => {
+  seed({ status: "succeeded" }, "succeeded");
+  state[owner === "workflow" ? "workflowError" : "catalogError"] = new Error("setup unavailable");
+  await renderPage();
+  expect(await screen.findByText("setup unavailable")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(
+    owner === "workflow" ? state.refetchWorkflow : state.refetchCatalog,
+  ).toHaveBeenCalledOnce();
 });

@@ -11,6 +11,7 @@ from pydantic import JsonValue
 from sqlalchemy import (
     BigInteger,
     ColumnElement,
+    DateTime,
     Integer,
     Numeric,
     Select,
@@ -45,6 +46,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.conversation_last_read import ConversationLastRead
+from app.db.models.conversation_share import ConversationShare
 from app.db.models.user import User
 from app.repositories._search import contains_ci
 from app.schemas.conversation import HistoryCheckpointFrontier
@@ -312,6 +314,7 @@ def _list_filters(
     hide_channels: bool = False,
     project_id: UUID | None = None,
     for_model: bool = False,
+    project_scope: Literal["include", "only", "exclude"] = "include",
 ) -> list[ColumnElement[bool]]:
     """The predicates both conversation listings narrow by.
 
@@ -344,6 +347,10 @@ def _list_filters(
         )
     if project_id is not None:
         filters.append(Conversation.project_id == project_id)
+    if project_scope == "only":
+        filters.append(Conversation.project_id.is_not(None))
+    elif project_scope == "exclude":
+        filters.append(Conversation.project_id.is_(None))
     if hide_api:
         # Null for every conversation opened in the console or a channel.
         filters.append(or_(Conversation.origin.is_(None), Conversation.origin != "api"))
@@ -427,6 +434,75 @@ def _reachable_by(
     if project_ids:
         ways_in.append(Conversation.project_id.in_(project_ids))
     return or_(*ways_in)
+
+
+async def waiting_chat_questions(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    usable_project_ids: Collection[UUID],
+    participant_ids: Collection[UUID],
+    asked_since: datetime,
+    skip: int,
+    limit: int,
+) -> tuple[Sequence[tuple[UUID, UUID, str | None, str, datetime]], int]:
+    """Page this person's unexpired web questions in chats they can continue."""
+    edit_share = select(ConversationShare.id).where(
+        ConversationShare.conversation_id == Conversation.id,
+        ConversationShare.shared_with == user_id,
+        ConversationShare.permission == "edit",
+    )
+    waiting = (
+        select(
+            AgentRun.id.label("run_id"),
+            Conversation.id.label("conversation_id"),
+            Conversation.title,
+            Agent.name,
+            type_coerce(AgentRun.ended_at, DateTime(timezone=True)).label("asked_at"),
+        )
+        .join(Conversation, Conversation.id == AgentRun.conversation_id)
+        .join(Agent, Agent.id == AgentRun.agent_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            Conversation.organization_id == organization_id,
+            Agent.organization_id == organization_id,
+            AgentRun.user_id == user_id,
+            AgentRun.surface == RunSurface.WEB.value,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.is_test.is_(False),
+            or_(AgentRun.key_scopes.is_(None), AgentRun.key_scopes == JSONB.NULL),
+            AgentRun.status == RunStatus.AWAITING_ANSWER.value,
+            AgentRun.ended_at > asked_since,
+            AgentRun.paused_state["questions"] != [],
+            # Resume refuses nonempty private history without destination proof.
+            # Do not turn the navigation read into a broader stored-state validator.
+            or_(
+                AgentRun.paused_state["messages"].astext.is_(None),
+                AgentRun.paused_state["messages"] == [],
+                func.jsonb_typeof(AgentRun.paused_state["history_provenance"]) == "object",
+            ),
+            or_(
+                AgentRun.paused_state["question_results"].astext.is_(None),
+                AgentRun.paused_state["question_results"] == {},
+            ),
+            Conversation.origin.is_distinct_from("workflow"),
+            Conversation.is_archived.is_(False),
+            or_(Conversation.project_id.is_(None), Conversation.project_id.in_(usable_project_ids)),
+            or_(
+                _reachable_by(user_id, participant_ids, usable_project_ids),
+                and_(Conversation.project_id.is_(None), edit_share.exists()),
+            ),
+        )
+    )
+    rows = await db.execute(
+        waiting.order_by(AgentRun.ended_at, AgentRun.id).offset(skip).limit(limit)
+    )
+    total = await db.scalar(select(func.count()).select_from(waiting.subquery()))
+    return [
+        (run_id, conversation_id, title, agent, asked_at)
+        for run_id, conversation_id, title, agent, asked_at in rows
+    ], total or 0
 
 
 class ParticipationClaim(NamedTuple):
@@ -808,6 +884,7 @@ async def get_conversations_by_user(
     hide_channels: bool = False,
     project_id: UUID | None = None,
     for_model: bool = False,
+    project_scope: Literal["include", "only", "exclude"] = "include",
 ) -> list[Conversation]:
     """Get one organization's conversations, optionally narrowed to one user.
 
@@ -847,6 +924,7 @@ async def get_conversations_by_user(
         hide_channels=hide_channels,
         project_id=project_id,
         for_model=for_model,
+        project_scope=project_scope,
     ):
         query = query.where(condition)
     orders = [] if favourites_first_for is None else [favourited_by(favourites_first_for).desc()]
@@ -927,6 +1005,7 @@ async def count_conversations(
     hide_channels: bool = False,
     project_id: UUID | None = None,
     for_model: bool = False,
+    project_scope: Literal["include", "only", "exclude"] = "include",
 ) -> int:
     """Count one organization's conversations, optionally narrowed to one user.
 
@@ -951,6 +1030,7 @@ async def count_conversations(
         hide_channels=hide_channels,
         project_id=project_id,
         for_model=for_model,
+        project_scope=project_scope,
     ):
         query = query.where(condition)
     result = await db.execute(query)

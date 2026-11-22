@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.organization import Organization, OrganizationMember
@@ -120,11 +120,33 @@ async def _world(db: AsyncSession) -> World:
         "agent",
     ],
 )
+@pytest.mark.parametrize("mode", ["follow_agent", "restricted"])
 async def test_current_authority_can_revoke_a_previously_admitted_tool(
     db: AsyncSession,
     change: str,
+    mode: str,
 ) -> None:
     world = await _world(db)
+    if mode == "follow_agent":
+        from app.services.routine_sources import RoutineSourceService
+
+        version = AgentVersion(
+            id=world.trigger.approved_sources["version_id"],
+            agent_id=world.agent.id,
+            organization_id=world.organization.id,
+            version=1,
+            spec=AgentSpec(name="Monitor").model_dump(mode="json"),
+        )
+        db.add(version)
+        await db.flush()
+        world.agent.current_version_id = version.id
+        world.agent.status = "published"
+        policy = await RoutineSourceService(db).initial(
+            world.ctx, world.trigger, mode="follow_agent"
+        )
+        world.trigger.approved_sources = policy.model_dump(mode="json")
+        world.ctx = replace(world.ctx, routine_source_policy_id=policy.id)
+    await db.flush()
     authority = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=None)
     assert authority is not None
     await authority.check_in(db, world.delegate.id)

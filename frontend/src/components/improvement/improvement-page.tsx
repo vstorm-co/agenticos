@@ -36,10 +36,16 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   const orgId = useOrgStore((state) => state.activeOrgId);
-  const { agent, isLoading, error } = useAgent(agentId);
+  const { agent, isLoading, error, refetch } = useAgent(agentId);
   const { can } = usePermissions();
   if (isLoading) return <LoadingState variant="pending" />;
-  if (error || !agent) return <ErrorState description={getErrorMessage(error, tErrors)} />;
+  if (error || !agent)
+    return (
+      <ErrorState
+        description={getErrorMessage(error, tErrors)}
+        cta={{ label: t("retryRead"), onClick: () => void refetch() }}
+      />
+    );
   // Reading a session needs the agent and its runs; starting one, or changing
   // one, needs edit access too, and without it the session is only read.
   if (!can(Perm.runsView) || (!agent.can_edit && sessionId === "new"))

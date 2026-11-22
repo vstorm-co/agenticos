@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight, ShieldAlert, SlidersHorizontal, Wrench } from "lucide-react";
@@ -338,6 +340,7 @@ export function CapabilityDetail({
           disabled={disabled}
           errors={configErrors}
           copyFor={copyFor}
+          rememberConditionalValues={binding.id === CODING_AGENT_ID}
           onChange={(config) => onChange({ ...binding, config })}
         />
       )}
@@ -503,7 +506,7 @@ export function CapabilityDetail({
 function SchemaPreview({ schema }: { schema: JsonSchema }) {
   const t = useTranslations("agents");
   return (
-    <details className="group">
+    <NativeDisclosure className="group">
       <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
         <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
         {t("configurationSchema")}
@@ -511,7 +514,7 @@ function SchemaPreview({ schema }: { schema: JsonSchema }) {
       <pre className="text-muted-foreground bg-muted/50 mt-1.5 max-h-64 overflow-auto rounded-md p-3 text-xs">
         {JSON.stringify(schema, null, 2)}
       </pre>
-    </details>
+    </NativeDisclosure>
   );
 }
 
@@ -1195,7 +1198,7 @@ function ToolContract({ contract }: { contract: CapabilityToolContract }) {
   return (
     <div className="space-y-1.5">
       {names.length > 0 && (
-        <details className="group">
+        <NativeDisclosure className="group">
           <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
             <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
             {t("argumentsCount", { count: names.length })}
@@ -1213,7 +1216,7 @@ function ToolContract({ contract }: { contract: CapabilityToolContract }) {
               </li>
             ))}
           </ul>
-        </details>
+        </NativeDisclosure>
       )}
     </div>
   );

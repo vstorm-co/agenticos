@@ -32,6 +32,7 @@ export interface QuestionPromptAnswer {
 
 interface QuestionSlideProps {
   item: QuestionPromptItem;
+  autoFocus?: boolean;
   /** What was answered before, when the person comes back to this slide. */
   previous: QuestionPromptAnswer | undefined;
   disabled: boolean;
@@ -50,6 +51,7 @@ interface QuestionSlideProps {
  */
 export function QuestionSlide({
   item,
+  autoFocus = true,
   previous,
   disabled,
   onAnswer,
@@ -70,9 +72,10 @@ export function QuestionSlide({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (customOpen) inputRef.current?.focus();
-    else containerRef.current?.focus();
-  }, [customOpen]);
+    if (customOpen && (autoFocus || options.length > 0))
+      inputRef.current?.focus({ preventScroll: true });
+    else if (autoFocus) containerRef.current?.focus({ preventScroll: true });
+  }, [customOpen, autoFocus, options.length]);
 
   const choose = (label: string) => {
     if (!multi) {
@@ -196,6 +199,7 @@ export function QuestionSlide({
               placeholder={t("typeYourAnswer")}
               onChange={(event) => setCustomText(event.target.value)}
               onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
                 if (event.key === "Enter") {
                   event.preventDefault();
                   submitCustom();

@@ -6,7 +6,7 @@ import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
 import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
 import { useMemo, useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import Link from "next/link";
 import { ArrowDownWideNarrow, Activity, Library, Plus, Upload } from "lucide-react";
 import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
@@ -32,7 +32,7 @@ import { ImportWorkflowDialog } from "@/components/workflows/import-dialog";
 import { WorkflowTemplateDialog } from "@/components/workflows/workflow-template-dialog";
 import { WorkflowCreateDialog } from "@/components/workflows/workflow-create-dialog";
 import type { WorkflowCreateChoice } from "@/components/workflows/workflow-create-dialog";
-import { useNodeCatalog, usePermissions, useWorkflowActions, useWorkflows } from "@/hooks";
+import { usePermissions, useWorkflowActions, useWorkflows } from "@/hooks";
 import { useUrlState } from "@/hooks/use-url-state";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
@@ -81,7 +81,6 @@ export default function WorkflowsPage() {
   const canCreate = can(Perm.workflowsCreate);
   // Gate the list query so a caller without workflows:view never hits the network
   // for a list a refusal would answer — not fetched, not a 403 in the log (#1787 F3).
-  const { nodes: catalog } = useNodeCatalog();
   const { workflows, isLoading, error, refetch, create, duplicate } = useWorkflows({
     enabled: can(Perm.workflowsView),
   });
@@ -342,9 +341,6 @@ export default function WorkflowsPage() {
                 <WorkflowCard
                   key={workflow.id}
                   workflow={workflow}
-                  startsFrom={
-                    catalog.find((entry) => entry.id === workflow.entry_node)?.name ?? null
-                  }
                   canCreate={canCreate}
                   canEdit={canEdit}
                   busy={duplicate.isPending && duplicate.variables?.sourceId === workflow.id}

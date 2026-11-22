@@ -158,7 +158,7 @@ export function useGroupSharing(orgId: string, groupId: string) {
   const t = useTranslations("groups");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.organizations.groupShareable(orgId, groupId),
     queryFn: () => listShareableWithGroup(orgId, groupId),
     enabled: !!orgId && !!groupId,
@@ -176,7 +176,7 @@ export function useGroupSharing(orgId: string, groupId: string) {
     },
     onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
   });
-  return { shareable: data?.items ?? [], isLoading, error, share };
+  return { shareable: data?.items ?? [], isLoading, error, refetch, share };
 }
 
 /** What one group has been given - agents, knowledge, skills, context and apps (#2072). */

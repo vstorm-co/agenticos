@@ -1,5 +1,5 @@
 ---
-source_sha: "753163fbbe69"
+source_sha: "4a5506769583"
 ---
 
 # Governance { #governance }
@@ -827,11 +827,7 @@ sprawdzone akcje** to jawny nowy wybór zgodnych, dozwolonych identyfikatorów; 
 zgody przed zapisaniem bieżącego review. Nowe akcje i zmienione konta nie zaznaczają
 się automatycznie. Obowiązkowe akceptacje, cofanie zgody i kontrola aktualności nadal działają.
 
-Rutyna działająca bez nadzoru pyta przed działaniami funkcji, zmianami lokalnych
-plików i delegowaniem. Wywołania zewnętrznego MCP pytają, chyba że serwer oznacza je
-jako tylko do odczytu; silniejsza polityka zatwierdzania połączenia nadal obowiązuje.
-Domyślne zachowanie zwykłego interaktywnego agenta nie zmienia się. Tryb kodu jest
-wyłączony w rutynach, aby skrypt zbiorczy nie omijał kontroli pojedynczych działań.
+Rutyny podążające za agentem stosują jego zasady zatwierdzania działań bez dodatkowej zgody na poziomie rutyny. Rutyny ograniczone dodatkowo pytają przed działaniami capabilities, zmianami plików lokalnych i delegowaniem oraz przed wywołaniami MCP nieoznaczonymi jako tylko do odczytu. Jawne wymagania agenta lub połączenia i obowiązkowe zatwierdzenia obowiązują w obu trybach. Tryb kodu pozostaje wyłączony w rutynach, aby skrypty zbiorcze nie omijały kontroli poszczególnych narzędzi.
 
 Zapisy do Virtual Tables w AgenticOS działają w granicach aktualnych uprawnień do tabel i operacji, bez wyjątku dla rutyny. Jawna polityka zatwierdzania agenta nadal obowiązuje dla tych wewnętrznych zapisów.
 
@@ -934,6 +930,8 @@ miesiącu i ostatnimi wykonaniami.
 | --- | --- | --- |
 | `daily_briefing` | Nocne spojrzenie na tydzień każdej osoby i zbudowany z niego briefing | W zakładce Proaktywność: ten sam model i limit, tutaj tylko do odczytu |
 | `memory_maintenance` | Czyta zakończoną dopuszczoną turę raz i zapisuje trwałe fakty, preferencje i decyzje jako [claimy](reference/capabilities.md#memory-claims) | Tutaj: przełącznik, model i własny budżet miesięczny |
+
+Daily briefing czyta aktualną pamięć profilu i pamięć danej osoby z domyślnym agentem oraz starsze notatki. Propozycje rutyn i agentów wymagają dowodów z osobnych wątków lub dni i są porównywane z wcześniejszymi sugestiami oraz istniejącymi rutynami. Memory maintenance porównuje aktualne wpisy w zakresie rozmowy i wymaga cytatu z wypowiedzi użytkownika przed zapisem.
 
 Utrzymanie pamięci nie wymaga startowego agenta AgenticOS. Przebieg zachowuje agenta źródłowego jako referencję zapisu i jest rozliczany jako `memory_maintenance`; wykonują się wyłącznie platformowe instrukcje ekstrakcji na modelu wybranym dla roli. Usunięcie lub wycofanie publikacji agenta startowego nie wyłącza ekstrakcji innych opublikowanych agentów.
 
@@ -2515,9 +2513,13 @@ Lista pokazuje automatyczne wstrzymanie i liczbę błędów. Metadane zachowują
 
 ## Zatwierdzone źródła rutyn { #routine-sources }
 
-Podczas tworzenia rutyna utrwala opublikowaną konfigurację źródeł, konkretne konta MCP, generacje zgody na uwierzytelnienie i znane nazwy narzędzi. Przegląd obejmuje przypiętych delegatów, kolekcje wiedzy, umiejętności, kontekst i konfigurację możliwości; zdalne rejestracje A2A zachowują powiązanie endpointu, karty i poświadczenia. Sama zmiana instrukcji lub ustawień modelu może podążać za publikacją. Dodanie źródła, zmiana konta lub ponowne udzielenie zgody na konto wymaga przeglądu panelu źródeł w oknie zgód rutyny przez jej właściciela. Ten przegląd nie znosi zatwierdzeń działań ani nie przyznaje dostępu do zasobów. Nadal obowiązują aktualne uprawnienia.
+Nowe rutyny automatycznie zatwierdzają początkową dostępną konfigurację opublikowanego agenta w granicach bieżących uprawnień twórcy. Bezpieczne usunięcia źródeł oraz zmiany samego modelu lub etykiet głównego agenta nie wymagają przeglądu. Nowe źródła, konta i narzędzia, zmienione instrukcje lub zmienne oraz zmiany capabilities, faktycznie używanych skilli, kontekstu i delegowanego zachowania wymagają przeglądu dostępu przez właściciela przed kolejnym wykonaniem. Sama publikacja współdzielonego agenta nie rozszerza stałych uprawnień osoby. Brak opcjonalnego konta MCP nie blokuje innej pracy; wymagane wejścia zdarzeń, tożsamość, uprawnienia, budżety i obowiązkowe zatwierdzenia nadal obowiązują.
 
-Zakolejkowane uruchomienia, oczekiwanie na komputer i zaparkowane przebiegi zachowują identyfikator pierwotnego przeglądu. Późniejszy przegląd nie rozszerza uprawnień starej pracy. Polling skrzynki sprawdza konto wejściowe przed odczytem, a zdarzenia zachowują zgodę obowiązującą przed nim. Wywołania MCP używają zatwierdzonych aliasów i wykluczają niezatwierdzone narzędzia; niedostępne źródła powodują jawną odmowę. Konieczność przeglądu przed wykonaniem pojawia się w istniejącej sprawie właściciela i nie jest błędem modelu.
+Zmiana przypiętej wersji delegata wymaga przeglądu, także gdy jego publikacja zmienia tylko model.
+
+Właściciel może wybrać tryb `restricted`, który utrwala zatwierdzoną konfigurację źródeł, konkretne konta MCP, generacje autoryzacji i znane nazwy narzędzi. Przegląd obejmuje przypiętych delegatów, wiedzę, skille, kontekst, capabilities i zdalne rejestracje A2A. Nowe źródła lub zmieniona autoryzacja konta wymagają ponownego przeglądu. Istniejące zasady bez pola trybu pozostają ograniczone; aktualizacja nie rozszerza ich automatycznie.
+
+Każde dopuszczone wykonanie zachowuje własny zapis źródeł i kont. Zaparkowane wykonanie nie może przejąć późniejszego konta, autoryzacji ani przeglądu. Własność źródeł, cofnięcie dostępu i listy dozwolonych narzędzi są sprawdzane ponownie przed wywołaniem. Brak opcjonalnych narzędzi jest zgłaszany, a nie uznawany za udaną pracę. Właściciel może jawnie zmienić tryb istniejącej rutyny w ustawieniach dostępu chronionych tokenem przeglądu.
 
 Migracja `0276_routine_sources.py` nie nadaje zgód istniejącym rutynom. Opróżnij starą kolejkę workerów, zaktualizuj API i workery razem, a przed uruchomieniem jawnie przejrzyj stare rutyny. Zgodę może zastąpić tylko właściciel w konsoli; nie mogą tego zrobić klucze API, podszywanie się ani agenci działający bez nadzoru.
 

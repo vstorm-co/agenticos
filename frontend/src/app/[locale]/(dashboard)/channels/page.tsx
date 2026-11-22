@@ -23,6 +23,7 @@ function BotsCard({ count, children }: { count: number | null; children: ReactNo
   return (
     <ListCard
       fill
+      className="overflow-hidden"
       data-tour="channels-list"
       namedByPage
       title={t("bots")}
@@ -52,12 +53,19 @@ function BotsCard({ count, children }: { count: number | null; children: ReactNo
 export default function ChannelsPage() {
   const t = useTranslations("pages.channels");
   const tErrors = useTranslations("errors");
-  const { can, isLoading: permissionsLoading, error: permissionsError } = usePermissions();
+  const common = useTranslations("common");
+  const {
+    can,
+    isLoading: permissionsLoading,
+    error: permissionsError,
+    refetch: retryPermissions,
+  } = usePermissions();
   // The backend gates every write here on `channels:manage`, and the listing
   // too - so the hook is told not to fetch at all for somebody without it,
   // rather than putting a 403 in the network log of every member who visits.
   const canManage = can(Perm.channelsManage);
-  const { bots, isLoading, error, create, update, setActive, remove } = useChannelBots(canManage);
+  const { bots, isLoading, error, refetch, create, update, setActive, remove } =
+    useChannelBots(canManage);
   const [adding, setAdding] = useState(false);
   // The row being edited, which is also what opens the dialog: a bot and an
   // open flag can disagree, and the disagreement renders last row's answers.
@@ -67,7 +75,7 @@ export default function ChannelsPage() {
 
   if (!permissionsLoading && !permissionsError && !canManage) {
     return (
-      <div className="flex flex-1 flex-col space-y-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         <PageHeader title={t("channels")} description={t("pageDescription")} />
         <BotsCard count={0}>
           <p className="text-muted-foreground px-6 py-16 text-center text-sm">
@@ -79,7 +87,7 @@ export default function ChannelsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <PageHeader
         title={t("channels")}
         description={t("pageDescription")}
@@ -108,27 +116,35 @@ export default function ChannelsPage() {
           // is a refusal dressed as reassurance (#32's shape).
           <ErrorState
             description={getErrorMessage(error ?? permissionsError, tErrors)}
-            className="m-5"
-          />
-        ) : bots.length === 0 ? (
-          <ListCardEmpty
-            icon={MessagesSquare}
-            title={t("noChannelsYet")}
-            description={t("addOneBecomesBindable")}
-            // Its own words, not the header's: two buttons reading "Add
-            // channel" is one control a screen reader announces twice.
             cta={{
-              label: (
-                <>
-                  <Plus className="h-3.5 w-3.5" />
-                  {t("addChannel")}
-                </>
-              ),
-              onClick: () => setAdding(true),
+              label: common("retry"),
+              onClick: () => {
+                if (permissionsError) void retryPermissions();
+                else void refetch();
+              },
             }}
+            className="m-5"
           />
         ) : (
           <ChannelBotsTable
+            empty={
+              <ListCardEmpty
+                icon={MessagesSquare}
+                title={t("noChannelsYet")}
+                description={t("addOneBecomesBindable")}
+                // Its own words, not the header's: two buttons reading "Add
+                // channel" is one control a screen reader announces twice.
+                cta={{
+                  label: (
+                    <>
+                      <Plus className="h-3.5 w-3.5" />
+                      {t("addChannel")}
+                    </>
+                  ),
+                  onClick: () => setAdding(true),
+                }}
+              />
+            }
             bots={bots}
             busy={setActive.isPending || remove.isPending}
             onEdit={setEditing}

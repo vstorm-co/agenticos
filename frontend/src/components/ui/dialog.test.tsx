@@ -4,7 +4,7 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ConfirmDialog } from "./confirm-dialog";
-import { Dialog, DialogContent, DialogTitle } from "./dialog";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "./dialog";
 
 function Harness({ dismissible = true }: { dismissible?: boolean }) {
   const [open, setOpen] = useState(true);
@@ -18,6 +18,34 @@ function Harness({ dismissible = true }: { dismissible?: boolean }) {
 }
 
 describe("dialog dismissal", () => {
+  it("keeps contextual sheets modal and returns keyboard focus to their invoker", async () => {
+    const user = userEvent.setup();
+    render(
+      <Dialog>
+        <DialogTrigger>Edit title</DialogTrigger>
+        <DialogContent mobilePresentation="sheet">
+          <DialogTitle>Conversation title</DialogTitle>
+          <label>
+            Title
+            <input defaultValue="Draft title" />
+          </label>
+        </DialogContent>
+      </Dialog>,
+    );
+    const invoker = screen.getByRole("button", { name: "Edit title" });
+    await user.click(invoker);
+    expect(screen.getByRole("dialog")).toHaveAttribute("data-mobile-presentation", "sheet");
+    expect(screen.getByRole("textbox", { name: "Title" })).toHaveFocus();
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+    expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+    await user.keyboard("{Tab}");
+    expect(screen.getByRole("textbox", { name: "Title" })).toHaveFocus();
+    await user.type(screen.getByRole("textbox"), " changed");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(invoker).toHaveFocus();
+  });
+
   it("also keeps a pending confirmation open", async () => {
     const changed = vi.fn();
     render(
@@ -29,6 +57,7 @@ describe("dialog dismissal", () => {
         onConfirm={vi.fn()}
       />,
     );
+    expect(screen.getByRole("dialog")).toHaveAttribute("data-mobile-presentation", "center");
     expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
     await userEvent.keyboard("{Escape}");

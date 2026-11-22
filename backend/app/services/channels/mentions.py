@@ -114,6 +114,7 @@ _SURFACES: dict[str, RunSurface] = {
     "email": RunSurface.EMAIL,
     "imessage": RunSurface.IMESSAGE,
     "discord": RunSurface.DISCORD,
+    "matrix": RunSurface.MATRIX,
 }
 
 

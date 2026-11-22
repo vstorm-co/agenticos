@@ -34,12 +34,12 @@ export function ErrorState({ title, description, cta, secondaryCta, className }:
       {(cta || secondaryCta) && (
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
           {cta && (
-            <Button variant="outline" type="button" onClick={cta.onClick}>
+            <Button size="sm" variant="outline" type="button" onClick={cta.onClick}>
               {cta.label}
             </Button>
           )}
           {secondaryCta && (
-            <Button variant="default" type="button" onClick={secondaryCta.onClick}>
+            <Button size="sm" variant="default" type="button" onClick={secondaryCta.onClick}>
               {secondaryCta.label}
             </Button>
           )}

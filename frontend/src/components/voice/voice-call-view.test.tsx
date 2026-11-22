@@ -622,3 +622,28 @@ describe("showVoiceApproval", () => {
     expect(() => showVoiceApproval()).not.toThrow();
   });
 });
+
+it("keeps mute and end available on Minimal's subtle call surface", () => {
+  const end = vi.fn();
+  const setMuted = vi.fn();
+  render(
+    <VoiceCallBar
+      pill
+      subtle
+      session={fake(live(), { end, setMuted })}
+      agentName="Support"
+      canDecide
+      onShowApproval={() => {}}
+    />,
+  );
+  expect(screen.getByRole("group", { name: "Voice call" })).toHaveClass(
+    "bg-card",
+    "text-foreground",
+    "rounded-2xl",
+  );
+  expect(screen.getByText("Listening")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Mute" }));
+  expect(setMuted).toHaveBeenCalledWith(true);
+  fireEvent.click(screen.getByRole("button", { name: "End call" }));
+  expect(end).toHaveBeenCalledOnce();
+});

@@ -21,14 +21,14 @@ gets what a run gets where it matters:
 
 import asyncio
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
 import httpx
-from pydantic_ai import Agent
+from pydantic_ai import Agent, RunContext
 from pydantic_ai.exceptions import AgentRunError
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from pydantic_ai.toolsets import AbstractToolset
@@ -193,6 +193,7 @@ class ProactiveThinker:
         started_at: datetime | None = None,
         erased_since: datetime | None = None,
         erased_snapshot: str | None = None,
+        validate_output: Callable[[RunContext[object], OutputT], OutputT] | None = None,
     ) -> OutputT | None:
         """Ask the configured model using platform instructions and role attribution.
 
@@ -272,12 +273,17 @@ class ProactiveThinker:
         try:
             with metered_by(ledger), guarded_by(BudgetGuard(ledger=ledger, limits=limits)):
                 async with run_heartbeat(run.id):
-                    result = await Agent(
+                    agent_runner: Agent[object, OutputT] = Agent(
                         RecordingModel(MeteredModel(request.build()), recorder),
                         output_type=output_type,
                         instructions=instructions,
                         toolsets=toolsets,
-                    ).run(prompt, usage=usage, usage_limits=_WITH_TOOLS if toolsets else _LIMITS)
+                    )
+                    if validate_output is not None:
+                        agent_runner.output_validator(validate_output)
+                    result = await agent_runner.run(
+                        prompt, usage=usage, usage_limits=_WITH_TOOLS if toolsets else _LIMITS
+                    )
         except asyncio.CancelledError:
             status = RunStatus.CANCELLED
             propagating = True

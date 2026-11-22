@@ -1,5 +1,5 @@
 ---
-source_sha: "1297bb7c3062"
+source_sha: "fa596edf1ff5"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -21,7 +21,7 @@ kein Rebuild.
     Es ist dieselbe Autorität, die Nutzer und Tenants bereits über die gesamte
     Installation hinweg verwaltet.
 
-Die Konsole gliedert die Einstellungen in Identität, Zugang und Konten, Mitteilungen, Sprache und Mobilgerät sowie Wartung. Beim Abschnittswechsel bleiben ungespeicherte Änderungen erhalten. Speichern übernimmt die bearbeiteten Felder aller Abschnitte; Änderungen verwerfen stellt deren gespeicherte Werte wieder her. Bilduploads und Zugangsdaten für mobile Push-Benachrichtigungen werden weiterhin separat gespeichert.
+Die Konsole gliedert die Einstellungen in Identität, Zugang und Konten, Mitteilungen und Wartungsmodus, Sprache und Mobilgerät sowie Updates und Diagnose. Jeder Abschnitt hat eine teilbare URL mit `?section=`. Beim Wechsel über einen Abschnittslink bleiben ungespeicherte Änderungen erhalten. Speichern übernimmt die bearbeiteten Felder aller Abschnitte; Änderungen verwerfen stellt deren gespeicherte Werte wieder her. Bilduploads und Zugangsdaten für mobile Push-Benachrichtigungen werden weiterhin separat gespeichert.
 
 ## Identität { #identity }
 

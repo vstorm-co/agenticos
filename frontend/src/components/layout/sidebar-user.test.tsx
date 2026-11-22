@@ -44,6 +44,15 @@ vi.mock("@/stores", () => ({
 }));
 
 describe("SidebarUser", () => {
+  it.each([true, false])("offers administration only for an app admin (%s)", async (admin) => {
+    currentUser.mockReturnValue({ ...OWNER, is_app_admin: admin });
+    render(<SidebarUser />);
+    await userEvent.click(screen.getByRole("button"));
+    const item = screen.queryByRole("menuitem", { name: "adminOverview" });
+    if (admin) expect(item).toHaveAttribute("href", "/admin");
+    else expect(item).not.toBeInTheDocument();
+  });
+
   it("says which account is signed in without being opened", () => {
     // On a platform where the account decides what every request is allowed to
     // do, "who am I" should not cost a click.

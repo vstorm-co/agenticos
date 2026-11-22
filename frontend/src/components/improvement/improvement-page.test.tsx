@@ -29,6 +29,7 @@ const state = vi.hoisted(() => ({
   comparison: null as EvalComparison | null,
   agentLoading: false,
   agentError: null as Error | null,
+  agentRefetch: vi.fn(),
   sessionLoading: false,
   sessionError: null as Error | null,
   authoringLoading: false,
@@ -67,6 +68,7 @@ vi.mock("@/hooks/use-agents", () => ({
   useAgent: () => ({
     isLoading: state.agentLoading,
     error: state.agentError,
+    refetch: state.agentRefetch,
     agent: { id: "a1", name: "Refund desk", can_edit: state.edit, can_publish: state.publish },
   }),
 }));
@@ -615,6 +617,8 @@ it("shows loading, refusal and retry states for actual resource reads", async ()
   state.agentError = new Error("agent unavailable");
   view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
   expect(screen.getByText("agent unavailable")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
+  expect(state.agentRefetch).toHaveBeenCalled();
   state.agentError = null;
   state.sessionLoading = true;
   view.rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
