@@ -84,11 +84,8 @@ async def test_source_routes_use_consistent_response_shapes(wired):
     assert (await client.get(base)).json()["id"] == str(source.id)
     assert (await client.patch(base, json={"is_active": False})).status_code == 200
     assert (await client.get(base + "/usage")).json()["items"] == []
-    assert (await client.post(base + "/listen", json={})).status_code == 422
-    samples.listen.assert_not_awaited()
-    target = {"kind": "agent", "id": str(uuid4())}
-    listener = await client.post(base + "/listen", json=target)
-    assert listener.json()["listener_id"] == "listener-id"
+    assert (await client.post(base + "/listen")).json()["listener_id"] == "listener-id"
+    samples.listen.assert_awaited_once_with(CTX, source.id)
     assert (await client.get(base + "/listen/a-token")).json()["state"] == "expired"
     assert (await client.delete(base)).status_code == 204
     service.delete.assert_awaited_once_with(CTX, source.id)

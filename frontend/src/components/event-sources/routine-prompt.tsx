@@ -28,7 +28,6 @@ export function RoutinePrompt({
   resultMode,
   sourceId,
   agentId,
-  canListen,
   triggerId,
   disabled,
 }: {
@@ -39,7 +38,6 @@ export function RoutinePrompt({
   onModeChange: (mode: "literal" | "template") => void;
   sourceId: string | null;
   agentId: string | null;
-  canListen: boolean;
   triggerId?: string;
   disabled?: boolean;
 }) {
@@ -96,11 +94,10 @@ export function RoutinePrompt({
         rows={8}
         disabled={disabled}
       />
-      {sourceId && agentId && canListen ? (
+      {sourceId ? (
         <LiveSample
-          key={`${sourceId}:${agentId}`}
+          key={sourceId}
           sourceId={sourceId}
-          target={{ kind: "agent", id: agentId }}
           onSample={(next) => {
             setSample(next);
             preview.reset();

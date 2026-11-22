@@ -1,5 +1,5 @@
 ---
-source_sha: "c8cfdeb79aa5"
+source_sha: "8f9679d88ff5"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -127,7 +127,7 @@ Fügen Sie Ihrem Dashboard das Widget **Ereignisquellen** hinzu. Es zeigt, wie v
 
 Öffnen Sie **Ereignisquellen**, oder wählen Sie **Vorhandene auswählen / Neu erstellen** im Webhook-Editor einer Routine oder eines Workflows. Eine Quelle besitzt ihre Live-URL, Zugangsdaten und Provider-Konfiguration. Mehrere Routinen und veröffentlichte Workflow-Einstiege können dieselbe URL abonnieren; Filter, Ausführungsidentität, Berechtigungen, Einwilligungen und Budgets bleiben pro Ziel erhalten.
 
-Quellen sind standardmäßig **Privat**. **Organisation** stellt sie gemäß den Organisationsberechtigungen bereit. Anzeigen, Verwenden und Bearbeiten sind getrennte Berechtigungen. Das Verknüpfen eines Ziels oder das Empfangen eines Beispiels benötigt Quellen-Nutzungsrechte und die Verwaltungsrechte des Ziels. Zugriff auf eine Routine oder einen Workflow erlaubt keinen Zugriff auf andere Ereignisse der Quelle. Worker prüfen Rechte vor der Ausführung erneut.
+Quellen sind standardmäßig **Privat**. **Organisation** gibt eine Quelle gemäß den Organisationsberechtigungen frei. Mit dem Leserecht sehen Sie die Konfiguration. Mit dem Nutzungsrecht können Sie eingehende Ereignisdaten vor der Filterung durch die Abonnenten einsehen, auch ohne Routine oder Workflow. Nur wer den Empfang gestartet hat und die Quelle weiterhin nutzen darf, kann das Beispiel abrufen. Zum Verknüpfen müssen Sie das Ziel auch bearbeiten und ausführen dürfen. Worker prüfen die Rechte vor der Ausführung erneut.
 
 Wählen Sie GitHub, Linear, HubSpot oder Zendesk für die jeweilige Provider-Prüfung, oder **Benutzerdefinierter Webhook** für eine der folgenden Methoden. Die Registrierung bleibt manuell: Kopieren Sie die Quellen-URL in die Provider-Konfiguration.
 
@@ -148,7 +148,7 @@ Eine gemeinsame URL bestätigt den dauerhaften Empfang asynchron und liefert kei
 
 ### Auf der Live-URL auf ein Ereignis warten { #listen-on-the-live-url }
 
-Wählen Sie **Auf Ereignis warten** und senden Sie innerhalb von zwei Minuten ein authentifiziertes Ereignis an die angezeigte Live-URL. Das nächste Ereignis wird in den Editor kopiert, ohne den Versand zu unterbrechen: **aktive Abonnenten werden weiter ausgeführt**. Die Erfassung startet keinen zusätzlichen Lauf. Das Beispiel bleibt zehn Minuten erhalten und unterliegt dem bisherigen 64-KB-Pin-Limit. Fehler, Übergröße oder Ablauf beeinflussen die Live-Verarbeitung nicht.
+Wählen Sie an der Quelle oder im Webhook-Editor **Auf Ereignis warten** und senden Sie innerhalb von zwei Minuten ein authentifiziertes Ereignis an die angezeigte Live-URL. Das nächste Ereignis wird als Beispiel erfasst, ohne den Versand zu unterbrechen: **aktive Abonnenten werden weiter ausgeführt**. Die Erfassung startet keinen zusätzlichen Lauf. Das Beispiel bleibt zehn Minuten erhalten und unterliegt dem bisherigen 64-KB-Pin-Limit. Fehler, Übergröße oder Ablauf beeinflussen die Live-Verarbeitung nicht.
 
 Alternativ können Sie Beispiel-JSON einfügen. Beispiele sind weder zum Speichern einer Routine noch zum Veröffentlichen eines Workflows erforderlich. Workflow-Beispiele verwenden weiterhin `{body, delivery_id}`, Pins, Bindings und Schritttests. Wählen Sie bei mehreren Triggern den gewünschten Webhook-Einstieg; es gibt keine zusätzliche Payload-Transformation. Siehe [Workflows](workflows.md#reusable-webhook-sources).
 

@@ -240,7 +240,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
   });
 
   it.each([AGENT_ID, "run-only"])(
-    "gates live capture on the edited routine's target (%s)",
+    "allows source users to listen regardless of whether they can rebind the routine (%s)",
     async (agentId) => {
       serveSharedSource("webhook");
       render(
@@ -262,16 +262,12 @@ describe("TriggerFormDialog custom-webhook event form", () => {
         ),
       );
       expect(screen.getByText("Or paste example JSON")).toBeVisible();
-      if (agentId === "run-only") {
-        expect(screen.queryByRole("button", { name: "Listen for event" })).toBeNull();
-      } else {
-        vi.mocked(apiClient.post).mockResolvedValue({ listener_id: "token", expires_at: "later" });
-        await userEvent.click(await screen.findByRole("button", { name: "Listen for event" }));
-        expect(apiClient.post).toHaveBeenCalledWith("/event-sources/shared-source/listen", {
-          kind: "agent",
-          id: agentId,
-        });
-      }
+      const picker = screen.getByRole("combobox", { name: "Event source" });
+      if (agentId === "run-only") expect(picker).toBeDisabled();
+      else expect(picker).toBeEnabled();
+      vi.mocked(apiClient.post).mockResolvedValue({ listener_id: "token", expires_at: "later" });
+      await userEvent.click(await screen.findByRole("button", { name: "Listen for event" }));
+      expect(apiClient.post).toHaveBeenCalledWith("/event-sources/shared-source/listen", {});
     },
   );
 

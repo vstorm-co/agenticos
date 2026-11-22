@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.clients.redis import RedisClient
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Scope
 from app.db.locks import LockScope, hold_subject
 from app.db.models.background_job import BackgroundJob
@@ -33,7 +33,6 @@ from app.db.models.workflow_run import WorkflowRun
 from app.schemas.agent_trigger import TriggerCreate
 from app.schemas.event_source import (
     EventSourceCreate,
-    EventSourceTarget,
     SourceAuth,
     SourceCredentials,
 )
@@ -107,42 +106,47 @@ async def _count(db, model):
 
 
 @pytest.mark.security
-async def test_sample_listener_requires_target_management_even_with_source_use(
+async def test_capture_is_granted_by_source_use_and_not_target_edit(
     db: AsyncSession, source_world
 ) -> None:
-    ctx, org, owner, _ = source_world
-    source = await EventSourceService(db).create(
-        ctx, EventSourceCreate(name="Shared", visibility="org")
-    )
-    workflow = await _workflow(db, org=org, owner=owner)
-    target = EventSourceTarget(kind="workflow", id=workflow.id)
+    _, org, _, source = source_world
+    workflow, _ = await _subscribed(db, source_world)
     user = await _user(db)
-    await _member(db, org=org, user=user, role="operator")
-    operator = _ctx(user, org, role="operator")
-    await EventSourceService(db).require_use(operator, source.id)
+    await _member(db, org=org, user=user, role="viewer")
+    viewer = _ctx(user, org, role="viewer")
 
     cache = AsyncMock(spec=RedisClient)
     samples = EventSourceSampleService(db, cache)
-    with pytest.raises(AuthorizationError):
-        await samples.listen(operator, source.id, target)
-    cache.set.assert_not_awaited()
-
-    grant = ResourceGrant(
+    source_use = ResourceGrant(
         organization_id=org.id,
-        resource_type="workflow",
-        resource_id=workflow.id,
+        resource_type="event_source",
+        resource_id=source.id,
         subject_user_id=user.id,
-        level="edit",
+        level="use",
     )
-    db.add(grant)
+    db.add(source_use)
     await db.flush()
-    listener = await samples.listen(operator, source.id, target)
-    cache.get.return_value = target.model_dump_json()
-    await db.delete(grant)
+    listener = await samples.listen(viewer, source.id)
+    stored = {call.args[0]: call.args[1] for call in cache.set.await_args_list}
+    cache.get.side_effect = stored.get
+    assert (await samples.caught(viewer, source.id, listener.listener_id)).state == "listening"
+
+    await db.delete(source_use)
+    db.add(
+        ResourceGrant(
+            organization_id=org.id,
+            resource_type="workflow",
+            resource_id=workflow.id,
+            subject_user_id=user.id,
+            level="edit",
+        )
+    )
     await db.flush()
-    with pytest.raises(AuthorizationError):
-        await samples.caught(operator, source.id, listener.listener_id)
-    cache.get.assert_awaited_once()
+    assert (await WorkflowRegistryService(db).get(viewer, workflow.id)).can_edit
+    with pytest.raises(NotFoundError, match="Event source not found"):
+        await samples.listen(viewer, source.id)
+    with pytest.raises(NotFoundError, match="Event source not found"):
+        await samples.caught(viewer, source.id, listener.listener_id)
 
 
 @pytest.mark.security

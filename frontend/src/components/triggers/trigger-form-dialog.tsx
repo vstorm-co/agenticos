@@ -971,7 +971,6 @@ export function TriggerFormDialog({
                     resultMode={resultMode}
                     sourceId={sourceId}
                     agentId={effectiveAgentId}
-                    canListen={canUseSourceTarget}
                     triggerId={trigger.id}
                     disabled={pending}
                   />
@@ -1327,7 +1326,6 @@ export function TriggerFormDialog({
                 resultMode={resultMode}
                 sourceId={sourceId}
                 agentId={effectiveAgentId}
-                canListen={canUseSourceTarget}
                 disabled={pending}
               />
             ) : (

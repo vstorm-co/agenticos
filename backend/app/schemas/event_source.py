@@ -155,13 +155,6 @@ class SourceUsageList(BaseModel):
     total: int
 
 
-class EventSourceTarget(BaseModel):
-    """The routine's agent or workflow whose editor is requesting a sample."""
-
-    kind: Literal["agent", "workflow"]
-    id: UUID
-
-
 class SourceListening(BaseModel):
     listener_id: str
     expires_at: datetime

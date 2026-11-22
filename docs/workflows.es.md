@@ -1,5 +1,5 @@
 ---
-source_sha: "43619bee5f17"
+source_sha: "3377d104d23f"
 ---
 
 # Workflows { #workflows }
@@ -1082,6 +1082,10 @@ lectura del flujo. Los frames están en [La API HTTP](api.md#following-a-run-ove
 ### Fuentes de webhooks reutilizables { #reusable-webhook-sources }
 
 En un disparador **Webhook**, selecciona una **Fuente de eventos** existente o crea una. Publicar suscribe esa entrada concreta del workflow; las publicaciones posteriores conservan la suscripción cuando no cambian la fuente ni la entrada. La fuente guarda las credenciales fuera de la definición del workflow. Las demás rutinas y workflows reciben los mismos eventos autenticados de forma independiente. [Fuentes de eventos](triggers.md#reusable-event-sources) explica proveedores, autenticación, permisos, pausas y retención.
+
+Puedes sustituir una fuente que ya no tienes permiso para usar por otra que sí puedas usar. La suscripción activa cambia al publicar. Fijar una muestra modifica el borrador del workflow y requiere permiso de edición.
+
+Quien pueda consultar las ejecuciones del workflow puede ver en el historial los datos entregados, aunque la fuente sea privada. Compartir el workflow más adelante puede dar acceso a datos de ejecuciones anteriores, pero no permite escuchar la fuente en vivo.
 
 **Escuchar evento** captura el siguiente evento autenticado en la URL activa configurada. La ventana dura dos minutos; las muestras temporales duran diez minutos y respetan el límite de 64 KB para datos fijados. **Los suscriptores activos siguen ejecutándose.** La captura no crea otra ejecución ni cambia las entregas. Pegar JSON de ejemplo es una alternativa; guardar y publicar nunca requieren una muestra.
 

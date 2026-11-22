@@ -113,7 +113,7 @@ Add the **Event sources** widget to your dashboard to see how many of your visib
 
 Open **Event sources** to create a source, or choose **Select existing / Create new** in a routine or workflow's webhook editor. A source owns its live URL, credentials and provider configuration. Several routines and published workflow entries can subscribe to that URL, each retaining its own filters, execution identity, permissions, consent and budgets.
 
-Sources default to **Private**. Choose **Organization** to make one available according to organization permissions. Source view, use and edit are separate permissions: attaching a target or listening for an event requires source-use access as well as the target's management permissions. Seeing a routine or workflow does not grant access to unrelated events from its source. Workers recheck access before executing queued work.
+Sources default to **Private**. Choose **Organization** to share a source according to organization permissions. **View** shows its configuration. **Use** lets you listen to incoming payloads before subscriber filters are applied, even without a routine or workflow. Only the member who started a listener can read its sample, and they must still have Use access. Attaching the source also requires edit and run access to the target. Workers recheck access before executing queued work.
 
 Choose GitHub, Linear, HubSpot or Zendesk for provider verification, or **Custom webhook** for one of these methods. Provider registration remains manual: copy the source URL into the provider's configuration.
 
@@ -134,7 +134,7 @@ A shared URL acknowledges durable receipt asynchronously; it cannot return a wor
 
 ### Listen on the live URL { #listen-on-the-live-url }
 
-Choose **Listen for event**, then send an authenticated event to the displayed live source URL within two minutes. The next event is copied into the editor without interrupting dispatch: **active subscribers still execute**. Capture does not start an additional run. A sample is retained for ten minutes and bounded by the existing 64 KB pin limit; capture failure, oversize or expiry does not change live processing.
+On the source or in the webhook editor, choose **Listen for event**, then send an authenticated event to the displayed live source URL within two minutes. The listener receives the next event without interrupting dispatch: **active subscribers still execute**. Capture does not start an additional run. A sample is retained for ten minutes and bounded by the existing 64 KB pin limit; capture failure, oversize or expiry does not change live processing.
 
 You can paste example JSON instead. Neither a live nor a pasted sample is required to save a routine or publish a workflow. A workflow sample uses its existing `{body, delivery_id}` output shape, pinning, bindings and step tests. Choose the intended Webhook entry when a workflow has several triggers; no payload transformation is added. See [Workflows](workflows.md#reusable-webhook-sources).
 

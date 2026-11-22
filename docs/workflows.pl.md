@@ -1,5 +1,5 @@
 ---
-source_sha: "43619bee5f17"
+source_sha: "3377d104d23f"
 ---
 
 # Workflows { #workflows }
@@ -1051,6 +1051,10 @@ ramką i każdym odczytem strumienia. Ramki opisuje [HTTP API](api.md#following-
 ### Źródła webhooków wielokrotnego użytku { #reusable-webhook-sources }
 
 W wyzwalaczu **Webhook** wybierz istniejące **Źródło zdarzeń** lub utwórz nowe. Publikacja subskrybuje konkretne wejście workflow; kolejne publikacje zachowują subskrypcję, gdy źródło i wejście się nie zmieniają. Poświadczenia pozostają w źródle, poza definicją workflow. Pozostałe rutyny i workflow otrzymują te same uwierzytelnione zdarzenia niezależnie. [Źródła zdarzeń](triggers.md#reusable-event-sources) opisują dostawców, uwierzytelnianie, uprawnienia, pauzowanie i retencję.
+
+Źródło, do którego nie masz już prawa używania, możesz zastąpić innym, którego wolno Ci używać. Aktywna subskrypcja zmienia się po publikacji. Przypięcie próbki zmienia wersję roboczą workflow i wymaga prawa do edycji.
+
+Każdy, kto ma wgląd w wykonania workflow, może zobaczyć w historii dostarczone dane, nawet jeśli źródło jest prywatne. Późniejsze udostępnienie workflow może ujawnić dane z wcześniejszych wykonań. Nie daje ono prawa do nasłuchiwania źródła na żywo.
 
 **Nasłuchuj zdarzenia** przechwytuje następne uwierzytelnione zdarzenie z aktywnego URL źródła. Okno trwa dwie minuty; tymczasowe przykłady pozostają przez dziesięć minut i podlegają limitowi przypięcia 64 KB. **Aktywni subskrybenci nadal się wykonują.** Przechwycenie nie tworzy dodatkowego wykonania ani nie zmienia dostaw. Można zamiast tego wkleić przykład JSON; zapis i publikacja nie wymagają próbki.
 

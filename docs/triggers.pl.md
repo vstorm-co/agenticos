@@ -1,5 +1,5 @@
 ---
-source_sha: "c8cfdeb79aa5"
+source_sha: "8f9679d88ff5"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -121,7 +121,7 @@ Dodaj widżet **Źródła zdarzeń** do pulpitu, aby sprawdzić, ile widocznych 
 
 Otwórz **Źródła zdarzeń** albo wybierz **Wybierz istniejące / Utwórz nowe** w edytorze webhooka rutyny lub workflow. Źródło przechowuje swój adres URL, poświadczenia i konfigurację dostawcy. Wiele rutyn i opublikowanych wejść workflow może subskrybować ten sam URL, zachowując własne filtry, tożsamość wykonania, uprawnienia, zgody i budżety.
 
-Domyślna widoczność to **Prywatne**. **Organizacja** udostępnia źródło zgodnie z uprawnieniami organizacji. Wyświetlanie, używanie i edycja to osobne uprawnienia. Podłączenie celu lub nasłuchiwanie wymaga prawa używania źródła i zarządzania celem. Dostęp do rutyny lub workflow nie daje dostępu do innych zdarzeń źródła. Worker sprawdza uprawnienia ponownie przed wykonaniem.
+Domyślna widoczność to **Prywatne**. **Organizacja** udostępnia źródło zgodnie z uprawnieniami organizacji. Prawo wyświetlania pozwala zobaczyć konfigurację. Prawo używania pozwala nasłuchiwać przychodzących danych przed zastosowaniem filtrów subskrybentów, nawet bez rutyny lub workflow. Próbkę może odczytać tylko osoba, która rozpoczęła nasłuchiwanie i nadal ma prawo używać źródła. Podłączenie źródła wymaga również prawa do edycji i uruchamiania celu. Worker ponownie sprawdza uprawnienia przed wykonaniem zadania.
 
 Wybierz GitHub, Linear, HubSpot lub Zendesk do weryfikacji właściwej dla dostawcy albo **Niestandardowy webhook** z jedną z poniższych metod. Rejestracja pozostaje ręczna: skopiuj URL źródła do konfiguracji dostawcy.
 
@@ -142,7 +142,7 @@ Wspólny URL asynchronicznie potwierdza trwały odbiór i nie zwraca własnej od
 
 ### Nasłuchiwanie na aktywnym URL { #listen-on-the-live-url }
 
-Wybierz **Nasłuchuj zdarzenia** i w ciągu dwóch minut wyślij uwierzytelnione zdarzenie na pokazany aktywny URL. Następne zdarzenie zostanie skopiowane do edytora bez zatrzymywania dostaw: **aktywni subskrybenci nadal się wykonują**. Przechwycenie nie uruchamia dodatkowego wykonania. Przykład jest przechowywany przez dziesięć minut i ograniczony dotychczasowym limitem przypięcia 64 KB. Błąd, zbyt duży przykład lub wygaśnięcie nie zmieniają obsługi zdarzeń na żywo.
+W źródle lub edytorze webhooka wybierz **Nasłuchuj zdarzenia** i w ciągu dwóch minut wyślij uwierzytelnione zdarzenie na pokazany aktywny URL. Nasłuch zwróci następne zdarzenie bez zatrzymywania dostaw: **aktywni subskrybenci nadal się wykonują**. Przechwycenie nie uruchamia dodatkowego wykonania. Przykład jest przechowywany przez dziesięć minut i ograniczony dotychczasowym limitem przypięcia 64 KB. Błąd, zbyt duży przykład lub wygaśnięcie nie zmieniają obsługi zdarzeń na żywo.
 
 Możesz też wkleić przykładowy JSON. Przykład nie jest wymagany do zapisania rutyny ani opublikowania workflow. Próbka workflow zachowuje `{body, delivery_id}`, przypięcia, powiązania i testy kroków. Gdy workflow ma kilka wyzwalaczy, wybierz właściwe wejście Webhook; nie dodano warstwy przekształcania payloadu. Zobacz [Workflow](workflows.md#reusable-webhook-sources).
 

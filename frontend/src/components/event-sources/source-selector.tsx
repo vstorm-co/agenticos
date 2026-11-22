@@ -63,6 +63,11 @@ export function SourceSelector({
             <SelectItem value="dedicated" disabled={!allowDedicated}>
               {allowDedicated ? t("dedicated") : t("chooseSource")}
             </SelectItem>
+            {value && !selected && !sources.isLoading && (
+              <SelectItem value={value} disabled>
+                {t("sourceUnavailable")}
+              </SelectItem>
+            )}
             {available
               ?.filter((source) => source.can_use || source.id === value)
               .map((source) => (

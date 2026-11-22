@@ -1,6 +1,6 @@
 "use client";
 
-import { Ellipsis, KeyRound, Pause, Pencil, Play, Trash2, Webhook } from "lucide-react";
+import { Ellipsis, KeyRound, Pause, Pencil, Play, Radio, Trash2, Webhook } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState, type ReactNode } from "react";
 import { CopyButton } from "@/components/chat/copy-button";
@@ -16,6 +16,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -26,10 +27,11 @@ import {
 } from "@/components/ui";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { useEventSourceUsage, useEventSourceWrites } from "@/hooks/use-event-sources";
-import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM, DIALOG_FORM } from "@/lib/dialog-sizes";
 import type { EventSource, SourceCredentials } from "@/lib/event-sources-api";
 import { cn } from "@/lib/utils";
 import { SourceCredentialsFields } from "./source-form";
+import { LiveSample } from "./live-sample";
 
 export function SourceTable({
   rows,
@@ -117,9 +119,34 @@ export function SourceTable({
       key: "actions",
       header: <span className="sr-only">{t("actions")}</span>,
       align: "right",
-      className: "px-2 sm:px-2 @md/table:w-32 @max-md/table:w-full",
-      cell: (source) =>
-        source.can_edit && <SourceActions source={source} onEdit={() => onEdit(source)} />,
+      className: "px-2 sm:px-2 @md/table:w-40 @max-md/table:w-full",
+      cell: (source) => (
+        <div className="flex items-center justify-end gap-1">
+          {source.can_use && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t("listenTo", { name: source.name })}
+                  title={t("listen")}
+                >
+                  <Radio className="size-4" aria-hidden />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
+                <DialogHeader>
+                  <DialogTitle>{t("listenTo", { name: source.name })}</DialogTitle>
+                </DialogHeader>
+                <div className={DIALOG_BODY}>
+                  <LiveSample sourceId={source.id} />
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+          {source.can_edit && <SourceActions source={source} onEdit={() => onEdit(source)} />}
+        </div>
+      ),
     },
   ];
   return (

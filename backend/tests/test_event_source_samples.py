@@ -12,12 +12,10 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 from app.clients.redis import RedisClient
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.schemas.event_source import EventSourceTarget
 from app.services.event_source_samples import EventSourceSampleService, capture_source_sample
 from app.services.event_sources import EventSourceService
 
 pytestmark = pytest.mark.anyio
-_TARGET = EventSourceTarget(kind="agent", id=uuid4())
 
 
 @pytest.fixture
@@ -59,12 +57,6 @@ def cache():
     return client, values
 
 
-@pytest.fixture(autouse=True)
-def target_access():
-    with patch.object(EventSourceService, "require_target", AsyncMock()) as mocked:
-        yield mocked
-
-
 @pytest.fixture
 def access():
     with patch.object(EventSourceService, "require_use", AsyncMock()) as mocked:
@@ -75,8 +67,8 @@ async def test_multiple_editors_capture_same_next_event_without_extra_runs(ctx, 
     redis, _ = cache
     service = EventSourceSampleService(AsyncMock(), redis)
     source_id = uuid4()
-    first = await service.listen(ctx, source_id, _TARGET)
-    second = await service.listen(ctx, source_id, _TARGET)
+    first = await service.listen(ctx, source_id)
+    second = await service.listen(ctx, source_id)
     await capture_source_sample(
         redis,
         source_id,
@@ -107,7 +99,7 @@ async def test_listening_expiry_does_not_turn_into_a_capture(ctx, cache, access)
     redis, values = cache
     service = EventSourceSampleService(AsyncMock(), redis)
     source_id = uuid4()
-    listener = await service.listen(ctx, source_id, _TARGET)
+    listener = await service.listen(ctx, source_id)
     assert (await service.caught(ctx, source_id, listener.listener_id)).state == "listening"
     values.pop(f"source:listener:{listener.listener_id}:state")
     await capture_source_sample(
@@ -120,9 +112,9 @@ async def test_delivery_received_before_a_listener_opened_leaves_it_listening(ct
     redis, _ = cache
     service = EventSourceSampleService(AsyncMock(), redis)
     source_id = uuid4()
-    earlier = await service.listen(ctx, source_id, _TARGET)
+    earlier = await service.listen(ctx, source_id)
     received_at = datetime.now(UTC)
-    later = await service.listen(ctx, source_id, _TARGET)
+    later = await service.listen(ctx, source_id)
     await capture_source_sample(
         redis, source_id, body={}, delivery_id="previous", received_at=received_at
     )
@@ -139,14 +131,14 @@ async def test_poll_overlapping_capture_never_reports_expired(ctx, cache, access
     redis, _ = cache
     service = EventSourceSampleService(AsyncMock(), redis)
     source_id = uuid4()
-    token = (await service.listen(ctx, source_id, _TARGET)).listener_id
+    token = (await service.listen(ctx, source_id)).listener_id
     get = redis.get.side_effect
     observed = anyio.Event()
     captured = anyio.Event()
 
     async def pause_poll_after_state_read(key):
         value = await get(key)
-        if key.startswith(f"source:listener:{token}:") and key.endswith(":state"):
+        if key.startswith(f"source:listener:{token}:") and not key.endswith(":owner"):
             observed.set()
             await captured.wait()
         return value
@@ -170,7 +162,7 @@ async def test_compact_array_that_fits_a_pin_is_available_as_a_live_sample(ctx, 
     redis, _ = cache
     service = EventSourceSampleService(AsyncMock(), redis)
     source_id = uuid4()
-    token = (await service.listen(ctx, source_id, _TARGET)).listener_id
+    token = (await service.listen(ctx, source_id)).listener_id
     body = {"values": [0] * 22_000}
     await capture_source_sample(
         redis, source_id, body=body, delivery_id="array", received_at=datetime.now(UTC)
@@ -181,13 +173,23 @@ async def test_compact_array_that_fits_a_pin_is_available_as_a_live_sample(ctx, 
 
 
 @pytest.mark.security
-async def test_capture_cannot_be_read_by_another_member_even_with_source_access(ctx, cache, access):
+@pytest.mark.parametrize("mismatch", ["member", "organization", "source"])
+async def test_capture_is_bound_to_the_member_organization_and_source(ctx, cache, access, mismatch):
     redis, _ = cache
     service = EventSourceSampleService(AsyncMock(), redis)
     source_id = uuid4()
-    listener = await service.listen(ctx, source_id, _TARGET)
+    listener = await service.listen(ctx, source_id)
+    await capture_source_sample(
+        redis, source_id, body={"private": True}, delivery_id="one", received_at=datetime.now(UTC)
+    )
+    if mismatch == "member":
+        ctx = replace(ctx, user_id=uuid4())
+    elif mismatch == "organization":
+        ctx = replace(ctx, organization_id=uuid4())
+    else:
+        source_id = uuid4()
     with pytest.raises(NotFoundError):
-        await service.caught(replace(ctx, user_id=uuid4()), source_id, listener.listener_id)
+        await service.caught(ctx, source_id, listener.listener_id)
 
 
 @pytest.mark.security
@@ -195,36 +197,17 @@ async def test_revoked_source_use_blocks_polling_existing_sample(ctx, cache, acc
     redis, _ = cache
     service = EventSourceSampleService(AsyncMock(), redis)
     source_id = uuid4()
-    listener = await service.listen(ctx, source_id, _TARGET)
+    listener = await service.listen(ctx, source_id)
     access.side_effect = NotFoundError()
     with pytest.raises(NotFoundError):
         await service.caught(ctx, source_id, listener.listener_id)
-
-
-@pytest.mark.security
-async def test_sample_requires_target_authority_at_listen_and_poll(
-    ctx, cache, access, target_access
-):
-    redis, values = cache
-    service = EventSourceSampleService(AsyncMock(), redis)
-    source_id = uuid4()
-    target_access.side_effect = NotFoundError()
-    with pytest.raises(NotFoundError):
-        await service.listen(ctx, source_id, _TARGET)
-    assert not values
-    target_access.side_effect = None
-    listener = await service.listen(ctx, source_id, _TARGET)
-    target_access.side_effect = NotFoundError()
-    with pytest.raises(NotFoundError):
-        await service.caught(ctx, source_id, listener.listener_id)
-    target_access.assert_awaited_with(ctx, _TARGET)
 
 
 async def test_large_capture_is_visible_and_never_stores_payload(ctx, cache, access):
     redis, values = cache
     service = EventSourceSampleService(AsyncMock(), redis)
     source_id = uuid4()
-    listener = await service.listen(ctx, source_id, _TARGET)
+    listener = await service.listen(ctx, source_id)
     await capture_source_sample(
         redis,
         source_id,
@@ -257,7 +240,7 @@ async def test_expired_listener_registry_does_not_capture_later_delivery(ctx, ca
     redis, values = cache
     service = EventSourceSampleService(AsyncMock(), redis)
     source_id = uuid4()
-    listener = await service.listen(ctx, source_id, _TARGET)
+    listener = await service.listen(ctx, source_id)
     values[f"source:listeners:{source_id}"] = '{"' + listener.listener_id + '":"0"}'
     await capture_source_sample(
         redis, source_id, body={}, delivery_id="later", received_at=datetime.now(UTC)

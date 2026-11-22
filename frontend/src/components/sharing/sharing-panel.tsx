@@ -77,6 +77,7 @@ const RUNTIME_NOTE: Partial<Record<SharingResourceType, string>> = {
   secret: "secretRuntimeNote",
   collection: "collectionRuntimeNote",
   workflow: "workflowRuntimeNote",
+  event_source: "eventSourceRuntimeNote",
 };
 
 /**
@@ -159,6 +160,10 @@ export function SharingPanel({
   const groupCandidates = groups.filter((group) => !shared.has(group.id));
   const owner = members.find((member) => member.user_id === sharing.owner_user_id);
   const runtimeNote = RUNTIME_NOTE[resourceType];
+  const payloadNotice = resourceType === "workflow" || resourceType === "event_source";
+  const audienceNotice = runtimeNote && (
+    <p className="text-muted-foreground text-xs">{t(runtimeNote)}</p>
+  );
   const options = [...VISIBILITY_OPTIONS, ...(sharing.visibility === "team" ? [LEGACY_TEAM] : [])];
   const current = options.find((option) => option.value === sharing.visibility) ?? options[0]!;
   const AccessIcon = sharing.visibility === "private" ? Lock : Building2;
@@ -166,6 +171,7 @@ export function SharingPanel({
   return (
     <div className="space-y-5">
       {readFailure}
+      {payloadNotice && audienceNotice}
       {canManage && (
         <AddShare
           resourceType={resourceType}
@@ -254,7 +260,7 @@ export function SharingPanel({
         </div>
       </section>
 
-      {runtimeNote && <p className="text-muted-foreground text-xs">{t(runtimeNote)}</p>}
+      {!payloadNotice && audienceNotice}
     </div>
   );
 }

@@ -1307,14 +1307,17 @@ function NodeFields({
 
   if (definition.id === "trigger.webhook") {
     return (
-      <SourceSelector
-        value={typeof node.config.source_id === "string" ? node.config.source_id : null}
-        allowDedicated
-        disabled={disabled}
-        onChange={(source) =>
-          updateNodeConfig(node.id, { ...node.config, source_id: source?.id ?? null })
-        }
-      />
+      <div className="space-y-3">
+        <p className="text-muted-foreground text-sm">{t("webhookSourceAudience")}</p>
+        <SourceSelector
+          value={typeof node.config.source_id === "string" ? node.config.source_id : null}
+          allowDedicated
+          disabled={disabled}
+          onChange={(source) =>
+            updateNodeConfig(node.id, { ...node.config, source_id: source?.id ?? null })
+          }
+        />
+      </div>
     );
   }
   if (definition.id === SCHEDULE_TRIGGER) {

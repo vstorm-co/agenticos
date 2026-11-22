@@ -1,5 +1,5 @@
 ---
-source_sha: "43619bee5f17"
+source_sha: "3377d104d23f"
 ---
 
 # Workflows { #workflows }
@@ -1143,6 +1143,10 @@ Streams erneut. Die Frames stehen in [Die HTTP-API](api.md#following-a-run-over-
 ### Wiederverwendbare Webhook-Quellen { #reusable-webhook-sources }
 
 Wählen Sie im **Webhook**-Trigger eine vorhandene **Ereignisquelle** oder erstellen Sie eine. Veröffentlichen abonniert diesen Workflow-Einstieg; bei unveränderter Quelle und unverändertem Einstieg bleibt das Abonnement bestehen. Die Quelle verwahrt Zugangsdaten außerhalb der Workflow-Definition. Andere verbundene Routinen und Workflows empfangen dieselben authentifizierten Ereignisse unabhängig. [Ereignisquellen](triggers.md#reusable-event-sources) erklärt Provider, Authentifizierung, Rechte, Pausen und Aufbewahrung.
+
+Sie können eine Quelle, die Sie nicht mehr nutzen dürfen, durch eine für Sie nutzbare Quelle ersetzen. Das aktive Abonnement ändert sich erst beim Veröffentlichen. Um ein Beispiel im Workflow-Entwurf anzuheften, benötigen Sie Bearbeitungsrechte.
+
+Wer die Läufe dieses Workflows einsehen darf, kann im Verlauf auch die zugestellten Ereignisdaten sehen, selbst wenn die Quelle privat ist. Eine spätere Freigabe des Workflows kann Daten aus früheren Läufen sichtbar machen. Sie gewährt kein Recht, neue Ereignisse direkt von der Quelle zu empfangen.
 
 **Auf Ereignis warten** erfasst das nächste authentifizierte Ereignis an der konfigurierten Live-URL. Das Fenster dauert zwei Minuten; temporäre Beispiele bleiben zehn Minuten und unterliegen dem 64-KB-Pin-Limit. **Aktive Abonnenten werden weiter ausgeführt.** Die Erfassung erzeugt keinen zusätzlichen Lauf und ändert die Zustellung nicht. Eingefügtes Beispiel-JSON ist eine Alternative; Speichern und Veröffentlichen benötigen kein Beispiel.
 

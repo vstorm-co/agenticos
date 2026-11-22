@@ -29,6 +29,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.api import deps
+from app.clients.redis import RedisClient
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -41,9 +42,10 @@ from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.background_job import BackgroundJob
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.conversation import Conversation, Message
+from app.db.models.event_source import EventDispatch, EventSubscription
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
-from app.db.models.resource_grant import Visibility
+from app.db.models.resource_grant import ResourceGrant, Visibility
 from app.db.models.user import User
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_exposure import WorkflowExposure, WorkflowWebhookDelivery
@@ -58,7 +60,13 @@ from app.main import app
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.conversation import MessageRead
-from app.schemas.workflow import WorkflowPublish, WorkflowPublished, WorkflowSettings
+from app.schemas.event_source import EventSourceCreate
+from app.schemas.workflow import (
+    WorkflowDraftUpdate,
+    WorkflowPublish,
+    WorkflowPublished,
+    WorkflowSettings,
+)
 from app.schemas.workflow_exposure import (
     WebhookAdmitted,
     WebhookAnswer,
@@ -68,6 +76,8 @@ from app.schemas.workflow_exposure import (
 )
 from app.services.api_key import ApiKeyService
 from app.services.channels.base import IncomingMessage
+from app.services.event_source_samples import EventSourceSampleService
+from app.services.event_sources import EventSourceService
 from app.services.portals import (
     PolledEvent,
     RegisteredWebhook,
@@ -81,6 +91,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowInlineStorageLimitError,
     WorkflowRunInputInvalidError,
     WorkflowRunInputTooLargeError,
+    WorkflowRunNotFoundError,
     WorkflowTriggerMismatchError,
     WorkflowWebhookUnansweredError,
 )
@@ -362,6 +373,138 @@ class TestMultipleEntries:
 
 
 class TestPublishingSwitchesItOn:
+    @pytest.mark.security
+    async def test_editor_can_replace_an_inaccessible_source_only_with_one_they_can_use(
+        self, db, tenant
+    ):
+        from app.workflows.graph.errors import GraphValidationError
+
+        owner, org, workflow = tenant
+        owner_ctx = _ctx(owner, org)
+        member = await _user(db)
+        await _member(db, org=org, user=member, role="member")
+        editor = _ctx(member, org, "member")
+        db.add(
+            ResourceGrant(
+                organization_id=org.id,
+                resource_type="workflow",
+                resource_id=workflow.id,
+                subject_user_id=member.id,
+                level="edit",
+            )
+        )
+        await db.flush()
+        sources = EventSourceService(db)
+        original = await sources.create(owner_ctx, EventSourceCreate(name="Original"))
+        forbidden = await sources.create(owner_ctx, EventSourceCreate(name="Not shared"))
+        replacement = await sources.create(editor, EventSourceCreate(name="Mine"))
+        graph = _graph("trigger.webhook", {"source_id": str(original.id)})
+        first = await _publish(db, owner_ctx, workflow, graph)
+        assert first.exposure is not None
+        registry = WorkflowRegistryService(db)
+        draft = await registry.get(editor, workflow.id)
+        editor_graph = draft.draft_graph
+        assert draft.can_edit and editor_graph is not None
+        cache = AsyncMock(spec=RedisClient)
+        with pytest.raises(NotFoundError):
+            await EventSourceSampleService(db, cache).listen(editor, original.id)
+        cache.set.assert_not_awaited()
+
+        async def save_source(source_id: uuid.UUID, revision: int) -> int:
+            edited = editor_graph.model_dump(mode="json")
+            edited["nodes"][0]["config"] = {"source_id": str(source_id)}
+            saved = await registry.update_draft(
+                editor, workflow.id, WorkflowDraftUpdate(graph=edited, expected_revision=revision)
+            )
+            return saved.draft_revision
+
+        revision = await save_source(forbidden.id, draft.draft_revision)
+        with pytest.raises(GraphValidationError) as refused:
+            await registry.publish(editor, workflow.id, WorkflowPublish(expected_revision=revision))
+        assert f"nodes.{graph.entry_node_id}.config.source_id" in str(refused.value.details)
+        binding = select(EventSubscription.source_id).where(
+            EventSubscription.exposure_id == first.exposure.id
+        )
+        assert await db.scalar(binding) == original.id
+        assert workflow.current_version_id == first.id
+
+        revision = await save_source(replacement.id, revision)
+        second = await registry.publish(
+            editor, workflow.id, WorkflowPublish(expected_revision=revision)
+        )
+        assert second.exposure is not None and second.exposure.id == first.exposure.id
+        assert second.exposure.execution_principal_user_id == member.id
+        assert second.exposure.source_id == replacement.id
+        assert await db.scalar(binding) == replacement.id
+
+    @pytest.mark.security
+    async def test_source_and_workflow_grants_keep_live_events_separate_from_run_history(
+        self, db, engine, tenant
+    ):
+        owner, org, workflow = tenant
+        workflow.visibility = Visibility.PRIVATE.value
+        member = await _user(db)
+        await _member(db, org=org, user=member, role="member")
+        source_owner = _ctx(member, org, "member")
+        sources = EventSourceService(db)
+        source = await sources.create(source_owner, EventSourceCreate(name="Operations events"))
+        assert source.can_use and source.can_edit and source.reveal_secret is not None
+        graph = _graph("trigger.webhook", {"source_id": str(source.id)})
+        await _publish(db, _ctx(owner, org), workflow, graph)
+        body = b'{"report":"received"}'
+        _, receipt, admitted = await sources.receive(
+            source.id, body=body, headers=_signed(source.reveal_secret, body)
+        )
+        assert admitted
+        dispatch_id = await db.scalar(
+            select(EventDispatch.id).where(EventDispatch.delivery_id == receipt.id)
+        )
+        assert dispatch_id is not None
+        await sources.dispatch(org.id, dispatch_id)
+        (run,) = await _runs(db)
+        assert run.workflow_id == workflow.id
+        (usage,) = (await sources.usage(source_owner, source.id)).items
+        assert usage.kind == "workflow" and usage.target_id is None
+        with pytest.raises(NotFoundError):
+            await WorkflowRegistryService(db).get(source_owner, workflow.id)
+        runs = WorkflowExecutionService(db)
+        with pytest.raises(WorkflowRunNotFoundError):
+            await runs.get(source_owner, run.id)
+        assert (await runs.list(source_owner)).items == []
+
+        await db.commit()
+        await drive(
+            SeededRun(
+                run=run,
+                graph=graph,
+                principal=owner,
+                org=org,
+                factory=async_sessionmaker(engine, expire_on_commit=False),
+            )
+        )
+        viewer = await _user(db)
+        await _member(db, org=org, user=viewer, role="viewer")
+        viewer_ctx = _ctx(viewer, org, "viewer")
+        with pytest.raises(WorkflowRunNotFoundError):
+            await runs.node_runs(viewer_ctx, run.id)
+        db.add(
+            ResourceGrant(
+                organization_id=org.id,
+                resource_type="workflow",
+                resource_id=workflow.id,
+                subject_user_id=viewer.id,
+                level="read",
+            )
+        )
+        await db.flush()
+        assert (await runs.get(viewer_ctx, run.id)).id == run.id
+        (step,) = (await runs.node_runs(viewer_ctx, run.id)).items
+        assert step.output == {"body": {"report": "received"}, "delivery_id": "d-1"}
+        cache = AsyncMock(spec=RedisClient)
+        with pytest.raises(NotFoundError):
+            await EventSourceSampleService(db, cache).listen(viewer_ctx, source.id)
+        cache.set.assert_not_awaited()
+
     @pytest.mark.security
     async def test_a_webhook_reveals_its_secret_once_and_says_where_to_deliver(self, db, tenant):
         owner, org, workflow = tenant

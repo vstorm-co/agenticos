@@ -5,18 +5,17 @@ import { useTranslations } from "next-intl";
 import { Button, Label, Spinner, Textarea } from "@/components/ui";
 import { CopyableValue } from "@/components/workflows/triggers/copyable-value";
 import { useEventSource, useSourceListener } from "@/hooks/use-event-sources";
-import type { EventSample, SourceListenerTarget } from "@/lib/event-sources-api";
+import type { EventSample } from "@/lib/event-sources-api";
 import { MAX_PINNED_BYTES, jsonBytes } from "@/lib/workflows/step-data";
 
 /** Live capture never changes subscriber dispatch; pasted examples never make deliveries. */
 export function LiveSample({
   sourceId,
-  target,
   onSample,
 }: {
   sourceId: string;
-  target: SourceListenerTarget;
-  onSample: (sample: EventSample) => void;
+  /** Editors consume the result. Without an editor, display it here for inspection only. */
+  onSample?: (sample: EventSample) => void;
 }) {
   const t = useTranslations("eventSources");
   const source = useEventSource(sourceId);
@@ -24,9 +23,10 @@ export function LiveSample({
   const [token, setToken] = useState<string | null>(null);
   const { listen, capture } = useSourceListener(sourceId, usableSource ? token : null);
   const consumed = useRef<string | null>(null);
-  const caught = capture.data?.state === "caught" ? capture.data.delivery : undefined;
+  const caught =
+    !capture.error && capture.data?.state === "caught" ? capture.data.delivery : undefined;
   useEffect(() => {
-    if (caught && token !== consumed.current) {
+    if (caught && onSample && token !== consumed.current) {
       consumed.current = token;
       onSample(caught);
     }
@@ -53,7 +53,7 @@ export function LiveSample({
             variant="outline"
             disabled={listen.isPending || waiting}
             onClick={() =>
-              listen.mutate(target, { onSuccess: (result) => setToken(result.listener_id) })
+              listen.mutate(undefined, { onSuccess: (result) => setToken(result.listener_id) })
             }
           >
             {waiting && <Spinner className="size-3.5" />}
@@ -80,11 +80,18 @@ export function LiveSample({
         </p>
       )}
       {caught && (
-        <p role="status" className="text-sm">
-          {t("caught")}
-        </p>
+        <>
+          <p role="status" className="text-sm">
+            {t("caught")}
+          </p>
+          {!onSample && (
+            <pre className="bg-muted max-h-80 overflow-auto rounded-md p-3 text-xs">
+              {JSON.stringify(caught, null, 2)}
+            </pre>
+          )}
+        </>
       )}
-      <PasteSample onSample={onSample} />
+      {onSample && <PasteSample onSample={onSample} />}
     </div>
   );
 }

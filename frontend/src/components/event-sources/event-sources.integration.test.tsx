@@ -109,6 +109,9 @@ it("binds and detaches a reusable source in the workflow webhook form", async ()
 
   render(<WebhookForm />, { wrapper });
   const picker = screen.getByRole("combobox", { name: "Event source" });
+  const warning = screen.getByText(/Anyone who can view this workflow’s runs/);
+  expect(warning).toHaveTextContent(/past runs/);
+  expect(warning).toHaveTextContent(/does not grant access to the source/);
   await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/event-sources"));
   await waitFor(() => expect(picker).toBeEnabled());
   await user.click(picker);
@@ -137,9 +140,26 @@ describe("event source management", () => {
     expect(await screen.findByText("Issues")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Create new source" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit Issues" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Listen to Issues" })).toBeNull();
     expect(
       screen.queryByRole("button", { name: "More actions for Issues" }),
     ).not.toBeInTheDocument();
+  });
+  it("lets a source user inspect one delivery without a target or editing the source", async () => {
+    permissions = ["event_sources:view"];
+    items = [{ ...source, can_edit: false, can_use: true }];
+    vi.mocked(apiClient.post).mockResolvedValue({ listener_id: "token", expires_at: "later" });
+    render(<SourceManager />, { wrapper });
+    await userEvent.click(await screen.findByRole("button", { name: "Listen to Issues" }));
+    const inspector = within(screen.getByRole("dialog", { name: "Listen to Issues" }));
+    expect(screen.queryByRole("button", { name: "Edit Issues" })).toBeNull();
+    expect(inspector.queryByText("Or paste example JSON")).toBeNull();
+    await userEvent.click(await inspector.findByRole("button", { name: "Listen for event" }));
+    expect(await inspector.findByText(/"title": "Broken"/)).toHaveTextContent(
+      /"delivery_id": "d1"/,
+    );
+    expect(apiClient.post).toHaveBeenCalledExactlyOnceWith("/event-sources/s1/listen", {});
+    expect(apiClient.patch).not.toHaveBeenCalled();
   });
   it("keeps the current source visible after use permission is revoked", async () => {
     permissions = ["event_sources:view"];
@@ -150,6 +170,19 @@ describe("event source management", () => {
     await userEvent.click(screen.getByRole("combobox", { name: "Event source" }));
     expect(screen.getByRole("option", { name: "Issues" })).toHaveAttribute("aria-disabled", "true");
     expect(onChange).not.toHaveBeenCalled();
+  });
+  it("allows an editor to replace an inaccessible binding with a reachable source", async () => {
+    const onChange = vi.fn();
+    render(<SourceSelector value="unreachable" onChange={onChange} />, { wrapper });
+    const picker = screen.getByRole("combobox", { name: "Event source" });
+    await waitFor(() => expect(picker).toHaveTextContent("Current source (unavailable)"));
+    await userEvent.click(picker);
+    expect(screen.getByRole("option", { name: "Current source (unavailable)" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    await userEvent.click(await screen.findByRole("option", { name: "Issues" }));
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(source);
   });
 
   it("leaves the dedicated option available without requesting the source catalog", async () => {
@@ -423,8 +456,7 @@ describe("editor samples", () => {
       expires_at: "later",
     });
     const onSample = vi.fn();
-    const target = { kind: "workflow", id: "w1" } as const;
-    render(<LiveSample sourceId="s1" target={target} onSample={onSample} />, { wrapper });
+    render(<LiveSample sourceId="s1" onSample={onSample} />, { wrapper });
     expect(await screen.findByDisplayValue(source.webhook_url)).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Listen for event" }));
     await waitFor(() =>
@@ -433,15 +465,12 @@ describe("editor samples", () => {
         delivery_id: "d1",
       }),
     );
-    expect(apiClient.post).toHaveBeenCalledExactlyOnceWith("/event-sources/s1/listen", target);
+    expect(apiClient.post).toHaveBeenCalledExactlyOnceWith("/event-sources/s1/listen", {});
     expect(screen.getByText(/Active subscribers still execute/)).toBeVisible();
   });
   it("keeps paste available without offering a listener to a source viewer", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ ...source, can_use: false });
-    render(
-      <LiveSample sourceId="s1" target={{ kind: "workflow", id: "w1" }} onSample={vi.fn()} />,
-      { wrapper },
-    );
+    render(<LiveSample sourceId="s1" onSample={vi.fn()} />, { wrapper });
     expect(await screen.findByText(/Source-use permission is required/)).toBeVisible();
     expect(screen.queryByRole("button", { name: "Listen for event" })).toBeNull();
     expect(screen.getByText("Or paste example JSON")).toBeVisible();
@@ -475,7 +504,6 @@ describe("editor samples", () => {
           onModeChange={vi.fn()}
           sourceId={null}
           agentId="a1"
-          canListen={false}
         />
       );
     }

@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { edge, makeDefinition, node, port } from "@/components/workflows/validation/fixtures";
 import { ApiError } from "@/lib/api-error";
-import type { SourceListenerTarget } from "@/lib/event-sources-api";
 import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
@@ -36,18 +35,16 @@ vi.mock("./webhook-listener", () => ({
 vi.mock("@/components/event-sources/live-sample", () => ({
   LiveSample: ({
     sourceId,
-    target,
     onSample,
   }: {
     sourceId: string;
-    target: SourceListenerTarget;
     onSample: (delivery: { body: Record<string, unknown>; delivery_id: string }) => void;
   }) => (
     <button
       type="button"
       onClick={() => onSample({ body: { issue: { title: "Selected" } }, delivery_id: sourceId })}
     >
-      capture {target.kind} {target.id}
+      capture source
     </button>
   ),
 }));
@@ -386,7 +383,7 @@ describe("OutputPane", () => {
       ),
     );
     const editor = renderOutput(webhook, [webhook]);
-    await userEvent.click(screen.getByRole("button", { name: "capture workflow wf" }));
+    await userEvent.click(screen.getByRole("button", { name: "capture source" }));
     expect(store.getState().graph?.nodes[0]?.pinned_output).toBeUndefined();
     expect(store.getState().graph?.nodes[1]?.pinned_output).toEqual({
       body: { issue: { title: "Selected" } },
@@ -395,7 +392,7 @@ describe("OutputPane", () => {
     expect(screen.queryByRole("button", { name: "catch a call" })).toBeNull();
     editor.unmount();
     renderOutput(webhook, [webhook], true);
-    expect(screen.queryByRole("button", { name: "capture workflow wf" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "capture source" })).toBeNull();
   });
 
   it("offers a test URL only on a webhook trigger", () => {

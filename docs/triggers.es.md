@@ -1,5 +1,5 @@
 ---
-source_sha: "c8cfdeb79aa5"
+source_sha: "8f9679d88ff5"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -125,7 +125,7 @@ Añade el widget **Fuentes de eventos** a tu panel para ver cuántas de las fuen
 
 Abre **Fuentes de eventos** o elige **Seleccionar existente / Crear nueva** en el editor de webhooks de una rutina o un workflow. Una fuente conserva su URL activa, credenciales y configuración del proveedor. Varias rutinas y entradas publicadas de workflows pueden suscribirse a esa URL, cada una con sus filtros, identidad de ejecución, permisos, consentimientos y presupuestos.
 
-Las fuentes son **Privadas** de forma predeterminada. **Organización** las comparte según los permisos de la organización. Ver, usar y editar son permisos separados. Vincular un destino o escuchar eventos requiere permiso de uso de la fuente y de gestión del destino. Ver una rutina o workflow no permite acceder a otros eventos de su fuente. Los workers vuelven a comprobar los permisos antes de ejecutar el trabajo en cola.
+Las fuentes son **Privadas** de forma predeterminada. **Organización** comparte la fuente según los permisos de la organización. El permiso de lectura permite ver su configuración. El de uso permite escuchar los datos entrantes antes de que los suscriptores apliquen sus filtros, incluso sin una rutina o un workflow. Solo quien inició la escucha puede leer la muestra y debe conservar el permiso de uso. Para vincular la fuente también se necesitan permisos de edición y ejecución sobre el destino. Los workers vuelven a comprobar los permisos antes de ejecutar el trabajo en cola.
 
 Elige GitHub, Linear, HubSpot o Zendesk para la verificación del proveedor, o **Webhook personalizado** para uno de estos métodos. El registro sigue siendo manual: copia la URL de la fuente en la configuración del proveedor.
 
@@ -146,7 +146,7 @@ Una URL compartida confirma la recepción duradera de forma asíncrona y no devu
 
 ### Escuchar en la URL activa { #listen-on-the-live-url }
 
-Elige **Escuchar evento** y envía un evento autenticado a la URL activa mostrada en un plazo de dos minutos. El siguiente evento se copia al editor sin interrumpir el envío: **los suscriptores activos siguen ejecutándose**. La captura no inicia otra ejecución. La muestra se conserva durante diez minutos y respeta el límite existente de 64 KB para datos fijados. Un fallo, exceso de tamaño o vencimiento no cambia el procesamiento en vivo.
+Desde la fuente o el editor de webhooks, elige **Escuchar evento** y envía un evento autenticado a la URL activa mostrada en un plazo de dos minutos. La escucha recibe el siguiente evento sin interrumpir el envío: **los suscriptores activos siguen ejecutándose**. La captura no inicia otra ejecución. La muestra se conserva durante diez minutos y respeta el límite existente de 64 KB para datos fijados. Un fallo, exceso de tamaño o vencimiento no cambia el procesamiento en vivo.
 
 También puedes pegar JSON de ejemplo. Las muestras no son necesarias para guardar una rutina ni publicar un workflow. Una muestra de workflow mantiene `{body, delivery_id}`, los datos fijados, las vinculaciones y las pruebas de pasos. Si hay varios disparadores, selecciona la entrada Webhook adecuada; no se añade ninguna transformación de la carga. Consulta [Workflows](workflows.md#reusable-webhook-sources).
 
