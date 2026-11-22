@@ -432,6 +432,22 @@ async def propose_context(
         if all(supported(ref, sources) for ref in topic.evidence)
     ]
     cited = {ref.source_id for topic in topics for ref in topic.evidence}
+    selected_threads = {turn.thread_id for turn in packet.messages if f"message:{turn.id}" in cited}
+    failed_receipts = [
+        receipt
+        for receipt in packet.tool_receipts
+        if receipt.get("status") == "failed"
+        and isinstance(receipt.get("id"), str)
+        and (
+            receipt.get("thread_id") is None
+            or (
+                isinstance(receipt.get("thread_id"), str)
+                and receipt.get("thread_id") in selected_threads
+            )
+        )
+    ]
+    failed_receipts.sort(key=lambda receipt: str(receipt.get("occurred_at", "")), reverse=True)
+    cited.update(f"receipt:{receipt['id']}" for receipt in failed_receipts[:8])
     zone_name = packet.profile.get("time_zone")
     zone = ZoneInfo(zone_name) if isinstance(zone_name, str) else None
     chronology = {

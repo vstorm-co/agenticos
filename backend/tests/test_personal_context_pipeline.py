@@ -926,3 +926,44 @@ async def test_a_short_native_answer_can_confirm_a_padded_clock_hour() -> None:
         [ContextDigest(topics=[topic(evidence=[evidence().model_dump(), answer.model_dump()])])],
     )
     assert result is not None and result.opportunities == [advice]
+
+
+async def test_retrieval_includes_bounded_related_failed_operation_metadata() -> None:
+    class FailureReader(Reader):
+        async def read[Result: BaseModel](
+            self, *, stage: str, instructions: str, material: object, output_type: type[Result]
+        ) -> Result | None:
+            if stage == "propose":
+                assert isinstance(material, dict)
+                receipts = {key for key in material["sources"] if key.startswith("receipt:")}
+                assert len(receipts) == 8
+                assert "receipt:unrelated" not in receipts
+                assert "receipt:unknown-job" in receipts
+            return await super().read(
+                stage=stage, instructions=instructions, material=material, output_type=output_type
+            )
+
+    receipts = [
+        {
+            "id": f"failure-{i}",
+            "thread_id": "t",
+            "action": "create_routine",
+            "status": "failed",
+            "occurred_at": f"2026-11-{i + 1:02}T12:00:00Z",
+        }
+        for i in range(10)
+    ]
+    receipts.extend(
+        [
+            {"id": "unrelated", "thread_id": "other", "status": "failed"},
+            {"id": "unknown-job", "status": "failed", "occurred_at": "2026-11-20T12:00:00Z"},
+            {"id": None, "status": "failed"},
+            {"id": "malformed", "status": "failed", "thread_id": []},
+        ]
+    )
+    result = await propose_context(
+        FailureReader(propose=PersonalReading()),
+        packet(tool_receipts=receipts),
+        [ContextDigest(topics=[topic()])],
+    )
+    assert result == PersonalReading()

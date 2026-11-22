@@ -212,6 +212,10 @@ class PersonalLook(NightlyLook):
                                     "thread_id": str(conversation.id),
                                     "action": call.tool_id,
                                     "status": call.status,
+                                    "message_id": str(message.id),
+                                    "occurred_at": (
+                                        call.completed_at or call.started_at
+                                    ).isoformat(),
                                 }
                             )
             after = page[-1][0].ordinal

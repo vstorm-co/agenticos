@@ -38,7 +38,9 @@ flowchart TD
 - Hidden external tool results, attachments and raw document contents are not
   loaded into the work index. Native question answers are the deliberate exception.
   A segment receives only its own answer receipts. Proposal retrieval receives
-  cited receipts, not the person's entire answer history.
+  cited receipts and at most eight related failed-operation receipts, not the
+  person's entire answer history. Failure receipts carry native action/status
+  metadata, not raw external result bodies.
 - The current snapshot supplies profile, scoped memory, readable project and agent
   metadata, routine state, visible table metadata, typed private or assigned tasks,
   waiting questions, prior decisions and available features. Ordinary table records
