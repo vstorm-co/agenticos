@@ -32,7 +32,7 @@ _SPEC.loader.exec_module(_MIGRATION)
 # scope key, a CHECK on `intent`, partial unique indexes), so 0341 can only be replayed
 # on the layer beneath it.
 _MENTIONS_PATH = (
-    Path(__file__).parents[2] / "alembic" / "versions" / "0349_room_mention_requests.py"
+    Path(__file__).parents[2] / "alembic" / "versions" / "0350_room_mention_requests.py"
 )
 _MENTIONS_SPEC = importlib.util.spec_from_file_location("room_mention_migration", _MENTIONS_PATH)
 assert _MENTIONS_SPEC is not None and _MENTIONS_SPEC.loader is not None

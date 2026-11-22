@@ -72,8 +72,9 @@ interface ChatControlsProps {
  * different fact:
  *
  * - *approve everything* needs `approvals:decide`, because a standing consent is
- *   the decision the approval queue exists to record - `member` and `builder` run
- *   agents without it - and it needs the organization to allow waiving at all.
+ *   the decision the approval queue exists to record - a member or builder holds
+ *   it for their own runs, so it is offered to them on their own runs and not
+ *   on somebody else's - and it needs the organization to allow waiving at all.
  *   Rendering it and letting the socket refuse would be a control that looks
  *   available and is not;
  * - *ask about everything* is always there. It only ever tightens, so it needs no

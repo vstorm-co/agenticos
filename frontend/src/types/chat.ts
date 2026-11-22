@@ -592,6 +592,8 @@ export interface ActionRequest {
   content_hidden?: boolean;
   /** Only a person's answer could let the call run; with `content_hidden`, only Reject is offered. */
   always_asks?: boolean;
+  /** Whether this caller may decide this call. Absent on the live frame, which the role check covers; set on a reloaded panel, where the run may be somebody else's. */
+  can_decide?: boolean;
 }
 
 export interface ReviewConfig {

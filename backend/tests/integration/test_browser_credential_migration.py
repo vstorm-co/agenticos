@@ -37,10 +37,10 @@ _DESCENDANTS = (
     load_revision("0345_credential_continuations"),
     # Room participants hold a foreign key on agents' tenant key, so the room chain
     # is a consumer of 0342's keys and unwinds with the rest.
-    load_revision("0348_room_participants"),
-    load_revision("0349_room_mention_requests"),
-    load_revision("0350_room_message_reactions"),
-    load_revision("0351_room_thread_state"),
+    load_revision("0349_room_participants"),
+    load_revision("0350_room_mention_requests"),
+    load_revision("0351_room_message_reactions"),
+    load_revision("0352_room_thread_state"),
 )
 assert tuple(migration.down_revision for migration in _DESCENDANTS[:2]) == (
     _MIGRATION.revision,
@@ -48,10 +48,10 @@ assert tuple(migration.down_revision for migration in _DESCENDANTS[:2]) == (
 )
 assert _DESCENDANTS[2].down_revision == "0344_browser_procedure_teaching"
 assert tuple(migration.down_revision for migration in _DESCENDANTS[3:]) == (
-    "0347_network_connections",
-    "0348_room_participants",
-    "0349_room_mention_requests",
-    "0350_room_message_reactions",
+    "0348_approval_expired_notice",
+    "0349_room_participants",
+    "0350_room_mention_requests",
+    "0351_room_message_reactions",
 )
 _TABLES = (
     "browser_credential_policies",
@@ -135,7 +135,7 @@ async def test_chain_rebases_browser_credential_plans_after_the_current_t3_head(
         scripts.get_revision("0345_credential_continuations").down_revision
         == "0344_browser_procedure_teaching"
     )
-    assert scripts.get_heads() == ["0351_room_thread_state"]
+    assert scripts.get_heads() == ["0352_room_thread_state"]
     assert scripts.get_revision("0333_room_threads").down_revision == "0332_merge_t3_pools_v1761"
     assert scripts.get_revision("0332_merge_t3_pools_v1761").down_revision == (
         "0331_merge_t3_rooms_and_v1761",

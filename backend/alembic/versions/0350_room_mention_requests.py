@@ -10,8 +10,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0349_room_mention_requests"
-down_revision: str = "0348_room_participants"
+revision: str = "0350_room_mention_requests"
+down_revision: str = "0349_room_participants"
 branch_labels: None = None
 depends_on: None = None
 
@@ -26,27 +26,18 @@ _EVENTS_BEFORE = (
     "'artifact_owner_changed', 'artifact_share_requested', "
     "'capability_requested', 'suggestion', 'finding', 'improvement_finished', "
     "'eval_suite_reevaluated', 'eval_run_finished', 'case_generation_finished', "
-    "'workflow_log_alert'"
+    "'workflow_log_alert', 'approval_expired'"
 )
-# The names the naming convention gave these two checks. Raw SQL needs them
-# spelled out; `op.create_check_constraint` would derive them from the short form.
+# The names the naming convention gave these two checks. The convention puts
+# the table in front of the model's own `ck_...` name and SQLAlchemy hashes a
+# name past 63 bytes, so they are spelled out and passed through `op.f` rather
+# than derived: a derived name is prefixed twice and misses the real constraint.
 _EVENT_CHECKS = (
-    (
-        "notifications",
-        "ck_notifications_event_type",
-        "notifications_ck_notifications_event_type_check",
-    ),
-    (
-        "notification_preferences",
-        "ck_notification_preferences_event_type",
-        "notification_preferences_ck_notification_preferences_ev_cd4d",
-    ),
+    ("notifications", "notifications_ck_notifications_event_type_check"),
+    ("notification_preferences", "notification_preferences_ck_notification_preferences_ev_cd4d"),
 )
-
-
 _VALIDATIONS = (
-    ("notifications", _EVENT_CHECKS[0][2]),
-    ("notification_preferences", _EVENT_CHECKS[1][2]),
+    *_EVENT_CHECKS,
     ("room_submissions", "fk_room_submission_parent"),
     ("room_submissions", "room_submissions_child_request_check"),
     ("room_submissions", "room_submissions_dispatch_check"),
@@ -67,20 +58,19 @@ _INDEXES = (
 _LEGACY_CLIENT = "uq_room_submission_client_legacy"
 
 
-def _event_checks(values: str) -> None:
-    for table, name, _full in _EVENT_CHECKS:
-        op.drop_constraint(name, table, type_="check")
-        op.create_check_constraint(name, table, f"event_type IN ({values})")
-
-
 def _add_not_valid(table: str, name: str, definition: str) -> None:
     op.execute(f"ALTER TABLE {table} DROP CONSTRAINT IF EXISTS {name}")
     op.execute(f"ALTER TABLE {table} ADD CONSTRAINT {name} {definition} NOT VALID")
 
 
-def _event_checks_not_valid(values: str) -> None:
-    for table, _short, full in _EVENT_CHECKS:
-        _add_not_valid(table, full, f"CHECK (event_type IN ({values}))")
+def _event_checks(values: str, *, not_valid: bool) -> None:
+    # The names and values are revision-owned, never request data.
+    for table, name in _EVENT_CHECKS:
+        op.drop_constraint(op.f(name), table, type_="check")
+        op.execute(
+            f"ALTER TABLE {table} ADD CONSTRAINT {name} "
+            f"CHECK (event_type IN ({values})){' NOT VALID' if not_valid else ''}"
+        )
 
 
 def _drop_unbuilt_index(name: str) -> None:
@@ -171,7 +161,7 @@ def upgrade() -> None:
         "room_submissions_dispatch_check",
         "CHECK (dispatch IN ('explicit', 'mention', 'automatic'))",
     )
-    _event_checks_not_valid(f"{_EVENTS_BEFORE}, 'room_mention', 'room_thread_reply'")
+    _event_checks(f"{_EVENTS_BEFORE}, 'room_mention', 'room_thread_reply'", not_valid=True)
     with op.get_context().autocommit_block():
         for table, name in _VALIDATIONS:
             op.execute(f"ALTER TABLE {table} VALIDATE CONSTRAINT {name}")
@@ -198,7 +188,7 @@ def downgrade() -> None:
         raise RuntimeError(
             "Cannot discard room mentions, extra agent requests or notification evidence"
         )
-    _event_checks(_EVENTS_BEFORE)
+    _event_checks(_EVENTS_BEFORE, not_valid=False)
     op.drop_constraint("dispatch", "room_submissions", type_="check")
     op.drop_constraint("child_request", "room_submissions", type_="check")
     op.drop_constraint("fk_room_submission_parent", "room_submissions", type_="foreignkey")

@@ -6,14 +6,16 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.permissions import ROLE_PERMS, Perm, role_has
+from app.core.permissions import ROLE_PERMS, Perm, Scope, role_has_at
 from app.db.models.notification import NotificationChannel, NotificationEventType
 from app.repositories import member as member_repo
 from app.services.notification_center import NotificationCenterService
 from app.services.workflow_execution import context
 from app.services.workflow_execution.approval_audience import group_approvers
 
-_DECIDING_ROLES = [role for role in ROLE_PERMS if role_has(role, Perm.APPROVALS_DECIDE)]
+_DECIDING_ROLES = [
+    role for role in ROLE_PERMS if role_has_at(role, Perm.APPROVALS_DECIDE, Scope.ALL)
+]
 
 
 async def notify_approvers(

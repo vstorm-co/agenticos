@@ -103,7 +103,7 @@ describe("the notifications settings page", () => {
   it("offers exactly the togglable pairs the backend produces", async () => {
     render(<NotificationsSettingsPage />);
     const available = new Set<string>();
-    for (let page = 0; page < 5; page++) {
+    for (let page = 0; page < 6; page++) {
       for (const item of screen.getAllByRole("switch"))
         available.add(item.getAttribute("aria-label") ?? "");
       const next = screen.getByRole("button", { name: "Next page" });
@@ -112,10 +112,10 @@ describe("the notifications settings page", () => {
     }
 
     // Every event row offers its own channels plus the one selected chat channel.
-    // The 28 events on t3 give 76 email/in-app/push switches plus 28 chat-channel
-    // switches (104). The two room events, room_mention and room_thread_reply, offer
-    // in-app and push and the chat channel (3 each), so 104 + 6 = 110 across the 30
-    // rows and five pages of six.
+    // The 29 events on t3 give 78 email/in-app/push switches plus 29 chat-channel
+    // switches (107). The two room events, room_mention and room_thread_reply, offer
+    // in-app and push and the chat channel (3 each), so 107 + 6 = 113 across the 31
+    // rows and six pages of six.
     expect(available.has("Run completed - In-app")).toBe(true);
     for (const channel of ["In-app", "Push"]) {
       expect(available.has(`Room mentions - ${channel}`)).toBe(true);
@@ -156,7 +156,7 @@ describe("the notifications settings page", () => {
     ]) {
       expect(available.has(`${event} - Push`)).toBe(true);
     }
-    expect(available.size).toBe(110);
+    expect(available.size).toBe(113);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {

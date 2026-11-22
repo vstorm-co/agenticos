@@ -1,5 +1,5 @@
 ---
-source_sha: "b50c2e4de07b"
+source_sha: "f6937674a662"
 ---
 
 # Berechtigungen { #permissions }
@@ -102,6 +102,16 @@ Zwei Arten von Berechtigung, und sie verhalten sich unterschiedlich.
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
 `approvals:decide`, `promotions:override`, `connections:view`, `connections:manage`,
 `channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`, `mcp:personal:use`.
+
+Eine Ausnahme: `approvals:decide` ist global, aber `member` und `builder` halten es in
+`OWN`, nur für einen Run, den sie selbst gestartet haben. Der Scope wird pro Run im
+Entscheidungspfad durchgesetzt, nicht durch die Rolle — eine Rolle kann nicht sehen,
+zu welchem Run eine Approval gehört — sodass ein `member` die Approval seines eigenen
+Runs aus einer angemeldeten Web- oder Chat-Sitzung entscheiden kann, und keine andere.
+Fremde Approvals, Workflow-Approvals, die stehende Zustimmung für Routinen und der
+Waiver-Schalter der Organisation bleiben bei `owner`, `admin` und `operator`.
+
+Dieselbe Person öffnet ihren eigenen Run, liest sein Transkript und wiederholt ihn ohne `runs:view`; so funktioniert der Link der Ablauf-Benachrichtigung für einen `member`. Sie liest nur ihren eigenen Run, als angemeldete Web-Sitzung mit aktiver Mitgliedschaft und nur solange sie noch `approvals:decide` hält. Sie sieht weder einen Trace-Link noch benachbarte Runs, und das Manifest bleibt bei `runs:view`. API-Schlüssel, Veröffentlicher-Ersatz, Routinen und imitierte Sitzungen erhalten nichts davon.
 
 Der ausdrückliche Scope `mcp:personal:use` erlaubt externen API- oder OAuth-Runs, persönliche MCP-Verbindungen des Zugangsausstellers zu verwenden. Wählen Sie ihn unter **Custom** und bestätigen Sie die Delegation; keine Voreinstellung, auch **Full access** nicht, enthält ihn. Bestehende Zugänge behalten ausschließlich Organisationszugriff. Er gewährt weder persönlichen Speicher noch Gesprächssuche oder Zustimmung zu Routinen. Fortsetzungen nach einer Genehmigung behalten den ursprünglichen Eigentümer und Zugang bei; vor persönlichen Tool-Aufrufen werden verbundene Konten, aktuelle Schlüssel-Scopes sowie der Zugriff auf den Hauptagent und automatisch ausgewählte Subagents erneut geprüft.
 
@@ -224,9 +234,9 @@ benutzerdefinierte Rollen.
 | --- | --- | --- | --- | --- |
 | `owner` | besitzt die Organisation | alles `ALL` | `ALL` | alles, einschließlich `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
 | `admin` | führt sie im Tagesgeschäft | alles `ALL` | `ALL` | alles **außer** `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
-| `builder` | baut, und lernt von der ganzen Organisation | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:use`/`mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `builder` | baut, und lernt von der ganzen Organisation | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `approvals:decide` `OWN`, `mcp:use`/`mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `operator` | hält das laufende System gesund | `view`/`run` `ALL`, kein edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
-| `member` | der alltägliche Nutzer | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
+| `member` | der alltägliche Nutzer | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `approvals:decide` `OWN`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `viewer` | liest | `view` `SHARED` | keines | `members:view` |
 
 Der Unterschied zwischen `builder` und `admin` ist der interessante: Ein Builder

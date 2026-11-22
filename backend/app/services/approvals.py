@@ -48,6 +48,7 @@ from app.repositories import (
 from app.repositories import workflow_run as workflow_run_repo
 from app.repositories.agent_run import ApprovalFilters, ApprovalRow
 from app.schemas.agent_run import ToolConsentRead
+from app.services.approval_authority import may_decide_approval
 from app.services.channels.handback import (
     EXPIRED_NOTICE,
     STRANDED_NOTICE,
@@ -57,6 +58,7 @@ from app.services.channels.handback import (
     question_nudge_notice,
 )
 from app.services.channels.handback_jobs import queue_notices
+from app.services.notifications import NotificationService
 from app.services.outcome import OutcomeService
 from app.services.transcript import TranscriptService
 from app.services.workflow_execution.approval_wake import wake_after_approval_decision
@@ -212,7 +214,15 @@ class ApprovalService:
         acts on, and the decided list is the same rows read as an accountability
         trail - which is why it comes back with the decider's name and no way to
         decide again.
+
+        A caller holding `approvals:decide` only at `OWN` sees their own runs'
+        approvals and nothing else: the scope answers which rows of the
+        organization's queue are theirs, and the filter below is forced rather
+        than defaulted, so a `triggered_by_user_id` naming somebody else is
+        overwritten rather than honoured.
         """
+        if ctx.scope_for(Perm.APPROVALS_DECIDE) is Scope.OWN:
+            filters = replace(filters or ApprovalFilters(), triggered_by_user_id=ctx.user_id)
         rows, total = await agent_run_repo.list_approvals(
             self.db,
             organization_id=ctx.organization_id,
@@ -313,8 +323,11 @@ class ApprovalService:
         refuses it while the call is live (#54).
 
         Raises:
-            AuthorizationError: If this is an approval of a call that only a person's
-                answer may let run, by somebody who may not see what it quotes.
+            AuthorizationError: If the caller may not decide this run - neither
+                a privileged decider nor the person who started it, from a
+                signed-in web/chat session - or if this is an approval of a
+                call that only a person's answer may let run, by somebody who
+                may not see what it quotes.
             NotFoundError: If the approval is not in this organization.
             BadRequestError: If it was already decided. Deciding twice would
                 make the audit trail ambiguous about who authorised the action.
@@ -328,6 +341,25 @@ class ApprovalService:
             raise NotFoundError(
                 message="Approval not found", details={"approval_id": str(approval_id)}
             )
+        # The route carries no gate - a per-resource route cannot see which run
+        # the row belongs to - so this is the enforcement point, for every
+        # caller but the voice bridge (`via_call`): a privileged decider may
+        # decide any run, anybody else only a run they started, from a
+        # signed-in web/chat session. Checked before the already-decided
+        # refusal, so a caller who may not decide this run learns nothing
+        # about its state.
+        if not via_call:
+            run = await agent_run_repo.get_run(
+                self.db, approval.run_id, organization_id=ctx.organization_id
+            )
+            if not may_decide_approval(ctx, run):
+                raise AuthorizationError(
+                    message=(
+                        "Only the person who started this run, or somebody who may "
+                        "decide approvals, may decide it"
+                    ),
+                    details={"approval_id": str(approval_id)},
+                )
         if approval.status != ApprovalStatus.PENDING.value:
             raise BadRequestError(
                 message=f"This request was already {approval.status}",
@@ -357,9 +389,9 @@ class ApprovalService:
                     message="This tool asks every time, so its approval cannot be remembered",
                     details={"approval_id": approval_id, "tool_id": approval.tool_id},
                 )
-            run = await agent_run_repo.get_run(
-                self.db, approval.run_id, organization_id=ctx.organization_id
-            )
+            # The run the authorization above already loaded: a remembered
+            # approval is only ever for the decider's own web run, which is
+            # what `can_remember_in_run` checks.
             if not self.can_remember_in_run(ctx, run) or not await self._may_remember(ctx):
                 raise AuthorizationError(message="This chat cannot remember tool approvals")
             approval.remember_scope = remember_scope
@@ -907,6 +939,22 @@ class ApprovalService:
         )
         if destination is not None:
             notices.append(_notice(run, destination, EXPIRED_NOTICE))
+        else:
+            # No chat to tell: a web-console run's owner gets no proactive
+            # notice today - the run row just reads `cancelled`. Tell them
+            # through the centre instead, with the reason and the run to retry
+            # it from. A chat run's owner already heard it in the chat, so
+            # this is the web half only, not a second notice.
+            agent = await agent_repo.get(self.db, run.agent_id, organization_id=organization_id)
+            await NotificationService(self.db).approval_expired(
+                run,
+                agent=agent,
+                approvals=[
+                    approval
+                    for approval in approvals
+                    if approval.status == ApprovalStatus.EXPIRED.value
+                ],
+            )
         # A workflow node parked on this run wakes the same way a decision
         # wakes it (#1788): its handler sees the run ended and fails the node,
         # instead of the node waiting for ever on a run nothing will resume.

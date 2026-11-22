@@ -2208,7 +2208,7 @@ def test_published_thread_chain_preserves_saved_profiles_and_matches_models(prev
         assert upgraded.returncode == 0, upgraded.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0351_room_thread_state"
+                "0352_room_thread_state"
             ]
             row = connection.execute(
                 text(
@@ -2288,7 +2288,7 @@ class TestRoomThreadMigration:
         continuation = script.get_revision("0345_credential_continuations")
         assert continuation is not None
         assert continuation.down_revision == "0344_browser_procedure_teaching"
-        assert script.get_heads() == ["0351_room_thread_state"]
+        assert script.get_heads() == ["0352_room_thread_state"]
 
     def test_existing_quotes_survive_roundtrip_and_models_match_head(self) -> None:
         reset = _alembic("downgrade", "base")
@@ -2316,7 +2316,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0351_room_thread_state"]
+                ).all() == ["0352_room_thread_state"]
                 rows = connection.execute(
                     text(
                         "SELECT id,reply_to_message_id,thread_root_message_id FROM messages "
@@ -2384,9 +2384,12 @@ class TestRoomThreadMigration:
             assert refused.returncode != 0
             assert "Cannot remove room thread scopes" in refused.stderr
             with engine.begin() as connection:
+                # `0348_approval_expired_notice` validates in an autocommit block, which
+                # commits the room revisions already unwound above it, so the refused
+                # step leaves the database there rather than at head.
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0351_room_thread_state"]
+                ).all() == ["0348_approval_expired_notice"]
                 assert (
                     connection.scalar(
                         text("SELECT thread_root_message_id FROM messages WHERE id=:id"),
@@ -2415,7 +2418,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0351_room_thread_state"]
+                ).all() == ["0352_room_thread_state"]
             check = _alembic("check")
             assert check.returncode == 0, check.stderr
         finally:
@@ -2618,7 +2621,7 @@ class TestRoomThreadMigration:
         assert resumed.returncode == 0, resumed.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0351_room_thread_state"
+                "0352_room_thread_state"
             ]
             assert connection.execute(
                 text("SELECT content, thread_root_message_id FROM messages WHERE id = :id"),
@@ -3522,9 +3525,9 @@ def test_organization_speech_defaults_preserve_old_agents_and_run_destinations()
 
 def test_room_message_reactions_migration_rehearses_upgrade_and_guarded_rollback() -> None:
     """The reaction table upgrades cleanly and refuses a lossy rollback."""
-    prior = _alembic("upgrade", "0349_room_mention_requests")
+    prior = _alembic("upgrade", "0350_room_mention_requests")
     assert prior.returncode == 0, prior.stderr
-    upgraded = _alembic("upgrade", "0350_room_message_reactions")
+    upgraded = _alembic("upgrade", "0351_room_message_reactions")
     assert upgraded.returncode == 0, upgraded.stderr
 
     engine = create_engine(_url(MIGRATION_DATABASE))
@@ -3575,7 +3578,7 @@ def test_room_message_reactions_migration_rehearses_upgrade_and_guarded_rollback
                 },
             )
 
-        refused = _alembic("downgrade", "0349_room_mention_requests")
+        refused = _alembic("downgrade", "0350_room_mention_requests")
         assert refused.returncode != 0
         assert "reaction evidence exists" in refused.stderr
         with engine.connect() as connection:
@@ -3590,7 +3593,7 @@ def test_room_message_reactions_migration_rehearses_upgrade_and_guarded_rollback
             connection.execute(
                 text("DELETE FROM room_message_reactions WHERE id = :id"), {"id": row_id}
             )
-        downgraded = _alembic("downgrade", "0349_room_mention_requests")
+        downgraded = _alembic("downgrade", "0350_room_mention_requests")
         assert downgraded.returncode == 0, downgraded.stderr
         with engine.connect() as connection:
             assert (
@@ -3622,6 +3625,20 @@ def _constraint_states(connection: Connection, table: str) -> dict[str, bool]:
     }
 
 
+def _event_vocabulary(connection: Connection, table: str) -> str:
+    """The event-type CHECK definitions of `table`, as Postgres stores them."""
+    return " ".join(
+        connection.execute(
+            text(
+                "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                "WHERE conrelid = CAST(:table AS regclass) AND contype = 'c' "
+                "AND pg_get_constraintdef(oid) LIKE '%event_type%'"
+            ),
+            {"table": table},
+        ).scalars()
+    )
+
+
 def _index_states(connection: Connection, table: str) -> dict[str, bool]:
     """Index name to whether it is valid, that is built and enforced."""
     return {
@@ -3638,7 +3655,7 @@ def _index_states(connection: Connection, table: str) -> dict[str, bool]:
 
 
 def test_room_migrations_are_lock_safe_on_populated_tables_and_retry() -> None:
-    """0348 and 0349 add checks NOT VALID, then prove them and build indexes outside the lock.
+    """0349 and 0350 add checks NOT VALID, then prove them and build indexes outside the lock.
 
     The tables already hold rows, so a validated ADD would scan them under ACCESS
     EXCLUSIVE and an ordinary index build would block writes. The proof here is
@@ -3648,7 +3665,7 @@ def test_room_migrations_are_lock_safe_on_populated_tables_and_retry() -> None:
     """
     upgraded = _alembic("upgrade", "head")
     assert upgraded.returncode == 0, upgraded.stderr
-    base = _alembic("downgrade", "0347_network_connections")
+    base = _alembic("downgrade", "0348_approval_expired_notice")
     assert base.returncode == 0, base.stderr
 
     engine = create_engine(_url(MIGRATION_DATABASE))
@@ -3672,7 +3689,7 @@ def test_room_migrations_are_lock_safe_on_populated_tables_and_retry() -> None:
                 ),
                 {"id": conversation, "organization": organization, "user": user},
             )
-        step = _alembic("upgrade", "0348_room_participants")
+        step = _alembic("upgrade", "0349_room_participants")
         assert step.returncode == 0, step.stderr
         with engine.connect() as connection:
             states = _constraint_states(connection, "conversations")
@@ -3706,7 +3723,7 @@ def test_room_migrations_are_lock_safe_on_populated_tables_and_retry() -> None:
                     "client": "client-1",
                 },
             )
-        step = _alembic("upgrade", "0349_room_mention_requests")
+        step = _alembic("upgrade", "0350_room_mention_requests")
         assert step.returncode == 0, step.stderr
 
         def check_end_state() -> None:
@@ -3740,6 +3757,8 @@ def test_room_migrations_are_lock_safe_on_populated_tables_and_retry() -> None:
                         {"table": table},
                     ).scalar_one()
                     assert admitting == 0
+                    # The earlier revision's `approval_expired` is kept.
+                    assert "approval_expired" in _event_vocabulary(connection, table)
                 indexes = _index_states(connection, "room_submissions")
                 for name in (
                     "uq_room_submission_client",
@@ -3784,19 +3803,23 @@ def test_room_migrations_are_lock_safe_on_populated_tables_and_retry() -> None:
                 )
             )
             connection.execute(
-                text("UPDATE alembic_version SET version_num = '0348_room_participants'")
+                text("UPDATE alembic_version SET version_num = '0349_room_participants'")
             )
-        retried = _alembic("upgrade", "0349_room_mention_requests")
+        retried = _alembic("upgrade", "0350_room_mention_requests")
         assert retried.returncode == 0, retried.stderr
         check_end_state()
 
-        rolled_back = _alembic("downgrade", "0348_room_participants")
+        rolled_back = _alembic("downgrade", "0349_room_participants")
         assert rolled_back.returncode == 0, rolled_back.stderr
         with engine.connect() as connection:
             constraints = _constraint_states(connection, "room_submissions")
             assert "uq_room_submission_client" in constraints
             assert "room_submissions_message_id_key" in constraints
             assert "uq_room_submission_message" not in _index_states(connection, "room_submissions")
+            for table in ("notifications", "notification_preferences"):
+                vocabulary = _event_vocabulary(connection, table)
+                assert "approval_expired" in vocabulary
+                assert "room_mention" not in vocabulary
 
         restored = _alembic("upgrade", "head")
         assert restored.returncode == 0, restored.stderr

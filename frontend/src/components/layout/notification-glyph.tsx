@@ -41,6 +41,7 @@ const KINDS: Record<string, { icon: LucideIcon; attention?: "error" | "warning" 
   run_completed: { icon: Check },
   run_failed: { icon: AlertCircle, attention: "error" },
   approval_requested: { icon: ShieldCheck, attention: "warning" },
+  approval_expired: { icon: ShieldAlert, attention: "warning" },
   budget_warning: { icon: Wallet, attention: "warning" },
   budget_exceeded: { icon: Wallet, attention: "error" },
   ingestion_completed: { icon: KnowledgeIcon },

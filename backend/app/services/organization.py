@@ -16,7 +16,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext, OrgRoleName, Perm, role_has
+from app.core.permissions import AuthContext, OrgRoleName, Perm, Scope, role_has, role_has_at
 from app.db.locks import LockScope, hold_name, hold_subject, try_hold_name
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember, OrgRole
@@ -495,7 +495,14 @@ class OrganizationService:
             raise AuthorizationError(message="Only Owner or Admin can update the organization")
         if (wants_budget or wants_proactive) and not holds(Perm.BUDGETS_MANAGE):
             raise AuthorizationError(message="Changing a spending limit requires 'budgets:manage'")
-        if wants_waiver and not holds(Perm.APPROVALS_DECIDE):
+        # The waiver switch is organization-wide, not a run's: it takes a
+        # privileged decider, not merely somebody who may decide their own
+        # run. `approvals:decide` at `OWN` decides one person's runs; flipping
+        # the switch decides what every chat in the organization may waive.
+        if wants_waiver and not (
+            role_has_at(membership.role, Perm.APPROVALS_DECIDE, Scope.ALL)
+            and (key_scopes is None or Perm.APPROVALS_DECIDE in key_scopes)
+        ):
             raise AuthorizationError(
                 message="Changing whether chats may waive approvals requires 'approvals:decide'"
             )

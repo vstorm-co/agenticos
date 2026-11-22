@@ -2622,8 +2622,11 @@ export function useChat(options: UseChatOptions = {}) {
   }, [activeConversationId, closeBrowserPanel, sendMessage, abandonRunAnswer]);
 
   // The caller's permissions, for the restore effect below: rebuilding the
-  // approval panel reads an endpoint gated on `approvals:decide`, so a caller
-  // without it is not asked to 403 on every reopened conversation.
+  // approval panel reads an endpoint gated on deciding the run, so a caller
+  // without `approvals:decide` at all is not asked to 403 on every reopened
+  // conversation. A member holds the permission at `OWN`, so one reopening
+  // somebody else's run still fetches and is refused - and the failure is
+  // left alone by the effect below, as it always was.
   const { can, isLoaded: permissionsLoaded } = usePermissions();
   const { data: controlOrgs } = useOrganizationList();
   const savedControls = useSavedChatControls(
@@ -2853,6 +2856,7 @@ export function useChat(options: UseChatOptions = {}) {
               account: call.account,
               content_hidden: call.content_hidden,
               always_asks: call.always_asks,
+              can_decide: call.can_decide,
             })),
             reviewConfigs: actionable.map((call) => ({
               tool_name: call.tool_name,
@@ -3052,6 +3056,7 @@ export function useChat(options: UseChatOptions = {}) {
             account: call.account,
             content_hidden: call.content_hidden,
             always_asks: call.always_asks,
+            can_decide: call.can_decide,
           })),
           reviewConfigs: parkedAgain.map((call) => ({
             tool_name: call.tool_name,

@@ -134,6 +134,15 @@ class TestRefusals:
             "rows.6.reference_answer",
         }
 
+    def test_a_row_of_the_wrong_width_is_refused_with_a_message_saying_which_way(self) -> None:
+        refusal = _refusal("input,reference_answer\nq\nq,a,extra\nq,a\n")
+
+        assert refusal.details["refused_rows"] == 2
+        assert refusal.details["fields"] == [
+            {"field": "rows.1", "message": "The row has fewer cells than the header has columns"},
+            {"field": "rows.2", "message": "The row has more cells than the header has columns"},
+        ]
+
     def test_one_refused_row_is_counted_in_the_singular(self) -> None:
         refusal = _refusal("input,order_mode\nq,maybe\n")
         assert refusal.message == "1 row could not be imported, so none were. Fix it and try again."

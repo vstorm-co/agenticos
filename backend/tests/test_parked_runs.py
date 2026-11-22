@@ -19,11 +19,12 @@ from pydantic import SecretStr
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.core.exceptions import (
     AlreadyExistsError,
+    AuthorizationError,
     BadRequestError,
     NotFoundError,
     RunExecutionError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_run import ApprovalStatus, RunSurface
 from app.services.agent_runner import RunSegment
 from app.services.approvals import ApprovalService
@@ -52,9 +53,16 @@ BOT = uuid.uuid4()
 DESTINATION = ChannelDestination(bot_id=BOT, platform_chat_id="C1:1.0", private_chat=False)
 
 
-def _run(surface: str = "slack", *, destination: ChannelDestination | None = DESTINATION) -> Any:
+def _run(
+    surface: str = "slack",
+    *,
+    destination: ChannelDestination | None = DESTINATION,
+    user_id: uuid.UUID | None = None,
+) -> Any:
     return MagicMock(
         id=RUN,
+        user_id=user_id,
+        initiated_by_publisher_fallback=False,
         organization_id=ORG,
         surface=surface,
         conversation_id=uuid.uuid4(),
@@ -73,9 +81,18 @@ def _person() -> AuthContext:
 
 
 def _key() -> AuthContext:
+    """An owner's key scoped to deciding approvals: privileged, but never the own-run exception."""
     return AuthContext(
-        user_id=None, organization_id=ORG, role=OrgRoleName.OWNER, api_key_id=uuid.uuid4()
+        user_id=USER,
+        organization_id=ORG,
+        role=OrgRoleName.OWNER,
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.APPROVALS_DECIDE}),
     )
+
+
+def _member() -> AuthContext:
+    return AuthContext(user_id=USER, organization_id=ORG, role=OrgRoleName.MEMBER)
 
 
 def _close(coro: Any) -> None:
@@ -373,6 +390,39 @@ class TestResuming:
         p.settle_open.assert_not_awaited()
         assert result.continues_in_chat is False
         p.runner.resume.assert_awaited_once_with(_person(), RUN, on_segment=None)
+
+    async def test_a_member_resumes_their_own_run(self) -> None:
+        member = _member()
+        with _Patched(_run("web", user_id=USER)) as p:
+            result = await p.service.resume(member, RUN)
+        assert result.continues_in_chat is False
+        p.runner.resume.assert_awaited_once_with(member, RUN, on_segment=None)
+
+    async def test_a_member_cannot_resume_somebody_elses_run(self) -> None:
+        with _Patched(_run("web", user_id=uuid.uuid4())) as p, pytest.raises(AuthorizationError):
+            await p.service.resume(_member(), RUN)
+        p.runner.resume.assert_not_awaited()
+
+    async def test_a_publisher_cannot_resume_a_strangers_fallback_run(self) -> None:
+        run = _run("slack", user_id=USER)
+        run.initiated_by_publisher_fallback = True
+        member = AuthContext(user_id=USER, organization_id=ORG, role=OrgRoleName.BUILDER)
+        with _Patched(run) as p, pytest.raises(AuthorizationError):
+            await p.service.resume(member, RUN)
+        p.runner.resume.assert_not_awaited()
+
+    async def test_a_members_key_cannot_resume_even_their_own_run(self) -> None:
+        """The key's scope was narrowed to nothing the own-run exception reaches."""
+        member_key = AuthContext(
+            user_id=USER,
+            organization_id=ORG,
+            role=OrgRoleName.MEMBER,
+            api_key_id=uuid.uuid4(),
+            key_scopes=frozenset({Perm.APPROVALS_DECIDE}),
+        )
+        with _Patched(_run("web", user_id=USER)) as p, pytest.raises(AuthorizationError):
+            await p.service.resume(member_key, RUN)
+        p.runner.resume.assert_not_awaited()
 
     async def test_a_key_resumes_a_run_a_key_started_as_before(self) -> None:
         key = _key()
