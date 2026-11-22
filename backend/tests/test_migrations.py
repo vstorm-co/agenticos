@@ -708,6 +708,8 @@ class TestMigrations:
         "0306_shared_page_attribution",
         "0345_matrix_channel",
         "0345_merge_mcp_and_personal",
+        "0349_personal_work_context",
+        "0350_member_onboarding_progress",
     ],
 )
 def test_improvement_merge_upgrades_either_existing_history(starting_revision: str) -> None:

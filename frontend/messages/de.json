@@ -2590,7 +2590,8 @@
         "agent": "Mit dem Architect bauen",
         "profile": "Im Profil speichern",
         "role_pack": "Diese Routinen hinzufügen",
-        "finding": "Erledigt"
+        "finding": "Erledigt",
+        "personal": "Verstanden"
       },
       "open": "Öffnen",
       "urgent": "Dringend",
@@ -14922,7 +14923,8 @@
       "agent": "Agent-Idee",
       "profile": "Profil",
       "role_pack": "Routinenpaket",
-      "finding": "Routine"
+      "finding": "Routine",
+      "personal": "Persönlicher Vorschlag"
     },
     "discuss": "Mit dem Agenten besprechen",
     "moreActions": "Weitere Aktionen für {title}",
@@ -14933,7 +14935,8 @@
       "profile": "Hilf mir, mein Profil anhand dieses Vorschlags zu prüfen und zu aktualisieren: {text}",
       "role_pack": "Hilf mir, dieses vorgeschlagene Routinenpaket einzurichten: {text}",
       "topic": "Thema: {text}",
-      "schedule": "Vorgeschlagener Zeitplan: {text}"
+      "schedule": "Vorgeschlagener Zeitplan: {text}",
+      "personal": "Hilf mir dabei: {text}"
     },
     "openWorkingChat": "Gespräch öffnen",
     "preferences": "Inbox-Einstellungen",
