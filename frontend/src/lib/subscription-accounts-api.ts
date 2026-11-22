@@ -1,4 +1,5 @@
 import { apiClient } from "./api-client";
+import type { ModelProfile } from "@/types/providers";
 
 /** Every sign-in the subscription gateway offers, in the order the console lists them. */
 export const SUBSCRIPTION_PROVIDERS = [
@@ -139,5 +140,24 @@ export function subscriptionLabelMatches(
   return (
     label.startsWith(`${displayName} · `) ||
     (historic !== undefined && label.startsWith(`${historic} · `))
+  );
+}
+
+/** Account routing identifies the service even when a profile has a custom label. */
+export function subscriptionProviderFor(
+  profile: Pick<ModelProfile, "provider" | "model" | "label"> | null | undefined,
+  accounts: readonly SubscriptionAccount[],
+  displayName: (provider: SubscriptionProvider) => string,
+): SubscriptionProvider | undefined {
+  if (profile?.provider !== "subscription_accounts") return undefined;
+  const account = accounts.find(
+    (entry) => entry.model_prefix && profile.model.startsWith(entry.model_prefix + "/"),
+  );
+  return (
+    (account &&
+      SUBSCRIPTION_PROVIDERS.find((provider) => subscriptionBelongsTo(account, provider))) ??
+    SUBSCRIPTION_PROVIDERS.find((provider) =>
+      subscriptionLabelMatches(profile.label, provider, displayName(provider)),
+    )
   );
 }

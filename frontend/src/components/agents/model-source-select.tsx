@@ -76,7 +76,11 @@ export function ModelSourceSelect({
   const options = modelSourceOptions(providers, subscriptions, t);
   return (
     <div className="space-y-1.5">
-      <Select value={value} onValueChange={onChange} disabled={disabled}>
+      <Select
+        value={value === "subscription_accounts" ? "" : value}
+        onValueChange={onChange}
+        disabled={disabled}
+      >
         <SelectTrigger id={id}>
           <SelectValue placeholder={t("agents.chooseProvider")} />
         </SelectTrigger>
@@ -95,9 +99,6 @@ export function ModelSourceSelect({
                 ))}
             </SelectGroup>
           ))}
-          {value === "subscription_accounts" && (
-            <SelectItem value={value}>{t("modelSources.allSubscriptions")}</SelectItem>
-          )}
         </SelectContent>
       </Select>
     </div>

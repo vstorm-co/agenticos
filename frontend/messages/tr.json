@@ -7308,7 +7308,7 @@
     },
     "discover": {
       "title": "AgenticOS’u keşfedin",
-      "subtitle": "Agentlarınızın yapabildiği, kolayca gözden kaçabilecek şeyler.",
+      "subtitle": "Kendi modellerini kullan, araçlarını bağla ve sohbeti faydalı işe dönüştür.",
       "previous": "Önceki ipuçları",
       "next": "Daha fazla ipucu",
       "dismissAll": "İpuçlarını gizle",
@@ -7368,6 +7368,31 @@
           "title": "Ekibinizin çalışma biçimini öğretin",
           "body": "Skills; teklif şablonu veya işe alım kontrol listesi gibi yazılı yönergelerdir. Agent, görev gerektirdiğinde yükler.",
           "cta": "Skill yaz"
+        },
+        "subscriptions": {
+          "title": "Claude veya Codex hesabını kullan",
+          "body": "Desteklenen bir Claude Code, ChatGPT (Codex) veya Antigravity hesabını bağla ve kendi sohbetlerinde modellerini seç.",
+          "cta": "Abonelik bağla"
+        },
+        "firstTask": {
+          "title": "Gerçek bir görevle başla",
+          "body": "Araştırma özeti, tablo karşılaştırması veya küçük bir uygulama iste. Dosya ekle ve sonuçları konuşmanda sakla.",
+          "cta": "İlk görevi dene"
+        },
+        "connectedTools": {
+          "title": "Günlük araçlarını bağla",
+          "body": "GitHub, Notion veya Google Workspace’i bağla. Ajanlar izin verdiğin hizmetler ve erişim kapsamında çalışsın.",
+          "cta": "Araçlarını bağla"
+        },
+        "projects": {
+          "title": "Projeyi bir arada tut",
+          "body": "İlgili sohbetleri, dosyaları ve talimatları bir projede topla. Yeni konuşmalar aynı bağlamı kullanabilir.",
+          "cta": "Projeleri aç"
+        },
+        "personalMemory": {
+          "title": "Kişisel bağlamını kontrol et",
+          "body": "Ajanların senin hakkında neler hatırladığını incele. Kendi bellek ayarlarında kayıtlı bilgileri düzelt veya sil.",
+          "cta": "Belleğini incele"
         }
       }
     },

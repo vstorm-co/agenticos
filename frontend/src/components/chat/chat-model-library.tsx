@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useLayoutEffect, type ReactNode } from "react";
+import { useId, useState, useRef, useLayoutEffect, type ReactNode } from "react";
 import { Command } from "cmdk";
 import { Check, KeyRound, RefreshCw, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -160,9 +160,22 @@ export function ChatModelPane(props: ChatModelPaneProps) {
   const t = useTranslations("chat.modelPicker");
   const vault = useTranslations("vault");
   const [query, setQuery] = useState("");
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const searchButton = useRef<HTMLButtonElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const searchId = useId();
+  const infoId = useId();
   const [tab, setTab] = useState("catalog");
   const hasCredentials = Boolean(props.credentialPicker || props.credentialForm);
   const activeTab = tab === "key" && !hasCredentials ? "catalog" : tab;
+  useLayoutEffect(() => {
+    if (searchExpanded && activeTab === "catalog") searchInput.current?.focus();
+  }, [searchExpanded, activeTab]);
+  const closeSearch = () => {
+    setSearchExpanded(false);
+    setQuery("");
+    searchButton.current?.focus();
+  };
   const needle = query.trim().toLowerCase();
   const profileProvider = subscriptionFromChoice(props.providerId)
     ? "subscription_accounts"
@@ -183,6 +196,15 @@ export function ChatModelPane(props: ChatModelPaneProps) {
   const modelRows = [...catalog.values()]
     .filter((entry) => matches(entry.id, entry.name))
     .sort((a, b) => Number(b.id === props.model) - Number(a.id === props.model));
+  const catalogSource = props.catalogSource
+    ? t(
+        props.catalogSource === "live"
+          ? "catalogLive"
+          : props.catalogSource === "curated"
+            ? "catalogFallback"
+            : "catalogUnlisted",
+      )
+    : "";
   const row = (
     id: string,
     model: string,
@@ -226,12 +248,73 @@ export function ChatModelPane(props: ChatModelPaneProps) {
         </div>
       ) : (
         <Tabs value={activeTab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
-          <TabsList className="shrink-0 px-2" aria-label={t("model")}>
-            <TabsTrigger value="catalog">{t("allModels")}</TabsTrigger>
-            {hasCredentials && (
-              <TabsTrigger value="key">{props.credentialTabLabel ?? vault("key")}</TabsTrigger>
+          <div
+            className="border-border flex shrink-0 items-center gap-1 border-b pr-2"
+            data-model-toolbar
+          >
+            <TabsList className="min-w-0 flex-1 border-0 px-2 shadow-none" aria-label={t("model")}>
+              <TabsTrigger value="catalog" aria-describedby={infoId}>
+                {t("allModels")}
+              </TabsTrigger>
+              {hasCredentials && (
+                <TabsTrigger value="key" title={props.connectionLabel}>
+                  {props.credentialTabLabel ?? vault("key")}
+                </TabsTrigger>
+              )}
+            </TabsList>
+            <span id={infoId} className="sr-only">
+              {t("catalogCount", { count: modelRows.length })}
+              {catalogSource && ` · ${catalogSource}`}
+            </span>
+            {activeTab === "catalog" && !props.configurationForm && (
+              <div className="flex shrink-0 items-center gap-0.5">
+                {!props.loading && (
+                  <span
+                    aria-hidden
+                    className="text-muted-foreground mr-1 hidden text-[10px] sm:inline"
+                    title={catalogSource}
+                  >
+                    {t("catalogCount", { count: modelRows.length })}
+                  </span>
+                )}
+                <Button
+                  ref={searchButton}
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label={t("searchModels")}
+                  aria-expanded={searchExpanded}
+                  aria-controls={searchId}
+                  onClick={() => (searchExpanded ? closeSearch() : setSearchExpanded(true))}
+                >
+                  <Search aria-hidden className="size-3.5" />
+                </Button>
+                {props.onRefresh && (
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={t("refreshCatalog")}
+                    disabled={props.loading || props.catalogRefreshing}
+                    onClick={props.onRefresh}
+                  >
+                    <RefreshCw
+                      aria-hidden
+                      className={cn(
+                        "size-3.5",
+                        props.catalogRefreshing && "animate-spin motion-reduce:animate-none",
+                      )}
+                    />
+                  </Button>
+                )}
+              </div>
             )}
-          </TabsList>
+          </div>
+          {props.catalogError && (
+            <p role="alert" className="text-destructive shrink-0 px-3 py-2 text-xs">
+              {t("catalogFailed")}
+            </p>
+          )}
           <TabsContent value="key" className="mt-0 flex min-h-0 flex-1 flex-col">
             <div className="min-h-0 flex-1 scrollbar-thin space-y-3 overflow-y-auto overscroll-contain p-3">
               {props.credentialPicker}
@@ -255,13 +338,30 @@ export function ChatModelPane(props: ChatModelPaneProps) {
                   </div>
                 )}
                 <Command shouldFilter={false} loop className="flex min-h-0 flex-1 flex-col">
-                  <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-2.5">
+                  <div
+                    id={searchId}
+                    data-model-search
+                    hidden={!searchExpanded}
+                    className={
+                      searchExpanded
+                        ? "border-border flex shrink-0 items-center gap-2 border-b px-3 py-2"
+                        : "hidden"
+                    }
+                  >
                     <Search className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
                     <Command.Input
+                      ref={searchInput}
                       value={query}
                       onValueChange={setQuery}
                       placeholder={t("searchModels")}
                       aria-label={t("searchModels")}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          closeSearch();
+                        }
+                      }}
                       className="h-7 min-w-0 flex-1 bg-transparent text-xs outline-none"
                     />
                   </div>
@@ -315,57 +415,6 @@ export function ChatModelPane(props: ChatModelPaneProps) {
                       )}
                   </Command.List>
                 </Command>
-                {activeTab === "catalog" && (
-                  <div className="border-border text-muted-foreground flex shrink-0 items-center justify-between gap-2 border-t px-3 py-2 text-xs">
-                    <div className="min-w-0 space-y-0.5">
-                      {!props.loading && <p>{t("catalogCount", { count: modelRows.length })}</p>}
-                      {props.catalogError ? (
-                        <p role="alert" className="text-destructive">
-                          {t("catalogFailed")}
-                        </p>
-                      ) : props.catalogSource ? (
-                        <p>
-                          {t(
-                            props.catalogSource === "live"
-                              ? "catalogLive"
-                              : props.catalogSource === "curated"
-                                ? "catalogFallback"
-                                : "catalogUnlisted",
-                          )}
-                        </p>
-                      ) : null}
-                    </div>
-                    {props.connectionLabel && (
-                      <Button
-                        type="button"
-                        variant="link"
-                        size="sm"
-                        className="h-auto max-w-48 truncate p-0 text-xs"
-                        onClick={() => setTab("key")}
-                      >
-                        {props.connectionLabel}
-                      </Button>
-                    )}
-                    {props.onRefresh && (
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        variant="ghost"
-                        aria-label={t("refreshCatalog")}
-                        disabled={props.loading || props.catalogRefreshing}
-                        onClick={props.onRefresh}
-                      >
-                        <RefreshCw
-                          aria-hidden
-                          className={cn(
-                            "size-3.5",
-                            props.catalogRefreshing && "animate-spin motion-reduce:animate-none",
-                          )}
-                        />
-                      </Button>
-                    )}
-                  </div>
-                )}
               </div>
             )}
           </TabsContent>

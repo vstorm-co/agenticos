@@ -107,6 +107,10 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
       </PopoverTrigger>
       <PopoverContent
         data-chat-popover
+        onEscapeKeyDown={(event) => {
+          if (event.target instanceof Element && event.target.closest("[data-model-search]"))
+            event.preventDefault();
+        }}
         onInteractOutside={(event) => {
           if (event.target instanceof Element && event.target.closest('[role="dialog"]'))
             event.preventDefault();

@@ -1,8 +1,13 @@
 ---
-source_sha: "2ac651787fae"
+source_sha: "ae4836ffab96"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
+
+La biblioteca de modelos del chat oculta inicialmente la búsqueda tras la lupa junto a Models y Account o Key. Escape vacía y cierra primero la búsqueda y después el selector. Actualizar y el contador compacto comparten la fila de pestañas; la fuente del catálogo está disponible con el contador y los datos de cuenta permanecen en Account. Los modelos de suscripción guardados restauran el servicio, la cuenta y el modelo concretos en vez de una selección conjunta de suscripciones.
+
+
+La tabla de suscripciones muestra los dos primeros límites informados en una vista compacta. **Detalles** despliega todas las ventanas, las fechas de restablecimiento y la hora de observación. Las acciones de la cuenta comparten una fila; Desconectar está en el menú de acciones.
 
 El selector conserva el encabezado, las pestañas del proveedor y la búsqueda en su sitio; las listas de modelos y proveedores se desplazan por separado. Los cambios de pestaña del dashboard mantienen su transición breve. Entrar en el dashboard o restaurar el historial no anima todo el panel. El carrusel del onboarding sigue disponible junto a una foto subida, con una explicación de que el color corresponde al avatar que aparece cuando la foto no está disponible.
 
@@ -270,12 +275,14 @@ del equipo y - quien pueda - poner un agent en una app de chat. Cada paso se
 marca a partir de lo que existe, se haya hecho donde se haya hecho, no de un
 clic en la tarjeta; cerrar la tarjeta la oculta en ese navegador.
 
-Tu propia vista muestra además **Discover AgenticOS**: una tarjeta por cada cosa
-fácil de pasar por alto - el servidor MCP propio de este despliegue para Claude
-Code, Codex o Cursor, subagents, sandboxes, apps, routines, apps de chat, el
-navegador web, bases de conocimiento y skills -, cada una lleva a donde se activa,
-y solo las que puedes usar. Cierra una tarjeta o todas; también se guarda en el
-navegador.
+Tu propia vista muestra además **Discover AgenticOS**. Empieza con suscripciones
+personales de Claude Code, ChatGPT (Codex) y Antigravity, una primera tarea en el
+chat y el uso desde un cliente de programación existente. Otras tarjetas muestran
+conexiones personales a herramientas, proyectos y memoria, seguidas de sandboxes,
+subagents, apps, routines, canales, navegador, conocimiento y skills. Cada una
+lleva a su configuración o vista de trabajo; las acciones que requieren permisos
+solo aparecen para quienes pueden usarlas. Cierra una tarjeta o todas; también
+se guarda en el navegador.
 
 Los gráficos en el tiempo eligen su propio paso. El tramo desde el primer run del
 periodo hasta ahora se dibuja en 48 puntos como mucho, con el paso más fino que
@@ -319,7 +326,7 @@ Organización → IA y servicios muestra tarjetas individuales con interruptores
 
 Las rutinas programadas, por eventos y de seguimiento usan el mismo marco de diálogo, con encabezado y navegación fijos y un formulario desplazable. Crear un seguimiento recorre Configuración, Mensaje y Frecuencia; Atrás conserva el borrador. El selector de agentes muestra los mismos avatares que el chat. Las opciones de ejecución y entrega del seguimiento están reunidas en un solo panel de opciones avanzadas.
 
-Discover comienza con capacidades ilustradas en el dashboard. Al pasar el puntero
+Discover comienza con cuentas personales y tareas cotidianas en el dashboard. Al pasar el puntero
 por una curva de _Your period_ aparecen el intervalo y el valor; los costes se
 muestran como importes. Los proyectos muestran descripciones y los agentes usan
 los mismos avatares que en el chat.

@@ -300,7 +300,9 @@ it("uses the same searchable list as API providers and moves account settings in
   items = [{ ...account, email: "test@example.com" }];
   mount(undefined, true);
   await screen.findByRole("option", { name: "claude-via-google" });
-  expect(screen.getByPlaceholderText(/Search models/)).toBeInTheDocument();
+  expect(screen.getByPlaceholderText(/Search models/)).not.toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Search models…" }));
+  expect(screen.getByPlaceholderText(/Search models/)).toHaveFocus();
   expect(screen.queryByRole("combobox", { name: "Model" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Use this model" })).not.toBeInTheDocument();
   expect(screen.queryByText("Connected")).not.toBeInTheDocument();
@@ -323,7 +325,8 @@ it("keeps saved models tied to the selected account and reports failed selection
   await waitFor(() =>
     expect(apiClient.get).toHaveBeenCalledWith("/subscription-accounts/google.json/models"),
   );
-  await userEvent.click(screen.getByRole("button", { name: "saved@example.com" }));
+  expect(screen.queryByRole("button", { name: "saved@example.com" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("tab", { name: "Account" }));
   expect(screen.getByRole("tab", { name: "Account" })).toHaveAttribute("aria-selected", "true");
   await userEvent.click(screen.getByRole("tab", { name: "Models" }));
   vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("selection refused"));

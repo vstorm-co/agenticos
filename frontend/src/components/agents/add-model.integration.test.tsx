@@ -8,6 +8,8 @@ import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 import type { SecretPurpose } from "@/types/secrets";
 import { providerMarkIn } from "@/test-utils/brand-marks";
+import type { ReactNode } from "react";
+import type { SubscriptionAccount } from "@/lib/subscription-accounts-api";
 
 /**
  * Adding a model: a provider, a model id, and which stored key pays for it.
@@ -42,6 +44,7 @@ interface ProviderCapabilities {
 }
 
 const state = {
+  accounts: [] as SubscriptionAccount[],
   purposes: [] as SecretPurpose[],
   catalog: [] as ProviderCapabilities[],
   secrets: [] as Secret[],
@@ -63,9 +66,25 @@ const state = {
 };
 
 vi.mock("./subscription-model-form", () => ({
-  SubscriptionModelForm: ({ provider }: { provider: string }) => (
-    <div data-testid="subscription-form">{provider}</div>
+  SubscriptionModelForm: ({
+    provider,
+    initialModel,
+    providerField,
+  }: {
+    provider: string;
+    initialModel?: string;
+    providerField?: ReactNode;
+  }) => (
+    <>
+      {providerField}
+      <div data-testid="subscription-form" data-model={initialModel}>
+        {provider}
+      </div>
+    </>
   ),
+}));
+vi.mock("@/hooks/use-subscription-accounts", () => ({
+  useSubscriptionAccounts: () => ({ accounts: { data: { items: state.accounts } } }),
 }));
 
 const listingRequests = vi.fn();
@@ -169,6 +188,7 @@ const OPENAI_CAPABILITIES: Partial<ProviderCapabilities> = {
 };
 
 beforeEach(() => {
+  state.accounts = [];
   state.purposes = [purpose("openai", "OpenAI"), purpose("openrouter", "OpenRouter")];
   // What each provider's SDK actually reads. `openai` takes an endpoint, is
   // keyless because OpenAI-compatible servers exist, and serves both of its
@@ -2041,14 +2061,71 @@ it("routes a subscription choice to inline setup and keeps old profiles editable
   const { rerender } = render(
     <AddModel fixedProviderId="subscription_accounts" onCreated={vi.fn()} />,
   );
-  expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent(
-    "All connected subscriptions",
-  );
+  expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("Choose a provider");
   await pickProvider("Claude Code");
   expect(screen.getByTestId("subscription-form")).toHaveTextContent("claude");
   rerender(<AddModel key="fixed" fixedProviderId="subscription:codex" onCreated={vi.fn()} />);
   expect(screen.getByTestId("subscription-form")).toHaveTextContent("codex");
   expect(screen.queryByRole("combobox", { name: "Provider" })).toBeNull();
+});
+
+it("restores the concrete subscription and its model from the routed account", async () => {
+  const model = `account-${"a".repeat(24)}/claude-sonnet-4-6`;
+  state.accounts = [
+    {
+      name: "google",
+      provider: "antigravity",
+      model_prefix: `account-${"a".repeat(24)}`,
+      label: null,
+      email: null,
+      status: "active",
+      disabled: false,
+      unavailable: false,
+    },
+  ];
+  state.catalog = [
+    capabilities("subscription_accounts", "Subscription accounts", { personal_gateway: true }),
+  ];
+  mount({
+    selected: {
+      id: "personal",
+      provider: "subscription_accounts",
+      model,
+      label: "My custom model",
+      secret_id: null,
+      params: {},
+      fallback_profile_ids: [],
+    },
+  });
+  const provider = screen.getByRole("combobox", { name: "Provider" });
+  expect(provider).toHaveTextContent("Google Antigravity");
+  expect(providerMarkIn(provider)).toBe("google");
+  expect(screen.getByTestId("subscription-form")).toHaveAttribute("data-model", model);
+  expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
+  await pickProvider("ChatGPT");
+  expect(screen.getByTestId("subscription-form")).toHaveTextContent("codex");
+  expect(screen.getByTestId("subscription-form")).not.toHaveAttribute("data-model");
+});
+
+it("restores a legacy named subscription before account metadata loads", () => {
+  mount({
+    selected: {
+      id: "legacy",
+      provider: "subscription_accounts",
+      model: "claude-sonnet-4-6",
+      label: "Google Antigravity · claude-sonnet-4-6",
+      secret_id: null,
+      params: {},
+      fallback_profile_ids: [],
+    },
+  });
+  expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent(
+    "Google Antigravity",
+  );
+  expect(screen.getByTestId("subscription-form")).toHaveAttribute(
+    "data-model",
+    "claude-sonnet-4-6",
+  );
 });
 
 it("refreshes the selected provider catalog without creating a model or changing its draft", async () => {

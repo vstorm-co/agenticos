@@ -23,6 +23,39 @@ function props() {
     failure: null,
   };
 }
+it("opens search from the toolbar and Escape clears it and restores focus", async () => {
+  const p = props();
+  render(
+    <ChatModelLibrary
+      {...p}
+      onRefresh={vi.fn()}
+      connectionLabel="person@example.com"
+      credentialPicker={<span>Account settings</span>}
+    />,
+  );
+  const search = screen.getByRole("button", { name: "Search models…" });
+  expect(search).toHaveAttribute("aria-expanded", "false");
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(search.closest("[data-model-toolbar]")).toContainElement(
+    screen.getByRole("button", { name: "Refresh models" }),
+  );
+  expect(screen.queryByText("person@example.com")).not.toBeInTheDocument();
+  expect(screen.getByRole("tab", { name: "Key" })).toHaveAttribute("title", "person@example.com");
+  search.focus();
+  await userEvent.keyboard("{Enter}");
+  const input = screen.getByRole("combobox");
+  expect(input).toHaveFocus();
+  await userEvent.type(input, "missing");
+  await userEvent.keyboard("{Escape}");
+  expect(search).toHaveFocus();
+  expect(search).toHaveAttribute("aria-expanded", "false");
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(screen.getByRole("option", { name: "Claude" })).toBeVisible();
+  await userEvent.click(search);
+  await userEvent.type(screen.getByRole("combobox"), "missing");
+  await userEvent.click(search);
+  expect(screen.getByRole("option", { name: "Claude" })).toBeVisible();
+});
 it("puts connected providers first with capitalized names and brand marks", () => {
   render(<ChatModelLibrary {...props()} />);
   const buttons = within(screen.getByRole("group", { name: "Provider" })).getAllByRole("button");
@@ -36,6 +69,7 @@ it("searches model names, supports an unlisted model ID, and applies only on con
   render(<ChatModelLibrary {...p} />);
   expect(screen.getByRole("option", { name: "Claude" })).toBeVisible();
   expect(screen.queryByText("anthropic/claude")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Search models…" }));
   await userEvent.type(screen.getByRole("combobox"), "anthropic/claude");
   await userEvent.click(screen.getByRole("option", { name: "Claude" }));
   expect(p.onModelChange).toHaveBeenCalledWith("anthropic/claude");
@@ -51,6 +85,7 @@ it("clears a search when changing provider and keeps credential forms in the pan
   const { rerender } = render(
     <ChatModelLibrary {...p} credentialForm={<button>Add provider key</button>} />,
   );
+  await userEvent.click(screen.getByRole("button", { name: "Search models…" }));
   await userEvent.type(screen.getByRole("combobox"), "claude");
   await userEvent.click(screen.getByRole("button", { name: /Openai/ }));
   expect(p.onProviderChange).toHaveBeenCalledWith("openai");
@@ -61,7 +96,8 @@ it("clears a search when changing provider and keeps credential forms in the pan
       credentialForm={<button>Add provider key</button>}
     />,
   );
-  expect(screen.getByRole("combobox")).toHaveValue("");
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(screen.getByPlaceholderText("Search models…")).toHaveValue("");
   expect(screen.queryByRole("button", { name: "Add provider key" })).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("tab", { name: "Key" }));
   expect(screen.getByRole("button", { name: "Add provider key" })).toBeVisible();
@@ -157,9 +193,12 @@ it("shows the complete catalog and places the selected model first", async () =>
   expect(rows).toHaveLength(150);
   expect(rows[0]).toHaveTextContent("Model 149");
   expect(screen.getByText("150 models")).toBeInTheDocument();
-  expect(screen.getByText("Provider catalog")).toBeInTheDocument();
+  expect(screen.getByRole("tab", { name: "Models" })).toHaveAccessibleDescription(
+    "150 models · Provider catalog",
+  );
   await userEvent.click(screen.getByRole("option", { name: "Model 140" }));
   expect(p.onModelChange).toHaveBeenCalledWith("vendor/model-140");
+  await userEvent.click(screen.getByRole("button", { name: "Search models…" }));
   await userEvent.type(screen.getByRole("combobox"), "Model 149");
   expect(screen.getAllByRole("option")).toHaveLength(1);
   expect(screen.getByText("1 model")).toBeInTheDocument();
@@ -211,6 +250,7 @@ it("keeps loading feedback inside the list while search and provider tabs stay a
   expect(within(screen.getByRole("listbox")).getByRole("status")).toHaveTextContent(
     "Loading models",
   );
-  expect(screen.getByRole("combobox")).toBeVisible();
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Search models…" })).toBeVisible();
   expect(screen.getByRole("tab", { name: "Models" })).toBeVisible();
 });

@@ -1,8 +1,13 @@
 ---
-source_sha: "2ac651787fae"
+source_sha: "ae4836ffab96"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
+
+Die Modellbibliothek im Chat blendet die Suche zunächst hinter der Lupe neben Models und Account oder Key aus. Escape leert und schließt zuerst die Suche, danach die Auswahl. Aktualisieren und die kompakte Modellanzahl stehen in der Tabzeile; die Katalogquelle ist bei der Anzahl verfügbar, Kontodetails unter Account. Gespeicherte Abonnementmodelle stellen den konkreten Dienst, das Konto und das Modell statt einer gemeinsamen Abonnementauswahl wieder her.
+
+
+Die Abonnementtabelle zeigt die ersten beiden gemeldeten Limits in einer kompakten Vorschau. **Details** öffnet alle Zeitfenster, Rücksetztermine und den Messzeitpunkt. Die Kontoaktionen stehen in einer Zeile; Trennen ist im Aktionsmenü verfügbar.
 
 Die Modellauswahl behält Kopfzeile, Anbietertabs und Suche an ihrer Position; Modell- und Anbieterlisten scrollen unabhängig. Dashboard-Tabs behalten ihren kurzen Übergang. Beim Öffnen des Dashboards oder Wiederherstellen des Browserverlaufs wird nicht die gesamte Fläche animiert. Das Avatar-Karussell im Onboarding bleibt neben einem hochgeladenen Foto verfügbar. Ein Hinweis erklärt, dass die Farbe für den Avatar gilt, der ohne verfügbares Foto erscheint.
 
@@ -269,11 +274,13 @@ und - wer darf - einen Agent in eine Chat-App bringen. Jeder Schritt wird nach d
 abgehakt, was existiert, wo auch immer er erledigt wurde, nicht nach einem Klick
 auf die Karte; wer die Karte schließt, blendet sie in diesem Browser aus.
 
-Ihre eigene Ansicht zeigt außerdem **AgenticOS entdecken**: je eine Kachel für das,
-was leicht übersehen wird - den eigenen MCP-Server dieses Deployments für Claude
-Code, Codex oder Cursor, Subagents, Sandboxes, Apps, Routines, Chat-Apps, den
-Web-Browser, Wissensbasen und Skills -, jede führt dorthin, wo es eingeschaltet
-wird, und nur die, die Sie nutzen können. Schließen Sie eine Kachel oder alle;
+Ihre eigene Ansicht zeigt außerdem **AgenticOS entdecken**. Zuerst erscheinen
+persönliche Claude Code-, ChatGPT (Codex)- und Antigravity-Abonnements, eine erste
+Chat-Aufgabe und die Nutzung aus einem vorhandenen Coding-Client. Weitere Kacheln
+zeigen persönliche Werkzeugverbindungen, Projekte und Erinnerungen, danach
+Sandboxes, Subagents, Apps, Routines, Kanäle, Browser, Wissen und Skills. Jede
+verlinkt die Einrichtung oder Arbeitsansicht; berechtigungsabhängige Aktionen
+sehen nur Personen, die sie nutzen dürfen. Schließen Sie eine Kachel oder alle;
 auch das bleibt im Browser.
 
 Diagramme im Zeitverlauf wählen ihren Schritt selbst. Die Spanne vom ersten Run
@@ -320,7 +327,7 @@ Organisation → KI & Dienste zeigt einzelne Funktionskarten mit Schaltern und a
 
 Zeitgesteuerte, ereignisgesteuerte und überwachende Routinen verwenden denselben Dialograhmen mit festem Kopfbereich und Navigation sowie einem scrollbaren Formular. Das Erstellen einer Überwachung führt durch Konfiguration, Nachricht und Zeitplan; Zurück erhält den Entwurf. Die Agentenauswahl zeigt dieselben Avatare wie der Chat. Ausführungs- und Zustelloptionen einer Überwachung stehen gemeinsam in einem Bereich für erweiterte Optionen.
 
-Discover beginnt auf dem Dashboard mit illustrierten Fähigkeiten. Beim Überfahren
+Discover beginnt auf dem Dashboard mit persönlichen Konten und alltäglichen Aufgaben. Beim Überfahren
 einer Kurve in _Your period_ erscheinen Zeitabschnitt und Wert; Ausgaben werden
 als Geldbetrag formatiert. Projekte zeigen Beschreibungen, Agentenzeilen dieselben
 Avatare wie im Chat.

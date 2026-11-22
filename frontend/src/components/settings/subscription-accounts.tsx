@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { Check, Copy, ExternalLink } from "lucide-react";
+import { Check, Copy, ExternalLink, MoreHorizontal } from "lucide-react";
 import {
   Badge,
   Button,
@@ -17,6 +17,10 @@ import {
   IconButton,
   Input,
   DataTable,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
   type Column,
 } from "@/components/ui";
 import { ErrorState } from "@/components/states";
@@ -128,7 +132,7 @@ export function SubscriptionAccounts() {
       className: "min-w-64",
       cell: (row) =>
         row.account ? (
-          <SubscriptionAccountUsage account={row.account} />
+          <SubscriptionAccountUsage account={row.account} compact />
         ) : (
           <span className="text-muted-foreground text-xs">—</span>
         ),
@@ -139,7 +143,7 @@ export function SubscriptionAccounts() {
       align: "right",
       className: "w-36",
       cell: (row) => (
-        <div className="flex flex-wrap justify-end gap-1">
+        <div className="flex items-center justify-end gap-1">
           <Button
             type="button"
             size="sm"
@@ -150,18 +154,24 @@ export function SubscriptionAccounts() {
             {row.account ? t("connectAnother") : t("connect")}
           </Button>
           {row.account && (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              disabled={actions.disconnect.isPending}
-              onClick={() => {
-                if (row.account)
-                  void actions.disconnect.mutateAsync(row.account.name).catch(failure);
-              }}
-            >
-              {t("disconnect")}
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" size="icon-sm" variant="ghost" aria-label={t("tableActions")}>
+                  <MoreHorizontal aria-hidden className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  disabled={actions.disconnect.isPending}
+                  onSelect={() => {
+                    if (row.account)
+                      void actions.disconnect.mutateAsync(row.account.name).catch(failure);
+                  }}
+                >
+                  {t("disconnect")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       ),
@@ -179,7 +189,7 @@ export function SubscriptionAccounts() {
       <DataTable
         key={query}
         clientPagination
-        pageSize={5}
+        pageSize={10}
         fillHeight
         stackOnNarrow
         columns={columns}

@@ -1,6 +1,13 @@
 "use client";
 
-import { useId, useState, useRef, useLayoutEffect, type ComponentType } from "react";
+import {
+  useId,
+  useState,
+  useRef,
+  useLayoutEffect,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import { useTranslations } from "next-intl";
 import { CircleCheck } from "lucide-react";
 import {
@@ -43,6 +50,7 @@ export function SubscriptionModelForm({
   disabled,
   onPendingChange,
   libraryPane: LibraryPane,
+  providerField,
 }: {
   provider: SubscriptionProvider;
   initialModel?: string;
@@ -50,6 +58,7 @@ export function SubscriptionModelForm({
   disabled?: boolean;
   onPendingChange?: (pending: boolean) => void;
   libraryPane?: ComponentType<ChatModelPaneProps>;
+  providerField?: ReactNode;
 }) {
   const t = useTranslations("modelSources");
   const chatCopy = useTranslations("chat.modelPicker");
@@ -289,30 +298,37 @@ export function SubscriptionModelForm({
   }
   return (
     <div className="space-y-4" data-tour="model-subscription-connect">
-      <FormField htmlFor={id} label={t("model")}>
-        <ModelCombobox
-          id={id}
-          provider="subscription_accounts"
-          value={model}
-          allowCustom={false}
-          onChange={(next) => {
-            if (account) void choose(account, next);
-          }}
-          options={listing.models}
-          source="live"
-          onRefresh={() => void listing.refetch()}
-          loading={listing.loading}
-          disabled={
-            disabled ||
-            pending ||
-            listing.loading ||
-            !connected ||
-            !!listing.error ||
-            listing.models.length === 0
-          }
-          placeholder={t("chooseModel")}
-        />
-      </FormField>
+      <div
+        className={
+          providerField ? "grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]" : undefined
+        }
+      >
+        {providerField}
+        <FormField htmlFor={id} label={t("model")}>
+          <ModelCombobox
+            id={id}
+            provider="subscription_accounts"
+            value={model}
+            allowCustom={false}
+            onChange={(next) => {
+              if (account) void choose(account, next);
+            }}
+            options={listing.models}
+            source="live"
+            onRefresh={() => void listing.refetch()}
+            loading={listing.loading}
+            disabled={
+              disabled ||
+              pending ||
+              listing.loading ||
+              !connected ||
+              !!listing.error ||
+              listing.models.length === 0
+            }
+            placeholder={t("chooseModel")}
+          />
+        </FormField>
+      </div>
       {listing.error ? (
         <ErrorState
           title={t("loadFailed")}

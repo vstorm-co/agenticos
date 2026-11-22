@@ -5884,7 +5884,7 @@
     },
     "discover": {
       "title": "Odkryj AgenticOS",
-      "subtitle": "Co potrafią twoje agenty, a łatwo to przeoczyć.",
+      "subtitle": "Korzystaj z własnych modeli, podłącz narzędzia i zamieniaj rozmowy w konkretne wyniki.",
       "previous": "Poprzednie wskazówki",
       "next": "Kolejne wskazówki",
       "dismissAll": "Ukryj wskazówki",
@@ -5944,6 +5944,31 @@
           "title": "Naucz sposobu pracy zespołu",
           "body": "Skills to spisane instrukcje - szablon oferty, checklista wdrożenia - które agent wczytuje, gdy zadanie ich wymaga.",
           "cta": "Napisz skill"
+        },
+        "subscriptions": {
+          "title": "Korzystaj z konta Claude lub Codex",
+          "body": "Połącz obsługiwane konto Claude Code, ChatGPT (Codex) lub Antigravity i wybieraj jego modele we własnych czatach.",
+          "cta": "Połącz subskrypcję"
+        },
+        "firstTask": {
+          "title": "Zacznij od konkretnego zadania",
+          "body": "Poproś o raport z researchu, porównanie arkuszy albo małą aplikację. Dodaj pliki i zachowaj wyniki w rozmowie.",
+          "cta": "Wypróbuj pierwsze zadanie"
+        },
+        "connectedTools": {
+          "title": "Podłącz codzienne narzędzia",
+          "body": "Połącz GitHub, Notion lub Google Workspace, aby agenci mogli pracować z usługami w ramach udzielonego dostępu.",
+          "cta": "Połącz narzędzia"
+        },
+        "projects": {
+          "title": "Trzymaj pracę w jednym projekcie",
+          "body": "Zbierz powiązane czaty, pliki i instrukcje w projekcie. Kolejne rozmowy mogą korzystać z tego samego kontekstu.",
+          "cta": "Otwórz projekty"
+        },
+        "personalMemory": {
+          "title": "Kontroluj swój kontekst",
+          "body": "Sprawdź, co agenci o Tobie pamiętają. Poprawiaj lub usuwaj zapisane fakty w ustawieniach własnej pamięci.",
+          "cta": "Sprawdź swoją pamięć"
         }
       }
     },
@@ -21272,7 +21297,6 @@
     "organization": "Modele organizacji / klucze API",
     "custom": "Zaawansowane / własny endpoint",
     "gateway": "Gateway subskrypcji (własny endpoint)",
-    "allSubscriptions": "Wszystkie połączone subskrypcje",
     "subscriptionHint": "Modele z tego konta korzystają z instrukcji i narzędzi AgenticOS w Twoich czatach.",
     "unavailable": "Logowanie do subskrypcji nie jest włączone w tej instalacji. Poproś administratora o jego włączenie.",
     "loading": "Wczytywanie Twoich kont…",

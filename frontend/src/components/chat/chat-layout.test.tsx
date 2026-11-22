@@ -44,7 +44,16 @@ vi.mock("@/stores", () => ({
   useAgentSelectionStore: (select: (value: { selectedAgentId: string }) => unknown) =>
     select({ selectedAgentId: "agent" }),
 }));
-vi.mock("./chat-model-picker", () => ({ ChatModelPicker: () => <p>Model catalog</p> }));
+vi.mock("./chat-model-picker", () => ({
+  ChatModelPicker: () => (
+    <>
+      <p>Model catalog</p>
+      <div data-model-search>
+        <input aria-label="Fixture model search" />
+      </div>
+    </>
+  ),
+}));
 vi.mock("@/components/icons/model-icon", () => ({ ModelIcon: () => null }));
 beforeEach(() => {
   state.override = "chosen";
@@ -66,6 +75,16 @@ it("restores the agent model, persists the cleared override and closes the picke
   await userEvent.click(restore);
   expect(state.update).toHaveBeenCalledWith({ modelProfileId: null });
   expect(onChange).toHaveBeenCalledWith(null);
+  expect(screen.queryByText("Model catalog")).not.toBeInTheDocument();
+});
+it("lets inline model search handle Escape before the parent picker closes", async () => {
+  render(<ChatComposerControls desktop={false} harnesses={[]} />);
+  await userEvent.click(screen.getByRole("button", { name: "Model" }));
+  await userEvent.click(screen.getByRole("textbox", { name: "Fixture model search" }));
+  await userEvent.keyboard("{Escape}");
+  expect(screen.getByText("Model catalog")).toBeVisible();
+  screen.getByRole("button", { name: "Close" }).focus();
+  await userEvent.keyboard("{Escape}");
   expect(screen.queryByText("Model catalog")).not.toBeInTheDocument();
 });
 it.each(["no override", "no agent model"])(

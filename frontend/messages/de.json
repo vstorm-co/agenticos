@@ -3823,7 +3823,7 @@
     },
     "discover": {
       "title": "AgenticOS entdecken",
-      "subtitle": "Was Ihre Agents können und leicht übersehen wird.",
+      "subtitle": "Nutze deine Modelle, verbinde Werkzeuge und mache aus einem Chat hilfreiche Arbeit.",
       "previous": "Vorherige Tipps",
       "next": "Weitere Tipps",
       "dismissAll": "Tipps ausblenden",
@@ -3883,6 +3883,31 @@
           "title": "Die Arbeitsweise Ihres Teams beibringen",
           "body": "Skills sind schriftliche Anleitungen - eine Angebotsvorlage, eine Onboarding-Checkliste -, die ein Agent bei Bedarf lädt.",
           "cta": "Skill schreiben"
+        },
+        "subscriptions": {
+          "title": "Nutze dein Claude- oder Codex-Konto",
+          "body": "Verbinde ein unterstütztes Claude Code-, ChatGPT (Codex)- oder Antigravity-Konto und wähle dessen Modelle für deine Chats.",
+          "cta": "Abonnement verbinden"
+        },
+        "firstTask": {
+          "title": "Starte mit einer echten Aufgabe",
+          "body": "Bitte um einen Recherchebericht, einen Tabellenvergleich oder eine kleine App. Füge Dateien hinzu und behalte die Ergebnisse im Chat.",
+          "cta": "Erste Aufgabe ausprobieren"
+        },
+        "connectedTools": {
+          "title": "Verbinde deine täglichen Werkzeuge",
+          "body": "Verbinde GitHub, Notion oder Google Workspace, damit Agenten mit den von dir freigegebenen Diensten arbeiten können.",
+          "cta": "Werkzeuge verbinden"
+        },
+        "projects": {
+          "title": "Halte ein Projekt zusammen",
+          "body": "Sammle zusammengehörige Chats, Dateien und Anweisungen in einem Projekt. Neue Gespräche können denselben Kontext nutzen.",
+          "cta": "Projekte öffnen"
+        },
+        "personalMemory": {
+          "title": "Kontrolliere deinen persönlichen Kontext",
+          "body": "Prüfe, was Agenten über dich gespeichert haben. Korrigiere oder lösche Fakten in deinen persönlichen Speichereinstellungen.",
+          "cta": "Erinnerungen prüfen"
         }
       }
     },
@@ -21185,7 +21210,6 @@
     "organization": "Organisationsmodelle / API-Schlüssel",
     "custom": "Erweitert / eigener Endpoint",
     "gateway": "Abonnement-Gateway (eigener Endpoint)",
-    "allSubscriptions": "Alle verbundenen Abonnements",
     "subscriptionHint": "Modelle dieses Kontos nutzen die Anweisungen und Werkzeuge von AgenticOS in Ihren eigenen Chats.",
     "unavailable": "Die Anmeldung für Abonnements ist hier nicht aktiviert. Bitte einen Administrator, sie zu aktivieren.",
     "loading": "Deine Konten werden geladen…",

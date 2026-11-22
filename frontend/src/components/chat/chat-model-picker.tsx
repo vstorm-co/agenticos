@@ -13,11 +13,11 @@ import {
 import { ModelConnectionIntro } from "@/components/agents/model-connection-intro";
 import { ModelSourceSelect, modelSourceOptions } from "@/components/agents/model-source-select";
 import {
-  SUBSCRIPTION_PROVIDERS,
   subscriptionBelongsTo,
   subscriptionChoice,
   subscriptionFromChoice,
   subscriptionLabelMatches,
+  subscriptionProviderFor,
 } from "@/lib/subscription-accounts-api";
 import { subscriptionModelId } from "@/lib/subscription-model-id";
 import { useSubscriptionAccounts } from "@/hooks/use-subscription-accounts";
@@ -139,21 +139,15 @@ export function ChatModelPicker({
       (current?.provider === "subscription_accounts" ||
         catalog.some((entry) => entry.personal_gateway)),
   });
-  const currentAccount = personalAccounts.accounts.data?.items.find(
-    (account) => account.model_prefix && current?.model.startsWith(account.model_prefix + "/"),
+  const currentSubscription = subscriptionProviderFor(
+    current,
+    personalAccounts.accounts.data?.items ?? [],
+    (provider) => tRoot(`subscriptionAccounts.providers.${provider}`),
   );
-  const currentSubscription =
-    currentAccount &&
-    SUBSCRIPTION_PROVIDERS.find((provider) => subscriptionBelongsTo(currentAccount, provider));
   const currentSource = currentSubscription
     ? subscriptionChoice(currentSubscription)
     : current?.provider === "subscription_accounts"
-      ? (modelSourceOptions([], true, tRoot).find((entry) => {
-          const source = subscriptionFromChoice(entry.id);
-          return (
-            source !== undefined && subscriptionLabelMatches(current.label, source, entry.label)
-          );
-        })?.id ?? current.provider)
+      ? ""
       : current?.provider;
   const providerId = providerView?.id ?? edited?.providerId ?? currentSource ?? defaultProviderId;
   const subscription = subscriptionFromChoice(providerId);

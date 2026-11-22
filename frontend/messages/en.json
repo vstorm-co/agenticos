@@ -3823,7 +3823,7 @@
     },
     "discover": {
       "title": "Discover AgenticOS",
-      "subtitle": "What your agents can do that is easy to miss.",
+      "subtitle": "Use your own models, bring your tools and turn a chat into useful work.",
       "previous": "Previous tips",
       "next": "More tips",
       "dismissAll": "Hide tips",
@@ -3883,6 +3883,31 @@
           "title": "Teach the way your team works",
           "body": "Skills are written how-tos - a proposal template, an onboarding checklist - that an agent loads when the task needs it.",
           "cta": "Write a skill"
+        },
+        "subscriptions": {
+          "title": "Bring your Claude or Codex account",
+          "body": "Connect a supported Claude Code, ChatGPT (Codex) or Antigravity account, then choose its models in your own chats.",
+          "cta": "Connect a subscription"
+        },
+        "firstTask": {
+          "title": "Start with a real task",
+          "body": "Ask for a research brief, a spreadsheet comparison or a small app. Add files and keep the results in your conversation.",
+          "cta": "Try a first task"
+        },
+        "connectedTools": {
+          "title": "Bring your everyday tools",
+          "body": "Connect GitHub, Notion or Google Workspace so agents can work with the services and access you allow.",
+          "cta": "Connect your tools"
+        },
+        "projects": {
+          "title": "Keep a project together",
+          "body": "Keep related chats, files and instructions in one project. New conversations can use the same context.",
+          "cta": "Open projects"
+        },
+        "personalMemory": {
+          "title": "Control your personal context",
+          "body": "Review what agents remember about you. Correct or delete saved facts from your own memory settings.",
+          "cta": "Review your memory"
         }
       }
     },
@@ -21499,7 +21524,6 @@
     "organization": "Organization models / API keys",
     "custom": "Advanced / custom endpoint",
     "gateway": "Subscription gateway (custom endpoint)",
-    "allSubscriptions": "All connected subscriptions",
     "subscriptionHint": "Models from this account use AgenticOS instructions and tools in your own chats.",
     "unavailable": "Subscription sign-in is not enabled on this deployment. Ask an administrator to enable it.",
     "loading": "Loading your accounts…",

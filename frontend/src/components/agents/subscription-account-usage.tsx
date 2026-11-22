@@ -8,7 +8,13 @@ import type { SubscriptionAccount } from "@/lib/subscription-accounts-api";
 import { SubscriptionUsage } from "./subscription-usage";
 
 /** Both account settings and the model picker show the same per-account limits. */
-export function SubscriptionAccountUsage({ account }: { account: SubscriptionAccount }) {
+export function SubscriptionAccountUsage({
+  account,
+  compact = false,
+}: {
+  account: SubscriptionAccount;
+  compact?: boolean;
+}) {
   const t = useTranslations("modelSources");
   const query = useSubscriptionUsage(
     account.name,
@@ -21,7 +27,7 @@ export function SubscriptionAccountUsage({ account }: { account: SubscriptionAcc
     <div className="flex items-start gap-2">
       <div className="min-w-0 flex-1 space-y-1">
         {reported ? (
-          <SubscriptionUsage usage={usage} />
+          <SubscriptionUsage usage={usage} compact={compact} />
         ) : (
           <p className="text-muted-foreground text-xs">{t("usageAndLimits")}</p>
         )}

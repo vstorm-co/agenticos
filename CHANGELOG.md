@@ -33,6 +33,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Introduce personal subscriptions, a first chat task, coding-client connections, everyday tools, projects and personal memory first in Discover AgenticOS, with direct links and permission-aware tips.
+
 - Record guided-setup progress per organization membership and show completed, in-progress or unstarted status in organization member tables, with readable step labels.
 
 - Start new accounts on onboarding with account language and appearance, explicit invitation acceptance, provider-first model setup and suggested service connections. Pass the account’s preferred language to agents through the `language` built-in variable and person briefing.
@@ -112,6 +114,10 @@ Two things are versioned separately from this file and worth knowing about:
 - Find unanswered web-chat questions in Inbox and return to their original question cards, including older conversations.
 
 ### Fixed
+
+- Keep subscription account rows compact with a two-limit preview, expandable details and an account actions menu.
+
+- Restore the concrete subscription service, account and model in Builder model controls. Keep chat model search behind a magnifier beside the tabs, move refresh and the count into that row, and leave account details in Account to give models more space.
 
 - Seal the model catalog's sticky search against the scroll edge on desktop and mobile, and discard queued onboarding progress from a previous account or organization.
 

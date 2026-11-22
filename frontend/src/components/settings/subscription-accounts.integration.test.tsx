@@ -140,7 +140,8 @@ it("finishes a browser sign-in with the pasted address, and cancels an abandoned
 it("disconnects one account by its name", async () => {
   mount();
   const antigravity = await rowOf("Google Antigravity");
-  await userEvent.click(await antigravity.findByRole("button", { name: "Disconnect" }));
+  await userEvent.click(await antigravity.findByRole("button", { name: "Actions" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Disconnect" }));
   expect(apiClient.delete).toHaveBeenCalledWith("/subscription-accounts/antigravity-me.json");
 });
 
@@ -215,7 +216,8 @@ it("says why an account could not be disconnected", async () => {
   vi.mocked(apiClient.delete).mockRejectedValueOnce(new Error("gateway down"));
   mount();
   const antigravity = await rowOf("Google Antigravity");
-  await userEvent.click(await antigravity.findByRole("button", { name: "Disconnect" }));
+  await userEvent.click(await antigravity.findByRole("button", { name: "Actions" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Disconnect" }));
   await waitFor(() => expect(toast.error).toHaveBeenCalled());
 });
 
@@ -244,9 +246,17 @@ it("keeps several accounts of the same provider and their quota windows separate
     };
   });
   mount();
-  expect(await screen.findByText("39% left")).toBeInTheDocument();
-  expect(await screen.findByText("75% left")).toBeInTheDocument();
-  expect(screen.getAllByRole("progressbar")).toHaveLength(2);
+  const first = within(await screen.findByRole("row", { name: /first@example.com/ }));
+  const second = within(await screen.findByRole("row", { name: /second@example.com/ }));
+  expect(await first.findByRole("progressbar", { name: "Gemini · Weekly" })).toHaveAttribute(
+    "aria-valuetext",
+    "39% left",
+  );
+  expect(await second.findByRole("progressbar", { name: "Gemini · Weekly" })).toHaveAttribute(
+    "aria-valuetext",
+    "75% left",
+  );
+  expect(screen.getAllByRole("progressbar", { name: "Gemini · Weekly" })).toHaveLength(2);
   expect(screen.getByText("first@example.com")).toBeInTheDocument();
   expect(screen.getByText("second@example.com")).toBeInTheDocument();
   expect(apiClient.get).toHaveBeenCalledWith("/subscription-accounts/first.json/usage");
@@ -259,7 +269,7 @@ it("pages individual accounts and resets to the first page when searching", asyn
       ? { status: "unavailable", observed_at: null, windows: [] }
       : {
           enabled: true,
-          items: Array.from({ length: 6 }, (_, index) => ({
+          items: Array.from({ length: 12 }, (_, index) => ({
             ...ACCOUNT,
             name: `account-${index}.json`,
             email: `person${index}@example.com`,
@@ -268,13 +278,13 @@ it("pages individual accounts and resets to the first page when searching", asyn
   );
   mount();
   expect(await screen.findByText("person0@example.com")).toBeVisible();
-  expect(screen.queryByText("person5@example.com")).not.toBeInTheDocument();
+  expect(screen.queryByText("person10@example.com")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Next page" }));
-  expect(screen.getByText("person5@example.com")).toBeVisible();
+  expect(screen.getByText("person10@example.com")).toBeVisible();
   expect(screen.queryByText("person0@example.com")).not.toBeInTheDocument();
   await userEvent.type(screen.getByRole("textbox", { name: "Search subscriptions..." }), "person0");
   expect(screen.getByText("person0@example.com")).toBeVisible();
-  expect(screen.queryByText("person5@example.com")).not.toBeInTheDocument();
+  expect(screen.queryByText("person10@example.com")).not.toBeInTheDocument();
 });
 
 it("does not request a callback URL for a device flow without a separate code", async () => {

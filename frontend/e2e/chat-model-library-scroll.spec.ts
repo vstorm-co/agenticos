@@ -16,7 +16,7 @@ for (const width of [1440, 390]) {
     await page.route("**/api/providers/openai/models*", (route) =>
       route.fulfill({ json: { items, total: items.length, source: "live" } }),
     );
-    await page.goto("/chat");
+    await page.goto("/chat?answerer=agenticos");
     await expect(
       page.getByRole("button", { name: `Agent: ${SEEDED_AGENT_NAME}`, exact: true }),
     ).toBeVisible();
@@ -25,7 +25,17 @@ for (const width of [1440, 390]) {
     const providers = picker.getByRole("group", { name: "Provider", exact: true });
     await providers.getByRole("button", { name: "OpenAI", exact: true }).click();
     const search = picker.getByRole("combobox", { name: "Search models…", exact: true });
+    await expect(search).toBeHidden();
+    const toolbar = picker.locator("[data-model-toolbar]");
+    const modelHeight = await picker
+      .getByRole("listbox")
+      .evaluate((element) => element.clientHeight);
+    await toolbar.getByRole("button", { name: "Search models…", exact: true }).click();
     await expect(search).toBeVisible();
+    await expect(search).toBeFocused();
+    expect(
+      await picker.getByRole("listbox").evaluate((element) => element.clientHeight),
+    ).toBeLessThan(modelHeight);
     const list = picker.getByRole("listbox");
     await expect(list.getByRole("option", { name: /Layout model 40/ })).toHaveCount(1);
     await expect
@@ -44,6 +54,11 @@ for (const width of [1440, 390]) {
     expect((await search.boundingBox())?.y).toBeCloseTo(initialSearch.y, 0);
     expect(await picker.evaluate((element) => element.scrollTop)).toBe(0);
     await expect(picker.getByRole("button", { name: "Close", exact: true })).toBeInViewport();
+    await page.keyboard.press("Escape");
+    await expect(search).toBeHidden();
+    await expect(
+      toolbar.getByRole("button", { name: "Search models…", exact: true }),
+    ).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(picker).toHaveCount(0);
     await expect(page.locator("[data-chat-model]")).toBeFocused();

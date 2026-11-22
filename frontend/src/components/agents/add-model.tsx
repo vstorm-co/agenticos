@@ -8,7 +8,12 @@ import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import { hasKey, LISTED_AT_ENDPOINT, LISTED_WITH_KEY, runsAgents } from "@/lib/model-profiles";
 import { ModelSourceSelect } from "./model-source-select";
 import { SubscriptionModelForm } from "./subscription-model-form";
-import { subscriptionFromChoice } from "@/lib/subscription-accounts-api";
+import {
+  subscriptionChoice,
+  subscriptionFromChoice,
+  subscriptionProviderFor,
+} from "@/lib/subscription-accounts-api";
+import { useSubscriptionAccounts } from "@/hooks/use-subscription-accounts";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
 import { InlineSecret } from "@/components/vault/inline-secret";
@@ -293,7 +298,21 @@ export function AddModel({
   // What somebody picked, which is not the same as what the field shows: a
   // `null` here means nobody has picked yet, and the answer below is what the
   // organization already told us.
-  const [pickedProvider, setPickedProvider] = useState<string | null>(selected?.provider ?? null);
+  const [pickedProvider, setPickedProvider] = useState<string | null>(null);
+  const personalAccounts = useSubscriptionAccounts({
+    enabled: selected?.provider === "subscription_accounts",
+  });
+  const restoredSubscription = subscriptionProviderFor(
+    selected,
+    personalAccounts.accounts.data?.items ?? [],
+    (provider) => tRoot(`subscriptionAccounts.providers.${provider}`),
+  );
+  const restoredProvider =
+    selected?.provider === "subscription_accounts"
+      ? restoredSubscription
+        ? subscriptionChoice(restoredSubscription)
+        : ""
+      : selected?.provider;
   const [model, setModel] = useState(selected?.model ?? "");
   const [label, setLabel] = useState("");
   const [secretId, setSecretId] = useState(selected?.secret_id ?? "");
@@ -360,8 +379,8 @@ export function AddModel({
    */
   const providerId =
     (fixedProviderId === "subscription_accounts"
-      ? (pickedProvider ?? fixedProviderId)
-      : (fixedProviderId ?? pickedProvider)) ??
+      ? (pickedProvider ?? restoredProvider ?? "")
+      : (fixedProviderId ?? pickedProvider ?? restoredProvider)) ??
     soleKeyedProvider(providers, secrets) ??
     "";
   const found = providers.find((entry) => entry.id === providerId);
@@ -661,7 +680,8 @@ export function AddModel({
   };
 
   const subscription = subscriptionFromChoice(providerId);
-  if (subscription !== undefined || personal)
+  const showProvider = fixedProviderId === undefined || fixedProviderId === "subscription_accounts";
+  if (subscription !== undefined)
     return (
       <div
         className={
@@ -670,30 +690,28 @@ export function AddModel({
             : "border-border bg-muted/20 space-y-4 rounded-xl border p-4"
         }
       >
-        {(fixedProviderId === undefined || fixedProviderId === "subscription_accounts") && (
-          <FormField htmlFor={`${fieldId}-add-model-provider`} label={t("provider")}>
-            <ModelSourceSelect
-              id={`${fieldId}-add-model-provider`}
-              value={providerId}
-              providers={providers}
-              subscriptions
-              disabled={disabled}
-              onChange={chooseSource}
-            />
-          </FormField>
-        )}
-        {subscription !== undefined ? (
-          <SubscriptionModelForm
-            key={subscription}
-            provider={subscription}
-            initialModel={selected?.model}
-            disabled={disabled}
-            onCreated={onCreated}
-            onPendingChange={onCreationPendingChange}
-          />
-        ) : (
-          <p className="text-muted-foreground text-xs">{tRoot("modelSources.subscriptionHint")}</p>
-        )}
+        <SubscriptionModelForm
+          key={subscription}
+          provider={subscription}
+          initialModel={providerId === restoredProvider ? selected?.model : undefined}
+          disabled={disabled}
+          onCreated={onCreated}
+          onPendingChange={onCreationPendingChange}
+          providerField={
+            showProvider && (
+              <FormField htmlFor={`${fieldId}-add-model-provider`} label={t("provider")}>
+                <ModelSourceSelect
+                  id={`${fieldId}-add-model-provider`}
+                  value={providerId}
+                  providers={providers}
+                  subscriptions
+                  disabled={disabled}
+                  onChange={chooseSource}
+                />
+              </FormField>
+            )
+          }
+        />
       </div>
     );
 
@@ -701,12 +719,10 @@ export function AddModel({
     <div className="border-border bg-muted/20 space-y-4 rounded-xl border p-4">
       <div
         className={
-          fixedProviderId === undefined
-            ? "grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]"
-            : "grid gap-4"
+          showProvider ? "grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]" : "grid gap-4"
         }
       >
-        {fixedProviderId === undefined && (
+        {showProvider && (
           <FormField htmlFor={`${fieldId}-add-model-provider`} label={t("provider")}>
             <ModelSourceSelect
               id={`${fieldId}-add-model-provider`}

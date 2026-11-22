@@ -54,7 +54,7 @@ it("lists all sources immediately and supports keyboard selection", async () => 
   expect(change).toHaveBeenCalledWith("cliproxyapi");
 });
 
-it("keeps existing gateway and legacy subscription selections visible", async () => {
+it("keeps custom gateways visible and asks for a concrete service for unknown legacy subscriptions", async () => {
   const { rerender } = render(
     <ModelSourceSelect
       id="source"
@@ -74,5 +74,5 @@ it("keeps existing gateway and legacy subscription selections visible", async ()
       subscriptions
     />,
   );
-  expect(screen.getByRole("combobox")).toHaveTextContent("All connected subscriptions");
+  expect(screen.getByRole("combobox")).toHaveTextContent("Choose a provider");
 });

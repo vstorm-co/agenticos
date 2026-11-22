@@ -1,10 +1,14 @@
 ---
-source_sha: "2ac651787fae"
+source_sha: "ae4836ffab96"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
 
 **Refresh models** w katalogu dostawcy ponownie pobiera listę, zachowując wyszukiwanie i wybór. Przy zapisanych modelach organizacji odczytuje ponownie zapisane profile. Odświeżenie nie zapisuje modelu ani nie uruchamia agenta. Endpoint, klucz Vault, typ API i region pojawiają się zgodnie z możliwościami dostawcy; osobiste subskrypcje korzystają z ustawień połączonego konta.
+
+Tabela subskrypcji pokazuje dwa pierwsze zgłoszone limity w skróconym podglądzie. **Szczegóły** rozwijają wszystkie okna, daty resetu i czas pomiaru. Akcje konta mieszczą się w jednym wierszu, a odłączenie jest dostępne w menu akcji.
+
+Biblioteka modeli czatu domyślnie chowa wyszukiwanie pod lupą obok kart Models oraz Account lub Key. Escape czyści i zamyka wyszukiwanie przed zamknięciem selektora. Odświeżanie i kompaktowy licznik modeli są w wierszu kart; źródło katalogu jest dostępne przy liczniku, a dane konta pozostają w Account. Zapisany model subskrypcji przywraca konkretną usługę, konto i model zamiast zbiorczego wyboru subskrypcji.
 
 Tytuły stron, kontrolki list i nagłówki tabel mają wspólną, zwartą hierarchię. Tabela osadzona w liście ma jedną zewnętrzną ramkę i zachowuje wysokość wierszy podczas ładowania. Karta agenta otwiera Build również wtedy, gdy Evals wymaga uwagi; znacznik pozostaje widoczny. Historia uruchomień jest w Aktywności, zamiast nad Builderem. Podgląd uruchomienia pokazuje zapisany powód błędu, a pełne surowe zdarzenia pozostają w rozwijanych sekcjach. Czat pokazuje nazwę modelu nad dostawcą lub osobistym kontem. Projekty poprzedzają Build w nawigacji; Wiedza zaczyna zwinięta i otwiera się dla aktywnej strony lub po Twoim wyborze.
 
@@ -264,11 +268,13 @@ z zespołu i - jeśli może - wstawić agenta do komunikatora. Każdy krok jest
 odhaczany na podstawie tego, co istnieje, gdziekolwiek go zrobiono, a nie z
 kliknięcia na karcie; zamknięcie karty ukrywa ją w tej przeglądarce.
 
-Twój własny widok pokazuje też **Odkryj AgenticOS**: po jednym kafelku na to, co
-łatwo przeoczyć - własny serwer MCP tego wdrożenia dla Claude Code, Codex albo
-Cursora, subagentów, sandboxy, appki, routines, komunikatory, przeglądarkę, bazy
-wiedzy i skills - każdy prowadzi tam, gdzie się to włącza, i tylko te, z których
-możesz skorzystać. Zamknij kafelek albo wszystkie; to też zostaje w przeglądarce.
+Twój własny widok pokazuje też **Odkryj AgenticOS**. Najpierw przedstawia własne
+subskrypcje Claude Code, ChatGPT (Codex) i Antigravity, pierwsze zadanie w czacie
+oraz użycie AgenticOS z dotychczasowego klienta do kodowania. Kolejne kafelki
+obejmują własne połączenia z narzędziami, projekty i pamięć, a dalej sandboxy,
+subagentów, aplikacje, rutyny, kanały, przeglądarkę, wiedzę i skills. Każdy prowadzi
+do konfiguracji lub miejsca pracy; akcje wymagające uprawnień widzą tylko osoby,
+które mogą ich użyć. Zamknij kafelek albo wszystkie; to też zostaje w przeglądarce.
 
 Wykresy w czasie same dobierają krok. Odcinek od pierwszego runu w okresie do
 teraz jest rysowany w najwyżej 48 punktach, najdrobniejszym krokiem, który się
@@ -312,7 +318,7 @@ Organizacja → AI i usługi pokazuje osobne karty funkcji z przełącznikami i 
 
 Rutyny harmonogramowe, zdarzeniowe i obserwacje korzystają z tej samej ramy modalu: stałego nagłówka i nawigacji oraz przewijanego formularza. Tworzenie obserwacji prowadzi przez konfigurację, wiadomość i częstotliwość; przycisk Wstecz zachowuje wpisane dane. Wybór agenta pokazuje te same avatary co czat. Ustawienia wykonania i dostarczania obserwacji są zebrane w jednym panelu opcji zaawansowanych.
 
-Discover na dashboardzie zaczyna się od ilustrowanych możliwości. Najedź na wykres
+Discover na dashboardzie zaczyna się od własnych kont i codziennych zadań. Najedź na wykres
 w _Your period_, aby zobaczyć przedział i wartość; koszty są kwotami. Projekty
 pokazują opisy, a wiersze agentów używają tych samych avatarów co chat.
 

@@ -4,6 +4,11 @@ The model picker keeps its header, provider tabs and search in place while the m
 
 **Refresh models** in a provider catalog fetches the list again while keeping your search and selection. Next to saved organization models, it reloads the saved profiles instead. Refresh does not save a model or start an agent. Endpoint, Vault key, API type and region controls appear when the provider supports them; personal subscriptions use their connected account settings.
 
+The chat model library keeps search collapsed behind the magnifier beside the Models and Account or Key tabs. Escape clears and closes search before closing the picker. Refresh and the compact model count share the tab row; the catalog source is available with the count and account details stay under Account. Existing subscription models restore their concrete service, account and model instead of a combined subscriptions choice.
+
+
+The subscriptions table keeps the first two reported limits in a compact preview. **Details** expands all windows, reset dates and the observation time. Account actions share one row, with Disconnect in the actions menu.
+
 Page titles, list controls and table headers share a compact hierarchy. Tables embedded in lists use one outer frame and keep their row height while loading. Agent cards open Build even when Evals needs attention; its indicator stays visible. Run history remains in Activity instead of above the Builder. Run inspection shows the recorded failure reason and keeps complete raw events behind disclosures. Chat keeps the model name above its provider or personal account. Projects precede Build in navigation; Knowledge starts folded and opens for its active page or your explicit choice.
 
 The default themes distinguish the canvas, sidebar, cards and floating panels. Blue identifies links and keyboard focus; enabled switches use green. Navigation uses regular weight with a medium active label. Builder section summaries show the current model, variables, voice state and first messages before opening their editors. Sign-in and account recovery use the same concise heading style and a static identity panel.
@@ -248,10 +253,12 @@ departments, invite a teammate and - for whoever may - put an agent in a chat ap
 Each step is ticked from what exists, wherever it was done, not from a click on the
 card; closing the card hides it in that browser.
 
-Your own view also shows **Discover AgenticOS**: one tile each for what is easy to
-miss - this deployment's own MCP server for Claude Code, Codex or Cursor,
-subagents, sandboxes, apps, routines, chat apps, the web browser, knowledge bases
-and skills - each leading to where it is switched on, and only those you can use.
+Your own view also shows **Discover AgenticOS**. It starts with personal Claude
+Code, ChatGPT (Codex) and Antigravity subscriptions, a first chat task and using
+AgenticOS from an existing coding client. Further tiles cover personal tool
+connections, projects and memory, followed by sandboxes, subagents, apps,
+routines, channels, browser use, knowledge and skills. Each links to its setup or
+working view; permission-dependent actions appear only to people who can use them.
 Close a tile, or all of them; that too is kept in the browser.
 
 Charts over time pick their own step. The span from the period's first run to now
@@ -293,7 +300,7 @@ Organization → AI & services shows individual cards with switches and expandab
 
 Scheduled, event and monitoring routines use the same dialog frame, with a fixed header and navigation and a scrolling form. Creating a watch walks through Configure, Message and Schedule; Back preserves your draft. Agent pickers show the same avatars as chat. Watch execution and delivery settings live together under one Advanced options panel.
 
-On the dashboard, Discover starts with illustrated capabilities. Hover over a
+On the dashboard, Discover starts with personal accounts and everyday tasks. Hover over a
 _Your period_ sparkline to read its bucket and value; spend is formatted as money.
 Projects show descriptions, and agent rows use the same avatars as chat.
 
