@@ -2414,10 +2414,10 @@ class TestRoomThreadMigration:
             assert down.returncode == 0, down.stderr
             with engine.connect() as connection:
                 # Removing empty thread storage preserves its published upstream/pool parent;
-                # the v1.85.0 branch joined by `0346_merge_t3_v1850` keeps its own head.
+                # the upstream branch, joined by `0349_merge_t3_v1891`, keeps its own head.
                 assert sorted(
                     connection.scalars(text("SELECT version_num FROM alembic_version")).all()
-                ) == ["0332_merge_t3_pools_v1761", "0342_criterion_verdicts"]
+                ) == ["0332_merge_t3_pools_v1761", "0348_architect_generated_avatar"]
                 assert (
                     connection.scalar(
                         text("SELECT reply_to_message_id FROM messages WHERE id=:id"),

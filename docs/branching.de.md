@@ -1,5 +1,5 @@
 ---
-source_sha: "cd7998714012"
+source_sha: "2738919b34a2"
 ---
 
 # Branches und was sie schützt { #branches-and-what-protects-them }
@@ -204,8 +204,8 @@ dabei aussieht, steht weiter unten.
 | `Security Scan` | 10 | 14s |
 | `docs` | 15 | 4m34s |
 | `test-frontend` | 45 | 20m07s |
-| `backend-shards` | 45 | — |
-| `test` | 10 | — |
+| `test-shard` | 45 | — |
+| `test` | 15 | — |
 | `e2e` | 25 | 8m01s |
 
 Die meisten Zeiten stammen aus Lauf 31116003994, einer vollen Matrix auf
@@ -381,18 +381,6 @@ kostet einen Klick statt eines Aufsatzes.
 - `main` ist vom Abbruch ausgenommen, und die Art der Ausnahme ist eine
   Concurrency-Gruppe, die `github.run_id` trägt — eindeutig pro Lauf, sodass kein
   `main`-Lauf einen anderen abbricht.
-
-## Pull Requests im Entwurf { #draft-pull-requests }
-
-Entwürfe führen Backend-/Frontend-Lint sowie Abhängigkeits- und Sicherheitsprüfungen
-aus. Backend- und Frontend-Tests, Produktionsbuild, E2E, Dokumentationsbuild und
-CodeQL warten auf **Ready for review**. Dieser Wechsel startet die Prüfungen ohne
-weiteren Push. Weitere Pushes auf einen bereiten PR starten die passenden Prüfungen
-wie bisher. Zurücksetzen auf Entwurf bricht den überholten Lauf ab; leichte
-Prüfungen bleiben aktiv. Führe während der Arbeit gezielte lokale Tests aus und
-markiere den PR als bereit, wenn du vollständiges CI brauchst. Ein Entwurf kann
-nicht gemergt werden. Bereite PRs behalten die erforderlichen Checks und den
-Code-Scanning-Schutz; der Statuswechsel hebt diese nicht auf.
 
 ## Release-Cuts und gemeinsame Releases { #release-cuts-and-release-trains }
 

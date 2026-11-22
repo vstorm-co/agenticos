@@ -183,8 +183,8 @@ like when it does is below.
 | `Security Scan` | 10 | 14s |
 | `docs` | 15 | 4m34s |
 | `test-frontend` | 45 | 20m07s |
-| `backend-shards` | 45 | — |
-| `test` | 10 | — |
+| `test-shard` | 45 | — |
+| `test` | 15 | — |
 | `e2e` | 25 | 8m01s |
 
 Most observed times are from run 31116003994, a full matrix on `main`. The backend
@@ -343,17 +343,6 @@ click rather than an essay.
   a problem.
 - `main` is exempt from cancellation, and the way it is exempt is a concurrency
   group carrying `github.run_id` — unique per run, so no `main` run cancels another.
-
-## Draft pull requests
-
-Drafts run backend/frontend lint and dependency/security checks. Backend and
-frontend test suites, the production build, E2E, the docs build and CodeQL wait
-until **Ready for review**. That transition starts the checks without another
-push. Subsequent pushes on a ready PR run the applicable checks as before.
-Returning to draft cancels its superseded run and leaves the light checks active.
-Use focused local tests while iterating; mark the PR ready when you need full CI.
-A draft cannot merge. Ready PRs keep the existing required checks and code-scanning
-protection; changing draft status does not waive them.
 
 ## Release cuts and release trains
 

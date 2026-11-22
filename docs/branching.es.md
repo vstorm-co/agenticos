@@ -1,5 +1,5 @@
 ---
-source_sha: "cd7998714012"
+source_sha: "2738919b34a2"
 ---
 
 # Ramas y qué las protege { #branches-and-what-protects-them }
@@ -200,8 +200,8 @@ un job cuando lo hace está más abajo.
 | `Security Scan` | 10 | 14s |
 | `docs` | 15 | 4m34s |
 | `test-frontend` | 45 | 20m07s |
-| `backend-shards` | 45 | — |
-| `test` | 10 | — |
+| `test-shard` | 45 | — |
+| `test` | 15 | — |
 | `e2e` | 25 | 8m01s |
 
 La mayoría de los tiempos vienen de la ejecución 31116003994, una matriz completa
@@ -368,18 +368,6 @@ clic en vez de un ensayo.
 - `main` está exenta de la cancelación, y la manera en que lo está es un grupo de
   concurrencia que lleva `github.run_id` — único por ejecución, así que ninguna
   ejecución de `main` cancela otra.
-
-## Pull requests en borrador { #draft-pull-requests }
-
-Los borradores ejecutan lint del backend y frontend y controles de dependencias y
-seguridad. Las suites del backend y frontend, el build de producción, E2E, el build
-de documentación y CodeQL esperan a **Ready for review**. Esa transición inicia los
-controles sin otro push. Los siguientes pushes de un PR listo ejecutan los controles
-correspondientes como antes. Volver a borrador cancela la ejecución anterior y
-mantiene los controles ligeros. Durante la iteración, ejecuta tests locales del
-área modificada; marca el PR como listo cuando necesites CI completo. Un borrador
-no puede fusionarse. Los PR listos conservan los checks obligatorios y la protección
-de code scanning; cambiar de estado no elimina esos requisitos.
 
 ## Cortes y versiones con varios cambios { #release-cuts-and-release-trains }
 

@@ -46,6 +46,9 @@ async def test_message_search_serializes_the_indexed_excerpt_for_the_current_rea
         snippet="Visit **Warsaw** <script>plain text</script>",
         speaker_role="user",
         speaker_name=None,
+        message_id=uuid4(),
+        thread_root_message_id=None,
+        matched_at=datetime(2026, 11, 19, tzinfo=UTC),
     )
     search = AsyncMock(return_value=[result])
     with patch("app.services.conversation_search.search", new=search):

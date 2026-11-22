@@ -1,5 +1,5 @@
 ---
-source_sha: "cd7998714012"
+source_sha: "2738919b34a2"
 ---
 
 # Gałęzie i to, co je chroni { #branches-and-what-protects-them }
@@ -201,8 +201,8 @@ job, opisano niżej.
 | `Security Scan` | 10 | 14s |
 | `docs` | 15 | 4m34s |
 | `test-frontend` | 45 | 20m07s |
-| `backend-shards` | 45 | — |
-| `test` | 10 | — |
+| `test-shard` | 45 | — |
+| `test` | 15 | — |
 | `e2e` | 25 | 8m01s |
 
 Większość czasów pochodzi z przebiegu 31116003994, pełnej macierzy na `main`.
@@ -372,17 +372,6 @@ kosztuje kliknięcie, a nie esej.
 - `main` jest wyjęty spod anulowania, a sposobem, w jaki jest wyjęty, jest grupa
   concurrency niosąca `github.run_id` — unikalny dla przebiegu, więc żaden
   przebieg na `main` nie anuluje innego.
-
-## Robocze pull requesty { #draft-pull-requests }
-
-Draft uruchamia lint backendu i frontendu oraz kontrole zależności i bezpieczeństwa.
-Testy backendu i frontendu, build produkcyjny, E2E, build dokumentacji oraz CodeQL
-czekają na **Ready for review**. Ta zmiana stanu uruchamia kontrole bez kolejnego
-pusha. Następne pushe gotowego PR-a uruchamiają odpowiednie kontrole jak wcześniej.
-Powrót do draftu anuluje poprzedni run i pozostawia lekkie kontrole aktywne.
-Podczas pracy uruchamiaj lokalnie testy zmienionego obszaru; oznacz PR jako gotowy,
-gdy potrzebujesz pełnego CI. Draftu nie można scalić. Gotowe PR-y zachowują obecne
-wymagane checki i ochronę code scanning; zmiana statusu ich nie znosi.
 
 ## Cut i wspólne wydanie kilku zmian { #release-cuts-and-release-trains }
 
