@@ -234,8 +234,14 @@ async def test_content_repeating_an_order_number_is_held_until_somebody_confirms
     assert {"kind": "personal_data", "value": "email", "count": 1} in flags
     assert added.status == "covered"
     [entry] = await _audited(db, "knowledge_gap.content_added")
-    assert entry.details["confirmed_identifying"] is True
-    assert "7781" not in str(entry.details)
+    assert added.covered_by is not None
+    # A UUID may contain the order's digits; audit metadata must contain only these fields.
+    assert entry.details == {
+        "document_id": str(added.covered_by.id),
+        "knowledge_base_id": str(kb.id),
+        "flags": 2,
+        "confirmed_identifying": True,
+    }
 
 
 async def test_a_policy_figure_is_not_flagged_and_what_a_person_writes_is_not_redacted(

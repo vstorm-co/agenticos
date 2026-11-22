@@ -1,5 +1,5 @@
 ---
-source_sha: "0a32b884bf8a"
+source_sha: "a8d4bd2b212d"
 ---
 
 # Architektura { #architecture }
@@ -1050,3 +1050,6 @@ Operacje telefoniczne również wymagają trwałej granicy: `telephony.runtime.d
 
 
 Przyjęcie wiadomości z kanału także zatwierdza transakcję przed przygotowaniem runu: `ChannelMessageRouter._route_inner` zapisuje identity, sesję i rozmowę po sprawdzeniu dostępu oraz limitu. Klucz platformowego MCP powstaje w osobnej transakcji i wskazuje tę rozmowę; sam flush nie zapewnia jej widoczności. Nieudany commit zatrzymuje przygotowanie.
+
+
+Osobiste sesje programistyczne również przekraczają granice skutków zewnętrznych: `PersonalCodingSessionFactory` zatwierdza własność prywatnego obszaru przed pracą z poświadczeniem, a następnie początkowe źródła i audyt przed zadaniem natywnym. Chronione przed anulowaniem sprzątanie końcowe zatwierdza zachowanie sesji albo kolejkę usunięcia kontenera także po błędzie lub anulowaniu zadania. Zmiana zgody konta i usunięcie właściciela kolejkują sprzątanie we własnej transakcji przed kaskadowym usunięciem konta i obszaru. Rollback zachowuje metadane sesji i obowiązek usunięcia zasobów.

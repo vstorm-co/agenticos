@@ -133,3 +133,75 @@ async def test_otari_listing_without_a_destination_does_not_open_a_key() -> None
     assert response.source == "unlisted"
     secrets.listing_key.assert_not_called()
     listing.assert_not_called()
+
+
+@pytest.mark.parametrize("provider", ["openai_compatible", "anthropic_compatible"])
+async def test_a_custom_provider_lists_the_endpoint_it_is_given(provider: str) -> None:
+    """The endpoint the organization runs, read with the key stored for it.
+
+    The listing reaches no host the profile does not, so it is asked with the
+    same key the runs send.
+    """
+    secrets = MagicMock(spec=OrganizationSecretService)
+    secrets.listing_key = AsyncMock(return_value="sk_custom_test")
+    ctx, secret_id = context(), uuid4()
+    with (
+        patch(
+            "app.api.routes.v1.model_providers.validate_endpoint_url",
+            new=AsyncMock(side_effect=lambda url: url),
+        ),
+        patch(
+            "app.api.routes.v1.model_providers.models_for",
+            new=AsyncMock(return_value=([CatalogModel(id="our-model", name="Ours")], "live")),
+        ) as listing,
+    ):
+        await list_provider_models(
+            provider, secrets, ctx, base_url="https://models.example", secret_id=secret_id
+        )
+    listing.assert_awaited_once_with(
+        provider, api_key="sk_custom_test", base_url="https://models.example"
+    )
+    secrets.listing_key.assert_awaited_once_with(ctx, provider, secret_id=secret_id)
+
+
+async def test_a_custom_listing_is_asked_where_the_sdk_reaches_it() -> None:
+    """An endpoint that already carries the path the SDK adds is trimmed.
+
+    Anthropic's SDK posts to `<endpoint>/v1/messages`, so an endpoint written
+    as `https://models.example/v1` would ask for `/v1/v1/messages` - and the
+    listing would fail with a 404 that names the path rather than the cause.
+    """
+    secrets = MagicMock(spec=OrganizationSecretService)
+    secrets.listing_key = AsyncMock(return_value="sk_custom_test")
+    ctx, secret_id = context(), uuid4()
+    with (
+        patch(
+            "app.api.routes.v1.model_providers.validate_endpoint_url",
+            new=AsyncMock(side_effect=lambda url: url),
+        ),
+        patch(
+            "app.api.routes.v1.model_providers.models_for",
+            new=AsyncMock(return_value=([], "live")),
+        ) as listing,
+    ):
+        await list_provider_models(
+            "anthropic_compatible",
+            secrets,
+            ctx,
+            base_url="https://models.example/v1",
+            secret_id=secret_id,
+        )
+    assert listing.await_args.kwargs["base_url"] == "https://models.example"
+
+
+@pytest.mark.parametrize("provider", ["openai_compatible", "anthropic_compatible"])
+async def test_a_custom_provider_without_an_endpoint_lists_nothing(provider: str) -> None:
+    """It exists only at an endpoint somebody names, so there is nothing to ask
+    before one is named."""
+    secrets = MagicMock(spec=OrganizationSecretService)
+    with patch("app.api.routes.v1.model_providers.models_for", new=AsyncMock()) as listing:
+        response = await list_provider_models(provider, secrets, context("builder"))
+    assert response.items == []
+    assert response.source == "unlisted"
+    secrets.listing_key.assert_not_called()
+    listing.assert_not_called()

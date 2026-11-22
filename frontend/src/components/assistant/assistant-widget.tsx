@@ -207,14 +207,24 @@ function ConversationWidget({
   // Asked from elsewhere in the console - "Make an agent of this" in a chat. Each
   // ask once: taken out of the store so a widget mounted later does not repeat
   // it, and the ref for an effect that runs twice before the store has caught up.
-  const asked = useArchitectAskStore((state) => state.request);
-  const answered = useArchitectAskStore((state) => state.answered);
   const answeredAsk = useRef<number | null>(null);
   useEffect(() => {
-    if (asked === null || asked.id === answeredAsk.current) return;
-    answeredAsk.current = asked.id;
-    ask(asked.text, asked.draft);
-    answered(asked.id);
+    let active = true;
+    const receive = () => {
+      const { request, answered } = useArchitectAskStore.getState();
+      if (!active || request === null || request.id === answeredAsk.current) return;
+      answeredAsk.current = request.id;
+      if (request.openOnly) openWindow();
+      else ask(request.text, request.draft);
+      answered(request.id);
+    };
+    const unsubscribe = useArchitectAskStore.subscribe(receive);
+    // A request can precede the widget's first mount. Consume it after subscribing.
+    queueMicrotask(receive);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   });
 
   const followLink = (link: ConsoleLink) => {

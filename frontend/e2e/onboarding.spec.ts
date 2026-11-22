@@ -4,8 +4,8 @@ import { AUTH_STATE, DASHBOARD_GREETING, OWNER_EMAIL, pageHeading } from "./help
 
 /**
  * Tours are requested help, independent of first-task activation. This spec
- * opens one from the shared start and verifies that closing it persists the
- * historical walkthrough preference on the server. Other journeys remain free
+ * opens page help from the header and verifies that dismissal does not
+ * complete the separate guided setup. Other journeys remain free
  * of automatic overlays, including accounts whose preference is still null.
  *
  * The popover uses driver.js classes because the library renders a div rather
@@ -53,45 +53,26 @@ test.describe("Onboarding", () => {
     }
   });
 
-  test("opens a requested tour from the start hub and remembers its dismissal", async ({
-    page,
-  }) => {
+  test("opens requested dashboard tips without completing the guided setup", async ({ page }) => {
     const reset = await page.request.patch("/api/users/me", {
       data: { onboarding_completed_at: null },
     });
     expect(reset.ok(), `resetting onboarding answered ${reset.status()}`).toBe(true);
-
-    await page.goto("/onboarding");
-    await page.getByRole("button", { name: "Explore the application", exact: true }).click();
-
-    // A deliberate request opens the translated tour independently of activation.
-    await expect(page.locator(TITLE)).toHaveText("Welcome to AgenticOS");
-    await expect(page.locator(POPOVER)).toContainText("Step 1 of");
-
-    // Next walks it, which is the whole of the interaction.
+    await page.goto("/dashboard");
+    await page.getByRole("button", { name: "More information" }).click();
+    await page.getByRole("button", { name: HELP }).click();
+    await expect(page.locator(TITLE)).toHaveText("Choose your organization");
     await page.locator(NEXT).click();
-    await expect(page.locator(TITLE)).not.toHaveText("Welcome to AgenticOS");
-
-    // Closing writes `onboarding_completed_at` through PATCH /users/me. Waiting on
-    // the write rather than on the overlay disappearing: the overlay goes the
-    // moment the store closes, which says nothing about whether it was recorded,
-    // and "it came back on the next device" is the failure this persistence exists
-    // to prevent.
-    const written = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname === "/api/users/me" &&
-        response.request().method() === "PATCH" &&
-        response.status() !== 401,
-    );
+    await expect(page.locator(TITLE)).toHaveText("Slice the dashboard");
     await page.locator(CLOSE).click();
-    const response = await written;
-    expect(response.ok(), `dismissing the tour answered ${response.status()}`).toBe(true);
     await expect(page.locator(POPOVER)).toBeHidden();
 
-    // And it does not come back on the next load, which is the point of the write.
-    await page.goto("/dashboard");
+    await page.reload();
     await expect(pageHeading(page, DASHBOARD_GREETING)).toBeVisible();
     await expect(page.locator(POPOVER)).toBeHidden();
+    const me = await page.request.get("/api/auth/me");
+    expect(me.ok()).toBe(true);
+    expect((await me.json()).onboarding_completed_at).toBeNull();
   });
 
   test("leaves a browser extension's prompt clickable, and the page under the tour not", async ({
@@ -106,9 +87,10 @@ test.describe("Onboarding", () => {
       data: { onboarding_completed_at: null },
     });
     expect(reset.ok(), `resetting onboarding answered ${reset.status()}`).toBe(true);
-    await page.goto("/onboarding");
-    await page.getByRole("button", { name: "Explore the application", exact: true }).click();
-    await expect(page.locator(TITLE)).toHaveText("Welcome to AgenticOS");
+    await page.goto("/dashboard");
+    await page.getByRole("button", { name: "More information" }).click();
+    await page.getByRole("button", { name: HELP }).click();
+    await expect(page.locator(TITLE)).toHaveText("Choose your organization");
 
     await page.evaluate(() => {
       const host = document.createElement("extension-prompt");

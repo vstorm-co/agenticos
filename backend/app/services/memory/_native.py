@@ -41,12 +41,17 @@ class MemoryFileIndexEntry:
 
 
 async def list_files(
-    *, organization_id: UUID, agent_id: UUID, owner_key: str
+    *, organization_id: UUID, agent_id: UUID, owner_key: str, limit: int = 200
 ) -> list[MemoryFileIndexEntry]:
     """The store's notes, detached from the session."""
     async with get_db_context() as db:
         rows = await memory_repo.list_for_owner(
-            db, organization_id=organization_id, agent_id=agent_id, owner_key=owner_key
+            db,
+            organization_id=organization_id,
+            agent_id=agent_id,
+            owner_key=owner_key,
+            limit=limit,
+            include_content=False,
         )
         return [
             MemoryFileIndexEntry(name=row.name, description=row.description, kind=row.kind)

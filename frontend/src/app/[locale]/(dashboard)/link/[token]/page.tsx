@@ -1,9 +1,9 @@
 "use client";
 
+import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Link2, ShieldCheck } from "lucide-react";
-import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 
 import { Button, Card, CardContent, Skeleton } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
@@ -20,6 +20,7 @@ const PLATFORM_LABEL: Record<string, string> = {
   slack: "Slack",
   mattermost: "Mattermost",
   discord: "Discord",
+  matrix: "Matrix",
 };
 
 /**
@@ -118,14 +119,25 @@ export default function ChannelLinkPage({ params }: { params: Promise<{ token: s
         <Card>
           <CardContent className="space-y-5 p-5">
             <div className="bg-muted/40 flex items-center gap-3 rounded-lg border p-4">
-              <div className="bg-background flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border">
-                <MessageSquare className="text-muted-foreground h-4 w-4" />
-              </div>
+              <ChannelPlatformIcon
+                platform={request.platform}
+                className="bg-background h-10 w-10 border"
+              />
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{account}</p>
+                {request.platform_username && request.platform_username !== account && (
+                  <p className="text-muted-foreground font-mono text-xs [overflow-wrap:anywhere]">
+                    {request.platform_username}
+                  </p>
+                )}
                 <p className="text-muted-foreground text-xs">
                   {PLATFORM_LABEL[request.platform] ?? request.platform}
                 </p>
+                {request.server_url && (
+                  <p className="text-muted-foreground mt-1 text-xs [overflow-wrap:anywhere]">
+                    {request.server_url}
+                  </p>
+                )}
               </div>
             </div>
 

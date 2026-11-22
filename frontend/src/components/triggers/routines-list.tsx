@@ -64,14 +64,12 @@ export function RoutinesList({
         contentClassName="p-0"
         counted={loading || error ? null : t("routineCount", { count: items.length })}
         controls={
-          items.length > 0 && (
-            <SearchInput
-              value={list.query}
-              onChange={list.setQuery}
-              placeholder={t("searchRoutines")}
-              className="sm:w-56"
-            />
-          )
+          <SearchInput
+            value={list.query}
+            onChange={list.setQuery}
+            placeholder={t("searchRoutines")}
+            className="sm:w-56"
+          />
         }
       >
         {error ? (

@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useTranslations } from "next-intl";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
@@ -26,7 +28,7 @@ export function ApiOperation({
 }) {
   const t = useTranslations("apiReference");
   return (
-    <details className="group border-b last:border-0" id={operation.id}>
+    <NativeDisclosure className="group border-b last:border-0" id={operation.id}>
       <summary className="hover:bg-accent/50 flex cursor-pointer list-none items-center gap-3 rounded-md px-2 py-2.5 focus-visible:outline-offset-[-2px] [&::-webkit-details-marker]:hidden">
         <span
           className={cn(
@@ -81,6 +83,6 @@ export function ApiOperation({
           <CopyCode code={curlExample(operation, baseUrl)} />
         </section>
       </div>
-    </details>
+    </NativeDisclosure>
   );
 }

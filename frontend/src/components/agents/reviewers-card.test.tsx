@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render as renderBase, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -34,7 +34,7 @@ const SOURCES: RunReviewerSpec = {
 };
 
 function show(value: RunReviewerSpec[] | undefined, onChange = vi.fn()) {
-  render(
+  renderEditor(
     <NextIntlClientProvider locale="en" messages={messages}>
       <ReviewersCard value={value} onChange={onChange} />
     </NextIntlClientProvider>,
@@ -98,4 +98,40 @@ describe("ReviewersCard", () => {
     show(Array.from({ length: 5 }, (_, n) => ({ ...SOURCES, name: `r${n}` })));
     expect(screen.queryByRole("button", { name: "Add a reviewer" })).toBeNull();
   });
+});
+
+/** Existing editing cases open the same native section a person opens first. */
+function renderEditor(...args: Parameters<typeof renderBase>) {
+  const view = renderBase(...args);
+  for (const summary of view.container.querySelectorAll<HTMLElement>(
+    "details[data-focus-frame] > summary",
+  )) {
+    fireEvent.click(summary);
+  }
+  return view;
+}
+
+it("shows the configured reviewer count before opening the editor", () => {
+  renderBase(<ReviewersCard value={[SOURCES]} onChange={vi.fn()} />);
+  expect(screen.getByText("1 reviewer")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Add a reviewer" })).not.toBeVisible();
+  fireEvent.click(screen.getByText("Run reviewers"));
+  expect(screen.getByRole("button", { name: "Add a reviewer" })).toBeVisible();
+});
+
+it("keeps other reviewers intact while one name is edited", () => {
+  const onChange = show([SOURCES, { ...SOURCES, name: "tone" }]);
+  fireEvent.change(screen.getByLabelText("Name", { selector: "input#reviewer-name-0" }), {
+    target: { value: "evidence" },
+  });
+  expect(onChange).toHaveBeenLastCalledWith([
+    { ...SOURCES, name: "evidence" },
+    { ...SOURCES, name: "tone" },
+  ]);
+});
+it("lets a draft reviewer be configured before a model exists", async () => {
+  listed.profiles = [];
+  const onChange = show(undefined);
+  await userEvent.click(screen.getByRole("button", { name: "Add a reviewer" }));
+  expect(onChange).toHaveBeenCalledWith([expect.objectContaining({ model_profile_id: null })]);
 });

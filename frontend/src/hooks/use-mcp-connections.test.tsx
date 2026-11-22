@@ -228,6 +228,11 @@ describe("every server, with who has connected it", () => {
     const { result } = renderHook(() => useMcpServers(), { wrapper });
 
     await waitFor(() => expect(result.current.error).not.toBeNull());
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [] });
+    await act(async () => {
+      await result.current.retry();
+    });
+    await waitFor(() => expect(result.current.error).toBeNull());
   });
 
   it("remembers the tools a check discovered, keyed by connection", async () => {

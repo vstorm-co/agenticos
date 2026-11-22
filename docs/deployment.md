@@ -15,7 +15,7 @@ variable, no rebuild.
     It is the same authority that already administers users and tenants across the
     installation.
 
-The console groups these settings into Identity, Access & accounts, Announcements, Voice & mobile, and Maintenance. Switching sections retains unsaved edits. Save applies the edited fields across sections; Discard changes restores their saved values. Image uploads and mobile push credentials retain their own immediate save actions.
+The console groups these settings into Identity, Access & accounts, Announcements & maintenance, Voice & mobile, and Updates & diagnostics. Each section has a shareable `?section=` URL. Following another section link preserves unsaved edits. Save applies the edited fields across sections; Discard changes restores their saved values. Image uploads and mobile push credentials retain their own immediate save actions.
 
 ## Identity
 

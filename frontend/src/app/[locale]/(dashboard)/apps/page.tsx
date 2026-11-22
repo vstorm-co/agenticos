@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { Lock } from "lucide-react";
 import { AppIcon as PanelsTopLeft } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";

@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
+import { CONTROL_FOCUS } from "./control-styles";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 import { ContextHelp } from "./context-help";
@@ -134,7 +135,11 @@ export function OptionalSlider({
           step={step}
           value={value ?? resting}
           disabled={disabled}
-          className={cn("accent-brand h-1.5 min-w-0 flex-1", !isSet && "opacity-40")}
+          className={cn(
+            CONTROL_FOCUS,
+            "accent-foreground touch:min-h-11 h-1.5 min-w-0 flex-1",
+            !isSet && "opacity-40",
+          )}
           onChange={(event) => onChange(Number(event.target.value))}
         />
         <span

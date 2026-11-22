@@ -1,5 +1,5 @@
 ---
-source_sha: "40e46eb28642"
+source_sha: "51712be94fdc"
 ---
 
 # Auf Kubernetes deployen { #deploy-on-kubernetes }
@@ -221,11 +221,11 @@ oc -n agenticos get pods -o 'custom-columns=NAME:.metadata.name,SCC:.metadata.an
 Prüfen Sie die zugelassene SCC auf die beabsichtigte restriktive Richtlinie.
 Beheben Sie Rechtefehler nicht mit `anyuid`, privilegierten SCCs oder einem
 beschreibbaren Root-Dateisystem. Das Frontend mountet beschreibbare `emptyDir` unter
-`/tmp` und `/app/.next/cache`; Backend-Mounts stehen in `templates/_helpers.tpl`.
-Ein `router-cache`-Fehler benötigt den **exakten absoluten Pfad**, Image-Tag/Digest,
-OpenShift-Version, zugelassene SCC und bereinigte Logs. Cache außerhalb dieser
-Mounts ist vom Chart nicht abgedeckt. Übermounten Sie nicht ganz `/app/.next`,
-da sonst die gebaute Anwendung verborgen wird.
+`/tmp`, `/app/.next/cache` und `/app/.next/server/route-cache`, wohin Next.js jede
+vorgerenderte Seite beim ersten Ausliefern kopiert (Chart `0.1.2`; ein älteres Chart
+scheitert bei schreibgeschütztem Root an diesem Schreibvorgang). Backend-Mounts
+stehen in `templates/_helpers.tpl`. Übermounten Sie nicht ganz `/app/.next` oder
+`/app/.next/server`, da sonst die gebaute Anwendung verborgen wird.
 
 Bei `ingress.enabled: false` stellen Sie zwei HTTPS-Routes zu API- und
 Frontend-Services bereit, beide mit benanntem Port `http`. Setzen Sie
@@ -472,8 +472,8 @@ Keycloak 26.8.2 bestand Discovery, PKCE, signierte Token-Prüfung, einmaligen
 Konsolen-Codeaustausch, Organisationszugriff und Logout/Refresh-Widerruf über TLS
 Routes. Unbestätigte E-Mail, nicht erlaubte Domain und Registrierung ohne Einladung
 wurden abgewiesen. Dies validiert generisches OIDC, nicht Microsoft Entra oder Azure.
-Serverseitige Seitenprüfungen reproduzieren den gemeldeten `router-cache`-Pfad nicht
-und ersetzen keine interaktive Navigation durch alle Bildschirme.
+Serverseitige Seitenprüfungen ersetzen keine interaktive Navigation durch alle
+Bildschirme.
 
 Der Basislauf benötigte **6 CPUs, 13 GiB VM-RAM und eine virtuelle 45-GB-Platte**.
 Mit CRCs Minimum von 10.5 GB konnten die Migrations-Pods dieser Fixtures nicht

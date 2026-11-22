@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useId, useState } from "react";
 import { ExternalLink, Eye, EyeOff, KeyRound, Plus } from "lucide-react";
 
 import { Button, Input, Label } from "@/components/ui";
@@ -87,6 +87,11 @@ export function InlineSecret({
   const t = useTranslations("vault");
   const { create } = useSecrets();
   const { can } = usePermissions();
+  const fieldId = useId();
+  const focusKey = useCallback(
+    (input: HTMLInputElement | null) => input?.focus({ preventScroll: true }),
+    [],
+  );
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(suggestedName);
   const [value, setValue] = useState("");
@@ -157,25 +162,15 @@ export function InlineSecret({
         {t("storedOrganizationAposS")}
       </p>
 
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+      <div className="grid gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="inline-secret-name" className="text-xs">
-            {t("name")}
-          </Label>
-          <Input
-            id="inline-secret-name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder={suggestedName}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="inline-secret-value" className="text-xs">
+          <Label htmlFor={`${fieldId}-value`} className="text-xs">
             {t("key")}
           </Label>
           <div className="relative">
             <Input
-              id="inline-secret-value"
+              id={`${fieldId}-value`}
+              ref={focusKey}
               type={revealed ? "text" : "password"}
               value={value}
               onChange={(event) => setValue(event.target.value)}
@@ -196,6 +191,17 @@ export function InlineSecret({
               {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${fieldId}-name`} className="text-xs">
+            {t("name")}
+          </Label>
+          <Input
+            id={`${fieldId}-name`}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder={suggestedName}
+          />
         </div>
       </div>
 

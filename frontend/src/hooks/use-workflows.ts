@@ -176,7 +176,7 @@ export function useWorkflow(workflowId: string | null) {
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.workflows.detail(workflowId ?? ""),
     queryFn: () => getWorkflow(workflowId as string),
     enabled: !!workflowId,
@@ -225,7 +225,7 @@ export function useWorkflow(workflowId: string | null) {
     },
   });
 
-  return { workflow: data, isLoading, error, saveDraft, publish, restore };
+  return { workflow: data, isLoading, error, refetch, saveDraft, publish, restore };
 }
 
 /** Every published version of a workflow, newest first. Lean — no graphs. */
@@ -281,7 +281,7 @@ export function useWorkflowVersion(workflowId: string, versionId: string | null)
  */
 export function useNodeCatalog() {
   const t = useTranslations("workflowNodes");
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.workflows.nodeCatalog(),
     queryFn: () => getNodeCatalog(),
     staleTime: Infinity,
@@ -334,7 +334,7 @@ export function useNodeCatalog() {
       }),
     [data, t],
   );
-  return { nodes, isLoading };
+  return { nodes, isLoading, error, refetch };
 }
 
 /**

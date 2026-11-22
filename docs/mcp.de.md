@@ -1,5 +1,5 @@
 ---
-source_sha: "a8bf70087a14"
+source_sha: "e679e735c63f"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -234,46 +234,49 @@ weniger Tool-Schemas allein belegen daher keine niedrigeren Kosten.
 
 ### Welche Aufrufe auf eine Person warten { #which-calls-wait-for-a-person }
 
-Jedes Binding hat eine `approval`-Richtlinie für die Tools seines Servers. Die
-Vorgabe `none` lässt jeden Aufruf durch, so wie die Tools einer Capability laufen,
-bis jemand sie hinter ein Gate stellt. `writes` hält jedes Tool, das der Server
-nicht als nur lesend markiert (MCPs `readOnlyHint`), an, bis eine Person den
-Aufruf freigibt: Die Karte zeigt die genauen Argumente, und ausgeführt werden die
-freigegebenen. `all` hält jeden Aufruf an. Der Nur-lesen-Hinweis ist die
-Behauptung des Servers selbst, also ist `writes` nur so streng, wie der Server
-ehrlich ist — wählen Sie `all` für einen Server, den Sie nicht kontrollieren.
+Für externe Server lässt `approval: none` Aufrufe durch. `writes` fragt bei Tools
+ohne `readOnlyHint: true`, `all` zusätzlich bei Lesezugriffen. Der Server liefert
+den Hinweis selbst; wählen Sie `all`, wenn Sie seiner Einstufung nicht vertrauen.
+Ein externer MCP-Client wie Claude Code verwendet eigene Bestätigungseinstellungen.
 
-Die Vorlage des Architect verwendet `writes` für den Plattformserver. Bindings
-an diesen Server erzwingen mindestens `writes`, auch bei `none`, da Tools mit den
-Berechtigungen des Aufrufers handeln. Lesezugriffe einschließlich `get_project`
-und `read_conversation` laufen unter `writes` automatisch. Erstellen, Aktualisieren,
-Löschen und andere zustandsändernde Aktionen benötigen eine Freigabe. Mit `all`
-benötigen auch Lesezugriffe eine Freigabe. Diese Untergrenze gilt nur für die
-Voreinstellung des Bindings: Ein einzelnes, benanntes Tool kann weiterhin ohne
-Rückfrage laufen, wie bei jedem anderen Server.
+Das Plattform-Binding erzwingt mindestens `writes`. Vertrauenswürdige Vorgaben
+lassen autorisierte Lesezugriffe, Entwurfsvorbereitung, gewöhnliche Aufgaben- und
+Tabellendatensatzänderungen sowie leere Wissensdatenbanken, Projekte, Unterhaltungen,
+Skills, Context-Dateien und Dataset-Fälle ohne Bestätigung zu. Schreibzugriffe
+melden weiterhin `readOnlyHint: false`: Die Freigabe ändert sich, nicht Berechtigungen
+oder Nebenwirkungen. `prepare_solution` erstellt einen Plan; `install_solution`
+verlangt weiterhin eine Bestätigung.
 
-Im Builder sagen die Einstellungen eines Servers das je
-Gruppe: **Lesen** und **Ändern** laufen jeweils ohne Rückfrage oder fragen erst.
+Aufgabenänderungen fragen weiterhin, wenn sie Agentenarbeit starten oder neu planen
+können: eine aktive Aufgabe mit zugewiesenem Agent und nächstem Schritt Agent.
+Menschliche, abgeschlossene, abgebrochene, blockierte und wartende Aufgaben erhalten
+diese Pflicht nicht. Allgemeine Datensatzänderungen einer Aufgabentabelle verwenden
+dieselbe Prüfung; die Mutation verlangt weiterhin die gelesene Revision. Ein Upsert
+fragt, sofern seine Werte nicht ausdrücklich Person oder einen End-/Wartestatus
+setzen, da er einen gleichzeitig gelöschten Datensatz neu anlegen kann. Gewöhnliche
+Tabellenschreibzugriffe fragen nicht erneut wegen bereits genehmigter Automationen.
 
-Jedes Tool kann außerdem für sich ohne Rückfrage laufen oder erst fragen,
-unabhängig von seiner Gruppe und seinem Nur-lesen-Hinweis: Klicken Sie auf das
-Schild daneben. Ein Server, der kein Tool als nur lesend markiert, führt alle Tools
-in einer Gruppe, die `writes` vollständig anhält; stellen Sie seine Lesetools auf
-**Ohne Rückfrage**, laufen sie, während seine Schreibtools erst fragen. Mit
-demselben Schalter läuft ein einzelnes Schreibtool ohne Rückfrage, ohne dass `none`
-alle anderen freigibt.
+Jede Schemaänderung, Löschung, Veröffentlichung, Änderung aktiver Versionen,
+Promotion, öffentlicher App-Link, Inbox-Abschluss, Ausführung oder kostenpflichtige
+Operation verlangt eine neue Antwort. Dazu gehören Tests, Evaluationen und
+Verbesserungsschritte, Ingestion/Sync, Verbindungstests, Automationsdefinitionen,
+sofortige Routinen, Agent-Umgebungen, Profil-/Modell-/Embedding-Änderungen,
+Einladungen sowie Verwaltungs- und Proaktivitätseinstellungen. Alles genehmigen,
+gespeicherte Entscheidungen und dauerhafte Routinenzustimmungen heben diese Pflicht
+nicht auf. Eigene Sprache und Oberflächenpräferenzen bleiben ohne Freigabe.
 
-Der Spec hält diese Einstellungen im `tool_approval` des Bindings, nach dem Namen
-des Tools auf dem Server. Eine Gruppe, deren Tools sich unterscheiden, zeigt
-**Pro Tool**, und eine Wahl für die Gruppe stellt wieder alle ihre Tools ein. Ein
-Tool, das der Server später hinzufügt, folgt seiner Gruppe.
+Verwenden Sie im Builder das Schild eines Tools oder die Gruppensteuerung, um
+auch für standardmäßig freie Aktionen Bestätigung zu verlangen. `tool_approval`
+speichert dies unter dem ursprünglichen Servernamen: `required` fragt, `never`
+umgeht das gewöhnliche Binding-Gate. `all` fragt bei jeder sonst standardmäßigen
+Operation einschließlich Lesezugriffen. Verbindliche und bedingte Ausführungsgrenzen
+gehen `never` vor. Gemischte Gruppen zeigen **Per tool**. Neue Tools folgen dem
+Binding; unbekannte Plattform-Schreibzugriffe fragen bis zur expliziten Einstufung.
 
-Kanalausführungen folgen für jeden zugelassenen Absender den Genehmigungseinstellungen
-der Bindung und der einzelnen Werkzeuge, auch ohne verknüpftes Chat-Konto. Der Kanal
-fügt keine zusätzliche Genehmigung hinzu. Persönliche Konten benötigen weiterhin
-die verknüpfte Identität des Absenders und dessen autorisierte Verbindung;
-Plattformverbindungen behalten mindestens `writes`. Eine Beobachtung liest kein
-Werkzeug, das eine Genehmigung verlangt, da niemand antworten kann.
+Diese Regeln gelten auch für Kanäle und Routinenaktionen. Sie gewähren weder eine
+verknüpfte Identität noch eine Verbindung, Ressourcenzugriff oder weitere OAuth-Scopes.
+Nur der vertrauenswürdige Plattformkatalog im selben Prozess liefert Ausnahmen;
+ein externer Server erhält sie nicht durch gleichlautende Metadaten.
 
 ### Durch wessen Konto ein Binding spricht { #whose-account-a-binding-speaks-through }
 
@@ -369,7 +372,9 @@ nicht ein.
 Die Konten der Organisation binden auf dieselbe Weise nebeneinander: Jede ihrer
 Connections zu einem Server ist ein eigenes Binding unter eigenem Namen, mit
 eigenen Tools. Im Builder listen die Einstellungen eines Servers seine
-gebundenen Konten mit **Add another account**. Wo ein Run einen Dienst über mehr
+gebundenen Konten mit **Add another account**. Wähle unter **Tools** das Konto,
+dessen Tools und Freigaben du bearbeiten möchtest. Die anderen Konten bleiben
+unverändert. Wo ein Run einen Dienst über mehr
 als ein Konto erreicht, nennt eine Zeile seiner Anweisungen jedes Konto neben
 seinem Präfix und weist das Modell an nachzufragen, wenn unklar ist, welches die
 Person meint.
@@ -1311,7 +1316,7 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 
 Für das Genehmigen persönlicher Routinen und Watches ist der ausdrückliche Scope `personal:consent` nötig, ausgewählt unter **Custom** beim Ausstellen eines Schlüssels oder Autorisieren eines MCP-Clients. Er ist in keiner Voreinstellung enthalten, auch nicht in **Full access**. Die Bestätigung erlaubt dem Zugang, dauerhafte Routinen und Watches mit Ihren persönlichen Verbindungen und Daten zu genehmigen; die üblichen Scopes `agents:run` und `runs:view` erlauben das nicht. Bestehende Schlüssel und MCP-Autorisierungen erhalten diese persönliche Zustimmung nicht automatisch.
 
-Verbindungsprüfungen aktualisieren erkannte Tools und den Status. Deshalb wartet `test_my_connection` sowohl bei `writes` als auch bei `all` auf Genehmigung.
+Verbindungsprüfungen aktualisieren erkannte Tools und den Status. Deshalb wartet `test_my_connection` bei jedem Aufruf auf eine neue Bestätigung.
 
 | Tool | Braucht |
 | --- | --- |
@@ -1428,13 +1433,11 @@ einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes
   eines Viewers liest, was der Viewer lesen darf, und nichts anlegt. Nichts Neues
   wird gewährt, und wo niemand hinter dem Run steht - ein öffentliches Widget, ein
   Zeitplan im Namen von niemandem - fehlt die Bindung.
-- **Änderungen folgen der Genehmigungsrichtlinie der Bindung.** Das normale
-  `writes` hält Veröffentlichung, Einladung, Löschen, sofortiges Ausführen sowie
-  Erstellen und Bearbeiten persönlicher Routinen und Beobachtungen an; `all`
-  auch Lesezugriffe. Nur `set_my_language` umgeht dieses Tor. Menschliche Identität
-  im privaten Chat, Eigentum und Rechte bleiben erforderlich, ersetzen aber nicht
-  die Bestätigung eines dauerhaften Automatisierungsaufrufs. `set_my_profile`
-  wartet ebenfalls, weil sein Inhalt spätere Agentenläufe erreicht.
+- **Änderungen verwenden vertrauenswürdige Plattformvorgaben.** Entwürfe und normale
+  Datensätze benötigen keine Bestätigung; folgenreiche Aktionen und mögliche neue
+  Agentenarbeit an Aufgaben fragen nach. `set_my_language` und `set_my_preferences`
+  bleiben ohne Freigabe. Autoren können für standardmäßig freie Operationen eine
+  Bestätigung verlangen. Siehe [die Freigaberegeln](#which-calls-wait-for-a-person).
 
 - **Die Werkzeuge lassen sich einschränken** in den Einstellungen der Karte, die
   sie danach gruppieren, woran sie arbeiten - Tabellen, Aufgaben, Workflows,
@@ -1454,7 +1457,9 @@ einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes
   und laufen mit den Rechten der Person, für die der Agent läuft, nicht seines
   Autors - ein von einem Builder veröffentlichter Agent kann also im Run eines
   Owners keinen Admin ohne Rückfrage einladen. Ihr Schild lässt sich nicht
-  ausschalten, und das Veröffentlichen lehnt `never` für beide ab.
+  ausschalten, und das Veröffentlichen lehnt `never` für beide ab. Jeder Aufruf
+  wartet auf eine eigene Antwort: Weder **Alles freigeben** noch eine gemerkte
+  Entscheidung lässt ihn laufen.
 
 Die Vorlage **AgenticOS** bindet ihn genau so, ebenso jeder von Grund auf
 angelegte Agent, sodass ein Agent die Plattform sofort nachschlagen kann - und eine
@@ -1520,11 +1525,11 @@ für ihre jeweiligen Startwege verfügbar.
 einschließlich aller zurückgegebenen Eingänge. Es liefert nie einen Teilvertrag.
 Prüfe größere Verträge über den HTTP-Endpunkt außerhalb des Modellkontexts.
 
-Für operative Datensätze dienen `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` und `update_virtual_table_record`. Schema- und Datensatzänderungen behalten Revisionsprüfungen bei. Alle Werkzeuge nutzen Organisation, Rechte und Ressourcenzugriffe des Aufrufenden; Schreibwerkzeuge behalten die Plattform-MCP-Freigabe bei. Die Architect-Skills workflow-builder und virtual-tables erklären Triggerauswahl, das Kapseln einer dokumentierten HTTP-API ohne passenden MCP-Katalogeintrag und das Anbinden veröffentlichter aufrufbarer Workflows als Agentenwerkzeuge. Zugangsdaten werden im Tresor eingerichtet, niemals in Graphen oder Modellausgaben.
+Für operative Datensätze dienen `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` und `update_virtual_table_record`. Schema- und Datensatzänderungen behalten Revisionsprüfungen bei. Alle Werkzeuge nutzen Organisation, Rechte und Ressourcenzugriffe des Aufrufenden; normale Entwurfs- und Datensatzänderungen folgen den vertrauenswürdigen Vorgaben; Schemaänderungen, Ausführung und Veröffentlichung fragen immer. Die Architect-Skills workflow-builder und virtual-tables erklären Triggerauswahl, das Kapseln einer dokumentierten HTTP-API ohne passenden MCP-Katalogeintrag und das Anbinden veröffentlichter aufrufbarer Workflows als Agentenwerkzeuge. Zugangsdaten werden im Tresor eingerichtet, niemals in Graphen oder Modellausgaben.
 
-Workflows und Tables nutzen den AgenticOS-MCP-Server als gemeinsame Werkzeugschnittstelle. Erlaube einem Agenten nur die benötigten Werkzeuge. `run_workflow` startet einen veröffentlichten Workflow und gibt den angenommenen Lauf zurück; frage das Ergebnis über `get_workflow_execution` ab. Tabellen bieten `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` und `list_virtual_table_views`. Änderungen und Löschungen verwenden die gelesene Revision, Schreibvorgänge benötigen weiterhin Zustimmung. Gespeicherte Ansichten nutzen dieselbe authentifizierte öffentliche API und Tabellenzugriffsprüfung. Bestehende Workflows-Bindungen bleiben bearbeitbar. Die Tables-Capability entfällt: App-Freigaben wechseln zu `table_bindings`, und Tabellenoperationen benötigen eine ausdrücklich eingerichtete Plattform-MCP-Verbindung.
+Workflows und Tables nutzen den AgenticOS-MCP-Server als gemeinsame Werkzeugschnittstelle. Erlaube einem Agenten nur die benötigten Werkzeuge. `run_workflow` startet einen veröffentlichten Workflow und gibt den angenommenen Lauf zurück; frage das Ergebnis über `get_workflow_execution` ab. Tabellen bieten `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` und `list_virtual_table_views`. Änderungen und Löschungen verwenden die gelesene Revision, normale Datensatzänderungen laufen standardmäßig frei; Löschungen fragen immer und Agentenarbeit behält ihre bedingte Freigabe. Gespeicherte Ansichten nutzen dieselbe authentifizierte öffentliche API und Tabellenzugriffsprüfung. Bestehende Workflows-Bindungen bleiben bearbeitbar. Die Tables-Capability entfällt: App-Freigaben wechseln zu `table_bindings`, und Tabellenoperationen benötigen eine ausdrücklich eingerichtete Plattform-MCP-Verbindung.
 
-Erwartete API-Ablehnungen liefern ein explizites `error`-Objekt mit HTTP-Status, Code, Meldung und sicheren Felddetails. Dies bedeutet eine abgelehnte Operation, keinen erfolgreichen Schreibvorgang. Das Objekt bleibt im Chatverlauf sichtbar; unerwartete Serverfehler bleiben maskiert. `prepare_workflow_draft` bündelt Tabelle und Graph für eine Freigabe; `check_workflow_draft` prüft ohne Aktionen. Beim Aktualisieren eines unveränderten Architect werden auch workflow-builder und virtual-tables installiert und eingebunden. Bestehende Bindungen bleiben erhalten; offene Entwurfsänderungen werden nicht überschrieben.
+Erwartete API-Ablehnungen liefern ein explizites `error`-Objekt mit HTTP-Status, Code, Meldung und sicheren Felddetails. Dies bedeutet eine abgelehnte Operation, keinen erfolgreichen Schreibvorgang. Das Objekt bleibt im Chatverlauf sichtbar; unerwartete Serverfehler bleiben maskiert. `prepare_workflow_draft` bündelt Tabelle und Graph in einer Transaktion; `check_workflow_draft` prüft ohne Aktionen. Beim Aktualisieren eines unveränderten Architect werden auch workflow-builder und virtual-tables installiert und eingebunden. Bestehende Bindungen bleiben erhalten; offene Entwurfsänderungen werden nicht überschrieben.
 
 Für bestehende angepasste Architects verwende `uv run agenticos cmd refresh-assistant --org <organization-id> --workflow-support`.
 
@@ -1596,6 +1601,21 @@ Quittung bestätigt nicht den Abschluss eines Hintergrundjobs.
 `prepare_solution` speichert eine Prüfung für die Person und Organisation für 24
 Stunden. `install_solution` akzeptiert `plan_id`, Installationsschlüssel und den
 geprüften Manifest-Hash. Dauerhafte Installationsquittungen bleiben danach erhalten.
+
+`get_my_console_experience` liest die Darstellung von Chat-Startseite und
+Einrichtungserinnerungen für die aktive Organisationsmitgliedschaft: Verfügbarkeit,
+Organisationsvorgaben, persönliche Überschreibungen und effektive Werte.
+`set_my_console_experience(update)` ändert nur diese persönlichen Überschreibungen.
+Chat-Optionen sind `inbox`, `starters`, `greeting` und `feature_hints`;
+Erinnerungen verwenden `enabled` und `snooze_days` (1, 3 oder 7).
+
+Ausgelassene Felder bleiben unverändert. Ein verschachteltes `null` stellt die
+Vererbung dieser Option wieder her; `preferences: null` oder `reminders: null`
+setzt die ganze Gruppe zurück. Wie andere reversible Konsolenpräferenzen verlangt
+dies keine Freigabe. Es ändert weder Installationsgrenzen, Organisationsvorgaben,
+Agenteninitiative, Rechte noch Genehmigungen; Kontomodus, Stil und Sprache bleiben
+erhalten. Beide Tools verlangen eine aktive persönliche Mitgliedschaft und
+akzeptieren keine Benutzer- oder Organisationsauswahl.
 
 `get_my_preferences` liest Modus, Stil und Sprache des Aufrufers.
 `set_my_preferences` ändert nur übergebene Werte: Modus `light`, `dark`, `system`;

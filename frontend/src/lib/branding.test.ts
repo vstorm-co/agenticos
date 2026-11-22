@@ -71,6 +71,7 @@ describe("resolving what the administrator overrode", () => {
         allowed_email_domains: ["acme.com"],
         maintenance_mode: true,
         maintenance_message: "Back at 22:00",
+        maintenance_planned_end_at: "2026-12-01T22:00:00Z",
       }),
     );
 
@@ -87,6 +88,7 @@ describe("resolving what the administrator overrode", () => {
       allowedEmailDomains: ["acme.com"],
       maintenanceMode: true,
       maintenanceMessage: "Back at 22:00",
+      maintenancePlannedEndAt: "2026-12-01T22:00:00Z",
     });
   });
 

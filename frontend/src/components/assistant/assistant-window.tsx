@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { ChatContainer, type ChatPrompt } from "@/components/chat/chat-container";
+import { ArchitectChatContext } from "@/components/chat/main-chat-context";
 import type { IncomingFiles } from "@/components/chat/chat-input";
 import { useConversations } from "@/hooks/use-conversations";
 import { recallConversation, rememberConversation } from "@/lib/architect-conversation";
@@ -124,7 +125,7 @@ export function AssistantWindow({
       aria-label={name}
       className={cn(WINDOW_CLASSES, !open && "hidden")}
     >
-      <header className="border-border flex items-center gap-2 border-b px-3 py-2">
+      <header className="border-border flex items-center gap-0.5 border-b px-3 py-2">
         <AssistantFace assistant={assistant} agentId={agentId} size="sm" />
         <p className="min-w-0 flex-1 truncate text-sm font-semibold">{name}</p>
         <HeaderButton label={t("screenshot")} onClick={() => void screenshot()}>
@@ -169,25 +170,27 @@ export function AssistantWindow({
           />
         )}
         <div className="flex min-w-0 flex-1 flex-col">
-          <ChatContainer
-            prompt={prompt}
-            agentFixed
-            incomingFiles={incoming}
-            emptyState={(onPick) => (
-              <AssistantWelcome
-                setup={
-                  assistant.status === "needs_model"
-                    ? { agentId, canConfigure: assistant.can_configure }
-                    : undefined
-                }
-                greeting={assistant.greeting}
-                name={name}
-                mark={<AssistantFace assistant={assistant} agentId={agentId} size="lg" />}
-                page={page}
-                onPick={onPick}
-              />
-            )}
-          />
+          <ArchitectChatContext.Provider value={true}>
+            <ChatContainer
+              prompt={prompt}
+              agentFixed
+              incomingFiles={incoming}
+              emptyState={(onPick) => (
+                <AssistantWelcome
+                  setup={
+                    assistant.status === "needs_model"
+                      ? { agentId, canConfigure: assistant.can_configure }
+                      : undefined
+                  }
+                  greeting={assistant.greeting}
+                  name={name}
+                  mark={<AssistantFace assistant={assistant} agentId={agentId} size="lg" />}
+                  page={page}
+                  onPick={onPick}
+                />
+              )}
+            />
+          </ArchitectChatContext.Provider>
         </div>
       </div>
     </div>
@@ -212,7 +215,7 @@ function HeaderButton({
       title={label}
       aria-pressed={pressed}
       onClick={onClick}
-      className="text-muted-foreground hover:text-foreground hover:bg-foreground/[0.05] aria-pressed:text-foreground aria-pressed:bg-foreground/[0.06] rounded-md p-1.5"
+      className="text-muted-foreground hover:text-foreground hover:bg-control aria-pressed:text-foreground aria-pressed:bg-control focus-visible:ring-ring inline-flex size-11 shrink-0 items-center justify-center rounded-xl focus-visible:ring-2 focus-visible:outline-none"
     >
       {children}
     </button>

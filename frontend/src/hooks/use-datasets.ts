@@ -157,6 +157,7 @@ export function useDataset(datasetId: string) {
   });
   return {
     dataset: query.data,
+    refetch: query.refetch,
     fetchedAt: query.dataUpdatedAt,
     isLoading: query.isLoading,
     error: query.error,

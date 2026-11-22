@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { NAVIGATION_START, navigationDestination } from "@/lib/navigation-progress";
 
 /** A navigation faster than this shows nothing: a bar that blinks reads as a glitch. */
 export const SHOW_AFTER_MS = 120;
@@ -25,11 +26,7 @@ export function navigationTarget(event: MouseEvent): URL | null {
   const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
   if (!(anchor instanceof HTMLAnchorElement)) return null;
   if ((anchor.target && anchor.target !== "_self") || anchor.hasAttribute("download")) return null;
-  const url = new URL(anchor.href);
-  const here = window.location;
-  if (url.origin !== here.origin) return null;
-  if (url.pathname === here.pathname && url.search === here.search) return null;
-  return url;
+  return navigationDestination(anchor.href);
 }
 
 type Phase = "idle" | "pending" | "done";
@@ -68,8 +65,7 @@ export function NavigationProgress() {
   }, [location]);
 
   useEffect(() => {
-    const onClick = (event: MouseEvent) => {
-      if (navigationTarget(event) === null) return;
+    const start = () => {
       clearAll(timers);
       const from = committed.current;
       timers.current = [
@@ -79,9 +75,14 @@ export function NavigationProgress() {
         window.setTimeout(() => setWaitingOn(null), GIVE_UP_MS),
       ];
     };
+    const onClick = (event: MouseEvent) => {
+      if (navigationTarget(event) !== null) start();
+    };
     document.addEventListener("click", onClick, { capture: true });
+    window.addEventListener(NAVIGATION_START, start);
     return () => {
       document.removeEventListener("click", onClick, { capture: true });
+      window.removeEventListener(NAVIGATION_START, start);
       clearAll(timers);
     };
   }, []);

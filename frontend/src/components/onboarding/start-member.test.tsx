@@ -148,8 +148,7 @@ it("lets an invited account reuse its saved identity even without a job descript
   expect(env.callbacks.size).toBe(0);
 });
 
-it("keeps the requested full tour available from the member welcome", async () => {
+it("keeps the member welcome focused on setup", () => {
   render(<StartMember data={data} />);
-  await userEvent.click(screen.getByRole("button", { name: "Explore the application" }));
-  expect(env.push).toHaveBeenCalledWith("/dashboard");
+  expect(screen.queryByRole("button", { name: "Explore the application" })).not.toBeInTheDocument();
 });

@@ -7,9 +7,10 @@ from uuid import uuid4
 
 import pytest
 
-from app.agents.spec import AgentSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
+from app.schemas.agent import ShippedAgentChange, ShippedAgentUpdate
 from app.services import agent_defaults, agent_templates, shipped_agents
 from app.services.agent_defaults import (
     ARCHITECT,
@@ -25,7 +26,17 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
-def installed():
+def installed(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        shipped_agents.SandboxConnectionService,
+        "can_provide",
+        AsyncMock(return_value=bool(agent_templates.settings.SANDBOXD_TOKEN)),
+    )
+    monkeypatch.setattr(
+        shipped_agents.ContextProposalService,
+        "bundled_product_context",
+        AsyncMock(return_value=None),
+    )
     ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
     spec = AgentSpec(name="AgenticOS", instructions="Old guidance")
     agent = SimpleNamespace(
@@ -72,6 +83,87 @@ async def test_missing_published_version_is_an_explicit_failure(
     monkeypatch.setattr(shipped_agents.agent_repo, "get_version", AsyncMock(return_value=None))
     with pytest.raises(NotFoundError, match="published version is missing"):
         await service.refresh(ctx, agent, STARTER)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("refusal", ["archived", "unmanaged", "cannot_publish"])
+async def test_reviewed_updates_require_a_managed_agent_and_publish_authority(
+    installed, monkeypatch: pytest.MonkeyPatch, refusal: str
+) -> None:
+    ctx, _, agent, service = installed
+    agent.status = "archived" if refusal == "archived" else "published"
+    if refusal == "unmanaged":
+        agent.shipped_template = None
+    service.registry.may_publish = AsyncMock(return_value=refusal != "cannot_publish")
+    review = AsyncMock()
+    service._review = review
+    monkeypatch.setattr(shipped_agents.organization_assistant_repo, "lock_for_install", AsyncMock())
+    with pytest.raises(NotFoundError, match="Shipped agent update not found"):
+        await service.review_update(ctx, agent.id)
+    with pytest.raises(NotFoundError, match="Shipped agent update not found"):
+        await service.apply_update(ctx, agent.id, "a" * 64)
+    review.assert_not_awaited()
+
+
+@pytest.mark.parametrize("published", [True, False])
+async def test_a_review_reads_the_actual_published_version_and_refuses_its_loss(
+    installed, monkeypatch: pytest.MonkeyPatch, published: bool
+) -> None:
+    ctx, spec, agent, service = installed
+    target = AgentSpec(
+        name=spec.name,
+        instructions="New guidance",
+        capabilities=[CapabilityBindingSpec(id="clock")],
+    )
+    service._target = AsyncMock(return_value=target)
+    service.registry.may_publish = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        shipped_agents.agent_repo,
+        "get_version",
+        AsyncMock(return_value=SimpleNamespace(spec=spec.model_dump()) if published else None),
+    )
+    if published:
+        preview = await service.review_update(ctx, agent.id)
+        assert {(change.version, change.field) for change in preview.changes} == {
+            (side, field)
+            for side in ("draft", "published")
+            for field in ("instructions", "capabilities")
+        }
+    else:
+        with pytest.raises(NotFoundError, match="published version is missing"):
+            await service.review_update(ctx, agent.id)
+
+
+@pytest.mark.parametrize("changed", [True, False])
+async def test_applying_a_review_publishes_only_a_changed_published_version(
+    installed, monkeypatch: pytest.MonkeyPatch, changed: bool
+) -> None:
+    ctx, spec, agent, service = installed
+    preview = ShippedAgentUpdate(
+        revision="a" * 64,
+        changes=[
+            ShippedAgentChange(version="published", field="instructions", before="old", after="new")
+        ]
+        if changed
+        else [],
+    )
+    service.registry.may_publish = AsyncMock(return_value=True)
+    service.registry.publish_spec = AsyncMock()
+    service.registry.save_draft = AsyncMock()
+    service._review = AsyncMock(return_value=(preview, spec, spec, spec))
+    update = AsyncMock()
+    monkeypatch.setattr(shipped_agents.agent_repo, "update", update)
+    monkeypatch.setattr(shipped_agents.organization_assistant_repo, "lock_for_install", AsyncMock())
+    await service.apply_update(ctx, agent.id, preview.revision)
+    if changed:
+        service.registry.publish_spec.assert_awaited_once_with(
+            ctx, agent.id, spec, draft=spec, note="Apply reviewed shipped defaults"
+        )
+        update.assert_awaited_once()
+    else:
+        service.registry.publish_spec.assert_not_awaited()
+        update.assert_not_awaited()
+    service.registry.save_draft.assert_not_awaited()
 
 
 async def test_legacy_architect_protects_a_custom_prompt_and_tools(
@@ -301,3 +393,33 @@ async def test_architect_setup_uses_organization_identity_and_run_access(
     if case in ("disabled", "other"):
         service.registry.get.assert_not_awaited()
     assert await service.setup_candidate(ctx, None) is None
+
+
+async def test_remote_default_sandbox_keeps_shipped_personal_coding_enabled(
+    installed,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ctx, _, agent, service = installed
+    monkeypatch.setattr(agent_templates.settings, "SANDBOXD_TOKEN", "")
+    provides = AsyncMock(return_value=True)
+    monkeypatch.setattr(shipped_agents.SandboxConnectionService, "can_provide", provides)
+    service.ensure_skills = AsyncMock()
+    service.registry.template_skills = AsyncMock(return_value=[])
+    service.registry.save_draft = AsyncMock()
+    monkeypatch.setattr(shipped_agents.agent_repo, "update", AsyncMock(return_value=agent))
+    template = agent_templates.get(STARTER)
+    assert template is not None
+    old = AgentSpec(
+        name=template.name,
+        instructions="Previous shipped prompt",
+        capabilities=list(template.capabilities),
+    )
+    agent.draft_spec = old.model_dump(mode="json")
+    agent.current_version_id = None
+    agent.shipped_template = baseline(STARTER, old)
+    await service.refresh(ctx, agent, STARTER)
+    saved = service.registry.save_draft.call_args.args[2]
+    coding = next(binding for binding in saved.capabilities if binding.id == "coding_agent")
+    sandbox = next(binding for binding in saved.capabilities if binding.id == "sandbox")
+    assert coding.enabled and sandbox.config["backend"] == "service"
+    provides.assert_awaited_once_with(ctx.organization_id)
