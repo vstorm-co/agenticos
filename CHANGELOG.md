@@ -47,6 +47,12 @@ Two things are versioned separately from this file and worth knowing about:
 - Migration `backend/alembic/versions/0349_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
 - Migration `backend/alembic/versions/0350_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
 
+## [1.89.1] - 2026-11-22
+
+### Fixed
+
+- Recognize the official November 12 and 14 AgenticOS starter templates when upgrading older organizations. Refresh untouched shipped defaults while preserving custom prompts, tools, model choices, budgets and unpublished edits.
+
 ## [1.89.0] - 2026-11-21
 
 ### Upgrading
@@ -22488,7 +22494,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.89.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.89.1...HEAD
+[1.89.1]: https://github.com/vstorm-co/agenticos/compare/v1.89.0...v1.89.1
 [1.89.0]: https://github.com/vstorm-co/agenticos/compare/v1.88.0...v1.89.0
 [1.88.0]: https://github.com/vstorm-co/agenticos/compare/v1.87.1...v1.88.0
 [1.87.1]: https://github.com/vstorm-co/agenticos/compare/v1.87.0...v1.87.1
