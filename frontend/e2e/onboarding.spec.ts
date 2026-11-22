@@ -44,9 +44,7 @@ test.describe("Onboarding", () => {
       ).toHaveCount(0);
       await page.getByRole("link", { name: "Open the app", exact: true }).click();
       await expect(page).toHaveURL(/\/chat$/);
-      await expect(
-        page.getByRole("heading", { name: /Good (morning|afternoon|evening)|Up late/ }),
-      ).toBeVisible();
+      await expect(page.getByRole("heading", { name: DASHBOARD_GREETING })).toBeVisible();
       await expect(
         page.getByRole("button", { name: "Check invitations", exact: true }),
       ).toHaveCount(0);
