@@ -356,6 +356,9 @@ class ProjectService:
             target_id=str(project.id),
             details={"fields": sorted(update_data)},
         )
+        from app.services.proactive import ProactiveService
+
+        await ProactiveService(self.db).queue_context_change(ctx.organization_id, ctx.subject_id)
         return updated
 
     async def delete(self, ctx: AuthContext, project_id: UUID) -> None:

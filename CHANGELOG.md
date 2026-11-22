@@ -19,6 +19,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Upgrading
+
+- Migration `0349_personal_work_context.py` adds a rebuildable, membership-private work index. Existing authorized history is indexed lazily within the configured proactivity budget; the migration makes no model calls. Deploy API and workers together. The migration also adds the `personal` proposal kind; downgrading removes these rebuildable proposals. Export them first if their decisions must be retained.
+
+### Added
+
+- Build personal Inbox proposals from source-linked conversation history, memory, profile, projects, private tasks, current routines and prior decisions. Reuse unchanged source checkpoints, continue large histories across bounded jobs, and independently verify proposed actions before delivery. Keep paid execution, scheduling and publication behind their established approvals.
+
+### Fixed
+
+- Memory maintenance preserves human statements before long assistant answers and reads authenticated native question answers without treating remote tool text as human evidence.
+
 ## [1.89.1] - 2026-11-22
 
 ### Fixed

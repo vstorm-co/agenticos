@@ -10191,7 +10191,8 @@
         "agent": "Architect ile oluştur",
         "profile": "Profilime kaydet",
         "role_pack": "Bu rutinleri ekle",
-        "finding": "Tamamlandı"
+        "finding": "Tamamlandı",
+        "personal": "Anladım"
       },
       "open": "Aç",
       "urgent": "Acil",
@@ -13228,7 +13229,8 @@
       "agent": "Agent fikri",
       "profile": "Profil",
       "role_pack": "Routine paketi",
-      "finding": "Rutin"
+      "finding": "Rutin",
+      "personal": "Kişisel öneri"
     },
     "discuss": "Ajanla konuş",
     "moreActions": "{title} için diğer işlemler",
@@ -13239,7 +13241,8 @@
       "profile": "Bu öneriyi kullanarak profilimi gözden geçirmeme ve güncellememe yardım et: {text}",
       "role_pack": "Önerilen bu rutin grubunu yapılandırmama yardım et: {text}",
       "topic": "Konu: {text}",
-      "schedule": "Önerilen zamanlama: {text}"
+      "schedule": "Önerilen zamanlama: {text}",
+      "personal": "Bu konuda bana yardımcı ol: {text}"
     },
     "openWorkingChat": "Sohbeti aç",
     "preferences": "Gelen kutusu tercihleri",
