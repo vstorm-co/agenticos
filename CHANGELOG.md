@@ -117,10 +117,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Preserve authenticated value-only question-answer citations when restoring labelled answer context, so a confirmed multi-question automation request is not dropped before proposal generation.
-
-- Initialize channel adapters before personal Inbox workers verify current channel membership, so authorized Slack and Mattermost conversations are not omitted when the API lifespan has not run. Unavailable or revoked membership still refuses access.
-
 - Keep subscription account rows compact with a two-limit preview, expandable details and an account actions menu.
 
 - Restore the concrete subscription service, account and model in Builder model controls. Keep chat model search behind a magnifier beside the tabs, move refresh and the count into that row, and leave account details in Account to give models more space.
@@ -157,6 +153,14 @@ Two things are versioned separately from this file and worth knowing about:
 - Keep compressed subscription model responses decodable instead of failing with a UTF-8 error in chat.
 - Open the model picker on the active subscription and model, emphasize connected accounts, show all connection groups immediately and recognize model-family icons in subscription catalogs.
 - Show the missing provider marks and gateway icons in model pickers and the vault.
+## [1.90.1] - 2026-11-22
+
+### Fixed
+
+- Preserve authenticated value-only question-answer citations when restoring labelled answer context, so a confirmed multi-question automation request is not dropped before proposal generation.
+
+- Initialize channel adapters before personal Inbox workers verify current channel membership, so authorized Slack and Mattermost conversations are not omitted when the API lifespan has not run. Unavailable or revoked membership still refuses access.
+
 ## [1.90.0] - 2026-11-22
 
 ### Upgrading
@@ -22618,7 +22622,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.90.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...HEAD
+[1.90.1]: https://github.com/vstorm-co/agenticos/compare/v1.90.0...v1.90.1
 [1.90.0]: https://github.com/vstorm-co/agenticos/compare/v1.89.1...v1.90.0
 [1.89.1]: https://github.com/vstorm-co/agenticos/compare/v1.89.0...v1.89.1
 [1.89.0]: https://github.com/vstorm-co/agenticos/compare/v1.88.0...v1.89.0
