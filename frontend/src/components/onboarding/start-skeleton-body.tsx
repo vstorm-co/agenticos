@@ -58,6 +58,15 @@ export function StartSkeletonBody({
         ))}
       </div>
     );
+  if (view === "models" || view === "tools")
+    return (
+      <div className="min-h-80 space-y-6">
+        <Lines />
+        <Field />
+        {view === "tools" && <Field />}
+        <Lines />
+      </div>
+    );
   if (view === "tasks") return <TasksSkeleton />;
   if (view === "welcome") return <WelcomeSkeleton />;
   return <QuestionSkeleton view={view} question={question} />;

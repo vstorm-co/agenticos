@@ -30,6 +30,26 @@
   interpolate-size: allow-keywords;
 }
 
+/* A list supplies the boundary; an embedded table supplies its row dividers. */
+.list-card-content[data-list-layout="panel"] > [data-slot="data-table"] {
+  border-width: 0;
+  border-radius: 0;
+}
+
+@utility console-page-title {
+  font-size: clamp(1.125rem, 1rem + 0.5vw, 1.5rem);
+  line-height: 1.333;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+@utility console-section-title {
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+}
+
 /* Theme changes replace a palette; component color fades must not trail it. */
 .theme-switching *,
 .theme-switching *::before,

@@ -34,3 +34,27 @@ it.each([
 it("has no return destination before a location has been observed", () => {
   expect(safeStartLocation(undefined, "org")).toBeNull();
 });
+it.each(["conversation", "studio", "launchpad"])(
+  "preserves validated %s preview steps",
+  (variant) => {
+    const href = `/onboarding?start-step=admin.models&workspace=org&variant=${variant}`;
+    expect(safeStartLocation(href, "org")).toBe(href);
+    expect(
+      safeStartLocation(
+        `/onboarding?start-step=member.tools&workspace=org&variant=${variant}`,
+        "org",
+      ),
+    ).not.toBeNull();
+  },
+);
+it.each([
+  "/onboarding?start-step=member.task&workspace=org&variant=unknown",
+  "/onboarding?start-step=member.task&workspace=org&variant=studio&variant=launchpad",
+])("rejects unsafe or unsupported preview locations %s", (href) =>
+  expect(safeStartLocation(href, "org")).toBeNull(),
+);
+
+it.each(["admin.models", "member.tools"])("preserves %s in the default Studio layout", (step) => {
+  const href = `/onboarding?start-step=${step}&workspace=org`;
+  expect(safeStartLocation(href, "org")).toBe(href);
+});

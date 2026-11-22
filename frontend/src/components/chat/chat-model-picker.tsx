@@ -53,6 +53,8 @@ import { useTranslations } from "next-intl";
 interface ChatModelPickerProps {
   compact?: boolean;
   presentation?: "form" | "library";
+  /** Initial catalog when setup has no agent model or conversation override yet. */
+  defaultProviderId?: string;
   /** The model profile this conversation overrides to, or null for the agent's own. */
   value: string | null;
   /** The agent's published model, shown as the current one when there is no override. */
@@ -90,6 +92,7 @@ export function ChatModelPicker({
   onChange,
   compact = false,
   presentation = "form",
+  defaultProviderId = "",
 }: ChatModelPickerProps) {
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
@@ -148,7 +151,7 @@ export function ChatModelPicker({
           );
         })?.id ?? current.provider)
       : current?.provider;
-  const providerId = edited?.providerId ?? currentSource ?? "";
+  const providerId = edited?.providerId ?? currentSource ?? defaultProviderId;
   const subscription = subscriptionFromChoice(providerId);
   const personalSource = subscription !== undefined || providerId === "subscription_accounts";
   const model = edited?.model ?? current?.model ?? "";

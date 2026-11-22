@@ -22,7 +22,7 @@ export function StartNavigation({
   return (
     <NavigationSlots.Provider value={{ back, forward }}>
       {children}
-      <footer className={styles.wizardNavigation}>
+      <footer className={styles.wizardNavigation} data-start-navigation>
         <div ref={setBack}>{onBack && <StartBack onClick={onBack} />}</div>
         <div ref={setForward} className={styles.wizardForward} />
       </footer>

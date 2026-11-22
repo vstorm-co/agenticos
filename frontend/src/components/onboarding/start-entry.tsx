@@ -8,11 +8,13 @@ import { shouldOfferStart } from "@/lib/onboarding-api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useOnboardingLocationStore } from "@/stores/onboarding-location-store";
 import { StartSkeleton, startLoadingView } from "./start-skeleton";
+import { useStartVariant } from "./start-experience";
 import { StartHub } from "./start-hub";
 
 /** Automatic welcome links must not interrupt an already usable workspace. */
 export function StartEntry() {
   const search = useSearchParams();
+  const variant = useStartVariant();
   const appAdmin = useAuthStore((state) => state.user?.is_app_admin === true);
   const automatic = search.get("welcome") === "1";
   const freshEntry = search.get("entry") === "account" || search.get("entry") === "joined";
@@ -29,7 +31,7 @@ export function StartEntry() {
     else {
       const search = new URLSearchParams(query);
       const location = new URLSearchParams();
-      for (const key of ["start-step", "workspace", "question"]) {
+      for (const key of ["start-step", "workspace", "question", "variant"]) {
         const value = search.get(key);
         if (value !== null) location.set(key, value);
       }
@@ -64,7 +66,10 @@ export function StartEntry() {
         }
         question={search.get("question")}
         workspaceCount={organizations.data?.length}
-        steps={appAdmin ? 9 : search.get("start-step")?.startsWith("admin.") ? 8 : 5}
+        steps={
+          (appAdmin ? 9 : search.get("start-step")?.startsWith("admin.") ? 8 : 5) +
+          (variant ? 2 : 0)
+        }
       />
     );
   return <StartHub />;

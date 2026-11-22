@@ -42,6 +42,7 @@ import {
   WorkflowIcon as Workflow,
 } from "@/components/icons/product-icons";
 
+import { AgentRecentWork } from "@/components/agents/agent-recent-work";
 import { PinAgentButton } from "@/components/agents/pin-agent-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { StartImprovementDialog } from "@/components/improvement/start-improvement-dialog";
@@ -1846,6 +1847,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             {gapsReason}
           </span>
         )}
+        {canViewRuns && <AgentRecentWork agentId={id} />}
         <Tabs value={tab} onValueChange={setTab} className="flex flex-1 flex-col">
           <TabsList>
             <TabsTrigger value="build" data-tour="agent-tab-build">

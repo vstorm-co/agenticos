@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { Organization } from "@/types";
 import { Perm, type Permission } from "@/types/permissions";
+import { StartExperience } from "./start-experience";
 import { StartAdministration } from "./start-administration";
 
 vi.mock("./start-subscriptions", () => ({ StartSubscriptions: () => null }));
@@ -483,4 +484,60 @@ it("ignores a deployment continuation after leaving that step", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Back" }));
   act(() => late?.());
   expect(screen.getByRole("heading", { name: "Invite your team" })).toBeVisible();
+});
+
+vi.mock("./start-connections", () => ({
+  StartModels: () => <p>Model catalog with Vault keys</p>,
+  StartTools: () => <p>MCP services</p>,
+}));
+vi.mock("./start-launch", () => ({ StartLaunch: () => <h2>Real installed teammates</h2> }));
+it.each(["conversation", "studio", "launchpad"])(
+  "offers model setup, MCP and a direct launch in the %s design",
+  async (variant) => {
+    env.orgs = [org("company")];
+    env.activeId = "company";
+    window.history.replaceState(
+      null,
+      "",
+      `/onboarding?variant=${variant}&start-step=admin.subscriptions&workspace=company`,
+    );
+    render(<StartAdministration appAdmin />);
+    if (variant === "studio") expect(screen.queryByText("Step 5 of 11")).not.toBeInTheDocument();
+    else expect(screen.getByText("Step 5 of 11")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: variant === "studio" ? "Continue" : "Save and continue" }),
+    );
+    expect(await screen.findByText("Model catalog with Vault keys")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: variant === "studio" ? "Continue" : "Save and continue" }),
+    );
+    expect(await screen.findByText("MCP services")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Meet your first teammates" }));
+    expect(screen.getByRole("heading", { name: "Real installed teammates" })).toBeVisible();
+    expect(
+      screen.queryByRole("button", {
+        name: variant === "studio" ? "Continue" : "Save and continue",
+      }),
+    ).not.toBeInTheDocument();
+    expect(window.location.search).toContain(`variant=${variant}`);
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(await screen.findByText("MCP services")).toBeVisible();
+  },
+);
+
+it("starts the default Studio with only the workspace decision and no repeated illustrations", () => {
+  render(
+    <StartExperience>
+      <StartAdministration appAdmin />
+    </StartExperience>,
+  );
+  expect(screen.queryByText(/^Step \d+ of \d+$/)).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Where will your team work?" })).toBeVisible();
+  expect(screen.getByRole("button", { name: /Personal/ })).toBeVisible();
+  expect(screen.queryByText("Your workspace, coming together")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("heading", { name: "Use an existing organization" }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Organization preview")).not.toBeInTheDocument();
+  expect(screen.queryByRole("group", { name: "Onboarding design" })).not.toBeInTheDocument();
 });

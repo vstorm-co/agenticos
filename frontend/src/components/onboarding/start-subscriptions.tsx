@@ -1,5 +1,6 @@
 "use client";
 
+import { useStartVariant } from "./start-experience";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Check } from "lucide-react";
@@ -17,6 +18,7 @@ import {
 
 /** Personal connections stay optional and never become the organization's shared model. */
 export function StartSubscriptions() {
+  const variant = useStartVariant();
   const t = useTranslations("start.subscriptions");
   const accountsCopy = useTranslations("subscriptionAccounts");
   const actions = useSubscriptionAccounts();
@@ -24,10 +26,12 @@ export function StartSubscriptions() {
   if (actions.accounts.data?.enabled === false) return null;
   return (
     <section className="space-y-4 py-4" data-tour="start-subscriptions">
-      <div className="space-y-1">
-        <h2 className="text-sm font-medium">{t("title")}</h2>
-        <p className="text-muted-foreground text-xs">{t("description")}</p>
-      </div>
+      {variant !== "studio" && (
+        <div className="space-y-1">
+          <h2 className="text-sm font-medium">{t("title")}</h2>
+          <p className="text-muted-foreground text-xs">{t("description")}</p>
+        </div>
+      )}
       {actions.accounts.error ? (
         <ErrorState
           title={accountsCopy("loadFailed")}

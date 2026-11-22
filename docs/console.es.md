@@ -1,6 +1,8 @@
 ---
-source_sha: "b01ada556fc9"
+source_sha: "0f4095d9a4b0"
 ---
+
+Los títulos, los controles de listas y los encabezados de tablas comparten una jerarquía compacta. Las tablas dentro de listas tienen un marco exterior y conservan la altura de sus filas al cargar. Los detalles del agente muestran sus tres últimas ejecuciones antes de la configuración, con los estados que requieren atención primero dentro de ese grupo. La inspección muestra el motivo registrado del fallo y conserva los eventos completos en secciones desplegables. El chat sitúa el nombre del modelo sobre su proveedor o cuenta personal. Proyectos aparece antes de Build en la navegación; Conocimiento empieza plegado y se abre para su página activa o por elección explícita.
 
 # La consola { #the-console }
 
@@ -1181,7 +1183,7 @@ El directorio de organizaciones de administración muestra la imagen cargada o l
 
 En una organización nueva se selecciona el **AgenticOS** incluido incluso antes de publicarlo, salvo que hayas elegido otro agente predeterminado. Ante el primer mensaje puede explicar la configuración del modelo y mostrar una tarjeta sin ejecutar el borrador ni llamar a un proveedor de IA. La respuesta y la tarjeta permanecen en el historial. Las personas autorizadas pueden abrir la configuración del modelo; los demás miembros ven indicaciones para contactar al administrador y el contacto de soporte de la instancia, si está configurado. Elige un modelo, añade una clave si se requiere y publica el agente antes de ejecutar respuestas normales de IA. Los borradores ordinarios y los agentes archivados siguen sin poder ejecutarse.
 
-Si no hay un agente publicado disponible, el onboarding ofrece a quien puede preparar un agente **Connect a model**, que elige un modelo y prepara el agente. A los demás les permite abrir un chat de configuración con un borrador accesible del AgenticOS incluido. Los miembros no necesitan permisos de gestión de modelos; reciben orientación de configuración, no el resultado de una tarea de IA. Los borradores inaccesibles siguen bloqueados y un agente publicado accesible tiene prioridad.
+El recorrido Studio presenta los agentes instalados AgenticOS y Architect. Si AgenticOS sigue siendo un borrador de configuración accesible, su acción abre el chat de configuración; la publicación y la ejecución normal conservan sus controles habituales. Los usuarios autorizados pueden configurar Architect cuando necesita un modelo. Los borradores ordinarios y los agentes inaccesibles no se vuelven ejecutables mediante el onboarding.
 
 Cerrar la propuesta inicial la pausa durante el intervalo efectivo de 1, 3 o 7 días de esta pertenencia, según la hora del servidor. Puede volver si la configuración sigue incompleta y los recordatorios están activados. Tras las preguntas, **Completar configuración y abrir la app** registra la finalización para esta pertenencia. No hacen falta campos opcionales, invitaciones, un modelo, un agente ni un run de IA. Completar el onboarding y realizar una tarea correctamente son estados separados.
 
@@ -1284,3 +1286,11 @@ Los ajustes conservan pestañas horizontales. Claves API y clientes MCP comparte
 Los ajustes personales ya no tienen una pestaña Assistant independiente. Los consejos de página están en **Account**; la antigua URL `/settings/assistant` redirige allí. **Inbox preferences** contiene el interruptor personal para recibir sugerencias nocturnas; el historial y la restauración permanecen en Inbox. Los modelos, presupuestos, mantenimiento de memoria y Voice de la organización permanecen en **AI & services**. Las etiquetas de formulario comparten una altura mínima, incluida la ayuda contextual. Los campos y selectores estándar tienen la misma altura, con objetivos táctiles mayores en dispositivos de puntero impreciso. Los filtros compactos conservan su tamaño. La configuración MCP utiliza su propio marco sin un segundo contenedor con borde.
 
 La selección de modelo se aplica directamente sin notificación de éxito. **Volver al modelo del agente** elimina la selección de la conversación. Las suscripciones tienen un paso propio después del contexto personal durante la configuración: cada servicio ofrece **Conectar** directamente en su tarjeta. **Settings → Subscriptions** muestra una fila por cuenta con búsqueda, paginación y ventanas de uso comunicadas por el proveedor; los límites desconocidos se indican expresamente.
+
+Se pueden comparar tres diseños de incorporación en `/onboarding?variant=conversation`, `?variant=studio` y `?variant=launchpad`: una columna de conversación, un estudio con navegación lateral y un launchpad amplio. Comparten formularios, permisos y guardado. El cambio de diseño conserva el paso actual y los borradores de los formularios montados. Los mensajes de guía aparecen progresivamente; el lector de pantalla recibe el mensaje completo y la preferencia de movimiento reducido muestra texto estático.
+
+Estas variantes añaden un paso de selección de modelo con el catálogo habitual de proveedores, claves existentes del Vault y formularios de conexión, seguido del catálogo MCP con cuentas personales y compartidas. El modelo elegido se recuerda para los chats nuevos de la persona, sin cambiar el modelo publicado de un agente compartido. Conectar MCP no concede sus herramientas a todos los agentes.
+
+Los administradores pueden revisar los ajustes del equipo y del despliegue o ir directamente a los agentes instalados AgenticOS y Architect. Abrirlos no envía solicitudes de IA; los agentes no disponibles conservan sus indicaciones de configuración.
+
+Studio es el diseño predeterminado en `/onboarding`; los otros diseños siguen disponibles mediante parámetros de vista previa. Studio utiliza una columna de formulario y una navegación compacta sin personajes decorativos repetidos. El aspecto se elige en un carrusel de los colores reales del avatar de la cuenta: explorar no guarda una selección; elegir utiliza el guardado habitual de la cuenta. El movimiento respeta las preferencias de la aplicación y del sistema.

@@ -31,6 +31,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Refine shared console headings and tables, show recent agent work before configuration, expose run failure details, and keep model/account identity visible in chat.
+
+- A simpler Studio onboarding with one form column, model/Vault setup, MCP connections, a swipeable avatar-look chooser and direct entry to installed AgenticOS and Architect agents. Conversation and Launchpad remain available as preview variants.
+
 - Subscription onboarding uses directly connectable service tiles after personal context. Subscriptions settings lists individual accounts in a searchable, paginated table with usage windows.
 
 - A dedicated Subscriptions settings tab with per-account usage bars and reset times, live quota metadata for Codex and Antigravity, and separate Antigravity model-group windows.

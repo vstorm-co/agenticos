@@ -15,6 +15,8 @@ export type StartLoadingView =
   | "profile"
   | "context"
   | "subscriptions"
+  | "models"
+  | "tools"
   | "team"
   | "deployment"
   | "budget"
@@ -31,6 +33,8 @@ export function startLoadingView(step: string | null, question: string | null): 
   if (step === "admin.profile" || step === "member.profile") return "profile";
   if (step === "admin.context" || step === "member.context") return "context";
   if (step === "admin.subscriptions" || step === "member.subscriptions") return "subscriptions";
+  if (step === "admin.models" || step === "member.models") return "models";
+  if (step === "admin.tools" || step === "member.tools") return "tools";
   if (step === "admin.task" || step === "member.task") return "tasks";
   if (step === "member.welcome") return "welcome";
   return "workspace";

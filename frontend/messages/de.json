@@ -7105,6 +7105,9 @@
       "unexpectedWithDigest": "Ein unerwarteter Fehler ist aufgetreten. Fehler-ID: {digest}"
     },
     "runs": {
+      "recentWork": "Letzte Aktivitäten",
+      "rawRecord": "Rohdaten",
+      "recordedFailure": "Warum dieser Lauf angehalten wurde",
       "aParkedRunIsStill": "Ein geparkter Run ist weiterhin geparkt. Es wurde nichts entschieden, und nichts ist abgelaufen.",
       "activity": "Aktivität",
       "activity2": "Aktivität",
@@ -10098,7 +10101,14 @@
   "avatarColor": {
     "auto": "Automatische Farbe",
     "label": "Avatar-Farbe",
-    "option": "Farbe {n}"
+    "option": "Farbe {n}",
+    "carouselRole": "Karussell",
+    "slideRole": "Aussehen",
+    "chooseLook": "Wählen Sie Ihren Look",
+    "lookHint": "Wischen, entdecken und einen Look auswählen.",
+    "previousLook": "Vorheriger Look",
+    "nextLook": "Nächster Look",
+    "lookPosition": "Look {current} von {total}"
   },
   "triggers": {
     "setupReviewTitle": "Zugriff der Routine prüfen",
@@ -17929,6 +17939,57 @@
       "description": "Wähle deine Abonnements und melde dich hier an. Du kannst mehrere Konten verbinden oder ohne Verbindung fortfahren.",
       "connected": "Verbunden",
       "hint": "Diese Konten sind persönlich. Wähle ihre Modelle im Chat; sie ersetzen nicht das gemeinsame Modell deiner Organisation."
+    },
+    "experience": {
+      "configureAgent": "AgenticOS konfigurieren",
+      "designs": "Onboarding-Design",
+      "variants": {
+        "conversation": "Gespräch",
+        "studio": "Studio",
+        "launchpad": "Launchpad"
+      },
+      "journeyTitle": "Ihr Workspace nimmt Gestalt an",
+      "introductions": {
+        "conversation": "Ein Gespräch. Ihre eigenen Werkzeuge.",
+        "studio": "Gestalten Sie einen Raum für Ihre Arbeitsweise.",
+        "launchpad": "Modelle hinzufügen, Werkzeuge verbinden, etwas umsetzen."
+      },
+      "architectName": "Architect",
+      "architectAside": "Hilft beim Entwerfen von Agenten und Workflows.",
+      "agenticosName": "AgenticOS",
+      "modelsTitle": "Wählen Sie Ihr Modell",
+      "modelsGuide": "Sie haben bereits ein Modell oder einen API-Schlüssel? Verbinden Sie es hier oder nutzen Sie ein Modell Ihres Workspace.",
+      "modelsHint": "Wählen Sie aus dem vollständigen Anbieterkatalog, nutzen Sie einen Schlüssel aus dem Vault oder fügen Sie eine Verbindung hinzu.",
+      "modelsScope": "Die Auswahl gilt für Ihre neuen Chats. Persönliche Abonnements bleiben privat; gemeinsame Agentenmodelle konfigurieren Sie im Builder.",
+      "toolsTitle": "Verbinden Sie Ihre Werkzeuge",
+      "toolsGuide": "Verbinden Sie Ihre Dienste oder einen eigenen MCP-Server. Sie entscheiden, welche Konten und Werkzeuge ein Agent nutzen darf.",
+      "toolsHint": "Derselbe Verbindungskatalog wie in der App: Bei einem Dienst anmelden oder einen eigenen Server hinzufügen. Dieser Schritt ist optional.",
+      "toolsScope": "Eine Verbindung gibt nicht jedem Agenten Zugriff. Binden Sie die Werkzeuge im Builder ein oder bitten Sie Architect um Hilfe.",
+      "launchTitle": "Lernen Sie Ihre ersten Agenten kennen",
+      "launchGuide": "AgenticOS hilft bei Ihrer Arbeit. Architect hilft beim Aufbau von Agenten und Workflows für Ihr Team.",
+      "dailyPartner": "Ihr Agent für den Alltag",
+      "builderPartner": "Ihr Agentenentwickler",
+      "agenticosBody": "Recherchieren, schreiben, mit Dokumenten und Code arbeiten. Beginnen Sie mit einer echten Aufgabe und ergänzen Sie Werkzeuge und Wissen.",
+      "architectBody": "Beschreiben Sie einen Prozess, den Sie verbessern möchten. Architect hilft beim Entwerfen von Agenten oder Workflows mit Anweisungen und Werkzeugen.",
+      "openAgent": "Mit AgenticOS starten",
+      "setupAgent": "AgenticOS einrichten",
+      "openArchitect": "Mit Architect bauen",
+      "agentUnavailable": "Dieser Agent ist in Ihrem Workspace noch nicht verfügbar. Bitten Sie einen Administrator um die Einrichtung.",
+      "architectUnavailable": "Architect ist deaktiviert, benötigt ein Modell oder ist für Ihr Konto nicht verfügbar. Ein Administrator kann ihn in den Workspace-Einstellungen konfigurieren.",
+      "launchHint": "Beim Öffnen wird keine Modellanfrage gesendet. Wählen Sie eine Aufgabe und senden Sie sie, wenn Sie bereit sind.",
+      "adminSetup": "Team- und Workspace-Einstellungen prüfen",
+      "agentsFailed": "Agent konnte nicht geladen werden",
+      "retry": "Erneut versuchen",
+      "phases": {
+        "workspace": "Workspace",
+        "you": "Über Sie",
+        "models": "Modelle & Abonnements",
+        "tools": "Werkzeuge & MCP",
+        "team": "Team & Einstellungen",
+        "launch": "Ihre Agenten"
+      },
+      "configureArchitect": "Architect konfigurieren",
+      "continue": "Weiter"
     }
   },
   "skillImprovement": {

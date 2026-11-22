@@ -1,6 +1,8 @@
 ---
-source_sha: "b01ada556fc9"
+source_sha: "0f4095d9a4b0"
 ---
+
+Seitentitel, Listensteuerung und Tabellenköpfe verwenden eine kompakte Hierarchie. Tabellen in Listen haben einen äußeren Rahmen und behalten beim Laden ihre Zeilenhöhe. Die Agentendetails zeigen die letzten drei Läufe vor der Konfiguration, innerhalb dieser Gruppe mit Aufmerksamkeitszuständen zuerst. Die Laufansicht zeigt den gespeicherten Fehlergrund; vollständige Rohereignisse bleiben aufklappbar. Im Chat steht der Modellname über dem Anbieter oder persönlichen Konto. Projekte stehen vor Build in der Navigation; Wissen ist zunächst eingeklappt und öffnet sich für seine aktive Seite oder nach Ihrer Auswahl.
 
 # Die Konsole { #the-console }
 
@@ -1229,7 +1231,7 @@ Das Organisationsverzeichnis der Administration zeigt das hochgeladene Bild oder
 
 In einer neuen Organisation ist der mitgelieferte **AgenticOS** bereits vor der Veröffentlichung ausgewählt, sofern Sie keinen anderen Standard festgelegt haben. Auf die erste Nachricht kann er die Modelleinrichtung erklären und eine Konfigurationskarte zeigen, ohne den Entwurf auszuführen oder einen KI-Anbieter aufzurufen. Antwort und Karte bleiben im Chatverlauf. Berechtigte Personen öffnen die Modelleinstellungen des Agenten; andere Mitglieder sehen einen Administratorhinweis und den Supportkontakt der Instanz, falls konfiguriert. Wählen Sie ein Modell, ergänzen Sie bei Bedarf einen Schlüssel und veröffentlichen Sie den Agenten, bevor normale KI-Antworten ausgeführt werden können. Gewöhnliche Entwürfe und archivierte Agenten bleiben von der Ausführung ausgeschlossen.
 
-Wenn kein veröffentlichter Agent verfügbar ist, bietet das Onboarding Personen, die einen Agenten vorbereiten dürfen, **Modell verbinden** an: ein Modell wählen und einen Agenten vorbereiten. Allen anderen bietet es einen zugänglichen Entwurf des mitgelieferten AgenticOS als Einrichtungs-Chat an. Mitglieder können ihn ohne Berechtigung zur Modellverwaltung öffnen; er liefert Einrichtungshinweise statt eines KI-Aufgabenergebnisses. Nicht zugängliche Entwürfe bleiben gesperrt, und ein zugänglicher veröffentlichter Agent hat Vorrang.
+Der Studio-Ablauf stellt die installierten Agenten AgenticOS und Architect vor. Ist der mitgelieferte AgenticOS noch ein zugänglicher Einrichtungsentwurf, öffnet seine Aktion den Konfigurationschat; Veröffentlichung und reguläre Ausführung behalten ihre üblichen Prüfungen. Berechtigte Personen können Architect konfigurieren, wenn ein Modell fehlt. Gewöhnliche Entwürfe und unzugängliche Agenten werden durch das Onboarding nicht ausführbar.
 
 Das Schließen des Startangebots pausiert es nach Serverzeit für das wirksame Intervall dieser Mitgliedschaft von 1, 3 oder 7 Tagen. Es kann zurückkehren, wenn die Einrichtung unvollständig und Erinnerungen eingeschaltet sind. Nach den Fragen speichert **Einrichtung abschließen und App öffnen** den Abschluss für diese Mitgliedschaft. Optionale Felder, Einladungen, ein Modell, ein Agent oder ein KI-Run sind nicht erforderlich. Abgeschlossene Einrichtung und erfolgreiche Aufgabe sind getrennte Zustände.
 
@@ -1335,3 +1337,11 @@ Einstellungen behalten horizontale Tabs. API-Schlüssel und MCP-Clients teilen *
 Persönliche Einstellungen haben keinen eigenen Assistant-Tab mehr. Seitenhinweise stehen unter **Account**; die alte URL `/settings/assistant` leitet dorthin weiter. **Inbox preferences** enthält den persönlichen Schalter für die Zustellung nächtlicher Vorschläge. Verlauf und Wiederherstellung bleiben im Inbox. Organisationsmodelle, Budgets, Speicherpflege und Voice bleiben unter **AI & services**. Formularbeschriftungen haben eine gemeinsame Mindestzeilenhöhe, auch mit Inline-Hilfe. Standard-Eingaben und Auswahllisten sind gleich hoch; bei groben Zeigegeräten sind die Berührungsflächen größer. Kompakte Tabellenfilter behalten ihre eigene Größe. Die MCP-Einrichtung besitzt einen eigenen Rahmen statt eines zweiten umschließenden Containers.
 
 Die Modellauswahl wird direkt und ohne Erfolgsmeldung übernommen. **Zurück zum Modell des Agenten** entfernt die Auswahl für dieses Gespräch. Persönliche Abonnements haben beim Onboarding einen eigenen Schritt nach dem persönlichen Kontext: Jede Dienstkachel bietet direkt **Verbinden**. **Settings → Subscriptions** zeigt eine Zeile je Konto mit Suche, Seitennavigation und gemeldeten Nutzungslimits; fehlende Daten werden ausdrücklich gekennzeichnet.
+
+Drei Onboarding-Layouts lassen sich unter `/onboarding?variant=conversation`, `?variant=studio` und `?variant=launchpad` vergleichen: eine Gesprächsspalte, ein Studio mit seitlicher Navigation und ein breites Launchpad. Sie nutzen dieselben Formulare, Berechtigungen und Speichervorgänge. Der Designwechsel behält den aktuellen Schritt und Entwürfe in eingebundenen Formularen. Anleitungstexte erscheinen schrittweise; Screenreader erhalten die vollständige Nachricht und bei reduzierter Bewegung bleibt der Text statisch.
+
+Diese Varianten ergänzen eine Modellauswahl mit dem normalen Anbieterkatalog, vorhandenen Vault-Schlüsseln und Verbindungsformularen sowie den bestehenden MCP-Katalog mit persönlichen und gemeinsamen Konten. Die Modellauswahl gilt für neue Chats der Person und ändert kein veröffentlichtes gemeinsames Agentenmodell. Eine MCP-Verbindung bindet Werkzeuge nicht an alle Agenten.
+
+Administratoren können Team- und Bereitstellungseinstellungen prüfen oder direkt zu den installierten Agenten AgenticOS und Architect wechseln. Beim Öffnen wird keine KI-Anfrage gesendet; nicht verfügbare Agenten behalten ihre Einrichtungshinweise.
+
+Studio ist unter `/onboarding` der Standard; die anderen Layouts bleiben über Vorschauparameter erreichbar. Studio zeigt eine Formularspalte und eine kompakte Navigation ohne wiederholte dekorative Figuren. Das Aussehen lässt sich in einem Karussell der tatsächlichen Avatarfarben des Kontos wählen: Blättern speichert nichts, erst die Auswahl nutzt den bisherigen Kontospeicher. Bewegung respektiert die Einstellungen der App und des Betriebssystems.

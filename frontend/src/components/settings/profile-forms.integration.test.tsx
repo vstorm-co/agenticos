@@ -163,3 +163,41 @@ it("continues onboarding without a no-change toast or profile write", async () =
   expect(apiClient.patch).not.toHaveBeenCalled();
   expect(toast.info).not.toHaveBeenCalled();
 });
+
+it("saves an onboarding carousel choice with the existing account contract and retains unsaved identity", async () => {
+  const held = Promise.withResolvers<User>();
+  vi.mocked(apiClient.patch).mockReturnValueOnce(held.promise);
+  render(
+    <ProfileIdentitySettings
+      section="identity"
+      avatarPresentation="carousel"
+      onContinue={vi.fn()}
+    />,
+  );
+  await userEvent.type(screen.getByLabelText("Display name"), " draft");
+  await userEvent.click(screen.getByRole("button", { name: "Colour 4" }));
+  expect(apiClient.patch).toHaveBeenCalledExactlyOnceWith("/users/me", { avatar_color: 4 });
+  expect(screen.getByRole("button", { name: "Colour 5" })).toBeDisabled();
+  held.resolve({ ...USER, avatar_color: 4 });
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Colour 4" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    ),
+  );
+  expect(screen.getByLabelText("Display name")).toHaveValue("Alex draft");
+});
+
+it("keeps an uploaded photo primary and offers fallback looks only on demand", () => {
+  useAuthStore.setState({ user: { ...USER, avatar_url: "avatars/photo.png" } });
+  render(
+    <ProfileIdentitySettings
+      section="identity"
+      avatarPresentation="carousel"
+      onContinue={vi.fn()}
+    />,
+  );
+  expect(screen.getAllByRole("button", { name: "Replace avatar" }).length).toBeGreaterThan(0);
+  expect(screen.queryByRole("region", { name: "Choose your look" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Fallback colour" })).toBeVisible();
+});

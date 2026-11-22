@@ -26,13 +26,31 @@ import { StartTasks } from "./start-tasks";
 import { StartFinish } from "./start-finish";
 import { StartActions, StartNavigation, StartNavigationScope } from "./start-navigation";
 import { StartLanguage } from "./start-language";
+import { useStartVariant, StartVariantPicker, StartJourney } from "./start-experience";
+import dynamic from "next/dynamic";
+import { StartLaunch } from "./start-launch";
 import styles from "./administration.module.css";
+const StartModels = dynamic(
+  () => import("./start-connections").then((module) => module.StartModels),
+  {
+    loading: () => <StartSkeleton fullPage={false} view="models" />,
+  },
+);
+const StartTools = dynamic(
+  () => import("./start-connections").then((module) => module.StartTools),
+  {
+    loading: () => <StartSkeleton fullPage={false} view="tools" />,
+  },
+);
+
 const STEPS = [
   "workspace",
   "identity",
   "profile",
   "context",
   "subscriptions",
+  "models",
+  "tools",
   "team",
   "deployment",
   "organization",
@@ -48,7 +66,14 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
   const organizations = useOrganizationList();
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(activeOrg?.id ?? null);
   const org = activeOrg?.id === selectedOrgId ? activeOrg : null;
-  const steps = STEPS.filter((item) => appAdmin || item !== "deployment");
+  const variant = useStartVariant();
+  const experience = useTranslations("start.experience");
+  const steps = STEPS.filter(
+    (item) =>
+      (appAdmin || item !== "deployment") && (variant || (item !== "models" && item !== "tools")),
+  );
+  const stepLabel = (id: Step) =>
+    id === "models" || id === "tools" ? experience(`${id}Title`) : t(id);
   const search = useSearchParams();
   const requestedStep = steps.find((item) => `admin.${item}` === search.get("start-step"));
   const requestedWorkspace = requestedStep ? search.get("workspace") : null;
@@ -120,7 +145,8 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
   const advance = (from: Step, next: Step) => {
     if (mounted.current && stepRef.current === from && scopeRef.current === org?.id) go(next);
   };
-  const back = () => go(steps[index - 1] ?? "workspace");
+  const back = () =>
+    go((variant ? visited[visited.indexOf(step) - 1] : steps[index - 1]) ?? "workspace");
   // A step asked as questions carries its own Back, which leaves the step from
   // its first question; a second one in the header would be the same control twice.
   const questionStep = step === "deployment" || step === "organization";
@@ -140,12 +166,13 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
     );
   return (
     <div className={styles.shell}>
-      <div className={styles.frame} data-direction={direction}>
-        <nav className={styles.topbar} aria-label={appName}>
+      <div className={styles.frame} data-start-frame data-direction={direction}>
+        <nav className={styles.topbar} data-start-topbar aria-label={appName}>
           <Link href="/chat" className={styles.brand}>
             <BrandMark size={28} />
             {appName}
           </Link>
+          <StartVariantPicker />
           <div className={styles.topActions}>
             <StartLanguage />
             <Link href="/chat">
@@ -154,12 +181,14 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
             </Link>
           </div>
         </nav>
-        <header className={styles.wizardHeader}>
+        <header className={styles.wizardHeader} data-start-header>
           <div className={styles.wizardMeta}>
             <div className={styles.wizardScope}>
               <span>{org?.name ?? t(appAdmin ? "applicationAdmin" : "organizationAdmin")}</span>
             </div>
-            <span>{t("stepPosition", { current: index + 1, total: steps.length })}</span>
+            {variant !== "studio" && (
+              <span>{t("stepPosition", { current: index + 1, total: steps.length })}</span>
+            )}
           </div>
           <ol className={styles.progress} aria-label={t("steps")}>
             {steps.map((id, position) => (
@@ -169,18 +198,25 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
                 data-past={position < index}
                 aria-current={id === step ? "step" : undefined}
               >
-                <span className="sr-only">{t(id)}</span>
+                <span className="sr-only">{stepLabel(id)}</span>
               </li>
             ))}
           </ol>
         </header>
+        <StartJourney
+          steps={steps}
+          current={step}
+          visited={visited}
+          onSelect={go}
+          label={stepLabel}
+        />
         <StartNavigation onBack={index > 0 && !questionStep ? back : undefined}>
-          <div ref={content} className={styles.content}>
+          <div ref={content} className={styles.content} data-start-content>
             {visited.includes("workspace") && (
               <section hidden={step !== "workspace"} aria-label={t("workspace")}>
                 <h1 tabIndex={-1}>{t("workspaceTitle")}</h1>
                 <p className={styles.stageHint}>{t("workspaceHint")}</p>
-                <StartGuide message={guide("workspaceGuide")} />
+                {variant !== "studio" && <StartGuide message={guide("workspaceGuide")} />}
                 {organizations.isPending ? (
                   <StartSkeleton fullPage={false} />
                 ) : (
@@ -202,8 +238,8 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
               >
                 <h1 tabIndex={-1}>{t("identityTitle")}</h1>
                 <p className={styles.stageHint}>{t("identityHint")}</p>
-                <StartGuide message={guide("identityGuide")} />
-                <div className={styles.stageStudio}>
+                {variant !== "studio" && <StartGuide message={guide("identityGuide")} />}
+                <div className={styles.stageStudio} data-start-studio>
                   <StartNavigationScope active={step === "identity"}>
                     <OrganizationProfileSettings
                       org={org}
@@ -224,12 +260,15 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
               >
                 <h1 tabIndex={-1}>{t("identityProfileTitle")}</h1>
                 <p className={styles.stageHint}>{t("identityProfileHint")}</p>
-                <StartGuide message={guide("profileGuide")} />
-                <div className={styles.stageStudio}>
-                  <div className={styles.profileCard}>
+                {variant !== "studio" && <StartGuide message={guide("profileGuide")} />}
+                <div className={styles.stageStudio} data-start-studio>
+                  <div className={styles.profileCard} data-start-profile>
                     <StartNavigationScope active={step === "profile"}>
                       <ProfileIdentitySettings
                         section="identity"
+                        avatarPresentation={
+                          variant === "studio" && step === "profile" ? "carousel" : "palette"
+                        }
                         onContinue={() => advance("profile", "context")}
                         saveLabel={t("saveContinue")}
                         renderActions={(actions) => <StartActions>{actions}</StartActions>}
@@ -248,9 +287,9 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
               >
                 <h1 tabIndex={-1}>{t("contextTitle")}</h1>
                 <p className={styles.stageHint}>{t("contextHint")}</p>
-                <StartGuide message={guide("contextGuide")} />
-                <div className={styles.stageStudio}>
-                  <div className={styles.profileCard}>
+                {variant !== "studio" && <StartGuide message={guide("contextGuide")} />}
+                <div className={styles.stageStudio} data-start-studio>
+                  <div className={styles.profileCard} data-start-profile>
                     <StartNavigationScope active={step === "context"}>
                       <ProfileIdentitySettings
                         section="context"
@@ -276,19 +315,46 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
                 <StartSubscriptions />
                 <StartNavigationScope active={step === "subscriptions"}>
                   <StartActions>
-                    <Button onClick={() => advance("subscriptions", "team")}>
-                      {t("saveContinue")}
+                    <Button onClick={() => advance("subscriptions", variant ? "models" : "team")}>
+                      {variant === "studio" ? experience("continue") : t("saveContinue")}
                     </Button>
                   </StartActions>
                 </StartNavigationScope>
+              </section>
+            )}
+            {org && variant && step === "models" && (
+              <section aria-label={experience("modelsTitle")}>
+                <h1 tabIndex={-1}>{experience("modelsTitle")}</h1>
+                <StartGuide message={experience("modelsGuide")} />
+                <StartModels />
+                <StartActions>
+                  <Button onClick={() => advance("models", "tools")}>
+                    {variant === "studio" ? experience("continue") : t("saveContinue")}
+                  </Button>
+                </StartActions>
+              </section>
+            )}
+            {org && variant && step === "tools" && (
+              <section aria-label={experience("toolsTitle")}>
+                <h1 tabIndex={-1}>{experience("toolsTitle")}</h1>
+                <StartGuide message={experience("toolsGuide")} />
+                <StartTools />
+                <StartActions>
+                  <Button variant="ghost" onClick={() => advance("tools", "team")}>
+                    {experience("adminSetup")}
+                  </Button>
+                  <Button onClick={() => advance("tools", "task")}>
+                    {experience("launchTitle")}
+                  </Button>
+                </StartActions>
               </section>
             )}
             {org && visited.includes("team") && (
               <section key={`team-${org.id}`} hidden={step !== "team"} aria-label={t("team")}>
                 <h1 tabIndex={-1}>{t("teamTitle")}</h1>
                 <p className={styles.stageHint}>{t("teamHint")}</p>
-                <StartGuide message={guide("teamGuide")} />
-                <div className={styles.stageStudio}>
+                {variant !== "studio" && <StartGuide message={guide("teamGuide")} />}
+                <div className={styles.stageStudio} data-start-studio>
                   <StartNavigationScope active={step === "team"}>
                     <StartInviteTeam
                       org={org}
@@ -335,9 +401,9 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
             )}
             {org && step === "task" && (
               <section key={`task-${org.id}`} aria-label={t("task")}>
-                <h1 tabIndex={-1}>{t("taskTitle")}</h1>
-                <p className={styles.stageHint}>{t("taskHint")}</p>
-                <StartGuide message={guide("taskGuide")} />
+                <h1 tabIndex={-1}>{variant ? experience("launchTitle") : t("taskTitle")}</h1>
+                {!variant && <p className={styles.stageHint}>{t("taskHint")}</p>}
+                <StartGuide message={variant ? experience("launchGuide") : guide("taskGuide")} />
                 <AdminFirstTask orgId={org.id} />
               </section>
             )}
@@ -350,6 +416,7 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
 function AdminFirstTask({ orgId }: { orgId: string }) {
   const t = useTranslations("start");
   const state = useStart();
+  const useVariant = useStartVariant();
   if (state.error)
     return (
       <ErrorState
@@ -361,7 +428,7 @@ function AdminFirstTask({ orgId }: { orgId: string }) {
     return <StartSkeleton fullPage={false} view="tasks" />;
   return (
     <div className="space-y-6">
-      <StartTasks data={state.data} />
+      {useVariant ? <StartLaunch data={state.data} /> : <StartTasks data={state.data} />}
       <StartFinish />
     </div>
   );

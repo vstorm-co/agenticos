@@ -1,6 +1,8 @@
 ---
-source_sha: "b01ada556fc9"
+source_sha: "0f4095d9a4b0"
 ---
+
+Tytuły stron, kontrolki list i nagłówki tabel mają wspólną, zwartą hierarchię. Tabela osadzona w liście ma jedną zewnętrzną ramkę i zachowuje wysokość wierszy podczas ładowania. Szczegóły agenta pokazują trzy ostatnie uruchomienia przed konfiguracją, z wymagającymi uwagi na początku tej grupy; podgląd uruchomienia pokazuje zapisany powód błędu, a pełne surowe zdarzenia pozostają w rozwijanych sekcjach. Czat pokazuje nazwę modelu nad dostawcą lub osobistym kontem. Projekty poprzedzają Build w nawigacji; Wiedza zaczyna zwinięta i otwiera się dla aktywnej strony lub po Twoim wyborze.
 
 # Konsola { #the-console }
 
@@ -1151,7 +1153,7 @@ Lista organizacji w administracji pokazuje wgrane zdjęcie albo inicjały w wybr
 
 W nowej organizacji domyślnie wybrany jest dostarczony **AgenticOS**, również przed publikacją, chyba że wybierzesz innego domyślnego agenta. Po pierwszej wiadomości może wyjaśnić konfigurację modelu i pokazać kartę ustawień bez wykonywania draftu ani wywoływania dostawcy AI. Odpowiedź i karta pozostają w historii czatu. Osoby z uprawnieniami konfiguracji otwierają ustawienia modelu agenta; pozostali członkowie widzą wskazówkę dotyczącą administratora i kontakt wsparcia instancji, jeśli został podany. Wybierz model, dodaj klucz, jeśli jest wymagany, i opublikuj agenta, aby uruchomić zwykłe odpowiedzi AI. Zwykłe drafty i zarchiwizowani agenci nadal nie mogą być wykonywani.
 
-Gdy nie ma dostępnego opublikowanego agenta, onboarding proponuje osobie, która może przygotować agenta, **Połącz model**: wybór modelu i przygotowanie agenta. Pozostałym pozwala otworzyć rozmowę konfiguracyjną z dostępnym draftem dostarczonego AgenticOS. Członek organizacji nie potrzebuje do tego uprawnień do modeli; otrzymuje wskazówki konfiguracyjne, a nie wynik zadania AI. Niedostępne drafty pozostają zablokowane, a dostępny opublikowany agent ma pierwszeństwo.
+Onboarding Studio przedstawia zainstalowanych AgenticOS i Architect. Jeśli dostarczony AgenticOS jest dostępnym draftem konfiguracyjnym, przycisk otwiera rozmowę o konfiguracji; publikacja i zwykłe wykonywanie agenta nadal wymagają dotychczasowych uprawnień. Uprawniona osoba może skonfigurować Architect, gdy brakuje mu modelu. Zwykłe drafty i niedostępni agenci nie stają się wykonywalni przez onboarding.
 
 Zamknięcie propozycji startowej odkłada ją na obowiązujący dla tego członkostwa okres 1, 3 lub 7 dni według czasu serwera. Może wrócić, jeśli konfiguracja pozostaje nieukończona, a przypomnienia są włączone. Po przejściu pytań **Zakończ konfigurację i otwórz aplikację** zapisuje ukończenie dla tego członkostwa. Opcjonalne pola, zaproszenia, model, agent ani run AI nie są wymagane. Ukończenie onboardingu i udane zadanie to osobne stany.
 
@@ -1250,3 +1252,11 @@ Ustawienia zachowują poziome taby. Klucze API i klienci MCP są razem w **API i
 Ustawienia osobiste nie mają osobnej zakładki Assistant. Wskazówki stron znajdują się w **Account**, a stary adres `/settings/assistant` przekierowuje do tej zakładki. **Inbox preferences** zawiera osobisty przełącznik dostarczania nocnych sugestii; historia sugestii i ich przywracanie pozostają w Inbox. Modele organizacji, budżety, utrzymanie pamięci i Voice pozostają w **AI & services**. Etykiety formularzy mają wspólną minimalną wysokość, również przy przycisku pomocy. Standardowe pola tekstowe i selecty mają jednakową wysokość oraz większe obszary dotykowe przy niedokładnym wskaźniku. Kompaktowe filtry tabel zachowują własny rozmiar. Konfiguracja MCP ma jedną własną ramkę zamiast dodatkowego obramowanego kontenera.
 
 Selektor stosuje wybór modelu bez powiadomienia o sukcesie. Przycisk **Powrót do modelu agenta** usuwa model wybrany dla rozmowy. Subskrypcje mają osobny krok po kontekście osobistym w onboardingu: każdy kafelek usługi ma bezpośredni przycisk **Połącz**. **Settings → Subscriptions** pokazuje osobny wiersz dla każdego konta, wyszukiwanie, paginację i okna limitów zgłoszone przez usługę; brak danych jest jawnie oznaczony.
+
+Trzy układy onboardingu można porównać pod adresami `/onboarding?variant=conversation`, `?variant=studio` i `?variant=launchpad`: kolumna rozmowy, studio z boczną ścieżką oraz szeroki launchpad. Korzystają z tych samych formularzy, uprawnień i zapisów. Przełącznik układu zachowuje bieżący krok i szkice w zamontowanych formularzach. Wiadomości przewodnika pojawiają się stopniowo; czytnik ekranu otrzymuje pełny komunikat, a ograniczenie animacji wyświetla tekst statycznie.
+
+Warianty dodają wybór modelu ze zwykłego katalogu dostawców, istniejących kluczy Vault i formularzy podłączeń, a następnie katalog MCP z kontami prywatnymi i wspólnymi. Model jest zapamiętywany dla nowych czatów danej osoby, bez zmiany opublikowanego modelu wspólnego agenta. Podłączenie MCP nie udostępnia narzędzi wszystkim agentom.
+
+Administrator może przejrzeć ustawienia zespołu i wdrożenia albo przejść od razu do zainstalowanych AgenticOS i Architect. Otwarcie agenta nie wysyła zapytania do modelu; niedostępny agent zachowuje wskazówki konfiguracji.
+
+Studio jest domyślne pod `/onboarding`; pozostałe układy pozostają dostępne przez parametry podglądu. Studio ma jedną kolumnę formularza i krótką ścieżkę z boku, bez powtarzanych dekoracyjnych postaci. Wygląd profilu można wybrać w przesuwanej karuzeli rzeczywistych kolorów avatara konta: przeglądanie nie zapisuje wyboru, a wybranie korzysta z dotychczasowego zapisu konta. Animacje respektują ustawienia aplikacji i systemu.

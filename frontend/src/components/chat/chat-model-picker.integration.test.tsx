@@ -170,3 +170,27 @@ describe("who may move this conversation onto another model", () => {
     expect(apiClient.post).not.toHaveBeenCalled();
   });
 });
+
+it("opens the requested setup catalog without choosing or creating a model", async () => {
+  serve([Perm.connectionsManage]);
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const changed = vi.fn();
+  render(
+    <QueryClientProvider client={client}>
+      <ChatModelPicker
+        presentation="library"
+        defaultProviderId="openai"
+        value={null}
+        agentModel={null}
+        onChange={changed}
+      />
+    </QueryClientProvider>,
+  );
+  const provider = await screen.findByRole("button", { name: "OpenAI" });
+  expect(provider).toHaveAttribute("aria-pressed", "true");
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/providers/openai/models"));
+  expect(changed).not.toHaveBeenCalled();
+  expect(apiClient.post).not.toHaveBeenCalled();
+});

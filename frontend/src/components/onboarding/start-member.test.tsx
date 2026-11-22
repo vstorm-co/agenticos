@@ -159,3 +159,55 @@ it("keeps the member welcome focused on setup", () => {
   render(<StartMember data={data} />);
   expect(screen.queryByRole("button", { name: "Explore the application" })).not.toBeInTheDocument();
 });
+
+vi.mock("./start-connections", () => ({
+  StartModels: () => <p>Full model catalog and Vault keys</p>,
+  StartTools: () => <p>Personal MCP connections</p>,
+}));
+vi.mock("./start-launch", () => ({ StartLaunch: () => <h2>Real AgenticOS and Architect</h2> }));
+it.each(["conversation", "studio", "launchpad"])(
+  "adds working model and MCP stages to %s without administrator steps",
+  async (variant) => {
+    window.history.replaceState(
+      null,
+      "",
+      `/onboarding?variant=${variant}&start-step=member.subscriptions&workspace=workspace`,
+    );
+    render(<StartMember data={data} />);
+    if (variant === "studio") expect(screen.queryByText("Step 4 of 7")).not.toBeInTheDocument();
+    else expect(screen.getByText("Step 4 of 7")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: variant === "studio" ? "Continue" : "Save and continue" }),
+    );
+    expect(await screen.findByText("Full model catalog and Vault keys")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: variant === "studio" ? "Continue" : "Save and continue" }),
+    );
+    expect(await screen.findByText("Personal MCP connections")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: variant === "studio" ? "Continue" : "Save and continue" }),
+    );
+    expect(screen.getByRole("heading", { name: "Real AgenticOS and Architect" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "First task examples" })).not.toBeInTheDocument();
+    expect(window.location.search).toContain(`variant=${variant}`);
+    expect(window.location.search).toContain("start-step=member.task");
+  },
+);
+
+it("preserves direction and returns to the preceding personal question in Studio", async () => {
+  window.history.replaceState(
+    null,
+    "",
+    "/onboarding?variant=studio&start-step=member.profile&workspace=workspace",
+  );
+  const { container } = render(<StartMember data={data} />);
+  expect(screen.queryByText(/^Step \d+ of \d+$/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Save personal details" }));
+  expect(container.querySelector("[data-start-frame]")).toHaveAttribute(
+    "data-direction",
+    "forward",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(container.querySelector("[data-start-frame]")).toHaveAttribute("data-direction", "back");
+  expect(screen.getByRole("heading", { name: "Make yourself at home" })).toBeVisible();
+});

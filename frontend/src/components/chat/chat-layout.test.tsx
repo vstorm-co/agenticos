@@ -1,11 +1,16 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
+import type { SubscriptionAccount } from "@/lib/subscription-accounts-api";
 import { ChatComposerControls } from "./chat-layout";
 
 const state = vi.hoisted(() => ({
   override: "chosen" as string | null,
   hasDefault: true,
+  provider: "openai",
+  model: "gpt-test",
+  accounts: [] as SubscriptionAccount[],
+  subscriptions: vi.fn(),
   update: vi.fn(),
 }));
 vi.mock("@/hooks/use-saved-chat-controls", () => ({
@@ -14,9 +19,16 @@ vi.mock("@/hooks/use-saved-chat-controls", () => ({
 vi.mock("@/hooks", () => ({
   usePermissions: () => ({ can: () => true, isLoading: false }),
   useModelProviders: () => ({
-    profiles: [{ id: "chosen", provider: "openai", model: "gpt-test" }],
+    profiles: [{ id: "chosen", provider: state.provider, model: state.model }],
+    catalog: [{ id: "openai", name: "OpenAI" }],
   }),
   useProviderModels: () => ({ models: [] }),
+}));
+vi.mock("@/hooks/use-subscription-accounts", () => ({
+  useSubscriptionAccounts: (options: { enabled: boolean }) => {
+    state.subscriptions(options);
+    return { accounts: { data: { items: state.accounts } } };
+  },
 }));
 vi.mock("@/hooks/use-agents", () => ({
   useAgents: () => ({
@@ -37,6 +49,9 @@ vi.mock("@/components/icons/model-icon", () => ({ ModelIcon: () => null }));
 beforeEach(() => {
   state.override = "chosen";
   state.hasDefault = true;
+  state.provider = "openai";
+  state.model = "gpt-test";
+  state.accounts = [];
   vi.clearAllMocks();
 });
 it("restores the agent model, persists the cleared override and closes the picker", async () => {
@@ -65,3 +80,51 @@ it.each(["no override", "no agent model"])(
     ).not.toBeInTheDocument();
   },
 );
+
+it("shows the provider alongside the model without loading personal accounts for an API model", () => {
+  render(<ChatComposerControls desktop={false} harnesses={[]} />);
+  expect(screen.getByRole("button", { name: "Model" })).toHaveAccessibleDescription(
+    "gpt-test OpenAI",
+  );
+  expect(state.subscriptions).toHaveBeenCalledWith({ enabled: false });
+});
+it("identifies the selected subscription account without exposing its routing id", () => {
+  state.provider = "subscription_accounts";
+  state.model = "account-0123456789abcdef01234567/claude-sonnet-test";
+  state.accounts = [
+    {
+      name: "other",
+      model_prefix: "account-other",
+      provider: "claude",
+      email: "other@example.com",
+      label: null,
+      status: null,
+      disabled: false,
+      unavailable: false,
+    },
+    {
+      name: "internal-account-name",
+      model_prefix: "account-0123456789abcdef01234567",
+      provider: "claude",
+      email: "selected@example.com",
+      label: null,
+      status: null,
+      disabled: false,
+      unavailable: false,
+    },
+  ];
+  render(<ChatComposerControls desktop={false} harnesses={[]} />);
+  const trigger = screen.getByRole("button", { name: "Model" });
+  expect(trigger).toHaveAccessibleDescription("claude-sonnet-test selected@example.com");
+  expect(trigger).not.toHaveTextContent("account-");
+  expect(trigger).not.toHaveTextContent("other@example.com");
+  expect(state.update).not.toHaveBeenCalled();
+});
+it("uses a readable subscription description while account details are unavailable", () => {
+  state.provider = "subscription_accounts";
+  state.model = "account-0123456789abcdef01234567/gpt-test";
+  render(<ChatComposerControls desktop={false} harnesses={[]} />);
+  expect(screen.getByRole("button", { name: "Model" })).toHaveAccessibleDescription(
+    "gpt-test Your subscriptions",
+  );
+});

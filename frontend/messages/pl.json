@@ -3089,6 +3089,9 @@
       "unexpectedWithDigest": "Wystąpił nieoczekiwany błąd. ID błędu: {digest}"
     },
     "runs": {
+      "recentWork": "Ostatnia praca",
+      "rawRecord": "Surowy zapis",
+      "recordedFailure": "Dlaczego uruchomienie się zatrzymało",
       "aParkedRunIsStill": "Wstrzymany run nadal czeka. Nic nie zostało rozstrzygnięte i nic nie wygasło.",
       "activity": "Aktywność",
       "activity2": "Aktywność",
@@ -8898,7 +8901,14 @@
   "avatarColor": {
     "auto": "Kolor automatyczny",
     "label": "Kolor awatara",
-    "option": "Kolor {n}"
+    "option": "Kolor {n}",
+    "carouselRole": "karuzela",
+    "slideRole": "wygląd",
+    "chooseLook": "Wybierz swój wygląd",
+    "lookHint": "Przesuń, obejrzyj i wybierz coś dla siebie.",
+    "previousLook": "Poprzedni wygląd",
+    "nextLook": "Następny wygląd",
+    "lookPosition": "Wygląd {current} z {total}"
   },
   "triggers": {
     "setupReviewTitle": "Sprawdź dostęp rutyny",
@@ -18016,6 +18026,57 @@
       "description": "Zaznacz swoje subskrypcje i zaloguj się tutaj. Możesz połączyć kilka kont albo kontynuować bez ich łączenia.",
       "connected": "Połączono",
       "hint": "Te konta są prywatne. Ich modele wybierzesz w czacie; nie zastępują wspólnego modelu organizacji."
+    },
+    "experience": {
+      "configureAgent": "Skonfiguruj AgenticOS",
+      "designs": "Wariant onboardingu",
+      "variants": {
+        "conversation": "Rozmowa",
+        "studio": "Studio",
+        "launchpad": "Launchpad"
+      },
+      "journeyTitle": "Twój workspace nabiera kształtu",
+      "introductions": {
+        "conversation": "Jedna rozmowa. Twoje narzędzia.",
+        "studio": "Przygotuj miejsce dopasowane do Twojej pracy.",
+        "launchpad": "Dodaj modele, połącz narzędzia i zrób coś konkretnego."
+      },
+      "architectName": "Architect",
+      "architectAside": "Pomaga projektować agentów i workflow.",
+      "agenticosName": "AgenticOS",
+      "modelsTitle": "Wybierz model do pracy",
+      "modelsGuide": "Masz już model lub klucz API? Podłącz go tutaj. Możesz też wybrać model dostępny w Twoim workspace.",
+      "modelsHint": "Wybierz model z pełnego katalogu dostawców, użyj klucza z Vault albo dodaj własne połączenie poniżej.",
+      "modelsScope": "Zapamiętamy ten wybór dla Twoich nowych czatów. Subskrypcje pozostają prywatne; wspólny model agenta ustawisz w edytorze.",
+      "toolsTitle": "Połącz narzędzia, których używasz",
+      "toolsGuide": "Podłącz swoje usługi albo własny serwer MCP. Ty decydujesz, z których kont i narzędzi może korzystać agent.",
+      "toolsHint": "To ten sam katalog połączeń co w aplikacji. Zaloguj się do usługi albo dodaj własny serwer. Ten krok jest opcjonalny.",
+      "toolsScope": "Samo podłączenie konta nie udostępnia go wszystkim agentom. Dodaj narzędzia w edytorze lub poproś Architect o pomoc.",
+      "launchTitle": "Poznaj swoich pierwszych agentów",
+      "launchGuide": "AgenticOS pomaga wykonać zadanie. Architect pomaga budować agentów i workflow dopasowane do pracy zespołu.",
+      "dailyPartner": "Agent do codziennej pracy",
+      "builderPartner": "Pomoc w budowaniu agentów",
+      "agenticosBody": "Research, pisanie, dokumenty i kod. Zacznij od prawdziwego zadania, a potem dodaj potrzebne narzędzia i wiedzę.",
+      "architectBody": "Opisz proces, który chcesz usprawnić. Architect pomoże zaprojektować agenta lub workflow: instrukcje, narzędzia i połączenia.",
+      "openAgent": "Zacznij z AgenticOS",
+      "setupAgent": "Przygotuj AgenticOS",
+      "openArchitect": "Buduj z Architect",
+      "agentUnavailable": "Ten agent nie jest jeszcze dostępny w Twoim workspace. Poproś administratora o konfigurację.",
+      "architectUnavailable": "Architect jest wyłączony, potrzebuje modelu lub nie jest dostępny dla Twojego konta. Administrator może go skonfigurować w ustawieniach workspace.",
+      "launchHint": "Otwarcie agenta nie wysyła zapytania do modelu. Wybierz zadanie i wyślij je, gdy będziesz gotowy.",
+      "adminSetup": "Sprawdź ustawienia zespołu i workspace",
+      "agentsFailed": "Nie udało się wczytać agenta",
+      "retry": "Spróbuj ponownie",
+      "phases": {
+        "workspace": "Workspace",
+        "you": "O Tobie",
+        "models": "Modele i subskrypcje",
+        "tools": "Narzędzia i MCP",
+        "team": "Zespół i ustawienia",
+        "launch": "Poznaj agentów"
+      },
+      "configureArchitect": "Skonfiguruj Architect",
+      "continue": "Dalej"
     }
   },
   "skillImprovement": {

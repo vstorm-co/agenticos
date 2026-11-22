@@ -7833,6 +7833,9 @@
       "unexpectedWithDigest": "An unexpected error occurred. Error ID: {digest}"
     },
     "runs": {
+      "recentWork": "Recent work",
+      "rawRecord": "Raw record",
+      "recordedFailure": "Why this run stopped",
       "aParkedRunIsStill": "A parked run is still parked. Nothing was decided, and nothing expired.",
       "activity": "Activity",
       "activity2": "Activity",
@@ -10218,7 +10221,14 @@
   "avatarColor": {
     "auto": "Automatic colour",
     "label": "Avatar colour",
-    "option": "Colour {n}"
+    "option": "Colour {n}",
+    "carouselRole": "carousel",
+    "slideRole": "look",
+    "chooseLook": "Choose your look",
+    "lookHint": "Swipe to explore. Pick one to make it yours.",
+    "previousLook": "Previous look",
+    "nextLook": "Next look",
+    "lookPosition": "Look {current} of {total}"
   },
   "triggers": {
     "setupReviewTitle": "Review routine access",
@@ -18243,6 +18253,57 @@
       "description": "Select your plans and sign in here. You can connect more than one, or continue without connecting any.",
       "connected": "Connected",
       "hint": "Your accounts are personal. Choose their models in chat; they do not replace the shared model for your organization."
+    },
+    "experience": {
+      "configureAgent": "Configure AgenticOS",
+      "designs": "Onboarding design",
+      "variants": {
+        "conversation": "Conversation",
+        "studio": "Studio",
+        "launchpad": "Launchpad"
+      },
+      "journeyTitle": "Your workspace, coming together",
+      "introductions": {
+        "conversation": "One conversation. Your own tools.",
+        "studio": "Build a space that works the way you do.",
+        "launchpad": "Bring your models. Connect your world. Make something real."
+      },
+      "architectName": "Architect",
+      "architectAside": "Helps you design agents and workflows.",
+      "agenticosName": "AgenticOS",
+      "modelsTitle": "Choose what powers your work",
+      "modelsGuide": "Already have a model or an API key? Use it here. You can also pick a model your workspace already has.",
+      "modelsHint": "Choose from the full provider catalog, use a key from the Vault, or add your own connection below.",
+      "modelsScope": "Your choice is remembered for your own new chats. Personal subscriptions stay yours; shared agent defaults are configured in the Builder.",
+      "toolsTitle": "Give your agents useful connections",
+      "toolsGuide": "Connect the services you work in, or bring your own MCP server. You choose which accounts and tools each agent can use.",
+      "toolsHint": "Use the same connection catalog as the app: sign in to a service or add a custom server. Everything here is optional.",
+      "toolsScope": "Connecting an account does not give every agent access to it. Bind its tools in the Builder, or ask Architect to help.",
+      "launchTitle": "Meet your first teammates",
+      "launchGuide": "AgenticOS helps you get work done. Architect helps you build agents and workflows for the way your team works.",
+      "dailyPartner": "Your everyday agent",
+      "builderPartner": "Your agent builder",
+      "agenticosBody": "Research, write, work with documents and code. Start with a real task, then add the tools and knowledge it needs.",
+      "architectBody": "Describe a process you want to improve. Architect helps you shape an agent or workflow, with instructions, tools and connections.",
+      "openAgent": "Start with AgenticOS",
+      "setupAgent": "Set up AgenticOS",
+      "openArchitect": "Build with Architect",
+      "agentUnavailable": "Your workspace has not made this agent available yet. Ask an administrator to set it up.",
+      "architectUnavailable": "Architect is disabled, needs a model, or is not available to your account. Your administrator can configure it in workspace settings.",
+      "launchHint": "Opening an agent starts no model request. Choose your task and send it when you are ready.",
+      "adminSetup": "Review team and workspace settings",
+      "agentsFailed": "Could not load this agent",
+      "retry": "Try again",
+      "phases": {
+        "workspace": "Workspace",
+        "you": "About you",
+        "models": "Models & subscriptions",
+        "tools": "Tools & MCP",
+        "team": "Team & settings",
+        "launch": "Meet your agents"
+      },
+      "configureArchitect": "Configure Architect",
+      "continue": "Continue"
     }
   },
   "skillImprovement": {

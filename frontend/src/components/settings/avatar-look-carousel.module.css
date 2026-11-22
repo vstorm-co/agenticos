@@ -1,0 +1,116 @@
+.carousel {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+.heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-block-end: 12px;
+}
+.heading h3 {
+  font-size: 13px;
+  font-weight: 550;
+}
+.heading p {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-muted-foreground);
+  margin-block-start: 4px;
+}
+.controls {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.controls button {
+  display: grid;
+  place-items: center;
+  inline-size: 32px;
+  block-size: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+}
+.controls button[aria-disabled="true"] {
+  opacity: 0.35;
+}
+.track {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-block: 8px 16px;
+  padding-inline: max(4px, calc(50% - 56px));
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  touch-action: manipulation;
+}
+.track > div {
+  flex: 0 0 112px;
+  scroll-snap-align: center;
+}
+.track button {
+  inline-size: 100%;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 16px 8px 12px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+}
+.track button[aria-pressed="true"] {
+  border-color: var(--color-foreground);
+  background: var(--color-muted);
+}
+.track button:hover:not(:disabled) {
+  background: var(--color-muted);
+}
+.face {
+  display: block;
+  inline-size: 72px;
+  block-size: 72px;
+}
+.caption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--color-muted-foreground);
+}
+.track button[aria-pressed="true"] .caption {
+  color: var(--color-foreground);
+  font-weight: 550;
+}
+:global(html[data-motion="full"]) .track {
+  scroll-behavior: smooth;
+}
+:global(html[data-motion="full"]) .face {
+  transition: transform var(--duration-panel) var(--ease-out);
+}
+:global(html[data-motion="full"]) .track button:hover .face,
+:global(html[data-motion="full"]) .track button[aria-pressed="true"] .face {
+  transform: translateY(-3px);
+}
+@supports ((animation-timeline: view()) and (animation-range: entry)) {
+  :global(html[data-motion="full"]) .face {
+    animation: avatar-arrive auto linear both;
+    animation-timeline: view(inline);
+  }
+}
+@keyframes avatar-arrive {
+  from {
+    opacity: 0.65;
+    transform: scale(0.9);
+  }
+  35%,
+  65% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0.65;
+    transform: scale(0.9);
+  }
+}

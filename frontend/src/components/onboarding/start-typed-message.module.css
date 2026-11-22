@@ -1,0 +1,15 @@
+.message {
+  display: block;
+  position: relative;
+}
+.typed {
+  display: none;
+}
+:global(html[data-motion="full"]) .full {
+  color: transparent;
+}
+:global(html[data-motion="full"]) .typed {
+  display: block;
+  position: absolute;
+  inset: 0;
+}
