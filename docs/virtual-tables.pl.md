@@ -1,5 +1,5 @@
 ---
-source_sha: "3e730a85b6b4"
+source_sha: "2297a17a854b"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -527,7 +527,9 @@ wszystkie jej wartości - liczba całkowita, liczba, tak/nie, data, data i godzi
 w ISO, adres e-mail albo link - a w przeciwnym razie tekst lub długi tekst, gdy wartość ma podział wiersza albo
 przekracza 1000 znaków. Nazwa pochodzi z pliku i obie rzeczy można zmienić przed
 utworzeniem, co kosztuje mniej niż późniejsza zmiana typu. Gdy tabela już istnieje, import
-otwiera się z każdą kolumną już przypisaną, a po nim otwiera się tabela.
+otwiera się z każdą kolumną już przypisaną, a po nim otwiera się tabela. Każdy wiersz musi mieć tyle samo komórek co nagłówek: wiersz
+z mniejszą lub większą liczbą komórek jest wypisany jako błąd i pominięty, a żadna z jego
+wartości nie jest importowana.
 
 ## Bezpieczne ponawianie { #safe-retries }
 

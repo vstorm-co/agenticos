@@ -1,5 +1,5 @@
 ---
-source_sha: "3e730a85b6b4"
+source_sha: "2297a17a854b"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -558,7 +558,9 @@ Uhrzeit in ISO, eine E-Mail-Adresse oder ein Link - und sonst Text, oder langen 
 hat oder länger als 1.000 Zeichen ist. Der Name kommt aus der Datei, und beides lässt
 sich vor dem Erstellen ändern, was weniger kostet als eine spätere Typänderung. Sobald die
 Tabelle existiert, öffnet sich der Import mit jeder Spalte schon zugeordnet, danach die
-Tabelle.
+Tabelle. Jede Zeile muss gleich viele Zellen haben wie die Kopfzeile: Eine Zeile mit
+weniger oder mehr Zellen wird als Fehler aufgeführt und übersprungen, und keiner ihrer
+Werte wird importiert.
 
 ## Sichere Wiederholungen { #safe-retries }
 

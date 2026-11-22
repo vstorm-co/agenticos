@@ -503,7 +503,9 @@ integer, number, yes/no, date, an ISO date and time, an email address or a link 
 text once a value has a line break or runs past 1,000 characters. The name comes from
 the file, and both can be changed before creating, which costs less than a type change later.
 Once the table exists the import opens with every column already mapped, and the
-table opens after it.
+table opens after it. Each row must have the same number of cells as the header: a
+row with fewer or more cells is listed as a failure and skipped, and none of its
+values are imported.
 
 ## Safe retries { #safe-retries }
 
