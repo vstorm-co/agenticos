@@ -428,7 +428,11 @@ During onboarding, **Which subscriptions do you already have?** lets people sele
 
 When several personal accounts are connected, open the **Account** tab and choose the account, just as you choose a stored API key. Subscription models use the same searchable list as API providers; selecting a model applies it immediately. Applying a model binds it to that account using an opaque route; it does not silently switch to another account. Account-specific profiles require the caller to have that account connected. The picker restores the account and model when reopened, and keeps account routing out of display names.
 
-**Settings → Subscriptions** lists each connected account separately, with provider quota windows, remaining percentages, progress bars and reset times. The model picker’s **Account** tab uses the same view for all accounts of the selected provider. Codex and Antigravity read quota metadata without making an inference request; Antigravity preserves separate model groups. Claude shows passive quota observations from provider responses. Limits refresh at most once per minute while their view is open, and can be refreshed manually. Older observations are marked stale. A failed read is shown explicitly; unsupported or missing quota data never becomes a full allowance.
+**Settings → Subscriptions** lists each connected account separately, with quota windows, remaining percentages, progress bars and reset times. The model picker’s **Account** tab uses the same view for every account of the selected provider.
+
+Claude, Codex, Antigravity and both Kimi Code regions read quota metadata without making an inference request. Claude includes five-hour, weekly and model-family windows. Antigravity preserves separate model groups; Kimi preserves weekly and rolling windows. Devin shows reported daily and weekly snapshots. Grok and Meta allowance reads are not available through this gateway connection.
+
+Usage refreshes every minute while visible, or every five minutes for Claude, and can be refreshed manually. Older observations are marked stale. Failed reads remain explicit; missing quota data never becomes a full allowance. Kimi Code (kimi.com) and Kimi Code (kimi.ai) are separate regional sign-ins; neither entry represents a consumer-chat plan.
 
 All connection groups are visible immediately. Connected subscriptions show a status badge and account identity; adding another account is a secondary action. Reopening the picker restores the subscription source and model from the saved subscription profile.
 

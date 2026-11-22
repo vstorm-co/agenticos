@@ -152,3 +152,34 @@ def test_codex_zero_length_secondary_window_does_not_discard_the_weekly_limit() 
     assert len(usage.windows) == 1
     assert usage.windows[0].remaining_percent == 36
     assert usage.windows[0].duration_minutes == 10080
+
+
+@pytest.mark.parametrize(
+    "signals,expected",
+    [
+        (
+            {
+                "daily_quota_remaining_percent": "75%",
+                "weekly_quota_remaining_percent": "30%",
+                "daily_quota_reset_at": "2099-01-01T00:00:00Z",
+            },
+            "available",
+        ),
+        ({"weekly_quota_remaining_percent": "0%"}, "available"),
+        ({"daily_quota_remaining_percent": "101%"}, "unavailable"),
+        (
+            {"daily_quota_remaining_percent": "25%", "daily_quota_reset_at": "2099-01-01T00:00:00"},
+            "unavailable",
+        ),
+        ({"plan": "Pro"}, "unavailable"),
+    ],
+)
+def test_devin_exposes_reported_daily_and_weekly_allowance(
+    signals: dict[str, str], expected: str
+) -> None:
+    result = account_usage("devin", {"observed_at": NOW.isoformat(), "signals": signals}, now=NOW)
+    assert result.status == expected
+    if "daily_quota_remaining_percent" in signals and expected == "available":
+        assert [window.remaining_percent for window in result.windows] == [75, 30]
+        assert [window.duration_minutes for window in result.windows] == [1440, 10080]
+        assert result.windows[1].resets_at is None

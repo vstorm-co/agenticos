@@ -1,5 +1,5 @@
 ---
-source_sha: "7a55db1d461a"
+source_sha: "b2d7c8981e4a"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -440,7 +440,11 @@ W onboardingu sekcja **Z których subskrypcji już korzystasz?** pozwala zaznacz
 
 Przy kilku podłączonych kontach osobistych otwórz zakładkę **Konto** i wybierz konto, tak jak zapisany klucz API. Modele subskrypcyjne korzystają z tej samej przeszukiwalnej listy co dostawcy API; kliknięcie modelu od razu go wybiera. Zatwierdzenie modelu przypisuje go do tego konta przez niejawny identyfikator trasy; nie przełącza automatycznie na inne konto. Profil przypisany do konta wymaga, aby osoba uruchamiająca miała to konto podłączone. Selektor po ponownym otwarciu odtwarza konto i model, a identyfikatorów tras nie pokazuje w nazwach modeli.
 
-**Ustawienia → Subskrypcje** pokazują każde podłączone konto osobno: okna limitów dostawcy, pozostały procent, paski zużycia i terminy resetu. Zakładka **Konto** w selektorze modeli korzysta z tego samego widoku dla wszystkich kont wybranego dostawcy. Codex i Antigravity odczytują metadane limitów bez wywołania modelu; Antigravity zachowuje osobne grupy modeli. Claude pokazuje obserwacje limitów z odpowiedzi dostawcy. Dane odświeżają się najwyżej raz na minutę, gdy widok jest otwarty, oraz na żądanie. Starsze obserwacje są oznaczone jako nieaktualne. Błąd odczytu jest widoczny; brak danych nigdy nie oznacza pełnego limitu.
+**Ustawienia → Subskrypcje** pokazują każde podłączone konto osobno: okna limitów, pozostały procent, paski zużycia i terminy resetu. Zakładka **Konto** w selektorze modeli korzysta z tego samego widoku dla wszystkich kont wybranego dostawcy.
+
+Claude, Codex, Antigravity i oba regiony Kimi Code odczytują metadane limitów bez wywołania modelu. Claude pokazuje okna pięciogodzinne, tygodniowe i rodzin modeli. Antigravity zachowuje osobne grupy modeli, a Kimi — limity tygodniowe i kroczące. Devin pokazuje zgłoszone dane dzienne i tygodniowe. Odczyt limitów Groka i Meta nie jest dostępny przez to połączenie gatewaya.
+
+Dane odświeżają się co minutę w otwartym widoku, a dla Claude’a co pięć minut; można też odświeżyć je ręcznie. Starsze obserwacje są oznaczone jako nieaktualne. Błędy pozostają widoczne; brak danych nigdy nie oznacza pełnego limitu. Kimi Code (kimi.com) i Kimi Code (kimi.ai) to osobne logowania regionalne, a nie plany czatu konsumenckiego.
 
 Wszystkie grupy połączeń są od razu widoczne. Podłączone subskrypcje pokazują plakietkę stanu i dane konta; dodanie kolejnego konta jest akcją drugorzędną. Ponowne otwarcie selektora odtwarza źródło subskrypcji i model z zapisanego profilu subskrypcji.
 

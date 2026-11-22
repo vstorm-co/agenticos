@@ -438,6 +438,8 @@ async def test_account_quota_route_uses_only_the_named_scope(
     quota = AsyncMock(return_value=AccountUsage())
     monkeypatch.setattr(_server, "antigravity_usage", quota)
     monkeypatch.setattr(_server, "codex_usage", quota)
+    monkeypatch.setattr(_server, "claude_usage", quota)
+    monkeypatch.setattr(_server, "kimi_usage", quota)
     async with gateway(supervisor) as client:
         assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).status_code == 200
         assert quota.await_args.args[0].scope == ALICE
@@ -458,5 +460,69 @@ async def test_account_quota_route_uses_only_the_named_scope(
         assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).json()[
             "status"
         ] == "unavailable"
-        assert quota.await_count == calls
+        assert quota.await_count == calls + 1
+        row.pop("auth_index")
+        assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).status_code == 409
+        row["auth_index"] = "mine"
+        for provider in ("kimi", "kimi-ai"):
+            row["provider"] = provider
+            assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).status_code == 200
+            assert quota.await_args.kwargs == {"international": provider == "kimi-ai"}
+        row.pop("auth_index")
+        assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).status_code == 409
+        row["provider"] = "meta"
+        assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).json()[
+            "status"
+        ] == "unavailable"
         assert (await client.get(f"/scopes/{ALICE}/accounts/missing.json/usage")).status_code == 404
+
+
+@pytest.mark.parametrize("provider", sorted(_server.PROVIDERS))
+async def test_every_subscription_signin_uses_the_selected_provider_and_scope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, provider: str
+) -> None:
+    supervisor = Supervisor(tmp_path, "unused", spawn=sleeper, probe=always)
+    calls: list[tuple[str, str, str, dict[str, object]]] = []
+
+    async def management(
+        instance: _instances.Instance, method: str, path: str, **kwargs: object
+    ) -> JsonValue:
+        calls.append((instance.scope, method, path, kwargs))
+        return {
+            "url": "https://signin.example/device",
+            "state": "state",
+            "flow": "device" if provider in {"kimi", "kimi-ai", "xai", "meta"} else "browser",
+            "access_token": "private-token",
+        }
+
+    monkeypatch.setattr(_server, "_management", management)
+    async with gateway(supervisor) as client:
+        response = await client.post(f"/scopes/{ALICE}/logins", json={"provider": provider})
+    assert response.status_code == 200
+    assert calls == [(ALICE, "GET", "/oauth/auth-url", {"params": {"provider": provider}})]
+    assert "private-token" not in response.text
+
+
+@pytest.mark.parametrize("timeout", [False, True])
+async def test_management_transport_failures_are_controlled_and_private(
+    monkeypatch: pytest.MonkeyPatch, timeout: bool
+) -> None:
+    from unittest.mock import MagicMock
+
+    async def send(request: httpx.Request) -> httpx.Response:
+        error = httpx.ReadTimeout if timeout else httpx.ConnectError
+        raise error("private-token", request=request)
+
+    client_class = httpx.AsyncClient
+    monkeypatch.setattr(
+        _server.httpx,
+        "AsyncClient",
+        lambda **_kwargs: client_class(transport=httpx.MockTransport(send)),
+    )
+    instance = _instances.Instance(
+        ALICE, 1234, "client", "management", MagicMock(spec=asyncio.subprocess.Process), 0
+    )
+    with pytest.raises(GatewayError) as error:
+        await _server._management(instance, "GET", "/oauth/status")
+    assert error.value.status == (504 if timeout else 502)
+    assert "private-token" not in str(error.value)

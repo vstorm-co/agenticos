@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from typing import Literal
 
 import httpx
-from pydantic import AwareDatetime, BaseModel, Field, ValidationError
+from pydantic import AliasChoices, AwareDatetime, BaseModel, Field, ValidationError
 
 from ._instances import GatewayError, Instance
 from .contracts import AccountUsage, UsageWindow
@@ -54,6 +54,7 @@ async def _call(
     *,
     method: Literal["GET", "POST"] = "POST",
     account_id: str | None = None,
+    extra_headers: dict[str, str] | None = None,
 ) -> str:
     response = await client.post(
         f"{instance.base_url}/v8/management/requests/api-call",
@@ -67,6 +68,7 @@ async def _call(
                 "Content-Type": "application/json",
                 "User-Agent": "AgenticOS",
                 **({"ChatGPT-Account-Id": account_id} if account_id is not None else {}),
+                **(extra_headers or {}),
             },
             "data": json.dumps(body) if method == "POST" else "",
         },
@@ -196,6 +198,197 @@ async def codex_usage(instance: Instance, auth_index: str, account_id: str) -> A
                     )
                 )
     except httpx.HTTPError, ValidationError, ValueError, OverflowError:
+        raise GatewayError("Subscription limits could not be read; try again", status=502) from None
+    now = datetime.now(UTC)
+    return AccountUsage(
+        status="unavailable"
+        if not windows
+        else "stale"
+        if any(window.resets_at is not None and window.resets_at <= now for window in windows)
+        else "available",
+        observed_at=now,
+        windows=windows,
+    )
+
+
+class _ClaudeWindow(BaseModel):
+    utilization: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
+    resets_at: AwareDatetime | None = None
+
+
+class _ClaudeModel(BaseModel):
+    display_name: str | None = Field(default=None, max_length=120)
+
+
+class _ClaudeScope(BaseModel):
+    model: _ClaudeModel | None = None
+
+
+class _ClaudeLimit(BaseModel):
+    kind: str = Field(max_length=64)
+    percent: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
+    resets_at: AwareDatetime | None = None
+    scope: _ClaudeScope | None = None
+
+
+class _ClaudeUsage(BaseModel):
+    five_hour: _ClaudeWindow | None = None
+    seven_day: _ClaudeWindow | None = None
+    seven_day_opus: _ClaudeWindow | None = None
+    seven_day_sonnet: _ClaudeWindow | None = None
+    seven_day_fable: _ClaudeWindow | None = None
+    limits: list[_ClaudeLimit] | None = Field(default=None, max_length=64)
+
+
+async def claude_usage(instance: Instance, auth_index: str) -> AccountUsage:
+    """Read OAuth quota metadata, including both named and scoped usage windows."""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            usage = _ClaudeUsage.model_validate_json(
+                await _call(
+                    client,
+                    instance,
+                    auth_index,
+                    "https://api.anthropic.com/api/oauth/usage",
+                    {},
+                    method="GET",
+                    extra_headers={"anthropic-beta": "oauth-2025-04-20"},
+                )
+            )
+    except httpx.HTTPError, ValidationError:
+        raise GatewayError("Subscription limits could not be read; try again", status=502) from None
+    windows: list[UsageWindow] = []
+    if usage.limits is not None:
+        for limit in usage.limits:
+            if limit.percent is None or limit.kind not in {
+                "session",
+                "weekly_all",
+                "weekly_scoped",
+            }:
+                continue
+            family = limit.scope.model if limit.scope is not None else None
+            windows.append(
+                UsageWindow(
+                    kind="five_hour"
+                    if limit.kind == "session"
+                    else "seven_day"
+                    if limit.kind == "weekly_all"
+                    else "provider",
+                    label=family.display_name if family is not None else None,
+                    remaining_percent=100 - limit.percent,
+                    duration_minutes=300 if limit.kind == "session" else 10080,
+                    resets_at=limit.resets_at,
+                )
+            )
+    else:
+        legacy: tuple[tuple[str | None, _ClaudeWindow | None], ...] = (
+            (None, usage.five_hour),
+            (None, usage.seven_day),
+            ("Opus", usage.seven_day_opus),
+            ("Sonnet", usage.seven_day_sonnet),
+            ("Fable", usage.seven_day_fable),
+        )
+        for index, (label, window) in enumerate(legacy):
+            if window is None or window.utilization is None:
+                continue
+            windows.append(
+                UsageWindow(
+                    kind="five_hour" if index == 0 else "seven_day" if index == 1 else "provider",
+                    label=label,
+                    remaining_percent=100 - window.utilization,
+                    duration_minutes=300 if index == 0 else 10080,
+                    resets_at=window.resets_at,
+                )
+            )
+    now = datetime.now(UTC)
+    return AccountUsage(
+        status="unavailable"
+        if not windows
+        else "stale"
+        if any(window.resets_at is not None and window.resets_at <= now for window in windows)
+        else "available",
+        observed_at=now,
+        windows=windows,
+    )
+
+
+class _KimiQuota(BaseModel):
+    limit: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    used: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    remaining: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    resets_at: AwareDatetime | None = Field(
+        default=None,
+        validation_alias=AliasChoices("reset_at", "resetAt", "reset_time", "resetTime"),
+    )
+    name: str | None = Field(default=None, max_length=120)
+
+
+class _KimiPeriod(BaseModel):
+    duration: int = Field(gt=0)
+    time_unit: str = Field(alias="timeUnit", max_length=32)
+
+
+class _KimiLimit(_KimiQuota):
+    detail: _KimiQuota | None = None
+    window: _KimiPeriod | None = None
+
+
+class _KimiUsage(BaseModel):
+    usage: _KimiQuota | None = None
+    limits: list[_KimiLimit] = Field(default_factory=list, max_length=64)
+
+
+def _kimi_window(quota: _KimiQuota, duration: int | None, label: str | None) -> UsageWindow | None:
+    if not quota.limit:
+        return None
+    if quota.remaining is not None:
+        remaining = quota.remaining
+    elif quota.used is not None:
+        remaining = quota.limit - quota.used
+    else:
+        return None
+    return UsageWindow(
+        kind="provider",
+        label=label,
+        remaining_percent=100 * remaining / quota.limit,
+        duration_minutes=duration,
+        resets_at=quota.resets_at,
+    )
+
+
+async def kimi_usage(instance: Instance, auth_index: str, *, international: bool) -> AccountUsage:
+    """Read Kimi Code weekly and rolling windows from its selected regional issuer."""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            usage = _KimiUsage.model_validate_json(
+                await _call(
+                    client,
+                    instance,
+                    auth_index,
+                    "https://api.kimi.ai/coding/v1/usages"
+                    if international
+                    else "https://api.kimi.com/coding/v1/usages",
+                    {},
+                    method="GET",
+                )
+            )
+        windows: list[UsageWindow] = []
+        if usage.usage is not None:
+            weekly = _kimi_window(usage.usage, 10080, usage.usage.name)
+            if weekly is not None:
+                windows.append(weekly)
+        for limit in usage.limits:
+            duration = None
+            if limit.window is not None:
+                unit = limit.window.time_unit.upper().removeprefix("TIME_UNIT_").removesuffix("S")
+                factor = {"MINUTE": 60, "HOUR": 3600, "DAY": 86400, "SECOND": 1}.get(unit)
+                if factor is not None:
+                    duration = (limit.window.duration * factor + 59) // 60
+            quota = limit.detail or limit
+            window = _kimi_window(quota, duration, limit.name or quota.name)
+            if window is not None:
+                windows.append(window)
+    except httpx.HTTPError, ValidationError:
         raise GatewayError("Subscription limits could not be read; try again", status=502) from None
     now = datetime.now(UTC)
     return AccountUsage(

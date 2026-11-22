@@ -1156,3 +1156,22 @@ it("keeps profiles from other regions out of the active catalog", async () => {
   expect(screen.queryByRole("option", { name: /Global only/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("tab", { name: "Saved models" })).not.toBeInTheDocument();
 });
+
+it("brands API provider connection screens like subscription screens", async () => {
+  listedSecrets.mockReturnValue([]);
+  render(
+    <ChatModelPicker
+      presentation="library"
+      value={null}
+      agentModel={{
+        profile_id: "agent-model",
+        provider: "openai",
+        model: "gpt-test",
+        label: "GPT",
+      }}
+      onChange={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("heading", { name: "OpenAI" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Add a key: OpenAI" })).toBeVisible();
+});

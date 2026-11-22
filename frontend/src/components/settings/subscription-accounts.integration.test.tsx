@@ -95,12 +95,12 @@ it("finishes a device sign-in on its own once the provider approves", async () =
     expires_in: 600,
   });
   mount();
-  const kimi = await rowOf("Kimi Code (Moonshot)");
+  const kimi = await rowOf("Kimi Code (kimi.com)");
   await userEvent.click(kimi.getByRole("button", { name: "Connect" }));
   const dialog = await screen.findByRole("dialog");
   expect(await within(dialog).findByText("ABCD-1234")).toBeInTheDocument();
   expect(
-    within(dialog).getByRole("link", { name: /Open Kimi Code \(Moonshot\) sign-in/ }),
+    within(dialog).getByRole("link", { name: /Open Kimi Code \(kimi.com\) sign-in/ }),
   ).toHaveAttribute("href", "https://auth.example/device");
   expect(within(dialog).queryByLabelText("Address your browser ended on")).toBeNull();
   expect(apiClient.post).toHaveBeenCalledWith("/subscription-accounts/sign-ins", {
@@ -108,7 +108,7 @@ it("finishes a device sign-in on its own once the provider approves", async () =
   });
   signInStatus = "ok";
   await waitFor(
-    () => expect(toast.success).toHaveBeenCalledWith("Kimi Code (Moonshot) is connected"),
+    () => expect(toast.success).toHaveBeenCalledWith("Kimi Code (kimi.com) is connected"),
     {
       timeout: 5000,
     },
@@ -275,4 +275,21 @@ it("pages individual accounts and resets to the first page when searching", asyn
   await userEvent.type(screen.getByRole("textbox", { name: "Search subscriptions..." }), "person0");
   expect(screen.getByText("person0@example.com")).toBeVisible();
   expect(screen.queryByText("person5@example.com")).not.toBeInTheDocument();
+});
+
+it("does not request a callback URL for a device flow without a separate code", async () => {
+  vi.mocked(apiClient.post).mockResolvedValue({
+    url: "https://auth.example/device?code=complete",
+    state: "device",
+    flow: "device",
+    user_code: null,
+    expires_in: 600,
+  });
+  mount();
+  const row = await rowOf("Grok (xAI)");
+  await userEvent.click(row.getByRole("button", { name: "Connect" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(await within(dialog).findByRole("link", { name: /Open Grok/ })).toBeVisible();
+  expect(within(dialog).queryByLabelText("Address your browser ended on")).not.toBeInTheDocument();
+  expect(within(dialog).queryByRole("button", { name: "Finish" })).not.toBeInTheDocument();
 });

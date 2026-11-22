@@ -10,7 +10,11 @@ import { SubscriptionUsage } from "./subscription-usage";
 /** Both account settings and the model picker show the same per-account limits. */
 export function SubscriptionAccountUsage({ account }: { account: SubscriptionAccount }) {
   const t = useTranslations("modelSources");
-  const query = useSubscriptionUsage(account.name, !account.disabled && !account.unavailable);
+  const query = useSubscriptionUsage(
+    account.name,
+    !account.disabled && !account.unavailable,
+    account.provider,
+  );
   const usage = query.data ?? account.usage;
   const reported = usage && usage.status !== "unavailable" && usage.windows.length > 0;
   return (

@@ -116,14 +116,15 @@ export function useSubscriptionSignInStatus(scope: string, state: string | null)
 }
 
 /** Poll only while a view of this account’s limits is mounted. */
-export function useSubscriptionUsage(name: string, enabled: boolean) {
+export function useSubscriptionUsage(name: string, enabled: boolean, provider: string) {
+  const interval = provider === "claude" || provider === "anthropic" ? 300_000 : 60_000;
   const actions = useSubscriptionAccounts();
   return useQuery({
     queryKey: qk.subscriptionAccounts.usage(actions.scope, name),
     queryFn: () => readSubscriptionUsage(name),
     enabled: actions.ready && enabled,
-    staleTime: 60_000,
-    refetchInterval: 60_000,
+    staleTime: interval,
+    refetchInterval: interval,
     retry: false,
   });
 }

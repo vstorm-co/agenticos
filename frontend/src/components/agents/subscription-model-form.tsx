@@ -18,7 +18,7 @@ import { ErrorState } from "@/components/states";
 import { ModelCombobox } from "./model-combobox";
 import { SubscriptionAccountUsage } from "./subscription-account-usage";
 import { SubscriptionSignInDialog } from "@/components/settings/subscription-accounts";
-import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ModelConnectionIntro } from "./model-connection-intro";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useSubscriptionAccounts, useSubscriptionModels } from "@/hooks/use-subscription-accounts";
 import { useModelProviders } from "@/hooks";
@@ -27,6 +27,7 @@ import { runsAgents } from "@/lib/model-profiles";
 import {
   SUBSCRIPTION_MARK,
   subscriptionBelongsTo,
+  subscriptionLabelMatches,
   type SubscriptionProvider,
   type SubscriptionAccount,
 } from "@/lib/subscription-accounts-api";
@@ -226,7 +227,7 @@ export function SubscriptionModelForm({
         account &&
         (account.model_prefix
           ? entry.model.startsWith(account.model_prefix + "/")
-          : entry.label.startsWith(accountsCopy(`providers.${provider}`) + " · ")),
+          : subscriptionLabelMatches(entry.label, provider, accountsCopy(`providers.${provider}`))),
     );
     const paneProps: ChatModelPaneProps = {
       providerId: "subscription_accounts",
@@ -244,10 +245,11 @@ export function SubscriptionModelForm({
       needsCredential: !connected && !actions.accounts.isLoading,
       credentialPicker: connected ? accountSettings : null,
       credentialForm: connected ? null : (
-        <div className="mx-auto flex max-w-sm flex-col items-center gap-3 py-6 text-center">
-          <ProviderIcon provider={SUBSCRIPTION_MARK[provider]} className="size-10" />
-          <h3 className="text-base font-semibold">{accountsCopy(`providers.${provider}`)}</h3>
-          <p className="text-muted-foreground text-sm">{t("subscriptionHint")}</p>
+        <ModelConnectionIntro
+          provider={SUBSCRIPTION_MARK[provider]}
+          name={accountsCopy(`providers.${provider}`)}
+          description={t("subscriptionHint")}
+        >
           {actions.accounts.error ? (
             <ErrorState
               title={accountsCopy("loadFailed")}
@@ -270,7 +272,7 @@ export function SubscriptionModelForm({
               onClose={() => setConnecting(false)}
             />
           )}
-        </div>
+        </ModelConnectionIntro>
       ),
       applying: pending,
       disabled: !!disabled || !!listing.error || !connected,

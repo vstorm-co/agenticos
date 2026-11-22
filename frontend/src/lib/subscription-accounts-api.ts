@@ -121,3 +121,23 @@ export const selectSubscriptionAccountModel = (name: string, model: string) =>
 
 export const readSubscriptionUsage = (name: string) =>
   apiClient.get<SubscriptionUsage>(`/subscription-accounts/${encodeURIComponent(name)}/usage`);
+
+const HISTORIC_SUBSCRIPTION_LABELS: Readonly<Partial<Record<SubscriptionProvider, string>>> = {
+  // i18n-exempt: persisted profile label prefix, matched for compatibility and never displayed.
+  kimi: "Kimi Code (Moonshot)",
+  // i18n-exempt: persisted profile label prefix, matched for compatibility and never displayed.
+  "kimi-ai": "Kimi (kimi.com)",
+};
+
+/** Existing profile labels predate the corrected Kimi regional names. */
+export function subscriptionLabelMatches(
+  label: string,
+  provider: SubscriptionProvider,
+  displayName: string,
+): boolean {
+  const historic = HISTORIC_SUBSCRIPTION_LABELS[provider];
+  return (
+    label.startsWith(`${displayName} · `) ||
+    (historic !== undefined && label.startsWith(`${historic} · `))
+  );
+}

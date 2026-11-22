@@ -100,3 +100,12 @@ it("distinguishes unavailable provider data and disabled accounts", async () => 
   );
   expect(apiClient.get).not.toHaveBeenCalledWith("/subscription-accounts/a.json/usage");
 });
+
+it.each(["claude", "anthropic"])(
+  "renders the Claude usage read for %s credentials",
+  async (provider) => {
+    mount({ ...account, provider });
+    expect(await screen.findByText("39% left")).toBeVisible();
+    expect(apiClient.get).toHaveBeenCalledWith("/subscription-accounts/a.json/usage");
+  },
+);

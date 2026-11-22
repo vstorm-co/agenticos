@@ -274,7 +274,7 @@ export function SubscriptionSignInDialog({
     }
   };
 
-  const device = started?.user_code != null;
+  const device = started?.flow === "device" || started?.user_code != null;
   return (
     <Dialog open onOpenChange={(open) => !open && close()}>
       <DialogContent className="sm:max-w-lg">
@@ -292,7 +292,7 @@ export function SubscriptionSignInDialog({
           </p>
         ) : (
           <form id={formId} onSubmit={submit(started)} className="space-y-4" aria-live="polite">
-            {device && (
+            {device && started.user_code && (
               <div className="flex flex-wrap items-center gap-3">
                 <code className="bg-muted rounded-md px-3 py-1.5 font-mono text-lg tracking-[0.2em] tabular-nums">
                   {started.user_code}

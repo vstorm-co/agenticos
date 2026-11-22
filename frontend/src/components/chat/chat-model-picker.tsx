@@ -10,12 +10,14 @@ import {
   modelPlaceholder,
   placeholderWords,
 } from "@/components/agents/add-model";
+import { ModelConnectionIntro } from "@/components/agents/model-connection-intro";
 import { ModelSourceSelect, modelSourceOptions } from "@/components/agents/model-source-select";
 import {
   SUBSCRIPTION_PROVIDERS,
   subscriptionBelongsTo,
   subscriptionChoice,
   subscriptionFromChoice,
+  subscriptionLabelMatches,
 } from "@/lib/subscription-accounts-api";
 import { subscriptionModelId } from "@/lib/subscription-model-id";
 import { useSubscriptionAccounts } from "@/hooks/use-subscription-accounts";
@@ -139,9 +141,12 @@ export function ChatModelPicker({
   const currentSource = currentSubscription
     ? subscriptionChoice(currentSubscription)
     : current?.provider === "subscription_accounts"
-      ? (modelSourceOptions([], true, tRoot).find((entry) =>
-          current.label.startsWith(`${entry.label} · `),
-        )?.id ?? current.provider)
+      ? (modelSourceOptions([], true, tRoot).find((entry) => {
+          const source = subscriptionFromChoice(entry.id);
+          return (
+            source !== undefined && subscriptionLabelMatches(current.label, source, entry.label)
+          );
+        })?.id ?? current.provider)
       : current?.provider;
   const providerId = edited?.providerId ?? currentSource ?? "";
   const subscription = subscriptionFromChoice(providerId);
@@ -419,7 +424,11 @@ export function ChatModelPicker({
     }
     return (
       !subscription ||
-      profile.label.startsWith(tRoot(`subscriptionAccounts.providers.${subscription}`) + " · ")
+      subscriptionLabelMatches(
+        profile.label,
+        subscription,
+        tRoot(`subscriptionAccounts.providers.${subscription}`),
+      )
     );
   });
 
@@ -430,27 +439,32 @@ export function ChatModelPicker({
   const endpointForm =
     (requiresEndpoint || personalSource) && !connectionUnavailable ? (
       <div className="space-y-3">
-        {presentation !== "library" &&
-          profiles.some(
-            (profile) => profile.provider === providerId && usableForAgents(profile),
-          ) && (
-            <div role="group" aria-label={t("savedModels")} className="grid gap-2">
-              <p className="text-muted-foreground text-xs">{t("savedModels")}</p>
-              {profiles
-                .filter((profile) => profile.provider === providerId && usableForAgents(profile))
-                .map((profile) => (
-                  <Button
-                    key={profile.id}
-                    type="button"
-                    variant="outline"
-                    className="h-auto min-h-10 justify-start text-left whitespace-normal"
-                    onClick={() => onChange(profile.id)}
-                  >
-                    {modelName(profile)}
-                  </Button>
-                ))}
-            </div>
-          )}
+        {profiles.some(
+          (profile) => profile.provider === providerId && usableForAgents(profile),
+        ) && (
+          <div
+            role="group"
+            aria-label={t(presentation === "library" ? "allModels" : "savedModels")}
+            className="grid gap-2"
+          >
+            <p className="text-muted-foreground text-xs">
+              {t(presentation === "library" ? "allModels" : "savedModels")}
+            </p>
+            {profiles
+              .filter((profile) => profile.provider === providerId && usableForAgents(profile))
+              .map((profile) => (
+                <Button
+                  key={profile.id}
+                  type="button"
+                  variant="outline"
+                  className="h-auto min-h-10 justify-start text-left whitespace-normal"
+                  onClick={() => onChange(profile.id)}
+                >
+                  {modelName(profile)}
+                </Button>
+              ))}
+          </div>
+        )}
         <AddModel
           key={providerId}
           fixedProviderId={providerId}
@@ -559,7 +573,13 @@ export function ChatModelPicker({
           setFailure(null);
         }}
         onModelChange={(id) => void apply(id)}
-        credentialForm={requiresEndpoint ? null : credentialForm}
+        credentialForm={
+          requiresEndpoint ? null : credentialForm && provider ? (
+            <ModelConnectionIntro provider={provider.id} name={provider.label}>
+              {credentialForm}
+            </ModelConnectionIntro>
+          ) : null
+        }
         failure={
           profilesStatus === "failed" || (!personalSource && secretReadError) ? (
             <p role="alert" className="text-destructive text-xs">

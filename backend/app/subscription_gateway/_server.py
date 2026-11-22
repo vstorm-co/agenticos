@@ -23,7 +23,7 @@ from starlette.background import BackgroundTask
 from app.subscription_gateway._account_data import account_prefix, account_usage
 
 from ._instances import GatewayError, Instance, Supervisor
-from ._usage import antigravity_usage, codex_usage
+from ._usage import antigravity_usage, claude_usage, codex_usage, kimi_usage
 
 PROVIDERS = frozenset({"claude", "codex", "antigravity", "kimi", "kimi-ai", "xai", "devin", "meta"})
 """Sign-ins CLIProxyAPI's management API supports; anything else is refused."""
@@ -71,14 +71,19 @@ async def _management(
     json: dict[str, str] | None = None,
 ) -> JsonValue:
     """One management call to the scope's own process; its errors stay generic."""
-    async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.request(
-            method,
-            f"{instance.base_url}/v8/management{path}",
-            params=params,
-            json=json,
-            headers={"Authorization": f"Bearer {instance.management_key}"},
-        )
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.request(
+                method,
+                f"{instance.base_url}/v8/management{path}",
+                params=params,
+                json=json,
+                headers={"Authorization": f"Bearer {instance.management_key}"},
+            )
+    except httpx.TimeoutException:
+        raise GatewayError("The account service timed out; try again", status=504) from None
+    except httpx.HTTPError:
+        raise GatewayError("The account service is unavailable; try again", status=502) from None
     if response.status_code >= 400:
         raise GatewayError(
             "The account service refused this request",
@@ -273,6 +278,22 @@ def create_app(supervisor: Supervisor, token: str, *, reap_seconds: float = 60) 
                         "Reconnect this account before reading its limits", status=409
                     )
                 return (await antigravity_usage(instance, auth_index)).model_dump(mode="json")
+            if provider in {"claude", "anthropic"}:
+                auth_index = row.get("auth_index")
+                if not isinstance(auth_index, str) or not auth_index:
+                    raise GatewayError(
+                        "Reconnect this account before reading its limits", status=409
+                    )
+                return (await claude_usage(instance, auth_index)).model_dump(mode="json")
+            if provider in {"kimi", "kimi-ai"}:
+                auth_index = row.get("auth_index")
+                if not isinstance(auth_index, str) or not auth_index:
+                    raise GatewayError(
+                        "Reconnect this account before reading its limits", status=409
+                    )
+                return (
+                    await kimi_usage(instance, auth_index, international=provider == "kimi-ai")
+                ).model_dump(mode="json")
             if provider == "codex":
                 claims = row.get("id_token")
                 account_id = claims.get("chatgpt_account_id") if isinstance(claims, dict) else None

@@ -103,6 +103,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Read Claude subscription limits directly, including five-hour, weekly and model-family windows; add Kimi Code regional quota reads and Devin reported daily/weekly snapshots. Correct Kimi regional labels and device sign-ins without a separate user code. API-provider connection screens now share the branded subscription layout.
+
 - Claude subscription and custom-gateway models retain all agent tools without exceeding Anthropic’s limit of 20 strict tool schemas.
 
 - Chat model selection uses one list without a Saved models tab or success notification, with a button to restore the agent’s model and branded connection screens. Devin and Meta display their provider logos.

@@ -1,5 +1,5 @@
 ---
-source_sha: "7a55db1d461a"
+source_sha: "b2d7c8981e4a"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -469,7 +469,11 @@ Im Onboarding können Mitglieder unter **Welche Abonnements hast du bereits?** v
 
 Bei mehreren verbundenen persönlichen Konten öffnen Sie den Reiter **Konto** und wählen Sie das Konto wie einen gespeicherten API-Schlüssel. Abonnementmodelle verwenden dieselbe durchsuchbare Liste wie API-Anbieter; die Auswahl eines Modells wendet es sofort an. Die Modellauswahl bindet es über eine undurchsichtige Route an dieses Konto; sie wechselt nicht still zu einem anderen Konto. Kontogebundene Profile benötigen das verbundene Konto der ausführenden Person. Beim erneuten Öffnen werden Konto und Modell wiederhergestellt, ohne die Kontoroute im Modellnamen anzuzeigen.
 
-**Einstellungen → Abonnements** zeigt jedes verbundene Konto einzeln mit Kontingentfenstern, verbleibenden Prozenten, Fortschrittsbalken und Rücksetzzeiten. Der Reiter **Konto** der Modellauswahl verwendet dieselbe Ansicht für alle Konten des gewählten Anbieters. Codex und Antigravity lesen Kontingentmetadaten ohne Modellaufruf; Antigravity behält getrennte Modellgruppen. Claude zeigt passive Beobachtungen aus Anbieterantworten. Die Daten werden bei geöffneter Ansicht höchstens einmal pro Minute sowie manuell aktualisiert. Ältere Beobachtungen werden als veraltet markiert. Lesefehler bleiben sichtbar; fehlende Daten bedeuten niemals ein volles Kontingent.
+**Einstellungen → Abonnements** zeigt jedes verbundene Konto einzeln mit Kontingentfenstern, verbleibenden Prozenten, Fortschrittsbalken und Rücksetzzeiten. Der Reiter **Konto** verwendet dieselbe Ansicht für alle Konten des gewählten Anbieters.
+
+Claude, Codex, Antigravity und beide Kimi-Code-Regionen lesen Kontingentmetadaten ohne Modellaufruf. Claude zeigt Fünfstunden-, Wochen- und Modellfamilienfenster. Antigravity behält Modellgruppen bei; Kimi zeigt Wochen- und rollierende Fenster. Devin zeigt gemeldete Tages- und Wochenschnappschüsse. Grok- und Meta-Kontingente lassen sich über diese Gateway-Verbindung derzeit nicht auslesen.
+
+Die Daten werden bei geöffneter Ansicht jede Minute aktualisiert, bei Claude alle fünf Minuten; manuelles Aktualisieren bleibt möglich. Ältere Daten werden als veraltet markiert. Fehler bleiben sichtbar; fehlende Daten bedeuten niemals ein volles Kontingent. Kimi Code (kimi.com) und Kimi Code (kimi.ai) sind getrennte regionale Anmeldungen, keine Verbraucher-Chatpläne.
 
 Alle Verbindungsgruppen sind sofort sichtbar. Verbundene Abonnements zeigen ein Statusabzeichen und die Kontoidentität; ein weiteres Konto hinzuzufügen ist eine sekundäre Aktion. Beim erneuten Öffnen stellt die Auswahl die Abonnementquelle und das Modell aus dem gespeicherten Abonnementprofil wieder her.
 
