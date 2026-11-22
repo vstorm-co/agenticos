@@ -602,6 +602,7 @@ async def test_the_public_directory_pages_rooms_the_reader_has_not_joined(db: As
     assert remaining_total == 2 and rooms[0].id not in {item.id for item in remaining}
 
 
+@pytest.mark.security
 async def test_the_public_directory_leaves_out_archived_other_tenant_and_workflow_rooms(
     db: AsyncSession,
 ):
@@ -771,6 +772,7 @@ async def test_removing_a_principal_needs_an_id_and_removes_only_that_one(db: As
     assert len(await roster(db, room)) == 2
 
 
+@pytest.mark.security
 async def test_auto_reply_is_set_only_for_an_agent_in_that_room_and_tenant(db: AsyncSession):
     room, service = await converted_room(db)
     await service.add(room.ctx, room.conversation.id, agent_ref(room.agent.id))
