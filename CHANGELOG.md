@@ -121,7 +121,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Keep pending agent questions clear of the chat composer, preserving its draft while answering or cancelling. Place Architect and assistant service cards before Chat home in organization settings, with consistent icons.
 
-- Keep pending chat questions visible by replacing the inactive composer with compact answer and cancel controls, while preserving its draft and attachments for the resumed conversation.
+- Keep the question being answered fixed while its receipt replaces the form, including on narrow screens where preceding work remains visible.
 
 - Open agent cards in Build while retaining evaluation-attention indicators, remove the Recent work strip above Builder, and tighten dashboard spacing with concrete, linked approval/question/Inbox counts and clearer directional tab transitions.
 

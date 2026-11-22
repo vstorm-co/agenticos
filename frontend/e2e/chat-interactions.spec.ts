@@ -20,7 +20,7 @@ for (const theme of ["light", "dark"] as const) {
       test.setTimeout(60_000);
       await page.setViewportSize({ width, height: 900 });
       await readAppearanceAs(page, theme);
-      await page.goto("/chat");
+      await page.goto("/chat?answerer=agenticos");
       await expect(
         page.getByRole("button", { name: `Agent: ${SEEDED_AGENT_NAME}`, exact: true }),
       ).toBeVisible();
@@ -136,7 +136,7 @@ for (const theme of ["light", "dark"] as const) {
           .toBeCloseTo(inputBefore.y, 0);
         await expect(draft).toBeVisible();
         await expect(draft).toBeEnabled();
-        await expect(draft).toHaveValue("Draft kept while answering");
+        await expect(draft).toHaveText("Draft kept while answering");
         await expect(
           page.getByRole("button", { name: "Answer the agent’s question", exact: true }),
         ).toHaveCount(0);

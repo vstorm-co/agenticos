@@ -37,7 +37,15 @@ const env = {
   profilesFail: false,
   noKeys: false,
 };
-function serve() {
+function serve(
+  models = [
+    { id: "anthropic/claude-test", name: "Claude Test" },
+    ...Array.from({ length: 480 }, (_, index) => ({
+      id: `vendor/model-${index}`,
+      name: `Model ${index}`,
+    })),
+  ],
+) {
   vi.mocked(apiClient.get).mockImplementation(async (path) => {
     if (path === "/me/permissions") {
       if (env.permissionFails) throw new Error("permissions offline");
@@ -118,14 +126,8 @@ function serve() {
     if (path.startsWith("/providers/openrouter/models")) {
       if (env.modelFails) throw new Error("models offline");
       return {
-        items: [
-          { id: "anthropic/claude-test", name: "Claude Test" },
-          ...Array.from({ length: 480 }, (_, index) => ({
-            id: `vendor/model-${index}`,
-            name: `Model ${index}`,
-          })),
-        ],
-        total: 481,
+        items: models,
+        total: models.length,
         source: "live",
       };
     }
@@ -134,8 +136,8 @@ function serve() {
     throw new Error(`Unexpected GET ${path}`);
   });
 }
-function mount() {
-  serve();
+function mount(models?: { id: string; name: string }[]) {
+  serve(models);
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -256,7 +258,10 @@ it("keeps a failed Vault read visible and does not allow model selection", async
 });
 
 it("creates a model on the specifically selected Vault account", async () => {
-  mount();
+  mount([
+    { id: "anthropic/claude-test", name: "Claude Test" },
+    { id: "vendor/model-479", name: "Model 479" },
+  ]);
   vi.mocked(apiClient.post).mockResolvedValue({
     ...PROFILE,
     id: "new-profile",

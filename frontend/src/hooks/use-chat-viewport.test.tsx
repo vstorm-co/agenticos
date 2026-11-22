@@ -369,6 +369,22 @@ it("allows Tab focus to scroll away from a locked reading anchor", () => {
   act(() => resized?.());
   expect(scrolling.scrollTop).toBe(250);
 });
+it("anchors the question being answered when preceding work also remains visible", () => {
+  questionTop = 400;
+  const view = render(<Harness />);
+  const scrolling = view.getByTestId("scroll");
+  const earlier = view.container.querySelector<HTMLElement>('[data-message-id="old"]')!;
+  Object.defineProperty(earlier, "getBoundingClientRect", {
+    value: () => new DOMRect(0, 100 - scrolling.scrollTop, 600, 60),
+  });
+  scrolling.scrollTop = 0;
+  fireEvent.wheel(scrolling, { deltaY: -1 });
+  fireEvent.click(view.getByText("Short"));
+  questionTop += 8;
+  bodyHeight += 8;
+  act(() => resized?.());
+  expect(scrolling.scrollTop).toBe(8);
+});
 
 it("treats a scrollbar move upward as reading and leaves unrelated pointer events alone", () => {
   const view = render(<Harness />);

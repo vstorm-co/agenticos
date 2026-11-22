@@ -159,10 +159,20 @@ export function useChatViewport(options: ViewportOptions) {
         write(desired);
       }
     };
-    const lockReadingAnchor = (restore = true) => {
+    const lockReadingAnchor = (target: Element, restore = true) => {
       // Pointer/click may arrive after the browser scrolls a focused control.
       // Keep an existing lock until a deliberate reader gesture releases it.
-      if (!preserveAnchor || !anchor?.element.isConnected) read();
+      if (!preserveAnchor || !anchor?.element.isConnected) {
+        read();
+        const question = target.closest<HTMLElement>(
+          "[data-chat-question], [data-question-pending]",
+        );
+        if (question)
+          anchor = {
+            element: question,
+            offset: question.getBoundingClientRect().top - viewportTop(),
+          };
+      }
       preserveAnchor = true;
       if (restore) resize();
     };
@@ -244,7 +254,7 @@ export function useChatViewport(options: ViewportOptions) {
         event.target instanceof Element &&
         event.target.closest("button, summary")
       ) {
-        lockReadingAnchor();
+        lockReadingAnchor(event.target);
       }
     };
     const onPointer = (event: MouseEvent) => {
@@ -263,10 +273,10 @@ export function useChatViewport(options: ViewportOptions) {
       ) {
         if (event.type === "pointerdown") {
           pointerActive = true;
-          lockReadingAnchor(false);
+          lockReadingAnchor(event.target, false);
         } else {
           // Click's target is already fixed; restoring now cannot retarget it.
-          lockReadingAnchor(false);
+          lockReadingAnchor(event.target, false);
           finishPointer();
         }
       }
