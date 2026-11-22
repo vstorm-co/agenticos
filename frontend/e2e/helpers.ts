@@ -785,7 +785,7 @@ export async function callApi(
 
 /** Isolate appearance in a test context without mutating the shared owner's profile. */
 export async function readAppearanceAs(page: Page, theme: "light" | "dark"): Promise<void> {
-  for (const path of ["auth/me", "users/me/preferences"]) {
+  for (const path of ["auth/me", "users/me/appearance"]) {
     await page.route(`**/api/${path}`, async (route) => {
       if (route.request().method() !== "GET") return route.continue();
       const response = await route.fetch();
