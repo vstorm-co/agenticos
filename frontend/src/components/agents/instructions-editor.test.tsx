@@ -33,6 +33,17 @@ function type(text: string) {
 }
 
 describe("InstructionsEditor", () => {
+  it("bounds the inline height to the viewport while keeping fullscreen editing available", async () => {
+    render(<Harness initial="A long instruction" />);
+    const editor = screen.getByRole("textbox", { name: "Instructions" });
+    expect(editor.closest(".resize-y")).toHaveStyle({ height: "clamp(160px, 26dvh, 266px)" });
+    fireEvent.click(screen.getByRole("button", { name: /Expand/ }));
+    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(
+      within(screen.getByRole("dialog")).getByRole("textbox", { name: "Instructions" }),
+    ).toHaveValue("A long instruction");
+  });
+
   it("offers variables after {{ and inserts the chosen one with Enter", () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);

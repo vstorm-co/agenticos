@@ -22,6 +22,7 @@ const state = vi.hoisted(() => ({
   linkedCase: undefined as unknown,
   linkedError: null as Error | null,
   retryCase: vi.fn(),
+  retryDataset: vi.fn(),
   push: vi.fn(),
   remove: vi.fn(),
   runsView: true,
@@ -53,6 +54,7 @@ vi.mock("@/hooks/use-datasets", () => ({
           scoring: DEFAULT_SCORING,
         }),
     error: state.datasetError,
+    refetch: state.retryDataset,
     update: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: state.remove, isPending: false },
   }),
@@ -488,4 +490,12 @@ it.each([403, 404])("shows a no-access view for an unreadable dataset (%s)", asy
   });
   expect(await screen.findByText("Resource unavailable")).toBeVisible();
   expect(screen.queryByText("Something went wrong")).toBeNull();
+});
+
+it("offers recovery for a failed dataset read", async () => {
+  state.datasetError = new Error("Dataset service unavailable");
+  await mount();
+  expect(screen.getByRole("alert")).toHaveTextContent("Dataset service unavailable");
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(state.retryDataset).toHaveBeenCalledOnce();
 });

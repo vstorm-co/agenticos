@@ -88,6 +88,51 @@ async def list_all(
     return list(result.scalars().all())
 
 
+async def open_generated_people(db: AsyncSession, *, organization_id: UUID) -> dict[UUID, int]:
+    """People with replaceable generated proposals; findings and linked cases stay intact."""
+    rows = await db.execute(
+        select(Suggestion.user_id, func.count())
+        .where(
+            Suggestion.organization_id == organization_id,
+            Suggestion.status == SuggestionStatus.OPEN.value,
+            Suggestion.kind != SuggestionKind.FINDING.value,
+            Suggestion.watch_id.is_(None),
+            Suggestion.outcome_id.is_(None),
+        )
+        .group_by(Suggestion.user_id)
+    )
+    return dict(rows.tuples().all())
+
+
+async def remove_open_generated(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, expected_ids: set[UUID]
+) -> bool:
+    """Replace only the captured open set, refusing a concurrent decision or deletion."""
+    result = await db.execute(
+        select(Suggestion)
+        .where(
+            Suggestion.organization_id == organization_id,
+            Suggestion.user_id == user_id,
+            Suggestion.id.in_(expected_ids),
+        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    rows = list(result.scalars().all())
+    if len(rows) != len(expected_ids) or any(
+        row.status != SuggestionStatus.OPEN.value
+        or row.kind == SuggestionKind.FINDING.value
+        or row.watch_id is not None
+        or row.outcome_id is not None
+        for row in rows
+    ):
+        return False
+    for row in rows:
+        await db.delete(row)
+    await db.flush()
+    return True
+
+
 async def reopen(db: AsyncSession, *, suggestion: Suggestion) -> Suggestion:
     """Take a decision back: the proposal waits again."""
     suggestion.status = SuggestionStatus.OPEN.value
@@ -108,16 +153,34 @@ async def keys_for(db: AsyncSession, *, organization_id: UUID, user_id: UUID) ->
 
 
 async def get_own(
-    db: AsyncSession, suggestion_id: UUID, *, organization_id: UUID, user_id: UUID
+    db: AsyncSession,
+    suggestion_id: UUID,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    lock_generated: bool = False,
 ) -> Suggestion | None:
-    """One proposal, only if it was made to this person in this organization."""
-    result = await db.execute(
-        select(Suggestion).where(
-            Suggestion.id == suggestion_id,
-            Suggestion.organization_id == organization_id,
-            Suggestion.user_id == user_id,
-        )
+    """One person's proposal; decisions claim generated rows before doing work.
+
+    Findings retain the case service's task → outcome → finding lock order.
+    They are never candidates for generated-proposal replacement.
+    """
+    statement = select(Suggestion).where(
+        Suggestion.id == suggestion_id,
+        Suggestion.organization_id == organization_id,
+        Suggestion.user_id == user_id,
     )
+    if lock_generated:
+        result = await db.execute(
+            statement.where(Suggestion.kind != SuggestionKind.FINDING.value)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        generated = result.scalar_one_or_none()
+        if generated is not None:
+            return generated
+        statement = statement.where(Suggestion.kind == SuggestionKind.FINDING.value)
+    result = await db.execute(statement)
     return result.scalar_one_or_none()
 
 

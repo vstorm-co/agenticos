@@ -44,10 +44,10 @@ export function RawToolView({ toolCall, resultText }: { toolCall: ToolCall; resu
             </p>
             <CopyButton
               text={formatArgs(toolCall.args)}
-              className="opacity-0 group-hover:opacity-100"
+              className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
             />
           </div>
-          <pre className="border-foreground/10 bg-background/60 scrollbar-thin overflow-x-auto rounded-lg border p-2.5 font-mono text-xs leading-relaxed">
+          <pre className="border-foreground/10 bg-background/60 max-h-72 scrollbar-thin overflow-x-auto overflow-y-auto rounded-lg border p-2.5 font-mono text-xs leading-relaxed">
             {formatArgs(toolCall.args)}
           </pre>
         </div>
@@ -58,7 +58,10 @@ export function RawToolView({ toolCall, resultText }: { toolCall: ToolCall; resu
             <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
               {t("result")}
             </p>
-            <CopyButton text={resultText} className="opacity-0 group-hover:opacity-100" />
+            <CopyButton
+              text={resultText}
+              className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+            />
           </div>
           <pre className="border-foreground/10 bg-background/60 max-h-72 scrollbar-thin overflow-x-auto overflow-y-auto rounded-lg border p-2.5 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap">
             {resultText}
@@ -108,10 +111,10 @@ export function GenericToolResult({
             </p>
             <CopyButton
               text={formatArgs(toolCall.args)}
-              className="opacity-0 group-hover:opacity-100"
+              className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
             />
           </div>
-          <pre className="border-foreground/10 bg-background/60 scrollbar-thin overflow-x-auto rounded-lg border p-2.5 font-mono text-xs leading-relaxed">
+          <pre className="border-foreground/10 bg-background/60 max-h-72 scrollbar-thin overflow-x-auto overflow-y-auto rounded-lg border p-2.5 font-mono text-xs leading-relaxed">
             {formatArgs(toolCall.args)}
           </pre>
         </div>

@@ -205,6 +205,101 @@ describe("TableKanbanView", () => {
     expect(screen.getByText(/needs a single-select grouping column/i)).toBeInTheDocument();
   });
 
+  it("keeps every lane stretched with a flexible content area even for empty lanes", async () => {
+    mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
+    const { container } = render(
+      <TableKanbanView
+        tableId="t1"
+        columns={COLUMNS}
+        groupByColumnId="status"
+        baseFilters={[]}
+        sort={{ by: "created_at", direction: "asc" }}
+        onOpenRecord={vi.fn()}
+        canEdit
+      />,
+      { wrapper },
+    );
+    await screen.findByText("Record r1");
+    const board = container.querySelector("[data-kanban-board]");
+    expect(board).toHaveClass("flex-1", "items-stretch");
+    const lanes = container.querySelectorAll("[data-kanban-lane]");
+    expect(lanes).toHaveLength(4);
+    for (const lane of lanes) {
+      expect(lane).toHaveClass("min-h-full");
+      expect(lane.children[1]).toHaveClass("flex-1");
+    }
+    expect(await screen.findAllByText("No records")).toHaveLength(3);
+  });
+
+  it("drags the full card fields at their original width and pointer grab position", async () => {
+    const note: ColumnDef = { ...TITLE, id: "note", label: "Note" };
+    const hidden: ColumnDef = { ...TITLE, id: "hidden", label: "Hidden column" };
+    mockLanes({
+      o1: [
+        {
+          ...record("r1", "o1"),
+          values: {
+            name: "Record r1",
+            status: "o1",
+            paid: true,
+            note: "Keep this card detail",
+            hidden: "Hidden value",
+          },
+        },
+      ],
+    });
+    render(
+      <TableKanbanView
+        tableId="t1"
+        columns={[...COLUMNS, PAID, note, hidden]}
+        shownColumns={[...COLUMNS, PAID, note]}
+        groupByColumnId="status"
+        baseFilters={[]}
+        sort={{ by: "created_at", direction: "asc" }}
+        onOpenRecord={vi.fn()}
+        canEdit
+      />,
+      { wrapper },
+    );
+    const title = await screen.findByRole("button", { name: "Record r1" });
+    const card = title.closest("div[draggable]");
+    if (!(card instanceof HTMLDivElement)) throw new Error("missing draggable card");
+    const bounds = vi
+      .spyOn(card, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(80, 80, 296, 160));
+    const pointer = (type: string, x: number, y: number) => {
+      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+      Object.defineProperty(event, "pointerId", { value: 1 });
+      fireEvent(card, event);
+    };
+    try {
+      pointer("pointerdown", 100, 100);
+      pointer("pointermove", 140, 150);
+      const preview = document.querySelector("[data-kanban-drag-preview]");
+      expect(preview).toBeInTheDocument();
+      expect(preview).toHaveAttribute("inert");
+      expect(preview).toHaveAttribute("aria-hidden", "true");
+      expect(preview).toHaveStyle({
+        left: "120px",
+        top: "130px",
+        width: "296px",
+        minHeight: "160px",
+      });
+      expect(preview).toHaveTextContent("Record r1");
+      expect(preview).toHaveTextContent("Paid");
+      expect(preview).toHaveTextContent("Note");
+      expect(preview).toHaveTextContent("Keep this card detail");
+      expect(preview).not.toHaveTextContent("Hidden column");
+      expect(preview).not.toHaveTextContent("Hidden value");
+      expect(preview?.querySelector("button")).toBeNull();
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(document.querySelector("[data-kanban-drag-preview]")).toBeNull();
+      expect(apiClient.patch).not.toHaveBeenCalled();
+    } finally {
+      bounds.mockRestore();
+    }
+  });
+
   it("renders one lane per live option, plus no-value and archived", async () => {
     mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
     render(
@@ -244,10 +339,15 @@ describe("TableKanbanView", () => {
       { wrapper },
     );
 
-    const card = await screen.findByText("Record r1");
+    const card = await screen.findByRole("button", { name: "Record r1" });
+    expect(card.closest("div[draggable]")).toHaveClass("relative");
     await user.click(card);
+    expect(onOpenRecord).toHaveBeenCalledExactlyOnceWith(record("r1", "o1"));
 
-    expect(onOpenRecord).toHaveBeenCalledWith(record("r1", "o1"));
+    onOpenRecord.mockClear();
+    card.focus();
+    await user.keyboard("{Enter}");
+    expect(onOpenRecord).toHaveBeenCalledExactlyOnceWith(record("r1", "o1"));
   });
 
   it("moves a card via the keyboard-reachable Move to menu", async () => {

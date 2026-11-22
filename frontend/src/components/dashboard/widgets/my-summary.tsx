@@ -23,7 +23,7 @@ import type { DashboardWidgetProps } from "./types";
  * this is the one a member opens their dashboard on. Read from the caller's own
  * usage (`scope=own`), which carries the waiting count the organization's does
  * not. What waits counts the same as the dashboard's greeting: tool calls,
- * personal Inbox proposals. An empty period still draws
+ * parked questions and personal Inbox proposals. An empty period still draws
  * the four figures at zero: a person with no runs yet is told so by numbers, not
  * by a card that says nothing. It counts what waits only once every list behind
  * that figure answered, and fails as a whole when one of them is refused.
@@ -104,16 +104,15 @@ function WaitingParts({ waiting }: { waiting: [WaitingKind, number][] }) {
   return parts.map((part, index) => {
     if (part.type !== "element") return part.value;
     const [kind] = waiting[item++]!;
-    return kind === "approvals" ? (
+    if (kind === "suggestions") return part.value;
+    return (
       <Link
         key={index}
-        href={`${ROUTES.RUNS}?tab=approvals`}
+        href={kind === "approvals" ? `${ROUTES.RUNS}?tab=approvals` : ROUTES.INBOX}
         className="hover:text-foreground underline underline-offset-2"
       >
         {part.value}
       </Link>
-    ) : (
-      part.value
     );
   });
 }

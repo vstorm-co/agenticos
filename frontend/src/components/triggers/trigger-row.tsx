@@ -96,14 +96,13 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   }
 
   return (
-    // On a phone the actions take a line of their own under the routine: four
-    // icons beside it squeezed its name and schedule down to "Getti... Ever...".
-    <div className="border-foreground/8 bg-card hover:border-foreground/20 flex flex-wrap items-center gap-3 rounded-xl border p-3 transition-colors sm:flex-nowrap">
+    // A chat result can be narrow on a wide screen: size the card by its own container.
+    <article className="border-foreground/8 bg-card hover:border-foreground/20 @container/routine flex w-full min-w-0 flex-wrap items-center gap-3 rounded-xl border p-3 transition-colors">
       <button
         type="button"
         onClick={openRuns}
         aria-label={t("viewRuns")}
-        className="hover:bg-muted/40 -m-1 flex min-w-0 flex-1 basis-full items-center gap-3 rounded-lg p-1 text-left transition-colors sm:basis-auto"
+        className="hover:bg-muted/40 -m-1 flex w-full min-w-0 flex-1 basis-full items-center gap-3 rounded-lg p-1 text-left transition-colors @min-[48rem]/routine:basis-0"
       >
         {/* The kind of routine in a tile, with the agent that runs it tucked into
             its corner - one mark to scan down the list rather than two loose icons. */}
@@ -124,129 +123,144 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
           {/* The routine's own name leads - it was the smallest text in the row,
               under the cadence it is only a property of. */}
           {(trigger.name || (showAgent && trigger.agent_name)) && (
-            <p className="text-sm font-medium [overflow-wrap:anywhere] sm:truncate">
+            <p className="text-sm font-medium [overflow-wrap:anywhere]">
               {trigger.name ?? trigger.agent_name}
             </p>
           )}
-          <p className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs sm:flex-nowrap">
+          <p className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs">
             {trigger.name && showAgent && trigger.agent_name && (
               <>
                 <span className="text-foreground/80 truncate">{trigger.agent_name}</span>
                 <span aria-hidden>·</span>
               </>
             )}
-            <span className="min-w-0 sm:truncate">
+            <span className="min-w-0 [overflow-wrap:anywhere]">
               <TriggerSummary trigger={trigger} />
             </span>
           </p>
-          <p className="text-muted-foreground/80 truncate text-xs">{trigger.prompt}</p>
+          <p className="text-muted-foreground/80 line-clamp-2 text-xs [overflow-wrap:anywhere]">
+            {trigger.prompt}
+          </p>
         </div>
       </button>
       {trigger.last_delivery_status === "unavailable" && (
         <Badge variant="secondary">{t("deliveryUnavailable")}</Badge>
       )}
-      {trigger.setup_required &&
-        (trigger.can_manage && me != null && me === trigger.created_by_user_id && !impersonating ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setConsenting(true)}
-            title={t("setupRequiredHint")}
-          >
-            <ShieldCheck className="mr-1.5 size-3.5" />
-            {t("setupRequired")}
-          </Button>
-        ) : (
-          <Badge variant="secondary" title={t("setupOwnerRequired")}>
-            {t("setupRequired")}
+      <div className="flex min-w-0 basis-full flex-wrap items-center gap-2 empty:hidden @min-[48rem]/routine:max-w-[50%] @min-[48rem]/routine:basis-auto">
+        {trigger.setup_required &&
+          (trigger.can_manage &&
+          me != null &&
+          me === trigger.created_by_user_id &&
+          !impersonating ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConsenting(true)}
+              title={t("setupRequiredHint")}
+            >
+              <ShieldCheck className="mr-1.5 size-3.5" />
+              {t("setupRequired")}
+            </Button>
+          ) : (
+            <Badge variant="secondary" title={t("setupOwnerRequired")}>
+              {t("setupRequired")}
+            </Badge>
+          ))}
+        {trigger.runs_as_creator && <Badge variant="outline">{t("actsAsCreator")}</Badge>}
+        {(trigger.waiting_device_count ?? 0) > 0 && (
+          <Badge variant="secondary">
+            {t("local.waitingDevice", { count: trigger.waiting_device_count ?? 0 })}
           </Badge>
-        ))}
-      {trigger.runs_as_creator && <Badge variant="outline">{t("actsAsCreator")}</Badge>}
-      {(trigger.waiting_device_count ?? 0) > 0 && (
-        <Badge variant="secondary">
-          {t("local.waitingDevice", { count: trigger.waiting_device_count ?? 0 })}
-        </Badge>
-      )}
-      <RoutineAutoPause stoppedAt={trigger.auto_stopped_at} count={trigger.consecutive_failures} />
-      {!trigger.is_active && !trigger.auto_stopped_at && !trigger.setup_required && (
-        <Badge variant="secondary">{t("paused")}</Badge>
-      )}
-      {trigger.is_active && trigger.paused_for_budget && (
-        <Badge variant="secondary">{t("pausedBudget")}</Badge>
-      )}
-      {trigger.can_manage && (
-        <TooltipProvider>
-          <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:ml-0">
-            {me != null && me === trigger.created_by_user_id && !impersonating && (
-              <RoutineActionTooltip label={t("actionConsents.title")}>
+        )}
+        <RoutineAutoPause
+          stoppedAt={trigger.auto_stopped_at}
+          count={trigger.consecutive_failures}
+        />
+        {!trigger.is_active && !trigger.auto_stopped_at && !trigger.setup_required && (
+          <Badge variant="secondary">{t("paused")}</Badge>
+        )}
+        {trigger.is_active && trigger.paused_for_budget && (
+          <Badge variant="secondary">{t("pausedBudget")}</Badge>
+        )}
+        {trigger.can_manage && (
+          <TooltipProvider>
+            <div className="ml-auto flex shrink-0 flex-wrap items-center gap-0.5">
+              {me != null && me === trigger.created_by_user_id && !impersonating && (
+                <RoutineActionTooltip label={t("actionConsents.title")}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    data-tour="routine-access"
+                    aria-label={t("actionConsents.title")}
+                    onClick={() => setConsenting(true)}
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                  </Button>
+                </RoutineActionTooltip>
+              )}
+              <RoutineActionTooltip label={t("runNow")} disabled={runDisabled}>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
-                  data-tour="routine-access"
-                  aria-label={t("actionConsents.title")}
-                  onClick={() => setConsenting(true)}
+                  aria-label={t("runNow")}
+                  disabled={runDisabled}
+                  onClick={fireAndWatch}
+                  data-tour="routine-run-now"
                 >
-                  <ShieldCheck className="h-4 w-4" />
+                  <Zap className="h-4 w-4" />
                 </Button>
               </RoutineActionTooltip>
-            )}
-            <RoutineActionTooltip label={t("runNow")} disabled={runDisabled}>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                aria-label={t("runNow")}
-                disabled={runDisabled}
-                onClick={fireAndWatch}
-                data-tour="routine-run-now"
-              >
-                <Zap className="h-4 w-4" />
-              </Button>
-            </RoutineActionTooltip>
-            <RoutineActionTooltip label={t("edit")}>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                aria-label={t("edit")}
-                onClick={() => setEditing(true)}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-            </RoutineActionTooltip>
-            {(trigger.is_active || !actsForSomeoneElse) && (
-              <RoutineActionTooltip label={trigger.is_active ? t("pause") : t("resume")}>
+              <RoutineActionTooltip label={t("edit")}>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
-                  aria-label={trigger.is_active ? t("pause") : t("resume")}
-                  disabled={setActive.isPending}
-                  onClick={() => {
-                    if (!trigger.is_active && trigger.setup_required) setConsenting(true);
-                    else setActive.mutate({ triggerId: trigger.id, isActive: !trigger.is_active });
-                  }}
+                  aria-label={t("edit")}
+                  onClick={() => setEditing(true)}
                 >
-                  {trigger.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                  <Pencil className="h-4 w-4" />
                 </Button>
               </RoutineActionTooltip>
-            )}
-            <RoutineActionTooltip label={t("delete")}>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="hover:text-destructive h-8 w-8"
-                aria-label={t("delete")}
-                disabled={remove.isPending}
-                onClick={() => setConfirmingDelete(true)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </RoutineActionTooltip>
-          </div>
-        </TooltipProvider>
-      )}
+              {(trigger.is_active || !actsForSomeoneElse) && (
+                <RoutineActionTooltip label={trigger.is_active ? t("pause") : t("resume")}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    aria-label={trigger.is_active ? t("pause") : t("resume")}
+                    disabled={setActive.isPending}
+                    onClick={() => {
+                      if (!trigger.is_active && trigger.setup_required) setConsenting(true);
+                      else
+                        setActive.mutate({ triggerId: trigger.id, isActive: !trigger.is_active });
+                    }}
+                  >
+                    {trigger.is_active ? (
+                      <Pause className="h-4 w-4" />
+                    ) : (
+                      <Play className="h-4 w-4" />
+                    )}
+                  </Button>
+                </RoutineActionTooltip>
+              )}
+              <RoutineActionTooltip label={t("delete")}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hover:text-destructive h-8 w-8"
+                  aria-label={t("delete")}
+                  disabled={remove.isPending}
+                  onClick={() => setConfirmingDelete(true)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </RoutineActionTooltip>
+            </div>
+          </TooltipProvider>
+        )}
+      </div>
       {consenting && (
         <ActionConsentsDialog
           trigger={trigger}
@@ -290,6 +304,6 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
           }
         }}
       />
-    </div>
+    </article>
   );
 }

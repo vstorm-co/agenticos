@@ -116,7 +116,11 @@ describe("McpToolChecklist", () => {
     // Every tool ticked again is not "and whatever comes": that is the switch's.
     rerender(checklist({ onChange, allowed: ["notion-create-pages"] }));
     await userEvent.click(screen.getByRole("checkbox", { name: "Every tool in Reads" }));
-    expect(onChange).toHaveBeenLastCalledWith(EVERY_TOOL);
+    expect(onChange).toHaveBeenLastCalledWith([
+      "notion-create-pages",
+      "notion-search",
+      "notion-fetch",
+    ]);
   });
 
   it("takes tools the server adds later only while the switch says so", async () => {

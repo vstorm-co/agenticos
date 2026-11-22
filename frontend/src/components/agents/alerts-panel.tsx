@@ -4,17 +4,8 @@ import Link from "next/link";
 import { CircleDollarSign, Hand, PieChart, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Checkbox,
-  Label,
-  Switch,
-} from "@/components/ui";
+import { Button, Checkbox, Label, Switch } from "@/components/ui";
+import { BuildSection } from "./build-section";
 import { MemberIdentity, displayName } from "@/components/orgs/member-identity";
 import { GroupPicker } from "@/components/orgs/group-picker";
 import { MemberPicker } from "@/components/orgs/member-picker";
@@ -120,20 +111,25 @@ export function AlertsPanel({ value, onChange, disabled, approvals = true }: Ale
     onChange({ ...spec, [key]: alert });
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("alerts")}</CardTitle>
-        <CardDescription>
-          {t.rich("alertsDescription", {
-            link: (chunks) => (
-              <Link href={ROUTES.SETTINGS_NOTIFICATIONS} className="underline underline-offset-4">
-                {chunks}
-              </Link>
-            ),
-          })}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <BuildSection
+      title={t("alerts")}
+      summary={t("buildSummary.alerts", {
+        count: ALERTS.filter(
+          (meta) => (approvals || meta.key !== "approvals") && spec[meta.key].enabled,
+        ).length,
+      })}
+      description={t.rich("alertsDescription", {
+        link: (chunks) => (
+          <Link
+            href={ROUTES.SETTINGS_NOTIFICATIONS}
+            className="text-brand underline underline-offset-4"
+          >
+            {chunks}
+          </Link>
+        ),
+      })}
+    >
+      <div className="space-y-3">
         {ALERTS.filter((meta) => approvals || meta.key !== "approvals").map((meta) => (
           <AlertRow
             key={meta.key}
@@ -146,8 +142,8 @@ export function AlertsPanel({ value, onChange, disabled, approvals = true }: Ale
         ))}
 
         <p className="text-muted-foreground text-xs">{t("organizationAposSOwn")}</p>
-      </CardContent>
-    </Card>
+      </div>
+    </BuildSection>
   );
 }
 

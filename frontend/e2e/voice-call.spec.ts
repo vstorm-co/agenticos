@@ -99,6 +99,7 @@ async function chatWithSeededAgent(page: Page): Promise<void> {
   // outside it.
   await expect(agent).toBeHidden();
   await expect(page.getByRole("button", { name: /^Agent:/ })).toBeFocused();
+  await page.getByRole("button", { name: "Add to message", exact: true }).click();
 }
 
 test("a call shows captions, an approval with the exact arguments, a warning and its end", async ({

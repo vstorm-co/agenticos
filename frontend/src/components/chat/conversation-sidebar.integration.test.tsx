@@ -16,14 +16,23 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createTranslator } from "next-intl";
+import en from "@/../messages/en.json";
+import pl from "@/../messages/pl.json";
+import de from "@/../messages/de.json";
+import tr from "@/../messages/tr.json";
+
 import type { Conversation } from "@/types/conversation";
 import { ConversationSidebar } from "./conversation-sidebar";
 import { apiClient } from "@/lib/api-client";
+import { useChatPanelStore } from "@/stores/chat-panel-store";
+import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import { toast } from "sonner";
 import * as invalidation from "@/lib/coalesced-invalidation";
 import {
   useAgentSelectionStore,
   useChatBandsStore,
+  useChatSidebarStore,
   useConversationStore,
   useWorkingStore,
   useOrgStore,
@@ -80,6 +89,8 @@ function conversation(id: string, title: string, favourite = false): Conversatio
 /** Whatever the list route should answer with next. */
 function serve(items: ReturnType<typeof conversation>[], total = items.length) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path.endsWith("/shares") || path.includes("/members?")) return { items: [], total: 0 };
+    if (path.startsWith("/conversations/search?")) return { items: [] };
     if (path.includes("/messages")) return { items: [], total: 0 };
     if (path.startsWith("/conversations/shared-with-me"))
       return { items: shared, total: shared.length };
@@ -99,6 +110,7 @@ function listRequests(): string[] {
       (path) =>
         !path.includes("/messages") &&
         !path.startsWith("/conversations/shared-with-me") &&
+        !path.startsWith("/conversations/search?") &&
         path !== "/agents" &&
         path !== "/orgs",
     );
@@ -121,6 +133,7 @@ afterEach(() => vi.useRealTimers());
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useChatSidebarStore.getState().close();
   urlParams = new URLSearchParams();
   window.history.replaceState({}, "", "/chat");
   useConversationStore.getState().reset();
@@ -532,7 +545,7 @@ describe("what the sidebar says about the list", () => {
     expect(useConversationStore.getState().currentConversationId).toBeNull();
   });
 
-  it("renames from the menu, with the focus left in the title's field", async () => {
+  it("renames from the menu, only when the dialog is submitted", async () => {
     serve([conversation("c-1", "Quarterly numbers")]);
     vi.mocked(apiClient.patch).mockResolvedValue({});
     mount();
@@ -540,10 +553,24 @@ describe("what the sidebar says about the list", () => {
 
     await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
-    const field = within(list()).getByDisplayValue("Quarterly numbers");
+    const dialog = screen.getByRole("dialog", { name: "Rename" });
+    expect(within(dialog).getByText("Conversation title")).toBeVisible();
+    const field = within(dialog).getByDisplayValue("Quarterly numbers");
     await waitFor(() => expect(field).toHaveFocus());
+    expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(field).toHaveProperty("selectionStart", 0);
+    expect(field).toHaveProperty("selectionEnd", "Quarterly numbers".length);
     await userEvent.clear(field);
-    await userEvent.type(field, "Q3 numbers{Enter}");
+    await userEvent.type(field, "Discard this title");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(apiClient.patch).not.toHaveBeenCalled();
+    await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    const reopened = screen.getByRole("dialog", { name: "Rename" });
+    const title = within(reopened).getByDisplayValue("Quarterly numbers");
+    await userEvent.clear(title);
+    await userEvent.type(title, "Q3 numbers");
+    await userEvent.click(within(reopened).getByRole("button", { name: "Save" }));
 
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1", { title: "Q3 numbers" }),
@@ -665,7 +692,7 @@ describe("what the sidebar says about the list", () => {
     mount();
 
     await userEvent.click(within(list()).getByRole("button", { name: "Filter and sort" }));
-    await userEvent.click(screen.getByRole("button", { name: "Archived" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Archived" }));
 
     expect((await screen.findAllByText("No archived conversations"))[0]).toBeVisible();
     await waitFor(() => expect(listRequests().at(-1)).toContain("archived_only=true"));
@@ -746,7 +773,7 @@ describe("the collapsed rail", () => {
     const rail = await collapse();
 
     await userEvent.click(within(rail).getByRole("button", { name: "Filter and sort" }));
-    await userEvent.click(await screen.findByRole("button", { name: "Archived" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Archived" }));
 
     await waitFor(() => expect(listRequests().at(-1)).toContain("archived_only=true"));
     expect(await within(rail).findByRole("img", { name: "Archived" })).toBeVisible();
@@ -810,12 +837,12 @@ describe("the three icons over the list", () => {
 
     await userEvent.click(within(list()).getByRole("button", { name: "Search conversations" }));
     const dialog = await screen.findByRole("dialog", { name: "Search conversations" });
-    expect(within(dialog).getByText("Type to search your conversations by title.")).toBeVisible();
+    expect(within(dialog).getByText("Search conversation titles and messages.")).toBeVisible();
 
     serve([conversation("c-9", "Refund policy")]);
-    await userEvent.type(within(dialog).getByRole("textbox"), "refund");
+    await userEvent.type(within(dialog).getByRole("combobox"), "refund");
     await waitFor(() => expect(listRequests().at(-1)).toContain("search=refund"));
-    await userEvent.click(await within(dialog).findByRole("button", { name: /Refund policy/ }));
+    await userEvent.click(await within(dialog).findByRole("option", { name: /Refund policy/ }));
 
     await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBe("c-9"));
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -828,7 +855,7 @@ describe("the three icons over the list", () => {
     const dialog = await screen.findByRole("dialog", { name: "Search conversations" });
 
     serve([]);
-    await userEvent.type(within(dialog).getByRole("textbox"), "nothing");
+    await userEvent.type(within(dialog).getByRole("combobox"), "nothing");
 
     expect(await within(dialog).findByText("No conversation matches.")).toBeVisible();
   });
@@ -985,20 +1012,19 @@ describe("the favourites band", () => {
     );
   });
 
-  it("opens the band the open conversation lands in, once", async () => {
+  it("preserves an explicit fold even when the active conversation lands there", async () => {
     useChatBandsStore.setState({ folded: ["today"], opened: [] });
     useConversationStore.getState().setCurrentConversationId("c-1");
     serve([
       { ...conversation("c-1", "Just started"), updated_at: new Date().toISOString() },
     ] as unknown as ReturnType<typeof conversation>[]);
     mount();
-
-    expect(await within(list()).findByText("Just started")).toBeInTheDocument();
-    expect(useChatBandsStore.getState().folded).toEqual([]);
-
-    // Folding it again afterwards is the reader's choice, and it stays.
-    await userEvent.click(within(list()).getByRole("button", { name: /Today/ }));
+    const today = await within(list()).findByRole("button", { name: /Today/ });
+    expect(today).toHaveAttribute("aria-expanded", "false");
+    expect(useChatBandsStore.getState().folded).toEqual(["today"]);
     expect(within(list()).queryByText("Just started")).toBeNull();
+    await userEvent.click(today);
+    expect(within(list()).getByText("Just started")).toBeVisible();
   });
 
   it("leads with the threads holding an answer not yet seen", async () => {
@@ -1062,6 +1088,19 @@ describe("conversations opened over the API (#2122)", () => {
 });
 
 describe("who a row is with", () => {
+  it.each(["answerer=agenticos", "agent=agenticos"])(
+    "shows all agents when a link addresses AgenticOS using %s",
+    async (query) => {
+      urlParams = new URLSearchParams(query);
+      mount();
+      expect(await within(list()).findByText("Quarterly numbers")).toBeVisible();
+      await userEvent.click(within(list()).getByRole("button", { name: "Filter and sort" }));
+      expect(screen.getByRole("combobox", { name: "Filter by agent" })).toHaveTextContent(
+        "All agents",
+      );
+    },
+  );
+
   it("shows the addressed agent on the open thread before any run has named one", async () => {
     // A thread whose first run failed, or has not been listed yet, used to wear
     // a generic chat mark - while the console knew exactly whom it had asked.
@@ -1173,4 +1212,223 @@ it("opens a conversation from its keyboard target and marks the current row", as
   await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBe("c-1"));
   expect(row).toHaveAttribute("aria-current", "page");
   expect(within(list()).getByRole("button", { name: "Filter and sort" })).toBeVisible();
+});
+
+describe("sidebar layout previews", () => {
+  it.each(["compact", "comfortable", "workspace"])(
+    "keeps actions and active chat in the %s preview",
+    async (layout) => {
+      urlParams = new URLSearchParams(`sidebar=${layout}&id=c-1`);
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      mount();
+      const row = await within(list()).findByRole("button", { name: /^Quarterly numbers$/ });
+      expect(list()).toHaveAttribute("data-conversation-sidebar", layout);
+      expect(row).toHaveAttribute("aria-current", "page");
+      expect(row.closest("[data-conversation-layout]")).toHaveAttribute(
+        "data-conversation-layout",
+        layout,
+      );
+      expect(
+        within(list()).getByRole("button", { name: "Conversation actions" }),
+      ).toBeInTheDocument();
+      expect(within(list()).queryAllByTestId("row-agents").length > 0).toBe(layout !== "compact");
+    },
+  );
+  it.each(["", "sidebar=unknown"])("uses the project layout by default for %j", async (query) => {
+    urlParams = new URLSearchParams(query);
+    mount();
+    await within(list()).findByRole("button", { name: /^Quarterly numbers$/ });
+    expect(list()).toHaveAttribute("data-conversation-sidebar", "workspace");
+  });
+});
+
+describe("making temporary room for Sources", () => {
+  it("temporarily collapses a narrow conversation list and restores its prior choice", async () => {
+    const bounds = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(0, 0, 1100, 800));
+    try {
+      mount();
+      await screen.findByRole("button", { name: "Collapse conversations sidebar" });
+      act(() => useSourcesPanelStore.getState().open([]));
+      expect(screen.getByRole("button", { name: "Expand conversations sidebar" })).toBeVisible();
+      act(() => useSourcesPanelStore.getState().close());
+      expect(screen.getByRole("button", { name: "Collapse conversations sidebar" })).toBeVisible();
+      await userEvent.click(screen.getByRole("button", { name: "Collapse conversations sidebar" }));
+      act(() => useSourcesPanelStore.getState().open([]));
+      act(() => useSourcesPanelStore.getState().close());
+      expect(screen.getByRole("button", { name: "Expand conversations sidebar" })).toBeVisible();
+    } finally {
+      act(() => useSourcesPanelStore.getState().close());
+      bounds.mockRestore();
+    }
+  });
+
+  it("respects an explicit expansion for this Sources session and resets only the temporary override", async () => {
+    const bounds = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(0, 0, 1100, 800));
+    try {
+      mount();
+      await screen.findByRole("button", { name: "Collapse conversations sidebar" });
+      act(() => useSourcesPanelStore.getState().open([]));
+      await userEvent.click(screen.getByRole("button", { name: "Expand conversations sidebar" }));
+      expect(screen.getByRole("button", { name: "Collapse conversations sidebar" })).toBeVisible();
+      act(() => useSourcesPanelStore.getState().close());
+      expect(screen.getByRole("button", { name: "Collapse conversations sidebar" })).toBeVisible();
+      act(() => useSourcesPanelStore.getState().open([]));
+      expect(screen.getByRole("button", { name: "Expand conversations sidebar" })).toBeVisible();
+    } finally {
+      act(() => useSourcesPanelStore.getState().close());
+      bounds.mockRestore();
+    }
+  });
+
+  it("responds to container resizing without losing an explicit list preference", async () => {
+    let width = 1500;
+    const resize: Array<() => void> = [];
+    const originalObserver = global.ResizeObserver;
+    class Observer implements ResizeObserver {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        if (target.querySelector("[data-conversation-sidebar]")) {
+          resize.push(() => this.callback([], this));
+        }
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    global.ResizeObserver = Observer;
+    const bounds = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockImplementation(() => new DOMRect(0, 0, width, 800));
+    try {
+      mount();
+      await screen.findByRole("button", { name: "Collapse conversations sidebar" });
+      act(() => useSourcesPanelStore.getState().open([]));
+      expect(screen.getByRole("button", { name: "Collapse conversations sidebar" })).toBeVisible();
+      width = 1100;
+      act(() => resize.forEach((notify) => notify()));
+      expect(screen.getByRole("button", { name: "Expand conversations sidebar" })).toBeVisible();
+      width = 1500;
+      act(() => resize.forEach((notify) => notify()));
+      expect(screen.getByRole("button", { name: "Collapse conversations sidebar" })).toBeVisible();
+    } finally {
+      act(() => useSourcesPanelStore.getState().close());
+      global.ResizeObserver = originalObserver;
+      bounds.mockRestore();
+    }
+  });
+
+  it("makes the same temporary room for Files without changing a deliberate collapse", async () => {
+    const bounds = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(0, 0, 1100, 800));
+    try {
+      mount();
+      await screen.findByRole("button", { name: "Collapse conversations sidebar" });
+      act(() => useChatPanelStore.getState().setFilesOpen(true));
+      expect(screen.getByRole("button", { name: "Expand conversations sidebar" })).toBeVisible();
+      act(() => useChatPanelStore.getState().setFilesOpen(false));
+      expect(screen.getByRole("button", { name: "Collapse conversations sidebar" })).toBeVisible();
+    } finally {
+      act(() => useChatPanelStore.getState().setFilesOpen(false));
+      bounds.mockRestore();
+    }
+  });
+
+  it("keeps the list expanded when the desktop chat has enough width", async () => {
+    const bounds = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(0, 0, 1500, 800));
+    try {
+      mount();
+      await screen.findByRole("button", { name: "Collapse conversations sidebar" });
+      act(() => useSourcesPanelStore.getState().open([]));
+      expect(screen.getByRole("button", { name: "Collapse conversations sidebar" })).toBeVisible();
+    } finally {
+      act(() => useSourcesPanelStore.getState().close());
+      bounds.mockRestore();
+    }
+  });
+});
+
+it.each([
+  { locale: "en", messages: en, label: "Conversation title" },
+  { locale: "pl", messages: pl, label: "Tytuł rozmowy" },
+  { locale: "de", messages: de, label: de.chat.conversationTitle },
+  { locale: "tr", messages: tr, label: "Sohbet başlığı" },
+])(
+  "resolves the rename field label from the actual $locale catalog",
+  ({ locale, messages, label }) => {
+    const t = createTranslator({
+      locale,
+      messages,
+      namespace: "chat",
+      onError: (error) => {
+        throw error;
+      },
+    });
+    expect(t("conversationTitle")).toBe(label);
+  },
+);
+
+describe("one mobile conversation surface", () => {
+  it("replaces the list with sharing and restores the invoking action without a write", async () => {
+    const user = userEvent.setup();
+    act(() => useChatSidebarStore.getState().open());
+    mount();
+    const sheet = screen.getByRole("dialog", { name: "Chats" });
+    await within(sheet).findByText("Quarterly numbers");
+    const scroller = sheet.querySelector<HTMLDivElement>(".overflow-y-auto");
+    if (!scroller) throw new Error("Conversation scroller missing");
+    scroller.scrollTop = 120;
+    fireEvent.scroll(scroller);
+    await user.click(within(sheet).getByRole("button", { name: "Conversation actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Share" }));
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(within(sheet).getByRole("heading", { name: "Share conversation" })).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: "Back" }));
+    expect(within(sheet).getByRole("button", { name: "Conversation actions" })).toHaveFocus();
+    expect(sheet.querySelector<HTMLDivElement>(".overflow-y-auto")?.scrollTop).toBe(120);
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+
+  it("edits a title inside the existing sheet and cancels without a write", async () => {
+    const user = userEvent.setup();
+    act(() => useChatSidebarStore.getState().open());
+    mount();
+    const sheet = screen.getByRole("dialog", { name: "Chats" });
+    await within(sheet).findByText("Quarterly numbers");
+    await user.click(within(sheet).getByRole("button", { name: "Conversation actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Rename" }));
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    const field = within(sheet).getByRole("textbox", { name: "Rename" });
+    await waitFor(() => expect(field).toHaveFocus());
+    await user.clear(field);
+    await user.type(field, "Unsaved title");
+    await user.keyboard("{Escape}");
+    expect(apiClient.patch).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Chats" })).toBeVisible();
+    expect(within(sheet).getByRole("button", { name: "Conversation actions" })).toHaveFocus();
+    expect(within(sheet).getByText("Quarterly numbers")).toBeVisible();
+  });
+
+  it("replaces the list with search and returns without stacked open dialogs", async () => {
+    const user = userEvent.setup();
+    act(() => useChatSidebarStore.getState().open());
+    mount();
+    const sheet = screen.getByRole("dialog", { name: "Chats" });
+    await within(sheet).findByText("Quarterly numbers");
+    await user.click(within(sheet).getByRole("button", { name: "Search conversations" }));
+    const search = await screen.findByRole("dialog", { name: "Search conversations" });
+    await waitFor(() => expect(within(search).getByRole("combobox")).toHaveFocus());
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Chats" })).not.toBeInTheDocument();
+    await user.click(within(search).getByRole("button", { name: "Close" }));
+    const returned = await screen.findByRole("dialog", { name: "Chats" });
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(within(returned).getByRole("button", { name: "Search conversations" })).toHaveFocus();
+  });
 });

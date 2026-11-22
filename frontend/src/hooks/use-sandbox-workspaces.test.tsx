@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -92,4 +92,22 @@ describe("every file at once", () => {
 
     await waitFor(() => expect(result.current.error).toBe("Not permitted"));
   });
+});
+
+it("retries a failed aggregate file read on request", async () => {
+  vi.mocked(api.listAllWorkspaceFiles).mockRejectedValueOnce(new Error("Unavailable"));
+  const { result } = renderHook(() => useAllWorkspaceFiles(true), { wrapper });
+  await waitFor(() => expect(result.current.error).not.toBeNull());
+  vi.mocked(api.listAllWorkspaceFiles).mockResolvedValueOnce({
+    items: [],
+    total: 0,
+    workspaces_read: 0,
+    unreadable: 0,
+    truncated: false,
+  });
+  await act(async () => {
+    await result.current.refetch();
+  });
+  await waitFor(() => expect(result.current.error).toBeNull());
+  expect(result.current.listing?.items).toEqual([]);
 });

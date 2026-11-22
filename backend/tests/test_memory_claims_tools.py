@@ -368,6 +368,10 @@ class TestShare:
 
 
 class TestTheProfileInThePrompt:
+    @pytest.fixture(autouse=True)
+    def _no_notes(self, monkeypatch):
+        monkeypatch.setattr(memory_store, "list_files", AsyncMock(return_value=[]))
+
     async def test_a_private_run_is_shown_what_is_on_record(self, ledger, monkeypatch):
         monkeypatch.setattr(memory_store, "read_file", AsyncMock(return_value=None))
 

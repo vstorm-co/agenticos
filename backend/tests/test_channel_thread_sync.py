@@ -37,7 +37,9 @@ def sync(monkeypatch):
         message_id="current",
     )
     session = SimpleNamespace(conversation_id=uuid4(), thread_context_at=None)
-    bot = SimpleNamespace(id=uuid4(), organization_id=uuid4(), access_policy={"mode": "open"})
+    bot = SimpleNamespace(
+        id=uuid4(), organization_id=uuid4(), platform="mattermost", access_policy={"mode": "open"}
+    )
     directory = SimpleNamespace(
         history_page=AsyncMock(return_value=HistoryPage(scanned=0, posts=[]))
     )
@@ -68,6 +70,7 @@ async def test_a_late_mention_imports_prior_discussion_in_order_without_the_ques
     sync, platform
 ):
     sync.incoming.platform = platform
+    sync.bot.platform = platform
     sync.directory.history_page.return_value = HistoryPage(
         scanned=0,
         posts=[
@@ -91,6 +94,7 @@ async def test_later_mentions_only_import_the_delta_and_never_known_or_compacted
     sync, platform
 ):
     sync.incoming.platform = platform
+    sync.bot.platform = platform
     sync.session.thread_context_at = NOW - timedelta(seconds=5)
     sync.known.return_value = {"seen"}
     sync.directory.history_page.return_value = HistoryPage(

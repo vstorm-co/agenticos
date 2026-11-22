@@ -149,7 +149,10 @@ async def test_a_profile_is_bounded_text_and_a_scope_with_nothing_is_empty(
     )
 
     text = await runtime.profile_block(organization_id=org.id, scopes=scopes)
-    assert text == "- Prefers short answers (since 2026-11-01)"
+    assert text == (
+        "Included here: 0 facts, 1 preferences, 0 decisions. Use recall for more.\n"
+        "- [preference] Prefers short answers (since 2026-11-01)"
+    )
 
 
 async def test_recall_and_correct_stay_inside_the_scopes_given(db: AsyncSession) -> None:

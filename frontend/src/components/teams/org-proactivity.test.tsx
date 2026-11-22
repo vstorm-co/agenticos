@@ -283,6 +283,9 @@ describe("OrgProactivity", () => {
     await userEvent.click(screen.getByRole("combobox", { name: "Model" }));
     await userEvent.type(screen.getByPlaceholderText("Search models…"), "claude-next");
     await userEvent.click(screen.getByRole("option", { name: /^Use claude-next/ }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Connection settings · Anthropic · Default API" }),
+    );
     await userEvent.click(screen.getByRole("combobox", { name: "Key" }));
     await userEvent.click(screen.getByRole("option", { name: /Anthropic backup/ }));
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));

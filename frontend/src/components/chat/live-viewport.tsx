@@ -63,7 +63,15 @@ export function LiveViewport({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!holding || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (
+      !holding ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.altKey ||
+      event.nativeEvent.isComposing ||
+      event.nativeEvent.keyCode === 229
+    )
+      return;
     if (NAMED_KEYS.has(event.key)) {
       event.preventDefault();
       onCommand({ type: "key", key: event.key });

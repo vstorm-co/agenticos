@@ -85,7 +85,7 @@ describe("who may decide a parked tool call from the conversation", () => {
     expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
     // What is not a write stays: the banner and the arguments are how the reader
     // knows why the answer stopped, and they arrived over their own socket.
-    expect(screen.getByText("Tool approval required")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Tool approval required" })).toBeInTheDocument();
     expect(screen.getByText("Allow Send email?")).toBeInTheDocument();
     // Read, not edited: the arguments were a textarea whose contents were diffed
     // into an `edit` decision the backend never offered.

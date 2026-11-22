@@ -635,9 +635,18 @@ asserts the payload, as the `queued_fires` fixture in
 
 ## CI distribution
 
-The backend suite measures all application code once. The platform report still
-requires 100% coverage; `make coverage-all REUSE_COVERAGE=1` reports inherited
-code from the same data without running tests again.
+The backend suite runs in four isolated jobs, each with its own PostgreSQL,
+Redis and object store. Complete test files are assigned exactly once, initially
+balanced by source size. Each shard keeps up to four pytest workers and collects
+coverage without a partial-suite threshold. The required `test` job refuses any
+unsuccessful shard and missing, extra, empty or corrupt coverage data, then merges
+all four reports and applies the unchanged **100% platform coverage gate**.
+Coverage paths are relative so data from separate checkouts can be combined.
+
+JUnit reports and the 30 slowest test phases are retained per shard to support
+runtime-based tuning. File size is only an initial estimate; the actual speedup
+must be measured on CI. `make test` keeps its complete local suite and gate;
+`make coverage-all REUSE_COVERAGE=1` uses the merged data without rerunning tests.
 
 Frontend lint, production build and four test shards run independently. Shards
 retain file isolation and defer the unchanged coverage thresholds to one merged

@@ -121,13 +121,16 @@ describe("OrgSystemAgents", () => {
     expect(screen.getByRole("status", { name: "loading" })).toHaveAttribute("aria-busy", "true");
   });
 
-  it("says so when the roles could not be loaded, rather than reading as no settings", () => {
+  it("says so when the roles could not be loaded and retries without hiding settings", async () => {
     state.roles = undefined;
     state.failed = new Error("x");
 
     const { container } = render(<OrgSystemAgents org={ORG} />);
 
     expect(container).not.toBeEmptyDOMElement();
+    expect(screen.getByText("x")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "retry" }));
+    expect(state.refresh).toHaveBeenCalledOnce();
     expect(screen.queryByTestId("system-agent-memory_maintenance")).not.toBeInTheDocument();
   });
 
@@ -179,13 +182,10 @@ describe("OrgSystemAgents", () => {
 
   it("keeps service configuration and activity hidden until expanded", async () => {
     render(<OrgSystemAgents org={ORG} />);
-    expect(
-      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
-        name: "pick",
-        hidden: true,
-      }),
-    ).not.toBeVisible();
     const card = within(screen.getByTestId("system-agent-memory_maintenance"));
+    expect(card.queryByRole("button", { name: "pick" })).toBeNull();
+    expect(card.getByText("pick")).not.toBeVisible();
+    expect(card.getByText("pick").closest("[inert]")).toHaveAttribute("aria-hidden", "true");
     expect(card.getByText("noRuns")).not.toBeVisible();
     expect(card.getByText(/^spent:/)).not.toBeVisible();
     await userEvent.click(

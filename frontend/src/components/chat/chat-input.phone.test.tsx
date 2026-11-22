@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatInput } from "./chat-input";
 
@@ -47,7 +47,11 @@ async function openSheet() {
   await userEvent.click(await screen.findByRole("menuitem", { name: /Attach/ }));
 }
 
+afterEach(() => vi.restoreAllMocks());
+
 beforeEach(() => {
+  vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:phone-preview");
+  vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
   vi.clearAllMocks();
   env.shell = { platform: "android", version: "0.1.0", window: "main", vibrancy: false };
   env.sheet.mockImplementation(async () => null);

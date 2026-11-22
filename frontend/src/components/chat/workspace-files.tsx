@@ -1,19 +1,22 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
-import { AlertTriangle, Download, FolderOpen, Info, X } from "lucide-react";
+import { Download, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
+import { WorkspaceReadNotice } from "./workspace-read-notice";
+import { ChatSidePanel, ChatPanelHeader } from "./chat-side-panel";
 
 import { FileCard, FileViewer, FileIcon, PathTree } from "@/components/files";
 import { useConversationWorkspace } from "@/hooks";
+import { useChanged } from "@/hooks/use-changed";
 import { useWorkOnStore } from "@/stores/work-on-store";
 import { useShell } from "@/hooks/use-shell";
 import { isDesktopShell } from "@/lib/desktop/shell";
 import { useLocalWorkspace } from "@/hooks/use-desktop";
 import { useFilePreviewStore } from "@/stores";
+import { useChatPanelStore } from "@/stores/chat-panel-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import { getFileUrl } from "@/lib/file-api";
 import { cn, formatBytes } from "@/lib/utils";
@@ -30,6 +33,7 @@ import type { ConversationFile } from "@/lib/conversation-workspace-api";
 import type { ChatMessageFile } from "@/types";
 
 interface WorkspaceFilesProps {
+  beforeFirstMessage?: boolean;
   conversationId: string | null;
   /** Bumped when a turn ends, because a turn is what changes the files. */
   revision: number;
@@ -81,17 +85,21 @@ export function WorkspaceFiles({
   attachments,
   buttonSlot,
   overlay = false,
+  beforeFirstMessage = false,
 }: WorkspaceFilesProps) {
   const t = useTranslations("chat.files");
+  const controls = useTranslations("chat.controls");
   // A chat working on this computer keeps its files in the folder there, which
   // only the desktop app can list (#2305); everywhere else it is the server's.
   const shell = useShell();
   const target = useWorkOnStore((state) => state.targetFor(conversationId));
   const localRoot =
     isDesktopShell(shell) && target !== null && !target.computer_grant ? target.folder : null;
-  const cloud = useConversationWorkspace(localRoot === null ? conversationId : null);
+  const cloud = useConversationWorkspace(
+    !beforeFirstMessage && localRoot === null ? conversationId : null,
+  );
   const local = useLocalWorkspace(
-    localRoot,
+    beforeFirstMessage ? null : localRoot,
     t("onThisComputer", { folder: localRoot?.split(/[\\/]/).filter(Boolean).at(-1) ?? "" }),
   );
   const { workspace, error, refresh } = localRoot === null ? cloud : local;
@@ -99,11 +107,20 @@ export function WorkspaceFiles({
   const [open, setOpen] = useState(false);
   const sourcesOpen = useSourcesPanelStore((state) => state.isOpen);
   const closeSources = useSourcesPanelStore((state) => state.close);
-  const visible = open && !sourcesOpen;
+  const visible = open && !sourcesOpen && !beforeFirstMessage;
+  useEffect(() => {
+    if (overlay) return;
+    useChatPanelStore.getState().setFilesOpen(visible);
+    return () => useChatPanelStore.getState().setFilesOpen(false);
+  }, [visible, overlay]);
   const panelId = useId();
   const toggle = useRef<HTMLButtonElement>(null);
-  const reduceMotion = useReducedMotion();
+  const closePanel = useCallback(() => setOpen(false), []);
   const [reading, setReading] = useState<ConversationFile | null>(null);
+  if (useChanged(conversationId)) {
+    setOpen(false);
+    setReading(null);
+  }
   // The chat addresses files through its conversation, not through the workspace's
   // id: that route authorises by fetching the conversation, so somebody this chat
   // was shared with reaches the same files.
@@ -120,23 +137,9 @@ export function WorkspaceFiles({
     void refresh();
   }, [revision, refresh]);
 
-  // **Always drawn**, a new chat included, where the panel says what will land
-  // in it. It used to wait
-  // for the listing to report a workspace, and the reasoning was about flicker: a
-  // workspace has no row until a turn flushes one, so the button appeared as the id
-  // arrived, vanished when the listing said `none`, and came back when the turn
-  // ended - three states in one turn for a panel whose job is to sit still.
-  //
-  // Hiding it fixed the flicker by making the panel unreachable exactly when
-  // somebody wants it. A turn that writes a file and then parks for approval has
-  // not flushed anything, so the strip was absent for the whole time the file was
-  // the thing on screen; a page reload was the only way to get it back. The same
-  // gap swallowed uploads, which are written into the workspace before the agent
-  // has done anything at all.
-  //
-  // One icon answers "does this agent keep files" the moment somebody wonders. Flicker is solved where it belongs: the
-  // count only appears once there is something to count, so the button itself never
-  // changes shape.
+  // Keep the trigger stable while the workspace is created or a turn parks.
+  // The main chat disables it before its first message; embedded chats keep
+  // their existing access to pre-run uploads.
   const files = workspace?.items.filter((file) => !file.is_dir) ?? [];
 
   // An attachment an agent *with* a workspace already holds is one file, not
@@ -160,6 +163,7 @@ export function WorkspaceFiles({
     return ![...stored].some((name) => name.startsWith(`${prefix}-`));
   });
   const count = files.length + unstored.length;
+  const readIssue = error ?? workspace?.unreadable_reason ?? null;
 
   // Only for the server's workspace: the archive route is the conversation's, and a
   // folder on this computer is already a folder on this computer. Wherever the tree
@@ -182,12 +186,21 @@ export function WorkspaceFiles({
           <button
             ref={toggle}
             type="button"
+            disabled={beforeFirstMessage}
             aria-label={
               visible ? t("title") : count === 0 ? t("show") : t("showWithCount", { count })
             }
             aria-controls={panelId}
             aria-expanded={visible}
-            title={visible ? t("close") : count === 0 ? t("show") : t("showWithCount", { count })}
+            title={
+              beforeFirstMessage
+                ? controls("afterFirstMessage")
+                : visible
+                  ? t("close")
+                  : count === 0
+                    ? t("show")
+                    : t("showWithCount", { count })
+            }
             onClick={() => {
               if (sourcesOpen) {
                 closeSources();
@@ -195,7 +208,7 @@ export function WorkspaceFiles({
               } else setOpen((current) => !current);
             }}
             className={cn(
-              "text-muted-foreground hover:text-foreground hover:bg-accent/60 relative inline-flex size-8 items-center justify-center rounded-lg transition-colors",
+              "text-muted-foreground hover:text-foreground hover:bg-accent/60 relative inline-flex size-8 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-35",
               visible && "bg-foreground/[0.06] text-foreground",
             )}
           >
@@ -208,80 +221,61 @@ export function WorkspaceFiles({
           </button>,
           buttonSlot,
         )}
-      <AnimatePresence initial={false}>
-        {visible && (
-          <motion.aside
-            data-native-browser-blocked={overlay ? "" : undefined}
-            id={panelId}
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 288, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
-            className={cn(
-              "h-full shrink-0 overflow-hidden",
-              overlay && "bg-background shadow-card absolute inset-y-0 right-0 z-20 max-w-[85%]",
-            )}
-          >
-            <div className="border-border flex h-full min-h-0 w-72 flex-col border-l">
-              <div className="shrink-0 space-y-1 p-4 pb-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="flex items-center gap-2 text-sm font-medium">
-                    <FolderOpen className="h-4 w-4" aria-hidden />
-                    {t("title")}
-                  </p>
-                  {zipFolder && (
+      {visible && (
+        <ChatSidePanel
+          label={t("title")}
+          sizing="sources"
+          panelId={panelId}
+          contained={overlay}
+          onClose={closePanel}
+        >
+          {({ fullscreen, toggleFullscreen }) => (
+            <>
+              <ChatPanelHeader
+                title={t("title")}
+                icon={<FolderOpen className="size-4" />}
+                closeLabel={t("close")}
+                onClose={closePanel}
+                contained={overlay}
+                fullscreen={fullscreen}
+                toggleFullscreen={toggleFullscreen}
+                actions={
+                  zipFolder && (
                     <button
                       type="button"
                       title={t("downloadAll")}
+                      aria-label={t("downloadAll")}
                       onClick={() => zipFolder("")}
-                      className="text-muted-foreground hover:text-foreground ml-auto inline-flex items-center gap-1 rounded-md p-1 text-xs"
+                      className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 shrink-0 items-center justify-center rounded-lg"
                     >
-                      <Download className="h-3.5 w-3.5" aria-hidden />
-                      {t("downloadAll")}
+                      <Download className="size-4" aria-hidden />
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    aria-label={t("close")}
-                    onClick={() => {
-                      setOpen(false);
-                      toggle.current?.focus();
-                    }}
-                    className="text-muted-foreground hover:text-foreground rounded-md p-1"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                {workspace !== null && workspace.backend !== "none" && (
-                  <p className="text-muted-foreground text-xs">
-                    {workspace.owner_label}
-                    {workspace.backend === "state" && workspace.bytes_total > 0 && (
-                      <> · {t("storedSuffix", { size: formatBytes(workspace.bytes_total) })}</>
-                    )}
-                  </p>
-                )}
-              </div>
-
-              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4">
+                  )
+                }
+                subtitle={
+                  workspace !== null && workspace.backend !== "none" ? (
+                    <>
+                      {workspace.owner_label}
+                      {workspace.backend === "state" && workspace.bytes_total > 0 && (
+                        <> · {t("storedSuffix", { size: formatBytes(workspace.bytes_total) })}</>
+                      )}
+                    </>
+                  ) : undefined
+                }
+              />
+              <div className="min-h-0 flex-1 scrollbar-thin space-y-4 overflow-y-auto overscroll-contain p-4">
                 {conversationId === null && (
                   <p className="text-muted-foreground text-xs">{t("beforeStart")}</p>
                 )}
 
-                {error !== null && (
-                  <div className="text-destructive flex items-start gap-2 text-xs">
-                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                    <p>{error}</p>
-                  </div>
-                )}
-
-                {/* Not red, and not beside "nothing yet". A host that keeps no files on disk
-          is a configuration somebody chose, with a one-line fix this message names
-          - and saying "no files" as well would be the second of two wrong answers. */}
-                {workspace?.unreadable_reason != null && (
-                  <div className="text-muted-foreground flex items-start gap-2 text-xs">
-                    <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                    <p>{workspace.unreadable_reason}</p>
-                  </div>
+                {readIssue !== null && (
+                  <WorkspaceReadNotice
+                    detail={readIssue}
+                    code={error === null ? workspace?.unreadable_code : undefined}
+                    onRetry={refresh}
+                    cloud={localRoot === null}
+                    failed={error !== null}
+                  />
                 )}
 
                 {/* Two different answers, and they were one. "Nothing yet" is right for a
@@ -352,10 +346,10 @@ export function WorkspaceFiles({
                   />
                 )}
               </div>
-            </div>
-          </motion.aside>
-        )}
-      </AnimatePresence>
+            </>
+          )}
+        </ChatSidePanel>
+      )}
     </>
   );
 }

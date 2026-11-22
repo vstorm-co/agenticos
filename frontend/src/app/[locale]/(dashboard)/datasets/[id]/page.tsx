@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import {
   ArrowLeft,
   ClipboardCheck,
@@ -123,7 +123,14 @@ export default function DatasetPage({ params }: PageProps) {
   const [gradingRestore, setGradingRestore] = useState<{ value: GradingCopy; at: number }>();
   const [restoring, setRestoring] = useState<UnsavedCopy | null>(null);
   const restoringCase = useDatasetCase(id, restoring?.place.slice("case:".length) ?? null);
-  const { dataset, fetchedAt, error: datasetError, update, remove } = useDataset(id);
+  const {
+    dataset,
+    fetchedAt,
+    error: datasetError,
+    refetch: refetchDataset,
+    update,
+    remove,
+  } = useDataset(id);
   // Every read behind the Evals tab and the run it starts takes runs:view.
   const canViewRuns = usePermissions().can(Perm.runsView);
   const { versions } = useDatasetVersions(id);
@@ -173,7 +180,12 @@ export default function DatasetPage({ params }: PageProps) {
     return <ResourceUnavailable back={ROUTES.DATASETS} label={tc("back")} />;
   }
   if (datasetError) {
-    return <ErrorState description={getErrorMessage(datasetError, tErrors)} />;
+    return (
+      <ErrorState
+        description={getErrorMessage(datasetError, tErrors)}
+        cta={{ label: tc("retry"), onClick: () => void refetchDataset() }}
+      />
+    );
   }
   if (dataset === undefined) {
     return <DatasetLoading />;
@@ -217,7 +229,7 @@ export default function DatasetPage({ params }: PageProps) {
       : cases.add.mutateAsync(content);
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <DatasetHeader
         dataset={dataset}
         version={version}
@@ -249,14 +261,14 @@ export default function DatasetPage({ params }: PageProps) {
         aria-modal={expanded || undefined}
         aria-label={dataset.name}
         className={cn(
-          "flex min-w-0 flex-1 flex-col",
+          "flex min-h-0 min-w-0 flex-1 flex-col",
           expanded && "bg-background fixed inset-0 z-40 overflow-y-auto p-4 sm:p-6",
         )}
       >
         <Tabs
           value={primaryTab}
           onValueChange={(next) => showTab(next === "results" ? "review" : next)}
-          className="flex flex-1 flex-col gap-4"
+          className="flex min-h-0 flex-1 flex-col gap-4"
         >
           {expanded && <h2 className="mb-4 text-lg font-semibold break-words">{dataset.name}</h2>}
           <div className="flex min-w-0 items-center gap-2">
@@ -283,7 +295,7 @@ export default function DatasetPage({ params }: PageProps) {
             </TabsList>
             <WorkspaceFullscreenButton expanded={expanded} onToggle={toggle} />
           </div>
-          <TabsContent value="cases" className="flex flex-1 flex-col gap-4">
+          <TabsContent value="cases" className="flex min-h-0 flex-1 flex-col gap-4">
             {shown === "generated" && dataset.can_edit ? (
               <>
                 <div className="flex flex-wrap items-center gap-3">
@@ -360,7 +372,7 @@ export default function DatasetPage({ params }: PageProps) {
                     onGenerate={editable ? () => setGenerating(true) : undefined}
                   />
                 ) : (
-                  <div className="flex flex-1 flex-col gap-4">
+                  <div className="flex min-h-0 flex-1 flex-col gap-4">
                     <CasesTable
                       cases={cases.cases}
                       offset={page * PAGE_SIZE}
@@ -369,6 +381,7 @@ export default function DatasetPage({ params }: PageProps) {
                       onRemove={editable ? (item) => cases.remove.mutate(item.case_id) : undefined}
                     />
                     <Pager
+                      showSinglePage
                       page={page}
                       pageCount={pageCount}
                       matched={cases.total}
@@ -386,30 +399,35 @@ export default function DatasetPage({ params }: PageProps) {
           <TabsContent
             value="settings"
             forceMount
-            className="flex flex-1 flex-col data-[state=inactive]:hidden"
+            className="flex w-full max-w-5xl flex-1 flex-col gap-6 data-[state=inactive]:hidden"
           >
-            <GradingPanel
-              dataset={dataset}
-              fetchedAt={fetchedAt}
-              onContinue={canViewRuns && dataset.can_run ? () => showTab("evals") : undefined}
-              onDirtyChange={setGradingUnsaved}
-              localCopy={dataset.can_edit ? keep("grading") : undefined}
-              restore={gradingRestore}
-            />
+            <section className="space-y-3" aria-labelledby="dataset-grading-heading">
+              <h2 id="dataset-grading-heading" className="text-sm font-medium">
+                {t("scoring.title")}
+              </h2>
+              <GradingPanel
+                dataset={dataset}
+                fetchedAt={fetchedAt}
+                onContinue={canViewRuns && dataset.can_run ? () => showTab("evals") : undefined}
+                onDirtyChange={setGradingUnsaved}
+                localCopy={dataset.can_edit ? keep("grading") : undefined}
+                restore={gradingRestore}
+              />
+            </section>
             {dataset.can_edit && (
-              <section className="mt-6 space-y-4">
+              <section className="space-y-3 border-t pt-6">
                 <div>
-                  <h2 className="text-base font-semibold">{t("workspace.helpers")}</h2>
+                  <h2 className="text-sm font-medium">{t("workspace.helpers")}</h2>
                   <p className="text-muted-foreground mt-1 text-sm">{t("workspace.helpersHint")}</p>
                 </div>
-                <div className="grid items-stretch gap-4 xl:grid-cols-2">
+                <div className="grid items-start gap-4 lg:grid-cols-2">
                   <HelperSettings dataset={dataset} kind="generator" />
                   <HelperSettings dataset={dataset} kind="improver" />
                 </div>
               </section>
             )}
           </TabsContent>
-          <TabsContent value="results" className="flex flex-1 flex-col gap-4">
+          <TabsContent value="results" className="flex min-h-0 flex-1 flex-col gap-4">
             <div className="flex flex-wrap gap-2" aria-label={t("workspace.results")}>
               {canViewRuns && (
                 <Button

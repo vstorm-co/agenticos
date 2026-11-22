@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useId, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -203,7 +205,7 @@ function CaseGroup({
       </section>
     );
   return (
-    <details
+    <NativeDisclosure
       data-tour={`case-group-${group}`}
       open={expanded || undefined}
       className="group min-w-0 border-t"
@@ -217,7 +219,7 @@ function CaseGroup({
         {t(`caseSection.${group}`)}
       </summary>
       <div className="space-y-4 pb-4">{children}</div>
-    </details>
+    </NativeDisclosure>
   );
 }
 

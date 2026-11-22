@@ -268,9 +268,7 @@ and are refused once it changed since, for a skill change as for a file.
 
 ## Describing a new agent { #describing-a-new-agent }
 
-The create dialog offers to describe the agent instead of filling in the form.
-The description goes to the [Architect](https://vstorm-co.github.io/agenticos/console/#the-assistant), which drafts agents and asks
-before it creates one; the result is an ordinary draft.
+The create dialog’s **Create with Architect** action opens the [Architect](https://vstorm-co.github.io/agenticos/console/#the-assistant) widget without sending a prompt or creating an agent. Describe what you need in that conversation; the Architect asks before creating an ordinary draft.
 
 ## Cost and budget { #cost-and-budget }
 
@@ -417,6 +415,8 @@ not accept, publish or replace the attempt's combined verdict.
 ### The Improve wizard { #the-improve-wizard }
 
 Open **Improve** from the agent’s **Evals** toolbar, from the **Needs attention** badge on the agent list, from the dashboard card or from the agent’s **Knowledge gaps** tab. When the current published version had answers rated down or failed runs in the last 30 days, Improve carries an attention dot. The dashboard card **Improvements waiting for you** lists sessions waiting for a decision.
+
+The same dot marks the agent's tabs that hold something waiting for you. **Evals** carries it for those reasons, a failing suite or an Improve session waiting for you, and **Knowledge gaps** for open gaps; hovering the tab, or a screen reader, says why. An agent marked **Needs attention** on the agent list or the dashboard card opens on its **Evals** tab.
 
 Every **Improve** opens the agent's open session - working, waiting for you, at its result, or stopped or failed - and starts a new one once that session is kept as a draft, published, discarded, cancelled or closed, after which it stays in the agent's [improvement history](#improvement-history). **End it and start a new one** beside an open session ends it first.
 

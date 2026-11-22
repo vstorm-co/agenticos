@@ -1,5 +1,5 @@
 ---
-source_sha: "1f9d4ae97fcd"
+source_sha: "8e0da94ccb26"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -132,6 +132,8 @@ recibe el archivo en lugar del texto:
 | imagen | `BinaryContent` | `BinaryContent` **y** escrita; la referencia nombra la ruta |
 | tiff | página(s) PNG como `BinaryContent`, con el tope de páginas indicado | `.tiff` original escrito; página(s) PNG mostradas, con el tope de páginas indicado |
 | archivo comprimido (`.zip`, `.tar.gz`) | rechazado: al modelo se le dice que el agent no tiene workspace donde descomprimirlo, y nada de él llega al prompt | descomprimido en `uploads/<id>-<nombre>/`; la referencia nombra la carpeta y el principio del árbol |
+
+Si el espacio de trabajo no está disponible al adjuntar una imagen, el modelo recibe la imagen directamente dentro de los límites de bytes por imagen y por turno. El mensaje indica que el espacio de trabajo no está disponible.
 
 ### Archivos comprimidos { #archives }
 
