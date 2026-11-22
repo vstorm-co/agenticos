@@ -237,7 +237,5 @@ class RoutineFindingService:
             )
         from app.services.proactive import ProactiveService
 
-        await ProactiveService(self.db).queue_context_change(
-            run.organization_id, user_id, event_id=f"finding:{origin_id}:{item.key}:{item.revision}"
-        )
+        await ProactiveService(self.db).queue_context_change(run.organization_id, user_id)
         return conversation.id

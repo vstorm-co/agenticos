@@ -1757,6 +1757,7 @@ def test_suggestion_kinds_match_what_the_look_proposes():
         "profile",
         "role_pack",
         "finding",
+        "personal",
     }
 
 

@@ -667,9 +667,7 @@ class TaskLifecycle:
             if person is not None
         }
         for person in people:
-            await ProactiveService(self.db).queue_context_change(
-                ctx.organization_id, person, event_id=f"task:{record.id}:{record.revision}"
-            )
+            await ProactiveService(self.db).queue_context_change(ctx.organization_id, person)
 
     async def _schedule(
         self,

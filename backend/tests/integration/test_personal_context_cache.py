@@ -481,6 +481,8 @@ async def test_context_cache_migration_round_trips_its_membership_contract(
     from alembic.operations import Operations
     from sqlalchemy import Connection, inspect
 
+    from app.db.base import Base
+
     spec = spec_from_file_location(
         "personal_context_migration",
         Path(__file__).parents[2] / "alembic/versions/0349_personal_work_context.py",
@@ -490,7 +492,9 @@ async def test_context_cache_migration_round_trips_its_membership_contract(
     spec.loader.exec_module(migration)
 
     def round_trip(connection: Connection) -> None:
-        with Operations.context(MigrationContext.configure(connection)):
+        with Operations.context(
+            MigrationContext.configure(connection, opts={"target_metadata": Base.metadata})
+        ):
             migration.downgrade()
             assert "personal_context_cache" not in inspect(connection).get_table_names()
             migration.upgrade()
@@ -698,3 +702,283 @@ async def test_routine_snapshot_keeps_actual_state_and_timezone_fields(db: Async
     assert row["is_active"] is False
     assert row["time_zone"] == "Europe/Warsaw"
     assert isinstance(row["setup_required"], bool)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "surface", ["api", "embed", "schedule", "workflow", "follow_ups", "a2a", "eval", "proactive"]
+)
+async def test_automated_inputs_are_not_personal_requests_or_activity(
+    db: AsyncSession, surface: str
+) -> None:
+    from datetime import UTC, datetime
+
+    user, org, agent, version, *_ = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user, input_tokens=10)
+    run.surface = surface
+    await _transcript(
+        db,
+        conversation,
+        run,
+        [("user", "Automated instruction"), ("assistant", "Automated result")],
+    )
+    await db.flush()
+    assert (
+        await cache.transcript_page(
+            db,
+            organization_id=org.id,
+            conversation_id=conversation.id,
+            after=-1,
+            since=datetime.min.replace(tzinfo=UTC),
+        )
+        == []
+    )
+    assert (await cache.usage(db, organization_id=org.id, user_id=user.id, time_zone="UTC"))[
+        "active_days"
+    ] == 0
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("reason", ["key", "publisher"])
+async def test_web_surface_does_not_override_credential_or_publisher_provenance(
+    db: AsyncSession, reason: str
+) -> None:
+    from datetime import UTC, datetime
+
+    user, org, agent, version, *_ = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user, input_tokens=10)
+    await _transcript(db, conversation, run, [("user", "An externally submitted request")])
+    before = await cache.conversation_revision(
+        db, organization_id=org.id, conversation_id=conversation.id
+    )
+    if reason == "key":
+        run.key_scopes = []
+    else:
+        run.initiated_by_publisher_fallback = True
+    await db.flush()
+    assert (
+        await cache.conversation_revision(
+            db, organization_id=org.id, conversation_id=conversation.id
+        )
+        != before
+    )
+    assert (
+        await cache.transcript_page(
+            db,
+            organization_id=org.id,
+            conversation_id=conversation.id,
+            after=-1,
+            since=datetime.min.replace(tzinfo=UTC),
+        )
+        == []
+    )
+
+
+async def test_context_changes_coalesce_and_keep_one_followup_to_an_active_scan(
+    db: AsyncSession,
+) -> None:
+    from app.db.models.background_job import BackgroundJob
+    from app.services.proactive import ProactiveService
+
+    user, org, _, _, model, _ = await _world(db)
+    org.proactive_enabled = True
+    org.proactive_model_profile_id = model.id
+    await db.flush()
+    service = ProactiveService(db)
+    first = await service.queue_context_change(org.id, user.id)
+    assert first is not None
+    assert await service.queue_context_change(org.id, user.id) is None
+    job = await db.get(BackgroundJob, first)
+    assert job is not None
+    job.status = "running"
+    await db.flush()
+    followup = await service.queue_context_change(org.id, user.id)
+    assert followup is not None and followup != first
+    assert await service.queue_context_change(org.id, user.id) is None
+    next_job = await db.get(BackgroundJob, followup)
+    assert next_job is not None and next_job.concurrency_key == job.concurrency_key
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("change", ["share", "source"])
+async def test_delivery_source_locks_hold_access_and_text_until_commit(
+    db: AsyncSession, change: str
+) -> None:
+    from sqlalchemy.exc import DBAPIError
+
+    from app.db.models.conversation_share import ConversationShare
+
+    user, org, agent, version, *_ = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    await _transcript(db, conversation, run, [("user", "A private request")])
+    db.add(
+        ConversationShare(
+            conversation_id=conversation.id,
+            shared_with=user.id,
+            shared_by=user.id,
+            permission="read",
+        )
+    )
+    await db.commit()
+    await cache.lock_delivery_sources(
+        db, organization_id=org.id, user_id=user.id, conversation_ids=[conversation.id]
+    )
+    statement = (
+        text("DELETE FROM conversation_shares WHERE conversation_id = :id")
+        if change == "share"
+        else text("UPDATE messages SET content = 'Changed' WHERE conversation_id = :id")
+    )
+    async with AsyncSession(bind=db.bind) as writer:
+        await writer.execute(text("SET LOCAL lock_timeout = '50ms'"))
+        with pytest.raises(DBAPIError, match="lock timeout"):
+            await writer.execute(statement, {"id": conversation.id})
+        await writer.rollback()
+        await db.commit()
+        await writer.execute(statement, {"id": conversation.id})
+        await writer.commit()
+
+
+@pytest.mark.security
+async def test_an_answer_after_erasure_survives_an_older_question_message(db: AsyncSession) -> None:
+    import json
+    from datetime import UTC, datetime, timedelta
+
+    from app.db.models.conversation import ToolCall
+    from app.services.proactive._personal import PersonalLook
+
+    user, org, agent, version, _, ctx = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user, input_tokens=10)
+    await _transcript(
+        db, conversation, run, [("user", "Forgotten request"), ("assistant", "Forgotten response")]
+    )
+    fence = datetime.now(UTC)
+    message = await db.scalar(
+        select(Message).where(
+            Message.conversation_id == conversation.id, Message.role == "assistant"
+        )
+    )
+    assert message is not None
+    await db.execute(
+        text("UPDATE messages SET created_at = :old WHERE conversation_id = :id"),
+        {"old": fence - timedelta(days=1), "id": conversation.id},
+    )
+    db.add(
+        ToolCall(
+            message_id=message.id,
+            tool_call_id=str(uuid4()),
+            tool_name="Question",
+            tool_id="ask_user_question",
+            args={"questions": [{"header": "When", "question": "When?"}]},
+            result=json.dumps({"When": ["Thursday 18:00"]}),
+            status="completed",
+            started_at=fence - timedelta(days=1),
+            completed_at=fence + timedelta(seconds=1),
+        )
+    )
+    await db.flush()
+    db.add(
+        ToolCall(
+            message_id=message.id,
+            tool_call_id=str(uuid4()),
+            tool_name="Question",
+            tool_id="ask_user_question",
+            args={"questions": [{"header": "Old", "question": "Forgotten?"}]},
+            result=json.dumps({"Old": ["Forgotten answer"]}),
+            status="completed",
+            started_at=fence - timedelta(days=1),
+            completed_at=fence - timedelta(hours=1),
+        )
+    )
+    await db.flush()
+    turns, receipts = await PersonalLook(db)._turns(ctx, conversation, fence)
+    assert [turn.text for turn in turns] == ["Thursday 18:00"]
+    assert len(receipts) == 1
+
+
+@pytest.mark.security
+async def test_channel_authors_and_identity_changes_never_fall_back_to_thread_owner(
+    db: AsyncSession,
+) -> None:
+    from datetime import UTC, datetime
+
+    from app.db.models.channel_identity import ChannelIdentity
+    from app.services.proactive._personal import PersonalLook
+
+    user, org, agent, version, _, ctx = await _world(db)
+    colleague, *_ = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user, input_tokens=10)
+    identity = ChannelIdentity(
+        platform="slack", platform_user_id=str(uuid4()), user_id=colleague.id, is_active=True
+    )
+    db.add(identity)
+    await db.flush()
+    await _transcript(db, conversation, run, [("user", "Please automate my work")])
+    await db.execute(
+        text("UPDATE messages SET channel_identity_id = :identity WHERE conversation_id = :id"),
+        {"identity": identity.id, "id": conversation.id},
+    )
+    before = await cache.conversation_revision(
+        db, organization_id=org.id, conversation_id=conversation.id
+    )
+    turns, _ = await PersonalLook(db)._turns(ctx, conversation, datetime.min.replace(tzinfo=UTC))
+    assert turns[0].speaker_id == str(colleague.id)
+    identity.is_active = False
+    await db.flush()
+    assert before != await cache.conversation_revision(
+        db, organization_id=org.id, conversation_id=conversation.id
+    )
+    turns, _ = await PersonalLook(db)._turns(ctx, conversation, datetime.min.replace(tzinfo=UTC))
+    assert turns[0].speaker_id == "unknown"
+
+
+async def test_extraction_segments_do_not_repeat_a_whole_threads_answer_history(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+    from datetime import UTC, datetime
+
+    from pydantic import BaseModel
+
+    from app.db.models.conversation import ToolCall
+    from app.schemas.personal_context import ContextDigest, PersonalReading
+    from app.services.proactive._personal import PersonalLook
+    from app.services.proactive._thinker import ProactiveThinker
+
+    user, org, agent, version, model, _ = await _world(db)
+    agent.slug = "agenticos"
+    org.proactive_enabled = True
+    org.proactive_model_profile_id = model.id
+    run, conversation = await _chat_run(db, org, agent, version, user, input_tokens=10)
+    await _transcript(db, conversation, run, [("assistant", "Questions")])
+    message = await db.scalar(select(Message).where(Message.conversation_id == conversation.id))
+    assert message is not None
+    for index in range(2):
+        db.add(
+            ToolCall(
+                message_id=message.id,
+                tool_call_id=str(uuid4()),
+                tool_name="Question",
+                tool_id="ask_user_question",
+                args={"questions": [{"header": "Answer", "question": "Details?"}]},
+                result=json.dumps({"Answer": [str(index) + "x" * 10000]}),
+                status="completed",
+                started_at=datetime.now(UTC),
+            )
+        )
+    await db.commit()
+    receipts_per_segment = []
+
+    async def think(self: ProactiveThinker, ctx: object, **kwargs: object) -> BaseModel:
+        output = kwargs["output_type"]
+        if output is ContextDigest:
+            prompt = kwargs["prompt"]
+            assert isinstance(prompt, str)
+            material = json.loads(prompt)["context"]
+            receipts_per_segment.append(len(material["tool_receipts"]))
+            return ContextDigest()
+        assert output is PersonalReading
+        return PersonalReading()
+
+    monkeypatch.setattr(ProactiveThinker, "think", think)
+    assert await PersonalLook(db).look(org.id, user.id) == 0
+    assert receipts_per_segment == [1, 1]

@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- Migration `0349_personal_work_context.py` adds a rebuildable, membership-private work index. Existing authorized history is indexed lazily within the configured proactivity budget; the migration makes no model calls. Deploy API and workers together.
+- Migration `0349_personal_work_context.py` adds a rebuildable, membership-private work index. Existing authorized history is indexed lazily within the configured proactivity budget; the migration makes no model calls. Deploy API and workers together. The migration also adds the `personal` proposal kind; downgrading removes these rebuildable proposals. Export them first if their decisions must be retained.
 
 ### Added
 

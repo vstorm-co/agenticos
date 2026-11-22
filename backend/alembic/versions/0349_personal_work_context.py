@@ -17,6 +17,12 @@ depends_on = None
 
 
 def upgrade() -> None:
+    op.drop_constraint("ck_suggestion_kind", "suggestions", type_="check")
+    op.create_check_constraint(
+        "ck_suggestion_kind",
+        "suggestions",
+        "kind IN ('routine', 'agent', 'profile', 'role_pack', 'finding', 'personal')",
+    )
     op.create_table(
         "personal_context_cache",
         sa.Column("organization_id", sa.UUID(), nullable=False),
@@ -38,4 +44,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute("DELETE FROM suggestions WHERE kind = 'personal'")
+    op.drop_constraint("ck_suggestion_kind", "suggestions", type_="check")
+    op.create_check_constraint(
+        "ck_suggestion_kind",
+        "suggestions",
+        "kind IN ('routine', 'agent', 'profile', 'role_pack', 'finding')",
+    )
     op.drop_table("personal_context_cache")

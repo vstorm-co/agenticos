@@ -242,7 +242,19 @@ async def candidate(
         threads.setdefault(turn.thread_id, []).append(turn)
     for turns in threads.values():
         for part in chunks(turns):
-            result = await extract_context(reader, packet.model_copy(update={"messages": part}))
+            result = await extract_context(
+                reader,
+                packet.model_copy(
+                    update={
+                        "messages": part,
+                        "tool_receipts": [
+                            receipt
+                            for receipt in packet.tool_receipts
+                            if f"answer:{receipt['id']}" in {turn.id for turn in part}
+                        ],
+                    }
+                ),
+            )
             if result is None:
                 raise RuntimeError("No index output")
             digests.append(result)

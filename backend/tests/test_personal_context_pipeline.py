@@ -23,6 +23,7 @@ from app.services.proactive._context_pipeline import (
     fingerprint,
     propose_context,
     select_topics,
+    source_excerpt,
     supported,
     with_human_answers,
 )
@@ -99,7 +100,11 @@ class Reader:
     ) -> Result | None:
         assert instructions and material
         self.calls.append(stage)
-        value = self.outputs[stage]
+        value = (
+            self.outputs.get(stage, self.outputs.get("verify"))
+            if stage == "verify_starters"
+            else self.outputs[stage]
+        )
         return None if value is None else output_type.model_validate(value.model_dump())
 
 
@@ -527,3 +532,359 @@ async def test_attention_can_cite_a_current_project_record() -> None:
         [],
     )
     assert result is not None and result.opportunities == [proposed]
+
+
+async def test_an_existing_empty_board_is_a_valid_target_for_tracking_work() -> None:
+    value = packet(current_state={"task_boards": [{"id": "b", "owner": "a", "tasks": []}]})
+    proposed = card(kind="task", resource_ids=["b"])
+    result = await propose_context(
+        Reader(
+            propose=PersonalReading(opportunities=[proposed]),
+            verify=VerifiedReading(approved_identities=[proposed.identity]),
+        ),
+        value,
+        [],
+    )
+    assert result is not None and result.opportunities == [proposed]
+    assert "board:b" in evidence_sources(value)
+
+
+async def test_local_weekday_metadata_uses_the_profile_timezone() -> None:
+    class CapturingReader(Reader):
+        async def read[Result: BaseModel](
+            self, *, stage: str, instructions: str, material: object, output_type: type[Result]
+        ) -> Result | None:
+            assert isinstance(material, dict)
+            if stage == "propose":
+                facts = material["source_metadata"]["message:m"]
+                assert facts["local_date"] == "2026-11-20"
+                assert facts["local_isoweekday"] == 5
+            return await super().read(
+                stage=stage, instructions=instructions, material=material, output_type=output_type
+            )
+
+    turn = (
+        packet()
+        .messages[0]
+        .model_copy(update={"occurred_at": datetime(2026, 11, 19, 23, 30, tzinfo=UTC)})
+    )
+    value = packet(profile={"time_zone": "Europe/Warsaw"}, messages=[turn.model_dump()])
+    await propose_context(
+        CapturingReader(propose=PersonalReading()), value, [ContextDigest(topics=[topic()])]
+    )
+
+
+async def test_existing_table_metadata_can_support_a_recurring_work_proposal() -> None:
+    value = packet(current_state={"tables": [{"id": "finance", "name": "Finance Tasks"}]})
+    proposed = card(resource_ids=["finance"])
+    result = await propose_context(
+        Reader(
+            propose=PersonalReading(opportunities=[proposed]),
+            verify=VerifiedReading(approved_identities=[proposed.identity]),
+        ),
+        value,
+        [],
+    )
+    assert result is not None and result.opportunities == [proposed]
+    assert "table:finance" in evidence_sources(value)
+
+
+@pytest.mark.parametrize(
+    "case", ["assistant", "attributed", "web", "retained", "project", "anonymous"]
+)
+def test_source_speaker_uses_server_attribution_instead_of_a_shared_owner(case: str) -> None:
+    from uuid import uuid4
+
+    from app.db.models.agent_run import AgentRun
+    from app.db.models.conversation import Conversation, Message
+    from app.services.proactive._personal import source_speaker
+
+    owner, caller = uuid4(), uuid4()
+    conversation = Conversation(user_id=owner, project_id=uuid4() if case == "project" else None)
+    message = Message(
+        role="assistant" if case == "assistant" else "user",
+        author_user_id=caller if case == "attributed" else None,
+    )
+    run = (
+        AgentRun(surface="web", user_id=caller if case != "anonymous" else None)
+        if case in {"web", "anonymous"}
+        else None
+    )
+    expected = {
+        "assistant": "assistant",
+        "attributed": str(caller),
+        "web": str(caller),
+        "retained": str(owner),
+        "project": "unknown",
+        "anonymous": "unknown",
+    }[case]
+    assert source_speaker(message, run, conversation) == expected
+
+
+async def test_a_starter_verification_failure_preserves_failure_instead_of_silence() -> None:
+    assert (
+        await propose_context(
+            Reader(propose=PersonalReading(starters=["Review my tasks"]), verify_starters=None),
+            packet(),
+            [],
+        )
+        is None
+    )
+
+
+async def test_card_verification_does_not_borrow_another_threads_historical_state() -> None:
+    class ScopedReader(Reader):
+        async def read[Result: BaseModel](
+            self, *, stage: str, instructions: str, material: object, output_type: type[Result]
+        ) -> Result | None:
+            if stage == "verify":
+                assert isinstance(material, dict)
+                assert "message:other" not in material["original_sources"]
+                assert "message:m" in material["original_sources"]
+            return await super().read(
+                stage=stage, instructions=instructions, material=material, output_type=output_type
+            )
+
+    other = (
+        packet()
+        .messages[0]
+        .model_copy(
+            update={
+                "id": "other",
+                "thread_id": "unrelated",
+                "role": "assistant",
+                "speaker_id": "assistant",
+                "text": "An unrelated routine was paused last year.",
+            }
+        )
+    )
+    value = packet(messages=[packet().messages[0].model_dump(), other.model_dump()])
+    reader = ScopedReader(
+        propose=PersonalReading(opportunities=[card()]),
+        verify=VerifiedReading(approved_identities=[card().identity]),
+    )
+    result = await propose_context(
+        reader,
+        value,
+        [
+            ContextDigest(
+                topics=[
+                    topic(),
+                    topic(
+                        identity="other-job",
+                        evidence=[
+                            SourceEvidence(
+                                source_id="message:other", quote="An unrelated routine was paused"
+                            )
+                        ],
+                    ),
+                ]
+            )
+        ],
+    )
+    assert result is not None and result.opportunities == [card()]
+
+
+@pytest.mark.security
+async def test_extraction_cannot_cite_context_that_was_not_supplied_to_its_stage() -> None:
+    value = packet(memory=[{"id": "hidden", "statement": "A memory not shown to extraction"}])
+    with pytest.raises(ModelRetry):
+        await extract_context(
+            Reader(
+                extract=ContextDigest(
+                    topics=[
+                        topic(
+                            evidence=[
+                                SourceEvidence(
+                                    source_id="memory:hidden", quote="A memory not shown"
+                                )
+                            ]
+                        )
+                    ]
+                )
+            ),
+            value,
+        )
+
+
+@pytest.mark.security
+async def test_cached_source_fragments_cannot_fabricate_a_contiguous_quote() -> None:
+    turn = (
+        packet()
+        .messages[0]
+        .model_copy(
+            update={
+                "text": "first part\nsecond part",
+                "source_fragments": ["first part", "second part"],
+            }
+        )
+    )
+    sources = evidence_sources(packet(messages=[turn.model_dump()]))
+    invented = SourceEvidence(source_id="message:m", quote="part second")
+    assert not supported(invented, sources)
+    with pytest.raises(ValueError, match="original fragment"):
+        source_excerpt(invented, sources)
+    literal = SourceEvidence(source_id="message:m", quote="second part")
+    assert supported(literal, sources)
+    assert source_excerpt(literal, sources) == "second part"
+    contiguous = evidence_sources(
+        packet(messages=[turn.model_copy(update={"source_fragments": None}).model_dump()])
+    )
+    assert supported(invented, contiguous)
+
+
+async def test_verifier_retains_distinct_fragments_of_the_same_source() -> None:
+    class FragmentReader(Reader):
+        async def read[Result: BaseModel](
+            self, *, stage: str, instructions: str, material: object, output_type: type[Result]
+        ) -> Result | None:
+            if stage == "verify":
+                assert isinstance(material, dict)
+                assert set(material["original_sources"]["message:m"]) == {
+                    "Please prepare a team agenda every Thursday.",
+                    "Deliver it to my private Inbox.",
+                }
+            return await super().read(
+                stage=stage, instructions=instructions, material=material, output_type=output_type
+            )
+
+    fragments = ["Please prepare a team agenda every Thursday.", "Deliver it to my private Inbox."]
+    turn = (
+        packet()
+        .messages[0]
+        .model_copy(update={"text": "\n".join(fragments), "source_fragments": fragments})
+    )
+    advice = card(
+        evidence=[
+            evidence().model_dump(),
+            {"source_id": "message:m", "quote": "Deliver it to my private Inbox."},
+        ]
+    )
+    result = await propose_context(
+        FragmentReader(
+            propose=PersonalReading(opportunities=[advice]),
+            verify=VerifiedReading(approved_identities=[advice.identity]),
+        ),
+        packet(messages=[turn.model_dump()]),
+        [ContextDigest(topics=[topic()])],
+    )
+    assert result is not None and result.opportunities == [advice]
+
+
+@pytest.mark.parametrize("thread", ["t", "unrelated", None])
+async def test_card_verifier_receives_only_related_question_receipts(thread: str | None) -> None:
+    class ReceiptReader(Reader):
+        async def read[Result: BaseModel](
+            self, *, stage: str, instructions: str, material: object, output_type: type[Result]
+        ) -> Result | None:
+            if stage == "verify":
+                assert isinstance(material, dict)
+                assert ("receipt:answer" in material["original_sources"]) is (thread == "t")
+            return await super().read(
+                stage=stage, instructions=instructions, material=material, output_type=output_type
+            )
+
+    value = packet(tool_receipts=[receipt(thread_id=thread), {"id": None}])
+    result = await propose_context(
+        ReceiptReader(
+            propose=PersonalReading(opportunities=[card()]),
+            verify=VerifiedReading(approved_identities=[card().identity]),
+        ),
+        value,
+        [ContextDigest(topics=[topic()])],
+    )
+    assert result is not None and result.opportunities == [card()]
+
+
+async def test_card_verifier_keeps_an_answer_cited_without_thread_metadata() -> None:
+    advice = card(
+        evidence=[
+            SourceEvidence(source_id="message:answer:answer", quote="When: thu 18").model_dump()
+        ]
+    )
+
+    class AnswerReader(Reader):
+        async def read[Result: BaseModel](
+            self, *, stage: str, instructions: str, material: object, output_type: type[Result]
+        ) -> Result | None:
+            if stage == "verify":
+                assert isinstance(material, dict)
+                assert "receipt:answer" in material["original_sources"]
+            return await super().read(
+                stage=stage, instructions=instructions, material=material, output_type=output_type
+            )
+
+    result = await propose_context(
+        AnswerReader(
+            propose=PersonalReading(opportunities=[advice]),
+            verify=VerifiedReading(approved_identities=[advice.identity]),
+        ),
+        packet(tool_receipts=[receipt()]),
+        [],
+    )
+    assert result is not None and result.opportunities == [advice]
+
+
+@pytest.mark.parametrize("latest_state", ["completed", "open"])
+def test_latest_topic_state_uses_source_chronology_not_conversation_order(
+    latest_state: str,
+) -> None:
+    from datetime import timedelta
+
+    old = packet().messages[0]
+    latest = old.model_copy(
+        update={"id": "new", "thread_id": "another", "occurred_at": NOW + timedelta(hours=1)}
+    )
+    value = packet(messages=[latest.model_dump(), old.model_dump()])
+    recent = topic(
+        state=latest_state, evidence=[{"source_id": "message:new", "quote": evidence().quote}]
+    )
+    older = topic(state="open" if latest_state == "completed" else "completed")
+    result = select_topics([ContextDigest(topics=[recent]), ContextDigest(topics=[older])], value)
+    assert len(result) == (1 if latest_state == "open" else 0)
+
+
+async def test_proposal_receipt_retrieval_does_not_send_unrelated_answer_history() -> None:
+    class BoundedReader(Reader):
+        async def read[Result: BaseModel](
+            self, *, stage: str, instructions: str, material: object, output_type: type[Result]
+        ) -> Result | None:
+            if stage == "propose":
+                assert isinstance(material, dict)
+                assert "receipt:answer" not in material["sources"]
+                assert "message:answer:answer" not in material["sources"]
+            return await super().read(
+                stage=stage, instructions=instructions, material=material, output_type=output_type
+            )
+
+    assert (
+        await propose_context(
+            BoundedReader(propose=PersonalReading()),
+            packet(tool_receipts=[receipt(thread_id="old")]),
+            [ContextDigest(topics=[topic()])],
+        )
+        == PersonalReading()
+    )
+
+
+@pytest.mark.parametrize("verified", ["approved", "repaired", "human_hour"])
+async def test_a_model_cannot_promote_an_assistants_hour_to_a_human_choice(verified: str) -> None:
+    value = packet()
+    if verified == "human_hour":
+        turn = value.messages[0].model_copy(update={"text": value.messages[0].text + " At 18:00."})
+        value = value.model_copy(update={"messages": [turn]})
+    proposed = card(
+        chat_prompt="Set it up every Thursday at 18:00.", proposed_schedule="Thursday 18:00"
+    )
+    checked = (
+        VerifiedReading(corrections=[card()])
+        if verified == "repaired"
+        else VerifiedReading(approved_identities=[proposed.identity])
+    )
+    result = await propose_context(
+        Reader(propose=PersonalReading(opportunities=[proposed]), verify=checked),
+        value,
+        [ContextDigest(topics=[topic()])],
+    )
+    assert result is not None
+    assert len(result.opportunities) == (0 if verified == "approved" else 1)

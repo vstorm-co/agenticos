@@ -1,5 +1,5 @@
 ---
-source_sha: "976d6900df53"
+source_sha: "baecaa006c9c"
 ---
 
 # La consola { #the-console }
@@ -688,7 +688,7 @@ un clic. Sáltate una pregunta, o pide algo real, y hará el trabajo en su lugar
 
 **Asistencia personal.** Cuando la organización la activa, la plataforma combina
 conversaciones accesibles con memoria del ámbito permitido, perfil, proyectos visibles,
-tareas privadas o asignadas, rutinas actuales y decisiones anteriores del Inbox.
+tareas privadas o asignadas, rutinas actuales, metadatos de tablas visibles y decisiones anteriores del Inbox. Los registros de tablas solo se leen como tareas con un esquema definido.
 Los cambios relevantes programan una actualización en segundo plano; la revisión
 matinal permanece como respaldo. El historial se indexa por fragmentos con citas
 vinculadas a sus fuentes. Los fragmentos sin cambios reutilizan sus puntos de control;

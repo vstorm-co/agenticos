@@ -851,3 +851,18 @@ async def test_project_sandbox_selection_refuses_inactive_unavailable_and_unauth
             pytest.raises(AuthorizationError),
         ):
             await service.create(_ctx(), ProjectCreate(name="Build", sandbox_connection_id=host.id))
+
+
+async def test_a_project_edit_refreshes_only_the_authenticated_person() -> None:
+    project = _project()
+    service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_EDIT)
+    ctx = _ctx()
+    with (
+        patch.object(module.project_repo, "update", new=AsyncMock(return_value=project)),
+        patch.object(module, "record_audit", new=AsyncMock()),
+        patch(
+            "app.services.proactive.ProactiveService.queue_context_change", new=AsyncMock()
+        ) as queue,
+    ):
+        assert await service.update(ctx, project.id, ProjectUpdate(name="Updated")) is project
+    queue.assert_awaited_once_with(ORG, ctx.user_id)

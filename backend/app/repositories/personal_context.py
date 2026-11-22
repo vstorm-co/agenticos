@@ -4,13 +4,15 @@ from collections.abc import Collection
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, delete, func, select
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import ColumnElement, delete, func, or_, select
+from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.agent_run import AgentRun
+from app.db.models.agent_run import CHANNEL_SURFACES, AgentRun, RunSurface
 from app.db.models.conversation import Message
 from app.db.models.personal_context import PersonalContextCache
+
+_INTERACTIVE_SURFACES = sorted({RunSurface.WEB, *CHANNEL_SURFACES})
 
 
 async def load(
@@ -68,6 +70,7 @@ async def conversation_revision(
     from sqlalchemy import Text, cast, func, literal
     from sqlalchemy.dialects.postgresql import aggregate_order_by
 
+    from app.db.models.channel_identity import ChannelIdentity
     from app.db.models.conversation import Conversation, ToolCall
 
     def hashed(value: ColumnElement[str]) -> ColumnElement[str]:
@@ -80,9 +83,21 @@ async def conversation_revision(
                 Message.role,
                 Message.content,
                 Message.author_user_id,
+                ChannelIdentity.user_id,
+                ChannelIdentity.is_active,
+                ChannelIdentity.authorization_generation,
                 Message.guardrail_refused,
                 AgentRun.status,
                 AgentRun.is_test,
+                AgentRun.surface,
+                AgentRun.user_id,
+                AgentRun.key_scopes,
+                AgentRun.parent_run_id,
+                AgentRun.initiated_by_publisher_fallback,
+                AgentRun.started_at,
+                AgentRun.input_tokens,
+                AgentRun.agent_version_id,
+                AgentRun.test_spec,
             ),
             Text,
         )
@@ -101,6 +116,7 @@ async def conversation_revision(
             AgentRun,
             AgentRun.id == Message.run_id,
         )
+        .outerjoin(ChannelIdentity, ChannelIdentity.id == Message.channel_identity_id)
         .where(Message.conversation_id == conversation_id)
         .scalar_subquery()
     )
@@ -113,6 +129,9 @@ async def conversation_revision(
                 ToolCall.presentation_kind,
                 ToolCall.args,
                 ToolCall.result,
+                ToolCall.mcp_connection_id,
+                ToolCall.started_at,
+                ToolCall.completed_at,
             ),
             Text,
         )
@@ -159,11 +178,11 @@ async def transcript_page(
     db: AsyncSession, *, organization_id: UUID, conversation_id: UUID, after: int, since: datetime
 ) -> list[tuple[Message, AgentRun | None]]:
     """Admitted text plus native identities, paged by immutable transcript ordinal."""
-    from sqlalchemy import and_, or_
+    from sqlalchemy import and_
     from sqlalchemy.orm import selectinload
 
-    from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
-    from app.db.models.conversation import Conversation, Message
+    from app.db.models.agent_run import AgentRun, RunStatus
+    from app.db.models.conversation import Conversation, Message, ToolCall
     from app.repositories.conversation import retained_prompt_admitted
 
     rows = await db.execute(
@@ -175,7 +194,17 @@ async def transcript_page(
             Conversation.organization_id == organization_id,
             Message.conversation_id == conversation_id,
             Message.ordinal > after,
-            Message.created_at >= since,
+            or_(
+                Message.created_at >= since,
+                select(ToolCall.id)
+                .where(
+                    ToolCall.message_id == Message.id,
+                    ToolCall.tool_id == "ask_user_question",
+                    ToolCall.completed_at >= since,
+                    ToolCall.status == "completed",
+                )
+                .exists(),
+            ),
             Message.guardrail_refused.is_(False),
             Message.role.in_(["user", "assistant"]),
             or_(
@@ -189,9 +218,10 @@ async def transcript_page(
                 ),
                 (AgentRun.status != RunStatus.RUNNING.value)
                 & AgentRun.is_test.is_(False)
+                & or_(AgentRun.key_scopes.is_(None), AgentRun.key_scopes == JSONB.NULL)
                 & AgentRun.initiated_by_publisher_fallback.is_(False)
                 & AgentRun.parent_run_id.is_(None)
-                & AgentRun.surface.not_in([RunSurface.EVAL.value, RunSurface.PROACTIVE.value]),
+                & AgentRun.surface.in_(_INTERACTIVE_SURFACES),
             ),
         )
         .order_by(Message.ordinal)
@@ -235,7 +265,7 @@ async def usage(
     """Observed retained activity is evidence of use, never proof of lifetime non-use."""
     from sqlalchemy import distinct, func
 
-    from app.db.models.agent_run import AgentRun, RunSurface
+    from app.db.models.agent_run import AgentRun
     from app.db.models.conversation import Message, ToolCall
 
     scope = (
@@ -243,7 +273,9 @@ async def usage(
         AgentRun.user_id == user_id,
         AgentRun.is_test.is_(False),
         AgentRun.parent_run_id.is_(None),
-        AgentRun.surface.not_in([RunSurface.EVAL.value, RunSurface.PROACTIVE.value]),
+        AgentRun.surface.in_(_INTERACTIVE_SURFACES),
+        or_(AgentRun.key_scopes.is_(None), AgentRun.key_scopes == JSONB.NULL),
+        AgentRun.initiated_by_publisher_fallback.is_(False),
     )
     days = await db.scalar(
         select(
@@ -270,3 +302,69 @@ async def usage(
         "observed_tools": list(names),
         "coverage": "retained_non_test_runs_only",
     }
+
+
+async def lock_delivery_sources(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, conversation_ids: Collection[UUID]
+) -> None:
+    """Hold existing DB access and cited source rows through checkpoint/delivery commit.
+
+    Shared row locks block grant revocation, subject unlinking and source edits.
+    New grants need no fence: they can only add access. External channel membership
+    still uses ConversationService's existing live/cache confirmation contract.
+    """
+    from app.db.models.channel_identity import ChannelIdentity
+    from app.db.models.conversation import Conversation, ToolCall
+    from app.db.models.conversation_share import ConversationShare
+    from app.db.models.group import GroupMember
+    from app.db.models.organization import Organization, OrganizationMember
+    from app.db.models.project import Project
+    from app.db.models.resource_grant import ResourceGrant
+    from app.db.models.user import User
+
+    conversations = select(Conversation.id).where(
+        Conversation.organization_id == organization_id, Conversation.id.in_(conversation_ids)
+    )
+    project_ids = select(Conversation.project_id).where(Conversation.id.in_(conversations))
+    group_ids = select(GroupMember.group_id).where(GroupMember.user_id == user_id)
+    messages = select(Message.id).where(Message.conversation_id.in_(conversations))
+    for statement in (
+        select(Organization.id).where(Organization.id == organization_id),
+        select(User.id).where(User.id == user_id),
+        select(OrganizationMember.user_id).where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+        ),
+        select(GroupMember.id).where(GroupMember.user_id == user_id),
+        select(ResourceGrant.id).where(
+            ResourceGrant.organization_id == organization_id,
+            or_(
+                ResourceGrant.subject_user_id == user_id,
+                ResourceGrant.subject_group_id.in_(group_ids),
+            ),
+        ),
+        select(Project.id).where(
+            Project.organization_id == organization_id, Project.id.in_(project_ids)
+        ),
+        conversations,
+        select(ConversationShare.id).where(
+            ConversationShare.conversation_id.in_(conversations),
+            ConversationShare.shared_with == user_id,
+        ),
+        select(ChannelIdentity.id).where(
+            or_(
+                ChannelIdentity.user_id == user_id,
+                ChannelIdentity.id.in_(
+                    select(Message.channel_identity_id).where(Message.id.in_(messages))
+                ),
+            )
+        ),
+        messages,
+        select(ToolCall.id).where(ToolCall.message_id.in_(messages)),
+        select(AgentRun.id).where(
+            AgentRun.organization_id == organization_id, AgentRun.conversation_id.in_(conversations)
+        ),
+    ):
+        await db.execute(
+            statement.order_by(statement.selected_columns[0]).with_for_update(read=True)
+        )

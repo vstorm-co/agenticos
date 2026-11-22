@@ -136,12 +136,8 @@ class ProactiveService:
 
         return await PersonalLook(self.db).look(organization_id, user_id, refresh_open=refresh_open)
 
-    async def queue_context_change(
-        self, organization_id: UUID, user_id: UUID, *, event_id: str
-    ) -> UUID | None:
-        """Debounce identical source revisions; serialize a person's reads with nightly work."""
-        from hashlib import sha256
-
+    async def queue_context_change(self, organization_id: UUID, user_id: UUID) -> UUID | None:
+        """Keep one queued refresh per person, including a follow-up to an active read."""
         from app.repositories import organization_repo, user_repo
 
         organization = await organization_repo.get_by_id(self.db, organization_id)
@@ -159,15 +155,13 @@ class ProactiveService:
             is None
         ):
             return None
-        revision = sha256(event_id.encode()).hexdigest()[:32]
         return await enqueue(
             self.db,
             THINK_FOR_PERSON,
             ThinkForPerson(organization_id=organization_id, user_id=user_id),
             organization_id=organization_id,
             run_after=datetime.now(UTC) + timedelta(seconds=30),
-            dedupe_key=f"personal-change:{organization_id}:{user_id}:{revision}",
-            dedupe_active=True,
+            dedupe_key=f"personal-change:{organization_id}:{user_id}",
             concurrency_key=_per_person("proactivity", organization_id, user_id),
         )
 

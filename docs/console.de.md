@@ -1,5 +1,5 @@
 ---
-source_sha: "976d6900df53"
+source_sha: "baecaa006c9c"
 ---
 
 # Die Konsole { #the-console }
@@ -712,8 +712,9 @@ um etwas Echtes, und er erledigt stattdessen die Arbeit.
 
 **Persönliche Unterstützung.** Wenn Ihre Organisation sie aktiviert, verbindet die
 Plattform zugängliche Gespräche mit Ihrer bereichsgebundenen Erinnerung, Ihrem Profil,
-sichtbaren Projekten, privaten oder zugewiesenen Aufgaben, aktuellen Routinen und
-früheren Inbox-Entscheidungen. Wichtige Änderungen lösen eine Aktualisierung im
+sichtbaren Projekten, privaten oder zugewiesenen Aufgaben, aktuellen Routinen,
+Metadaten sichtbarer Tabellen und früheren Inbox-Entscheidungen. Tabelleninhalte
+werden nur als typisierte Aufgaben gelesen. Wichtige Änderungen lösen eine Aktualisierung im
 Hintergrund aus; der morgendliche Durchlauf bleibt als zusätzliche Absicherung.
 Die Historie wird abschnittsweise mit Quellenzitaten indexiert. Unveränderte Abschnitte
 verwenden gespeicherte Prüfpunkte; eine unveränderte Auswertung ruft kein Modell auf.

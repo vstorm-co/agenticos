@@ -295,3 +295,20 @@ class TestTheRoutes:
         assert service.list_mine.await_args.kwargs == {"decided": True}
         assert restored.status_code == 200 and restored.json()["status"] == "open"
         service.restore.assert_awaited_once_with(CTX, dismissed.id)
+
+
+@pytest.mark.parametrize("operation", ["accept", "dismiss", "restore"])
+async def test_personal_proposal_decisions_never_create_or_settle_watch_outcomes(operation):
+    suggestion = _suggestion(
+        "personal",
+        {"personal_context": True, "category": "routine", "chat_prompt": "Help me configure it"},
+        status="dismissed" if operation == "restore" else "open",
+    )
+    with (
+        patch(f"{SERVICE}.suggestion_repo.get_own", new=AsyncMock(return_value=suggestion)),
+        patch(f"{SERVICE}.suggestion_repo.decide", new=AsyncMock(return_value=suggestion)),
+        patch(f"{SERVICE}.suggestion_repo.reopen", new=AsyncMock(return_value=suggestion)),
+        patch(f"{SERVICE}.OutcomeService") as outcomes,
+    ):
+        await getattr(SuggestionService(MagicMock()), operation)(CTX, suggestion.id)
+    outcomes.assert_not_called()

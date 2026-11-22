@@ -7198,6 +7198,7 @@ class AgentRunnerService:
         await self._queue_memory_extraction(finished, prepared)
         if (
             finished.user_id is not None
+            and finished.surface in {RunSurface.WEB, *CHANNEL_SURFACES}
             and not finished.initiated_by_publisher_fallback
             and not finished.is_test
             and finished.parent_run_id is None
@@ -7211,7 +7212,7 @@ class AgentRunnerService:
             try:
                 async with self.db.begin_nested():
                     await ProactiveService(self.db).queue_context_change(
-                        finished.organization_id, finished.user_id, event_id=f"run:{finished.id}"
+                        finished.organization_id, finished.user_id
                     )
             except Exception:
                 logger.exception(

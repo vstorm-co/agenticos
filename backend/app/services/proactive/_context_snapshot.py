@@ -23,6 +23,7 @@ from app.services.agent_registry import AgentRegistryService
 from app.services.conversation import ConversationService
 from app.services.project import ProjectService
 from app.services.tasks import TaskService
+from app.services.virtual_tables import VirtualTableService
 
 _JSON = TypeAdapter(dict[str, JsonValue])
 
@@ -103,6 +104,25 @@ async def current_packet(
         for row in routine_rows
     ]
     routines_complete = len(routine_rows) >= routine_total
+    table_page = await VirtualTableService(db).list_tables(ctx, skip=0, limit=100)
+    tables = [
+        json_record(
+            row.model_dump(
+                mode="json",
+                include={
+                    "id",
+                    "name",
+                    "description",
+                    "visibility",
+                    "owner_user_id",
+                    "record_count",
+                    "can_edit",
+                    "updated_at",
+                },
+            )
+        )
+        for row in table_page.items
+    ]
     tasks: list[dict[str, JsonValue]] = []
     boards: list[dict[str, JsonValue]] = []
     tasks_complete = True
@@ -217,6 +237,8 @@ async def current_packet(
                 ),
                 "routines_complete": routines_complete,
                 "tasks": tasks,
+                "tables": tables,
+                "tables_complete": len(tables) >= table_page.total,
                 "due_state": due_state,
                 "task_boards": boards,
                 "tasks_complete": tasks_complete,

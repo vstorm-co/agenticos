@@ -654,7 +654,7 @@ question, or ask for something real, and it does the work instead.
 
 **Personal assistance.** Where your organization enables it, the platform combines
 readable conversation history with your scoped memory, profile, visible projects,
-private or assigned tasks, current routines and earlier Inbox decisions. Meaningful
+private or assigned tasks, current routines, visible table metadata and earlier Inbox decisions. Table records are not read unless they are typed tasks. Meaningful
 changes queue a background refresh; the morning sweep remains a safety net.
 History is indexed in bounded segments with source-linked quotes. Unchanged
 segments reuse their checkpoints; an unchanged reading makes no model call.

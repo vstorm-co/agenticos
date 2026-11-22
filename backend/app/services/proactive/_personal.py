@@ -8,11 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext
 from app.db.locks import LockScope, hold_subject, hold_subject_shared
-from app.db.models.agent_run import RunStatus
-from app.db.models.conversation import Conversation
+from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.db.models.conversation import Conversation, Message
 from app.db.models.suggestion import SuggestionKind
 from app.repositories import (
     audit_log_repo,
+    conversation_repo,
     member_repo,
     organization_repo,
     suggestion_repo,
@@ -37,6 +38,27 @@ from app.services.proactive._thinker import ProactiveThinker
 
 _JSON = TypeAdapter(dict[str, JsonValue])
 MAX_NEW_CHUNKS = 8
+
+
+def source_speaker(
+    message: Message,
+    run: AgentRun | None,
+    conversation: Conversation,
+    *,
+    channel_user_id: UUID | None = None,
+) -> str:
+    """Use attributed turns or an admitted web caller; never guess a project author."""
+    if message.role != "user":
+        return "assistant"
+    if message.author_user_id is not None:
+        return str(message.author_user_id)
+    if message.channel_identity_id is not None:
+        return str(channel_user_id) if channel_user_id is not None else "unknown"
+    if run is not None and run.surface == RunSurface.WEB.value and run.user_id is not None:
+        return str(run.user_id)
+    if run is None and conversation.project_id is None and conversation.user_id is not None:
+        return str(conversation.user_id)
+    return "unknown"
 
 
 class PersonalModel:
@@ -107,6 +129,14 @@ class PersonalLook(NightlyLook):
                 [PersonRequest(message, run) for message, run in page if message.role == "user"],
             )
             admitted_runs = {row.message.run_id for row in admissible}
+            authors = await conversation_repo.authors_of(
+                self.db,
+                [
+                    message.channel_identity_id
+                    for message, _ in page
+                    if message.channel_identity_id is not None
+                ],
+            )
             for message, run in page:
                 if message.role == "user" and message.run_id not in admitted_runs:
                     continue
@@ -117,28 +147,35 @@ class PersonalLook(NightlyLook):
                     and run.input_tokens <= 0
                 ):
                     continue
-                speaker = (
-                    str(
-                        message.author_user_id
-                        or (conversation.user_id if conversation.project_id is None else "unknown")
-                    )
-                    if message.role == "user"
-                    else "assistant"
+                author = (
+                    authors.get(message.channel_identity_id)
+                    if message.channel_identity_id
+                    else None
                 )
-                turns.append(
-                    ContextTurn(
-                        id=str(message.id),
-                        thread_id=str(conversation.id),
-                        occurred_at=message.created_at,
-                        speaker_id=speaker,
-                        role="user" if message.role == "user" else "assistant",
-                        text=message.content,
+                if message.created_at >= since:
+                    turns.append(
+                        ContextTurn(
+                            id=str(message.id),
+                            thread_id=str(conversation.id),
+                            occurred_at=message.created_at,
+                            speaker_id=source_speaker(
+                                message,
+                                run,
+                                conversation,
+                                channel_user_id=author.user_id
+                                if author is not None and author.is_active
+                                else None,
+                            ),
+                            role="user" if message.role == "user" else "assistant",
+                            text=message.content,
+                        )
                     )
-                )
                 # Raw external results stay out. Native submitted values can be
                 # attributed only to a run actually admitted for this person.
                 if run is not None and run.user_id == ctx.user_id:
                     for call in message.tool_calls:
+                        if (call.completed_at or call.started_at) < since:
+                            continue
                         human = answered_question_turns([call])
                         if human:
                             text = "\n".join(value for role, value in human if role == "user")
@@ -156,6 +193,7 @@ class PersonalLook(NightlyLook):
                                 _JSON.validate_python(
                                     {
                                         "id": str(call.id),
+                                        "thread_id": str(conversation.id),
                                         "action": "ask_user_question",
                                         "status": "completed",
                                         "submitted_at": (
@@ -169,7 +207,12 @@ class PersonalLook(NightlyLook):
                             )
                         elif call.tool_id is not None and call.presentation_kind != "generic":
                             receipts.append(
-                                {"id": str(call.id), "action": call.tool_id, "status": call.status}
+                                {
+                                    "id": str(call.id),
+                                    "thread_id": str(conversation.id),
+                                    "action": call.tool_id,
+                                    "status": call.status,
+                                }
                             )
             after = page[-1][0].ordinal
             if len(page) < 100:
@@ -269,11 +312,20 @@ class PersonalLook(NightlyLook):
                     digest = ContextDigest.model_validate(existing)
                 else:
                     if used >= MAX_NEW_CHUNKS:
-                        await self._continue(ctx, fingerprint([revisions, part_key]))
+                        await self._continue(ctx)
                         return 0
                     digest = await extract_context(
                         reader,
-                        packet.model_copy(update={"messages": part, "tool_receipts": answers}),
+                        packet.model_copy(
+                            update={
+                                "messages": part,
+                                "tool_receipts": [
+                                    receipt
+                                    for receipt in answers
+                                    if f"answer:{receipt['id']}" in {turn.id for turn in part}
+                                ],
+                            }
+                        ),
                     )
                     if digest is None:
                         return 0
@@ -298,7 +350,7 @@ class PersonalLook(NightlyLook):
                 for ref in topic.evidence
             }
             quotes = {
-                source: "\n".join(
+                source: list(
                     dict.fromkeys(
                         ref.quote
                         for digest in fresh
@@ -310,7 +362,12 @@ class PersonalLook(NightlyLook):
                 for source in refs
             }
             kept = [
-                turn.model_copy(update={"text": quotes[f"message:{turn.id}"]})
+                turn.model_copy(
+                    update={
+                        "text": "\n".join(quotes[f"message:{turn.id}"]),
+                        "source_fragments": quotes[f"message:{turn.id}"],
+                    }
+                )
                 for turn in turns
                 if f"message:{turn.id}" in refs
             ]
@@ -362,6 +419,12 @@ class PersonalLook(NightlyLook):
             return 0
         from app.db.session import get_worker_db_context
 
+        await context_repo.lock_delivery_sources(
+            self.db,
+            organization_id=organization_id,
+            user_id=user_id,
+            conversation_ids=[row.id for row in conversations],
+        )
         async with get_worker_db_context() as fresh_db:
             fresh_member = await member_repo.get_active(
                 fresh_db, organization_id=organization_id, user_id=user_id
@@ -395,7 +458,7 @@ class PersonalLook(NightlyLook):
             packet.profile,
             packet.available_features,
         ):
-            await self._continue(ctx, fingerprint(current.model_dump(mode="json")))
+            await self._continue(ctx)
             return 0
         for row in conversations:
             current_revision = fingerprint(
@@ -410,7 +473,7 @@ class PersonalLook(NightlyLook):
                 ]
             )
             if current_revision != revisions[f"conversation:{row.id}"]:
-                await self._continue(ctx, current_revision)
+                await self._continue(ctx)
                 return 0
         if replacing and not await suggestion_repo.remove_open_generated(
             self.db, organization_id=organization_id, user_id=user_id, expected_ids=replacing
@@ -422,7 +485,7 @@ class PersonalLook(NightlyLook):
                 self.db,
                 organization_id=organization_id,
                 user_id=user_id,
-                kind=SuggestionKind.FINDING.value,
+                kind=SuggestionKind.PERSONAL.value,
                 title=card.title,
                 detail=card.detail,
                 payload={
@@ -483,6 +546,12 @@ class PersonalLook(NightlyLook):
         async with get_worker_db_context() as writer:
             await hold_subject(writer, LockScope.PERSONAL_DATA_PER_USER, ctx.user_id)
             await hold_subject_shared(writer, LockScope.MEMORY_PER_AGENT, starter_id)
+            await context_repo.lock_delivery_sources(
+                writer,
+                organization_id=ctx.organization_id,
+                user_id=ctx.user_id,
+                conversation_ids=[conversation_id],
+            )
             member = await member_repo.get_active(
                 writer, organization_id=ctx.organization_id, user_id=ctx.user_id
             )
@@ -522,10 +591,8 @@ class PersonalLook(NightlyLook):
             )
         return True
 
-    async def _continue(self, ctx: AuthContext, revision: str) -> None:
+    async def _continue(self, ctx: AuthContext) -> None:
         from app.services.proactive.facade import ProactiveService
 
         assert ctx.user_id is not None
-        await ProactiveService(self.db).queue_context_change(
-            ctx.organization_id, ctx.user_id, event_id=revision
-        )
+        await ProactiveService(self.db).queue_context_change(ctx.organization_id, ctx.user_id)

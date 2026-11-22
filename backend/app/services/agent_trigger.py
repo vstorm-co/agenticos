@@ -1623,9 +1623,7 @@ class AgentTriggerService:
                 },
             )
             await ProactiveService(self.db).queue_context_change(
-                ctx.organization_id,
-                trigger.created_by_user_id,
-                event_id=f"removed-routine:{trigger.id}",
+                ctx.organization_id, trigger.created_by_user_id
             )
         await agent_trigger_repo.delete(self.db, trigger)
         await record_audit(

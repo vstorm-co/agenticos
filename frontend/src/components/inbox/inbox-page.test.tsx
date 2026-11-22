@@ -262,7 +262,7 @@ describe("InboxPage", () => {
   });
 
   it("keeps personal context proposals out of routine results", async () => {
-    const personal = item("personal", { kind: "finding", payload: { personal_context: true } });
+    const personal = item("personal", { kind: "personal", payload: { personal_context: true } });
     const routine = item("routine", { kind: "finding" });
     state.open = [personal, routine];
     render(<InboxPage />);

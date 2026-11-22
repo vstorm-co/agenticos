@@ -1,5 +1,5 @@
 ---
-source_sha: "976d6900df53"
+source_sha: "baecaa006c9c"
 ---
 
 # Konsola { #the-console }
@@ -671,7 +671,7 @@ Pomiń pytanie albo poproś o coś konkretnego, a zamiast tego zrobi robotę.
 
 **Osobista pomoc.** Gdy organizacja ją włączy, platforma łączy dostępne rozmowy
 z Twoją pamięcią, profilem, widocznymi projektami, prywatnymi lub przypisanymi
-zadaniami, aktualnymi rutynami i wcześniejszymi decyzjami w Inboxie. Istotne zmiany
+zadaniami, aktualnymi rutynami, metadanymi widocznych tabel i wcześniejszymi decyzjami w Inboxie. Rekordy tabel są odczytywane tylko jako zadania o określonym schemacie. Istotne zmiany
 zlecają odświeżenie w tle; poranny przegląd pozostaje dodatkowym zabezpieczeniem.
 Historia jest indeksowana fragmentami z cytatami wskazującymi źródła. Niezmienione
 fragmenty korzystają z zapisanego indeksu, a niezmieniony odczyt nie wywołuje modelu.

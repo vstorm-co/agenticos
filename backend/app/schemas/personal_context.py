@@ -13,6 +13,7 @@ class ContextTurn(BaseModel):
     speaker_id: str
     role: Literal["user", "assistant"]
     text: str
+    source_fragments: list[str] | None = None
 
 
 class ContextPacket(BaseModel):
@@ -34,7 +35,7 @@ class SourceEvidence(BaseModel):
     source_id: str = Field(
         min_length=1,
         max_length=180,
-        description="Exact supplied key: message:<id>, receipt:<id>, task:<id>, memory:<id> or feature:<id>; never a bare UUID",
+        description="Exact supplied key: message:<id>, receipt:<id>, task:<id>, board:<id>, table:<id>, routine:<id>, project:<id>, agent:<id>, memory:<id> or feature:<id>; never a bare UUID",
     )
     quote: str = Field(min_length=4, max_length=500)
 
