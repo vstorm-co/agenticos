@@ -197,6 +197,20 @@ def with_human_answers(packet: ContextPacket, *, restore_cached: bool = False) -
             continue
         if at.tzinfo is None or (fence is not None and at <= fence):
             continue
+        original = next((turn for turn in turns if turn.id == f"answer:{identifier}"), None)
+        fragments = None
+        if restore_cached and original is not None:
+            # Runtime extraction stores value-only turns; adding headers must not
+            # invalidate their already-verified citations across several answers.
+            values_only = "\n".join(value for values in answers.values() for value in values)
+            normalized = " ".join(values_only.split())
+            labelled = " ".join(text.split())
+            if any(
+                " ".join(fragment.split()) not in labelled
+                and " ".join(fragment.split()) in normalized
+                for fragment in original.source_fragments or [original.text]
+            ):
+                fragments = [text, values_only]
         turns = [turn for turn in turns if turn.id != f"answer:{identifier}"]
         known.add(f"answer:{identifier}")
         turns.append(
@@ -207,6 +221,7 @@ def with_human_answers(packet: ContextPacket, *, restore_cached: bool = False) -
                 speaker_id=packet.subject_id,
                 role="user",
                 text=text,
+                source_fragments=fragments,
             )
         )
     return packet.model_copy(update={"messages": sorted(turns, key=lambda turn: turn.occurred_at)})

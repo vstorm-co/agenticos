@@ -22,6 +22,7 @@ from app.repositories import (
 from app.repositories import personal_context as context_repo
 from app.repositories.conversation import PersonRequest
 from app.schemas.personal_context import ContextDigest, ContextTurn, ConversationContext
+from app.services.channels.handback import ensure_channel_adapters
 from app.services.conversation import ConversationService
 from app.services.memory.extraction import answered_question_turns
 from app.services.notifications import NotificationService
@@ -89,6 +90,7 @@ class PersonalLook(NightlyLook):
     """The old contract remains replayable; production uses this source-aware path."""
 
     async def _conversations(self, ctx: AuthContext) -> list[Conversation]:
+        ensure_channel_adapters()
         service = ConversationService(self.db)
         rows: list[Conversation] = []
         skip = 0

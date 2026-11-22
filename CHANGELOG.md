@@ -117,6 +117,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Preserve authenticated value-only question-answer citations when restoring labelled answer context, so a confirmed multi-question automation request is not dropped before proposal generation.
+
+- Initialize channel adapters before personal Inbox workers verify current channel membership, so authorized Slack and Mattermost conversations are not omitted when the API lifespan has not run. Unavailable or revoked membership still refuses access.
+
 - Keep subscription account rows compact with a two-limit preview, expandable details and an account actions menu.
 
 - Restore the concrete subscription service, account and model in Builder model controls. Keep chat model search behind a magnifier beside the tabs, move refresh and the count into that row, and leave account details in Account to give models more space.
