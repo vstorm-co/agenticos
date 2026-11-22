@@ -36,6 +36,7 @@ from app.agents.audience import RunAudience
 from app.agents.memory_scope import claim_write_scope
 from app.db.locks import LockScope, hold_subject, hold_subject_shared
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.db.models.conversation import ToolCall
 from app.db.models.system_agent_profile import MEMORY_MAINTENANCE
 from app.repositories import (
     agent_repo,
@@ -259,22 +260,64 @@ async def _erased_since(db: AsyncSession, run: AgentRun) -> bool:
     )
 
 
-def transcript_for_extraction(messages: Iterable[tuple[str, str]]) -> list[dict[str, str]]:
-    """Return the newest eligible turns, oldest first, within the model input cap."""
-    turns: list[dict[str, str]] = []
-    remaining = MAX_TRANSCRIPT_CHARS
-    for role, raw_content in reversed(list(messages)):
-        content = raw_content.strip()
-        if role not in ("user", "assistant") or not content:
+def answered_question_turns(calls: Iterable[ToolCall]) -> list[tuple[str, str]]:
+    """Native completed questions only; remote tool text cannot impersonate a person.
+
+    The caller must already have admitted the run's human audience. Canonical
+    server-owned tool identity survives renames; untyped legacy calls are not proof.
+    Questions are context, while only submitted values are user evidence.
+    """
+    turns: list[tuple[str, str]] = []
+    for call in calls:
+        if (
+            call.tool_id != "ask_user_question"
+            or call.presentation_kind is not None
+            or call.mcp_connection_id is not None
+            or call.status != "completed"
+            or not call.result
+        ):
             continue
-        remaining -= 32  # Space for the role and object delimiters.
-        if remaining <= 0:
-            break
-        text = content[-remaining:]
-        turns.append({"role": role, "text": text})
-        remaining -= len(text)
-    turns.reverse()
+        try:
+            answers = json.loads(call.result)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(answers, dict):
+            continue
+        questions = call.args.get("questions")
+        if not isinstance(questions, list):
+            continue
+        for question in questions:
+            if not isinstance(question, dict):
+                continue
+            header, text = question.get("header"), question.get("question")
+            values = answers.get(header) if isinstance(header, str) else None
+            if not isinstance(text, str) or not isinstance(values, list):
+                continue
+            submitted = [value for value in values if isinstance(value, str) and value.strip()]
+            if submitted and len(submitted) == len(values):
+                turns.extend([("assistant", text), ("user", "\n".join(submitted))])
     return turns
+
+
+def transcript_for_extraction(messages: Iterable[tuple[str, str]]) -> list[dict[str, str]]:
+    """Keep human evidence first, spending only the remaining budget on assistants.
+
+    Choose recent turns within each priority, then restore their chronological
+    order. A long final answer must never evict the human fact being extracted.
+    """
+    source = list(messages)
+    selected: dict[int, dict[str, str]] = {}
+    remaining = MAX_TRANSCRIPT_CHARS
+    for wanted in ("user", "assistant"):
+        for index in range(len(source) - 1, -1, -1):
+            role, raw_content = source[index]
+            content = raw_content.strip()
+            if role != wanted or not content or remaining <= 32:
+                continue
+            text = content[-(remaining - 32) :]
+            selected[index] = {"role": role, "text": text}
+            remaining -= len(text) + 32
+    return [selected[index] for index in sorted(selected)]
 
 
 async def extract(
@@ -314,7 +357,22 @@ async def extract(
     messages = await conversation_repo.get_messages_by_run(
         db, run.id, limit=MAX_TRANSCRIPT_MESSAGES, newest=True
     )
-    turns = transcript_for_extraction((message.role, message.content) for message in messages)
+    calls = await conversation_repo.native_question_answers(
+        db, organization_id=organization_id, run_id=run.id
+    )
+    events = [
+        (message.created_at, index, [(message.role, message.content)])
+        for index, message in enumerate(messages)
+    ]
+    events.extend(
+        (
+            call.completed_at or call.started_at,
+            len(messages) + index,
+            answered_question_turns([call]),
+        )
+        for index, call in enumerate(calls)
+    )
+    turns = transcript_for_extraction(turn for _, _, event in sorted(events) for turn in event)
     utterances = [turn["text"] for turn in turns if turn["role"] == "user"]
     if not utterances:
         return 0

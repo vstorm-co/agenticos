@@ -3178,3 +3178,26 @@ async def known_channel_posts(
         )
     )
     return set(result.scalars())
+
+
+async def native_question_answers(
+    db: AsyncSession, *, organization_id: UUID, run_id: UUID
+) -> list[ToolCall]:
+    """Bounded human answers identified by server-owned identity, never an MCP name."""
+    result = await db.scalars(
+        select(ToolCall)
+        .join(Message, Message.id == ToolCall.message_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Conversation.organization_id == organization_id,
+            Message.run_id == run_id,
+            Message.guardrail_refused.is_(False),
+            ToolCall.tool_id == "ask_user_question",
+            ToolCall.presentation_kind.is_(None),
+            ToolCall.mcp_connection_id.is_(None),
+            ToolCall.status == "completed",
+        )
+        .order_by(ToolCall.started_at.desc(), ToolCall.id)
+        .limit(60)
+    )
+    return list(reversed(result.all()))

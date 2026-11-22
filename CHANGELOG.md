@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Memory maintenance preserves human statements before long assistant answers and reads authenticated native question answers without treating remote tool text as human evidence.
+
 ## [1.89.1] - 2026-11-22
 
 ### Fixed
