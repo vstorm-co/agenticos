@@ -1,6 +1,8 @@
 ---
-source_sha: "0f4095d9a4b0"
+source_sha: "09aa9fccc5b5"
 ---
+
+El selector conserva el encabezado, las pestañas del proveedor y la búsqueda en su sitio; las listas de modelos y proveedores se desplazan por separado. Los cambios de pestaña del dashboard mantienen su transición breve. Entrar en el dashboard o restaurar el historial no anima todo el panel. El carrusel del onboarding sigue disponible junto a una foto subida, con una explicación de que el color corresponde al avatar que aparece cuando la foto no está disponible.
 
 Los títulos, los controles de listas y los encabezados de tablas comparten una jerarquía compacta. Las tablas dentro de listas tienen un marco exterior y conservan la altura de sus filas al cargar. Los detalles del agente muestran sus tres últimas ejecuciones antes de la configuración, con los estados que requieren atención primero dentro de ese grupo. La inspección muestra el motivo registrado del fallo y conserva los eventos completos en secciones desplegables. El chat sitúa el nombre del modelo sobre su proveedor o cuenta personal. Proyectos aparece antes de Build en la navegación; Conocimiento empieza plegado y se abre para su página activa o por elección explícita.
 

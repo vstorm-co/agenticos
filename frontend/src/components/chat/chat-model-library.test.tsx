@@ -205,3 +205,12 @@ it("reserves the provider navigation while provider connections load", () => {
   expect(screen.getByRole("status")).toHaveTextContent("Provider");
   expect(screen.queryByRole("button", { name: "OpenRouter" })).not.toBeInTheDocument();
 });
+
+it("keeps loading feedback inside the list while search and provider tabs stay available", () => {
+  render(<ChatModelLibrary {...props()} loading />);
+  expect(within(screen.getByRole("listbox")).getByRole("status")).toHaveTextContent(
+    "Loading models",
+  );
+  expect(screen.getByRole("combobox")).toBeVisible();
+  expect(screen.getByRole("tab", { name: "Models" })).toBeVisible();
+});

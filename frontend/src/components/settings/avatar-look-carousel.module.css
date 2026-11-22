@@ -83,18 +83,23 @@
   color: var(--color-foreground);
   font-weight: 550;
 }
-:global(html[data-motion="full"]) .track {
+:global(html:not([data-motion="reduce"])) .track {
   scroll-behavior: smooth;
 }
-:global(html[data-motion="full"]) .face {
-  transition: transform var(--duration-panel) var(--ease-out);
+:global(html:not([data-motion="reduce"])) .face {
+  transition:
+    translate var(--duration-panel) var(--ease-out),
+    scale var(--duration-panel) var(--ease-out);
 }
-:global(html[data-motion="full"]) .track button:hover .face,
-:global(html[data-motion="full"]) .track button[aria-pressed="true"] .face {
-  transform: translateY(-3px);
+:global(html:not([data-motion="reduce"])) .track button:hover .face,
+:global(html:not([data-motion="reduce"])) .track button[aria-pressed="true"] .face {
+  translate: 0 -3px;
+}
+:global(html:not([data-motion="reduce"])) .track > div[data-current="true"] .face {
+  scale: 1.06;
 }
 @supports ((animation-timeline: view()) and (animation-range: entry)) {
-  :global(html[data-motion="full"]) .face {
+  :global(html:not([data-motion="reduce"])) .face {
     animation: avatar-arrive auto linear both;
     animation-timeline: view(inline);
   }

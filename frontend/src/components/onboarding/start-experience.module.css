@@ -458,20 +458,20 @@
     padding: 10px 8px;
   }
 }
-:global(html[data-motion="full"])
+:global(html:not([data-motion="reduce"]))
   .experience:not([data-onboarding-variant="classic"])
   :global([data-start-content] > section:not([hidden])) {
   animation: stage-forward var(--duration-base) var(--ease-out) both;
 }
-:global(html[data-motion="full"])
+:global(html:not([data-motion="reduce"]))
   .experience
   :global([data-start-frame][data-direction="back"] [data-start-content] > section:not([hidden])) {
   animation-name: stage-back;
 }
-:global(html[data-motion="full"]) .agentCard {
+:global(html:not([data-motion="reduce"])) .agentCard {
   animation: stage-forward var(--duration-slow) var(--ease-out) both;
 }
-:global(html[data-motion="full"]) .agentCard:nth-child(2) {
+:global(html:not([data-motion="reduce"])) .agentCard:nth-child(2) {
   animation-delay: calc(var(--duration-fast) / 2);
 }
 @keyframes stage-forward {

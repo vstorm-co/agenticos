@@ -1,6 +1,8 @@
 ---
-source_sha: "0f4095d9a4b0"
+source_sha: "09aa9fccc5b5"
 ---
+
+Die Modellauswahl behält Kopfzeile, Anbietertabs und Suche an ihrer Position; Modell- und Anbieterlisten scrollen unabhängig. Dashboard-Tabs behalten ihren kurzen Übergang. Beim Öffnen des Dashboards oder Wiederherstellen des Browserverlaufs wird nicht die gesamte Fläche animiert. Das Avatar-Karussell im Onboarding bleibt neben einem hochgeladenen Foto verfügbar. Ein Hinweis erklärt, dass die Farbe für den Avatar gilt, der ohne verfügbares Foto erscheint.
 
 Seitentitel, Listensteuerung und Tabellenköpfe verwenden eine kompakte Hierarchie. Tabellen in Listen haben einen äußeren Rahmen und behalten beim Laden ihre Zeilenhöhe. Die Agentendetails zeigen die letzten drei Läufe vor der Konfiguration, innerhalb dieser Gruppe mit Aufmerksamkeitszuständen zuerst. Die Laufansicht zeigt den gespeicherten Fehlergrund; vollständige Rohereignisse bleiben aufklappbar. Im Chat steht der Modellname über dem Anbieter oder persönlichen Konto. Projekte stehen vor Build in der Navigation; Wissen ist zunächst eingeklappt und öffnet sich für seine aktive Seite oder nach Ihrer Auswahl.
 

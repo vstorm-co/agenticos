@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, LayoutGrid, MessageSquarePlus } from "lucide-react";
@@ -90,6 +90,12 @@ export default function DashboardPage() {
   const period = useMemo(() => parsePeriodParam(periodParam), [periodParam]);
   const sectionsParam = searchParams.get("sections");
   const [editing, setEditing] = useState(false);
+  const [animatedPanel, setAnimatedPanel] = useState<string | null>(null);
+  useEffect(() => {
+    const restore = () => setAnimatedPanel(null);
+    window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, []);
   // Whether edit mode opened on a blank grid ("New blank layout") rather than on
   // the current arrangement. Composing from nothing and saving under a name is
   // how a person builds a preset that shares no cards with what they see today.
@@ -164,6 +170,7 @@ export default function DashboardPage() {
     ? (viewParam as DashboardView)
     : fallbackView;
   const group = groups.find((entry) => entry.id === groupParam) ?? groups[0] ?? null;
+  const panelKey = `${view}:${view === "group" ? (group?.id ?? "") : ""}`;
   const arrangeable = view === "org";
 
   const effective = arrangeable
@@ -175,11 +182,13 @@ export default function DashboardPage() {
     setUrlParam("period", formatPeriodParam(next));
   };
   const changeView = (next: DashboardView) => {
+    if (next !== view) setAnimatedPanel(`${next}:${next === "group" ? (group?.id ?? "") : ""}`);
     setUrlParam("view", next === fallbackView ? null : next);
     // A section chosen on one view names nothing on another.
     setUrlParam("sections", null);
   };
   const changeGroup = (next: string) => {
+    if (next !== group?.id) setAnimatedPanel(`group:${next}`);
     setUrlParam("group", next);
   };
   const changeSections = (selected: string[] | null) => {
@@ -446,10 +455,15 @@ export default function DashboardPage() {
         }
       />
       <div
-        key={`${view}:${view === "group" ? (group?.id ?? "") : ""}`}
+        key={panelKey}
         className="tab-panel flex flex-1 flex-col"
-        data-state="active"
+        // Only an explicit scope change enters; arriving at the dashboard or
+        // restoring its URL must not animate the whole working surface.
+        data-state={animatedPanel === panelKey ? "active" : undefined}
         data-dashboard-view={view}
+        onAnimationEnd={(event) => {
+          if (event.target === event.currentTarget) setAnimatedPanel(null);
+        }}
       >
         {visible.length === 0 ? (
           <EmptyState

@@ -107,6 +107,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep model-picker scrolling inside its lists, restore Studio/carousel motion using the resolved app preference, and animate dashboard panels only after an explicit tab change. Keep the avatar carousel available when a profile has a photo.
+
 - Read Claude subscription limits directly, including five-hour, weekly and model-family windows; add Kimi Code regional quota reads and Devin reported daily/weekly snapshots. Correct Kimi regional labels and device sign-ins without a separate user code. API-provider connection screens now share the branded subscription layout.
 
 - Claude subscription and custom-gateway models retain all agent tools without exceeding Anthropic’s limit of 20 strict tool schemas.

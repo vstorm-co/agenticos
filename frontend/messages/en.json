@@ -10219,6 +10219,7 @@
     "forgottenToast": "{count, plural, =0 {There was nothing to forget} =1 {1 item forgotten} other {# items forgotten}}"
   },
   "avatarColor": {
+    "photoLookHint": "Your photo stays visible. Choose a colour for when it isn’t available.",
     "auto": "Automatic colour",
     "label": "Avatar colour",
     "option": "Colour {n}",

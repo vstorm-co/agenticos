@@ -31,11 +31,13 @@ export function AvatarLookCarousel({
   value,
   onChange,
   disabled,
+  hint,
 }: {
   seed: string;
   value: number | null;
   onChange: (slot: number | null) => void;
   disabled?: boolean;
+  hint?: string;
 }) {
   const t = useTranslations("avatarColor");
   const id = useId();
@@ -123,7 +125,7 @@ export function AvatarLookCarousel({
       <div className={styles.heading}>
         <div>
           <h3 id={id}>{t("chooseLook")}</h3>
-          <p>{t("lookHint")}</p>
+          <p>{hint ?? t("lookHint")}</p>
         </div>
         <div className={styles.controls}>
           <button
@@ -168,6 +170,7 @@ export function AvatarLookCarousel({
           <div
             key={slot ?? "auto"}
             role="group"
+            data-current={index === current}
             aria-roledescription={t("slideRole")}
             aria-label={t("lookPosition", { current: index + 1, total: LOOKS.length })}
           >

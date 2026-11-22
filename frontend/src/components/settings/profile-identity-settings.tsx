@@ -42,6 +42,7 @@ export function ProfileIdentitySettings({
   const IdentityContainer = unifiedSave ? "div" : "form";
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.settings");
+  const colors = useTranslations("avatarColor");
   const locale = useLocale();
   const { user } = useAuth();
   const { setUser, avatarVersion } = useAuthStore();
@@ -281,14 +282,15 @@ export function ProfileIdentitySettings({
                     )}
                   </div>
                 </div>
-                {avatarPresentation === "carousel" && !user.avatar_url ? (
+                {avatarPresentation === "carousel" ? (
                   <AvatarLookCarousel
                     seed={user.id}
+                    hint={user.avatar_url ? colors("photoLookHint") : undefined}
                     value={user.avatar_color ?? null}
                     disabled={busy}
                     onChange={handleColorChange}
                   />
-                ) : onContinue && avatarPresentation !== "carousel" ? (
+                ) : onContinue ? (
                   <AvatarColorPicker
                     value={user.avatar_color ?? null}
                     disabled={busy}

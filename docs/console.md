@@ -1,5 +1,7 @@
 # The console
 
+The model picker keeps its header, provider tabs and search in place while the model and provider lists scroll independently. Dashboard tab changes retain their short transition; entering the dashboard or restoring browser history does not animate the entire panel. The onboarding avatar carousel remains available beside an uploaded photo, with a hint that color changes affect the avatar shown when the photo is unavailable.
+
 Page titles, list controls and table headers share a compact hierarchy. Tables embedded in lists use one outer frame and keep their row height while loading. Agent detail shows the latest three runs before configuration, with attention states first within that set; run inspection shows the recorded failure reason and keeps complete raw events behind disclosures. Chat keeps the model name above its provider or personal account. Projects precede Build in navigation; Knowledge starts folded and opens for its active page or your explicit choice.
 
 The default themes distinguish the canvas, sidebar, cards and floating panels. Blue identifies links and keyboard focus; enabled switches use green. Navigation uses regular weight with a medium active label. Builder section summaries show the current model, variables, voice state and first messages before opening their editors. Sign-in and account recovery use the same concise heading style and a static identity panel.

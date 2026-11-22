@@ -38,6 +38,13 @@ it("browses from the pending target without saving and announces settled scroll"
   await userEvent.click(screen.getByRole("button", { name: "Next look" }));
   expect(scroll).toHaveBeenLastCalledWith({ left: 248, behavior: "auto" });
   expect(change).not.toHaveBeenCalled();
+  const preview = track.querySelector('[data-current="true"] button');
+  expect(preview).toHaveAccessibleName("Colour 2");
+  expect(preview).toHaveAttribute("aria-pressed", "false");
+  expect(screen.getByRole("button", { name: "Automatic colour" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
   fireEvent.scroll(track);
   fireEvent(track, new Event("scrollend"));
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Look 3 of 11"));

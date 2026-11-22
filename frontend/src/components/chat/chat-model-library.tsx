@@ -78,13 +78,13 @@ export function ChatModelLibrary(props: ChatModelLibraryProps) {
       : entry.group !== "subscriptions" && entry.group !== "custom" && entry.connected === group;
   return (
     <div
-      className="grid min-h-64 grid-cols-[minmax(112px,32%)_minmax(0,1fr)] sm:grid-cols-[196px_minmax(0,1fr)]"
+      className="grid h-[440px] min-h-0 flex-1 grid-cols-[minmax(112px,32%)_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] sm:grid-cols-[196px_minmax(0,1fr)]"
       data-chat-model-library
     >
       <div
         role="group"
         aria-label={t("provider")}
-        className="border-border bg-muted/20 max-h-[440px] overflow-y-auto overscroll-contain border-r p-1.5"
+        className="border-border bg-muted/20 min-h-0 scrollbar-thin overflow-y-auto overscroll-contain border-r p-1.5"
       >
         {props.loadingProviders ? (
           <div className="space-y-2 p-2" role="status">
@@ -219,37 +219,43 @@ export function ChatModelPane(props: ChatModelPaneProps) {
     </Command.Item>
   );
   return (
-    <div className="flex min-w-0 flex-col self-start">
+    <div className="flex min-h-0 min-w-0 flex-col">
       {props.needsCredential ? (
-        <div className="grid min-h-64 place-content-center p-4 [&>div]:justify-center">
+        <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain p-4 [&>div]:justify-center">
           {props.credentialForm}
         </div>
       ) : (
-        <Tabs value={activeTab} onValueChange={setTab}>
-          <TabsList className="px-2" aria-label={t("model")}>
+        <Tabs value={activeTab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
+          <TabsList className="shrink-0 px-2" aria-label={t("model")}>
             <TabsTrigger value="catalog">{t("allModels")}</TabsTrigger>
             {hasCredentials && (
               <TabsTrigger value="key">{props.credentialTabLabel ?? vault("key")}</TabsTrigger>
             )}
           </TabsList>
-          <TabsContent value="key" className="mt-0">
-            <div className="max-h-[400px] space-y-3 overflow-y-auto overscroll-contain p-3">
+          <TabsContent value="key" className="mt-0 flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 scrollbar-thin space-y-3 overflow-y-auto overscroll-contain p-3">
               {props.credentialPicker}
               {props.credentialForm}
             </div>
           </TabsContent>
-          <TabsContent value="catalog" key={activeTab} className="mt-0">
+          <TabsContent
+            value="catalog"
+            key={activeTab}
+            className="mt-0 flex min-h-0 flex-1 flex-col"
+          >
             {activeTab === "catalog" && props.configurationForm ? (
-              <div className="max-h-[400px] overflow-y-auto overscroll-contain p-3">
+              <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain p-3">
                 {props.configurationForm}
               </div>
             ) : (
-              <div className="min-w-0 flex-1">
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 {activeTab === "catalog" && props.catalogConnection && (
-                  <div className="border-border border-b px-3 py-3">{props.catalogConnection}</div>
+                  <div className="border-border shrink-0 border-b px-3 py-3">
+                    {props.catalogConnection}
+                  </div>
                 )}
-                <Command shouldFilter={false} loop>
-                  <div className="border-border flex items-center gap-2 border-b px-3 py-2.5">
+                <Command shouldFilter={false} loop className="flex min-h-0 flex-1 flex-col">
+                  <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-2.5">
                     <Search className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
                     <Command.Input
                       value={query}
@@ -259,15 +265,15 @@ export function ChatModelPane(props: ChatModelPaneProps) {
                       className="h-7 min-w-0 flex-1 bg-transparent text-xs outline-none"
                     />
                   </div>
-                  {activeTab === "catalog" && props.loading && (
-                    <div role="status" className="space-y-2 p-2">
-                      <span className="sr-only">{t("loadingModels")}</span>
-                      {Array.from({ length: 5 }, (_, index) => (
-                        <Skeleton key={index} className="h-10 w-full rounded-lg" />
-                      ))}
-                    </div>
-                  )}
-                  <Command.List className="max-h-[340px] overflow-y-auto overscroll-contain p-1.5">
+                  <Command.List className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain p-1.5">
+                    {activeTab === "catalog" && props.loading && (
+                      <div role="status" className="space-y-2 p-2">
+                        <span className="sr-only">{t("loadingModels")}</span>
+                        {Array.from({ length: 5 }, (_, index) => (
+                          <Skeleton key={index} className="h-10 w-full rounded-lg" />
+                        ))}
+                      </div>
+                    )}
                     {!props.loading && (
                       <Command.Empty className="text-muted-foreground px-3 py-5 text-xs">
                         {t(query.trim() ? "noMatchingModels" : "searchOrType")}
@@ -310,7 +316,7 @@ export function ChatModelPane(props: ChatModelPaneProps) {
                   </Command.List>
                 </Command>
                 {activeTab === "catalog" && (
-                  <div className="border-border text-muted-foreground flex items-center justify-between gap-2 border-t px-3 py-2 text-xs">
+                  <div className="border-border text-muted-foreground flex shrink-0 items-center justify-between gap-2 border-t px-3 py-2 text-xs">
                     <div className="min-w-0 space-y-0.5">
                       {!props.loading && <p>{t("catalogCount", { count: modelRows.length })}</p>}
                       {props.catalogError ? (
@@ -366,7 +372,7 @@ export function ChatModelPane(props: ChatModelPaneProps) {
         </Tabs>
       )}
       {(props.failure || props.applying) && (
-        <div className="border-border space-y-3 border-t p-3">
+        <div className="border-border max-h-24 shrink-0 scrollbar-thin space-y-3 overflow-y-auto overscroll-contain border-t p-3">
           {props.failure}
           {props.applying && (
             <p role="status" className="text-muted-foreground flex items-center gap-2 text-xs">

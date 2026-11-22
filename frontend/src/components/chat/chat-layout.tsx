@@ -117,10 +117,11 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
         className={cn(
           "max-h-[min(600px,var(--radix-popover-content-available-height))] w-[min(640px,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl p-0",
           // Keep the anchor stable while permissions and the catalog settle.
-          library && "h-[min(29rem,var(--radix-popover-content-available-height,29rem))]",
+          library &&
+            "flex h-[min(29rem,var(--radix-popover-content-available-height,29rem))] min-h-0 flex-col overflow-clip",
         )}
       >
-        <div className="border-border bg-popover sticky top-0 z-10 flex items-center justify-between gap-2 border-b px-4 py-2 text-xs font-medium">
+        <div className="border-border bg-popover sticky top-0 z-10 flex shrink-0 items-center justify-between gap-2 border-b px-4 py-2 text-xs font-medium">
           {t("modelSection")}
           <div className="ml-auto flex min-w-0 items-center gap-1">
             {modelProfileId !== null && agent?.published_model && (

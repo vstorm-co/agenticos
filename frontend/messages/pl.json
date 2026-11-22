@@ -8899,6 +8899,7 @@
     "forgottenToast": "{count, plural, =0 {Nie było nic do zapomnienia} one {Zapomniano 1 wpis} few {Zapomniano # wpisy} many {Zapomniano # wpisów} other {Zapomniano # wpisu}}"
   },
   "avatarColor": {
+    "photoLookHint": "Twoje zdjęcie pozostaje widoczne. Wybierz kolor na wypadek, gdyby nie było dostępne.",
     "auto": "Kolor automatyczny",
     "label": "Kolor awatara",
     "option": "Kolor {n}",

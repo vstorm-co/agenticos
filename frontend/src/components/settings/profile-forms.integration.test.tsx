@@ -188,8 +188,10 @@ it("saves an onboarding carousel choice with the existing account contract and r
   expect(screen.getByLabelText("Display name")).toHaveValue("Alex draft");
 });
 
-it("keeps an uploaded photo primary and offers fallback looks only on demand", () => {
-  useAuthStore.setState({ user: { ...USER, avatar_url: "avatars/photo.png" } });
+it("keeps an uploaded photo primary while choosing a visible carousel fallback", async () => {
+  const photo = { ...USER, avatar_url: "avatars/photo.png" };
+  useAuthStore.setState({ user: photo });
+  vi.mocked(apiClient.patch).mockResolvedValueOnce({ ...photo, avatar_color: 3 });
   render(
     <ProfileIdentitySettings
       section="identity"
@@ -197,7 +199,24 @@ it("keeps an uploaded photo primary and offers fallback looks only on demand", (
       onContinue={vi.fn()}
     />,
   );
-  expect(screen.getAllByRole("button", { name: "Replace avatar" }).length).toBeGreaterThan(0);
-  expect(screen.queryByRole("region", { name: "Choose your look" })).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Fallback colour" })).toBeVisible();
+  const portrait = screen.getAllByRole("button", { name: "Replace avatar" })[0];
+  if (!portrait) throw new Error("Missing uploaded portrait control");
+  const source = portrait.querySelector("img")?.getAttribute("src");
+  expect(source).toBeTruthy();
+  expect(screen.getByRole("region", { name: "Choose your look" })).toBeVisible();
+  expect(
+    screen.getByText("Your photo stays visible. Choose a colour for when it isn’t available."),
+  ).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Fallback colour" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Colour 3" }));
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Colour 3" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    ),
+  );
+  expect(apiClient.patch).toHaveBeenCalledExactlyOnceWith("/users/me", { avatar_color: 3 });
+  expect(apiClient.upload).not.toHaveBeenCalled();
+  expect(useAuthStore.getState().user?.avatar_url).toBe(photo.avatar_url);
+  expect(portrait.querySelector("img")).toHaveAttribute("src", source);
 });

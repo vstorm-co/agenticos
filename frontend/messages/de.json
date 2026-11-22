@@ -10099,6 +10099,7 @@
     "forgottenToast": "{count, plural, =0 {Es gab nichts zu vergessen} =1 {1 Eintrag vergessen} other {# Einträge vergessen}}"
   },
   "avatarColor": {
+    "photoLookHint": "Ihr Foto bleibt sichtbar. Wählen Sie eine Farbe für den Fall, dass es nicht verfügbar ist.",
     "auto": "Automatische Farbe",
     "label": "Avatar-Farbe",
     "option": "Farbe {n}",

@@ -1,6 +1,8 @@
 ---
-source_sha: "0f4095d9a4b0"
+source_sha: "09aa9fccc5b5"
 ---
+
+Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
 
 Tytuły stron, kontrolki list i nagłówki tabel mają wspólną, zwartą hierarchię. Tabela osadzona w liście ma jedną zewnętrzną ramkę i zachowuje wysokość wierszy podczas ładowania. Szczegóły agenta pokazują trzy ostatnie uruchomienia przed konfiguracją, z wymagającymi uwagi na początku tej grupy; podgląd uruchomienia pokazuje zapisany powód błędu, a pełne surowe zdarzenia pozostają w rozwijanych sekcjach. Czat pokazuje nazwę modelu nad dostawcą lub osobistym kontem. Projekty poprzedzają Build w nawigacji; Wiedza zaczyna zwinięta i otwiera się dla aktywnej strony lub po Twoim wyborze.
 
