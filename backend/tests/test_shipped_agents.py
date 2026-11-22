@@ -423,3 +423,111 @@ async def test_remote_default_sandbox_keeps_shipped_personal_coding_enabled(
     sandbox = next(binding for binding in saved.capabilities if binding.id == "sandbox")
     assert coding.enabled and sandbox.config["backend"] == "service"
     provides.assert_awaited_once_with(ctx.organization_id)
+
+
+@pytest.mark.parametrize(
+    ("release", "prompt_hash"),
+    [
+        ("nov14", "565f43faa977b55785690d56e3479f030c538a89ec1d0438e1f53c337ac3c0fb"),
+        ("nov12", "591db556d4dfe7390b513d139ce0c7e91ed00c80babb7deb9a1f626cdfc1cf37"),
+        ("nov12-release", "c32d4cb673c3a5846cdee51bb8f045118b528cdc5e03650c80bd017ae2e07d34"),
+    ],
+)
+@pytest.mark.parametrize("custom_draft_prompt", [False, True])
+@pytest.mark.parametrize("original_sandbox", ["service", "state"])
+async def test_verified_historical_starter_upgrades_without_overwriting_independent_edits(
+    installed,
+    monkeypatch: pytest.MonkeyPatch,
+    release: str,
+    prompt_hash: str,
+    custom_draft_prompt: bool,
+    original_sandbox: str,
+) -> None:
+    from pathlib import Path
+
+    from app.agents.spec import BudgetSpec
+
+    ctx, _, agent, service = installed
+    historical = agent_templates._read(
+        Path(__file__).parent / "fixtures" / "shipped_agents" / release, industry="general"
+    )
+    row = next(
+        row for row in agent_defaults.legacy_defaults()[STARTER] if row.instructions == prompt_hash
+    )
+    assert row.capabilities == list(historical.capabilities)
+    assert row.mcp_servers == list(historical.mcp_servers)
+    assert row.skills == list(historical.skills)
+    assert row.starters == list(historical.starters)
+    live = AgentSpec(
+        name="AgenticOS",
+        instructions=historical.instructions,
+        capabilities=list(historical.capabilities),
+        starters=list(historical.starters),
+        mcp_servers=[{"account": "platform", "allowed_tools": ["list_agents"]}],
+        model_profile_id=uuid4(),
+        budget=BudgetSpec(monthly_usd=17),
+    )
+    if original_sandbox == "state":
+        sandbox = next(binding for binding in live.capabilities if binding.id == "sandbox")
+        sandbox.config = {**sandbox.config, "backend": "state"}
+        sandbox.config.pop("include_execute", None)
+    # Recognition must not depend on the availability when the original release
+    # was installed: the organization has since acquired a container workspace.
+    monkeypatch.setattr(
+        shipped_agents.SandboxConnectionService, "can_provide", AsyncMock(return_value=True)
+    )
+    assert fingerprint(live, "instructions") == prompt_hash
+    pending_model = uuid4()
+    draft = live.model_copy(
+        update={"model_profile_id": pending_model, "budget": BudgetSpec(monthly_usd=3)}
+    )
+    if custom_draft_prompt:
+        # Recognition may still use the published prompt only when explicitly supplied;
+        # this path must never treat an edited draft as a shipped starter.
+        draft = draft.model_copy(update={"instructions": "Our unpublished instructions"})
+    agent.shipped_template = None
+    agent.draft_spec = draft.model_dump(mode="json")
+    template = agent_templates.get(STARTER)
+    assert template is not None
+    target = AgentSpec(
+        name=template.name,
+        instructions=template.instructions,
+        capabilities=list(template.capabilities),
+        mcp_servers=list(template.mcp_servers),
+        starters=list(template.starters),
+    )
+    service._target = AsyncMock(return_value=target)
+    service.registry.template_skills = AsyncMock(return_value=[])
+    published = []
+
+    async def save(_ctx, _id, spec):
+        agent.draft_spec = spec.model_dump(mode="json")
+
+    async def publish(*args, **kwargs):
+        published.append(AgentSpec.model_validate(agent.draft_spec))
+
+    service.registry.save_draft = AsyncMock(side_effect=save)
+    service.registry.publish = AsyncMock(side_effect=publish)
+    monkeypatch.setattr(
+        shipped_agents.agent_repo,
+        "get_version",
+        AsyncMock(return_value=SimpleNamespace(spec=live.model_dump(mode="json"))),
+    )
+    monkeypatch.setattr(shipped_agents.agent_repo, "update", AsyncMock(return_value=agent))
+    await service.refresh(ctx, agent, STARTER)
+    if custom_draft_prompt:
+        assert AgentSpec.model_validate(agent.draft_spec) == draft
+        assert not published
+        service._target.assert_not_awaited()
+        return
+    assert len(published) == 1
+    refreshed = published[0]
+    saved = AgentSpec.model_validate(agent.draft_spec)
+    assert refreshed.instructions == saved.instructions == target.instructions
+    assert refreshed.capabilities == agent_defaults.shipped_capabilities(live, target)
+    assert refreshed.starters == target.starters
+    assert refreshed.model_profile_id == live.model_profile_id
+    assert refreshed.budget == live.budget
+    assert saved.model_profile_id == pending_model
+    assert saved.budget == draft.budget
+    assert refreshed.mcp_servers == saved.mcp_servers == live.mcp_servers
