@@ -51,6 +51,10 @@ const state = {
   permissionsLoaded: true,
 };
 
+vi.mock("@/hooks/use-subscription-accounts", () => ({
+  useSubscriptionAccounts: () => ({ accounts: { data: { enabled: true, items: [] } } }),
+}));
+
 vi.mock("@/hooks", async () => {
   // The real one: the Builder keeps its tab in `?tab=`, as local state here.
   const { useUrlState } =
