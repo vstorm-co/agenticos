@@ -967,3 +967,25 @@ async def test_retrieval_includes_bounded_related_failed_operation_metadata() ->
         [ContextDigest(topics=[topic()])],
     )
     assert result == PersonalReading()
+
+
+@pytest.mark.parametrize("hour", ["18:00", "09:00"])
+async def test_receipt_clock_confirmation_uses_submitted_values_not_unselected_options(
+    hour: str,
+) -> None:
+    native = receipt(thread_id="t", questions={"When": ["Monday 09:00", "Friday 15:00"]})
+    ref = SourceEvidence(source_id="receipt:answer", quote="thu 18")
+    advice = card(
+        chat_prompt=f"Prepare it at {hour}.",
+        proposed_schedule=f"Thursday {hour}",
+        evidence=[evidence().model_dump(), ref.model_dump()],
+    )
+    result = await propose_context(
+        Reader(
+            propose=PersonalReading(opportunities=[advice]),
+            verify=VerifiedReading(approved_identities=[advice.identity]),
+        ),
+        packet(tool_receipts=[native]),
+        [ContextDigest(topics=[topic(evidence=[evidence().model_dump(), ref.model_dump()])])],
+    )
+    assert result is not None and len(result.opportunities) == (1 if hour == "18:00" else 0)

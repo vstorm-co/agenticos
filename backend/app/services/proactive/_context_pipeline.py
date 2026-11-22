@@ -524,8 +524,14 @@ async def propose_context(
         confirmed = {
             hour
             for identifier in human_ids
-            for fragment in sources[identifier]
-            for hour in clock_hours(fragment, short_answer=identifier.startswith("message:answer:"))
+            for fragment in (
+                sources.get(f"message:answer:{identifier.removeprefix('receipt:')}", ())
+                if identifier.startswith("receipt:")
+                else sources[identifier]
+            )
+            for hour in clock_hours(
+                fragment, short_answer=identifier.startswith(("message:answer:", "receipt:"))
+            )
         }
         proposed = " ".join(
             [card.title, card.detail, card.chat_prompt, card.proposed_schedule or ""]
