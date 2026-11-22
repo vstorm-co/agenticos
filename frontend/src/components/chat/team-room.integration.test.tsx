@@ -1021,15 +1021,17 @@ describe("the room composer edges", () => {
   });
 
   it("starts only one upload when two selections arrive in the same tick", async () => {
-    vi.mocked(apiClient.upload).mockReturnValueOnce(new Promise<FileUploadResponse>(() => {}));
     const { container } = render(room(), { wrapper });
     const picker = await getFilePicker(container);
     const first = new File(["one"], "one.txt", { type: "text/plain" });
     const second = new File(["two"], "two.txt", { type: "text/plain" });
-    act(() => {
-      fireEvent.change(picker, { target: { files: [first] } });
+    // The second selection lands while the first handler is still running, before React
+    // has rendered the first upload, so only the draft store can refuse it.
+    vi.mocked(apiClient.upload).mockImplementationOnce(() => {
       fireEvent.change(picker, { target: { files: [second] } });
+      return new Promise<FileUploadResponse>(() => {});
     });
+    fireEvent.change(picker, { target: { files: [first] } });
     expect(apiClient.upload).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("two.txt")).not.toBeInTheDocument();
   });

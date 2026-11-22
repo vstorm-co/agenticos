@@ -227,7 +227,6 @@ export function RoomThreadPanel({
         : messages.findIndex((message) => message.id === visibleThroughId);
     if (visibleThroughId !== page?.root.id && cursorIndex < 0) return;
     const lastId = lastReadMessageId.current;
-    if (lastId === visibleThroughId) return;
     const lastIndex =
       lastId === null
         ? -2
