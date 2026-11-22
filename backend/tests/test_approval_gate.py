@@ -814,10 +814,10 @@ def gated_capability():
 class TestWhoMayWaive:
     """The refusals, which are the point of the ceiling (#925).
 
-    A standing consent *is* the decision the approval queue exists to record, and
-    `member` and `builder` hold `agents:run` without `approvals:decide` - so
-    without these checks the everyday chat user grants themselves, in one click,
-    the authority the API refuses them one endpoint over.
+    A standing consent *is* the decision the approval queue exists to record. A
+    member holds `approvals:decide` at `OWN`, so they may waive for their own web
+    chat - but a viewer, a key or an impersonated session may not, and the
+    organization's switch caps everybody.
 
     Refused, never downgraded: quietly following the spec instead would leave
     somebody believing they had turned the questions off, and the next gated call
@@ -835,10 +835,62 @@ class TestWhoMayWaive:
         return AgentRunnerService(MagicMock())
 
     @pytest.mark.anyio
-    async def test_a_member_may_not_waive(self):
+    async def test_a_viewer_may_not_waive(self):
+        """A viewer holds no `approvals:decide`, so there is nothing to waive with."""
         service = self._service()
 
         with pytest.raises(AuthorizationError):
+            await service._allowed_approval_mode(
+                self._ctx(OrgRoleName.VIEWER.value),
+                ApprovalMode.APPROVE_ALL,
+                surface=RunSurface.WEB,
+            )
+
+    @pytest.mark.anyio
+    async def test_a_member_behind_an_api_key_may_not_waive(self):
+        """The own-run exception is the signed-in person's: a key is not them."""
+        service = self._service()
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.MEMBER.value,
+            api_key_id=uuid.uuid4(),
+        )
+
+        with pytest.raises(AuthorizationError):
+            await service._allowed_approval_mode(
+                ctx, ApprovalMode.APPROVE_ALL, surface=RunSurface.WEB
+            )
+
+    @pytest.mark.anyio
+    async def test_a_member_may_waive_their_own_web_run_when_the_organization_allows_it(self):
+        service = self._service()
+        organization = MagicMock(chat_may_waive_approvals=True)
+
+        with patch(
+            "app.services.agent_runner.organization_repo.get_by_id",
+            new=AsyncMock(return_value=organization),
+        ):
+            mode = await service._allowed_approval_mode(
+                self._ctx(OrgRoleName.MEMBER.value),
+                ApprovalMode.APPROVE_ALL,
+                surface=RunSurface.WEB,
+            )
+
+        assert mode is ApprovalMode.APPROVE_ALL
+
+    @pytest.mark.anyio
+    async def test_the_organization_switch_still_refuses_a_member(self):
+        service = self._service()
+        organization = MagicMock(chat_may_waive_approvals=False)
+
+        with (
+            patch(
+                "app.services.agent_runner.organization_repo.get_by_id",
+                new=AsyncMock(return_value=organization),
+            ),
+            pytest.raises(AuthorizationError),
+        ):
             await service._allowed_approval_mode(
                 self._ctx(OrgRoleName.MEMBER.value),
                 ApprovalMode.APPROVE_ALL,

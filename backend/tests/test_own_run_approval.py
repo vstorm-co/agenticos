@@ -8,13 +8,16 @@ somebody else's run, a run a key started, or a run nobody can name.
 """
 
 import uuid
+from contextlib import contextmanager
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.core.audit import set_impersonator
+from app.core.exceptions import AuthorizationError
 from app.core.permissions import AuthContext, Perm
-from app.db.models.agent_run import AgentRun, RunSurface
-from app.services.approvals import may_decide_approval, may_waive_own_run
+from app.db.models.agent_run import AgentRun, ApprovalStatus, RunSurface
+from app.services.approvals import ApprovalService, may_decide_approval, may_waive_own_run
 
 pytestmark = pytest.mark.security
 
@@ -86,6 +89,17 @@ class TestSignedInSessionOnly:
         ctx = _ctx("member", api_key_id=uuid.uuid4(), key_scopes=frozenset({Perm.APPROVALS_DECIDE}))
         assert may_decide_approval(ctx, _run(_MEMBER)) is False
 
+    def test_an_api_key_without_the_permission_cannot_decide_any_run(self):
+        """A key narrowed away from `approvals:decide` holds nothing, even for its issuer's run."""
+        ctx = _ctx("member", api_key_id=uuid.uuid4(), key_scopes=frozenset({Perm.AGENTS_VIEW}))
+        assert may_decide_approval(ctx, _run(_MEMBER)) is False
+        assert may_decide_approval(ctx, _run(_OTHER)) is False
+
+    def test_an_all_scoped_key_still_decides_another_persons_run(self):
+        """The privileged path is unchanged: an owner's decide-scoped key reaches any run."""
+        ctx = _ctx("owner", api_key_id=uuid.uuid4(), key_scopes=frozenset({Perm.APPROVALS_DECIDE}))
+        assert may_decide_approval(ctx, _run(_OTHER)) is True
+
     def test_a_publisher_fallback_cannot_decide(self):
         ctx = _ctx("member", subject_is_publisher_fallback=True)
         assert may_decide_approval(ctx, _run(_MEMBER)) is False
@@ -137,3 +151,104 @@ class TestMayWaiveOwnRun:
             assert may_waive_own_run(_ctx("member")) is False
         finally:
             set_impersonator(None)
+
+
+class TestDecideEnforcesIt:
+    """`ApprovalService.decide` is the one enforcement point: the route has no gate."""
+
+    @staticmethod
+    @contextmanager
+    def _repositories(run: AgentRun, *, status: str = ApprovalStatus.PENDING.value):
+        approval = MagicMock(
+            id=uuid.uuid4(),
+            run_id=uuid.uuid4(),
+            tool_id="send_email",
+            tool_args={},
+            status=status,
+            always_asks=False,
+            subagent_name=None,
+        )
+        with (
+            patch(
+                "app.services.approvals.agent_run_repo.get_approval",
+                new=AsyncMock(return_value=approval),
+            ),
+            patch("app.services.approvals.agent_run_repo.get_run", new=AsyncMock(return_value=run)),
+            patch(
+                "app.services.approvals.agent_run_repo.decide_approval",
+                new=AsyncMock(return_value=approval),
+            ) as decide,
+            patch(
+                "app.services.approvals.voice_call_repo.is_live_run",
+                new=AsyncMock(return_value=False),
+            ),
+            patch("app.services.approvals.record_audit", new=AsyncMock()),
+            patch.object(ApprovalService, "_settle_outcomes", new=AsyncMock()),
+        ):
+            yield approval, decide
+
+    @staticmethod
+    def _service() -> ApprovalService:
+        return ApprovalService(MagicMock(flush=AsyncMock(), refresh=AsyncMock(), add=MagicMock()))
+
+    @pytest.mark.anyio
+    async def test_a_member_decides_their_own_run(self):
+        ctx = _ctx("member")
+        with self._repositories(_run(_MEMBER)) as (approval, decide):
+            await self._service().decide(ctx, approval.id, approved=True)
+
+        assert decide.await_args.kwargs["status"] == ApprovalStatus.APPROVED.value
+
+    @pytest.mark.anyio
+    async def test_a_member_cannot_decide_somebody_elses_run(self):
+        ctx = _ctx("member")
+        with (
+            self._repositories(_run(_OTHER)) as (approval, decide),
+            pytest.raises(AuthorizationError),
+        ):
+            await self._service().decide(ctx, approval.id, approved=True)
+
+        decide.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_key_cannot_decide_its_issuers_run(self):
+        ctx = _ctx("member", api_key_id=uuid.uuid4(), key_scopes=frozenset({Perm.APPROVALS_DECIDE}))
+        with (
+            self._repositories(_run(_MEMBER)) as (approval, decide),
+            pytest.raises(AuthorizationError),
+        ):
+            await self._service().decide(ctx, approval.id, approved=True)
+
+        decide.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_key_without_the_permission_cannot_decide_any_run(self):
+        ctx = _ctx("owner", api_key_id=uuid.uuid4(), key_scopes=frozenset({Perm.AGENTS_VIEW}))
+        with (
+            self._repositories(_run(_OTHER)) as (approval, decide),
+            pytest.raises(AuthorizationError),
+        ):
+            await self._service().decide(ctx, approval.id, approved=True)
+
+        decide.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_an_owners_decide_scoped_key_decides_another_persons_run(self):
+        ctx = _ctx("owner", api_key_id=uuid.uuid4(), key_scopes=frozenset({Perm.APPROVALS_DECIDE}))
+        with self._repositories(_run(_OTHER)) as (approval, decide):
+            await self._service().decide(ctx, approval.id, approved=False)
+
+        assert decide.await_args.kwargs["status"] == ApprovalStatus.REJECTED.value
+
+    @pytest.mark.anyio
+    async def test_a_refused_caller_learns_nothing_about_the_approvals_state(self):
+        """Refused before the already-decided check, so the answer is the same either way."""
+        ctx = _ctx("member")
+        with (
+            self._repositories(_run(_OTHER), status=ApprovalStatus.APPROVED.value) as (
+                approval,
+                _,
+            ),
+            pytest.raises(AuthorizationError),
+        ):
+            await self._service().decide(ctx, approval.id, approved=True)

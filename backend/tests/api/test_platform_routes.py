@@ -37,6 +37,7 @@ from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import NotFoundError, RunExecutionError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
+from app.db.models.agent_run import RunSurface
 from app.db.models.ml_service_call import MLServiceCall
 from app.db.models.resource_grant import Visibility
 from app.main import app
@@ -1536,6 +1537,37 @@ class TestReadingWhatARunIsParkedOn:
             response = await client.get(_url(f"/runs/{uuid4()}/parked"))
 
         assert response.status_code == 404
+
+    @pytest.mark.parametrize(
+        ("started_by_caller", "status"), [(True, 200), (False, 403)], ids=["own-run", "other-run"]
+    )
+    async def test_a_caller_holding_decide_only_at_own_reads_only_their_own_runs_calls(
+        self,
+        as_role: ClientFactory,
+        monkeypatch: pytest.MonkeyPatch,
+        started_by_caller: bool,
+        status: int,
+    ) -> None:
+        """A colleague's parked run reads as a refusal, not as an empty list."""
+        monkeypatch.setitem(ROLE_PERMS, "test:own-decide", {Perm.APPROVALS_DECIDE: Scope.OWN})
+        run = MagicMock(
+            id=uuid4(),
+            user_id=_CALLER_ID if started_by_caller else uuid4(),
+            surface=RunSurface.WEB.value,
+        )
+
+        class _Parked:
+            async def get_run(self, *args: Any, **kwargs: Any) -> Any:
+                return run
+
+            async def parked_calls(self, *args: Any, **kwargs: Any) -> list[ParkedCall]:
+                return []
+
+        overrides = {deps.get_agent_runner_service: lambda: _Parked()}
+        async with as_role("test:own-decide", overrides) as client:
+            response = await client.get(_url(f"/runs/{run.id}/parked"))
+
+        assert response.status_code == status
 
 
 class TestTheQueueNamesWhatItAsks:

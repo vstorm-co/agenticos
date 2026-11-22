@@ -864,7 +864,9 @@ async def test_remembering_approval_refuses_unattended_or_changed_authority(
         member = await db.scalar(
             select(OrganizationMember).where(OrganizationMember.organization_id == org.id)
         )
-        member.role = "member"
+        # A member holds `approvals:decide` at OWN and may still remember their own
+        # web run; losing the permission outright is what revokes it.
+        member.role = "viewer"
     if changed == "key":
         ctx = replace(ctx, api_key_id=uuid.uuid4())
     if changed == "fallback":
@@ -995,10 +997,27 @@ class TestWhatAQueueReaderMaySeeOfAFact:
         [row], _ = await ApprovalService(db).list_approvals(ctx)
         return row
 
-    async def test_a_member_who_cannot_see_the_run_reads_only_the_audience(self, db) -> None:
+    async def test_a_member_who_did_not_start_the_run_does_not_see_its_row_at_all(self, db) -> None:
         org, _, _, reader = await self._parked_share(db)
+        ctx = AuthContext(user_id=reader.id, organization_id=org.id, role=OrgRoleName.MEMBER)
 
-        row = await self._read_as(db, org, reader, OrgRoleName.MEMBER)
+        rows, total = await ApprovalService(db).list_approvals(ctx)
+
+        assert rows == []
+        assert total == 0
+
+    async def test_a_decider_who_cannot_see_the_run_reads_only_the_audience(self, db) -> None:
+        """The blind reader is a key issued for `approvals:decide` alone: it holds no `runs:view`."""
+        org, owner, _, _ = await self._parked_share(db)
+        key_ctx = AuthContext(
+            user_id=owner.id,
+            organization_id=org.id,
+            role=OrgRoleName.OPERATOR,
+            api_key_id=uuid.uuid4(),
+            key_scopes=frozenset({Perm.APPROVALS_DECIDE}),
+        )
+
+        [row], _ = await ApprovalService(db).list_approvals(key_ctx)
 
         assert row.content_hidden
         assert row.context == {"audience": "organization"}
@@ -1028,13 +1047,15 @@ class TestWhatAQueueReaderMaySeeOfAFact:
     async def test_a_reader_who_cannot_see_the_fact_may_not_approve_sharing_it(self, db) -> None:
         from app.core.exceptions import AuthorizationError
 
-        org, _, _, reader = await self._parked_share(db)
+        org, owner, _, reader = await self._parked_share(db)
+        [row], _ = await ApprovalService(db).list_approvals(_ctx(org, owner))
+        ctx = AuthContext(user_id=reader.id, organization_id=org.id, role=OrgRoleName.MEMBER)
 
         # The refusal is the decide check, not the always-asks one: cross-person
-        # decisions stay privileged, so a member reading somebody else's run is
-        # refused before the call's visibility is ever asked about.
+        # decisions stay privileged, so a member naming somebody else's approval
+        # is refused before the call's visibility is ever asked about.
         with pytest.raises(AuthorizationError, match="Only the person who started this run"):
-            await self._decide_as(db, org, reader, OrgRoleName.MEMBER, approved=True)
+            await ApprovalService(db).decide(ctx, row.id, approved=True)
 
     async def test_a_decide_scoped_key_may_reject_what_it_cannot_see(self, db) -> None:
         """The always-asks rule still has a reader: a key that may decide but not see.
