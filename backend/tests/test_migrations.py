@@ -36,7 +36,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from queue import Queue
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from alembic.config import Config
@@ -345,9 +345,27 @@ def test_provider_account_migration_preserves_existing_grant_and_refuses_lossy_d
         engine.dispose()
 
 
+def _legacy_conversation(
+    db: DatabaseSession, organization_id: UUID, user_id: UUID, title: str
+) -> UUID:
+    """Insert a conversation with only the columns every old revision has.
+
+    The ORM model is at head, so `Conversation(...)` names columns, such as
+    `room_visibility`, that an older schema does not have yet.
+    """
+    conversation_id = uuid4()
+    db.execute(
+        text(
+            "INSERT INTO conversations (id, organization_id, user_id, title, is_archived) "
+            "VALUES (:id, :organization, :user, :title, false)"
+        ),
+        {"id": conversation_id, "organization": organization_id, "user": user_id, "title": title},
+    )
+    return conversation_id
+
+
 def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs() -> None:
     """0322_coding_task_revert.py and 0323_coding_revert_admission.py preserve legacy diffs."""
-    from app.db.models.conversation import Conversation
     from app.db.models.organization import Organization
 
     result = _alembic("upgrade", "head")
@@ -376,11 +394,7 @@ def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs()
             )
             db.add(organization)
             db.flush()
-            conversation = Conversation(
-                organization_id=organization.id, user_id=owner.id, title="Old task"
-            )
-            db.add(conversation)
-            db.flush()
+            conversation_id = _legacy_conversation(db, organization.id, owner.id, "Old task")
             db.execute(
                 text(
                     "INSERT INTO coding_task_changes (id, organization_id, conversation_id, harness, files, omitted, truncated) "
@@ -389,7 +403,7 @@ def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs()
                 {
                     "id": change_id,
                     "organization": organization.id,
-                    "conversation": conversation.id,
+                    "conversation": conversation_id,
                     "files": json.dumps(files),
                 },
             )
@@ -440,7 +454,6 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
     from app.db.models.agent_environment import AgentEnvironment
     from app.db.models.agent_trigger import AgentTrigger
     from app.db.models.artifact import Artifact
-    from app.db.models.conversation import Conversation
 
     for action, revision in (
         ("upgrade", "head"),
@@ -466,9 +479,9 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
                 {"id": org_id, "slug": f"crosslinks-{org_id}", "creator": creator.id},
             )
             agent = Agent(organization_id=org_id, name="Reporter", slug=f"reporter-{uuid4()}")
-            chat = Conversation(organization_id=org_id, user_id=owner.id, title="Private")
-            db.add_all([agent, chat])
+            db.add(agent)
             db.flush()
+            chat_id = _legacy_conversation(db, org_id, owner.id, "Private")
             version = AgentVersion(organization_id=org_id, agent_id=agent.id, version=1, spec={})
             db.add(version)
             db.flush()
@@ -492,13 +505,13 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
                 interval_seconds=300,
                 next_fire_at=datetime.now(UTC),
                 answer_to="conversation",
-                delivery_conversation_id=chat.id,
+                delivery_conversation_id=chat_id,
             )
             db.add_all([page, routine])
             db.commit()
             owner_id, agent_id = owner.id, agent.id
             page_id, routine_id = page.id, routine.id
-            environment_id, chat_id = environment.id, chat.id
+            environment_id = environment.id
 
         constraints = (
             "agent_triggers_delivery_conversation_id_fkey",
@@ -667,7 +680,6 @@ def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None
     """Deleting an account succeeds in either trigger order once its runs were written."""
     from app.db.models.agent import Agent
     from app.db.models.agent_run import AgentRun
-    from app.db.models.conversation import Conversation
 
     constraint = "agent_runs_conversation_id_fkey"
     for action, revision in (
@@ -693,9 +705,9 @@ def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None
                 {"id": org_id, "slug": f"erasure-{org_id}", "creator": creator.id},
             )
             agent = Agent(organization_id=org_id, name="Helper", slug=f"helper-{uuid4()}")
-            chat = Conversation(organization_id=org_id, user_id=owner.id, title="Private")
-            db.add_all([agent, chat])
+            db.add(agent)
             db.flush()
+            chat_id = _legacy_conversation(db, org_id, owner.id, "Private")
             # A Core insert names only these columns: the model is at head and the
             # schema here is not.
             run_id = uuid4()
@@ -706,7 +718,7 @@ def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None
                     agent_id=agent.id,
                     started_at=datetime.now(UTC),
                     user_id=owner.id,
-                    conversation_id=chat.id,
+                    conversation_id=chat_id,
                     routine_policy={"approved_sources": []},
                 )
             )
