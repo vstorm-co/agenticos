@@ -67,9 +67,7 @@ export function RoomCreateForm({ onCancel, onCreated }: RoomCreateFormProps) {
         <Label htmlFor="room-visibility">{t("visibility")}</Label>
         <Select
           value={visibility}
-          onValueChange={(value) => {
-            if (value === "private" || value === "public") setVisibility(value);
-          }}
+          onValueChange={(value) => setVisibility(value as RoomVisibility)}
         >
           <SelectTrigger id="room-visibility">
             <SelectValue />

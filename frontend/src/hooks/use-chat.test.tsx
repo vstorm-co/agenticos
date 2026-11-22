@@ -180,6 +180,29 @@ describe("room persistence events", () => {
     unsubscribe();
   });
 
+  it("refreshes the selected room's participants and conversation list on a membership change", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(qk.organizations.list(), []);
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    renderHook(() => useChat({ conversationId: "c-1" }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    invalidate.mockClear();
+
+    receive("room_participants", { conversation_id: "c-other" });
+    expect(invalidate).not.toHaveBeenCalled();
+
+    receive("room_participants", { conversation_id: "c-1" });
+    const keys = invalidate.mock.calls.map(([filters]) => filters?.queryKey);
+    expect(keys).toContainEqual(qk.conversations.all());
+    expect(
+      keys.some((key) => key?.[0] === "room-participants" && key[3] === "c-1" && key.length === 4),
+    ).toBe(true);
+  });
+
   it("reconciles a saved room prompt and streamed answer into one final answer", () => {
     useConversationStore.getState().setCurrentConversationId("c-1");
     renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });

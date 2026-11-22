@@ -46,4 +46,27 @@ describe("RoomMentionPalette", () => {
     expect(screen.getByText("· 5678")).toBeVisible();
     expect(screen.getByRole("option", { name: "Riley, People" })).toBeVisible();
   });
+
+  it.each([
+    ["loading", true, false, "Loading people and agents…"],
+    ["failed", false, true, "People and agents could not be loaded."],
+    ["empty", false, false, "No matching people or agents."],
+  ])("explains a %s list instead of offering options", (_name, isLoading, failed, text) => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <RoomMentionPalette
+          id="room-mention-list"
+          items={[]}
+          selectedIndex={0}
+          onSelectIndex={vi.fn()}
+          onPick={vi.fn()}
+          onRetry={vi.fn()}
+          isLoading={isLoading}
+          failed={failed}
+        />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.getByText(text)).toBeVisible();
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+  });
 });

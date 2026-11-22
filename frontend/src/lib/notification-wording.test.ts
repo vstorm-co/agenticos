@@ -32,6 +32,9 @@ describe("wordedSummary", () => {
       "Clerk could not finish its answer: Timed out",
     );
     expect(say({ wording: "run_failed", agent_name: "Clerk" })).toBe("Clerk's run failed.");
+    expect(say({ wording: "run_failed", agent_name: "Clerk", error: "Out of budget" })).toBe(
+      "Clerk's run failed: Out of budget",
+    );
   });
 
   it("words a routine held on its budget, named or not", () => {
@@ -239,6 +242,9 @@ describe("wordedSummary", () => {
   });
 
   it("words administration notices, and an action it has no sentence for by its name", () => {
+    expect(say({ wording: "security_event", action: "secret.rotated" })).toBe(
+      "A vault secret was rotated.",
+    );
     expect(say({ wording: "security_event", action: "admin.unknown" })).toBe(
       "A privileged action was recorded: admin.unknown",
     );
@@ -271,6 +277,9 @@ describe("wordedSummary", () => {
 
   it("words a log alert over minutes or hours", () => {
     const alert = { wording: "workflow_log_alert", rule_name: "Errors", workflow_name: "Intake" };
+    expect(say({ ...alert, count: "3", window_minutes: "180" })).toBe(
+      "Errors: 3 occurrences in the log of Intake in the last 3 hours.",
+    );
     expect(say({ ...alert, count: "1", window_minutes: "15" })).toBe(
       "Errors: 1 occurrence in the log of Intake in the last 15 minutes.",
     );

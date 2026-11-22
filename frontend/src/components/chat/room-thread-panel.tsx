@@ -246,7 +246,7 @@ export function RoomThreadPanel({
         setThreadActionError(getErrorMessage(error, tErrors, t("actionFailed")));
       })
       .finally(() => {
-        if (pendingReadMessageId.current === visibleThroughId) pendingReadMessageId.current = null;
+        pendingReadMessageId.current = null;
       });
   }, [
     isRoom,

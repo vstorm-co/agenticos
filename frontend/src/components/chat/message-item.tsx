@@ -642,17 +642,15 @@ export const MessageItem = memo(function MessageItem({
               <button
                 type="button"
                 onPointerDown={() => {
-                  replySelectionRef.current =
-                    typeof window === "undefined"
-                      ? null
-                      : selectedMessageQuote(window.getSelection(), messageElementRef.current);
+                  replySelectionRef.current = selectedMessageQuote(
+                    window.getSelection(),
+                    messageElementRef.current,
+                  );
                 }}
                 onClick={() => {
                   const selectedQuote =
                     replySelectionRef.current ??
-                    (typeof window === "undefined"
-                      ? null
-                      : selectedMessageQuote(window.getSelection(), messageElementRef.current));
+                    selectedMessageQuote(window.getSelection(), messageElementRef.current);
                   replySelectionRef.current = null;
                   // A selection from an unsaved coalesced segment has no stable
                   // reply target yet. Keep it separate from the ordinary reply

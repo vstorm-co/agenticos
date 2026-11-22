@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -146,6 +146,105 @@ describe("RoomDirectoryDialog", () => {
 
     expect(callbacks.onCreated).not.toHaveBeenCalled();
     expect(callbacks.onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it("shows a join failure, then clears it on the next attempt", async () => {
+    const user = userEvent.setup();
+    hooks.rooms = [room("public-1", "Release planning")];
+    hooks.join.mockRejectedValueOnce("refused").mockResolvedValueOnce(null);
+    drawDirectory();
+
+    await user.click(screen.getByRole("button", { name: "Join" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Room could not be joined.");
+
+    await user.click(screen.getByRole("button", { name: "Join" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  });
+
+  it("retries a failed directory load", async () => {
+    const user = userEvent.setup();
+    hooks.error = new Error("down");
+    drawDirectory();
+
+    expect(screen.getByText("Public rooms could not be loaded.")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(hooks.refetch).toHaveBeenCalled();
+  });
+
+  it("shows the loading and empty directory states", () => {
+    hooks.isLoading = true;
+    const { unmount } = render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <RoomDirectoryDialog
+          open
+          onOpenChange={vi.fn()}
+          onSelectConversation={vi.fn()}
+          onCreated={vi.fn()}
+        />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Loading rooms…");
+    unmount();
+
+    hooks.isLoading = false;
+    drawDirectory();
+    expect(screen.getByText("No public rooms to join yet.")).toBeVisible();
+  });
+
+  it("marks only the room being joined with a spinner", async () => {
+    const user = userEvent.setup();
+    hooks.rooms = [room("public-1", "Release planning"), room("public-2", "Design review")];
+    hooks.join.mockReturnValueOnce(new Promise(() => {}));
+    drawDirectory();
+
+    const [first, second] = screen.getAllByRole("button", { name: "Join" }) as [HTMLElement, HTMLElement];
+    await user.click(first);
+
+    expect(first.querySelector("svg.animate-spin")).not.toBeNull();
+    expect(second.querySelector("svg.animate-spin")).toBeNull();
+  });
+
+  it("goes back from the create form to the directory and resets it on close", async () => {
+    const user = userEvent.setup();
+    const callbacks = drawDirectory();
+
+    await user.click(screen.getByRole("button", { name: "Create room" }));
+    expect(screen.getByRole("heading", { name: "Create a room" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Back to public rooms" }));
+    expect(screen.getByRole("heading", { name: "Public rooms" })).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Create room" }));
+    await user.keyboard("{Escape}");
+    expect(callbacks.onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("reports a failed creation and ignores a blank or repeated submit", async () => {
+    const user = userEvent.setup();
+    let rejectCreate!: (reason: unknown) => void;
+    hooks.create.mockReturnValueOnce(
+      new Promise<Conversation | null>((_resolve, reject) => {
+        rejectCreate = reject;
+      }),
+    );
+    drawDirectory();
+
+    await user.click(screen.getByRole("button", { name: "Create room" }));
+    const name = screen.getByRole("textbox", { name: "Room name" });
+    await user.type(name, "   ");
+    fireEvent.submit(name.closest("form")!);
+    expect(hooks.create).not.toHaveBeenCalled();
+
+    await user.type(name, "Ops");
+    fireEvent.submit(name.closest("form")!);
+    fireEvent.submit(name.closest("form")!);
+    expect(hooks.create).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Creating…" })).toBeDisabled();
+
+    await act(async () => {
+      rejectCreate("refused");
+      await Promise.resolve();
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Room could not be created.");
   });
 });
 

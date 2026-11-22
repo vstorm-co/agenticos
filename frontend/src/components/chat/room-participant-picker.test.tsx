@@ -7,9 +7,13 @@ import messages from "@/../messages/en.json";
 import type { RoomParticipantRead } from "@/types/room";
 import { RoomParticipantPicker } from "./room-participant-picker";
 
-function participant(id: string, name: string): RoomParticipantRead {
+function participant(
+  id: string,
+  name: string,
+  kind: "user" | "agent" = "agent",
+): RoomParticipantRead {
   return {
-    kind: "agent",
+    kind,
     id,
     name,
     avatar_url: null,
@@ -45,5 +49,37 @@ describe("RoomParticipantPicker", () => {
       screen.getByRole("option", { name: "Writer · 5678, Agents, Add people or agents" }),
     );
     expect(onAdd).toHaveBeenCalledWith(second);
+  });
+
+  it("groups people and agents, ignores selection while disabled and explains an empty search", async () => {
+    const onAdd = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <RoomParticipantPicker
+          candidates={[participant("user-1", "Morgan", "user"), participant("agent-1", "Writer")]}
+          disabled
+          onAdd={onAdd}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("People")).toBeVisible();
+    expect(screen.getByText("Agents")).toBeVisible();
+    await user.click(screen.getByRole("option", { name: "Morgan, People, Add people or agents" }));
+    expect(onAdd).not.toHaveBeenCalled();
+
+    await user.type(screen.getByRole("combobox"), "zzz");
+    expect(screen.getByText("No matching people or agents.")).toBeVisible();
+  });
+
+  it("says nobody can be added when there are no candidates", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <RoomParticipantPicker candidates={[]} disabled={false} onAdd={vi.fn()} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("No people or agents can be added.")).toBeVisible();
   });
 });
