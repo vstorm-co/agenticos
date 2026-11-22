@@ -34,7 +34,11 @@ flowchart TD
   does not assign colleagues' work to the owner.
 - Native question answers have their own attribution and submission time. An
   answer after a memory erasure can survive even when the question's containing
-  message predates it. Old message text remains excluded.
+  message predates it. Old message text remains excluded. Retrieval also supplies
+  up to eight recent authenticated answers from the selected work's conversations,
+  even when extraction did not cite them. It restores their submitted values from
+  receipts rather than trusting a shortened cached quote. Question metadata does
+  not repeat the whole answer body into each extraction segment.
 - Hidden external tool results, attachments and raw document contents are not
   loaded into the work index. Native question answers are the deliberate exception.
   A segment receives only its own answer receipts. Proposal retrieval receives
@@ -47,8 +51,9 @@ flowchart TD
   are not scanned. Partial resource lists carry completeness flags.
 - A checkpoint retains original quoted fragments and their timestamps, not a second
   whole transcript. Fragment boundaries are preserved: joining two excerpts cannot
-  manufacture a contiguous citation. Topic state follows source chronology rather
-  than conversation listing order.
+  manufacture a contiguous citation. Retrieved answer and receipt context is
+  bounded to 2,000 characters per source; long answer context is marked partial.
+  Topic state follows source chronology rather than conversation listing order.
 
 ## Delivery and recovery
 

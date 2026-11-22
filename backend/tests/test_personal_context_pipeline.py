@@ -1025,3 +1025,92 @@ async def test_a_current_task_deadline_is_not_an_unconfirmed_new_schedule(kind: 
         [],
     )
     assert result is not None and result.opportunities == [advice]
+
+
+async def test_linked_answers_reach_proposal_and_verifier_without_index_citations() -> None:
+    class AnswerReader(Reader):
+        async def read[Result: BaseModel](
+            self, *, stage: str, instructions: str, material: object, output_type: type[Result]
+        ) -> Result | None:
+            if stage == "propose":
+                assert isinstance(material, dict)
+                assert material["sources"]["message:answer:answer"] == ("When: thu 18",)
+                assert "receipt:answer" in material["sources"]
+            if stage == "verify":
+                assert isinstance(material, dict)
+                assert material["original_sources"]["message:answer:answer"] == ("When: thu 18",)
+                assert material["unconfirmed_local_hours"] == []
+            return await super().read(
+                stage=stage, instructions=instructions, material=material, output_type=output_type
+            )
+
+    advice = card(
+        chat_prompt="Prepare the Thursday routine at 18:00.", proposed_schedule="Thursday 18:00"
+    )
+    result = await propose_context(
+        AnswerReader(
+            propose=PersonalReading(opportunities=[advice]),
+            verify=VerifiedReading(approved_identities=[advice.identity]),
+        ),
+        packet(tool_receipts=[receipt(thread_id="t")]),
+        [ContextDigest(topics=[topic()])],
+    )
+    assert result is not None and result.opportunities == [advice]
+
+
+async def test_linked_answer_retrieval_is_bounded_and_marks_partial_context() -> None:
+    class BoundedReader(Reader):
+        async def read[Result: BaseModel](
+            self, *, stage: str, instructions: str, material: object, output_type: type[Result]
+        ) -> Result | None:
+            assert stage == "propose" and isinstance(material, dict)
+            answers = {
+                key: value
+                for key, value in material["sources"].items()
+                if key.startswith("message:answer:")
+            }
+            assert len(answers) == 8
+            assert all(
+                len(fragment) <= 2000 for fragments in answers.values() for fragment in fragments
+            )
+            assert all(material["source_metadata"][key]["context_truncated"] for key in answers)
+            assert "message:answer:old-0" not in answers
+            assert "message:answer:unrelated" not in answers
+            return await super().read(
+                stage=stage, instructions=instructions, material=material, output_type=output_type
+            )
+
+    receipts = [
+        receipt(id=f"old-{i}", thread_id="t", submitted_answers={"Details": [str(i) + "x" * 3000]})
+        for i in range(10)
+    ]
+    receipts.append(receipt(id="unrelated", thread_id="other"))
+    assert (
+        await propose_context(
+            BoundedReader(propose=PersonalReading()),
+            packet(tool_receipts=receipts),
+            [ContextDigest(topics=[topic()])],
+        )
+        == PersonalReading()
+    )
+
+
+def test_proposal_can_restore_a_cached_answer_without_unbounding_extraction_segments() -> None:
+    value = with_human_answers(packet(tool_receipts=[receipt(thread_id="t")]))
+    answer = next(turn for turn in value.messages if turn.id == "answer:answer")
+    clipped = answer.model_copy(update={"text": "When", "source_fragments": ["When"]})
+    cached = value.model_copy(update={"messages": [clipped]})
+    assert with_human_answers(cached).messages[0].text == "When"
+    assert with_human_answers(cached, restore_cached=True).messages[0].text == "When: thu 18"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("fence", ["thread", "receipt", "erased"])
+def test_native_answers_cannot_restore_revoked_or_erased_sources(fence: str) -> None:
+    state = (
+        {"source_access": {"t" if fence == "thread" else "receipt:answer": "revoked"}}
+        if fence != "erased"
+        else {"erased_source_ids": ["answer:answer"]}
+    )
+    value = packet(messages=[], tool_receipts=[receipt(thread_id="t")], current_state=state)
+    assert with_human_answers(value, restore_cached=True).messages == []

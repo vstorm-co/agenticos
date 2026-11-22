@@ -26,7 +26,7 @@ from app.schemas.personal_context import (
     WorkTopic,
 )
 
-EXTRACTOR_VERSION = "personal-work-v3"
+EXTRACTOR_VERSION = "personal-work-v4"
 CHUNK_CHARS = 16000
 MAX_SELECTED_TOPICS = 12
 
@@ -143,7 +143,7 @@ def fingerprint(value: object) -> str:
     ).hexdigest()
 
 
-def with_human_answers(packet: ContextPacket) -> ContextPacket:
+def with_human_answers(packet: ContextPacket, *, restore_cached: bool = False) -> ContextPacket:
     """Normalize server-attributed receipts; remote payload bodies are never parsed."""
     access = packet.current_state.get("source_access")
     access = access if isinstance(access, dict) else {}
@@ -164,7 +164,13 @@ def with_human_answers(packet: ContextPacket) -> ContextPacket:
         identifier = receipt.get("id")
         if (
             not isinstance(identifier, str)
-            or f"answer:{identifier}" in known
+            or (f"answer:{identifier}" in known and not restore_cached)
+            or access.get(f"receipt:{identifier}") == "revoked"
+            or f"answer:{identifier}" in erased_ids
+            or (
+                isinstance(receipt.get("thread_id"), str)
+                and access.get(receipt["thread_id"]) == "revoked"
+            )
             or receipt.get("action") != "ask_user_question"
             or receipt.get("status") != "completed"
             or receipt.get("answered_by_user_id") != packet.subject_id
@@ -191,6 +197,8 @@ def with_human_answers(packet: ContextPacket) -> ContextPacket:
             continue
         if at.tzinfo is None or (fence is not None and at <= fence):
             continue
+        turns = [turn for turn in turns if turn.id != f"answer:{identifier}"]
+        known.add(f"answer:{identifier}")
         turns.append(
             ContextTurn(
                 id=f"answer:{identifier}",
@@ -363,7 +371,16 @@ async def extract_context(reader: ContextModel, packet: ContextPacket) -> Contex
             for index, turn in enumerate(packet.messages)
         ],
         "tool_receipts": [
-            {**receipt, "id": f"r{index}"} for index, receipt in enumerate(packet.tool_receipts)
+            {
+                "id": f"r{index}",
+                "action": receipt.get("action"),
+                "status": receipt.get("status"),
+                "thread_id": receipt.get("thread_id"),
+                "question_context": json.dumps(receipt.get("questions"), ensure_ascii=False)[:2000],
+            }
+            if receipt.get("action") == "ask_user_question"
+            else {**receipt, "id": f"r{index}"}
+            for index, receipt in enumerate(packet.tool_receipts)
         ],
     }
     for _attempt in range(2):
@@ -410,7 +427,7 @@ async def extract_context(reader: ContextModel, packet: ContextPacket) -> Contex
 async def propose_context(
     reader: ContextModel, packet: ContextPacket, digests: Sequence[ContextDigest]
 ) -> PersonalReading | None:
-    packet = with_human_answers(packet)
+    packet = with_human_answers(packet, restore_cached=True)
     if packet.audience != "private":
         return PersonalReading()
     sources = evidence_sources(packet)
@@ -431,7 +448,32 @@ async def propose_context(
         for topic in select_topics(digests, packet)
         if all(supported(ref, sources) for ref in topic.evidence)
     ]
+
+    def related_answers(references: set[str]) -> list[ContextTurn]:
+        threads = {turn.thread_id for turn in packet.messages if f"message:{turn.id}" in references}
+        threads.update(
+            thread
+            for receipt in packet.tool_receipts
+            if f"receipt:{receipt.get('id')}" in references
+            and isinstance(thread := receipt.get("thread_id"), str)
+        )
+        return [
+            turn
+            for turn in packet.messages
+            if turn.id.startswith("answer:")
+            and turn.speaker_id == packet.subject_id
+            and turn.thread_id in threads
+        ][-8:]
+
+    def bounded_original(identifier: str) -> SourceFragments:
+        return tuple(fragment[:2000] for fragment in sources[identifier])
+
     cited = {ref.source_id for topic in topics for ref in topic.evidence}
+    answer_ids = {f"message:{turn.id}" for turn in related_answers(cited)}
+    cited.update(answer_ids)
+    cited.update(
+        f"receipt:{identifier.removeprefix('message:answer:')}" for identifier in answer_ids
+    )
     selected_threads = {turn.thread_id for turn in packet.messages if f"message:{turn.id}" in cited}
     failed_receipts = [
         receipt
@@ -455,6 +497,11 @@ async def propose_context(
             "occurred_at": turn.occurred_at.isoformat(),
             "speaker_id": turn.speaker_id,
             "role": turn.role,
+            **(
+                {"kind": "authenticated_answer", "context_truncated": len(turn.text) > 2000}
+                if turn.id.startswith("answer:")
+                else {}
+            ),
             "local_date": turn.occurred_at.astimezone(zone).date().isoformat() if zone else None,
             "local_isoweekday": turn.occurred_at.astimezone(zone).isoweekday() if zone else None,
         }
@@ -466,7 +513,9 @@ async def propose_context(
         "topics": [topic.model_dump(mode="json") for topic in topics],
         "source_metadata": {key: value for key, value in chronology.items() if key in cited},
         "sources": {
-            key: tuple(
+            key: bounded_original(key)
+            if key in answer_ids or key.startswith("receipt:")
+            else tuple(
                 dict.fromkeys(
                     source_excerpt(ref, sources)
                     for topic in topics
@@ -522,7 +571,9 @@ async def propose_context(
         related = [
             topic for topic in topics if cited.intersection(ref.source_id for ref in topic.evidence)
         ]
-        human_ids = (cited | {ref.source_id for topic in related for ref in topic.evidence}) & human
+        references = cited | {ref.source_id for topic in related for ref in topic.evidence}
+        references.update(f"message:{turn.id}" for turn in related_answers(references))
+        human_ids = references & human
         confirmed = {
             hour
             for identifier in human_ids
@@ -597,9 +648,8 @@ async def propose_context(
             ]
         references = [*card.evidence, *(ref for topic in related for ref in topic.evidence)]
         reference_ids = {ref.source_id for ref in references}
-        reference_threads = {
-            turn.thread_id for turn in packet.messages if f"message:{turn.id}" in reference_ids
-        }
+        native_ids = {f"message:{turn.id}" for turn in related_answers(reference_ids)}
+        reference_ids.update(native_ids)
         verifier_sources = {
             key: value
             for key, value in sources.items()
@@ -613,16 +663,17 @@ async def propose_context(
                     if ref.source_id == identifier
                 )
             )
+        for identifier in native_ids:
+            verifier_sources[identifier] = bounded_original(identifier)
         for receipt in packet.tool_receipts:
             identifier = receipt.get("id")
             if isinstance(identifier, str) and (
-                (
-                    isinstance(receipt.get("thread_id"), str)
-                    and receipt.get("thread_id") in reference_threads
-                )
+                f"receipt:{identifier}" in reference_ids
                 or f"message:answer:{identifier}" in reference_ids
             ):
-                verifier_sources[f"receipt:{identifier}"] = sources[f"receipt:{identifier}"]
+                verifier_sources[f"receipt:{identifier}"] = bounded_original(
+                    f"receipt:{identifier}"
+                )
         verified = await reader.read(
             stage="verify",
             instructions=VERIFY_INSTRUCTIONS,
