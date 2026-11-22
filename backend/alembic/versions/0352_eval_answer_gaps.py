@@ -18,8 +18,8 @@ and named by their question.
 **Downgrade** drops the table, the index and the column, and the misses read from
 eval answers with them: without the index nothing keeps them to one per run.
 
-Revision ID: 0351_eval_answer_gaps
-Revises: 0350_skill_check_too_few
+Revision ID: 0352_eval_answer_gaps
+Revises: 0351_skill_check_too_few
 Create Date: 2026-11-20
 """
 
@@ -28,8 +28,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0351_eval_answer_gaps"
-down_revision: str = "0350_skill_check_too_few"
+revision: str = "0352_eval_answer_gaps"
+down_revision: str = "0351_skill_check_too_few"
 branch_labels: None = None
 depends_on: None = None
 
