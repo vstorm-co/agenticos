@@ -910,6 +910,30 @@ def test_clock_evidence_preserves_short_native_answers_and_zero_padding(
     assert clock_hours(text, short_answer=short) == expected
 
 
+@pytest.mark.parametrize(
+    "weekday",
+    [
+        "Mon",
+        "Tuesday",
+        "Wed",
+        "Thurs",
+        "Fri",
+        "Saturday",
+        "Sun",
+        "pon",
+        "wtorek",
+        "śr",
+        "czwartek",
+        "piątek",
+        "sob",
+        "niedziela",
+    ],
+)
+def test_short_native_clock_answers_support_every_weekday(weekday: str) -> None:
+    assert clock_hours(f"{weekday} 08", short_answer=True) == {"08:00"}
+    assert clock_hours(f"{weekday} 08", short_answer=False) == set()
+
+
 async def test_a_short_native_answer_can_confirm_a_padded_clock_hour() -> None:
     answer = SourceEvidence(source_id="message:answer:answer", quote="When: thu 18")
     advice = card(
