@@ -35,12 +35,24 @@ _DESCENDANTS = (
     load_revision("0343_workflow_media_operations"),
     load_revision("0344_browser_procedure_teaching"),
     load_revision("0345_credential_continuations"),
+    # Room participants hold a foreign key on agents' tenant key, so the room chain
+    # is a consumer of 0342's keys and unwinds with the rest.
+    load_revision("0348_room_participants"),
+    load_revision("0349_room_mention_requests"),
+    load_revision("0350_room_message_reactions"),
+    load_revision("0351_room_thread_state"),
 )
 assert tuple(migration.down_revision for migration in _DESCENDANTS[:2]) == (
     _MIGRATION.revision,
     _DESCENDANTS[0].revision,
 )
 assert _DESCENDANTS[2].down_revision == "0344_browser_procedure_teaching"
+assert tuple(migration.down_revision for migration in _DESCENDANTS[3:]) == (
+    "0347_network_connections",
+    "0348_room_participants",
+    "0349_room_mention_requests",
+    "0350_room_message_reactions",
+)
 _TABLES = (
     "browser_credential_policies",
     "browser_credential_agent_grants",
