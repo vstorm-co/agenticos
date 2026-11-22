@@ -430,15 +430,18 @@ async def test_remote_default_sandbox_keeps_shipped_personal_coding_enabled(
     [
         ("nov14", "565f43faa977b55785690d56e3479f030c538a89ec1d0438e1f53c337ac3c0fb"),
         ("nov12", "591db556d4dfe7390b513d139ce0c7e91ed00c80babb7deb9a1f626cdfc1cf37"),
+        ("nov12-release", "c32d4cb673c3a5846cdee51bb8f045118b528cdc5e03650c80bd017ae2e07d34"),
     ],
 )
 @pytest.mark.parametrize("custom_draft_prompt", [False, True])
+@pytest.mark.parametrize("original_sandbox", ["service", "state"])
 async def test_verified_historical_starter_upgrades_without_overwriting_independent_edits(
     installed,
     monkeypatch: pytest.MonkeyPatch,
     release: str,
     prompt_hash: str,
     custom_draft_prompt: bool,
+    original_sandbox: str,
 ) -> None:
     from pathlib import Path
 
@@ -463,6 +466,15 @@ async def test_verified_historical_starter_upgrades_without_overwriting_independ
         mcp_servers=[{"account": "platform", "allowed_tools": ["list_agents"]}],
         model_profile_id=uuid4(),
         budget=BudgetSpec(monthly_usd=17),
+    )
+    if original_sandbox == "state":
+        sandbox = next(binding for binding in live.capabilities if binding.id == "sandbox")
+        sandbox.config = {**sandbox.config, "backend": "state"}
+        sandbox.config.pop("include_execute", None)
+    # Recognition must not depend on the availability when the original release
+    # was installed: the organization has since acquired a container workspace.
+    monkeypatch.setattr(
+        shipped_agents.SandboxConnectionService, "can_provide", AsyncMock(return_value=True)
     )
     assert fingerprint(live, "instructions") == prompt_hash
     pending_model = uuid4()
