@@ -1541,7 +1541,8 @@
         "agent": "Zbuduj z Architektem",
         "profile": "Zapisz w profilu",
         "role_pack": "Dodaj te rutyny",
-        "finding": "Załatwione"
+        "finding": "Załatwione",
+        "personal": "Przyjmuję"
       },
       "open": "Otwórz",
       "urgent": "Pilne",
@@ -14228,7 +14229,8 @@
       "agent": "Pomysł na agenta",
       "profile": "Profil",
       "role_pack": "Pakiet rutyn",
-      "finding": "Rutyna"
+      "finding": "Rutyna",
+      "personal": "Osobista propozycja"
     },
     "discuss": "Porozmawiaj z agentem",
     "moreActions": "Więcej działań dla {title}",
@@ -14239,7 +14241,8 @@
       "profile": "Pomóż mi przejrzeć i zaktualizować profil na podstawie tej propozycji: {text}",
       "role_pack": "Pomóż mi skonfigurować ten proponowany zestaw rutyn: {text}",
       "topic": "Temat: {text}",
-      "schedule": "Proponowany harmonogram: {text}"
+      "schedule": "Proponowany harmonogram: {text}",
+      "personal": "Pomóż mi w tym: {text}"
     },
     "openWorkingChat": "Otwórz rozmowę",
     "preferences": "Ustawienia Inbox",
