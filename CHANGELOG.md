@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **French console**: choose Français as your language. The whole console catalog is translated, and welcome messages, watch briefings, voice previews and the model-setup reply follow it. Product nouns (agent, skill, run, workspace…) stay in English, as in the other languages.
+
 ## [1.91.0] - 2026-11-23
 
 ### Upgrading

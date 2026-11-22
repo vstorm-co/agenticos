@@ -67,6 +67,7 @@ export const OG_LOCALE: Record<(typeof locales)[number], string> = {
   pl: "pl_PL",
   de: "de_DE",
   tr: "tr_TR",
+  fr: "fr_FR",
 };
 
 interface PageMetaInput {
