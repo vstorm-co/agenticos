@@ -341,6 +341,7 @@ class ThinkForPerson(Payload):
 
     organization_id: UUID
     user_id: UUID
+    refresh_open: bool = False
 
 
 class ExtractMemory(Payload):

@@ -10,6 +10,8 @@ import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePendingApprovals } from "@/hooks/use-pending-approvals";
 import { SuggestionMark, urgentFirst, useSuggestionSource } from "./suggestion-actions";
 
+import { suggestionChatPrompt } from "@/lib/suggestion-chat-prompt";
+
 import styles from "./chat-home-inbox.module.css";
 
 const PREVIEW_LIMIT = 2;
@@ -22,6 +24,7 @@ export function ChatHomeInbox({ onDiscuss }: { onDiscuss: (prompt: string) => vo
   const t = useTranslations("chat.homeInbox");
   const common = useTranslations("common");
   const inbox = useTranslations("inbox");
+  const draft = useTranslations("inbox.chatDraft");
   const { sourceOf } = useSuggestionSource();
   const loading = suggested.isLoading || pending.isLoading;
   const failed = suggested.error || pending.error;
@@ -73,7 +76,7 @@ export function ChatHomeInbox({ onDiscuss }: { onDiscuss: (prompt: string) => vo
                   <button
                     type="button"
                     className={`chat-home-inbox-topic ${styles.topic}`}
-                    onClick={() => onDiscuss(inbox("discussPrompt", { id: item.id }))}
+                    onClick={() => onDiscuss(suggestionChatPrompt(item, draft))}
                   >
                     <SuggestionMark suggestion={item} className="chat-home-inbox-source" />
                     <span className="chat-home-inbox-copy">

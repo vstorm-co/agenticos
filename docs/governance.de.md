@@ -1,5 +1,5 @@
 ---
-source_sha: "967cfe084fed"
+source_sha: "4a5506769583"
 ---
 
 # Governance { #governance }
@@ -883,11 +883,7 @@ Identitäten; erst das Speichern des aktuellen Reviews erteilt Zustimmung. Neue 
 und geänderte Konten werden nicht automatisch ausgewählt. Verbindliche Freigaben,
 Widerruf und die Prüfung auf veraltete Reviews gelten weiterhin.
 
-Eine unbeaufsichtigte Routine fragt vor Fähigkeitsaktionen, lokalen Dateiänderungen
-und Delegation. Externe MCP-Aufrufe fragen, sofern ihr Server sie nicht als nur
-lesend kennzeichnet; eine strengere Bestätigungspolitik der Verbindung gilt weiter.
-Die Vorgaben interaktiver Agenten bleiben gleich. Der Codemodus ist für Routinen
-ausgeschaltet, damit Sammelskripte keine Einzelkontrollen umgehen.
+Folgende Routinen verwenden die Aktionsfreigaben des Agenten ohne zusätzliche routinenweite Freigabepflicht. Eingeschränkte Routinen fragen zusätzlich vor Capability-Aktionen, lokalen Dateiänderungen und Delegation sowie vor externen MCP-Aufrufen ohne Nur-Lesen-Kennzeichnung. Explizite Agenten- oder Verbindungsvorgaben und verbindliche Freigaben gelten in beiden Modi. Der Codemodus bleibt für Routinen ausgeschaltet, damit Sammelskripte keine einzelnen Werkzeugkontrollen umgehen.
 
 Schreibzugriffe auf AgenticOS Virtual Tables laufen innerhalb ihrer aktuellen Tabellen- und Operationsfreigaben ohne Ausnahme für die Routine. Eine ausdrücklich konfigurierte Freigaberichtlinie des Agenten gilt weiterhin für diese internen Schreibzugriffe.
 
@@ -2676,9 +2672,13 @@ Die Liste zeigt automatische Pause und Fehlerzahl. Höchstens 50 Beobachtungen p
 
 ## Geprüfte Routinequellen { #routine-sources }
 
-Beim Erstellen hält eine Routine ihre veröffentlichte Quellenkonfiguration, konkreten MCP-Konten, Zustimmungsgenerationen und bekannten Werkzeugnamen fest. Die Prüfung umfasst fixierte Delegaten, Wissenssammlungen, Skills, Kontext und Fähigkeitenkonfiguration; entfernte A2A-Registrierungen behalten außerdem ihre Endpunkt-, Karten- und Zugangsdatenbindung. Reine Änderungen an Anweisungen oder Modelleinstellungen können einer Veröffentlichung folgen. Neue Quellen, geänderte Konten und erneuerte Kontozustimmungen erfordern eine Prüfung im Quellenbereich des Zustimmungsdialogs durch den Eigentümer. Diese Prüfung hebt keine Aktionsfreigaben auf und gewährt keinen Ressourcenzugriff. Aktuelle Berechtigungen gelten weiterhin.
+Neue Routinen genehmigen automatisch die anfänglich verfügbare Konfiguration des veröffentlichten Agenten innerhalb der aktuellen Erstellerberechtigungen. Sichere Quellenentfernungen und reine Modell- oder Anzeigeänderungen des Hauptagenten benötigen keine Prüfung. Neue Quellen, Konten oder Werkzeuge, geänderte Anweisungen oder Variablen sowie Änderungen an Capabilities, tatsächlich verwendeten Skills, Kontext oder delegiertem Verhalten erfordern vor einer weiteren Ausführung die Zugriffsprüfung des Eigentümers. Eine Veröffentlichung des gemeinsamen Agenten erweitert allein keine dauerhafte Befugnis einer Person. Fehlende optionale MCP-Konten blockieren keine unabhängige Arbeit; erforderliche Ereigniseingänge, Identität, Ressourcenzugriffe, Budgets und verbindliche Freigaben gelten weiter.
 
-Eingereihte Aktivierungen, auf Computer wartende Arbeit und geparkte Läufe behalten ihre ursprüngliche Prüfungsidentität. Eine spätere Prüfung erweitert alte Arbeit nicht. Der Postfach-Poll prüft das Eingangskonto vor dem Lesen; Ereignisse behalten die davor gültige Zustimmung. MCP-Aufrufe verwenden geprüfte Aliase und schließen ungeprüfte Werkzeuge aus. Nicht verfügbare geprüfte Quellen führen zu einer ausdrücklichen Ablehnung. Eine vor der Ausführung erforderliche Prüfung erscheint im bestehenden Aufmerksamkeitsfall des Eigentümers und zählt nicht als Modellfehler.
+Eine geänderte fixierte Delegatenversion erfordert eine Prüfung, auch bei einer reinen Modelländerung dieses Delegaten.
+
+Der Eigentümer kann stattdessen `restricted` wählen. Dieser Modus fixiert die geprüfte Quellenkonfiguration, konkrete MCP-Konten, Autorisierungsgenerationen und bekannte Werkzeugnamen. Die Prüfung umfasst fixierte Delegaten, Wissen, Skills, Kontext, Capabilities und entfernte A2A-Registrierungen. Neue Quellen oder geänderte Kontoautorisierung erfordern eine erneute Prüfung. Bestehende Richtlinien ohne Modus bleiben eingeschränkt; ein Upgrade erweitert sie nicht stillschweigend.
+
+Jede zugelassene Ausführung behält ihren eigenen Quellen- und Kontenstand. Ein geparkter Lauf kann kein späteres Konto, keine neue Autorisierung und keine spätere Prüfung übernehmen. Quelleninhaberschaft, Widerruf und Werkzeug-Positivlisten werden vor Aufrufen erneut geprüft. Fehlende optionale Werkzeuge werden gemeldet und nicht als erfolgreiche Arbeit behandelt. Der Eigentümer kann den Modus einer bestehenden Routine ausdrücklich über die durch Prüftoken geschützten Zugriffseinstellungen ändern.
 
 Migration `0276_routine_sources.py` erteilt bestehenden Routinen keine Zustimmung. Alte Worker abarbeiten lassen, API und Worker gemeinsam aktualisieren und alte Routinen vor dem Ausführen ausdrücklich prüfen. Nur der Eigentümer in der Konsole kann die Zustimmung ersetzen; API-Schlüssel, Identitätsübernahmen und unbeaufsichtigte Agenten dürfen dies nicht.
 

@@ -43,6 +43,34 @@ Two things are versioned separately from this file and worth knowing about:
 - Migration `backend/alembic/versions/0349_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
 - Migration `backend/alembic/versions/0350_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
 
+## [1.89.0] - 2026-11-21
+
+### Upgrading
+
+- Deploy the API and workers together. New and re-reviewed routines store their source mode, which older workers cannot read. Existing stored routines without a mode retain their restricted policy.
+
+### Added
+
+- Let new routines use their agent's available configuration and approval rules without an initial setup review. Retain the creator-approved access and behavior ceiling: later source/tool expansions or behavior changes require owner review, while model-only updates and safe removals remain allowed. Missing optional MCP accounts do not block unrelated work; required source identity and mandatory approvals remain enforced.
+
+- Let operators queue a bounded refresh of open generated Inbox proposals in one organization. Keep decisions, findings and linked cases, and retain the old proposals when generation fails or a person decides during the refresh.
+
+### Changed
+
+- Prepare actionable Inbox chat drafts from generated proposal text and source evidence, including local weekdays and time zones. Keep drafts editable and show only two starter prompts on phones.
+
+### Fixed
+
+- Claim a generated Inbox proposal before accepting or dismissing it, so refresh waits for an in-progress decision instead of deleting the card during profile updates or role-pack setup.
+
+- Open links to verified tool-produced files in the scoped workspace viewer instead of navigating to nonexistent console pages, and do not present failed writes as produced files.
+
+- Distinguish chat workspaces that have not been created or retained from sandbox connection failures. Keep file attachments available and preserve explicit errors for lost recorded sessions and failed connections.
+
+- Keep routine titles readable in narrow chat cards, with wrapping status and action controls based on the card's available width.
+
+- Preserve the reader's position when a live question appears and keep selected answers visible across submission, server acknowledgements and transcript reloads.
+
 ## [1.88.0] - 2026-11-21
 
 ### Added
@@ -22456,7 +22484,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.88.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.89.0...HEAD
+[1.89.0]: https://github.com/vstorm-co/agenticos/compare/v1.88.0...v1.89.0
 [1.88.0]: https://github.com/vstorm-co/agenticos/compare/v1.87.1...v1.88.0
 [1.87.1]: https://github.com/vstorm-co/agenticos/compare/v1.87.0...v1.87.1
 [1.87.0]: https://github.com/vstorm-co/agenticos/compare/v1.86.2...v1.87.0

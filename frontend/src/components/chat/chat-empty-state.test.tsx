@@ -202,3 +202,12 @@ it("shows a neutral avatar skeleton rather than a demo mark while resolving the 
   render(<ChatEmptyState onPick={vi.fn()} />);
   expect(screen.getByTestId("welcome-agent-loading")).toBeVisible();
 });
+
+it("applies the mobile two-prompt policy to the main chat while retaining four desktop choices", () => {
+  env.loading = false;
+  env.agents = [{ ...AGENT, starters: ["One", "Two", "Three", "Four"] }];
+  render(<ChatEmptyState onPick={vi.fn()} />);
+  const hints = screen.getByRole("button", { name: /^One/ }).closest("[data-chat-welcome-hints]");
+  expect(hints).toHaveClass("max-sm:[&>*:nth-child(n+3)]:hidden");
+  expect(hints?.children).toHaveLength(4);
+});

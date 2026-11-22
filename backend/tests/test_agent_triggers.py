@@ -5486,6 +5486,7 @@ async def test_unavailable_sources_save_a_paused_routine_without_losing_its_sche
     assert result is trigger and trigger.is_active is False
     assert trigger.approved_sources == {
         "pending_review": True,
+        "mode": "follow_agent",
         "unavailable_sources": ["notion"],
         "reason": refusal.code,
     }
@@ -5606,7 +5607,11 @@ async def test_explicit_setup_review_stays_pending_even_when_initial_sources_are
             _ctx(), agent.id, _interval().model_copy(update={"review_before_activation": True})
         )
     assert created.is_active is False
-    assert created.approved_sources == {"pending_review": True, "unavailable_sources": []}
+    assert created.approved_sources == {
+        "pending_review": True,
+        "mode": "follow_agent",
+        "unavailable_sources": [],
+    }
 
 
 class TestGithubFilteredEventDiagnostics:
