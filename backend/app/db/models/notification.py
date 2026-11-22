@@ -36,6 +36,9 @@ class NotificationEventType(enum.StrEnum):
 
     BUDGET_EXCEEDED = "budget_exceeded"
     APPROVAL_REQUESTED = "approval_requested"
+    # A run ended because nobody decided its approval in time, told to the
+    # person who started it with the reason and the run to retry it from.
+    APPROVAL_EXPIRED = "approval_expired"
     RUN_COMPLETED = "run_completed"
     RUN_FAILED = "run_failed"
     INGESTION_COMPLETED = "ingestion_completed"
@@ -189,7 +192,7 @@ class Notification(Base, TimestampMixin):
     __table_args__ = (
         CheckConstraint(
             "event_type IN ("
-            "'budget_exceeded', 'approval_requested', 'run_completed', 'run_failed', "
+            "'budget_exceeded', 'approval_requested', 'approval_expired', 'run_completed', 'run_failed', "
             "'ingestion_completed', 'ingestion_failed', 'usage_report', "
             "'agent_usage_report', 'security_event', 'configuration_changed', "
             "'announcement', 'artifact_version_published', 'resource_shared', "

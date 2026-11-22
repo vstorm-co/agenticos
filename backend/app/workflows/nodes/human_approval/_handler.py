@@ -43,7 +43,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.permissions import AuthContext, Perm, role_has
+from app.core.permissions import AuthContext, Perm, Scope, role_has_at
 from app.db.models.workflow_approval import (
     ProposalFormat,
     WorkflowApproval,
@@ -243,7 +243,7 @@ async def check_resources(
             problems.append(
                 (f"approvers.{index}", "This person is not a member of the organization")
             )
-        elif not role_has(member.role, Perm.APPROVALS_DECIDE):
+        elif not role_has_at(member.role, Perm.APPROVALS_DECIDE, Scope.ALL):
             problems.append(
                 (f"approvers.{index}", "This person cannot decide approvals in the organization")
             )

@@ -113,7 +113,7 @@ export function FocusedRun({
   const t = useTranslations("pages.runs");
   const tTime = useTranslations("time");
   const locale = useLocale();
-  const { can } = usePermissions();
+  const { can, scopeOf } = usePermissions();
   const meId = useAuthStore((state) => state.user?.id ?? null);
   const { run, isLoading, error } = useRun(runId);
   // Scoring a run takes `datasets:run` on the dataset scored against, which a grant on
@@ -241,20 +241,24 @@ export function FocusedRun({
             {/* A parked run whose approvals were all decided is a run somebody
               still has to nudge: the resume endpoint is idempotent about the
               decision - a call still parked answers a refusal, not a second
-              decision - so the button asks for approvals:decide, the same
-              permission the endpoint carries. */}
-            {run.status === "awaiting_approval" && can(Perm.approvalsDecide) && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mr-1"
-                disabled={resume.isPending}
-                onClick={() => resume.mutate(run.id)}
-              >
-                <Play className="h-4 w-4" aria-hidden />
-                {t("resumeRun")}
-              </Button>
-            )}
+              decision - so the button asks for the decide permission, at the
+              scope the reader holds it. A member holds it at `OWN`, for
+              their own runs only, so the run's own person sees it beside the
+              privileged decider; anybody else is refused by the endpoint. */}
+            {run.status === "awaiting_approval" &&
+              (scopeOf(Perm.approvalsDecide) === "all" ||
+                (run.user_id !== null && run.user_id === meId)) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mr-1"
+                  disabled={resume.isPending}
+                  onClick={() => resume.mutate(run.id)}
+                >
+                  <Play className="h-4 w-4" aria-hidden />
+                  {t("resumeRun")}
+                </Button>
+              )}
             {/* A finished run, asked again. Only the person who started it
                 sees it - the endpoint refuses anybody else, and a retry
                 spends real money as them - and only while the run is

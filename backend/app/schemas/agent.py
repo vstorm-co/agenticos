@@ -1010,6 +1010,16 @@ class ParkedCall(BaseSchema):
             "call but not approve it"
         ),
     )
+    can_decide: bool = Field(
+        default=False,
+        description=(
+            "Whether this caller may decide this call: a privileged decider, "
+            "or the person who started the run, from a signed-in session. "
+            "A surface shows its buttons only on this, so a member reading "
+            "somebody else's parked run is never offered a decision the API "
+            "would refuse."
+        ),
+    )
 
 
 class ParkedQuestion(BaseSchema):

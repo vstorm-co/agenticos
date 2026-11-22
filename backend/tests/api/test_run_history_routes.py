@@ -391,7 +391,7 @@ class TestTheDetailReadCarriesItsNeighbours:
         )
         prev_id, next_id = uuid4(), uuid4()
         service = _service()
-        service.get_run = AsyncMock(return_value=run)
+        service.read_run = AsyncMock(return_value=run)
         service.down_rated_run_ids = AsyncMock(return_value=set())
         service.trace_url = AsyncMock(return_value=None)
         service.neighbor_run_ids = AsyncMock(return_value=(prev_id, next_id))
@@ -431,7 +431,7 @@ class TestTheDetailReadCarriesItsNeighbours:
             case_input="Can I return it?",
         )
         service = _service()
-        service.get_run = AsyncMock(return_value=run)
+        service.read_run = AsyncMock(return_value=run)
         service.down_rated_run_ids = AsyncMock(return_value=set())
         service.trace_url = AsyncMock(return_value=None)
         service.neighbor_run_ids = AsyncMock(return_value=(None, None))
@@ -473,7 +473,7 @@ class TestARunSaysWhereItsContinuationGoes:
                 fallback_used=False,
             )
             service = _service()
-            service.get_run = AsyncMock(return_value=run)
+            service.read_run = AsyncMock(return_value=run)
             service.down_rated_run_ids = AsyncMock(return_value=set())
             service.trace_url = AsyncMock(return_value=None)
             service.neighbor_run_ids = AsyncMock(return_value=(None, None))
@@ -500,7 +500,7 @@ async def test_run_listing_exposes_unlinked_asker_separately_from_publisher_auth
     service.run_chat_askers = AsyncMock(
         return_value={run.id: ChatAskerRead(platform="mattermost", name="@participant")}
     )
-    service.get_run = AsyncMock(return_value=run)
+    service.read_run = AsyncMock(return_value=run)
     service.trace_url = AsyncMock(return_value=None)
     service.neighbor_run_ids = AsyncMock(return_value=(None, None))
     async with _client(service) as client:
