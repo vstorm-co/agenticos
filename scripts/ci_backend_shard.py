@@ -25,8 +25,10 @@ on every platform.
 
 Recorded times (2026-11-21). Test counts left the shards at 1029 / 523 / 917 s of
 test time. When `BACKEND_SHARD_TIMES` names a JSON map of file -> seconds, recorded
-by the last green full run and handed to all three shards by the `changes` job,
-a file weighs its recorded seconds; a file with no record weighs its test count
+by the last completed full run and handed to all three shards by the `changes` job,
+a file weighs its recorded seconds; a file with a failed, errored or timed-out test
+is left out of the record, because a hang or an early abort says nothing about its
+normal time, so it weighs like an unrecorded file; a file with no record weighs its test count
 times the suite's mean seconds per test. Every shard reads the same file, so the
 split is still one deterministic function of the tree plus that one input, and
 `verify` (run by the aggregate `test` job) proves the shards together ran every
@@ -104,9 +106,13 @@ def load_times(path: str | None) -> dict[str, float]:
 
 
 def file_times(reports: list[str], files: list[str]) -> dict[str, float]:
-    """Seconds per test file, summed from JUnit reports' test cases."""
+    """Seconds per test file, summed from JUnit reports' test cases.
+
+    A file with any failed or errored case (a timeout is a failure) is left out.
+    """
     modules = {path.removesuffix(".py").replace("/", "."): path for path in files}
     totals: dict[str, float] = {}
+    broken: set[str] = set()
     for report in reports:
         # The reports are pytest's own JUnit output from this workflow's shards.
         for case in ElementTree.parse(report).iter("testcase"):  # noqa: S314
@@ -116,8 +122,12 @@ def file_times(reports: list[str], files: list[str]) -> dict[str, float]:
                 path = modules.get(".".join(parts[:end]))
                 if path:
                     totals[path] = totals.get(path, 0.0) + float(case.get("time") or 0)
+                    if case.find("failure") is not None or case.find("error") is not None:
+                        broken.add(path)
                     break
-    return {path: round(seconds, 3) for path, seconds in sorted(totals.items())}
+    return {
+        path: round(seconds, 3) for path, seconds in sorted(totals.items()) if path not in broken
+    }
 
 
 def verify(files: list[str], shards: list[list[str]]) -> list[str]:

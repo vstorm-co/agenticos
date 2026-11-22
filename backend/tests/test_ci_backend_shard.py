@@ -229,3 +229,22 @@ def test_junit_times_are_summed_per_file(tmp_path: Path) -> None:
         "tests/api/test_routes.py": 1.5,
         "tests/test_a.py": 3.25,
     }
+
+
+def test_a_file_with_a_failed_or_errored_test_is_left_out_of_the_times(tmp_path: Path) -> None:
+    """A hang or an early abort says nothing about a file's normal time."""
+    report = tmp_path / "junit.xml"
+    report.write_text(
+        "<testsuites><testsuite>"
+        '<testcase classname="tests.test_ok" name="test_one" time="2"/>'
+        '<testcase classname="tests.test_hang" name="test_one" time="0.5"/>'
+        '<testcase classname="tests.test_hang" name="test_two" time="300">'
+        '<failure message="Timeout"/></testcase>'
+        '<testcase classname="tests.test_boom" name="test_one" time="0.1">'
+        '<error message="fixture"/></testcase>'
+        "</testsuite></testsuites>"
+    )
+
+    assert ci_backend_shard.file_times(
+        [str(report)], ["tests/test_ok.py", "tests/test_hang.py", "tests/test_boom.py"]
+    ) == {"tests/test_ok.py": 2.0}

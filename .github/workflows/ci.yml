@@ -155,14 +155,17 @@ jobs:
       # The backend shards balance on the seconds per file that the last green
       # full run recorded. One fetch here, handed to all three shards, so they all
       # split the same way. With no record, the split falls back to test counts.
-      - name: Fetch the backend file times the last green run recorded
+      - name: Fetch the backend file times the last completed full run recorded
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -uo pipefail
           mkdir -p "$RUNNER_TEMP/times"
-          for id in $(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?status=success&per_page=10" \
-            --jq '.workflow_runs[].id'); do
+          # Completed, not only green: a red run's timings are still real, and files
+          # with a failed or timed-out test are left out when the times are recorded.
+          # Pull-request runs are scoped, so their record would be partial.
+          for id in $(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?status=completed&per_page=20" \
+            --jq '.workflow_runs[] | select(.event != "pull_request") | .id'); do
             gh run download "$id" -R "$GITHUB_REPOSITORY" -n backend-file-times -D "$RUNNER_TEMP/times" 2>/dev/null \
               && echo "Backend file times from run $id" && break
           done
@@ -466,6 +469,8 @@ jobs:
         run: make test-backend-reports-check
 
       - name: Download the shards' file lists and test times
+        # Also after a failed shard, so the next run's split has times (the job still fails).
+        if: ${{ !cancelled() }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: backend-shard-[0-9]*
@@ -473,12 +478,15 @@ jobs:
           merge-multiple: true
 
       - name: Require the shards to have run every test file exactly once
+        if: ${{ !cancelled() }}
         run: make test-backend-partition-check
 
       - name: Record the seconds each backend test file took
+        if: ${{ !cancelled() }}
         run: make backend-file-times
 
       - name: Keep the file times for the next run's split
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: backend-file-times
