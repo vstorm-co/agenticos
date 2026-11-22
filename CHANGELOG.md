@@ -38,16 +38,18 @@ Two things are versioned separately from this file and worth knowing about:
 - A skill check keeps each agent's families of criteria, so its details table one row per family - every case's check of one thing together - instead of one row per case's check. Agents expose `families`; `skill_check_agents` gains the column (#3178).
 - A skill check's agent whose runs graded every answer on fewer held-out questions than a result needs is unknown for `too_few_questions` rather than `inconclusive`, and its row says how many came out better and worse and that they are too few to be sure (#3178).
 
+### Upgrading
+
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+
+## [1.90.1] - 2026-11-22
+
 ### Fixed
 
 - Preserve authenticated value-only question-answer citations when restoring labelled answer context, so a confirmed multi-question automation request is not dropped before proposal generation.
 
 - Initialize channel adapters before personal Inbox workers verify current channel membership, so authorized Slack and Mattermost conversations are not omitted when the API lifespan has not run. Unavailable or revoked membership still refuses access.
-
-### Upgrading
-
-- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
-- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
 
 ## [1.90.0] - 2026-11-22
 
@@ -22510,7 +22512,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.90.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...HEAD
+[1.90.1]: https://github.com/vstorm-co/agenticos/compare/v1.90.0...v1.90.1
 [1.90.0]: https://github.com/vstorm-co/agenticos/compare/v1.89.1...v1.90.0
 [1.89.1]: https://github.com/vstorm-co/agenticos/compare/v1.89.0...v1.89.1
 [1.89.0]: https://github.com/vstorm-co/agenticos/compare/v1.88.0...v1.89.0
