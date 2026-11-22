@@ -261,6 +261,17 @@ describe("InboxPage", () => {
     expect(state.shown).toEqual([finding, urgent, routine]);
   });
 
+  it("keeps personal context proposals out of routine results", async () => {
+    const personal = item("personal", { kind: "personal", payload: { personal_context: true } });
+    const routine = item("routine", { kind: "finding" });
+    state.open = [personal, routine];
+    render(<InboxPage />);
+    await chooseFilter("Routine results");
+    expect(state.shown).toEqual([routine]);
+    await chooseFilter("Suggestions");
+    expect(state.shown).toEqual([personal]);
+  });
+
   it("says nothing waits, and sends the person to set up a watch", async () => {
     render(<InboxPage />);
     expect(screen.getByText("Nothing waits here")).toBeInTheDocument();
