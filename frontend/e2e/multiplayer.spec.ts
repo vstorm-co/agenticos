@@ -845,7 +845,11 @@ test.describe("multiplayer project rooms", () => {
     expect(asked.message.thread_root_message_id).toBe(root.message.id);
     expect(asked.request).toMatchObject({ thread_root_message_id: root.message.id });
     const parked = await requestStatus(page.request, roomId, asked.request!.id, "awaiting_answer");
-    await expect(panel.getByText(question, { exact: true })).toBeVisible();
+    await expect(
+      panel
+        .getByRole("group", { name: "Question from the assistant" })
+        .getByText(question, { exact: true }),
+    ).toBeVisible();
     const questions = await json<{ tool_call_id: string }[]>(
       page.request,
       "/api/runs/" + parked.run_id + "/questions",
@@ -868,7 +872,11 @@ test.describe("multiplayer project rooms", () => {
       const other = await openThread(page, sibling.message.id);
       await expect(other.getByText(question, { exact: true })).toHaveCount(0);
       await page.goto("/chat?id=" + roomId + "&thread=" + root.message.id);
-      await expect(threadPanel(page).getByText(question, { exact: true })).toBeVisible();
+      await expect(
+        threadPanel(page)
+          .getByRole("group", { name: "Question from the assistant" })
+          .getByText(question, { exact: true }),
+      ).toBeVisible();
       await threadPanel(page)
         .getByRole("button", { name: /Continue thread request/ })
         .click();

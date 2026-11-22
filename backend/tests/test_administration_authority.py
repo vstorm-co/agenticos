@@ -108,6 +108,9 @@ async def test_org_approvers_cannot_answer_global_changes_or_remember_them(
             "app.services.approvals.agent_run_repo.get_approval", new=AsyncMock(return_value=row)
         ),
         patch(
+            "app.services.approvals.agent_run_repo.get_run", new=AsyncMock(return_value=MagicMock())
+        ),
+        patch(
             "app.services.approvals.voice_call_repo.is_live_run", new=AsyncMock(return_value=False)
         ),
         patch.object(service, "hidden_fields", new=AsyncMock(return_value=frozenset())),

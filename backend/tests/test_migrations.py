@@ -2399,9 +2399,11 @@ class TestRoomThreadMigration:
             assert refused.returncode != 0
             assert "Cannot remove room thread scopes" in refused.stderr
             with engine.begin() as connection:
-                assert connection.scalars(
-                    text("SELECT version_num FROM alembic_version")
-                ).all() == ["0350_drop_user_theme_look"]
+                # `0348_approval_expired_notice` downgrades inside an autocommit block, which
+                # commits the no-schema merge and column revisions above it before the refusal.
+                assert sorted(
+                    connection.scalars(text("SELECT version_num FROM alembic_version")).all()
+                ) == ["0348_approval_expired_notice", "0348_architect_generated_avatar"]
                 assert (
                     connection.scalar(
                         text("SELECT thread_root_message_id FROM messages WHERE id=:id"),
