@@ -2553,7 +2553,8 @@
         "agent": "Build it with the Architect",
         "profile": "Save to my profile",
         "role_pack": "Add these routines",
-        "finding": "Done"
+        "finding": "Done",
+        "personal": "Got it"
       },
       "open": "Open",
       "urgent": "Urgent",
@@ -15008,7 +15009,8 @@
       "agent": "Agent idea",
       "profile": "Profile",
       "role_pack": "Routine pack",
-      "finding": "Routine"
+      "finding": "Routine",
+      "personal": "Personal suggestion"
     },
     "discuss": "Discuss with agent",
     "moreActions": "More actions for {title}",
@@ -15019,7 +15021,8 @@
       "profile": "Help me review and update my profile using this proposal: {text}",
       "role_pack": "Help me set up this suggested set of routines: {text}",
       "topic": "Topic: {text}",
-      "schedule": "Suggested schedule: {text}"
+      "schedule": "Suggested schedule: {text}",
+      "personal": "Help me with this: {text}"
     },
     "openWorkingChat": "Open conversation",
     "preferences": "Inbox preferences",

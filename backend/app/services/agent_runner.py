@@ -7197,6 +7197,28 @@ class AgentRunnerService:
         await self._record_manifest(prepared)
         await RoutineHealthService(self.db).run_result(finished)
         await self._queue_memory_extraction(finished, prepared)
+        if (
+            finished.user_id is not None
+            and finished.surface in {RunSurface.WEB, *CHANNEL_SURFACES}
+            and not finished.initiated_by_publisher_fallback
+            and not finished.is_test
+            and finished.parent_run_id is None
+            and finished.key_scopes is None
+            and prepared.built.deps.audience is not None
+            and prepared.built.deps.audience.user_id == finished.user_id
+            and not prepared.built.deps.impersonated
+        ):
+            from app.services.proactive import ProactiveService
+
+            try:
+                async with self.db.begin_nested():
+                    await ProactiveService(self.db).queue_context_change(
+                        finished.organization_id, finished.user_id
+                    )
+            except Exception:
+                logger.exception(
+                    "personal_context_queue_failed", extra={"run_id": str(finished.id)}
+                )
 
         from app.services.conversation_tasks import ConversationTaskService
 
