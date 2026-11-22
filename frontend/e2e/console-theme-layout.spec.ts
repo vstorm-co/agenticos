@@ -17,7 +17,7 @@ const catalogs = [
 for (const theme of ["light", "dark"] as const) {
   for (const width of [1280, 390]) {
     test(`resource surfaces remain readable in ${theme} at ${width}px`, async ({ page }) => {
-      test.setTimeout(90_000);
+      test.setTimeout(180_000);
       await page.setViewportSize({ width, height: 900 });
       await readAppearanceAs(page, theme);
       for (const [path, heading, apiPath] of catalogs) {

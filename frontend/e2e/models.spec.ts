@@ -128,6 +128,8 @@ test.describe("Models", () => {
     if (await key.isVisible()) {
       await key.click();
       await page.getByRole("option", { name: new RegExp(FAKE_KEY_LABEL) }).click();
+      // Choosing a key folds the "Model access" disclosure; open it to read the choice back.
+      if (!(await key.isVisible())) await access.first().click();
       await expect(key).toContainText(FAKE_KEY_LABEL);
     } else {
       // A sole matching key is selected automatically and named in the form.

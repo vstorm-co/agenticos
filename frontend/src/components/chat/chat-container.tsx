@@ -2733,7 +2733,7 @@ function ChatUI({
                                       disabled={isProcessing || readOnly || manualCompacting}
                                     />
                                   )}
-                                  <fieldset disabled={manualCompacting}>
+                                  <fieldset disabled={manualCompacting} className="contents">
                                     <ChatControls
                                       usageSlot={
                                         <div className="text-muted-foreground flex items-center gap-2 text-xs">

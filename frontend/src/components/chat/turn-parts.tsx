@@ -134,6 +134,8 @@ export function TurnParts({
       (run) => isQuestionRun(run) || (run.kind === "other" && run.part.type === "ask_user"),
     );
   const latest = parts.at(-1);
+  const asksQuestion =
+    !!latest?.toolCall && toolLookupName(latest.toolCall) === "ask_user_question";
   const activity = latest?.toolCall
     ? toolStep(
         latest.toolCall.name,
@@ -269,7 +271,7 @@ export function TurnParts({
           failed={latestWork && failed}
           running={live && isStreaming && !waiting}
           // A question the dock asks (rooms, threads) is named once, by the dock.
-          activity={live && !(waiting === "awaiting_answer" && !hasQuestion) ? activity : undefined}
+          activity={live && !(asksQuestion && !hasQuestion) ? activity : undefined}
           waiting={live && !(hasQuestion && waiting === "awaiting_answer") ? waiting : undefined}
           lastHeartbeatAt={lastHeartbeatAt}
         >

@@ -2555,4 +2555,17 @@ describe("conversation title search", () => {
     renderHook(() => useConversationTitleSearch("  "), { wrapper });
     expect(apiClient.get).not.toHaveBeenCalled();
   });
+
+  it("narrows a listing to one agent, to project chats, and away from API-opened chats", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    renderHook(
+      () => useConversations({ agentId: "agent-1", projectScope: "only", hideApi: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+    const path = String(vi.mocked(apiClient.get).mock.calls[0]?.[0]);
+    expect(path).toContain("agent_id=agent-1");
+    expect(path).toContain("project_scope=only");
+    expect(path).toContain("hide_api=true");
+  });
 });
