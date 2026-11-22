@@ -268,7 +268,8 @@ export function TurnParts({
           stopped={latestWork && stopped}
           failed={latestWork && failed}
           running={live && isStreaming && !waiting}
-          activity={live ? activity : undefined}
+          // A question the dock asks (rooms, threads) is named once, by the dock.
+          activity={live && !(waiting === "awaiting_answer" && !hasQuestion) ? activity : undefined}
           waiting={live && !(hasQuestion && waiting === "awaiting_answer") ? waiting : undefined}
           lastHeartbeatAt={lastHeartbeatAt}
         >

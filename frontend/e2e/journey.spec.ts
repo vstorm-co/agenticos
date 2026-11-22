@@ -486,25 +486,12 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   const projectId = new URL(page.url()).pathname.split("/").pop();
   if (!projectId) throw new Error("Created project has no identity");
   await page.getByRole("main").getByRole("link", { name: "New chat", exact: true }).click();
-  await expect(page.getByRole("button", { name: /^Agent:/ })).toContainText(agentName);
-  await expect(page.getByText("Live", { exact: true })).toBeVisible();
-  const projectQuestion = `Project question ${stamp}`;
-  await composer.fill(projectQuestion);
-  await page.getByRole("button", { name: "Send message" }).click();
-  await expect(page.getByRole("main").getByText(answerToken, { exact: true })).toBeVisible();
-  await page.reload();
-  await expect(page.getByRole("main").getByText(answerToken, { exact: true })).toBeVisible();
-  await page.goto(`/projects/${projectId}?tab=chats`);
-  await nowMatching(
-    page.request,
-    `/api/projects/${projectId}/chats`,
-    (chat) => String(chat["title"]).includes(projectQuestion),
-    "the conversation saved in its project",
-  );
-  const projectChat = page.getByRole("row").filter({ hasText: projectQuestion });
-  await expect(projectChat).toBeVisible();
-  await projectChat.click();
-  await expect(page.getByRole("main").getByText(answerToken, { exact: true })).toBeVisible();
+  // On T3 a project's New chat opens the project's team room, shared with everyone who
+  // has access, rather than a private chat on the project's default agent.
+  await expect(page.getByRole("link", { name: /^Team room · / })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "A shared conversation for your team" }),
+  ).toBeVisible();
 
   // 10. cleaning up
   // This is the one spec that creates a whole agent, and it runs on every push -

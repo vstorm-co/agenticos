@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { agentCard, AUTH_STATE, SEEDED_AGENT_NAME } from "./helpers";
+import { agentCard, AUTH_STATE, openBuilderTab, SEEDED_AGENT_NAME } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
 
@@ -66,6 +66,8 @@ test("prompt variables retain readable contrast when console and OS themes disag
   await agentCard(page, SEEDED_AGENT_NAME)
     .getByRole("link", { name: `Open ${SEEDED_AGENT_NAME}`, exact: true })
     .click();
+  // A card opens an agent needing attention on its Evals tab; the prompt is on Build.
+  await openBuilderTab(page, "Build");
   const variable = page.locator("pre").getByText("{{agent_name}}", { exact: true }).first();
   await expect(variable).toBeVisible();
   for (const system of ["light", "dark"] as const) {

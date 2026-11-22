@@ -121,6 +121,9 @@ test.describe("Models", () => {
     // by its label so this contract survives harmless field-id changes.
     const key = page.getByRole("combobox", { name: "Key", exact: true });
     const automaticKey = page.getByText(FAKE_KEY_LABEL, { exact: true });
+    // The key lives under the collapsed "Model access" disclosure.
+    const access = page.getByRole("button", { name: /^Model access/ });
+    if (!(await key.isVisible()) && (await access.count()) > 0) await access.first().click();
     await expect(key.or(automaticKey).first()).toBeVisible();
     if (await key.isVisible()) {
       await key.click();

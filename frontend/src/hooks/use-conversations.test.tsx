@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import {
   useConversations,
   useConversationSearch,
+  useConversationTitleSearch,
   type ConversationQuery,
 } from "./use-conversations";
 import { apiClient } from "@/lib/api-client";
@@ -2535,5 +2536,23 @@ describe("conversation message search", () => {
     vi.mocked(apiClient.get).mockRejectedValue(new Error("search unavailable"));
     rerender({ term: "Warsaw" });
     await waitFor(() => expect(result.current.isError).toBe(true));
+  });
+});
+
+describe("conversation title search", () => {
+  it("lists titles on the server, archived conversations included", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [conversation("c-1")],
+      total: 1,
+    });
+    const { result } = renderHook(() => useConversationTitleSearch("refund"), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.items.map((item) => item.id)).toEqual(["c-1"]);
+    expect(vi.mocked(apiClient.get).mock.calls[0]?.[0]).toContain("search=refund");
+  });
+
+  it("makes no request for a blank term", () => {
+    renderHook(() => useConversationTitleSearch("  "), { wrapper });
+    expect(apiClient.get).not.toHaveBeenCalled();
   });
 });
