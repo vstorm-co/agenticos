@@ -695,7 +695,7 @@ export function useChat(options: UseChatOptions = {}) {
   /** Put an agent's unanswered question back in front of its person (#2064). */
   const offerParkedQuestion = useCallback(
     (asked: ParkedQuestion[], runId: string, messageId: string | null) => {
-      if (messageId !== null) rememberActionScope("questions", messageId, runId);
+      rememberActionScope("questions", messageId, runId);
       questionOfferedForRef.current.add(runId);
       parkedQuestionRunRef.current = runId;
       liveQuestionRef.current = false;

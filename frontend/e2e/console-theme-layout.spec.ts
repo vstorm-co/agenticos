@@ -35,10 +35,18 @@ for (const theme of ["light", "dark"] as const) {
           await page.goto(path);
           const response = await loaded;
           expect(response.ok(), `${path} must read its real catalog`).toBe(true);
-          await response.finished();
           const title = page
             .getByRole("main")
             .getByRole("heading", { name: heading, exact: true, level: 1 });
+          // Several surfaces share a catalog path with a sidebar or dashboard read that the
+          // navigation cancels; a cancelled body never finishes, so the heading ends the wait.
+          await Promise.race([
+            response.finished().then(
+              () => undefined,
+              () => undefined,
+            ),
+            title.waitFor({ state: "visible" }),
+          ]);
           await expect(title).toBeVisible();
           await expect(page.locator("html")).toHaveClass(new RegExp(`\\b${theme}\\b`));
           const geometry = await title.evaluate((element) => {
