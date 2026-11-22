@@ -165,9 +165,9 @@ export function Figure({
         <div className="mt-auto pt-3">
           <div className="bg-track h-1.5 w-full overflow-hidden rounded-full">
             <div
-              className="h-full rounded-full transition-[width] duration-500"
+              className="h-full w-full origin-left rounded-full transition-transform duration-500"
               style={{
-                width: `${Math.round(Math.min(Math.max(meter, 0), 1) * 100)}%`,
+                transform: `scaleX(${Math.min(Math.max(meter, 0), 1)})`,
                 background: ink,
               }}
             />

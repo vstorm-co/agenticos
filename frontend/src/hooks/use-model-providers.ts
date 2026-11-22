@@ -13,7 +13,12 @@ import { toast } from "sonner";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { invalidateSpeechSettings } from "@/lib/dictation-api";
-import { modelInUse, runsAgents } from "@/lib/model-profiles";
+import {
+  LISTED_ONLY_AT_ENDPOINT,
+  LISTED_WITH_KEY,
+  modelInUse,
+  runsAgents,
+} from "@/lib/model-profiles";
 import { qk } from "@/lib/query-keys";
 import type {
   ModelApi,
@@ -282,6 +287,7 @@ function providerModelsQuery(
     ],
     queryFn: () => apiClient.get<ProviderModelList>(`/providers/${providerId}/models${query}`),
     staleTime: 60 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
     // An empty dropdown is the fallback the field is built for, so a provider
     // that cannot be reached must not retry three times behind an open form.
     retry: false,
@@ -306,12 +312,12 @@ export function useProviderModels(
   secretId?: string,
   decision = false,
 ) {
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, refetch } = useQuery({
     ...providerModelsQuery(providerId, baseUrl, secretId, decision),
     enabled:
       providerId !== "" &&
-      !(providerId === "otari" && !baseUrl) &&
-      !(["stav", "otari"].includes(providerId) && baseUrl && !secretId),
+      !(LISTED_ONLY_AT_ENDPOINT.includes(providerId) && !baseUrl) &&
+      !(LISTED_WITH_KEY.includes(providerId) && baseUrl && !secretId),
   });
 
   // Both fields this fills choose a model to talk to, so a speech or embedding
@@ -322,7 +328,14 @@ export function useProviderModels(
   const refused = decision
     ? []
     : items.filter((entry) => !runsAgents(entry)).map((entry) => entry.id);
-  return { models, refused, source: data?.source ?? null, isLoading: isFetching };
+  return {
+    models,
+    refused,
+    source: data?.source ?? null,
+    isLoading: isFetching,
+    hasCachedListing: data !== undefined,
+    refetch,
+  };
 }
 
 /** One model that draws. */

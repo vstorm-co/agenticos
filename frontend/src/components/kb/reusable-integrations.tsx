@@ -218,6 +218,7 @@ export function KnowledgeIntegrations({ targets }: KnowledgeIntegrationsProps) {
       {error && <ErrorState description={error} className="m-4 border-0 py-4" />}
       {local.error && <ErrorState description={local.error} className="m-4 border-0 py-4" />}
       <DataTable
+        clientPagination={!error && !local.error}
         columns={columns}
         rows={rows}
         getRowKey={(row) =>

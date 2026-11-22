@@ -59,7 +59,7 @@ test.describe("Skills", () => {
     // The description is on the card because it is the only part the model sees
     // before deciding whether to open the skill — content, not decoration.
     await expect(card).toContainText(SEEDED_SKILL_DESCRIPTION);
-    // A block utility once overrode line-clamp: the CSS advertised two lines
+    // A block utility once overrode line-clamp: the CSS advertised three lines
     // while the real browser expanded long descriptions into giant cards.
     const description = card.getByText(SEEDED_SKILL_DESCRIPTION, { exact: true });
     const dimensions = await description.evaluate((element) => ({
@@ -68,7 +68,7 @@ test.describe("Skills", () => {
       lineHeight: Number.parseFloat(getComputedStyle(element).lineHeight),
     }));
     expect(dimensions.contentHeight).toBeGreaterThan(dimensions.height);
-    expect(dimensions.height).toBeLessThanOrEqual(dimensions.lineHeight * 2 + 1);
+    expect(dimensions.height).toBeLessThanOrEqual(dimensions.lineHeight * 3 + 1);
   });
 
   test("opening a skill shows what the model actually reads", async ({ page }) => {
@@ -163,4 +163,29 @@ test.describe("Skills", () => {
     await expect(pageHeading(page, "Skills")).toBeVisible();
     await expect(skillCard(page, name)).toHaveCount(0);
   });
+});
+
+test("search stays mounted and keeps typed text through the initial catalog load", async ({
+  page,
+}) => {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(/\/api\/skills(?:\?|$)/, async (route) => {
+    await held;
+    await route.continue();
+  });
+  try {
+    await page.goto("/skills");
+    const search = page.getByPlaceholder("Search skills");
+    await expect(search).toBeVisible();
+    await search.fill("A draft filter");
+    release();
+    await expect(page.getByRole("status", { name: "Loading" })).toHaveCount(0);
+    await expect(search).toHaveValue("A draft filter");
+    await expect(search).toBeFocused();
+  } finally {
+    release();
+  }
 });

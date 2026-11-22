@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { Check, Clock, Lock, Mic, ShieldAlert, X } from "lucide-react";
 import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
@@ -137,23 +139,23 @@ export function VoiceApprovalCard({
         className="bg-muted -mt-1 h-[3px] overflow-hidden rounded-full"
       >
         <div
-          className="bg-warning h-full motion-safe:transition-[width] motion-safe:duration-1000 motion-safe:ease-linear"
+          className="bg-warning h-full w-full origin-left motion-safe:transition-transform motion-safe:duration-1000 motion-safe:ease-linear"
           style={{
-            width: `${approval.timeoutSeconds > 0 ? Math.min(100, (left / approval.timeoutSeconds) * 100) : 0}%`,
+            transform: `scaleX(${approval.timeoutSeconds > 0 ? Math.min(1, left / approval.timeoutSeconds) : 0})`,
           }}
         />
       </div>
       <ToolLine tool={approval.tool} />
       <Arguments args={approval.args} large />
       {approval.said && <Said said={approval.said} warn />}
-      <details>
+      <NativeDisclosure>
         <summary className="text-muted-foreground w-fit cursor-pointer text-xs">
           {t("exactJson")}
         </summary>
         <pre className="bg-muted mt-1.5 overflow-x-auto rounded-lg px-2.5 py-2 font-mono text-xs">
           {JSON.stringify(approval.args, null, 2)}
         </pre>
-      </details>
+      </NativeDisclosure>
       {canDecide && (
         <div className="flex flex-wrap justify-end gap-2">
           <Button

@@ -108,7 +108,7 @@ export function PageHeader({
         <div className="min-w-0 flex-1 basis-auto">
           <div className="flex min-h-9 items-center gap-2 sm:gap-3">
             {icon}
-            <h1 className="text-foreground min-w-0 text-lg leading-tight font-semibold tracking-tight text-balance sm:text-xl md:text-2xl">
+            <h1 className="text-foreground min-w-0 text-lg leading-tight font-medium tracking-tight text-balance sm:text-xl md:text-2xl">
               {title}
             </h1>
             <PageHelp description={descriptionMode === "help" ? description : undefined} />

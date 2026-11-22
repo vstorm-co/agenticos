@@ -18,12 +18,17 @@ from pydantic import AwareDatetime, TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.notification import Notification
 from app.db.models.outcome import Outcome, OutcomeStatus
 from app.db.models.suggestion import Suggestion, SuggestionKind, SuggestionStatus
-from app.repositories import conversation_repo, outcome_repo, suggestion_repo
-from app.schemas.outcome import OutcomeAction, OutcomeSource
+from app.repositories import (
+    conversation_repo,
+    conversation_share_repo,
+    outcome_repo,
+    suggestion_repo,
+)
+from app.schemas.outcome import InboxItem, InboxItems, OutcomeAction, OutcomeSource
 
 _OBSERVED_AT = TypeAdapter(AwareDatetime)
 
@@ -238,6 +243,64 @@ class OutcomeService:
             conversation_id=conversation_id,
             limit=limit,
             **({"skip": skip} if skip else {}),
+        )
+
+    async def inbox_items(self, ctx: AuthContext, *, item_id: UUID | None = None) -> InboxItems:
+        """Read the signed-in person's Inbox cards and count approvals they may see."""
+        user_id = _caller(ctx)
+        if ctx.source_conversation_id is not None:
+            await self._require_private_chat(ctx)
+            chat = await conversation_repo.get_conversation_by_id(
+                self.db, ctx.source_conversation_id, fresh=True
+            )
+            if (
+                chat is None
+                or chat.project_id is not None
+                or await conversation_share_repo.get_shares_for_conversation(
+                    self.db, ctx.source_conversation_id, organization_id=ctx.organization_id
+                )
+            ):
+                raise AuthorizationError(
+                    message="Personal Inbox items require an unshared private chat"
+                )
+        if item_id is None:
+            rows = await suggestion_repo.list_open(
+                self.db, organization_id=ctx.organization_id, user_id=user_id
+            )
+        else:
+            row = await suggestion_repo.get_own(
+                self.db, item_id, organization_id=ctx.organization_id, user_id=user_id
+            )
+            if row is None:
+                raise NotFoundError(message="Inbox item not found")
+            rows = [row]
+        pending_approvals = None
+        if item_id is None and ctx.has(Perm.APPROVALS_DECIDE):
+            from app.repositories.agent_run import ApprovalFilters
+            from app.services.approvals import ApprovalService
+            from app.services.workflow_execution.approvals import WorkflowApprovalService
+
+            _, tool_total = await ApprovalService(self.db).list_approvals(
+                ctx, filters=ApprovalFilters(outside_live_calls=True), limit=1
+            )
+            steps = await WorkflowApprovalService(self.db).queue(
+                ctx, statuses=[], decidable=True, limit=1
+            )
+            pending_approvals = tool_total + steps.total
+        return InboxItems(
+            total=len(rows),
+            pending_approvals=pending_approvals,
+            items=[
+                InboxItem(
+                    id=row.id,
+                    title=row.title,
+                    detail=row.detail[:1500] if row.detail else None,
+                    kind=row.kind,
+                    urgent=row.urgent,
+                    url=f"/inbox#suggestion-{row.id}",
+                )
+                for row in sorted(rows, key=lambda row: not row.urgent)[:30]
+            ],
         )
 
     async def finding_sources(

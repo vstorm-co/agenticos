@@ -45,6 +45,7 @@ PLATFORM_PACKAGES = ("app/agents",)
 # Individual platform modules living in directories we share with the template.
 PLATFORM_MODULES = (
     "app/commands/bootstrap.py",
+    "app/commands/refresh_inbox.py",
     "app/core/permissions.py",
     "app/core/secret_kinds.py",
     "app/core/vault.py",

@@ -1,5 +1,5 @@
 ---
-source_sha: "0a32b884bf8a"
+source_sha: "a8d4bd2b212d"
 ---
 
 # Architektur { #architecture }
@@ -1077,3 +1077,6 @@ Telefonaktionen benötigen ebenfalls eine dauerhafte Grenze: `telephony.runtime.
 
 
 Auch die Kanalannahme bestätigt ihre Transaktion vor der Run-Vorbereitung: `ChannelMessageRouter._route_inner` speichert Identität, Sitzung und Unterhaltung nach Zugriffs- und Limitprüfungen. Der Plattform-MCP-Schlüssel entsteht in einer unabhängigen Transaktion und verweist auf die Unterhaltung; ein Flush allein macht sie dort nicht sichtbar. Schlägt der Commit fehl, beginnt die Vorbereitung nicht.
+
+
+Persönliche Coding-Sitzungen überschreiten ebenfalls Grenzen externer Effekte: `PersonalCodingSessionFactory` bestätigt den privaten Workspace-Besitz vor Arbeiten mit Zugangsdaten, danach die Ausgangsquellen und den Zulassungsaudit vor der nativen Aufgabe. Vor Abbruch geschützte Abschlussbereinigung bestätigt Aufbewahrung oder eingereihte Container-Löschung auch bei Fehlern und Abbruch. Änderungen der Kontofreigabe und Eigentümerlöschung reihen die Bereinigung in derselben Transaktion ein, bevor Konto- und Workspace-Zeilen kaskadieren. Ein Rollback behält Sitzungsmetadaten und Bereinigungspflicht.

@@ -13,12 +13,14 @@ from app.db.models.organization import OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.repositories import (
     agent_repo,
+    deployment_settings_repo,
     member_repo,
     onboarding_repo,
     organization_assistant_repo,
     organization_repo,
     user_repo,
 )
+from app.schemas.console_experience import OnboardingReminderOverrides, resolve_onboarding_reminders
 from app.schemas.onboarding import (
     MemberStartRead,
     OnboardingAgent,
@@ -77,8 +79,14 @@ class OnboardingService:
             and person.onboarding_completed_at is not None
             and member.joined_at <= person.onboarding_completed_at
         )
+        deployment = await deployment_settings_repo.get(self.db)
+        reminders = resolve_onboarding_reminders(
+            deployment.onboarding_reminders_available if deployment else None,
+            OnboardingReminderOverrides.model_validate(org.onboarding_reminders or {}),
+            OnboardingReminderOverrides.model_validate(member.onboarding_reminders or {}),
+        )
         snoozed_until = (
-            member.onboarding_dismissed_at + timedelta(days=1)
+            member.onboarding_dismissed_at + timedelta(days=reminders.effective.snooze_days)
             if member.onboarding_dismissed_at is not None
             else None
         )

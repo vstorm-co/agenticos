@@ -5,6 +5,8 @@ import { useState, type MouseEvent } from "react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
+import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/api-error";
 
 /** A comment on one spot of the page, ready for the composer. */
 export interface PageComment {
@@ -75,6 +77,7 @@ export function BrowserCommentLayer({
   onDone: () => void;
 }) {
   const t = useTranslations("chat");
+  const errors = useTranslations("errors");
   const [spot, setSpot] = useState<Spot | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -89,13 +92,15 @@ export function BrowserCommentLayer({
   };
 
   const send = async () => {
-    if (spot === null || !note.trim()) return;
+    if (busy || spot === null || !note.trim()) return;
     setBusy(true);
     try {
       const file = await ringedPicture(image, spot);
       const text = url ? t("browserCommentMessage", { url, note: note.trim() }) : note.trim();
       onComment({ file, text });
       onDone();
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, errors));
     } finally {
       setBusy(false);
     }
@@ -141,6 +146,7 @@ export function BrowserCommentLayer({
               value={note}
               onChange={(event) => setNote(event.target.value)}
               onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
                   void send();

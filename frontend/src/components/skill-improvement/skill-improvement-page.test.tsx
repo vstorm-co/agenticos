@@ -314,3 +314,11 @@ describe("SkillImprovementPage", () => {
     expect(await screen.findByText(/got a newer version since these changes/)).toBeVisible();
   });
 });
+
+it("allows retrying the initial skill read", async () => {
+  vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("skill unavailable"));
+  mount();
+  expect(await screen.findByText("skill unavailable")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(await screen.findByText("Line: main")).toBeVisible();
+});

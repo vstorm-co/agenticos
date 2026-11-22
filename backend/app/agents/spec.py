@@ -1600,6 +1600,10 @@ class AgentSpec(BaseModel):
             "said yet - one click sends one. Up to four; none shows the chat's own"
         ),
     )
+    show_starters: bool = Field(
+        default=True,
+        description="Show suggested first messages in an empty chat, including built-in suggestions.",
+    )
     starter_titles: StarterTitles = Field(
         default_factory=dict,
         description=(

@@ -41,6 +41,12 @@ describe("useConsentRequest", () => {
     });
     expect(apiClient.post).toHaveBeenCalledWith("/mcp-oauth/requests/r1/deny");
   });
+  it("does not request an authorization record for an incomplete consent link", () => {
+    const { result } = renderHook(() => useConsentRequest(""), { wrapper });
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.request).toBeNull();
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
 });
 
 describe("useConnectedApps", () => {

@@ -32,6 +32,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   schedule:
     # Monday 04:17 UTC. Off the hour on purpose: the top of an hour is when every
     # cron-scheduled workflow on GitHub queues at once.
@@ -72,7 +73,7 @@ jobs:
   analyze:
     name: analyze ${{ matrix.language }}
     needs: changes
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
     # Measured against default setup's own weekly runs, which finish the Python
     # and JavaScript analyses in about six minutes each. Generous enough for a

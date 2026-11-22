@@ -1289,3 +1289,46 @@ async def test_personal_mcp_delegation_resolves_only_the_key_issuers_credentials
             await keys.personal_mcp_context(
                 authenticated.api_key_id, organization_id=org.id, user_id=person.id
             )
+
+
+@pytest.mark.security
+async def test_run_key_changes_only_its_membership_console_experience(
+    db: AsyncSession, client: Client
+) -> None:
+    owner = await _person(db)
+    organization = await _organization(db, owner)
+    other = await _organization(db, owner)
+    run_key = await _issue(db, organization, owner, Perm.AGENTS_RUN)
+    narrow_key = await _issue(db, organization, owner, Perm.AGENTS_VIEW)
+    other_key = await _issue(db, other, owner, Perm.AGENTS_RUN)
+    path = _url("/users/me/console-experience")
+    async with client() as http:
+        for method in ("GET", "PATCH"):
+            denied = await http.request(
+                method,
+                path,
+                headers=_bearer(narrow_key),
+                **({"json": {"preferences": {"greeting": False}}} if method == "PATCH" else {}),
+            )
+            assert denied.status_code == 403
+        updated = await http.patch(
+            path,
+            headers=_bearer(run_key),
+            json={"preferences": {"greeting": False}, "reminders": {"snooze_days": 7}},
+        )
+        assert updated.status_code == 200, updated.text
+        assert updated.json()["effective"]["greeting"] is False
+        assert updated.json()["reminders"]["effective"]["snooze_days"] == 7
+        read = await http.get(path, headers=_bearer(run_key))
+        assert read.status_code == 200 and read.json()["preferences"]["greeting"] is False
+        isolated = await http.get(path, headers=_bearer(other_key))
+        assert isolated.status_code == 200 and isolated.json()["preferences"]["greeting"] is None
+        assert isolated.json()["reminders"]["effective"]["snooze_days"] == 1
+        crossed = await http.patch(
+            path,
+            headers={**_bearer(run_key), "X-Organization-Id": str(other.id)},
+            json={"preferences": {"greeting": True}},
+        )
+        assert crossed.status_code == 400
+        unchanged = await http.get(path, headers=_bearer(run_key))
+        assert unchanged.json()["preferences"]["greeting"] is False

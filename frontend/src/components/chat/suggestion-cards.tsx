@@ -1,5 +1,7 @@
 "use client";
 
+import { SuggestionPriority } from "./suggestion-priority";
+
 import Link from "next/link";
 import { ArrowRight, ExternalLink, X } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -53,11 +55,7 @@ export function SuggestionCards({
           <SuggestionMark suggestion={suggestion} />
           <div className="min-w-0 flex-1 space-y-2">
             <p className="text-sm">
-              {suggestion.urgent && (
-                <span className="text-destructive-ink mr-1.5 text-xs font-medium">
-                  {t("urgent")}
-                </span>
-              )}
+              {suggestion.urgent && <SuggestionPriority className="mr-1.5" />}
               {suggestion.title}
               {suggestion.detail && (
                 <span className="text-muted-foreground block text-xs">{suggestion.detail}</span>

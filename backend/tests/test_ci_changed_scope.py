@@ -40,7 +40,12 @@ ci_changed_scope = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(ci_changed_scope)
 
 # Job name in the workflow -> the `changes` output that gates it.
-GATED_JOBS = {"test": "backend", "test-frontend": "frontend", "e2e": "e2e"}
+GATED_JOBS = {
+    "backend-shards": "backend",
+    "test": "backend",
+    "test-frontend": "frontend",
+    "e2e": "e2e",
+}
 
 
 @pytest.fixture(scope="module")
@@ -285,7 +290,11 @@ class TestTheWorkflowActuallyUsesIt:
     ) -> None:
         definition = workflow["jobs"][job]
         assert "changes" in definition["needs"], f"`{job}` does not depend on `changes`"
-        expected = f"${{{{ !cancelled() && needs.changes.outputs.{output} != 'false' }}}}"
+        expected = (
+            "${{ !cancelled() && "
+            "(github.event_name != 'pull_request' || !github.event.pull_request.draft) && "
+            f"needs.changes.outputs.{output} != 'false' }}}}"
+        )
         assert definition["if"] == expected, (
             f"`{job}` must gate on `{expected}`, and both halves earn their place. "
             "`== 'true'` would skip it on a push to `main`, where the classifier does "

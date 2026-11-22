@@ -185,6 +185,73 @@ describe("useAgents", () => {
 describe("useAgent draft", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("discards against the confirmed version and updates the cached draft without changing access", async () => {
+    const original = {
+      id: "a1",
+      name: "Draft",
+      can_edit: true,
+      current_version_id: "production",
+      draft_spec: { ...SPEC, name: "Draft" },
+      draft_revision: "base",
+    };
+    const reset = {
+      ...original,
+      name: SPEC.name,
+      can_edit: false,
+      draft_spec: SPEC,
+      draft_revision: "reset",
+    };
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce(original)
+      .mockRejectedValueOnce(new Error("Offline"));
+    vi.mocked(apiClient.post).mockResolvedValueOnce(reset);
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.agent?.name).toBe("Draft"));
+
+    const request = { expected_revision: "base", expected_version_id: "latest" };
+    await result.current.discardDraft.mutateAsync(request);
+
+    expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/draft/discard", request);
+    expect(apiClient.put).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(result.current.agent).toMatchObject({
+        name: SPEC.name,
+        draft_revision: "reset",
+        can_edit: true,
+        current_version_id: "production",
+      }),
+    );
+  });
+
+  it.each([
+    ["draft_changed", "This draft changed elsewhere.", false],
+    ["published_version_changed", "A newer version was published.", true],
+    ["server_error", "Refused", false],
+  ])("reports a %s discard refusal without writing the cache", async (reason, message, refetch) => {
+    const draft = { id: "a1", draft_spec: SPEC, draft_revision: "base" };
+    vi.mocked(apiClient.get).mockResolvedValue(draft);
+    const error =
+      reason === "server_error"
+        ? new Error("Refused")
+        : new ApiError(409, "Refused", {
+            error: { code: "CONFLICT", message: "Refused", details: { reason } },
+          });
+    vi.mocked(apiClient.post).mockRejectedValueOnce(error);
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.agent).toEqual(draft));
+
+    await expect(
+      result.current.discardDraft.mutateAsync({
+        expected_revision: "base",
+        expected_version_id: "latest",
+      }),
+    ).rejects.toBe(error);
+
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining(message));
+    expect(apiClient.get).toHaveBeenCalledTimes(refetch ? 2 : 1);
+    expect(result.current.agent).toEqual(draft);
+  });
+
   it("exposes a refused read and allows retrying after access is restored", async () => {
     const refusal = new ApiError(404, "Agent not found");
     vi.mocked(apiClient.get).mockRejectedValueOnce(refusal);
@@ -551,7 +618,10 @@ describe("useAgents mutations", () => {
 
     await result.current.create.mutateAsync({ spec: SPEC });
 
-    expect(toast.success).toHaveBeenCalledWith("Created Support");
+    expect(toast.success).toHaveBeenCalledWith("Created Support", {
+      position: "bottom-center",
+      duration: 3000,
+    });
   });
 
   it("records its own created agent before refreshing a guided create's ceiling", async () => {
@@ -656,6 +726,7 @@ describe("useAgents mutations", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/clone", {});
     expect(toast.success).toHaveBeenCalledWith(
       "Created Support copy - a draft, nothing published yet",
+      { position: "bottom-center", duration: 3000 },
     );
   });
 
@@ -941,7 +1012,10 @@ describe("useAgent mutations", () => {
     await result.current.publish.mutateAsync("A note");
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/publish", { note: "A note" });
-    expect(toast.success).toHaveBeenCalledWith("Published v4");
+    expect(toast.success).toHaveBeenCalledWith("Published v4", {
+      position: "bottom-center",
+      duration: 3000,
+    });
   });
 
   it("refetches the environments after a publish, because the default one moved", async () => {

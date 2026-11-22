@@ -3,7 +3,7 @@
 import { TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { ChoiceGroup } from "@/components/settings/choice-group";
+import { ChoiceGroup } from "@/components/ui/choice-group";
 import { SpeechKeyField, useSpeechKeyCheck } from "@/components/vault/speech-key-field";
 import {
   FormField,
@@ -13,7 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ProviderRow } from "@/components/vault/provider-row";
+import { ModelLabel } from "@/components/icons/model-icon";
 import { useSpeechToTextProviders } from "@/hooks/use-model-providers";
 import type { ChannelPlatform, InheritedSpeechToText } from "@/types/channels";
 
@@ -123,9 +124,9 @@ export function TranscriptionFields({
     onChange({ mode, provider: first.provider, model: first.models[0]!.id, secretId: null });
   };
 
-  // Telegram and Discord send a voice note as Ogg/Opus and Slack's desktop app records a
-  // clip as WebM, and Mistral lists neither: an inherited Mistral is the case
-  // nobody chose and nobody would think to check. Mattermost carries whatever
+  // Telegram, Discord and Matrix clients send a voice note as Ogg/Opus and Slack's
+  // desktop app records a clip as WebM, and Mistral lists neither: an inherited
+  // Mistral is the case nobody chose and nobody would think to check. Mattermost carries whatever
   // was uploaded, so there is no one format to warn about.
   const goesTo = value.mode === "choose" ? value.provider : (inherited?.provider ?? null);
   const unreadByMistral = platform !== "mattermost" && value.mode !== "off" && goesTo === "mistral";
@@ -187,10 +188,7 @@ export function TranscriptionFields({
                     : t("transcriptionProviderNoKey", { name: entry.name });
                   return (
                     <SelectItem key={entry.provider} value={entry.provider} textValue={label}>
-                      <span className="flex items-center gap-2">
-                        <ProviderIcon provider={entry.provider} className="h-3.5 w-3.5" />
-                        {label}
-                      </span>
+                      <ProviderRow provider={entry.provider} name={label} />
                     </SelectItem>
                   );
                 })}
@@ -216,7 +214,7 @@ export function TranscriptionFields({
               <SelectContent>
                 {(chosen?.models ?? []).map((model) => (
                   <SelectItem key={model.id} value={model.id} textValue={model.name}>
-                    {model.name}
+                    <ModelLabel model={model.id} provider={chosen?.provider} label={model.name} />
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -120,11 +120,14 @@ export interface PlatformMcpTool {
   description: string;
   /** What it works on, which is how the Builder groups the tools. */
   group: PlatformToolGroup;
-  /** Whether it changes something - held for approval under `approval: writes`. */
+  /** Whether it changes persisted state. Approval defaults are separate. */
   writes: boolean;
   /** Runs without approval under every policy: it changes only the caller's own preference. */
   ungated?: boolean;
-  /** Asks under every binding, its own `never` included: it widens who has authority. */
+  /** Runs under the default writes policy; explicit required/all policies still ask. */
+  default_approval_free?: boolean;
+  conditional_approval?: boolean;
+  /** Every call requires a fresh human answer, including under standing consent. */
   always_asks?: boolean;
   /** A read held for approval all the same: it releases a whole past conversation. */
   held?: boolean;

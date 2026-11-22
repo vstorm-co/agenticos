@@ -217,8 +217,10 @@ export function ListCardEmpty({
   title,
   description,
   cta,
+  className,
 }: {
   icon: LucideIcon;
+  className?: string;
   /** Filtered absence shares a search icon and a clear action across catalogs. */
   onClearFilters?: () => void;
   title: string;
@@ -232,6 +234,7 @@ export function ListCardEmpty({
       className={cn(
         "flex min-h-56 shrink-0 flex-col items-center justify-center px-5 py-8 text-center",
         !onClearFilters && "flex-1",
+        className,
       )}
     >
       <EmptyIllustration icon={onClearFilters ? Search : Icon} />

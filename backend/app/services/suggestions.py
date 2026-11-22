@@ -81,6 +81,7 @@ class SuggestionService:
             suggestion_id,
             organization_id=ctx.organization_id,
             user_id=self._person(ctx),
+            lock_generated=True,
         )
         if suggestion is None or suggestion.status != SuggestionStatus.OPEN.value:
             raise NotFoundError(
