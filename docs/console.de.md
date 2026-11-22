@@ -1,10 +1,10 @@
 ---
-source_sha: "eef4ab433451"
+source_sha: "358a44ddade5"
 ---
 
 Die Modellauswahl behält Kopfzeile, Anbietertabs und Suche an ihrer Position; Modell- und Anbieterlisten scrollen unabhängig. Dashboard-Tabs behalten ihren kurzen Übergang. Beim Öffnen des Dashboards oder Wiederherstellen des Browserverlaufs wird nicht die gesamte Fläche animiert. Das Avatar-Karussell im Onboarding bleibt neben einem hochgeladenen Foto verfügbar. Ein Hinweis erklärt, dass die Farbe für den Avatar gilt, der ohne verfügbares Foto erscheint.
 
-Seitentitel, Listensteuerung und Tabellenköpfe verwenden eine kompakte Hierarchie. Tabellen in Listen haben einen äußeren Rahmen und behalten beim Laden ihre Zeilenhöhe. Die Agentendetails zeigen die letzten drei Läufe vor der Konfiguration, innerhalb dieser Gruppe mit Aufmerksamkeitszuständen zuerst. Die Laufansicht zeigt den gespeicherten Fehlergrund; vollständige Rohereignisse bleiben aufklappbar. Im Chat steht der Modellname über dem Anbieter oder persönlichen Konto. Projekte stehen vor Build in der Navigation; Wissen ist zunächst eingeklappt und öffnet sich für seine aktive Seite oder nach Ihrer Auswahl.
+Seitentitel, Listensteuerung und Tabellenköpfe verwenden eine kompakte Hierarchie. Tabellen in Listen haben einen äußeren Rahmen und behalten beim Laden ihre Zeilenhöhe. Agentenkarten öffnen Build auch dann, wenn Evals Aufmerksamkeit benötigt; die Markierung bleibt sichtbar. Der Laufverlauf bleibt in Activity statt über dem Builder. Die Laufansicht zeigt den gespeicherten Fehlergrund; vollständige Rohereignisse bleiben aufklappbar. Im Chat steht der Modellname über dem Anbieter oder persönlichen Konto. Projekte stehen vor Build in der Navigation; Wissen ist zunächst eingeklappt und öffnet sich für seine aktive Seite oder nach Ihrer Auswahl.
 
 # Die Konsole { #the-console }
 
@@ -19,6 +19,10 @@ Nutzungs- und Ausgabenaggregate des Dashboards verwenden dieselbe Antwort im Arb
 Ist das Onboarding Ihrer aktuellen Organisation noch nicht abgeschlossen, führt **Einrichtung abschließen** zur geführten Einrichtung zurück. Das Ausblenden pausiert die Erinnerung für das wirksame Intervall von 1, 3 oder 7 Tagen (standardmäßig einen Tag). Abschluss und Aufschub werden für Ihre Mitgliedschaft auf dem Server gespeichert. Während des Ladens oder bei fehlgeschlagenen Fortschrittsabfragen wird die Einrichtung nicht als unvollständig bezeichnet.
 
 **Einstellungen → Profil** behält immer einen manuellen Einrichtungslink, auch bei ausgeschalteten Erinnerungen. Die Erinnerung hat eine klare Aktion und eine kurze, begrenzte Illustration; reduzierte Bewegung hält sie still. Kein Rundgang startet automatisch. Im selben Browser merkt sich der Link den letzten zulässigen Schritt für dieses Konto und diese Organisation, ohne Formularwerte zu speichern.
+
+Die geführte Einrichtung speichert den aktuellen Schritt und den Aktualisierungszeitpunkt für Ihre Organisationsmitgliedschaft. Die Mitgliedertabelle zeigt nicht begonnen, in Bearbeitung oder abgeschlossen mit einer lesbaren Schrittbezeichnung. Die Benutzertabelle des Deployments führt jede Organisation separat auf; ein Abschluss in einer Organisation schließt die anderen nicht ab. Bereits gespeicherte Abschlüsse bleiben gültig, aber Profilinhalte gelten nie als Nachweis für Fortschritt oder Abschluss.
+
+Ein Schritt vor der Auswahl einer Organisation oder dem Beitritt wird nicht als Mitgliedschaftsfortschritt gespeichert. Kontosprache und Darstellung werden separat gespeichert. Im Organisationstab Assistent stehen Architect und die anderen Assistentendienste vor der Chat-Startseite; einheitliche Symbole und Kartenüberschriften erleichtern den Überblick.
 
 Der Posteingang verwendet in Alle, Dringend, Routinen-Ergebnisse, Vorschläge und Erledigt denselben Listenrahmen, Zeilenabstand, dieselben Quellenmarkierungen, Titel- und Beschreibungsschriften sowie dieselbe responsive Anordnung der Aktionen. Erledigte Einträge behalten ihren Entscheidungsstatus und die Wiederherstellung abgelehnter Einträge; Quelle und Zeit bleiben auch auf dem Telefon sichtbar. Freigabeformulare verwenden denselben äußeren Abstand und behalten ihre Pflichtfelder und Berechtigungsprüfungen.
 
@@ -874,9 +878,9 @@ Das Leuchten um das Feld einer Hosted Page, während Sie sprechen, folgt
 (Settings → Profile → Appearance)**, neben Design und **Bewegung (Motion)**:
 **Kräftig (Vivid)**, **Dezent (Subtle)** (der Standard) oder **Aus (Off)**. Es
 wird pro Browser gespeichert. **Bewegung** bestimmt, wie viel Bewegung die ganze
-Konsole zeigt: **System** (der Standard) folgt der Einstellung für reduzierte
+Konsole zeigt: **System** folgt der Einstellung für reduzierte
 Bewegung im Betriebssystem, **Reduziert (Reduce)** reduziert die Bewegung auch
-ohne sie, und **Voll (Full)** behält sie, was auch immer das Betriebssystem
+ohne sie, und **Voll (Full)** (Standard in einem neuen Browser) behält sie, was auch immer das Betriebssystem
 sagt. Solange die Bewegung
 reduziert ist, gibt es gar kein Leuchten, der Streifen erscheint ohne Gleiten,
 und der Pegel ist eine fünfstufige Anzeige.
@@ -1152,7 +1156,7 @@ die Wahl wird in Ihrem
 Konto gespeichert, sodass die Konsole auf jedem Gerät, auf dem Sie sich anmelden,
 in ihr öffnet. Sie können auch einen Agent bitten - "auf Englisch umstellen" -, und
 die Seite wechselt, während er antwortet, ohne Neuladen. Jeder Agent antwortet in
-ihr, außer Sie schreiben in einer anderen Sprache. Produktwörter - Agent, Skill, Run, Budget, MCP und der Rest der Liste
+ihr, außer Sie bitten ausdrücklich um eine andere Sprache. Produktwörter - Agent, Skill, Run, Budget, MCP und der Rest der Liste
 unter [Übersetzen](howto/translate.md) - bleiben in jeder Sprache Englisch.
 
 Dieselbe Karte fragt, was Sie tun, und **Einstellungen → Profil (Settings →
@@ -1349,3 +1353,9 @@ Administratoren können Team- und Bereitstellungseinstellungen prüfen oder dire
 Studio ist unter `/onboarding` der Standard; die anderen Layouts bleiben über Vorschauparameter erreichbar. Studio zeigt eine Formularspalte und eine kompakte Navigation ohne wiederholte dekorative Figuren. Das Aussehen lässt sich in einem Karussell der tatsächlichen Avatarfarben des Kontos wählen: Blättern speichert nichts, erst die Auswahl nutzt den bisherigen Kontospeicher. Bewegung respektiert die Einstellungen der App und des Betriebssystems.
 
 Studio behält Überschrift und untere Aktionen beim Schrittwechsel an ihrer Position. Die Avatar-Galerie rastet nach Ziehen oder Blättern mit den Pfeiltasten auf einer mittigen Vorschau ein; erst die Auswahl speichert sie. Reduzierte Bewegung deaktiviert Federbewegung und Schrittübergänge. An unvollständige Einrichtung erinnert nur die Seitenleiste, ohne zweites Banner über dem Arbeitsbereich.
+
+Neue Konten öffnen `/onboarding` nach der Passwortregistrierung oder der ersten OAuth- oder Verzeichnisanmeldung, auch bei Registrierung über eine Einladung. Sprache und Erscheinungsbild kommen vor der Workspace-Einrichtung; hier lassen sich auch Einladungen prüfen und annehmen. Der Beitritt bleibt eine ausdrückliche Entscheidung. Die Sprache wird im Konto gespeichert und über `{{language}}` sowie das Personenbriefing an Agenten übergeben. Eine ausdrückliche Bitte um eine andere Sprache hat Vorrang.
+
+Nach den Abonnements zeigt die Modelleinrichtung zuerst den Anbieter, dann dessen Verbindung und Modell. Persönliche Abonnements bleiben im vorherigen Schritt. Werkzeuge beginnen mit vorgeschlagenen Diensten; **Alle Dienste durchsuchen** öffnet den vollständigen MCP-Katalog.
+
+Wenn ein Agent eine Frage stellt, bleiben Entwurf und Anhänge im normalen Editor erhalten, während dieser aus Ansicht und Tastaturnavigation verschwindet. Eine kompakte Antwort-/Abbruchleiste lässt Platz für die Frage; die Antwort stellt den Editor wieder her. Offline-Fragen bleiben bis zur Wiederverbindung gesperrt, während der Abbruch eines bereits wartenden Laufs den normalen HTTP-Abbruchweg nutzt.

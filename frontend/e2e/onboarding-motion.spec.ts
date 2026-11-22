@@ -4,6 +4,7 @@ import { AUTH_STATE, OWNER_EMAIL } from "./helpers";
 test.use({ storageState: AUTH_STATE });
 
 const CASES = [
+  { preference: null, system: "reduce", moving: true },
   { preference: "system", system: "no-preference", moving: true },
   { preference: "full", system: "reduce", moving: true },
   { preference: "reduce", system: "no-preference", moving: false },
@@ -15,7 +16,9 @@ for (const { preference, system, moving } of CASES) {
   }) => {
     await page.emulateMedia({ reducedMotion: system });
     await page.addInitScript((motion) => {
-      localStorage.setItem("motion-storage", JSON.stringify({ state: { motion }, version: 0 }));
+      if (motion === null) localStorage.removeItem("motion-storage");
+      else
+        localStorage.setItem("motion-storage", JSON.stringify({ state: { motion }, version: 0 }));
     }, preference);
     // Keep the authenticated seeded account and its permissions. A photo-free
     // presentation isolates the carousel without deleting the owner's avatar.

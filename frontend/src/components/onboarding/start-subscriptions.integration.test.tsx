@@ -55,10 +55,10 @@ beforeEach(() => {
 it("lets a person select plans and sign in immediately without a shared API key", async () => {
   mount();
   const claude = within(screen.getByText("Claude Code (Pro, Max)").closest("li")!);
-  const connect = claude.getByRole("button", { name: "Connect" });
+  const connect = claude.getByRole("button", { name: /^Connect/ });
   await waitFor(() => expect(connect).not.toBeDisabled());
   expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
-  expect(screen.getAllByRole("button", { name: "Connect" })).toHaveLength(8);
+  expect(screen.getAllByRole("button", { name: /^Connect/ })).toHaveLength(8);
   await userEvent.click(connect);
   expect(await screen.findByText("PLAN-CODE")).toBeInTheDocument();
   expect(apiClient.post).toHaveBeenCalledWith("/subscription-accounts/sign-ins", {
@@ -91,10 +91,10 @@ it("marks already connected plans and offers reconnection for unavailable accoun
   mount();
   expect(await screen.findByText("Connected")).toBeInTheDocument();
   const codex = within(screen.getByText("ChatGPT (Codex)").closest("li")!);
-  expect(codex.getByRole("button", { name: "Add account" })).toBeEnabled();
+  expect(codex.getByRole("button", { name: /^Add account/ })).toBeEnabled();
   expect(
     within(screen.getByText("Claude Code (Pro, Max)").closest("li")!).getByRole("button", {
-      name: "Connect",
+      name: /^Connect/,
     }),
   ).toBeEnabled();
 });

@@ -661,6 +661,7 @@ describe("dashboard scope motion", () => {
     await userEvent.click(screen.getByText("dashboard.views.org.label"));
     const content = panel("org");
     expect(content).toHaveAttribute("data-state", "active");
+    expect(content).toHaveAttribute("data-direction", "forward");
     const child = content.firstElementChild;
     if (!child) throw new Error("Expected dashboard content after the scope change");
     // React selects this event because jsdom has no AnimationEvent constructor.
@@ -671,6 +672,8 @@ describe("dashboard scope motion", () => {
     expect(panel("org")).not.toHaveAttribute("data-state", "active");
     await userEvent.click(screen.getByText("dashboard.views.org.label"));
     expect(content).not.toHaveAttribute("data-state", "active");
+    await userEvent.click(screen.getByText("dashboard.views.me.label"));
+    expect(panel("me")).toHaveAttribute("data-direction", "back");
   });
 
   it("restores Back and Forward destinations without another entrance", async () => {
@@ -708,6 +711,7 @@ describe("dashboard scope motion", () => {
     await userEvent.click(screen.getByRole("option", { name: "Sales" }));
     expect(params.get("group")).toBe("g2");
     expect(panel("group")).toHaveAttribute("data-state", "active");
+    expect(panel("group")).toHaveAttribute("data-direction", "forward");
     params.set("group", "g1");
     page.rerender(<DashboardPage />);
     expect(panel("group")).not.toHaveAttribute("data-state", "active");

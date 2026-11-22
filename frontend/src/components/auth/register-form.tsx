@@ -19,6 +19,7 @@ import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
+import { postRegistrationDestination } from "@/lib/auth-landing";
 import { invitationFlowFrom } from "@/lib/invitation-links";
 import { privacyLink, termsLink } from "@/lib/legal-links";
 import { EMAIL_RE, getPasswordStrength } from "@/lib/utils";
@@ -83,18 +84,15 @@ export function RegisterForm() {
         invitationFlow,
       );
       toast.success(t("registerSuccess"));
-      // The invitation is not accepted by registering - that needs a session - so a
-      // person who arrived through one is sent back to it after signing in.
+      // Setup is the first screen for every new account. A staged invitation is
+      // carried there for an explicit join; creating the account never accepts it.
+      const destination = postRegistrationDestination(returnTo);
       try {
-        await login(
-          { email, password },
-          returnTo || `${ROUTES.ONBOARDING}?welcome=1&entry=account`,
-        );
+        await login({ email, password }, destination);
       } catch {
         // Account creation succeeded. A failed session must lead to sign-in,
         // not invite the person to register the same account a second time.
-        const next = returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : "";
-        router.push(`${ROUTES.LOGIN}?registered=true${next}`);
+        router.push(`${ROUTES.LOGIN}?registered=true&returnTo=${encodeURIComponent(destination)}`);
       }
     } catch (err) {
       const message =

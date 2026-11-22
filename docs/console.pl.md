@@ -1,10 +1,10 @@
 ---
-source_sha: "eef4ab433451"
+source_sha: "358a44ddade5"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
 
-Tytuły stron, kontrolki list i nagłówki tabel mają wspólną, zwartą hierarchię. Tabela osadzona w liście ma jedną zewnętrzną ramkę i zachowuje wysokość wierszy podczas ładowania. Szczegóły agenta pokazują trzy ostatnie uruchomienia przed konfiguracją, z wymagającymi uwagi na początku tej grupy; podgląd uruchomienia pokazuje zapisany powód błędu, a pełne surowe zdarzenia pozostają w rozwijanych sekcjach. Czat pokazuje nazwę modelu nad dostawcą lub osobistym kontem. Projekty poprzedzają Build w nawigacji; Wiedza zaczyna zwinięta i otwiera się dla aktywnej strony lub po Twoim wyborze.
+Tytuły stron, kontrolki list i nagłówki tabel mają wspólną, zwartą hierarchię. Tabela osadzona w liście ma jedną zewnętrzną ramkę i zachowuje wysokość wierszy podczas ładowania. Karta agenta otwiera Build również wtedy, gdy Evals wymaga uwagi; znacznik pozostaje widoczny. Historia uruchomień jest w Aktywności, zamiast nad Builderem. Podgląd uruchomienia pokazuje zapisany powód błędu, a pełne surowe zdarzenia pozostają w rozwijanych sekcjach. Czat pokazuje nazwę modelu nad dostawcą lub osobistym kontem. Projekty poprzedzają Build w nawigacji; Wiedza zaczyna zwinięta i otwiera się dla aktywnej strony lub po Twoim wyborze.
 
 # Konsola { #the-console }
 
@@ -19,6 +19,10 @@ Agregaty użycia i wydatków dashboardu korzystają z tej samej odpowiedzi w pam
 Jeśli onboarding bieżącej organizacji nie został ukończony, **Dokończ konfigurację** prowadzi do jej konfiguracji z przewodnikiem. Zamknięcie przypomnienia odkłada je na obowiązujący okres 1, 3 lub 7 dni (domyślnie jeden dzień). Ukończenie i odroczenie są zapisane na serwerze dla twojego członkostwa; ładowanie lub błąd odczytu postępu nie oznacza konfiguracji jako nieukończonej.
 
 **Ustawienia → Profil** zawsze zachowują ręczny link do konfiguracji, również po wyłączeniu przypomnień. Przypomnienie ma wyraźną akcję i krótką animację ilustracji, która respektuje ograniczenie ruchu. Wracasz z własnej inicjatywy: przewodnik nie uruchamia się automatycznie. W tej samej przeglądarce link pamięta ostatni dozwolony krok dla tego konta i organizacji, bez zapisywania wartości formularza.
+
+Konfiguracja z przewodnikiem zapisuje bieżący krok i czas aktualizacji dla twojego członkostwa w organizacji. Tabela członków pokazuje stan nierozpoczęty, w trakcie lub ukończony wraz z czytelną nazwą kroku. Tabela użytkowników wdrożenia wymienia każdą organizację osobno; ukończenie konfiguracji w jednej nie oznacza ukończenia w pozostałych. Wcześniej zapisane ukończenie pozostaje ważne, ale zawartość profilu nigdy nie stanowi dowodu postępu ani ukończenia.
+
+Krok wyświetlony przed wyborem organizacji lub dołączeniem do niej nie jest zapisywany jako postęp członkostwa. Język konta i wygląd zapisują się osobno. W karcie Asystent organizacji Architect i pozostałe usługi asystenta są przed stroną startową czatu; wspólne ikony i nagłówki kart ułatwiają przeglądanie usług.
 
 Inbox zachowuje tę samą ramę listy, odstępy wierszy, oznaczenia źródeł, typografię tytułów i opisów oraz responsywne położenie akcji w zakładkach Wszystkie, Pilne, Wyniki rutyn, Sugestie i Zakończone. Zakończone zachowują status decyzji i przywracanie odrzuconych wpisów; źródło i czas są widoczne także na telefonie. Formularze zgód mają zgodne zewnętrzne odstępy, zachowując wymagane pola i kontrolę uprawnień.
 
@@ -822,9 +826,9 @@ dyktowania (Voice glow)** w **Ustawienia → Profil → Wygląd (Settings → Pr
 Appearance)**, obok motywu i ustawienia **Animacje (Motion)**: **Wyrazista
 (Vivid)**, **Subtelna (Subtle)** (domyślnie) albo **Wyłączona (Off)**. Jest
 zapamiętywana dla każdej przeglądarki. **Animacje** decydują, ile ruchu pokazuje
-cała konsola: **Systemowe (System)** (domyślnie) idą za ustawieniem ograniczenia
+cała konsola: **Systemowe (System)** idą za ustawieniem ograniczenia
 ruchu w systemie operacyjnym, **Ograniczone (Reduce)** ograniczają ruch bez
-niego, a **Pełne (Full)** zachowują ruch niezależnie od systemu operacyjnego. Gdy ruch jest ograniczony, nie ma żadnej poświaty, pasek
+niego, a **Pełne (Full)** (domyślne w nowej przeglądarce) zachowują ruch niezależnie od systemu operacyjnego. Gdy ruch jest ograniczony, nie ma żadnej poświaty, pasek
 pojawia się bez wysuwania, a poziom dźwięku to pięciostopniowy wskaźnik.
 
 **Kroki workflow** w tej samej karcie wybierają, jak kanwa workflow rysuje krok:
@@ -1078,7 +1082,7 @@ języki, a menu konta zmienia język w każdej chwili; wybór jest zapisywany na
 koncie, więc konsola otwiera się w nim na każdym urządzeniu, na którym się
 logujesz. Możesz też poprosić agenta - "przełącz na angielski" - a strona zmieni
 się, gdy odpowie, bez przeładowania. Każdy agent odpowiada w nim, chyba że
-napiszesz w innym języku. Słowa produktu - agent, skill, run, budget, MCP i reszta listy z
+jawnie poprosisz o inny język. Słowa produktu - agent, skill, run, budget, MCP i reszta listy z
 [tłumaczenia](howto/translate.md) - zostają angielskie w każdym języku.
 
 Ta sama karta pyta, czym się zajmujesz, a **Ustawienia → Profil (Settings →
@@ -1264,3 +1268,9 @@ Administrator może przejrzeć ustawienia zespołu i wdrożenia albo przejść o
 Studio jest domyślne pod `/onboarding`; pozostałe układy pozostają dostępne przez parametry podglądu. Studio ma jedną kolumnę formularza i krótką ścieżkę z boku, bez powtarzanych dekoracyjnych postaci. Wygląd profilu można wybrać w przesuwanej karuzeli rzeczywistych kolorów avatara konta: przeglądanie nie zapisuje wyboru, a wybranie korzysta z dotychczasowego zapisu konta. Animacje respektują ustawienia aplikacji i systemu.
 
 Studio zachowuje położenie nagłówka i dolnych przycisków podczas zmiany kroku. Galeria avatarów ustawia podgląd na środku po przeciągnięciu lub użyciu strzałek; dopiero wybranie podglądu go zapisuje. Ograniczenie ruchu wyłącza sprężyste przejścia galerii i ruch kroków. Przypomnienie o niedokończonej konfiguracji pozostaje wyłącznie w pasku bocznym, bez drugiego banera nad obszarem pracy.
+
+Nowe konta otwierają `/onboarding` po rejestracji hasłem lub pierwszym logowaniu OAuth albo katalogowym, również przy rejestracji z zaproszenia. Język i wygląd poprzedzają konfigurację przestrzeni; tutaj można też sprawdzić i przyjąć zaproszenia. Dołączenie wymaga świadomego wyboru. Język zapisuje się na koncie i trafia do agentów przez `{{language}}` oraz briefing osoby. Jawna prośba o inny język ma pierwszeństwo.
+
+Po subskrypcjach konfiguracja modelu pokazuje najpierw dostawcę, następnie połączenie i model. Subskrypcje osobiste pozostają w poprzednim kroku. Narzędzia zaczynają od sugerowanych usług; **Przeglądaj wszystkie usługi** otwiera pełny katalog MCP.
+
+Gdy agent zadaje pytanie, zwykły edytor zachowuje szkic i załączniki, ale znika z widoku oraz nawigacji klawiaturą. Kompaktowy pasek odpowiedzi i anulowania zostawia miejsce na pytanie; odpowiedź przywraca edytor. Pytania bez połączenia pozostają nieaktywne do jego odzyskania, natomiast anulowanie wstrzymanego zadania korzysta ze zwykłej ścieżki HTTP.

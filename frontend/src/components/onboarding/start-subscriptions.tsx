@@ -1,7 +1,7 @@
 "use client";
 
 import { useStartVariant } from "./start-experience";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 import { Button, Badge } from "@/components/ui";
@@ -15,6 +15,7 @@ import {
   subscriptionBelongsTo,
   type SubscriptionProvider,
 } from "@/lib/subscription-accounts-api";
+import styles from "./start-subscriptions.module.css";
 
 /** Personal connections stay optional and never become the organization's shared model. */
 export function StartSubscriptions() {
@@ -22,6 +23,7 @@ export function StartSubscriptions() {
   const t = useTranslations("start.subscriptions");
   const accountsCopy = useTranslations("subscriptionAccounts");
   const actions = useSubscriptionAccounts();
+  const id = useId();
   const [connecting, setConnecting] = useState<SubscriptionProvider | null>(null);
   if (actions.accounts.data?.enabled === false) return null;
   return (
@@ -38,7 +40,7 @@ export function StartSubscriptions() {
           cta={{ label: accountsCopy("retry"), onClick: () => void actions.accounts.refetch() }}
         />
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className={styles.services}>
           {SUBSCRIPTION_PROVIDERS.map((provider) => {
             const connected =
               actions.accounts.data?.items.some(
@@ -47,30 +49,35 @@ export function StartSubscriptions() {
                   !account.disabled &&
                   !account.unavailable,
               ) ?? false;
+            const name = accountsCopy(`providers.${provider}`);
             return (
-              <li
-                key={provider}
-                className="border-border flex flex-wrap items-center gap-3 rounded-xl border p-4"
-              >
-                <ProviderIcon provider={SUBSCRIPTION_MARK[provider]} className="size-5 shrink-0" />
-                <span className="min-w-0 flex-1 text-sm font-medium">
-                  {accountsCopy(`providers.${provider}`)}
-                </span>
-                {connected && (
-                  <Badge variant="success">
-                    <Check className="size-3" aria-hidden />
-                    {t("connected")}
-                  </Badge>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={!actions.ready || actions.accounts.isLoading}
-                  onClick={() => setConnecting(provider)}
-                >
-                  {accountsCopy(connected ? "connectAnother" : "connect")}
-                </Button>
+              <li key={provider}>
+                <article className={styles.service} aria-labelledby={`${id}-${provider}`}>
+                  <header className={styles.identity}>
+                    <ProviderIcon provider={SUBSCRIPTION_MARK[provider]} className={styles.logo} />
+                    <div className={styles.name}>
+                      <h3 id={`${id}-${provider}`}>{name}</h3>
+                      {connected && (
+                        <Badge variant="success">
+                          <Check className="size-3" aria-hidden />
+                          {t("connected")}
+                        </Badge>
+                      )}
+                    </div>
+                  </header>
+                  <footer className={styles.actions}>
+                    <Button
+                      type="button"
+                      variant={connected ? "ghost" : "outline"}
+                      size="sm"
+                      aria-label={`${accountsCopy(connected ? "connectAnother" : "connect")} ${name}`}
+                      disabled={!actions.ready || actions.accounts.isLoading}
+                      onClick={() => setConnecting(provider)}
+                    >
+                      {accountsCopy(connected ? "connectAnother" : "connect")}
+                    </Button>
+                  </footer>
+                </article>
               </li>
             );
           })}

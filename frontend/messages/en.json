@@ -1288,7 +1288,9 @@
       "answered": "Questions and answers",
       "submitting": "Sending your answers…",
       "details": "Tool details",
-      "reveal": "Answer the agent’s question"
+      "reveal": "Answer the agent’s question",
+      "cancel": "Cancel task",
+      "cancelling": "Cancelling…"
     },
     "loadEarlierMessages": "Load earlier messages",
     "accessLevel": "Access level",
@@ -3434,10 +3436,15 @@
         "runs": "Your runs",
         "finished": "Finished",
         "finishedOf": "of {total} runs",
-        "waiting": "Waiting on you",
+        "waiting": "Needs your review",
         "nothingWaiting": "Nothing waiting",
         "spent": "Spent",
-        "spentLabel": "{amount} spent"
+        "spentLabel": "{amount} spent",
+        "waitingLabel": {
+          "approvals": "Actions to approve",
+          "questions": "Questions to answer",
+          "suggestions": "Agent suggestions"
+        }
       },
       "eval-runs": {
         "title": "Eval runs",
@@ -3805,13 +3812,13 @@
       "eveningNamed": "Good evening, {name}",
       "ran": "Your agents ran <b>{runs, plural, =0 {nothing} =1 {once} other {# times}}</b> in this period.",
       "nothingWaiting": "Nothing is waiting on you.",
-      "waitingOn": "Waiting on you: <b>{items}</b>.",
+      "waitingOn": "You have <b>{items}</b>.",
       "waiting": {
-        "questions": "{count, plural, one {# question} other {# questions}}",
-        "approvals": "{count, plural, =1 {1 call} other {# calls}}",
+        "questions": "{count, plural, one {# question to answer} other {# questions to answer}}",
+        "approvals": "{count, plural, one {# action to approve} other {# actions to approve}}",
         "review": "{count, plural, =1 {1 answer to review} other {# answers to review}}",
         "suites": "{count, plural, =1 {1 failing suite} other {# failing suites}}",
-        "suggestions": "{count, plural, =1 {1 suggestion} other {# suggestions}}"
+        "suggestions": "{count, plural, one {# suggestion in Inbox} other {# suggestions in Inbox}}"
       },
       "summary": "Your agents ran <b>{runs, plural, =0 {nothing} =1 {once} other {# times}}</b> in this period. {waiting, plural, =0 {Nothing is waiting on you.} =1 {<b>One call</b> is waiting on you.} other {<b># calls</b> are waiting on you.}}"
     },
@@ -4615,6 +4622,12 @@
     "weDoNotTrainOnCustomerData": "<b>We don't train on your Customer Data.</b> Period."
   },
   "mcp": {
+    "onboarding": {
+      "browseAll": "Browse all services",
+      "showFeatured": "Back to suggested services",
+      "customServer": "Connect a custom MCP",
+      "manage": "Manage"
+    },
     "accessToken": "Access token",
     "accountsOnThisServer": "Each account connected to this server, and where it can be used.",
     "addCustomServer": "Add a custom server",
@@ -7833,7 +7846,6 @@
       "unexpectedWithDigest": "An unexpected error occurred. Error ID: {digest}"
     },
     "runs": {
-      "recentWork": "Recent work",
       "rawRecord": "Raw record",
       "recordedFailure": "Why this run stopped",
       "aParkedRunIsStill": "A parked run is still parked. Nothing was decided, and nothing expired.",
@@ -17924,6 +17936,20 @@
     "jsonInvalid": "Enter valid JSON of the required type. The last valid value is unchanged."
   },
   "start": {
+    "modelSetup": {
+      "chooseProvider": "Choose a provider you already use, or connect a new one.",
+      "changeProvider": "All providers",
+      "connectionTitle": "Connect your account",
+      "modelTitle": "Choose your model",
+      "vaultKey": "Using Vault key: {name}",
+      "chooseModel": "Browse models",
+      "changeConnection": "Change",
+      "applying": "Saving your model…",
+      "loadFailed": "We could not load the available providers. Try again.",
+      "noProviders": "No model providers are available on this deployment.",
+      "existingModels": "Choose a model already connected to your workspace.",
+      "noExistingModels": "No workspace models are ready yet. Ask an administrator to connect one, or use your own subscription in the previous step."
+    },
     "sidebarReminder": {
       "title": "Finish setup",
       "hint": "Add your details, choose how agents help, and try your first task.",
@@ -18265,7 +18291,6 @@
       "agenticosName": "AgenticOS",
       "modelsTitle": "Choose what powers your work",
       "modelsGuide": "Already have a model or an API key? Use it here. You can also pick a model your workspace already has.",
-      "modelsHint": "Choose from the full provider catalog, use a key from the Vault, or add your own connection below.",
       "modelsScope": "Your choice is remembered for your own new chats. Personal subscriptions stay yours; shared agent defaults are configured in the Builder.",
       "toolsTitle": "Give your agents useful connections",
       "toolsGuide": "Connect the services you work in, or bring your own MCP server. You choose which accounts and tools each agent can use.",
@@ -18296,6 +18321,15 @@
       },
       "configureArchitect": "Configure Architect",
       "continue": "Continue"
+    },
+    "preferences": {
+      "languageTitle": "Which language feels natural?",
+      "languageHint": "Choose the language for your workspace. You can change it anytime.",
+      "appearanceTitle": "Make the app feel like yours.",
+      "appearanceHint": "Pick a style and a color mode. Your choice applies right away.",
+      "position": "{current} of {total}",
+      "continue": "Continue",
+      "finish": "Continue to setup"
     }
   },
   "skillImprovement": {
@@ -21513,5 +21547,15 @@
       "name": "Other installed agents",
       "description": "Delegate tasks to Cursor, Qwen Code, Kimi, Hermes or another registered agent. Connect and configure the installed agent separately."
     }
+  },
+  "onboardingStatus": {
+    "header": "Onboarding",
+    "completed": "Completed",
+    "notStarted": "Not started",
+    "inProgress": "In progress",
+    "unknown": "Not available",
+    "otherStep": "Setup",
+    "account": "Account setup",
+    "noWorkspace": "No workspace memberships"
   }
 }

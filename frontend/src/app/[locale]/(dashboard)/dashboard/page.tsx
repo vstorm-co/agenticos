@@ -64,6 +64,7 @@ import { accentDecoration, isAccentColour, WIDGETS } from "@/lib/dashboard/regis
 import { ROUTES } from "@/lib/constants";
 import { cn, setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
+import styles from "./dashboard.module.css";
 
 /**
  * The role-aware dashboard, now arrangeable. Three layers decide what renders,
@@ -90,7 +91,10 @@ export default function DashboardPage() {
   const period = useMemo(() => parsePeriodParam(periodParam), [periodParam]);
   const sectionsParam = searchParams.get("sections");
   const [editing, setEditing] = useState(false);
-  const [animatedPanel, setAnimatedPanel] = useState<string | null>(null);
+  const [animatedPanel, setAnimatedPanel] = useState<{
+    key: string;
+    direction: "forward" | "back";
+  } | null>(null);
   useEffect(() => {
     const restore = () => setAnimatedPanel(null);
     window.addEventListener("popstate", restore);
@@ -182,13 +186,25 @@ export default function DashboardPage() {
     setUrlParam("period", formatPeriodParam(next));
   };
   const changeView = (next: DashboardView) => {
-    if (next !== view) setAnimatedPanel(`${next}:${next === "group" ? (group?.id ?? "") : ""}`);
+    if (next !== view)
+      setAnimatedPanel({
+        key: `${next}:${next === "group" ? (group?.id ?? "") : ""}`,
+        direction: available.indexOf(next) > available.indexOf(view) ? "forward" : "back",
+      });
     setUrlParam("view", next === fallbackView ? null : next);
     // A section chosen on one view names nothing on another.
     setUrlParam("sections", null);
   };
   const changeGroup = (next: string) => {
-    if (next !== group?.id) setAnimatedPanel(`group:${next}`);
+    if (next !== group?.id)
+      setAnimatedPanel({
+        key: `group:${next}`,
+        direction:
+          groups.findIndex((entry) => entry.id === next) >
+          groups.findIndex((entry) => entry.id === group?.id)
+            ? "forward"
+            : "back",
+      });
     setUrlParam("group", next);
   };
   const changeSections = (selected: string[] | null) => {
@@ -456,10 +472,11 @@ export default function DashboardPage() {
       />
       <div
         key={panelKey}
-        className="tab-panel flex flex-1 flex-col"
+        className={cn(styles.panel, "flex flex-1 flex-col")}
         // Only an explicit scope change enters; arriving at the dashboard or
         // restoring its URL must not animate the whole working surface.
-        data-state={animatedPanel === panelKey ? "active" : undefined}
+        data-state={animatedPanel?.key === panelKey ? "active" : undefined}
+        data-direction={animatedPanel?.key === panelKey ? animatedPanel.direction : undefined}
         data-dashboard-view={view}
         onAnimationEnd={(event) => {
           if (event.target === event.currentTarget) setAnimatedPanel(null);
@@ -480,7 +497,7 @@ export default function DashboardPage() {
           numbers. */}
             {activeOrgId && view === "org" && <StartChecklist orgId={activeOrgId} />}
             {personalSummary && (
-              <div className="mt-6 min-h-64 lg:h-[18.5rem]">
+              <div className="min-h-64 lg:h-[18.5rem]">
                 <MySummaryWidget
                   title={t(personalSummary.titleKey ?? "widgets.my-summary.title")}
                   hint={t("widgets.my-summary.description")}

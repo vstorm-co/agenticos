@@ -104,6 +104,8 @@ export interface DirectoryLoginRequest {
 }
 
 export interface LoginResponse {
+  /** True only when the authenticated sign-in created this account. */
+  is_new_user?: boolean;
   access_token: string;
   refresh_token: string;
   token_type: string;

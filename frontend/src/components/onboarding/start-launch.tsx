@@ -37,7 +37,7 @@ export function StartLaunch({ data }: { data: Onboarding }) {
   return (
     <div className={styles.launch}>
       <div className={styles.agentCards}>
-        <article className={styles.agentCard}>
+        <article className={styles.agentCard} data-start-launch-agent="agenticos">
           <span className={styles.agentFace}>
             <AvatarFace seed={starter?.slug ?? "agenticos"} />
           </span>
@@ -49,7 +49,7 @@ export function StartLaunch({ data }: { data: Onboarding }) {
             <p>{t("agenticosBody")}</p>
           </div>
           {agents.isLoading ? (
-            <LoadingState variant="pending" />
+            <LoadingState variant="pending" className="min-h-11 w-full justify-start" />
           ) : agents.error ? (
             <ErrorState
               title={t("agentsFailed")}
@@ -87,7 +87,7 @@ export function StartLaunch({ data }: { data: Onboarding }) {
             </div>
           )}
         </article>
-        <article className={styles.agentCard}>
+        <article className={styles.agentCard} data-start-launch-agent="architect">
           <span className={styles.agentFace}>
             <AvatarFace seed={assistant.assistant?.slug ?? "architect"} />
           </span>
@@ -97,7 +97,7 @@ export function StartLaunch({ data }: { data: Onboarding }) {
             <p>{t("architectBody")}</p>
           </div>
           {assistant.isLoading ? (
-            <LoadingState variant="pending" />
+            <LoadingState variant="pending" className="min-h-11 w-full justify-start" />
           ) : assistant.error ? (
             <ErrorState
               title={t("agentsFailed")}

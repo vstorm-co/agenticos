@@ -1,4 +1,5 @@
 "use client";
+import { useReportStartStep } from "@/hooks/use-report-start-step";
 
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import Link from "next/link";
@@ -74,6 +75,7 @@ export function StartMember({ data }: { data: Onboarding }) {
       ? steps.find((item) => `member.${item}` === search.get("start-step"))
       : undefined;
   const [step, setStep] = useState<Step>(initial ?? "welcome");
+  useReportStartStep(`member.${step}`, data.organization_id, !data.completed);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [visited, setVisited] = useState<readonly Step[]>(
     steps.slice(0, steps.indexOf(initial ?? "welcome") + 1),

@@ -1,5 +1,5 @@
 ---
-source_sha: "cfc4c60a9126"
+source_sha: "d71d304ffe0f"
 ---
 
 # Datenschutz { #data-protection }
@@ -93,6 +93,8 @@ des Elternteils.
 ### Die Datenbank { #the-database }
 
 Die Gesamtgrenze wird im Savepoint der Änderung unter einer Organisationssperre vor dem Commit geprüft. Eine Überschreitung rollt den Datensatz und alle Kopien zurück, auch eine Importzeile; übrige Zeilen werden als abgelehnt gemeldet. Quittungswiederholungen, unveränderte Schreibvorgänge, Lesen und Löschen bleiben nach einer Absenkung möglich. Die Aufbewahrungsbereinigung gibt entfernte Bytes frei. Gespeicherte PostgreSQL-JSONB-Nutzdaten je Organisation über Datensätze, Historie, Quittungen und Outbox; Tabellen- und Index-Overhead zählt separat.
+
+Der Onboarding-Fortschritt speichert in `organization_members` nur eine zulässige Schrittkennung und den Aktualisierungszeitpunkt neben dem erfassten Abschluss. Er enthält keine Formularentwürfe oder zusätzlichen persönlichen Felder. Deployment-Administratoren können den Fortschritt je Organisation lesen; Personen mit bestehendem Zugriff auf deren Mitgliederliste können den Fortschritt dieser Mitgliedschaften lesen. Vorhandene Profilinhalte dienen nicht zur Ableitung des Fortschritts.
 
 | Speicher | Hält | Personenbezogene Daten darin | Zweck |
 | --- | --- | --- | --- |

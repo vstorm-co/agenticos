@@ -82,7 +82,7 @@ The user selected Studio and then requested the same principles across everyday 
 - Shared page and section titles use consistent text roles. Lists wrap their controls on narrow screens. An embedded table shares its list's boundary instead of adding a second outer frame; its loading rows retain their configured height.
 - Settings section icons no longer need a decorative tile for ordinary structure. Destructive sections retain their existing emphasis.
 
-- An agent's detail page shows its latest three runs before Builder tabs, only when the person can view runs. Attention states are promoted within those three, not presented as a complete count of outstanding work. Existing run links and configuration deep links remain available.
+- Agent cards open Build while keeping their evaluation-attention indicator. Recent runs remain in Activity with existing agent filters; the trial Recent work panel above Builder was removed after visual review. Explicit configuration and evaluation deep links remain available.
 - The run inspector exposes the recorded failure reason before events. Standalone transcripts use independent chronological disclosures, readable text and complete raw JSON on demand; unknown structured events retain a raw view.
 - The chat model control shows the model above its provider or the selected personal account's email/label, without internal routing IDs. Projects precede Build. Knowledge starts folded, while its active page and the person's explicit expansion remain available.
 

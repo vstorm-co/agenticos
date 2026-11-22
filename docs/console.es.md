@@ -1,10 +1,10 @@
 ---
-source_sha: "eef4ab433451"
+source_sha: "358a44ddade5"
 ---
 
 El selector conserva el encabezado, las pestañas del proveedor y la búsqueda en su sitio; las listas de modelos y proveedores se desplazan por separado. Los cambios de pestaña del dashboard mantienen su transición breve. Entrar en el dashboard o restaurar el historial no anima todo el panel. El carrusel del onboarding sigue disponible junto a una foto subida, con una explicación de que el color corresponde al avatar que aparece cuando la foto no está disponible.
 
-Los títulos, los controles de listas y los encabezados de tablas comparten una jerarquía compacta. Las tablas dentro de listas tienen un marco exterior y conservan la altura de sus filas al cargar. Los detalles del agente muestran sus tres últimas ejecuciones antes de la configuración, con los estados que requieren atención primero dentro de ese grupo. La inspección muestra el motivo registrado del fallo y conserva los eventos completos en secciones desplegables. El chat sitúa el nombre del modelo sobre su proveedor o cuenta personal. Proyectos aparece antes de Build en la navegación; Conocimiento empieza plegado y se abre para su página activa o por elección explícita.
+Los títulos, los controles de listas y los encabezados de tablas comparten una jerarquía compacta. Las tablas dentro de listas tienen un marco exterior y conservan la altura de sus filas al cargar. Las tarjetas abren Build incluso cuando Evals requiere atención; su indicador sigue visible. El historial permanece en Actividad, en lugar de encima del Builder. La inspección muestra el motivo registrado del fallo y conserva los eventos completos en secciones desplegables. El chat sitúa el nombre del modelo sobre su proveedor o cuenta personal. Proyectos aparece antes de Build en la navegación; Conocimiento empieza plegado y se abre para su página activa o por elección explícita.
 
 # La consola { #the-console }
 
@@ -19,6 +19,10 @@ Los agregados de uso y gasto del dashboard reutilizan la misma respuesta en memo
 Si el onboarding de tu organización actual no está terminado, **Completar configuración** vuelve a su guía. Descartar el recordatorio lo pausa durante el intervalo efectivo de 1, 3 o 7 días (un día de forma predeterminada). La finalización y el aplazamiento se guardan en el servidor para tu pertenencia a la organización. Una consulta de progreso pendiente o fallida no presenta la configuración como incompleta.
 
 **Ajustes → Perfil** conserva siempre un enlace manual a la configuración, también cuando los recordatorios están desactivados. El recordatorio tiene una acción clara y una ilustración breve y limitada; el movimiento reducido la mantiene quieta. No se inicia ningún recorrido automáticamente. En el mismo navegador, el enlace recuerda el último paso permitido para esta cuenta y organización sin guardar valores del formulario.
+
+La configuración guiada guarda el paso actual y la fecha de actualización en tu pertenencia a la organización. La tabla de miembros indica si no se ha iniciado, está en curso o se ha completado, con un nombre de paso legible. La tabla de usuarios del despliegue muestra cada organización por separado; completar una no completa las demás. Las finalizaciones ya registradas siguen siendo válidas, pero el contenido del perfil nunca implica progreso ni finalización.
+
+Un paso mostrado antes de elegir una organización o unirte a ella no se registra como progreso de pertenencia. El idioma y la apariencia de la cuenta se guardan por separado. En la pestaña Asistente de la organización, Architect y los demás servicios aparecen antes de la página de inicio del chat; los iconos y encabezados uniformes facilitan recorrer los servicios.
 
 Inbox mantiene el mismo marco de lista, espaciado de filas, marcas de origen, tipografía de títulos y detalles y alineación adaptable de acciones en Todas, Urgentes, Resultados de rutinas, Sugerencias y Terminadas. Las terminadas conservan el estado de la decisión y la acción de recuperar elementos descartados; origen y hora también se ven en el teléfono. Los formularios de aprobación mantienen el mismo margen exterior, sus campos obligatorios y controles de permisos.
 
@@ -839,9 +843,9 @@ pudo transcribir se guarda hasta que pulses **Retry** o **Discard**.
 El brillo alrededor del cuadro de una página alojada mientras hablas sigue a **Voice glow** en
 **Settings → Profile → Appearance**, junto al tema y a **Motion**: **Vivid**,
 **Subtle** (por defecto) u **Off**. Se recuerda por navegador. **Motion** decide
-cuánto se mueve toda la consola: **System** (por defecto) sigue el ajuste de
+cuánto se mueve toda la consola: **System** sigue el ajuste de
 movimiento reducido del sistema operativo, **Reduce** reduce el movimiento sin
-él y **Full** lo mantiene diga lo que diga el sistema operativo. Mientras el
+él y **Full** (predeterminado en un navegador nuevo) lo mantiene diga lo que diga el sistema operativo. Mientras el
 movimiento está reducido no hay brillo alguno, la franja aparece sin deslizarse
 y el nivel es un indicador de cinco pasos.
 
@@ -1104,7 +1108,7 @@ el menú de la cuenta cambia el idioma en cualquier momento; la elección se gua
 en tu cuenta, así que la consola se abre en él en cada dispositivo en el que
 inicias sesión. También puedes pedírselo a un agent - "cambia a inglés" - y la
 página cambia mientras responde, sin recargar. Todos los agents responden en él
-salvo que escribas en otro idioma.
+salvo que pidas explícitamente otro idioma.
 
 Las palabras del producto - agent, skill, run, budget, MCP y el
 resto de la lista de [traducir](howto/translate.md) - siguen en inglés en todos
@@ -1298,3 +1302,9 @@ Los administradores pueden revisar los ajustes del equipo y del despliegue o ir 
 Studio es el diseño predeterminado en `/onboarding`; los otros diseños siguen disponibles mediante parámetros de vista previa. Studio utiliza una columna de formulario y una navegación compacta sin personajes decorativos repetidos. El aspecto se elige en un carrusel de los colores reales del avatar de la cuenta: explorar no guarda una selección; elegir utiliza el guardado habitual de la cuenta. El movimiento respeta las preferencias de la aplicación y del sistema.
 
 Studio mantiene el encabezado y las acciones inferiores en su sitio al cambiar de paso. La galería de avatares centra la vista previa al arrastrar o usar las flechas; solo elegirla guarda la selección. El movimiento reducido desactiva el resorte y las transiciones entre pasos. La configuración pendiente se recuerda únicamente en la barra lateral, sin un segundo banner sobre el espacio de trabajo.
+
+Las cuentas nuevas abren `/onboarding` tras registrarse con contraseña o iniciar sesión por primera vez mediante OAuth o directorio, incluido el registro desde una invitación. El idioma y la apariencia preceden a la configuración del espacio; aquí también se pueden revisar y aceptar invitaciones. Unirse requiere una decisión explícita. El idioma se guarda en la cuenta y se entrega a los agentes mediante `{{language}}` y el contexto de la persona. Una petición explícita de otro idioma tiene prioridad.
+
+Después de las suscripciones, la configuración del modelo muestra primero el proveedor, luego su conexión y modelo. Las suscripciones personales permanecen en el paso anterior. Las herramientas empiezan con servicios sugeridos; **Explorar todos los servicios** abre el catálogo MCP completo.
+
+Cuando un agente hace una pregunta, el editor normal conserva el borrador y los adjuntos, pero se oculta de la vista y de la navegación por teclado. Una barra compacta para responder o cancelar deja espacio para la pregunta; al responder se restaura el editor. Las preguntas sin conexión permanecen inactivas hasta recuperarla, mientras que cancelar una ejecución en espera utiliza la ruta HTTP habitual.

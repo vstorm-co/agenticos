@@ -17,6 +17,7 @@ from app.repositories import (
     mcp_connection_repo,
     member_repo,
     oauth_repo,
+    onboarding_repo,
     organization_repo,
     resource_grant_repo,
     user_repo,
@@ -85,7 +86,14 @@ class MemberService:
     ) -> tuple[
         list[
             tuple[
-                OrganizationMember, str, str | None, str | None, int | None, datetime | None, bool
+                OrganizationMember,
+                str,
+                str | None,
+                str | None,
+                int | None,
+                datetime | None,
+                datetime | None,
+                bool,
             ]
         ],
         int,
@@ -114,8 +122,19 @@ class MemberService:
         activity = await audit_log_repo.latest_member_actions(
             self.db, organization_id=organization_id, user_ids=[row[0].user_id for row in rows]
         )
+        account_completion = {
+            user.id: user.onboarding_completed_at
+            for user in await user_repo.get_by_ids(self.db, [row[0].user_id for row in rows])
+        }
         rows_with_flag = [
-            (*row, activity.get(row[0].user_id), may_manage and row[0].role in assignable)
+            (
+                *row,
+                onboarding_repo.effective_completed_at(
+                    row[0], account_completion.get(row[0].user_id)
+                ),
+                activity.get(row[0].user_id),
+                may_manage and row[0].role in assignable,
+            )
             for row in rows
         ]
         return rows_with_flag, total
@@ -126,7 +145,7 @@ class MemberService:
         target_user_id: UUID,
         new_role: str,
         requester_id: UUID,
-    ) -> tuple[OrganizationMember, str, str | None, str | None, int | None]:
+    ) -> tuple[OrganizationMember, str, str | None, str | None, int | None, datetime | None]:
         """Change a member's role.
 
         Rules:
@@ -205,7 +224,10 @@ class MemberService:
         full_name = user.full_name if user else None
         avatar_url = user.avatar_url if user else None
         avatar_color = user.avatar_color if user else None
-        return updated, email, full_name, avatar_url, avatar_color
+        completed_at = onboarding_repo.effective_completed_at(
+            updated, user.onboarding_completed_at if user else None
+        )
+        return updated, email, full_name, avatar_url, avatar_color, completed_at
 
     async def remove(
         self,

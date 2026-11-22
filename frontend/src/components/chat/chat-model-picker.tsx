@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ComponentType } from "react";
 import { ChevronDown } from "lucide-react";
 
 import {
@@ -22,7 +22,7 @@ import {
 import { subscriptionModelId } from "@/lib/subscription-model-id";
 import { useSubscriptionAccounts } from "@/hooks/use-subscription-accounts";
 import { SubscriptionModelForm } from "@/components/agents/subscription-model-form";
-import { ChatModelPane, ChatModelLibrary } from "./chat-model-library";
+import { ChatModelPane, ChatModelLibrary, type ChatModelLibraryProps } from "./chat-model-library";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { getErrorMessage } from "@/lib/api-error";
 import { ModelIcon } from "@/components/icons/model-icon";
@@ -55,6 +55,8 @@ interface ChatModelPickerProps {
   presentation?: "form" | "library";
   /** Initial catalog when setup has no agent model or conversation override yet. */
   defaultProviderId?: string;
+  /** A dedicated setup surface reuses selection/credential contracts for one provider. */
+  providerView?: { id: string; component: ComponentType<ChatModelLibraryProps> };
   /** The model profile this conversation overrides to, or null for the agent's own. */
   value: string | null;
   /** The agent's published model, shown as the current one when there is no override. */
@@ -93,6 +95,7 @@ export function ChatModelPicker({
   compact = false,
   presentation = "form",
   defaultProviderId = "",
+  providerView,
 }: ChatModelPickerProps) {
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
@@ -132,8 +135,9 @@ export function ChatModelPicker({
   const edited = draft?.source === sourceKey ? draft : null;
   const personalAccounts = useSubscriptionAccounts({
     enabled:
-      current?.provider === "subscription_accounts" ||
-      catalog.some((entry) => entry.personal_gateway),
+      !providerView &&
+      (current?.provider === "subscription_accounts" ||
+        catalog.some((entry) => entry.personal_gateway)),
   });
   const currentAccount = personalAccounts.accounts.data?.items.find(
     (account) => account.model_prefix && current?.model.startsWith(account.model_prefix + "/"),
@@ -151,7 +155,7 @@ export function ChatModelPicker({
           );
         })?.id ?? current.provider)
       : current?.provider;
-  const providerId = edited?.providerId ?? currentSource ?? defaultProviderId;
+  const providerId = providerView?.id ?? edited?.providerId ?? currentSource ?? defaultProviderId;
   const subscription = subscriptionFromChoice(providerId);
   const personalSource = subscription !== undefined || providerId === "subscription_accounts";
   const model = edited?.model ?? current?.model ?? "";
@@ -340,7 +344,7 @@ export function ChatModelPicker({
   const credentialForm = !secretReadError &&
     !loadingSecrets &&
     provider !== undefined &&
-    !secrets.some((secret) => secret.purpose === provider.id) && (
+    (providerView || !secrets.some((secret) => secret.purpose === provider.id)) && (
       <ModelProviderCredential
         key={provider.id}
         provider={provider}
@@ -479,9 +483,10 @@ export function ChatModelPicker({
       </div>
     ) : null;
 
+  const Library = providerView?.component ?? ChatModelLibrary;
   if (presentation === "library" && can(Perm.connectionsManage))
     return (
-      <ChatModelLibrary
+      <Library
         pane={
           subscription ? (
             <SubscriptionModelForm
@@ -521,6 +526,7 @@ export function ChatModelPicker({
                   ),
         }))}
         providerId={providerId}
+        connectionLabel={providerView ? effectiveKey?.name : undefined}
         catalogConnection={catalogConnection}
         catalogSource={source}
         catalogError={!!catalogError}
@@ -534,6 +540,7 @@ export function ChatModelPicker({
         needsCredential={
           !requiresEndpoint &&
           !!credentialForm &&
+          providerKeys.length === 0 &&
           !profiles.some((profile) => profile.provider === providerId && usableForAgents(profile))
         }
         credentialPicker={
@@ -577,7 +584,9 @@ export function ChatModelPicker({
         }}
         onModelChange={(id) => void apply(id)}
         credentialForm={
-          requiresEndpoint ? null : credentialForm && provider ? (
+          requiresEndpoint ? null : providerView ? (
+            credentialForm
+          ) : credentialForm && provider ? (
             <ModelConnectionIntro provider={provider.id} name={provider.label}>
               {credentialForm}
             </ModelConnectionIntro>

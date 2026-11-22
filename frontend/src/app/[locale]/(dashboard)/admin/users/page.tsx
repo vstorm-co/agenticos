@@ -1,5 +1,7 @@
 "use client";
 
+import { UserOnboardingStatusCell } from "@/components/onboarding/onboarding-status-cell";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Shield, Search } from "lucide-react";
 
@@ -31,6 +33,7 @@ const SORT_KEYS = ["email", "full_name", "conversations", "created_at"] as const
 export default function AdminUsersPage() {
   const t = useTranslations("pages.admin");
   const ta = useTranslations("admin");
+  const onboarding = useTranslations("onboardingStatus");
   const locale = useLocale();
   const { users, total, isLoading, error, fetchUsers, updateUser, deleteUser, impersonateUser } =
     useAdminUsers();
@@ -123,6 +126,16 @@ export default function AdminUsersPage() {
         ),
       },
       {
+        key: "onboarding",
+        header: onboarding("header"),
+        cell: (u) => (
+          <UserOnboardingStatusCell
+            onboarding={u.onboarding}
+            completedAt={u.onboarding_completed_at}
+          />
+        ),
+      },
+      {
         key: "conversations",
         align: "right",
         hideBelow: "md",
@@ -199,7 +212,7 @@ export default function AdminUsersPage() {
         ),
       },
     ],
-    [t, ta, locale, handleOpenUser],
+    [t, ta, onboarding, locale, handleOpenUser],
   );
 
   return (

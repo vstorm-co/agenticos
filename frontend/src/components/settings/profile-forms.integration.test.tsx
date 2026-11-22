@@ -87,7 +87,7 @@ it("keeps the name draft during a color change and submits identity with Enter",
   await userEvent.type(screen.getByLabelText("Display name"), " draft");
   await userEvent.click(screen.getByRole("button", { name: "Fallback colour" }));
   await userEvent.click(screen.getByRole("radio", { name: "Colour 3" }));
-  expect(screen.getByLabelText("Display name")).toBeDisabled();
+  expect(screen.getByLabelText("Display name")).toBeEnabled();
   expect(screen.getByRole("radio", { name: "Colour 4" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   held.resolve({ ...USER, avatar_color: 3 });
@@ -219,4 +219,50 @@ it("keeps an uploaded photo primary while choosing a visible carousel fallback",
   expect(apiClient.upload).not.toHaveBeenCalled();
   expect(useAuthStore.getState().user?.avatar_url).toBe(photo.avatar_url);
   expect(portrait.querySelector("img")).toHaveAttribute("src", source);
+});
+
+it("keeps identity fields mounted and editable while a carousel colour saves, serializing writes", async () => {
+  const photo = { ...USER, avatar_url: "avatars/photo.png" };
+  useAuthStore.setState({ user: photo });
+  const held = Promise.withResolvers<User>();
+  vi.mocked(apiClient.patch).mockReturnValueOnce(held.promise);
+  const onContinue = vi.fn();
+  const { container } = render(
+    <ProfileIdentitySettings
+      section="identity"
+      avatarPresentation="carousel"
+      onContinue={onContinue}
+      saveLabel="Continue"
+    />,
+  );
+  const name = screen.getByLabelText("Display name");
+  const email = screen.getByLabelText("Email");
+  const uploadButtons = screen.getAllByRole("button", { name: "Replace avatar" });
+  const replace = uploadButtons.find((button) => button.textContent === "Replace avatar");
+  expect(replace).toBeDefined();
+  const portrait = container.querySelector("img");
+  const source = portrait?.getAttribute("src");
+  await userEvent.click(screen.getByRole("button", { name: "Colour 3" }));
+  expect(name).toBeEnabled();
+  expect(email).toBeEnabled();
+  for (const button of uploadButtons) expect(button).toBeDisabled();
+  expect(replace).toHaveClass("disabled:opacity-100");
+  expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+  await userEvent.type(name, " draft");
+  await userEvent.clear(email);
+  await userEvent.type(email, "draft@example.com");
+  await userEvent.type(name, "{Enter}");
+  expect(apiClient.patch).toHaveBeenCalledExactlyOnceWith("/users/me", { avatar_color: 3 });
+  expect(apiClient.upload).not.toHaveBeenCalled();
+  expect(onContinue).not.toHaveBeenCalled();
+  held.resolve({ ...photo, avatar_color: 3 });
+  await waitFor(() => expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled());
+  expect(screen.getByLabelText("Display name")).toBe(name);
+  expect(screen.getByLabelText("Email")).toBe(email);
+  expect(screen.getAllByRole("button", { name: "Replace avatar" })).toEqual(uploadButtons);
+  expect(container.querySelector("img")).toBe(portrait);
+  expect(portrait).toHaveAttribute("src", source);
+  expect(name).toHaveValue("Alex draft");
+  expect(email).toHaveValue("draft@example.com");
+  expect(replace).not.toHaveClass("disabled:opacity-100");
 });

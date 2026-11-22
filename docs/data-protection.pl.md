@@ -1,5 +1,5 @@
 ---
-source_sha: "cfc4c60a9126"
+source_sha: "d71d304ffe0f"
 ---
 
 # Ochrona danych { #data-protection }
@@ -87,6 +87,8 @@ przez sprawdzenie rodzica.
 ### Baza danych { #the-database }
 
 Łączny limit jest sprawdzany w savepoincie zmiany, pod blokadą organizacji, przed commitem. Przekroczenie cofa rekord i wszystkie zachowane kopie, także dla wiersza importu; pozostałe wiersze są raportowane jako odrzucone. Ponowienie z potwierdzenia, zapis bez zmian, odczyt i usuwanie nadal działają po obniżeniu limitu. Retencja zwalnia usuwane bajty. Bajty danych JSONB PostgreSQL na organizację łącznie dla rekordów, historii, potwierdzeń i outboxa; narzut tabel i indeksów jest osobny.
+
+Postęp onboardingu zapisuje wyłącznie identyfikator dozwolonego kroku i czas aktualizacji w `organization_members`, obok zapisanego ukończenia. Nie zawiera szkiców formularzy ani dodatkowych pól osobistych. Administratorzy wdrożenia mogą odczytać postęp osobno dla każdej organizacji; osoby już uprawnione do listowania członków organizacji mogą odczytać postęp tych członkostw. Postęp nie jest wywnioskowany z istniejącej zawartości profilu.
 
 | Magazyn | Trzyma | Dane osobowe w nim | Cel |
 | --- | --- | --- | --- |

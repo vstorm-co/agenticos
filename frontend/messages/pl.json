@@ -280,7 +280,9 @@
       "answered": "Pytania i odpowiedzi",
       "submitting": "Wysyłanie odpowiedzi…",
       "details": "Szczegóły narzędzia",
-      "reveal": "Odpowiedz na pytanie agenta"
+      "reveal": "Odpowiedz na pytanie agenta",
+      "cancel": "Anuluj zadanie",
+      "cancelling": "Anulowanie…"
     },
     "loadEarlierMessages": "Wczytaj wcześniejsze wiadomości",
     "accessLevel": "Poziom dostępu",
@@ -3089,7 +3091,6 @@
       "unexpectedWithDigest": "Wystąpił nieoczekiwany błąd. ID błędu: {digest}"
     },
     "runs": {
-      "recentWork": "Ostatnia praca",
       "rawRecord": "Surowy zapis",
       "recordedFailure": "Dlaczego uruchomienie się zatrzymało",
       "aParkedRunIsStill": "Wstrzymany run nadal czeka. Nic nie zostało rozstrzygnięte i nic nie wygasło.",
@@ -5496,10 +5497,15 @@
         "runs": "Twoje runy",
         "finished": "Ukończone",
         "finishedOf": "z {total} runów",
-        "waiting": "Czeka na Ciebie",
+        "waiting": "Do przejrzenia",
         "nothingWaiting": "Nic nie czeka",
         "spent": "Wydane",
-        "spentLabel": "wydano {amount}"
+        "spentLabel": "wydano {amount}",
+        "waitingLabel": {
+          "approvals": "Akcje do zatwierdzenia",
+          "questions": "Pytania do odpowiedzi",
+          "suggestions": "Sugestie agentów"
+        }
       },
       "eval-runs": {
         "title": "Runy ewaluacji",
@@ -5867,13 +5873,13 @@
       "eveningNamed": "Dobry wieczór, {name}",
       "ran": "Twoje agenty uruchomiono <b>{runs, plural, =0 {ani razu} =1 {raz} few {# razy} many {# razy} other {# razy}}</b> w tym okresie.",
       "nothingWaiting": "Nic nie czeka na Ciebie.",
-      "waitingOn": "Czeka na Ciebie: <b>{items}</b>.",
+      "waitingOn": "Masz <b>{items}</b>.",
       "waiting": {
-        "questions": "{count, plural, one {# pytanie} few {# pytania} other {# pytań}}",
-        "approvals": "{count, plural, one {1 wywołanie} few {# wywołania} many {# wywołań} other {# wywołania}}",
+        "questions": "{count, plural, one {# pytanie do odpowiedzi} few {# pytania do odpowiedzi} other {# pytań do odpowiedzi}}",
+        "approvals": "{count, plural, one {# akcję do zatwierdzenia} few {# akcje do zatwierdzenia} other {# akcji do zatwierdzenia}}",
         "review": "{count, plural, one {1 odpowiedź do przeglądu} few {# odpowiedzi do przeglądu} many {# odpowiedzi do przeglądu} other {# odpowiedzi do przeglądu}}",
         "suites": "{count, plural, one {1 oblana suita} few {# oblane suity} many {# oblanych suit} other {# oblanej suity}}",
-        "suggestions": "{count, plural, one {1 sugestia} few {# sugestie} many {# sugestii} other {# sugestii}}"
+        "suggestions": "{count, plural, one {# sugestię w Inbox} few {# sugestie w Inbox} other {# sugestii w Inbox}}"
       },
       "summary": "Twoje agenty uruchomiono <b>{runs, plural, =0 {ani razu} =1 {raz} few {# razy} many {# razy} other {# razy}}</b> w tym okresie. {waiting, plural, =0 {Nic nie czeka na Ciebie.} =1 {<b>Jedno wywołanie</b> czeka na Ciebie.} few {<b># wywołania</b> czekają na Ciebie.} many {<b># wywołań</b> czeka na Ciebie.} other {<b># wywołań</b> czeka na Ciebie.}}"
     },
@@ -8020,6 +8026,12 @@
     }
   },
   "mcp": {
+    "onboarding": {
+      "browseAll": "Przeglądaj wszystkie usługi",
+      "showFeatured": "Wróć do proponowanych usług",
+      "customServer": "Podłącz własny MCP",
+      "manage": "Zarządzaj"
+    },
     "accessToken": "Token dostępu",
     "accountsOnThisServer": "Każde konto podłączone do tego serwera i gdzie może być użyte.",
     "addCustomServer": "Dodaj własny serwer",
@@ -17697,6 +17709,20 @@
     "jsonInvalid": "Wpisz poprawny JSON wymaganego typu. Ostatnia poprawna wartość pozostaje bez zmian."
   },
   "start": {
+    "modelSetup": {
+      "chooseProvider": "Wybierz dostawcę, z którego już korzystasz, lub podłącz nowego.",
+      "changeProvider": "Wszyscy dostawcy",
+      "connectionTitle": "Podłącz swoje konto",
+      "modelTitle": "Wybierz model",
+      "vaultKey": "Klucz z sejfu: {name}",
+      "chooseModel": "Przeglądaj modele",
+      "changeConnection": "Zmień",
+      "applying": "Zapisujemy wybrany model…",
+      "loadFailed": "Nie udało się wczytać dostępnych dostawców. Spróbuj ponownie.",
+      "noProviders": "W tej instancji nie ma dostępnych dostawców modeli.",
+      "existingModels": "Wybierz model już podłączony do tej przestrzeni.",
+      "noExistingModels": "Nie ma jeszcze gotowych modeli w tej przestrzeni. Poproś administratora o podłączenie modelu lub użyj własnej subskrypcji w poprzednim kroku."
+    },
     "sidebarReminder": {
       "title": "Dokończ konfigurację",
       "hint": "Uzupełnij profil, wybierz pomoc agentów i wykonaj pierwsze zadanie.",
@@ -18038,7 +18064,6 @@
       "agenticosName": "AgenticOS",
       "modelsTitle": "Wybierz model do pracy",
       "modelsGuide": "Masz już model lub klucz API? Podłącz go tutaj. Możesz też wybrać model dostępny w Twoim workspace.",
-      "modelsHint": "Wybierz model z pełnego katalogu dostawców, użyj klucza z Vault albo dodaj własne połączenie poniżej.",
       "modelsScope": "Zapamiętamy ten wybór dla Twoich nowych czatów. Subskrypcje pozostają prywatne; wspólny model agenta ustawisz w edytorze.",
       "toolsTitle": "Połącz narzędzia, których używasz",
       "toolsGuide": "Podłącz swoje usługi albo własny serwer MCP. Ty decydujesz, z których kont i narzędzi może korzystać agent.",
@@ -18069,6 +18094,15 @@
       },
       "configureArchitect": "Skonfiguruj Architect",
       "continue": "Dalej"
+    },
+    "preferences": {
+      "languageTitle": "W jakim języku chcesz pracować?",
+      "languageHint": "Wybierz język swojej przestrzeni. Możesz go zmienić w każdej chwili.",
+      "appearanceTitle": "Nadaj aplikacji swój styl.",
+      "appearanceHint": "Wybierz styl i tryb kolorów. Efekt zobaczysz od razu.",
+      "position": "{current} z {total}",
+      "continue": "Dalej",
+      "finish": "Przejdź do konfiguracji"
     }
   },
   "skillImprovement": {
@@ -21286,5 +21320,15 @@
       "name": "Inne zainstalowane agenty",
       "description": "Deleguj zadania do Cursor, Qwen Code, Kimi, Hermes lub innego zarejestrowanego agenta. Zainstalowanego agenta podłączasz i konfigurujesz osobno."
     }
+  },
+  "onboardingStatus": {
+    "header": "Onboarding",
+    "completed": "Ukończony",
+    "notStarted": "Nierozpoczęty",
+    "inProgress": "W trakcie",
+    "unknown": "Brak danych",
+    "otherStep": "Konfiguracja",
+    "account": "Konfiguracja konta",
+    "noWorkspace": "Brak członkostwa w organizacji"
   }
 }

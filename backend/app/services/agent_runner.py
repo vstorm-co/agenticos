@@ -3670,6 +3670,7 @@ class AgentRunnerService:
             now=datetime.now(UTC),
             user_name=user_name or (person.full_name or person.email if person else None),
             user_email=person.email if person else None,
+            user_locale=person.locale if person else None,
             organization_name=organization_name,
             surface=surface.value,
             groups=tuple(groups),

@@ -2,7 +2,7 @@
 
 The model picker keeps its header, provider tabs and search in place while the model and provider lists scroll independently. Dashboard tab changes retain their short transition; entering the dashboard or restoring browser history does not animate the entire panel. The onboarding avatar carousel remains available beside an uploaded photo, with a hint that color changes affect the avatar shown when the photo is unavailable.
 
-Page titles, list controls and table headers share a compact hierarchy. Tables embedded in lists use one outer frame and keep their row height while loading. Agent detail shows the latest three runs before configuration, with attention states first within that set; run inspection shows the recorded failure reason and keeps complete raw events behind disclosures. Chat keeps the model name above its provider or personal account. Projects precede Build in navigation; Knowledge starts folded and opens for its active page or your explicit choice.
+Page titles, list controls and table headers share a compact hierarchy. Tables embedded in lists use one outer frame and keep their row height while loading. Agent cards open Build even when Evals needs attention; its indicator stays visible. Run history remains in Activity instead of above the Builder. Run inspection shows the recorded failure reason and keeps complete raw events behind disclosures. Chat keeps the model name above its provider or personal account. Projects precede Build in navigation; Knowledge starts folded and opens for its active page or your explicit choice.
 
 The default themes distinguish the canvas, sidebar, cards and floating panels. Blue identifies links and keyboard focus; enabled switches use green. Navigation uses regular weight with a medium active label. Builder section summaries show the current model, variables, voice state and first messages before opening their editors. Sign-in and account recovery use the same concise heading style and a static identity panel.
 
@@ -15,6 +15,10 @@ Dashboard usage and spending aggregates reuse the same in-memory answer for the 
 If your current organization’s onboarding is unfinished, **Finish setup** returns to its guided setup. Dismissing the reminder snoozes it for the effective interval of 1, 3 or 7 days (one day by default). Completion and snoozing follow your membership on the server; loading or failed progress checks never label setup incomplete.
 
 **Settings → Profile** always keeps a manual setup link, including when reminders are off. The reminder has a clear action and a short, bounded illustration animation; reduced motion keeps it still. Returning is your choice: no tour starts automatically. In the same browser, the link remembers the last allowed step for this account and organization without storing form values.
+
+Guided setup records the current step and its update time on your organization membership. The members table shows whether setup is not started, in progress or completed, with a readable step label. The deployment user table lists each organization separately; completing setup in one does not mark the others complete. Existing recorded completion remains valid, but profile contents never imply progress or completion.
+
+A step shown before you choose or join an organization is not recorded as membership progress. Account language and appearance are saved separately. Under the organization’s Assistant tab, Architect and the other assistant services appear before Chat home; matching icons and card headers make the services easier to scan.
 
 Inbox keeps the same list frame, row spacing, source marks, title/detail typography and responsive action alignment across All, Urgent, Routine results, Suggestions and Done. Done retains its decision badge and Bring back action for dismissed items, with source and time visible on phones too. Approval forms keep the same outer inset while retaining their required fields and permission checks.
 
@@ -796,9 +800,9 @@ in the box. A recording that failed to transcribe is kept until you press
 The glow around a hosted page's box while you speak follows **Voice glow** under
 **Settings → Profile → Appearance**, beside the theme and **Motion**: **Vivid**,
 **Subtle** (the default) or **Off**. It is remembered per browser. **Motion**
-decides how much the whole console moves: **System** (the default) follows the
+decides how much the whole console moves: **System** follows the
 operating system's reduced-motion setting, **Reduce** turns motion down without
-it, and **Full** keeps it whatever the operating system says. While motion is
+it, and **Full** (the default in a new browser) keeps it whatever the operating system says. While motion is
 reduced there is no glow at all, the strip appears without sliding, and the level
 is a five-step indicator.
 
@@ -1047,7 +1051,7 @@ card offers the four, and
 the account menu changes the language at any time; the choice is kept on your
 account, so the console opens in it on every device you sign in on. You can also
 ask an agent - "switch to English" - and the page changes as it answers, without a
-reload. Every agent answers in it unless you write in another language. Product
+reload. Every agent answers in it unless you explicitly request another language. Product
 words - agent, skill, run, budget, MCP and the rest of the list in
 [translating](howto/translate.md) - stay English in every language.
 
@@ -1236,3 +1240,9 @@ Administrators can continue to team and deployment setup or go straight to the i
 Studio is the default at `/onboarding`. The other layouts remain available through their preview parameters. Studio uses one form column and a compact journey rail, without repeated decorative character panels. Personal appearance uses a swipeable carousel of the account’s real avatar colors: browsing does not save a choice; selecting one uses the existing account save. Motion respects the app and operating-system preferences.
 
 Studio keeps its heading and bottom actions in place while the current step moves between them. The avatar gallery snaps to a centered preview when dragged or browsed with the arrow keys; selecting a preview saves it. Reduced motion removes the spring and step movement. Unfinished setup is offered only in the sidebar, without a second banner across the workspace.
+
+New accounts open `/onboarding` after password registration or their first OAuth or directory sign-in, including registration from an invitation. Language and appearance come before workspace setup; addressed invitations can be reviewed and accepted here. Joining remains an explicit choice. Language is saved on the account and supplied to agents through `{{language}}` and the person briefing. An explicit request for another language takes precedence.
+
+After subscriptions, model setup presents a provider first, then its connection and model. Personal subscriptions remain in their previous step. Tools start with suggested services; **Browse all services** opens the complete MCP catalog.
+
+When an agent asks a question, the normal composer stays mounted with its draft and attachments but is hidden from view and keyboard navigation. A compact answer/cancel bar leaves room for the question; answering restores the composer. Offline questions remain unavailable until the connection returns, while cancelling an already parked run uses the normal HTTP cancellation path.

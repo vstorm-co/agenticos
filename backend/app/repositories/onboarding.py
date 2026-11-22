@@ -1,6 +1,8 @@
 """Scoped start preferences and evidence of real use; no prompts or secrets are stored."""
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
+from typing import NamedTuple
 from uuid import UUID
 
 from sqlalchemy import select
@@ -8,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.conversation import Conversation, Message
-from app.db.models.organization import OrganizationMember
+from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.user import User
 from app.schemas.onboarding import OnboardingUpdate
 
 
@@ -17,8 +20,18 @@ async def save(db: AsyncSession, *, member: OrganizationMember, data: Onboarding
         member.onboarding_goal = data.goal
     if data.dismissed is not None:
         member.onboarding_dismissed_at = datetime.now(UTC) if data.dismissed else None
+    if (
+        "current_step" in data.model_fields_set
+        and member.onboarding_completed_at is None
+        and member.onboarding_current_step != data.current_step
+    ):
+        member.onboarding_current_step = data.current_step
+        member.onboarding_updated_at = datetime.now(UTC)
     if data.completed:
-        member.onboarding_completed_at = member.onboarding_completed_at or datetime.now(UTC)
+        member.onboarding_current_step = None
+        if member.onboarding_completed_at is None:
+            member.onboarding_completed_at = datetime.now(UTC)
+            member.onboarding_updated_at = member.onboarding_completed_at
         member.onboarding_dismissed_at = None
     await db.flush()
     await db.refresh(member)
@@ -66,3 +79,36 @@ async def has_activity(db: AsyncSession, *, organization_id: UUID, user_id: UUID
         .exists()
     )
     return bool(await db.scalar(statement))
+
+
+def effective_completed_at(
+    member: OrganizationMember, account_completed_at: datetime | None
+) -> datetime | None:
+    """Honor legacy account completion only for memberships already present then."""
+    if member.onboarding_completed_at is not None:
+        return member.onboarding_completed_at
+    if account_completed_at is not None and member.joined_at <= account_completed_at:
+        return account_completed_at
+    return None
+
+
+class MemberOnboardingRow(NamedTuple):
+    member: OrganizationMember
+    organization_name: str
+    account_completed_at: datetime | None
+
+
+async def progress_for_users(
+    db: AsyncSession, user_ids: Sequence[UUID]
+) -> list[MemberOnboardingRow]:
+    """Fetch every membership for one bounded user page in a single query."""
+    if not user_ids:
+        return []
+    result = await db.execute(
+        select(OrganizationMember, Organization.name, User.onboarding_completed_at)
+        .join(Organization, Organization.id == OrganizationMember.organization_id)
+        .join(User, User.id == OrganizationMember.user_id)
+        .where(OrganizationMember.user_id.in_(user_ids))
+        .order_by(OrganizationMember.user_id, OrganizationMember.joined_at, OrganizationMember.id)
+    )
+    return [MemberOnboardingRow(row[0], row[1], row[2]) for row in result.all()]

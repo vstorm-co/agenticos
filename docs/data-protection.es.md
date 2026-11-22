@@ -1,5 +1,5 @@
 ---
-source_sha: "cfc4c60a9126"
+source_sha: "d71d304ffe0f"
 ---
 
 # Protección de datos { #data-protection }
@@ -91,6 +91,8 @@ cuelga, y leerla pasa por la comprobación del padre.
 ### La base de datos { #the-database }
 
 El límite total se comprueba en el savepoint de la modificación, bajo un bloqueo de la organización, antes del commit. Superarlo revierte el registro y todas sus copias, también en una fila de importación; las filas restantes se informan como rechazadas. Repetir un recibo, escribir sin cambios, leer y borrar siguen funcionando tras reducir el límite. La retención libera los bytes eliminados. Bytes JSONB almacenados en PostgreSQL por organización entre registros, historial, recibos y outbox; el espacio de tablas e índices se cuenta aparte.
+
+El progreso de incorporación guarda únicamente un identificador de paso permitido y la fecha de actualización en `organization_members`, junto con la finalización registrada. No contiene borradores de formularios ni campos personales adicionales. Los administradores del despliegue pueden consultar el progreso por organización; quienes ya pueden listar sus miembros pueden consultar el progreso de esas pertenencias. No se deduce progreso del contenido existente del perfil.
 
 | Almacén | Guarda | Datos personales que contiene | Finalidad |
 | --- | --- | --- | --- |

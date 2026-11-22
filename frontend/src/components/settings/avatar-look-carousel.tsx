@@ -12,6 +12,7 @@ import styles from "./avatar-look-carousel.module.css";
 
 const LOOKS = [null, ...AVATAR_COLORS.map(({ slot }) => slot)];
 const GAP = 20;
+const SNAP_SPRING = { type: "spring", stiffness: 340, damping: 34, mass: 0.85 } as const;
 const clamp = (index: number) => Math.max(0, Math.min(LOOKS.length - 1, index));
 const lookIndex = (value: number | null) => Math.max(0, LOOKS.indexOf(value));
 
@@ -76,10 +77,7 @@ export function AvatarLookCarousel({
       if (announce) setAnnounced(next);
     } else {
       spring.current = animate(position, next, {
-        type: "spring",
-        stiffness: 340,
-        damping: 34,
-        mass: 0.85,
+        ...SNAP_SPRING,
         onComplete: () => {
           if (announce) setAnnounced(next);
         },
@@ -121,11 +119,15 @@ export function AvatarLookCarousel({
   }, [value, position]);
   useEffect(() => {
     if (!reduced && !disabled) return;
-    spring.current?.stop();
     const gesture = drag.current;
     drag.current = null;
     if (gesture) releaseCapture(gesture);
-    position.jump(target.current);
+    if (reduced) {
+      spring.current?.stop();
+      position.jump(target.current);
+    } else if (gesture) {
+      spring.current = animate(position, target.current, SNAP_SPRING);
+    }
     const frame = requestAnimationFrame(() => {
       setCurrent(target.current);
       setDragging(false);

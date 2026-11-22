@@ -1,4 +1,5 @@
 "use client";
+import { useReportStartStep } from "@/hooks/use-report-start-step";
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -98,6 +99,7 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
   }, [activeOrgId, canResumeWorkspace, requestedWorkspace, switchOrg]);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [step, setStep] = useState<Step>(initialStep);
+  useReportStartStep(`admin.${step}`, org?.id ?? null);
   const [visited, setVisited] = useState<readonly Step[]>(
     steps.slice(0, steps.indexOf(initialStep) + 1),
   );

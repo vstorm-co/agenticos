@@ -1,15 +1,19 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useRouter } from "@/lib/locale-navigation";
 import { useOrganizationList } from "@/hooks/use-organizations";
 import { useStart } from "@/hooks/use-start";
 import { shouldOfferStart } from "@/lib/onboarding-api";
+import { setUrlParam } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 import { useOnboardingLocationStore } from "@/stores/onboarding-location-store";
 import { StartSkeleton, startLoadingView } from "./start-skeleton";
 import { useStartVariant } from "./start-experience";
 import { StartHub } from "./start-hub";
+import { StartPreferences } from "./start-preferences";
+import { AcceptStagedInvitation } from "@/components/orgs/accept-staged-invitation";
+import { ReceivedInvitations } from "@/components/orgs/received-invitations";
 
 /** Automatic welcome links must not interrupt an already usable workspace. */
 export function StartEntry() {
@@ -19,6 +23,9 @@ export function StartEntry() {
   const automatic = search.get("welcome") === "1";
   const freshEntry = search.get("entry") === "account" || search.get("entry") === "joined";
   const resuming = search.has("start-step");
+  const [preferencesFinished, setPreferencesFinished] = useState(false);
+  const showPreferences =
+    freshEntry && !resuming && !preferencesFinished && search.get("preferences") !== "done";
   const userId = useAuthStore((state) => state.user?.id);
   const state = useStart();
   const scope = state.data?.organization_id;
@@ -48,12 +55,33 @@ export function StartEntry() {
     !state.data.has_activity &&
     !state.data.has_result;
   const established =
-    automatic && !resuming && !memberWelcome && !!state.data && !shouldOfferStart(state.data);
+    automatic &&
+    !resuming &&
+    !freshEntry &&
+    !memberWelcome &&
+    !!state.data &&
+    !shouldOfferStart(state.data);
   useEffect(() => {
     if (established) router.replace("/chat");
   }, [established, router]);
   const waitingForScope =
     state.isLoading || (state.waitingForScope && !!organizations.data?.length);
+  const invitation = search.has("flow") ? (
+    <AcceptStagedInvitation presentation="inline" />
+  ) : (
+    <ReceivedInvitations presentation="inline" />
+  );
+  if (showPreferences)
+    return (
+      <StartPreferences
+        onContinue={() => {
+          setUrlParam("preferences", "done");
+          setPreferencesFinished(true);
+        }}
+      >
+        {invitation}
+      </StartPreferences>
+    );
   if (established || organizations.isPending || ((automatic || resuming) && waitingForScope))
     return (
       <StartSkeleton

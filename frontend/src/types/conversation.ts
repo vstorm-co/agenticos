@@ -1,3 +1,4 @@
+import type { OrganizationOnboardingStatus } from "./onboarding-status";
 import {
   type CodingHarness,
   RatingValue,
@@ -269,6 +270,8 @@ export interface AdminConversationListResponse {
  * computes it with a join on every page load.
  */
 export interface AdminUser {
+  onboarding?: OrganizationOnboardingStatus[];
+  onboarding_completed_at?: string | null;
   id: string;
   email: string;
   full_name: string | null;

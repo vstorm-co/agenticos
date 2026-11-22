@@ -1,11 +1,19 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { animate } from "motion/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { useMotionStore } from "@/stores/motion-store";
 import { AvatarLookCarousel } from "./avatar-look-carousel";
 
 vi.mock("@/components/ui/avatar-face", () => ({ AvatarFace: () => null }));
-beforeEach(() => useMotionStore.setState({ motion: "reduce" }));
+vi.mock("motion/react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("motion/react")>();
+  return { ...actual, animate: vi.fn(actual.animate) };
+});
+beforeEach(() => {
+  useMotionStore.setState({ motion: "reduce" });
+  vi.mocked(animate).mockClear();
+});
 afterEach(() => {
   vi.restoreAllMocks();
   useMotionStore.setState({ motion: "system" });
@@ -167,4 +175,48 @@ it("uses a real spring for Full and finishes its announcement before cleaning up
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Look 2 of 11"));
   act(() => unmount());
   expect(cancel).toHaveBeenCalled();
+});
+
+it("finishes a chosen card's real spring while its colour is being saved", async () => {
+  useMotionStore.setState({ motion: "full" });
+  const change = vi.fn();
+  const { rerender } = render(<AvatarLookCarousel seed="account" value={null} onChange={change} />);
+  await userEvent.click(screen.getByRole("button", { name: "Colour 2" }));
+  expect(change).toHaveBeenCalledExactlyOnceWith(2);
+  const animation = vi.mocked(animate).mock.results.at(-1);
+  if (!animation || animation.type !== "return") throw new Error("Expected the real choice spring");
+  const stop = vi.spyOn(animation.value, "stop");
+  rerender(<AvatarLookCarousel seed="account" value={null} onChange={change} disabled />);
+  for (const button of screen.getAllByRole("button")) expect(button).toBeDisabled();
+  expect(stop).not.toHaveBeenCalled();
+  rerender(<AvatarLookCarousel seed="account" value={2} onChange={change} disabled />);
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Look 3 of 11"));
+  expect(screen.getByRole("button", { name: "Colour 2" })).toHaveAttribute("aria-pressed", "true");
+  expect(stop).not.toHaveBeenCalled();
+});
+
+it("releases an active pointer capture when saving starts without choosing the dragged preview", async () => {
+  useMotionStore.setState({ motion: "full" });
+  const change = vi.fn();
+  const { container, rerender } = render(
+    <AvatarLookCarousel seed="account" value={null} onChange={change} />,
+  );
+  const element = viewport(container);
+  const release = vi.fn();
+  Object.defineProperties(element, {
+    setPointerCapture: { value: vi.fn(), configurable: true },
+    hasPointerCapture: { value: () => true, configurable: true },
+    releasePointerCapture: { value: release, configurable: true },
+  });
+  fireEvent.pointerDown(element, { pointerId: 9, button: 0, clientX: 200, clientY: 100 });
+  fireEvent.pointerMove(element, { pointerId: 9, clientX: 80, clientY: 100 });
+  expect(element).toHaveAttribute("data-dragging", "true");
+  rerender(<AvatarLookCarousel seed="account" value={null} onChange={change} disabled />);
+  expect(release).toHaveBeenCalledExactlyOnceWith(9);
+  await waitFor(() => expect(element).not.toHaveAttribute("data-dragging"));
+  expect(change).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Automatic colour" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 });

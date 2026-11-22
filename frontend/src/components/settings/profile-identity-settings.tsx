@@ -57,6 +57,7 @@ export function ProfileIdentitySettings({
   const [contextSaving, setContextSaving] = useState(false);
   const identityBusy = saving || avatarUploading || colorSaving;
   const busy = identityBusy || contextSaving;
+  const identityFieldsBusy = saving || avatarUploading || contextSaving;
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Re-seeded when the stored profile moves - a save coming back, or another
@@ -199,7 +200,7 @@ export function ProfileIdentitySettings({
               if (await handleSaveProfile()) onContinue?.();
             }}
           >
-            <fieldset disabled={busy} className="min-w-0 space-y-5">
+            <fieldset disabled={identityFieldsBusy} className="min-w-0 space-y-5">
               <legend className="sr-only">{t("personalInfo")}</legend>
               <div
                 className={cn(
@@ -260,6 +261,7 @@ export function ProfileIdentitySettings({
                         size="sm"
                         onClick={() => avatarInputRef.current?.click()}
                         disabled={busy}
+                        className={colorSaving ? "disabled:opacity-100" : undefined}
                       >
                         {avatarPresentation === "carousel" && <Camera size={14} aria-hidden />}
                         {avatarUploading

@@ -5031,7 +5031,13 @@
     "cardOrganizations": "{count, plural, =1 {Kuruluşun hesabı} other {Kuruluşun # hesabı}}",
     "cardYoursAndOrganizations": "Sizin ve kuruluşun",
     "accountActions": "{name} için diğer işlemler",
-    "watch": "İzle"
+    "watch": "İzle",
+    "onboarding": {
+      "browseAll": "Tüm hizmetlere göz atın",
+      "showFeatured": "Önerilen hizmetlere dönün",
+      "customServer": "Özel bir MCP bağlayın",
+      "manage": "Yönet"
+    }
   },
   "sandboxes": {
     "activityLogUnreadable": "Etkinlik günlüğü okunamadı",
@@ -7289,9 +7295,16 @@
       "afternoonNamed": "İyi günler, {name}",
       "eveningNamed": "İyi akşamlar, {name}",
       "waiting": {
-        "questions": "{count, plural, other {# soru}}"
+        "questions": "{count, plural, other {yanıt bekleyen # soru}}",
+        "approvals": "{count, plural, other {onay bekleyen # işlem}}",
+        "review": "{count, plural, =1 {incelenecek 1 yanıt} other {incelenecek # yanıt}}",
+        "suites": "{count, plural, =1 {başarısız 1 test paketi} other {başarısız # test paketi}}",
+        "suggestions": "{count, plural, other {Gelen Kutusunda # öneri}}"
       },
-      "summary": "Agentlarınız bu dönemde <b>{runs, plural, =0 {hiç çalışmadı} =1 {1 kez çalıştı} other {# kez çalıştı}}</b>. {waiting, plural, =0 {Sizden yanıt bekleyen yok.} =1 {Sizden yanıt bekleyen <b>1 çağrı</b> var.} other {Sizden yanıt bekleyen <b># çağrı</b> var.}}"
+      "summary": "Agentlarınız bu dönemde <b>{runs, plural, =0 {hiç çalışmadı} =1 {1 kez çalıştı} other {# kez çalıştı}}</b>. {waiting, plural, =0 {Sizden yanıt bekleyen yok.} =1 {Sizden yanıt bekleyen <b>1 çağrı</b> var.} other {Sizden yanıt bekleyen <b># çağrı</b> var.}}",
+      "ran": "Agentlarınız bu dönemde <b>{runs, plural, =0 {hiç çalışmadı} =1 {1 kez çalıştı} other {# kez çalıştı}}</b>.",
+      "nothingWaiting": "Sizden yanıt bekleyen bir şey yok.",
+      "waitingOn": "<b>{items}</b> var."
     },
     "discover": {
       "title": "AgenticOS’u keşfedin",
@@ -7915,11 +7928,15 @@
         "runs": "Runlarınız",
         "finished": "Tamamlandı",
         "finishedOf": "{total} run içinden",
-        "waiting": "Sizden yanıt bekliyor",
-        "review": "İncele",
+        "waiting": "İncelemeniz gerekiyor",
         "nothingWaiting": "Bekleyen yok",
         "spent": "Harcanan",
-        "spentLabel": "{amount} harcandı"
+        "spentLabel": "{amount} harcandı",
+        "waitingLabel": {
+          "approvals": "Onay bekleyen işlemler",
+          "questions": "Yanıt bekleyen sorular",
+          "suggestions": "Agent önerileri"
+        }
       },
       "projects": {
         "title": "Projeler",
@@ -10394,6 +10411,10 @@
       "empty": "Her şey güncel. Yeni bulgular ve önemli konular burada görünecek.",
       "failed": "Gelen kutun yüklenemedi.",
       "refreshFailed": "Gelen kutunuz yenilenemedi. Son yüklenen öğeler gösteriliyor."
+    },
+    "questions": {
+      "cancel": "Görevi iptal et",
+      "cancelling": "İptal ediliyor…"
     }
   },
   "admin": {
@@ -14127,6 +14148,29 @@
       "openGovernanceSettings": "Bütçe ve onayları aç",
       "openAssistantSettings": "Asistan ayarlarını aç",
       "openVoiceSettings": "Ses ayarlarını aç"
+    },
+    "preferences": {
+      "languageTitle": "Hangi dilde çalışmak istersin?",
+      "languageHint": "Çalışma alanının dilini seç. İstediğin zaman değiştirebilirsin.",
+      "appearanceTitle": "Uygulamayı kendi tarzına göre düzenle.",
+      "appearanceHint": "Bir stil ve renk modu seç. Seçimin hemen uygulanır.",
+      "position": "{total} adımda {current}. adım",
+      "continue": "Devam et",
+      "finish": "Kuruluma devam et"
+    },
+    "modelSetup": {
+      "chooseProvider": "Zaten kullandığınız bir sağlayıcıyı seçin veya yeni bir bağlantı ekleyin.",
+      "changeProvider": "Tüm sağlayıcılar",
+      "connectionTitle": "Hesabınızı bağlayın",
+      "modelTitle": "Modelinizi seçin",
+      "vaultKey": "Kullanılan Vault anahtarı: {name}",
+      "chooseModel": "Modellere göz atın",
+      "changeConnection": "Değiştir",
+      "applying": "Modeliniz kaydediliyor…",
+      "loadFailed": "Kullanılabilir sağlayıcıları yükleyemedik. Tekrar deneyin.",
+      "noProviders": "Bu kurulumda kullanılabilir model sağlayıcısı yok.",
+      "existingModels": "Çalışma alanınıza zaten bağlı bir model seçin.",
+      "noExistingModels": "Henüz kullanıma hazır çalışma alanı modeli yok. Bir yöneticiden model bağlamasını isteyin veya önceki adımda kendi aboneliğinizi kullanın."
     }
   },
   "notificationRoutes": {
@@ -17040,5 +17084,15 @@
     "maintenanceEndHint": "İsteğe bağlı. Saat {zone} bölgesinde gösterilir ve UTC olarak saklanır. Yalnızca bilgi amaçlıdır; bakımı bir yönetici bitirmelidir.",
     "maintenanceEndInformational": "Bu tahmini bir süredir. Yönetici bakımı bitirdiğinde erişim açılır.",
     "invalidTime": "Geçerli bir yerel tarih ve saat seçin."
+  },
+  "onboardingStatus": {
+    "header": "Başlangıç kurulumu",
+    "completed": "Tamamlandı",
+    "notStarted": "Başlanmadı",
+    "inProgress": "Devam ediyor",
+    "unknown": "Veri yok",
+    "otherStep": "Kurulum",
+    "account": "Hesap kurulumu",
+    "noWorkspace": "Çalışma alanı üyeliği yok"
   }
 }

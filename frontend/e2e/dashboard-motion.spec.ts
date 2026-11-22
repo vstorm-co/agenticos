@@ -7,7 +7,7 @@ for (const { preference, system, moving } of [
   { preference: "full", system: "reduce", moving: true },
   { preference: "reduce", system: "no-preference", moving: false },
 ] as const) {
-  test(`dashboard marker resolves ${preference} with OS ${system} in actual frames`, async ({
+  test(`dashboard scope motion resolves ${preference} with OS ${system} in actual frames`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: system });
@@ -45,20 +45,33 @@ for (const { preference, system, moving } of [
         return transform === "none" ? 0 : new DOMMatrix(transform).m41;
       };
       const initial = x();
+      const initialPanel = document.querySelector<HTMLElement>('[data-dashboard-view="me"]');
+      if (!initialPanel) throw new Error("Expected the initial personal dashboard");
+      const initialAnimation = getComputedStyle(initialPanel).animationName;
       const destination = target.offsetLeft;
       const samples: number[] = [];
+      const contentSamples: { x: number; opacity: number }[] = [];
       await new Promise<void>((resolve) => {
         const started = performance.now();
         const sample = (now: number) => {
           samples.push(x());
+          const panel = document.querySelector<HTMLElement>("[data-dashboard-view]");
+          if (panel && panel !== initialPanel) {
+            const style = getComputedStyle(panel);
+            contentSamples.push({
+              x: style.transform === "none" ? 0 : new DOMMatrix(style.transform).m41,
+              opacity: Number(style.opacity),
+            });
+          }
           if (now - started < 450) requestAnimationFrame(sample);
           else resolve();
         };
         target.click();
         requestAnimationFrame(sample);
       });
-      return { initial, destination, samples, final: x() };
+      return { initial, initialAnimation, destination, samples, contentSamples, final: x() };
     });
+    expect(frames.initialAnimation).toBe("none");
     expect(frames.destination).toBeGreaterThan(frames.initial + 1);
     expect(frames.final).toBeCloseTo(frames.destination, 0);
     // A declared transition is insufficient: prove that the marker actually
@@ -67,5 +80,17 @@ for (const { preference, system, moving } of [
       (x) => x > frames.initial + 0.5 && x < frames.destination - 0.5,
     );
     expect(interpolated).toBe(moving);
+    expect(frames.contentSamples.length).toBeGreaterThan(0);
+    // Sample the content itself: a moving marker can hide a missing panel
+    // transition. Full slides and fades; Reduce displays the destination at once.
+    const contentMoves = frames.contentSamples.some(
+      (sample) => sample.x > 0.5 && sample.x < 12 && sample.opacity > 0 && sample.opacity < 1,
+    );
+    expect(contentMoves).toBe(moving);
+    expect(frames.contentSamples.at(-1)).toEqual({ x: 0, opacity: 1 });
+    if (!moving)
+      expect(frames.contentSamples.every((sample) => sample.x === 0 && sample.opacity === 1)).toBe(
+        true,
+      );
   });
 }

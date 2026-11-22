@@ -97,7 +97,7 @@ describe("AgentCard", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("2 failed runs");
     expect(screen.getByRole("link", { name: "Open Support" })).toHaveAttribute(
       "href",
-      "/agents/a1?tab=evals",
+      "/agents/a1",
     );
   });
 
@@ -129,7 +129,7 @@ describe("AgentCard", () => {
     );
   });
 
-  it("opens an agent with attention on its Evals tab, where the attention is", () => {
+  it("opens an agent on Build while retaining its independent attention indicator", () => {
     render(
       <AgentCard
         agent={agent({ id: "a9", name: "Refund desk" })}
@@ -148,7 +148,7 @@ describe("AgentCard", () => {
     expect(screen.getByRole("button", { name: /^Needs attention:/ }).closest("a")).toBeNull();
     expect(screen.getByRole("link", { name: "Open Refund desk" })).toHaveAttribute(
       "href",
-      "/agents/a9?tab=evals",
+      "/agents/a9",
     );
     expect(screen.queryByRole("link", { name: /Improve/ })).toBeNull();
   });

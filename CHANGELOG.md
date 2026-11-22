@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- Apply `0350_member_onboarding_progress.py` before starting the new API. It adds nullable current-step and update-time columns to organization memberships, with no inferred backfill from profile data. Existing recorded completion remains unchanged.
+
 - Subscription accounts are on by default. The next `scripts/deploy.sh` run (or `make dev`) generates `SUBSCRIPTION_GATEWAY_TOKEN` into `backend/.env`, starts the `subscriptions` profile and points the API and worker at the gateway; the host updater keeps the profile running. To keep the gateway off on a server, add an empty `SUBSCRIPTION_GATEWAY_TOKEN=` line to `backend/.env` before deploying. `docker-compose.yml` started without a clone uses a fixed local token; set your own in `.env` there.
 
 - Apply `0346_personal_model_generations.py` before running this version. It adds credential-free connection revisions that prevent an older OAuth sign-in from recreating a deleted personal connection.
@@ -31,7 +33,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Refine shared console headings and tables, show recent agent work before configuration, expose run failure details, and keep model/account identity visible in chat.
+- Record guided-setup progress per organization membership and show completed, in-progress or unstarted status in member and deployment-user tables, with readable steps and separate organization labels.
+
+- Start new accounts on onboarding with account language and appearance, explicit invitation acceptance, provider-first model setup and suggested service connections. Pass the account’s preferred language to agents through the `language` built-in variable and person briefing.
+
+- Refine shared console headings and tables, expose run failure details, and keep model/account identity visible in chat.
 
 - A simpler Studio onboarding with one form column, model/Vault setup, MCP connections, a swipeable avatar-look chooser and direct entry to installed AgenticOS and Architect agents. Conversation and Launchpad remain available as preview variants.
 
@@ -106,6 +112,12 @@ Two things are versioned separately from this file and worth knowing about:
 - Find unanswered web-chat questions in Inbox and return to their original question cards, including older conversations.
 
 ### Fixed
+
+- Keep pending agent questions clear of the chat composer, preserving its draft while answering or cancelling. Place Architect and assistant service cards before Chat home in organization settings, with consistent icons.
+
+- Keep pending chat questions visible by replacing the inactive composer with compact answer and cancel controls, while preserving its draft and attachments for the resumed conversation.
+
+- Open agent cards in Build while retaining evaluation-attention indicators, remove the Recent work strip above Builder, and tighten dashboard spacing with concrete, linked approval/question/Inbox counts and clearer directional tab transitions.
 
 - Keep Studio actions in a stationary footer, animate explicit step changes without losing form drafts, and replace the avatar strip with a draggable spring gallery. Keep setup reminders in the sidebar only and respect Full motion for tab indicators even when the operating system reduces motion.
 

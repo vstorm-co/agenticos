@@ -1288,7 +1288,9 @@
       "answered": "Fragen und Antworten",
       "submitting": "Antworten werden gesendet…",
       "details": "Werkzeugdetails",
-      "reveal": "Frage des Agenten beantworten"
+      "reveal": "Frage des Agenten beantworten",
+      "cancel": "Aufgabe abbrechen",
+      "cancelling": "Wird abgebrochen…"
     },
     "loadEarlierMessages": "Ältere Nachrichten laden",
     "accessLevel": "Zugriffsstufe",
@@ -3434,10 +3436,15 @@
         "runs": "Ihre Runs",
         "finished": "Fertig",
         "finishedOf": "von {total} Runs",
-        "waiting": "Wartet auf Sie",
+        "waiting": "Zur Prüfung",
         "nothingWaiting": "Nichts wartet",
         "spent": "Ausgegeben",
-        "spentLabel": "{amount} ausgegeben"
+        "spentLabel": "{amount} ausgegeben",
+        "waitingLabel": {
+          "approvals": "Aktionen zur Freigabe",
+          "questions": "Offene Fragen",
+          "suggestions": "Agentenvorschläge"
+        }
       },
       "eval-runs": {
         "title": "Eval-Runs",
@@ -3805,13 +3812,13 @@
       "eveningNamed": "Guten Abend, {name}",
       "ran": "Ihre Agents liefen in diesem Zeitraum <b>{runs, plural, =0 {gar nicht} =1 {einmal} other {#-mal}}</b>.",
       "nothingWaiting": "Nichts wartet auf Sie.",
-      "waitingOn": "Auf Sie warten: <b>{items}</b>.",
+      "waitingOn": "Sie haben <b>{items}</b>.",
       "waiting": {
-        "questions": "{count, plural, one {# Frage} other {# Fragen}}",
-        "approvals": "{count, plural, =1 {1 Aufruf} other {# Aufrufe}}",
+        "questions": "{count, plural, one {# offene Frage} other {# offene Fragen}}",
+        "approvals": "{count, plural, one {# Aktion zur Freigabe} other {# Aktionen zur Freigabe}}",
         "review": "{count, plural, =1 {1 Antwort zur Prüfung} other {# Antworten zur Prüfung}}",
         "suites": "{count, plural, =1 {1 durchgefallene Suite} other {# durchgefallene Suites}}",
-        "suggestions": "{count, plural, =1 {1 Vorschlag} other {# Vorschläge}}"
+        "suggestions": "{count, plural, one {# Vorschlag im Posteingang} other {# Vorschläge im Posteingang}}"
       },
       "summary": "Ihre Agents liefen in diesem Zeitraum <b>{runs, plural, =0 {gar nicht} =1 {einmal} other {#-mal}}</b>. {waiting, plural, =0 {Nichts wartet auf Sie.} =1 {<b>Ein Aufruf</b> wartet auf Sie.} other {<b># Aufrufe</b> warten auf Sie.}}"
     },
@@ -4497,6 +4504,12 @@
     "weDoNotTrainOnCustomerData": "<b>Wir trainieren nicht auf Ihren Kundendaten.</b> Punkt."
   },
   "mcp": {
+    "onboarding": {
+      "browseAll": "Alle Dienste durchsuchen",
+      "showFeatured": "Zurück zu vorgeschlagenen Diensten",
+      "customServer": "Eigenen MCP verbinden",
+      "manage": "Verwalten"
+    },
     "accessToken": "Access-Token",
     "accountsOnThisServer": "Jedes mit diesem Server verbundene Konto und wo es verwendet werden kann.",
     "addCustomServer": "Eigenen Server hinzufügen",
@@ -7105,7 +7118,6 @@
       "unexpectedWithDigest": "Ein unerwarteter Fehler ist aufgetreten. Fehler-ID: {digest}"
     },
     "runs": {
-      "recentWork": "Letzte Aktivitäten",
       "rawRecord": "Rohdaten",
       "recordedFailure": "Warum dieser Lauf angehalten wurde",
       "aParkedRunIsStill": "Ein geparkter Run ist weiterhin geparkt. Es wurde nichts entschieden, und nichts ist abgelaufen.",
@@ -17610,6 +17622,20 @@
     "jsonInvalid": "Gültiges JSON des erforderlichen Typs eingeben. Der letzte gültige Wert bleibt unverändert."
   },
   "start": {
+    "modelSetup": {
+      "chooseProvider": "Wähle einen Anbieter, den du bereits nutzt, oder verbinde einen neuen.",
+      "changeProvider": "Alle Anbieter",
+      "connectionTitle": "Verbinde dein Konto",
+      "modelTitle": "Wähle dein Modell",
+      "vaultKey": "Vault-Schlüssel: {name}",
+      "chooseModel": "Modelle durchsuchen",
+      "changeConnection": "Ändern",
+      "applying": "Dein Modell wird gespeichert…",
+      "loadFailed": "Die verfügbaren Anbieter konnten nicht geladen werden. Versuche es erneut.",
+      "noProviders": "In dieser Installation sind keine Modellanbieter verfügbar.",
+      "existingModels": "Wähle ein Modell, das bereits mit deinem Arbeitsbereich verbunden ist.",
+      "noExistingModels": "Noch sind keine Modelle im Arbeitsbereich bereit. Bitte einen Administrator, eines zu verbinden, oder nutze im vorherigen Schritt dein eigenes Abonnement."
+    },
     "sidebarReminder": {
       "title": "Einrichtung abschließen",
       "hint": "Ergänzen Sie Ihr Profil, wählen Sie die Hilfe der Agenten und starten Sie Ihre erste Aufgabe.",
@@ -17951,7 +17977,6 @@
       "agenticosName": "AgenticOS",
       "modelsTitle": "Wählen Sie Ihr Modell",
       "modelsGuide": "Sie haben bereits ein Modell oder einen API-Schlüssel? Verbinden Sie es hier oder nutzen Sie ein Modell Ihres Workspace.",
-      "modelsHint": "Wählen Sie aus dem vollständigen Anbieterkatalog, nutzen Sie einen Schlüssel aus dem Vault oder fügen Sie eine Verbindung hinzu.",
       "modelsScope": "Die Auswahl gilt für Ihre neuen Chats. Persönliche Abonnements bleiben privat; gemeinsame Agentenmodelle konfigurieren Sie im Builder.",
       "toolsTitle": "Verbinden Sie Ihre Werkzeuge",
       "toolsGuide": "Verbinden Sie Ihre Dienste oder einen eigenen MCP-Server. Sie entscheiden, welche Konten und Werkzeuge ein Agent nutzen darf.",
@@ -17982,6 +18007,15 @@
       },
       "configureArchitect": "Architect konfigurieren",
       "continue": "Weiter"
+    },
+    "preferences": {
+      "languageTitle": "In welcher Sprache möchtest du arbeiten?",
+      "languageHint": "Wähle die Sprache für deinen Arbeitsbereich. Du kannst sie jederzeit ändern.",
+      "appearanceTitle": "Gestalte die App nach deinem Geschmack.",
+      "appearanceHint": "Wähle einen Stil und einen Farbmodus. Deine Auswahl gilt sofort.",
+      "position": "{current} von {total}",
+      "continue": "Weiter",
+      "finish": "Weiter zur Einrichtung"
     }
   },
   "skillImprovement": {
@@ -21199,5 +21233,15 @@
       "name": "Weitere installierte Agenten",
       "description": "Delegiere Aufgaben an Cursor, Qwen Code, Kimi, Hermes oder einen anderen registrierten Agenten. Verbinde und konfiguriere den installierten Agenten separat."
     }
+  },
+  "onboardingStatus": {
+    "header": "Onboarding",
+    "completed": "Abgeschlossen",
+    "notStarted": "Nicht begonnen",
+    "inProgress": "In Bearbeitung",
+    "unknown": "Nicht verfügbar",
+    "otherStep": "Einrichtung",
+    "account": "Kontoeinrichtung",
+    "noWorkspace": "Keine Arbeitsbereichsmitgliedschaften"
   }
 }

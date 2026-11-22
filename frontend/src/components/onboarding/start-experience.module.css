@@ -142,6 +142,7 @@
 }
 .agentCard > :last-child {
   margin-block-start: auto;
+  min-block-size: 44px;
 }
 .agentFace {
   display: block;
@@ -292,7 +293,8 @@
 .experience[data-onboarding-variant="studio"] :global([data-start-content]) {
   grid-row: 3;
   min-block-size: 0;
-  padding: 20px 4px 28px;
+  padding-block: 20px 28px;
+  padding-inline: 4px 20px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
@@ -314,6 +316,18 @@
   flex: 1;
   block-size: auto;
   min-block-size: 0;
+  padding-inline-end: 20px;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-content]),
+.experience[data-onboarding-variant="studio"] .catalogViewport {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--color-foreground) 18%, transparent) transparent;
+}
+@media (forced-colors: active) {
+  .experience[data-onboarding-variant="studio"] :global([data-start-content]),
+  .experience[data-onboarding-variant="studio"] .catalogViewport {
+    scrollbar-color: auto;
+  }
 }
 .experience[data-onboarding-variant="studio"] .connectionFootnote {
   flex-shrink: 0;
