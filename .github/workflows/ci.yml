@@ -582,6 +582,11 @@ jobs:
         working-directory: frontend
 
       - name: Lint, format-check and type-check the frontend
+        # bun check on a PR, tsc everywhere else: the merge queue keeps tsc as the
+        # final gate on the commit that lands, where the backend shards, not this
+        # job, set the wall time.
+        env:
+          FRONTEND_TYPECHECK: ${{ github.event_name == 'pull_request' && 'fast' || 'tsc' }}
         run: make lint-frontend
 
   frontend-shards:

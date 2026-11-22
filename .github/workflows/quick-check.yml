@@ -57,6 +57,8 @@ jobs:
         working-directory: frontend
         run: bun install --frozen-lockfile
       - name: Lint and type-check the frontend
+        env:
+          FRONTEND_TYPECHECK: fast
         run: make lint-frontend
       - name: Run the frontend tests related to the change
         working-directory: frontend

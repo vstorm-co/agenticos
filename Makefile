@@ -403,10 +403,18 @@ dead-code:
 # imported nowhere, and *listed in knip's own ignores*, so the report that
 # would have found it had been told not to (#156). The rest of knip's output
 # needs a human and stays in `make dead-code`.
+#
+# The type check has two interchangeable engines that report the same errors:
+# `tsc` (the default, and the merge queue's final gate) and `bun check`, about 18x
+# faster (78s against 4s on CI), which PR runs and the quick check use through
+# FRONTEND_TYPECHECK=fast. Both were run on one commit, clean and with a probe of
+# known .ts and .tsx errors, and reported identical errors. tsc exits 2 on an error
+# and bun check 1, so the line exits 1 for either and the target fails the same way.
+FRONTEND_TYPECHECK ?= tsc
 lint-frontend:
 	cd frontend && bun run lint
 	cd frontend && bunx prettier --check "scripts/**/*.ts" "src/**/*.{ts,tsx}" "e2e/**/*.ts"
-	cd frontend && bun run type-check
+	cd frontend && bun run $(if $(filter fast,$(FRONTEND_TYPECHECK)),type-check:fast,type-check) || exit 1
 	cd frontend && bun run check:i18n
 	cd frontend && bun run lint:deps
 
