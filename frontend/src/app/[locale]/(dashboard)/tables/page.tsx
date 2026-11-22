@@ -6,7 +6,7 @@ import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
 import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
 import { useEffect, useRef, useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useTranslations } from "next-intl";
 import { Plus } from "lucide-react";
 import { TableIcon as Table2 } from "@/components/icons/product-icons";

@@ -365,18 +365,24 @@ async def test_an_attempt_that_still_draws_too_few_to_measure_is_not_checked(db)
     assert waiting.next_step_blocked == blocked
     [listed] = await service.awaiting(ctx)
     assert listed.next_step_blocked == blocked
-    notices = list(
-        await db.scalars(
-            select(Notification)
-            .where(Notification.event_type == "improvement_finished")
-            .order_by(Notification.created_at)
+    run = await db.get(ImprovementRun, started.id)
+    assert run is not None and run.stage_started_at is not None
+    # created_at can tie across transitions in this transaction; the occurrence
+    # identifies this filtering stop rather than an arbitrary tied notification.
+    notice = await db.scalar(
+        select(Notification).where(
+            Notification.organization_id == ctx.organization_id,
+            Notification.recipient_user_id == ctx.user_id,
+            Notification.event_type == "improvement_finished",
+            Notification.occurrence_id == f"{started.id}:{run.stage_started_at.isoformat()}",
         )
     )
-    assert notices[-1].render_context["next_step_blocked"] == {
+    assert notice is not None
+    assert notice.render_context["next_step_blocked"] == {
         "reason": "missing_holdout",
         "needed": 1,
     }
-    assert "1 more are needed" in notices[-1].summary
+    assert "1 more are needed" in notice.summary
 
 
 async def test_attribution_needs_consent_to_the_current_price_and_is_idempotent(db):

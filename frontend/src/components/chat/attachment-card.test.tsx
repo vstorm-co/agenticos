@@ -130,3 +130,9 @@ describe("PendingAttachmentCard", () => {
     expect(screen.getByText("Uploading · 2.0 KB")).toBeVisible();
   });
 });
+
+it("shows a pending local thumbnail with its upload status", () => {
+  render(<PendingAttachmentCard name="photo.png" size={2048} imageUrl="blob:preview" />);
+  expect(screen.getByRole("img", { name: "photo.png" })).toHaveAttribute("src", "blob:preview");
+  expect(screen.getByText("Uploading · 2.0 KB")).toBeVisible();
+});

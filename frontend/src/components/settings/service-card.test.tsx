@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Brain } from "lucide-react";
 import { expect, it, vi } from "vitest";
@@ -113,4 +113,16 @@ it("keeps noncollapsible content visible and does not offer an empty disclosure"
   expect(screen.getByRole("textbox", { name: "Provider" })).toBeVisible();
   expect(screen.queryByRole("button", { name: "Open form" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Disabled welcome" })).not.toBeInTheDocument();
+});
+
+it("reveals and focuses an invalid required field before the form reports its error", () => {
+  render(
+    <ServiceCard title="Model" description="Provider" icon={Brain} action={null} collapsible>
+      <input aria-label="Required model" required defaultValue="" />
+    </ServiceCard>,
+  );
+  const field = screen.getByLabelText("Required model");
+  fireEvent.invalid(field);
+  expect(screen.getByRole("button", { name: "Model" })).toHaveAttribute("aria-expanded", "true");
+  expect(field).toHaveFocus();
 });

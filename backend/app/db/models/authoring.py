@@ -78,7 +78,7 @@ class BatchStatus(StrEnum):
     """Decisions may still change: accept, dismiss and undo."""
 
     SUPERSEDED = "superseded"
-    """A newer improve request on the same agent replaced it."""
+    """Replaced by a newer proposal or closed when the draft was discarded."""
 
     PUBLISHED = "published"
     """The draft it was decided into was published."""

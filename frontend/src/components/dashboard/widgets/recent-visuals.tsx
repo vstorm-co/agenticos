@@ -89,7 +89,7 @@ function VisualTile({ visual }: { visual: VisualListItem }) {
             src={visualThumbnailUrl(visual.id)}
             alt=""
             onError={() => setBroken(true)}
-            className="h-full w-full object-contain object-center transition-transform group-hover:scale-[1.02]"
+            className="h-full w-full object-contain object-center"
           />
         ) : (
           <VisualPreviewFallback

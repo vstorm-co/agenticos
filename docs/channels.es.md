@@ -1,5 +1,5 @@
 ---
-source_sha: "2f0c04055b6b"
+source_sha: "3b887e9777b8"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1798,10 +1798,130 @@ Cuando ambas fuentes conceden pertenencia, el directorio tiene prioridad al inic
 sesión. Al terminar su acceso, un rol vigente de Discord asume la misma pertenencia
 sin revocar claves. Véase [el traspaso de pertenencia](directory.md#what-the-sync-never-touches).
 
+## Matrix { #matrix }
+
+Un bot de Matrix es una cuenta normal en tu propio homeserver, a la que se habla
+por la Client-Server API sin ninguna biblioteca en medio (#2081). Todo llega por
+el long-poll `/sync` del bot, así que **un despliegue no necesita dirección
+pública para Matrix**, y un bot de Matrix no tiene modo webhook. El punto en el
+que el bot dejó de leer se guarda en el Redis del despliegue, así que un
+reinicio continúa desde ahí. El primer arranque de una cuenta se salta el
+historial de la sala en vez de responderlo.
+
+Las lagunas de un lote limitado de `/sync` se recuperan en orden cronológico
+en páginas de 50 mensajes desde el último cursor guardado, incluso tras un
+reinicio. Cada página se admite antes de leer la siguiente; el cursor avanza
+solo cuando se ha admitido todo el lote correctamente.
+
+!!! warning "Solo salas sin cifrar, por ahora"
+
+    El bot lee salas sin cifrado de extremo a extremo. Rechaza una invitación a
+    una sala o un chat directo cifrados, con un motivo que ve quien invita, y se
+    queda callado en una sala cuyo cifrado se activa más tarde. El cifrado es la
+    segunda fase de #2081. El adaptador comprueba el cifrado actual antes de
+    admitir mensajes y antes de enviar respuestas, ediciones o reacciones.
+    Si no puede leer el estado, no envía texto sin cifrar.
+    Si la invitación omite el estado de cifrado, el bot lo comprueba tras
+    unirse y abandona la sala cuando está cifrada.
+
+1. Crea una cuenta para el bot en el homeserver, por ejemplo `@agent:example.org`.
+2. Consigue un **token de acceso** para ella:
+    - En un homeserver detrás del Matrix Authentication Service (MAS), emite un
+      token de compatibilidad en el host de MAS:
+      `mas-cli manage issue-compatibility-token <username>`. MAS 1.5 y versiones
+      posteriores también pueden crear una sesión personal en los ajustes de la cuenta.
+    - En un homeserver sin MAS, inicia sesión una vez con la contraseña de la cuenta:
+      `curl -XPOST https://matrix.example.org/_matrix/client/v3/login -d
+      '{"type":"m.login.password","identifier":{"type":"m.id.user","user":"agent"},"password":"…"}'`
+      y guarda `access_token` de la respuesta. No cierres esa sesión: su token es
+      el del bot.
+3. Regístralo: **Canales → Añadir canal**, plataforma `matrix`, con el token y la
+   **URL de cliente** del homeserver (`https://matrix.example.org`). Cuando se
+   abre el stream, el bot pregunta al homeserver quién es. Un token que el
+   homeserver rechaza detiene el bot, y su fila lo dice.
+4. Invita al bot a una sala, o empieza un chat directo con él. Se une cuando
+   quien invita es alguien a quien admite su política de acceso, y si no, rechaza
+   la invitación.
+
+**Quita el límite de velocidad al bot.** Una respuesta es un mensaje que se edita
+una vez por segundo mientras llega, y el límite de mensajes por defecto de
+Synapse lo frena al cabo de unos segundos. El bot espera cuando el homeserver
+dice cuánto, así que no se pierde nada, pero una respuesta larga aparece
+entonces a saltos. En Synapse, un administrador exime al bot con
+`POST /_synapse/admin/v1/users/@agent:example.org/override_ratelimit` y
+`{"messages_per_second": 0, "burst_count": 0}`.
+
+| Dónde | Cuándo responde |
+|---|---|
+| Un chat directo (una sala del bot y una persona) | A cada mensaje |
+| Una sala | Cuando el mensaje menciona al bot. La respuesta abre un hilo sobre la pregunta, y el hilo es la conversación |
+| Un hilo en el que se preguntó al bot | A cada mensaje del hilo |
+
+Una mención es el bot nombrado en el `m.mentions` del mensaje, una «pill» que
+enlaza a él o un identificador escrito: `@` y el ID de usuario, la parte local o
+el nombre visible del bot, como en `@AgenticOS ¿qué puedes hacer?`. Algunos
+clientes envían un identificador escrito como texto plano, así que cuenta sin
+«pill». El nombre sin `@`, un identificador dentro de código y uno más largo como
+`@agent-ops` no cuentan.
+
+`@room` solo se responde cuando la política del bot
+dice que responda a las menciones de todo el canal. Como en todas partes, un chat
+directo también va en hilos: una respuesta en el hilo de la respuesta continúa la
+conversación, y un mensaje nuevo al final empieza otra.
+
+**La respuesta se escribe en su sitio.** El bot publica un mensaje y lo edita con
+`m.replace` a medida que la respuesta llega. Pasados 4000 caracteres, la
+respuesta continúa en mensajes siguientes del mismo hilo. Solo se escribe texto
+que los guardrails ya han revisado. Nada de lo que publica el bot puede
+notificar a nadie: cada mensaje lleva un `m.mentions` vacío. Las respuestas se
+envían como Markdown renderizado a HTML, y el HTML de la salida del modelo se
+escapa, nunca se envía como marcado.
+
+**Las aprobaciones y las preguntas van numeradas.** Matrix no tiene botones, y
+las encuestas no están en la especificación, así que una petición lista sus
+opciones como líneas numeradas en el hilo. Una respuesta que es solo el número
+la decide, como con [SMS](#sms). El bot reacciona con 👀 a una pregunta en cuanto
+llega, y muestra que está escribiendo mientras trabaja.
+
+**Comandos en Element.** Element lee un mensaje que empieza por `/` como uno de
+sus propios comandos. `/help` abre la ayuda de Element y nunca llega al bot.
+Cualquier otro comando del bot, como `/new` o `/link`, abre el diálogo *Comando
+desconocido* de Element, donde **Enviar como mensaje** lo envía. Si el mensaje
+empieza por `//`, como `//help`, se envía directamente.
+
+Antes de clasificar cada mensaje como privado, el bot consulta los miembros
+actuales. Una tercera persona que se una sin hablar no conserva el acceso al
+contexto privado. La clasificación de grupo solo se guarda durante el lote actual.
+Las respuestas privadas, ediciones, preguntas y archivos comprueban al destinatario
+original justo antes del envío, también al reanudar una ejecución. Los nuevos
+miembros o un destinatario distinto bloquean esa respuesta privada; los mensajes
+de grupo usan una conversación separada.
+
+Las descargas de medios no siguen redirecciones. El homeserver debe servir los
+medios autenticados directamente; se rechazan las redirecciones a CDN.
+
+**Los archivos** que publica la gente se descargan por los medios autenticados
+del homeserver con el token del bot, hasta el límite de subida; los archivos y
+gráficos que envía el agent se suben del mismo modo. **Un hilo al que el bot se
+incorpora a mitad se lee primero**, como en Slack y Mattermost. Cada mensaje se
+lee según su última edición, y los archivos que publicó el propio bot se dejan
+fuera. Donde la vinculación lo permite, el agent puede describir la sala, listar
+sus miembros y leer su historial.
+
+**Quién habla** lo determinan conjuntamente el ID de Matrix (`@ada:example.org`)
+y la URL de cliente del homeserver configurado. `/link` confirma esa pareja;
+otro homeserver requiere un vínculo separado, aunque declare el mismo ID.
+La página de confirmación y las cuentas conectadas muestran la URL del servidor.
+Se normalizan las mayúsculas del host, los puertos predeterminados y las barras
+finales; las rutas diferentes conservan autoridades separadas. Cambiar el
+servidor del bot no permite reanudar la identidad anterior ni enviar una
+respuesta anterior por el servidor nuevo. Una conversación de sala se muestra
+en la consola a quienes siguen perteneciendo a esa sala.
+
 ## Un bot que no puede arrancar se detiene, en vez de reintentar { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
-El polling de Telegram, el Socket Mode de Slack, el stream de events de Mattermost
-y el Gateway de Discord corren todos bajo un mismo supervisor que reconecta una sesión caída. Un valor de
+El polling de Telegram, el Socket Mode de Slack, el stream de events de Mattermost,
+el Gateway de Discord y el sync de Matrix corren todos bajo un mismo supervisor que reconecta una sesión caída. Un valor de
 configuración que falta o que se rechaza no es una sesión caída, y el supervisor lo
 trata de otra manera: registra el bot como caído con el motivo, lo escribe en el
 log una vez y se detiene. Nada de lo que haga cambiaría la fila — un operador tiene
@@ -2345,6 +2465,8 @@ para mostrar diferencias entre la consola y Mattermost.
 Se conserva todo el historial de la sala, incluidos mensajes de otros participantes. Run freely también permite llamadas a herramientas influidas por ese contexto; úsalo solo con herramientas y salas de confianza, y Ask first cuando cada escritura necesite confirmación.
 
 Los mensajes de canal guardan solo el texto del remitente. Las etiquetas del autor se resuelven desde las identidades de canal justo antes de enviar la solicitud al modelo, fuera de las instrucciones del sistema. La consola y las acciones de copiar, fijar y crear atajos reciben el texto original. Los historiales guardados y las ejecuciones pausadas conservan referencias opacas; los manifiestos omiten las partes de referencia del canal añadidas. Al eliminar la cuenta se borran sus identidades, por lo que las solicitudes futuras no pueden resolver sus etiquetas; se conservan los mensajes compartidos.
+
+La consola y los canales de mensajería usan el mismo historial. En un historial compartido, cada respuesta del agente conserva los nombres y estados de las llamadas en orden. Los argumentos y resultados pueden depender de los permisos del remitente original. Para responder a una pregunta posterior, el agente puede volver a consultar los datos con los permisos actuales.
 
 Los nombres de canal, temas, descripciones y etiquetas de autor editables pasan las comprobaciones de entrada antes de llegar al modelo. Los valores redactados sustituyen a los originales; los valores de referencia bloqueados se ocultan y una pregunta permitida puede continuar. La sintaxis fija, los identificadores de plataforma y los tipos de chat no se examinan como texto de la pregunta.
 
@@ -3083,7 +3205,9 @@ Las casillas de **Lo que este agente puede hacer** conceden herramientas reales.
 
 Cada operación vuelve a comprobar la pertenencia a la organización, acceso al agente, vinculación y bot activos, además de pertenencia al canal y correspondencia del hilo. No se une a canales ni utiliza bots de otros agentes. La búsqueda y el historial devuelven páginas limitadas con cursores; una página sin coincidencias no es el final si hay cursor. Los fallos del proveedor son rechazos, no resultados vacíos. Los envíos siguen la política de aprobación; una entrega no confirmada debe comprobarse antes de reintentarse. Las demás plataformas conservan sus herramientas de conversación; las acciones entre canales solo se ofrecen donde el adaptador verifica la pertenencia.
 
-Antes de crear un informe recurrente, acuerda zona horaria, frecuencia y destino, incluido usar el hilo actual o una publicación nueva. Escribe los identificadores verificados del bot, canal e hilo y la tarea completa en el prompt de la rutina, terminando con `send_chat_message`; la copia de la consola queda en el registro. Revisa fuentes y consentimiento permanente de acciones en Rutinas. Una fuente ausente guarda la rutina pausada con indicaciones de configuración; no podrá ejecutarse ni activarse hasta reparar y revisar las fuentes. Repara la rutina existente en lugar de crear más con otros agentes.
+Antes de crear un informe recurrente, acuerda zona horaria, frecuencia y destino, incluido usar el hilo actual o una publicación nueva. Escribe los identificadores verificados del bot, canal e hilo y la tarea completa en el prompt, terminando con `send_chat_message`; la copia de la consola queda en el registro.
+
+Las rutinas nuevas admiten automáticamente la configuración inicialmente disponible del agente dentro de los permisos del creador. Las ampliaciones posteriores de fuentes o comportamiento, incluidas instrucciones o skills efectivos modificados, requieren la revisión de acceso del propietario. Las cuentas MCP opcionales ausentes no bloquean otras tareas. El envío mantiene las aprobaciones del agente y los controles obligatorios; no prometas entrega desatendida si se necesita aprobación. Una configuración obligatoria ausente guarda la rutina en pausa. Repara la rutina existente en vez de duplicarla o cambiar vinculaciones compartidas sin acuerdo.
 
 Las tareas largas transmiten texto y etapas reales de herramientas. En canales de texto la etapa actual sigue visible tras una frase de avance; las actualizaciones limitadas muestran tiempo transcurrido y pasos terminados, sin porcentajes inventados. La respuesta final sustituye el estado temporal. Las plataformas con transmisión nativa conservan su propia cronología.
 

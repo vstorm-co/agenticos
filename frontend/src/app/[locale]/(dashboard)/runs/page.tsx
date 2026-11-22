@@ -12,7 +12,7 @@ import { WorkflowApprovalsCard } from "@/components/runs/workflow-approvals-card
 import { RunDetailPanel } from "@/components/runs/run-detail-panel";
 import { RunHistoryTab } from "@/components/runs/run-history-tab";
 import { SpendTab } from "@/components/runs/spend-tab";
-import { LoadingState } from "@/components/states";
+import { ErrorState, LoadingState } from "@/components/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import {
   useApprovals,
@@ -25,6 +25,7 @@ import {
 import { useUrlOverlay } from "@/hooks/use-url-state";
 import { periodEnd, periodStart } from "@/lib/dashboard/period";
 import { formatPeriodParam, parsePeriodParam, type Period } from "@/lib/dashboard/period";
+import { getErrorMessage } from "@/lib/api-error";
 import { PAGE_CLEARANCE } from "@/lib/page-clearance";
 import {
   parseRunFilters,
@@ -67,6 +68,8 @@ function TabCount({ children }: { children: React.ReactNode }) {
 
 export default function RunsPage() {
   const t = useTranslations("pages.runs");
+  const common = useTranslations("common");
+  const errors = useTranslations("errors");
   const locale = useLocale();
   // `?agent=` is how the Builder hands over. Its Recent runs panel answers the
   // summary question and links here for the detail, and arriving at the whole
@@ -114,7 +117,12 @@ export default function RunsPage() {
   // (#935). Resolved against the permission below rather than trusted, so a
   // link naming a tab the reader may not open lands on one they may.
   const [tabParam, changeTab] = useUrlState("tab");
-  const { can, isLoading: permissionsLoading } = usePermissions();
+  const {
+    can,
+    isLoading: permissionsLoading,
+    error: permissionsError,
+    refetch: retryPermissions,
+  } = usePermissions();
   // Run history and spend take `runs:view` - `GET /runs` and `GET /spend` both
   // carry it - so a caller without it is not asked for: the figures and the
   // history tab disable their queries and say whose decision the absence is,
@@ -154,9 +162,13 @@ export default function RunsPage() {
   // the page's scroll had it.
   useEffect(() => {
     if (focusedRunId === null) return;
-    listColumn.current
-      ?.querySelector('[aria-selected="true"]')
-      ?.scrollIntoView?.({ block: "nearest" });
+    const list = listColumn.current;
+    const selected = list?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!list || !selected) return;
+    const bounds = list.getBoundingClientRect();
+    const row = selected.getBoundingClientRect();
+    if (row.top < bounds.top) list.scrollTop += row.top - bounds.top;
+    else if (row.bottom > bounds.bottom) list.scrollTop += row.bottom - bounds.bottom;
   }, [focusedRunId]);
   const spent = (spend?.by_agent ?? []).reduce((sum, row) => sum + Number(row.cost_usd), 0);
 
@@ -176,6 +188,11 @@ export default function RunsPage() {
           wait with it, for the second half of that reason. */}
       {permissionsLoading ? (
         <LoadingState variant="pending" />
+      ) : permissionsError ? (
+        <ErrorState
+          description={getErrorMessage(permissionsError, errors)}
+          cta={{ label: common("retry"), onClick: () => void retryPermissions() }}
+        />
       ) : (
         <>
           <Tabs

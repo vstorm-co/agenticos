@@ -21,7 +21,7 @@ import { useAddToAgent, useAgents, usePermissions } from "@/hooks";
 import type { AgentResourceRef } from "@/lib/agent-spec";
 import { ROUTES } from "@/lib/constants";
 import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { cn } from "@/lib/utils";
 import { useAddToAgentStore } from "@/stores";
 import { Perm } from "@/types/permissions";

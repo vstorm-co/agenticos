@@ -11,16 +11,6 @@ export const portraits: { folder: string; seed: string; options: BlobatarOptions
     seed: "agenticos",
     options: { hue: 265, tone: 0.1, palette: { head: "#c4b5fd", eye: "#252039" } },
   },
-  {
-    folder: "platform-assistant",
-    seed: "architect",
-    options: {
-      hue: 265,
-      tone: 0.1,
-      traits: { ...AVATAR_TRAITS, shape: 0.54 },
-      palette: { head: "#2557d6", eye: "#ffffff" },
-    },
-  },
 ];
 export function portraitSvg(portrait: (typeof portraits)[number]): string {
   return blobatar(portrait.seed, {

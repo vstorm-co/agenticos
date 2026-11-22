@@ -86,6 +86,9 @@ export function PlatformToolChecklist({
   const t = useTranslations("agents");
   const [query, setQuery] = useState("");
   const ungatedNames = new Set(tools.filter((tool) => tool.ungated).map((tool) => tool.name));
+  const defaultFreeNames = new Set(
+    tools.filter((tool) => tool.default_approval_free).map((tool) => tool.name),
+  );
   const alwaysNames = new Set(tools.filter((tool) => tool.always_asks).map((tool) => tool.name));
   const approval = floor(binding.approval);
   const toolApproval = binding.tool_approval ?? {};
@@ -96,7 +99,8 @@ export function PlatformToolChecklist({
   const alwaysAsks = (info: McpToolInfo) => alwaysNames.has(info.name);
   const settable = (info: McpToolInfo) => !ungated(info) && !alwaysAsks(info);
   const asks = (info: McpToolInfo) =>
-    alwaysAsks(info) || (!ungated(info) && asksFirst(info, approval, toolApproval));
+    alwaysAsks(info) ||
+    (!ungated(info) && asksFirst(info, approval, toolApproval, defaultFreeNames.has(info.name)));
 
   const toggle = (names: string[], on: boolean) => {
     const next = new Set(chosen);
@@ -125,16 +129,15 @@ export function PlatformToolChecklist({
     const nextDefault: McpApproval = everyReadAsks ? "all" : "writes";
     const own: McpToolApproval = {};
     for (const { info, asking } of wanted) {
-      if (asking !== asksFirst(info, nextDefault, {})) {
+      if (asking !== asksFirst(info, nextDefault, {}, defaultFreeNames.has(info.name))) {
         own[info.name] = asking ? "required" : "never";
       }
     }
     onChange(withToolApproval({ ...binding, approval: nextDefault }, own));
   };
   const summary = (infos: McpToolInfo[]): GroupApproval => {
-    const open = infos.filter(settable);
-    const asking = open.filter(asks).length;
-    return asking === 0 ? "run" : asking === open.length ? "ask" : "mixed";
+    const asking = infos.filter(asks).length;
+    return asking === 0 ? "run" : asking === infos.length ? "ask" : "mixed";
   };
 
   const groups = GROUP_ORDER.map((group) => {
@@ -170,6 +173,11 @@ export function PlatformToolChecklist({
           className="h-8 rounded-lg pl-8 md:text-[13px]"
         />
       </div>
+      {tools.some((tool) => tool.conditional_approval) && (
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          {t("platformConditionalApproval")}
+        </p>
+      )}
       {groups.map(({ group, infos, shown }) => (
         <ToolGroup
           key={group}

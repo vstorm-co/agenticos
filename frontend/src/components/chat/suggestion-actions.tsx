@@ -133,7 +133,7 @@ export function SuggestionMark({
   return (
     <span
       className={cn(
-        "bg-card text-foreground shadow-card flex h-8 w-8 shrink-0 items-center justify-center rounded-xl",
+        "bg-muted text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-xl",
         className,
       )}
     >

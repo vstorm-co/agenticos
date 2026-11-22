@@ -4,7 +4,7 @@ import { RoutineAutoPause } from "@/components/triggers/failure-policy-field";
 import { RoutineActionTooltip } from "@/components/triggers/routine-action-tooltip";
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { Pencil, Radar, Trash2 } from "lucide-react";
 import { InboxIcon as Inbox } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";

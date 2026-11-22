@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Zeitlimits und Budgets, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "fc26a8af977d"
+source_sha: "531cae3a8bfb"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -42,9 +42,7 @@ Anrufeinstellungen: Ein veröffentlichter Agent mit einer Stimme nimmt Anrufe an
 begrenzt durch seinen eigenen längsten Anruf und durch die Budgets, wie jeder
 Run.
 
-**Der Agent.** Seine Karte Stimme (Voice) im Builder hat einen Reiter
-**Sprachanrufe**, geschrieben in das [Feld `voice`](reference/spec.md#voice) der
-Spec. Er nennt den Provider, das Modell (oder, für Azure, den Deployment-Namen
+**Der Agent.** Seine Karte Stimme (Voice) im Builder zeigt **Sprachanrufe** und **Diktat** untereinander, ohne innere Registerkarten. Beide Abschnitte haben einen eigenen Schalter. Transkriptionseinstellungen bleiben bei ausgeschaltetem Diktat bearbeitbar, da sie auch für Sprachnachrichten in Kanälen gelten. Der Anrufabschnitt wird im [Feld `voice`](reference/spec.md#voice) der Spec gespeichert. Er nennt den Provider, das Modell (oder, für Azure, den Deployment-Namen
 und das Basismodell, das es betreibt), den Vault-Schlüssel, mit dem Anrufe
 geführt werden, die Stimme, optional eine Sprache, optional einen längsten
 Anruf (10 Minuten, wenn nicht gesetzt, höchstens 50) und optional eine
@@ -63,7 +61,7 @@ Sprache im Cache.
 Agent an der Stelle von Senden, solange das Feld leer ist; sobald etwas getippt
 ist, kommt Senden zurück. Für einen ohne Stimme, oder mit einem Schlüssel, der
 keinen Anruf mehr halten kann, ist sie durchgestrichen, und ihr Grund verlinkt
-für alle, die den Agent bearbeiten dürfen, den Reiter Anrufe seiner Karte Stimme
+für alle, die den Agent bearbeiten dürfen, den Anrufabschnitt seiner Karte Stimme
 (Voice). Das Fenster des Architect und das Testpanel des Builders bieten sie
 genauso an; im Testpanel führt der Anruf die veröffentlichte Version aus, nicht
 den getesteten Entwurf, und die Taste sagt das.

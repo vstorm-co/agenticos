@@ -71,18 +71,16 @@ export function HelperSettings({
     discard: () => setDraft(stored[kind]),
   });
   return (
-    <Card className="min-w-0" data-tour={`datasets-${kind}-settings`}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <DatasetIcon tone={kind === "generator" ? "purple" : "green"} icon={Icon} />
+    <Card className="flex min-w-0 flex-col" data-tour={`datasets-${kind}-settings`}>
+      <CardHeader className="space-y-1.5 p-4 sm:p-5">
+        <CardTitle className="flex items-center gap-2 text-sm font-medium">
+          <DatasetIcon tone="gray" icon={Icon} />
           {t(`${kind}Title`)}
         </CardTitle>
         <CardDescription>{t(`${kind}Description`)}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5">
-        {draft.model_profile_id === null && (
-          <p className="text-muted-foreground text-sm">{t("modelFallback")}</p>
-        )}
+      <CardContent className="flex flex-1 flex-col gap-4 px-4 pb-4 sm:px-5 sm:pb-5">
+        <p className="text-muted-foreground text-xs leading-5">{t("modelFallback")}</p>
         <PipelineModelPicker
           profiles={profiles}
           profilesStatus={profilesStatus}
@@ -102,12 +100,19 @@ export function HelperSettings({
             onChange={(instructions) => setDraft((current) => ({ ...current, instructions }))}
           />
         </MoreOptions>
-        {dirty && (
-          <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
-            <Button variant="outline" onClick={() => setDraft(stored[kind])} disabled={disabled}>
+        {dataset.can_edit && (
+          <div
+            className="mt-auto flex min-h-14 flex-wrap justify-end gap-2 border-t pt-4"
+            data-helper-actions
+          >
+            <Button
+              variant="outline"
+              onClick={() => setDraft(stored[kind])}
+              disabled={disabled || !dirty}
+            >
               {tc("cancel")}
             </Button>
-            <Button onClick={() => void save()} disabled={disabled}>
+            <Button onClick={() => void save()} disabled={disabled || !dirty}>
               {tc("save")}
             </Button>
           </div>

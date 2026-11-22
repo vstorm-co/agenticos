@@ -1373,13 +1373,14 @@ class TestHowTheBuilderGroupsTheTools:
 
 class TestWhatNeverWaitsForApproval:
     @pytest.mark.security
-    def test_only_console_language_bypasses_write_approval(self) -> None:
+    def test_only_reversible_console_preferences_bypass_write_approval(self) -> None:
         """Persistent automation requires the configured write confirmation."""
         tools = {tool.name: tool for tool in platform_tool_catalog()}
 
         assert {name for name, tool in tools.items() if tool.ungated} == {
             "set_my_language",
             "set_my_preferences",
+            "set_my_console_experience",
         }
         for name in ("create_routine", "update_routine", "create_watch", "update_watch"):
             assert tools[name].writes and not tools[name].ungated
@@ -1595,6 +1596,11 @@ class TestTheCatalogTheBuilderLists:
         assert listed.total == len(platform_tool_catalog()) == len(by_name)
         assert by_name["run_agent"].writes is True
         assert by_name["get_run"].writes is False
+        assert by_name["create_task"].default_approval_free is True
+        assert by_name["create_task"].conditional_approval is True
+        assert by_name["create_task"].ungated is False
+        assert by_name["update_virtual_table_schema"].always_asks is True
+        assert by_name["create_agent_draft"].conditional_approval is False
 
     async def test_the_api_behind_the_catalog_answers_nothing(self) -> None:
         with pytest.raises(RuntimeError, match="nothing is called"):
@@ -1989,7 +1995,9 @@ async def test_an_unsupported_console_language_is_refused_before_any_api_call(
 
 async def test_mcp_can_find_and_settle_the_callers_working_case(api):
     tools = {tool.name: tool.function for tool in platform_tools(api)}
-    await tools["list_inbox_cases"](conversation_id=RUN)
+    api.request.return_value = {"items": []}
+    scoped = await tools["list_inbox_cases"](conversation_id=RUN)
+    assert scoped["whole_inbox"] is False
     api.request.assert_awaited_with(
         "GET",
         "/outcomes",
@@ -1999,6 +2007,12 @@ async def test_mcp_can_find_and_settle_the_callers_working_case(api):
     api.request.assert_awaited_with(
         "POST", f"/outcomes/{RUN}/settle", json={"action": "resolve", "via": "chat"}
     )
+
+
+async def test_mcp_reads_a_selected_inbox_card_without_settling_it(api):
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    await tools["list_inbox_items"](item_id=RUN)
+    api.request.assert_awaited_once_with("GET", "/outcomes/inbox", params={"item_id": str(RUN)})
 
 
 async def test_mcp_routine_result_policy_is_preserved_on_create_and_update(api):
@@ -2378,3 +2392,74 @@ async def test_mcp_console_preferences_are_self_only_and_do_not_clear_omitted_fi
     api.request.assert_awaited_with(
         "PATCH", "/users/me/preferences", json={"theme": "dark", "look": "glass"}
     )
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "update",
+    [
+        {"preferences": {"inbox": False}},
+        {"preferences": {"starters": None}},
+        {"preferences": None},
+        {"reminders": {"snooze_days": 7}},
+        {"reminders": {"enabled": None}},
+        {"reminders": None},
+    ],
+)
+async def test_console_experience_mcp_preserves_omission_and_explicit_inheritance(
+    api: MagicMock, server: FastMCP, update: dict[str, object]
+) -> None:
+    response = {
+        "availability": {},
+        "organization_defaults": {},
+        "preferences": {},
+        "effective": {},
+        "reminders": {"organization_defaults": {}, "preferences": {}, "effective": {}},
+    }
+    api.request.return_value = response
+    await server.call_tool("set_my_console_experience", {"update": update})
+    api.request.assert_awaited_once_with("PATCH", "/users/me/console-experience", json=update)
+
+
+@pytest.mark.anyio
+async def test_console_experience_mcp_reads_effective_personal_presentation(
+    api: MagicMock, server: FastMCP
+) -> None:
+    api.request.return_value = {
+        "availability": {"inbox": False},
+        "organization_defaults": {"inbox": True},
+        "preferences": {"inbox": True},
+        "effective": {"inbox": False},
+        "reminders": {
+            "availability": False,
+            "organization_defaults": {},
+            "preferences": {"snooze_days": 3},
+            "effective": {"enabled": False, "snooze_days": 3},
+        },
+    }
+    result = await server.call_tool("get_my_console_experience", {})
+    api.request.assert_awaited_once_with("GET", "/users/me/console-experience")
+    assert result.structured_content["effective"]["inbox"] is False
+    assert result.structured_content["reminders"]["effective"]["snooze_days"] == 3
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "update",
+    [
+        {"preferences": {"inbox": "false"}},
+        {"reminders": {"snooze_days": True}},
+        {"reminders": {"snooze_days": 2}},
+        {"organization_defaults": {}},
+        {"user_id": str(AGENT)},
+        {"theme": "dark"},
+    ],
+)
+async def test_console_experience_mcp_refuses_other_subjects_policy_fields_and_invalid_values(
+    api: MagicMock, server: FastMCP, update: dict[str, object]
+) -> None:
+    with pytest.raises(MCPValidationError):
+        await server.call_tool("set_my_console_experience", {"update": update})
+    api.request.assert_not_awaited()

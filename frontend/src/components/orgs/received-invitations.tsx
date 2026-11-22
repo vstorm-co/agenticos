@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import noticeStyles from "@/components/layout/account-notices.module.css";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { MailPlus, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";

@@ -1,7 +1,7 @@
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from pydantic import StringConstraints
 
 from app.api.deps import (
@@ -10,9 +10,11 @@ from app.api.deps import (
     ImpersonationSvc,
     PersonalDataSvc,
     UserSvc,
+    enforce_auth_limit,
     limit_personal_data_export,
 )
 from app.core.audit import record_audit
+from app.schemas.password_reset import AdminPasswordResetRead, AdminPasswordResetRequest
 from app.schemas.personal_data import PersonalDataExport
 from app.schemas.user import (
     AdminUserDetail,
@@ -67,6 +69,27 @@ async def get_user_detail(
     is a different decision from one that owns two organizations (#942).
     """
     return await service.admin_detail(user_id)
+
+
+@router.post("/{user_id}/password-reset", response_model=AdminPasswordResetRead)
+async def issue_user_password_reset(
+    user_id: UUID,
+    body: AdminPasswordResetRequest,
+    request: Request,
+    response: Response,
+    admin: CurrentAppAdmin,
+    service: UserSvc,
+) -> Any:
+    """Email a password reset to the account or return a short-lived recovery link."""
+    await enforce_auth_limit(request, surface="admin_password_reset", identifier=str(admin.id))
+    url = await service.admin_password_reset(
+        user_id,
+        actor_id=admin.id,
+        delivery=body.delivery,
+        ip_address=request.client.host if request.client else None,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return AdminPasswordResetRead(reset_url=url)
 
 
 @router.patch("/{user_id}", response_model=UserRead)

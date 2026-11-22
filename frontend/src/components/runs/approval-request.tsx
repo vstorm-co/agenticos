@@ -184,7 +184,8 @@ export function ApprovalDetails({
         type="button"
         onClick={() => setOpen((shown) => !shown)}
         aria-expanded={open}
-        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex min-h-8 items-center gap-1 rounded-md text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
+        data-press-feedback="quiet"
+        className="text-muted-foreground hover:bg-muted/45 hover:text-foreground active:bg-muted/60 focus-visible:ring-ring inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
       >
         <ChevronRight
           className={cn("size-3.5 transition-transform", open && "rotate-90")}

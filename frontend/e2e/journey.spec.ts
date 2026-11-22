@@ -150,6 +150,16 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // the one this run bills against. The picker only appears once a provider has
   // more than one key stored for it - with exactly one there is nothing to
   // decide, and the form says which it is using instead.
+  // Existing profiles keep connection details folded; open them before choosing
+  // the credential and endpoint so this run exercises the intended connection.
+  const connectionSettings = page.getByRole("button", { name: /^Connection settings ·/ });
+  if (
+    (await connectionSettings.isVisible()) &&
+    (await connectionSettings.getAttribute("aria-expanded")) === "false"
+  ) {
+    await connectionSettings.click();
+  }
+
   const keyPicker = page.locator('[id$="-add-model-key"]:visible');
   if (await keyPicker.isVisible()) {
     await keyPicker.click();
@@ -398,6 +408,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
 
   await page.getByRole("button", { name: "Columns", exact: true }).click();
   await page.getByRole("menuitemcheckbox", { name: "Model", exact: true }).check();
+  await page.keyboard.press("Escape");
   const row = page.getByRole("row").filter({ hasText: modelLabel }).first();
   await expect(
     row,
@@ -459,6 +470,10 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   const projectDialog = page.getByRole("dialog");
   const projectName = `Journey project ${stamp}`;
   await projectDialog.getByRole("textbox", { name: "Name", exact: true }).fill(projectName);
+  await projectDialog
+    .getByRole("button", { name: "Instructions and defaults", exact: true })
+    .click();
+  await expect(projectDialog.getByLabel("Default agent", { exact: true })).toBeVisible();
   await projectDialog.getByLabel("Default agent", { exact: true }).click();
   await page.getByRole("option", { name: agentName, exact: true }).click();
   await submitDialog(page, {
@@ -544,16 +559,20 @@ async function idOf(
 async function expectComposerAlignment(page: import("@playwright/test").Page): Promise<void> {
   const form = await page.locator("form").boundingBox();
   const input = await page.getByRole("textbox", { name: "Ask a question…" }).boundingBox();
+  const controls = await page.locator("[data-hosted-composer-controls]").boundingBox();
   const button = await page.getByRole("button", { name: "Send", exact: true }).boundingBox();
   const icon = await page
     .getByRole("button", { name: "Send", exact: true })
     .locator("svg")
     .boundingBox();
-  if (!form || !input || !button || !icon)
+  if (!form || !input || !controls || !button || !icon)
     throw new Error("Hosted composer controls must have visible bounds");
   expect(Math.abs(button.width - button.height)).toBeLessThanOrEqual(0.5);
-  const center = form.y + form.height / 2;
-  expect(Math.abs(input.y + input.height / 2 - center)).toBeLessThanOrEqual(0.5);
+  expect(input.y).toBeGreaterThanOrEqual(form.y);
+  expect(input.y + input.height).toBeLessThanOrEqual(controls.y);
+  expect(controls.y + controls.height).toBeLessThanOrEqual(form.y + form.height);
+  expect(input.width).toBeGreaterThan(form.width - 48);
+  const center = controls.y + controls.height / 2;
   expect(Math.abs(button.y + button.height / 2 - center)).toBeLessThanOrEqual(0.5);
   expect(Math.abs(icon.y + icon.height / 2 - center)).toBeLessThanOrEqual(0.5);
   expect(Math.abs(icon.x + icon.width / 2 - button.x - button.width / 2)).toBeLessThanOrEqual(0.5);

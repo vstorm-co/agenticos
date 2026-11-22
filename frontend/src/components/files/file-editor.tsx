@@ -84,14 +84,14 @@ export function FileEditor({
   const pane = (
     <div
       className={cn(
-        "bg-background flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border",
+        "bg-card dark:bg-background flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border",
         expanded && "overflow-hidden rounded-2xl border-0",
         className,
       )}
     >
       <div
         className={cn(
-          "bg-muted/70 flex flex-wrap items-center gap-2 border-b px-3 py-2",
+          "bg-foreground/3 dark:bg-muted/70 flex flex-wrap items-center gap-2 border-b px-3 py-2",
           expanded && "pr-14",
         )}
       >
