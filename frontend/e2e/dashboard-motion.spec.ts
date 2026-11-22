@@ -51,7 +51,7 @@ for (const { preference, system, moving } of [
       const destination = target.offsetLeft;
       const samples: number[] = [];
       const contentSamples: { x: number; opacity: number }[] = [];
-      await new Promise<void>((resolve) => {
+      await new Promise<void>((resolve, reject) => {
         const started = performance.now();
         const sample = (now: number) => {
           samples.push(x());
@@ -63,8 +63,17 @@ for (const { preference, system, moving } of [
               opacity: Number(style.opacity),
             });
           }
-          if (now - started < 450) requestAnimationFrame(sample);
-          else resolve();
+          const lastPanel = contentSamples.at(-1);
+          const settled =
+            target.getAttribute("aria-pressed") === "true" &&
+            Math.abs(x() - destination) < 0.01 &&
+            lastPanel?.x === 0 &&
+            lastPanel.opacity === 1;
+          // React may commit after the click's first frame on a busy runner.
+          // Capture through completion rather than cutting an active transition short.
+          if (settled) resolve();
+          else if (now - started < 5000) requestAnimationFrame(sample);
+          else reject(new Error("Dashboard scope transition did not settle"));
         };
         target.click();
         requestAnimationFrame(sample);
