@@ -221,6 +221,22 @@ class ChartTest(unittest.TestCase):
         self.assertNotIn("envFrom", container)
         self.assertNotIn("OIDC_CLIENT_SECRET", env)
 
+    def test_frontend_writes_only_to_its_mounted_cache_directories(self) -> None:
+        frontend = next(
+            doc
+            for doc in render()
+            if doc["kind"] == "Deployment"
+            and str(at(doc, "metadata", "name")).endswith("-frontend")
+        )
+        container = obj(array(at(frontend, "spec", "template", "spec", "containers"))[0])
+        mounts = {str(at(item, "mountPath")) for item in array(container["volumeMounts"])}
+        # Next.js promotes each prerendered page into `server/route-cache` on its
+        # first request; a read-only root without this mount fails that write.
+        self.assertIn("/app/.next/server/route-cache", mounts)
+        self.assertIn("/app/.next/cache", mounts)
+        # A mount over either of these hides the built application.
+        self.assertFalse(mounts & {"/app", "/app/.next", "/app/.next/server"})
+
     def test_workloads_and_migration(self) -> None:
         documents = render()
         self.assertEqual([doc["kind"] for doc in documents].count("Deployment"), 3)

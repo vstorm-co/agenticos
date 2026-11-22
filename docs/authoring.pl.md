@@ -1,5 +1,5 @@
 ---
-source_sha: "9f2bffc2c0a6"
+source_sha: "a0844779ccba"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -278,9 +278,7 @@ zmianie skilla tak samo jak przy pliku.
 
 ## Opisanie nowego agenta { #describing-a-new-agent }
 
-Dialog tworzenia pozwala opisać agenta zamiast wypełniać formularz. Opis trafia
-do [Architekta](console.md#the-assistant), który tworzy wersje robocze agentów i
-pyta, zanim którąś utworzy; wynikiem jest zwykła wersja robocza.
+Przycisk **Utwórz z Architect** w stopce dialogu otwiera widget [Architekta](console.md#the-assistant), bez wysyłania promptu i tworzenia agenta. Opisz potrzeby w tej rozmowie; Architekt pyta przed utworzeniem zwykłej wersji roboczej.
 
 ## Koszt i budżet { #cost-and-budget }
 
@@ -433,6 +431,8 @@ próby.
 ### Kreator Popraw { #the-improve-wizard }
 
 Otwórz **Popraw** z paska narzędzi zakładki **Ewaluacje** agenta, z plakietki **Wymaga uwagi** na liście agentów, z karty na dashboardzie albo z zakładki **Luki w wiedzy**. Gdy bieżąca opublikowana wersja miała w ostatnich 30 dniach odpowiedzi ocenione negatywnie lub nieudane runy, przycisk Popraw ma kropkę uwagi. Karta **Poprawki czekające na Ciebie** na dashboardzie pokazuje sesje czekające na decyzję.
+
+Ta sama kropka oznacza zakładki agenta, w których coś na Ciebie czeka. **Ewaluacje** mają ją z tych powodów, przy oblanej suicie albo sesji Popraw czekającej na Ciebie, a **Luki w wiedzy** przy otwartych lukach; powód podaje podpowiedź po najechaniu na zakładkę i czytnik ekranu. Agent oznaczony **Wymaga uwagi** na liście agentów albo na karcie dashboardu otwiera się na zakładce **Ewaluacje**.
 
 Każde **Popraw** otwiera otwartą sesję agenta - pracującą, czekającą na Ciebie, na wyniku albo zatrzymaną lub nieudaną - a nową zaczyna, gdy ta sesja zostanie zachowana jako wersja robocza, opublikowana, odrzucona, anulowana albo zamknięta; zostaje wtedy w [historii usprawnień](#improvement-history) agenta. **Zakończ ją i zacznij nową** obok otwartej sesji najpierw ją kończy.
 

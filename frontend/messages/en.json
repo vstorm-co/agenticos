@@ -6,6 +6,16 @@
     "ctaShort": "GitHub"
   },
   "admin": {
+    "activeSessions": "Active sessions",
+    "passwordReset": "Reset password",
+    "passwordResetHint": "Send a reset email to {email} or copy a one-hour link to share directly. The link can be used once.",
+    "copyPasswordResetLink": "Copy reset link",
+    "sendPasswordResetEmail": "Send reset email",
+    "passwordResetLink": "Password reset link",
+    "passwordResetLinkCopied": "Reset link copied",
+    "passwordResetEmailSent": "Reset email sent",
+    "passwordResetFailed": "Could not issue a password reset.",
+    "close": "Close",
     "actions": "Actions",
     "active": "Active",
     "all": "All",
@@ -79,6 +89,14 @@
     "sessionsCouldNotBeRead": "The sessions could not be read."
   },
   "agents": {
+    "buildSummary": {
+      "variables": "{count, plural, =0 {System variables} one {System variables and # custom variable} other {System variables and # custom variables}}",
+      "voice": "Calls {calls, select, on {on} other {off}} · Dictation {dictation, select, on {on} other {off}}",
+      "starters": "{enabled, select, false {Suggestions hidden} other {{count, plural, =0 {Default suggestions} one {# first message} other {# first messages}}}}",
+      "reviewers": "{count, plural, =0 {No additional reviewers} =1 {1 reviewer} other {# reviewers}}",
+      "alerts": "{count, plural, =0 {Notifications off} =1 {1 notification enabled} other {# notifications enabled}}",
+      "tracing": "{project, select, custom {Custom project} other {Deployment project}} · {content, select, none {Content excluded} other {Full traces}}"
+    },
     "voiceUnreportedTokenUsage": "This provider does not report token charges. Calls cannot start with a spending budget; recorded audio cost is a lower bound.",
     "accentColour": "Accent colour",
     "actsOutsideWorld": "acts on the outside world",
@@ -205,6 +223,8 @@
     "delegateUnreachable": "An agent you cannot see",
     "delegateUnreachableDetail": "This organization no longer has it, or you may not see it. Publishing will refuse it either way - remove it, or ask for access to it.",
     "delegatesDetail": "Published agents this one may hand work to, each frozen at a version.",
+    "allPublishedDelegates": "All accessible published agents",
+    "allPublishedDelegatesDetail": "Offer published agents this person may run in this organization, without selecting them one by one. Explicit delegates below keep their pinned versions. Unattended routines use only explicit delegates.",
     "delegatesHeading": "Delegates",
     "delegatingNeedsRunPermission": "Delegating needs permission to run agents, which you do not have here. Publishing checks each delegate against the publisher's own access, so this is the same refusal, earlier.",
     "delegation": "Subagents",
@@ -332,7 +352,7 @@
     "mattermostWebhookToken": "Webhook token (optional)",
     "mattermostWebhookTokenHint": "The token Mattermost shows for the outgoing webhook",
     "maxTokens": "Max tokens",
-    "mentionableOnBoundBots": "Slack, Microsoft Teams, Telegram, Mattermost and Discord bots that answer as this agent. It is mentionable by @handle only on the bots it is bound to.",
+    "mentionableOnBoundBots": "Slack, Microsoft Teams, Telegram, Mattermost, Discord and Matrix bots that answer as this agent. It is mentionable by @handle only on the bots it is bound to.",
     "modeAsync": "Async",
     "modeAuto": "Auto",
     "modeSync": "Sync",
@@ -744,6 +764,7 @@
     "menuDeleteHint": "Gone for good, with every version",
     "channelRunFreelyHint": "Linked channel senders use these settings with the full room history, including messages from other people. Run freely allows calls without another confirmation; use it only for tools and rooms you trust.",
     "serverTools": "Tools",
+    "toolsForAccount": "Account for tool settings",
     "loadTools": "Load its tools",
     "toolsAfterConnecting": "Its tools are listed once a {name} account is connected.",
     "toolsSearch": "Search tools",
@@ -812,7 +833,7 @@
     "visualDesignHeading": "Drawing style",
     "platformServerDescription": "This platform's own tools: agents, runs, spend, knowledge bases, skills and members - so the agent can answer questions about the platform and act in it.",
     "platformServerBadge": "Built in",
-    "platformAsksBeforeWrites": "Asks before any change",
+    "platformAsksBeforeWrites": "Asks before consequential actions",
     "platformAsksEveryCall": "Asks before every call",
     "platformAsWhoeverAsks": "Acts as whoever asks",
     "platformActsAsWhoeverAsks": "Every tool acts as the person the agent runs for, with exactly their permissions. Nothing new is granted: what they could not do in the console, the agent cannot do here either.",
@@ -962,13 +983,14 @@
     "speechFormat": "File format",
     "speechFormatDetail": "The formats this provider returns. mp3 is smaller, wav is uncompressed.",
     "startersTitle": "First messages",
-    "startersHint": "What the chat offers somebody opening this agent for the first time - one click sends one. Up to {max}; with none, the chat shows its own.",
+    "startersHint": "Choose up to {max} first messages. With suggestions enabled and no custom messages, the chat offers its defaults.",
+    "showStarters": "Show suggested prompts",
     "starterNumber": "First message {number}",
     "removeStarter": "Remove first message {number}",
     "newStarter": "New first message",
-    "newStarterPlaceholder": "What can you help me with?",
     "addStarter": "Add",
-    "platformAlwaysAsksBadge": "always asks: it changes who has authority here",
+    "platformConditionalApproval": "Task writes still ask when they may start or reschedule agent work. You can require confirmation for any other draft or record change.",
+    "platformAlwaysAsksBadge": "always asks for confirmation",
     "platformUngatedBadge": "your own setting, never asks",
     "noKeyForEndpoint": "No key - the endpoint needs none",
     "notAChatModel": "not a chat model",
@@ -979,6 +1001,8 @@
     "notAChatModelRefused": "{model} is not a chat model - an agent cannot run on it. Choose a chat model.",
     "secretForDifferentService": "Key \"{name}\" is for a different service. Choose a key for this configuration.",
     "openRouterEndpointHint": "Leave empty for the global OpenRouter API, or enter a regional URL such as https://eu.openrouter.ai/api/v1. EU routing requires an eligible OpenRouter plan; ZDR is configured separately on OpenRouter.",
+    "openaiCompatibleEndpointHint": "The address of a server that answers OpenAI's Chat Completions API, ending in /v1, such as https://models.example/v1.",
+    "anthropicCompatibleEndpointHint": "The address of a server that answers Anthropic's Messages API. It carries no /v1 of its own; the SDK adds that, so https://models.example is the whole address.",
     "defaultEndpoint": "Default API",
     "addSeparateModel": "Add separate model",
     "separateEndpointHint": "Save this endpoint as a separate model to keep the current profile for other agents. “Update model” changes the shared profile wherever it is used.",
@@ -1085,9 +1109,8 @@
     "modelRegionEea": "EEA only",
     "modelRegionGlobal": "Global",
     "starterIcon": "Icon for first message {number}",
-    "starterTitle": "Title of first message {number}",
     "starterTitlePlaceholder": "Short title (optional)",
-    "starterMessageLabel": "Message shown below the title and sent on click",
+    "starterMessageLabel": "Message sent on click",
     "pipelineModelPlaceholder": "Choose a model",
     "pipelineNoMatches": "No matching models",
     "alreadyHasIt": "Uses it",
@@ -1140,7 +1163,9 @@
     "observationAuthorityHint": "The decision model has no tools. Automatic replies use the published agent’s main model and bound organization MCP accounts, with their normal approval rules. Personal accounts and other action tools require someone to mention the bot in the thread. Calls needing approval are not executed automatically. Both model costs appear in Activity.",
     "observationRequired": "Select the model that decides whether the agent should join.",
     "observationSaveFailed": "Could not save. Your edits remain in this form; try again.",
-    "observationSave": "Save participation settings"
+    "observationSave": "Save participation settings",
+    "connectionSettings": "Connection settings · {provider} · {endpoint}",
+    "customEndpoint": "Custom endpoint"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1154,7 +1179,7 @@
     "googleNotConfigured": "Google sign-in is not configured for this deployment.",
     "continueWithProvider": "Continue with {provider}",
     "continueWithMicrosoft": "Continue with Microsoft",
-    "createHeading": "Create your <em>workspace.</em>",
+    "createHeading": "Create an account",
     "creatingAccount": "Creating account...",
     "dropYourEmailBelow": "Drop your email below - we'll send you a one-time link to set a new password.",
     "email": "Email",
@@ -1163,7 +1188,6 @@
     "forgotHeading": "Happens to the <em>best of us.</em>",
     "forgotPasswordPrompt": "Forgot password?",
     "forgotShort": "Forgot?",
-    "getStarted": "Let's set you up",
     "hasAccount": "Already have an account?",
     "linkSentHeading": "Link sent. <em>On its way.</em>",
     "loggedOut": "Logged out",
@@ -1184,8 +1208,7 @@
     "magicLink": {
       "errorHeading": "Couldn't sign you in",
       "errorInvalid": "Magic link is invalid or has expired.",
-      "errorMissingToken": "No token provided. Request a new sign-in link.",
-      "requestNewLink": "Request a new link",
+      "errorMissingToken": "This sign-in link is incomplete. Sign in with your password or reset it.",
       "signInWithPassword": "Sign in with password",
       "success": "Signed in",
       "successHint": "Redirecting to your workspace…",
@@ -1235,13 +1258,12 @@
     "sendResetLink": "Send reset link",
     "sending": "Sending…",
     "signInFailedRedirecting": "Sign-in failed. Redirecting…",
-    "signInHeading": "Sign in to <em>your workspace.</em>",
+    "signInHeading": "Sign in",
     "signUpWithGithub": "Sign up with GitHub",
     "signUpWithGoogle": "Sign up with Google",
     "signUpWithProvider": "Sign up with {provider}",
     "signUpWithMicrosoft": "Sign up with Microsoft",
     "somethingWentWrongPlease": "Something went wrong. Please try again.",
-    "welcomeBack": "Welcome back",
     "workspace": "workspace.",
     "signupInviteOnly": "This deployment is invite-only. You can register with an address somebody has invited.",
     "signupDomainsAllowed": "Only addresses at {domains} can register here.",
@@ -1259,6 +1281,14 @@
     "title": "Billing"
   },
   "chat": {
+    "conversationTitle": "Conversation title",
+    "questions": {
+      "heading": "Question for you",
+      "answered": "Questions and answers",
+      "submitting": "Sending your answers…",
+      "details": "Tool details",
+      "reveal": "Answer the agent’s question"
+    },
     "loadEarlierMessages": "Load earlier messages",
     "accessLevel": "Access level",
     "accessRevoked": "Access revoked",
@@ -1282,7 +1312,6 @@
     "approve": "Approve",
     "archive": "Archive",
     "archivedToast": "Conversation archived",
-    "askUserAnswered": "You answered",
     "askUserAsked": "Asked you",
     "askUserAskedBy": "Asked by {name}",
     "attachedFile": "Attached file",
@@ -1346,9 +1375,9 @@
         "ask_all": "Ask about everything"
       },
       "modeHint": {
-        "follow_agent": "The agent's own settings decide which tools need a person.",
-        "approve_all": "Every gated call runs without asking, for this conversation. Each one is still recorded against your account.",
-        "ask_all": "Ask before every tool this agent can use, including the ones it does not normally gate."
+        "follow_agent": "Use the agent’s approval rules.",
+        "approve_all": "Skip optional approvals in this chat. Required approvals still apply.",
+        "ask_all": "Ask before every tool call."
       },
       "modelTitle": "Model: {model}",
       "whichModelRunsHere": "Which model this conversation runs on. Everything else about the agent stays as it is.",
@@ -1437,7 +1466,8 @@
         "follow_agent": "Agent rules",
         "approve_all": "Approve all",
         "ask_all": "Ask always"
-      }
+      },
+      "afterFirstMessage": "Available after the first message."
     },
     "conversationArchived": "This conversation is archived",
     "conversationDeleted": "Conversation deleted",
@@ -1540,6 +1570,13 @@
       "onThisComputer": "In {folder} on this computer",
       "downloadAll": "Download as .zip",
       "downloadFolder": "Download {name} as .zip",
+      "loadFailed": "Could not load these files",
+      "notAvailable": "Files are not available right now",
+      "workspaceNotRetained": "Workspace has not been created yet or is no longer retained",
+      "workspaceNotRetainedBody": "You can still attach a file with + in the message box and send it, or ask the agent to create one. Previously saved files may no longer be available.",
+      "readNoticeBody": "Try again to check the file connection. You can keep using this conversation.",
+      "connectionSettings": "Sandbox connections",
+      "technicalDetails": "Technical details",
       "zipFailed": "The folder could not be downloaded."
     },
     "generateShareLink": "Generate share link",
@@ -1613,6 +1650,18 @@
     "loading": "Loading…",
     "membersCouldNotBeRead": "The people in this organization could not be read.",
     "modelPicker": {
+      "noMatchingModels": "No matching models.",
+      "noSavedModels": "No saved models for this provider.",
+      "allModels": "Models",
+      "applyingModel": "Selecting model…",
+      "selected": "Selected",
+      "connectedProviders": "Connected",
+      "providersWithoutKey": "Not connected",
+      "searchModels": "Search models…",
+      "loadingModels": "Loading models…",
+      "savedModels": "Saved models",
+      "customModel": "Use model ID: {model}",
+      "searchOrType": "Search the catalog or enter a model ID.",
       "agentModel": "Agent's model",
       "chooseProvider": "Choose a provider",
       "model": "Model",
@@ -1711,7 +1760,7 @@
         "older": "Older"
       },
       "searchLabel": "Search conversations",
-      "searchHint": "Type to search your conversations by title.",
+      "searchHint": "Search conversation titles and messages.",
       "searching": "Searching…",
       "noSearchResults": "No conversation matches.",
       "untitled": "Untitled",
@@ -1723,7 +1772,10 @@
       "sharedHeading": "Shared with you",
       "sharedLoading": "Loading shared conversations…",
       "sharedFailed": "Shared conversations could not be loaded.",
-      "retryShared": "Retry shared conversations"
+      "retryShared": "Retry shared conversations",
+      "searchFailed": "Could not search conversations.",
+      "searchMatches": "{count, plural, one {# matching message} other {# matching messages}}",
+      "searchKeys": "↑ ↓ to navigate · Enter to open · Esc to close"
     },
     "skipComment": "Skip comment",
     "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",
@@ -1872,8 +1924,6 @@
       "searchingWeb": "Searching the web",
       "setDependency": "Set Dependency",
       "settingDependency": "Setting a dependency",
-      "showFormatted": "Show the formatted view",
-      "showRaw": "Show arguments and raw output",
       "skillResource": "Skill Resource",
       "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",
       "steeringDelegate": "Steering a delegate",
@@ -1903,7 +1953,7 @@
       "shareArtifact": "Ask to Share a Published Page",
       "artifactVersion": "Version {version} · open the page",
       "artifactUnchanged": "Unchanged, still version {version} · open the page",
-      "askingYou": "Waiting for your answer",
+      "askingYou": "Question for you",
       "askedYou": "Asked you",
       "notAnsweredYet": "Not answered yet",
       "listMemory": "List memories",
@@ -2210,13 +2260,7 @@
       }
     },
     "hints": {
-      "mention": "Type <key>@</key> to point the agent at a server, a teammate or a skill",
-      "mcp": "Pull this week's updates from <chip></chip> and summarise them",
-      "capability": "Use <chip></chip> to work through the attached spreadsheet",
-      "agent": "Ask <chip></chip> to double-check the numbers",
-      "skill": "Follow <chip></chip> and draft a reply to this customer",
-      "collection": "What does <chip></chip> say about notice periods?",
-      "slash": "Type <command></command> to summarise this conversation, or / for every command"
+      "shortcuts": "Message your agent. <key>/</key> commands · <key>@</key> resources"
     },
     "visuals": {
       "drawing": "Drawing…",
@@ -2307,13 +2351,11 @@
         "rateLimitedBody": "Too many dictations in a minute.",
         "keptBody": "Your {duration} recording is kept until you retry or discard it.",
         "notSetUpTitle": "Dictation isn't set up.",
-        "notSetUpBody": "This agent's speech-to-text provider has no usable key any more.",
-        "browserOff": "<strong>Dictation isn't turned on for this agent,</strong> so your browser transcribes what you say. Turn it on to use a speech-to-text provider."
+        "notSetUpBody": "This agent's speech-to-text provider has no usable key any more."
       },
       "pill": "Dictation",
       "listening": "Listening",
-      "done": "Done dictating",
-      "openBuilder": "Open in the Agent Builder"
+      "done": "Done dictating"
     },
     "voice": {
       "start": "Start a voice call",
@@ -2521,7 +2563,7 @@
     "browserShownInPanel": "{host} is open in the browser panel",
     "browserOpenPanel": "Open beside the chat",
     "browserDock": "Back beside the chat",
-    "browserResize": "Resize browser panel",
+    "browserResize": "Resize side panel",
     "computerLineUsed": "Used a computer",
     "queuedWaitingForNetwork": "Waiting for the network",
     "queuedNotSent": "Not sent: {reason}",
@@ -2555,9 +2597,7 @@
       }
     },
     "backgroundTasks": {
-      "heading": "Background topics · {count} active",
       "empty": "Ask an agent with Background topics to delegate work while you keep talking.",
-      "retry": "Reload background topics",
       "stop": "Stop {title}",
       "returnInterrupted": "Result delivery interrupted",
       "status": {
@@ -2635,7 +2675,17 @@
       "contact": "Contact your administrator"
     },
     "runFailedTitle": "Run did not finish",
-    "runFailedHint": "No final answer was produced. You can review the work above."
+    "runFailedHint": "No final answer was produced. You can review the work above.",
+    "homeInbox": {
+      "openInbox": "Open inbox",
+      "title": "Daily briefing",
+      "urgent": "Priority",
+      "approvalsLabel": "Approvals",
+      "approvals": "{count, plural, one {# approval needs your attention} other {# approvals need your attention}}",
+      "empty": "You’re all caught up. New findings and important topics will appear here.",
+      "failed": "Your inbox could not be loaded.",
+      "refreshFailed": "Could not refresh your inbox. Showing the last loaded items."
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -3211,7 +3261,8 @@
           "sms": "SMS",
           "email": "Email",
           "imessage": "iMessage",
-          "discord": "Discord"
+          "discord": "Discord",
+          "matrix": "Matrix"
         },
         "webhook": "listening",
         "polling": "polling",
@@ -3675,7 +3726,7 @@
         "agent": "The Architect builds one with you.",
         "publish": "So people can use it in chat and in channels.",
         "knowledge": "The documents it answers from.",
-        "channel": "Slack, Teams, Telegram, Mattermost or Discord."
+        "channel": "Slack, Teams, Telegram, Mattermost, Discord or Matrix."
       },
       "left": "{count, plural, =1 {1 step left} other {# steps left}}",
       "start": "Start",
@@ -3703,6 +3754,8 @@
       }
     },
     "greeting": {
+      "night": "Hello",
+      "nightNamed": "Hello, {name}",
       "morning": "Good morning",
       "afternoon": "Good afternoon",
       "evening": "Good evening",
@@ -3713,6 +3766,7 @@
       "nothingWaiting": "Nothing is waiting on you.",
       "waitingOn": "Waiting on you: <b>{items}</b>.",
       "waiting": {
+        "questions": "{count, plural, one {# question} other {# questions}}",
         "approvals": "{count, plural, =1 {1 call} other {# calls}}",
         "review": "{count, plural, =1 {1 answer to review} other {# answers to review}}",
         "suites": "{count, plural, =1 {1 failing suite} other {# failing suites}}",
@@ -4713,6 +4767,7 @@
     "you": "(you)"
   },
   "nav": {
+    "searchUnavailable": "Some search results could not be loaded.",
     "memory": "Memory",
     "account": "Account",
     "activity": "Activity",
@@ -5622,7 +5677,7 @@
       },
       "agent-identity": {
         "title": "Call it something recognizable",
-        "body": "The name is what people pick in chat and find in the catalog. A duplicate starts as its source with a suffix, so rename it here; the handle other agents reach it by stays the same."
+        "body": "Open the three-dot menu and choose Details to edit the name, description, categories and tags. Renaming keeps the handle that other agents use."
       },
       "projects-new": {
         "title": "Start a project",
@@ -5779,6 +5834,10 @@
       "agent-starters": {
         "title": "First messages",
         "body": "What the chat offers somebody opening this agent with nothing said yet. A newcomer learns what the agent is for from these more than from its description, so make each one a real question it answers well."
+      },
+      "inbox-questions": {
+        "title": "Questions waiting for you",
+        "body": "Find questions an agent is waiting for you to answer. Open the chat to reply."
       },
       "inbox-filters": {
         "title": "What came to you on its own",
@@ -5999,10 +6058,6 @@
       "chat-coding-settings": {
         "title": "Coding model and reasoning",
         "body": "Choose a model and reasoning level from the installed coding agent. Choices belong to this conversation; leaving them unset keeps the coding agent’s own settings."
-      },
-      "chat-background-tasks": {
-        "title": "Background topics",
-        "body": "Independent work opens a fresh topic in this project. Keep talking here; the agent returns with the result. Open or stop each task from this strip."
       },
       "memory-views": {
         "title": "Two ways agents remember",
@@ -6677,10 +6732,6 @@
       "statusLive": "Live",
       "statusLiveVersion": "Live · version {version}",
       "statusUnpublishedChanges": "Unpublished changes",
-      "cardStartsFrom": "{trigger} · {count, plural, one {# step} other {# steps}}",
-      "cardNotRun": "Not run yet",
-      "cardNotRunEdited": "Not run yet · edited {when}",
-      "cardSteps": "{count, plural, =0 {No steps yet} one {# step} other {# steps}}",
       "statusDraft": "Draft",
       "triggerFormLive": "Anyone with the link fills in the form, and each answer starts a run as the member who published it. Pause it to close the page.",
       "formUrl": "Form link",
@@ -6798,7 +6849,8 @@
       "runQuestionsTitle": "Your agent needs an answer to continue",
       "runQuestionsFailed": "The questions could not be loaded.",
       "runQuestionsRetry": "Try again",
-      "startRunSchema": "Expected input schema"
+      "startRunSchema": "Expected input schema",
+      "nameRequired": "Enter a name for this workflow."
     },
     "retention": {
       "title": "Data retention",
@@ -6928,7 +6980,6 @@
           "other": "Memory"
         },
         "editNoteHint": "Correct what the agent remembers about you. Your edits are recorded separately from the original agent write.",
-        "noteContent": "Note content",
         "noteDetails": "Memory details"
       }
     },
@@ -7096,6 +7147,15 @@
       "perMonth": "${amount} per month"
     },
     "agents": {
+      "shippedUpdate": {
+        "review": "Review built-in update",
+        "description": "Apply the shipped instructions, tools, skills and Context. Model, thinking and starter settings stay as saved. A published update goes live.",
+        "current": "Already using the built-in defaults.",
+        "apply": "Apply built-in update",
+        "reload": "Reload diff",
+        "draft": "Draft",
+        "published": "Published"
+      },
       "agentAposSBehaviour": "The agent's behaviour lives here, not in code. Be specific about what it should do, what it should refuse, and how it should cite. Markdown, and the model reads the structure - headings and lists are what make a long prompt followable, so being able to see them rendered is the point of the preview.",
       "agentAposSOwn": "This agent's own monthly spending limit. The organization's limit still applies on top - an agent can tighten it, never loosen it. The step limit catches the other kind of runaway: a tool loop that is cheap per call and never finishes.",
       "agentCannotBePublished": "This agent cannot be published yet",
@@ -7117,7 +7177,7 @@
       "connectMcpServer": "Connect an MCP server",
       "connectServer": "Connect a server",
       "connectServerOrganizationBecomes": "Connect a server for the organization and it becomes bindable here. A personal connection is for your own chat and is refused at publish, so an agent everyone runs never depends on whose credential is behind it.",
-      "createOneGiveInstructions": "Create one, give it instructions and a few capabilities, then publish it.",
+      "createOneGiveInstructions": "Start with a support assistant, a researcher or a report writer. Give it instructions and tools, try a conversation, then publish when it is ready.",
       "delegateUnreachable": "An agent you cannot see",
       "delete": "Delete",
       "delete2": "Delete",
@@ -7256,6 +7316,12 @@
       "personalModelLimits": "The model and endpoint stay fixed. Signed-in web chat only. Disable active channels, widgets, hosted pages and routines before publishing. HTTP API runs, background topics, voice, reviewers, separate step models and model fallbacks are not supported. Delegation in signed-in web chat resolves each personal-mode agent for the original caller.",
       "draftChanged": "This draft changed elsewhere. Your edits are still here, but saving is paused. Copy anything you want to keep, then reload the latest draft.",
       "reloadDraft": "Reload latest draft",
+      "discardDraft": "Discard draft",
+      "discardDraftHint": "Reset unpublished edits without publishing.",
+      "discardDraftTitle": "Discard unpublished changes?",
+      "discardDraftBody": "The draft will be reset to version {version}. Unpublished changes will be lost. This does not publish a version or change what runs live.",
+      "draftDiscarded": "Draft reset to the latest published version.",
+      "discardVersionChanged": "A newer version was published. Review it before discarding the draft.",
       "speechUseOrganizationDefaults": "Use organization defaults",
       "speechOrganizationDefaultsHint": "Inherit the organization’s provider, model, voice and key together. Turn off to configure this agent’s own voice."
     },
@@ -7332,6 +7398,8 @@
       "editChannelDescription": "Change what this bot is called, or replace one of its credentials. A credential is never read back, so a field left blank keeps the value already stored.",
       "mattermostServerUrl": "Server URL",
       "mattermostServerUrlHint": "The address you open Mattermost at in the browser, without a path",
+      "matrixHomeserverUrl": "Homeserver URL",
+      "matrixHomeserverUrlHint": "The client-server address of the homeserver the bot account is on, without a path",
       "mattermostWebhookToken": "Webhook token (optional)",
       "mattermostWebhookTokenHint": "The token Mattermost shows for the outgoing webhook",
       "name": "Name",
@@ -7398,7 +7466,7 @@
       "transcriptionInheritsFromOrg": "{pair}, from the organization",
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
-      "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} discord {Discord sends voice messages as Ogg/Opus} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
+      "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} discord {Discord sends voice messages as Ogg/Opus} matrix {Matrix clients send voice messages as Ogg/Opus} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
       "transcriptionProviderNoKey": "{name} (no usable key)",
       "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is.",
       "botTokenHintEmail": "The address the bot answers from, for example agent@mail.example.com. Replies go out through this deployment's e-mail provider.",
@@ -7415,6 +7483,7 @@
       "imessageWebhookRegistered": "iMessage webhook registered",
       "imessageReactionHint": "Optional. iMessage tapbacks require BlueBubbles Private API; leave this off when using AppleScript only.",
       "botTokenHintDiscord": "The token under Bot in the Discord Developer Portal. Switch on Message Content Intent and switch off Public Bot there, then invite the bot with the bot and applications.commands scopes.",
+      "botTokenHintMatrix": "The access token of the bot's Matrix account: a compatibility token from `mas-cli manage issue-compatibility-token` on a homeserver with MAS, or the token of a password login without it. Then invite the bot to each room it should answer in.",
       "mapDiscordRoles": "Discord roles for {bot}",
       "discordGuilds": "Approved Discord server IDs",
       "discordGuildsHint": "Enable Developer Mode in Discord and copy each approved server ID. Separate IDs with commas or spaces. An empty list permits DMs only; server messages stay blocked.",
@@ -7467,7 +7536,7 @@
       "connectorsFailedDescription": "The connector list request failed, so whether any are enabled is unknown.",
       "connectorsFailedTitle": "Couldn't load the connectors",
       "createKnowledgeBase": "Create knowledge base",
-      "createOneGiveYour": "Create one to give your assistant access to documents from your collections.",
+      "createOneGiveYour": "Collect handbooks, policies or product documents in a knowledge base. Attach it to an agent so it can search relevant passages when answering.",
       "default": "Default",
       "delete": "Delete",
       "deleteCollectionTitle": "Delete {name}?",
@@ -7660,7 +7729,11 @@
       "noMatchingMembers": "No members match your search.",
       "lastAction": "Last recorded action",
       "lastActionHint": "Audited actions in this workspace. Visits and actions performed through impersonation are not included.",
-      "noRecordedAction": "No recorded action"
+      "noRecordedAction": "No recorded action",
+      "assistantServices": "Assistant and conversations",
+      "assistantServicesHint": "Choose how people get help, receive updates and use voice.",
+      "backgroundServices": "Background services",
+      "backgroundServicesHint": "Models and budgets for the platform’s internal work."
     },
     "rag": {
       "active": "Active",
@@ -7701,8 +7774,8 @@
       "shareLinkExpired": "This share link may have expired or been revoked.",
       "shareLinkNotFound": "Share link not found",
       "sharedConversation": "Shared Conversation",
-      "sharedConversationReadOnly": "Shared conversation - read-only",
-      "sharedConversationViewEdit": "Shared conversation - view & edit",
+      "sharedConversationReadOnly": "Read only",
+      "sharedConversationUser": "User",
       "signInFailedRedirecting": "Sign-in failed. Redirecting…",
       "somethingWentWrong": "Something went wrong",
       "tryAgain": "Try again",
@@ -7869,6 +7942,7 @@
       "surfaceA2a": "A2A",
       "surfaceTeams": "Microsoft Teams",
       "surfaceDiscord": "Discord",
+      "surfaceMatrix": "Matrix",
       "surfaceFollowUps": "Follow-ups",
       "surfaceSchedule": "Schedule",
       "surfaceWorkflow": "Workflow",
@@ -8045,6 +8119,8 @@
       "systemRoleChannelDecision": "Channel participation decision (system)"
     },
     "sandboxes": {
+      "noAccess": "No access to sandbox connections",
+      "noAccessBody": "Ask an organization administrator for permission to view connections.",
       "addConnection": "Add connection",
       "agentsCanStillKeep": "Agents can still keep files without one: the stored workspace needs nothing and works on every deployment. Register a connection when an agent needs a real shell.",
       "noSandboxConnectionsYet": "No sandbox connections yet",
@@ -8078,7 +8154,7 @@
       "chatAccountNoAgentsHere": "No agent you can see answers on this bot.",
       "chatAccountNotUsedYet": "Not used anywhere yet. Send one of your organization's bots a message.",
       "chatAccounts": "Chat accounts",
-      "chatAccountsDescription": "Slack, Microsoft Teams, Telegram, Mattermost and Discord accounts connected to you. An agent reached from one of these answers as you, with your permissions and your budget.",
+      "chatAccountsDescription": "Slack, Microsoft Teams, Telegram, Mattermost, Discord and Matrix accounts connected to you. An agent reached from one of these answers as you, with your permissions and your budget.",
       "confirmNewPassword": "Confirm new password",
       "currentPassword": "Current password",
       "deleteAccount": "Delete account",
@@ -8304,7 +8380,7 @@
       "skills": "Skills",
       "skills2": "Skills",
       "sort": "Sort",
-      "writeDownSomethingYour": "Write down something your team explains more than once, and every agent can read it.",
+      "writeDownSomethingYour": "Turn a repeatable process into a skill: a review checklist, a report format or a support procedure. Attach it to the agents that need it.",
       "youCannotSeeOrganization": "You cannot see this organization's skills"
     },
     "vault": {
@@ -8358,7 +8434,7 @@
       "noContextMatches": "No context file matches",
       "noContextYet": "No context files yet",
       "namesDescriptionsSearched": "Names and descriptions were checked. Clear the search to see everything.",
-      "addSomethingYourAgents": "Add something your agents should always know, and every one of them can draw on it.",
+      "addSomethingYourAgents": "Add short reference material such as a glossary, brand voice or team policy. Attach it to an agent, either as standing context or a file it can read on demand.",
       "nobodyHasAddedContext": "Nobody has added a context file for this organization yet.",
       "newContext2": "New context file",
       "nameHowItIsReferred": "The name is how this file is referred to, and it cannot change. Everything else here can.",
@@ -8368,7 +8444,9 @@
     "maintenance": {
       "heading": "{app} is under maintenance",
       "body": "The deployment is temporarily closed. Try again shortly.",
-      "adminStrip": "Maintenance mode is on. Everybody but you is locked out."
+      "adminStrip": "Maintenance mode is on. Everybody but you is locked out.",
+      "announcementTitle": "Announcement",
+      "status": "Temporarily unavailable"
     },
     "routines": {
       "title": "Routines",
@@ -8395,6 +8473,7 @@
       "title": "Browser sign-ins"
     },
     "backgroundJobs": {
+      "noSchedules": "No schedules.",
       "status": {
         "queued": "Queued",
         "running": "Running",
@@ -8500,7 +8579,7 @@
       },
       "empty": {
         "title": "No tables yet",
-        "description": "A table is a typed set of records your agents, workflows and integrations can read and write.",
+        "description": "Track contacts, requests or project work with typed columns. Agents and workflows can read and update these records; start from a CSV file or define your own columns.",
         "filteredTitle": "No table matches"
       },
       "created": "Created {name}",
@@ -8631,7 +8710,8 @@
         "required": "This column needs a value.",
         "cancel": "Cancel",
         "create": "Add record",
-        "created": "Record added."
+        "created": "Record added.",
+        "optionalFields": "{count, plural, =1 {1 more field} other {# more fields}}"
       },
       "cardSize": "{records, plural, one {# record} other {# records}} · {columns, plural, one {# column} other {# columns}}",
       "archive": {
@@ -8743,11 +8823,11 @@
       "identityHint": "Name, appearance and legal links shown throughout the console.",
       "access": "Access & accounts",
       "accessHint": "Control who can join, their starting organization and usage limits.",
-      "notices": "Announcements",
+      "notices": "Announcements & maintenance",
       "noticesHint": "Share a notice or configure the maintenance screen.",
       "services": "Voice & mobile",
       "servicesHint": "Audio recording preferences and push notifications for the mobile app.",
-      "operations": "Maintenance",
+      "operations": "Updates & diagnostics",
       "operationsHint": "Application updates and deployment diagnostics."
     }
   },
@@ -9158,12 +9238,14 @@
     "share": "Share",
     "sharingUpdated": "Sharing updated",
     "visibilityOrg": "Everyone in the organization",
-    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} project {projects} other {secrets}} at all.",
+    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} project {projects} workflow {workflows} other {secrets}} at all.",
     "visibilityPrivate": "Only people with access",
     "visibilityPrivateReaches": "Only the people listed above. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} artifact {app} dataset {dataset} context {context file} mcp_connection {MCP server} project {project} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
     "visibilityTeam": "Team (no longer offered)",
-    "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} project {projects} other {secrets}}. This organization has no teams - pick one of the two above.",
+    "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} project {projects} workflow {workflows} other {secrets}}. This organization has no teams - pick one of the two above.",
     "visibilityUpdated": "Visibility updated",
+    "workflowPrivateReaches": "The owner, people and groups listed above, and roles that can access all workflows. Roles limited to shared workflows can lose access when you make it private.",
+    "workflowRuntimeNote": "Sharing also controls access to past runs. It does not pause schedules or disable webhooks.",
     "groupsHeading": "Groups",
     "membersHeading": "Members",
     "groupSubject": "Group",
@@ -10275,7 +10357,7 @@
     "searchRoutines": "Search routines",
     "noRoutineMatches": "No routine matches that.",
     "routineCount": "{count, plural, =1 {1 routine} other {# routines}}",
-    "activityEmptyDescription": "When an agent is set to run itself, it shows here.",
+    "activityEmptyDescription": "Schedule a weekly report, react to an incoming event or watch a connected service for changes. Routines show what will run next and let you pause it.",
     "agent": "Agent",
     "chooseAgent": "Choose an agent",
     "sourceWebhook": "API (your own code)",
@@ -10428,17 +10510,32 @@
       "allowHeading": "Allow these actions to run without asking for approval"
     },
     "sourceConsents": {
-      "title": "Reviewed sources",
-      "description": "This routine uses only the published resources, accounts and tools reviewed here. New sources and renewed account consent require another review.",
+      "title": "Sources",
+      "description": "Choose whether this routine follows the agent or keeps a reviewed snapshot. Approval rules are configured separately.",
       "retry": "Try again",
       "current": "The reviewed sources are current.",
-      "changed": "Review these sources before the next run.",
+      "changed": "The routine creator must review changed access or behavior before the next run.",
       "unavailable": "Reconnect or inspect these sources first: {names}",
       "accept": "Approve these sources",
       "inspectAgent": "Inspect the agent’s connections",
       "kind": "{kind, select, capability {Capabilities} skill {Skills} context {Context files} knowledge {Knowledge bases} table {Tables} delegate {Delegate agents} remote_agent {Remote agents} platform {Platform} mcp_account {MCP accounts} chat_connection {Chat connections} phone {Telephone} terminal_account {Terminal accounts} terminal_credential {Terminal credentials} event_source {Event source} other {Other}}",
       "kindCount": "{name} ({count})",
-      "unnamed": "No longer available"
+      "unnamed": "No longer available",
+      "modeLabel": "Access mode",
+      "followAgent": "Follow agent",
+      "restricted": "Reviewed snapshot",
+      "followHint": "Starts with the published agent’s current access and behavior. Later access expansions or behavior changes need the routine creator’s review. Agent permissions, required approvals and local grants still apply.",
+      "restrictedHint": "Keep this reviewed set of sources. Changes to the agent’s sources require another review.",
+      "followCurrent": "This routine follows the agent within its approved access and behavior.",
+      "selectionPending": "Save to apply this access mode.",
+      "followUnavailable": "Unavailable sources: {names}. Following the agent does not reconnect them or bypass required permissions.",
+      "saveMode": "Save access mode",
+      "reviewBeforeActivation": "Review access before enabling",
+      "reviewBeforeActivationHint": "Optional: save paused, inspect a snapshot of the agent’s sources, then enable the routine.",
+      "runsAsYou": "Runs as you. Your permissions and required approvals still apply.",
+      "agentIdentity": "Uses the agent’s own access. Personal account access is off.",
+      "requiredUnavailable": "Required sources unavailable: {names}. Restore access before saving or enabling this routine.",
+      "followApprovals": "Uses the agent’s approval rules within this routine’s approved access and behavior. The creator must review later expansions or behavior changes; required confirmations still apply. Choose Reviewed snapshot for routine-specific approvals."
     },
     "advancedOptions": "Advanced options",
     "advancedOptionsHint": "Defaults: current published version, standard failure protection and your notification preferences.",
@@ -11124,10 +11221,20 @@
     },
     "coding_agent": {
       "runs_on": {
+        "sandbox": {
+          "label": "In the agent's sandbox",
+          "description": "Requires a sandbox with shell access. Tasks use the coding agent configured here and share the workspace.",
+          "summary": "Work directly in the agent's workspace using the organization's credential."
+        },
         "personal_sandbox": {
           "label": "Private cloud task with my account",
-          "description": "Use my profile account in an isolated container. Returns a diff and result archive for review; shared files remain unchanged.",
-          "summary": "Use my profile account in an isolated container. Returns a diff and result archive for review; shared files remain unchanged."
+          "description": "Each session works on its own copy and returns a diff and archive for review.",
+          "summary": "Run Claude Code and Codex in parallel in separate containers using your connected accounts."
+        },
+        "this_computer": {
+          "label": "On this computer",
+          "description": "Tasks use the local sign-ins and work in folders you approve in the desktop app.",
+          "summary": "Run Claude Code and Codex in parallel in separate sessions through the desktop app."
         }
       }
     }
@@ -13172,7 +13279,8 @@
     "emptyTitle": "No connected applications",
     "emptyWhy": "Add AgenticOS to Claude Code or another MCP client and sign in; it appears here.",
     "deploymentAdminTitle": "Administer the entire installation",
-    "deploymentAdminHint": "Allows deployment settings and updates beyond the selected organization. Only an application administrator can grant deployment:admin; it is never included in an organization preset."
+    "deploymentAdminHint": "Allows deployment settings and updates beyond the selected organization. Only an application administrator can grant deployment:admin; it is never included in an organization preset.",
+    "loadFailed": "The sign-in request could not be read."
   },
   "liveUpdates": {
     "changedElsewhere": "{actor} changed this {surface} while you were editing it. Reload to see their version, or keep your changes to save over it.",
@@ -13921,6 +14029,10 @@
       "allow_personal": {
         "title": "Keep private notes per person",
         "description": "Whether the agent keeps private notes for each person it talks to, readable only when it is alone with them. Off drops that store entirely, for compliance or privacy; the notes it keeps in group chats stay."
+      },
+      "inject_context": {
+        "title": "Include memory automatically",
+        "description": "Show a bounded summary of personal memories and notes in private conversations. Off keeps memory tools and background maintenance available."
       }
     },
     "planning": {
@@ -14107,8 +14219,8 @@
     },
     "coding_agent": {
       "harness": {
-        "title": "Coding agent",
-        "description": "Which coding agent does the work: Claude Code, on an Anthropic key or a Claude subscription token, or Codex, on an OpenAI key or a ChatGPT sign-in."
+        "title": "Default coding agent",
+        "description": "The default when a task does not choose Claude Code or Codex. Personal cloud and desktop tasks use the person's own account for the selected coding agent. An organization sandbox uses only its configured coding agent and key."
       },
       "access": {
         "title": "What it may do",
@@ -14116,7 +14228,7 @@
       },
       "model": {
         "title": "Model",
-        "description": "The model the coding agent runs: a Claude model for Claude Code, an OpenAI one for Codex. Not set takes the coding agent's own default. Not available on this computer, where the agent uses its own setting."
+        "description": "The model for the default coding agent: Claude for Claude Code, OpenAI for Codex. Empty uses its own default. Choosing the other coding agent per task uses that agent's default model. Desktop tasks use their local setting."
       },
       "base_url": {
         "title": "Anthropic-compatible endpoint",
@@ -14387,6 +14499,9 @@
     "nativeDesktopOnly": "This tab is open in the paired desktop app. Continue there to use its native browser."
   },
   "remoteAgents": {
+    "optionalSettings": "Authentication and handle (optional)",
+    "noAccess": "No access to remote agents",
+    "noAccessBody": "Ask an organization administrator for permission to view agents.",
     "title": "Remote agents",
     "pageDescription": "Other vendors' agents your agents can hand work to over the A2A protocol. Register one here by its agent card, then pick it in an agent's delegation settings.",
     "listTitle": "Registered remote agents",
@@ -14429,7 +14544,6 @@
     "uploaded": "{count, plural, =1 {1 file added} other {# files added}}",
     "removed": "Removed",
     "filesUnreadable": "The project's files could not be read",
-    "activeWhen": "Active {when}",
     "chatCount": "{count, plural, =0 {No chats yet} =1 {1 chat} other {# chats}}",
     "projectCount": "{count, plural, =1 {1 project} other {# projects}}",
     "startsWith": "Starts with {agent}",
@@ -14484,8 +14598,10 @@
     "noMatches": "No projects match",
     "searchedNames": "Names and descriptions are searched.",
     "noProjectsYet": "No projects yet",
-    "noProjectsHint": "A project keeps instructions and files that every chat in it shares.",
+    "noProjectsHint": "Keep a launch, research task or customer account in one place. Its chats share instructions and files, and the apps created in those chats stay with the project.",
     "pickTitle": "Work in a project",
+    "pickEmpty": "Keep related chats, files and instructions together in a project. Create one from Projects, or continue without one.",
+    "pickNoMatches": "No available project matches this search. Try a different name or continue without a project.",
     "pickHint": "The chat reads the project's instructions and works in its files. It stays in the project.",
     "noProject": "No project",
     "noProjectHint": "An ordinary chat",
@@ -14593,7 +14709,8 @@
       "loadFailed": "Retry project tracker",
       "scopeHint": "The project reuses one task board. Access follows the project; people and agents are linked records, and the next-step field controls handoff.",
       "openTracker": "Tracking agent"
-    }
+    },
+    "initialSetup": "Instructions and defaults"
   },
   "voiceGlow": {
     "title": "Voice glow",
@@ -14638,7 +14755,9 @@
         "name": "Paper",
         "hint": "Warm, for reading"
       }
-    }
+    },
+    "advancedTitle": "Interface details",
+    "advancedHint": "Voice glow and the appearance of workflow steps."
   },
   "answerFormat": {
     "title": "Answer format",
@@ -14888,16 +15007,32 @@
       "role_pack": "Routine pack",
       "finding": "Routine"
     },
+    "discuss": "Discuss with agent",
+    "moreActions": "More actions for {title}",
+    "chatDraft": {
+      "agent": "Help me create an agent for this request: {text}",
+      "routine": "Help me set up this routine: {text}",
+      "finding": "Help me handle this finding and identify the next steps: {text}",
+      "profile": "Help me review and update my profile using this proposal: {text}",
+      "role_pack": "Help me set up this suggested set of routines: {text}",
+      "topic": "Topic: {text}",
+      "schedule": "Suggested schedule: {text}"
+    },
     "openWorkingChat": "Open conversation",
     "preferences": "Inbox preferences",
     "preferencesDescription": "Choose which automatic suggestions reach your Inbox.",
+    "questions": {
+      "title": "Questions waiting for you",
+      "open": "Open chat: {conversation}, question from {agent}",
+      "untitled": "Untitled chat",
+      "source": "{agent} · Expires {expiry}",
+      "failed": "Couldn’t load waiting questions.",
+      "retry": "Retry",
+      "loadMore": "Show more questions"
+    },
     "approvals": {
       "title": "Approval requests",
-      "open": "Open approvals",
-      "fromWorkflow": "Workflow {workflow}",
-      "fromAgent": "Agent {agent}",
-      "anAgent": "An agent",
-      "actionBy": "{source} · {action}"
+      "open": "Open approvals"
     }
   },
   "datasets": {
@@ -15126,7 +15261,7 @@
     "noMatches": "No dataset matches",
     "noMatchesBody": "Names and descriptions are searched.",
     "empty": "No datasets yet",
-    "emptyBody": "A dataset holds the test cases an agent is checked against.",
+    "emptyBody": "Save example questions and expected answers, then run evals to check an agent. Reuse the same cases to compare models or catch regressions in a new version.",
     "deleteBody": "Every version and case of this dataset is deleted. Eval runs that used it lose the questions they answered.",
     "created": "Created {name}",
     "deleted": "Dataset deleted",
@@ -16379,10 +16514,7 @@
       "discarded": "Discarded the change to {name}"
     },
     "describe": {
-      "label": "Or describe it, and {name} drafts it with you",
-      "placeholder": "A support agent that answers refund questions from our policy and hands angry customers to a person.",
-      "send": "Describe it to the Architect",
-      "prompt": "Draft an agent for me: {description}"
+      "open": "Create with {name}"
     },
     "rejected": {
       "title": "{count, plural, =1 {1 more idea the assistant did not add} other {# more ideas the assistant did not add}}",
@@ -16574,7 +16706,10 @@
     "rated": "{count, plural, =1 {1 answer rated down} other {# answers rated down}}",
     "failed": "{count, plural, =1 {1 failed run} other {# failed runs}}",
     "suites": "{count, plural, =1 {1 failing suite} other {# failing suites}}",
-    "improveLabel": "Needs attention: {reasons}. Improve this agent"
+    "improveLabel": "Needs attention: {reasons}. Improve this agent",
+    "tabLabel": "Needs attention: {reasons}",
+    "improvementWaiting": "an improvement waits for you",
+    "gapsLabel": "{count, plural, =1 {1 open knowledge gap} other {# open knowledge gaps}}"
   },
   "improvement": {
     "attributionUnconfirmed": "Change {number}: the result is not confirmed.",
@@ -17531,10 +17666,6 @@
     "label": "Account label",
     "apiKey": "API key",
     "chatGPT": "ChatGPT sign-in",
-    "oauthHelp": "Start a fresh sign-in, finish it in your browser, then paste the complete localhost callback address here. Do not import a CLI auth.json file.",
-    "continueOpenAI": "Continue at OpenAI",
-    "startSignIn": "Start sign-in",
-    "callback": "Callback address",
     "credential": "API key or Claude setup token",
     "keyHelp": "Claude Code accepts an Anthropic API key or setup token; Codex accepts an OpenAI API key. Personal accounts connect directly to their provider.",
     "consent": "Allow agents in this organization to use this account for coding tasks I start.",
@@ -17552,6 +17683,9 @@
     "localHelp": "In the Coding agent tool, choose Private cloud task with my account to use this profile. On this computer uses the local CLI sign-in and your approved folder instead; local credentials stay on your computer.",
     "disconnectHelp": "Disconnect removes AgenticOS’s copy and stops its tasks. Revoke a ChatGPT grant at OpenAI from ChatGPT Settings. Scheduled and channel jobs do not use these accounts.",
     "personalAccount": "Personal account: {label}",
+    "continuedSession": "Session: {name} · continued",
+    "newSession": "Session: {name} · new",
+    "sessionName": "Session: {name}",
     "baseRevision": "Workspace snapshot: {revision}",
     "chatTitle": "Your {name} account",
     "chatHelp": "This agent runs coding tasks as a private cloud task on your own account. Other members cannot use it."
@@ -17583,6 +17717,17 @@
     "jsonInvalid": "Enter valid JSON of the required type. The last valid value is unchanged."
   },
   "start": {
+    "sidebarReminder": {
+      "title": "Finish setup",
+      "hint": "Add your details, choose how agents help, and try your first task.",
+      "snooze": "Remind me tomorrow",
+      "saveFailed": "Could not hide the reminder. Try again.",
+      "heading": "Make this workspace yours",
+      "manualTitle": "Guided setup",
+      "manualHint": "Return to setup whenever you need, even with reminders turned off.",
+      "manualAction": "Open setup",
+      "snoozeDays": "{days, plural, one {Remind me tomorrow} other {Remind me in # days}}"
+    },
     "administration": {
       "title": "Prepare your organization for your team",
       "intro": "Create a company organization, invite people and configure the installation. You can come back to every setting later.",
@@ -17596,16 +17741,11 @@
       "organization": "Organization settings",
       "task": "First agent",
       "workspaceTitle": "Where will your team work?",
-      "workspaceHint": "Create a company organization or choose one you already belong to. A personal organization is optional.",
-      "createCompany": "Create a company organization",
-      "createCompanyHint": "Give it your company or team name. You will become its owner and can invite people immediately.",
-      "existingCompany": "Use an existing company organization",
-      "existingCompanyHint": "Continue setup in one of your organizations.",
-      "personalExplanation": "Personal is an organization created for your account. You do not have to use it for the company. The application administrator controls whether new accounts receive personal organizations.",
-      "usePersonal": "I want to use a personal organization",
-      "personalChoice": "Personal organization",
-      "selectWorkspace": "Choose an organization",
-      "continuePersonal": "Continue with this organization",
+      "workspaceHint": "Choose an organization you belong to or create a new one.",
+      "createCompany": "Create an organization",
+      "createCompanyHint": "Choose a name. You can work on your own or invite people later.",
+      "existingCompany": "Use an existing organization",
+      "existingCompanyHint": "Choose where to continue setup, or create a new organization.",
       "teamTitle": "Invite your team",
       "teamIntro": "Invitations and roles apply to {workspace}. You can invite people before configuring a model or agent.",
       "reachableAddress": "This installation is open on a local address. Invitation links will not work on another computer. Use a server address reachable by your team before sending invitations.",
@@ -17653,9 +17793,7 @@
       "context": "Your context",
       "contextTitle": "What should your agents know about you?",
       "contextHint": "Your role, current work and time zone help agents understand what you need.",
-      "backStep": "Back",
       "createInstead": "Create a new organization instead",
-      "chooseExisting": "Choose an existing organization",
       "identityBenefitTitle": "Your organization. Your identity.",
       "identityBenefitBody": "Your logo helps people recognize the right organization in every chat and shared resource.",
       "identityProfileTitle": "Make yourself at home",
@@ -17817,7 +17955,7 @@
       "loadFailed": "I couldn't load these settings",
       "retry": "Try again",
       "saveFailed": "Your changes weren't saved. Stay here and try again.",
-      "workspaceGuide": "Let's give your team a home. Choose the organization you want to prepare, or create one for your company.",
+      "workspaceGuide": "Choose the organization you want to set up, or create one.",
       "identityGuide": "A logo makes the right organization easy to recognize. Add one now, or keep your current look and continue.",
       "profileGuide": "Now it's your turn. A photo and a familiar name help your teammates know who they're working with. These details follow your account across organizations.",
       "contextGuide": "Tell me a little about your work. Your agents will read this context when a conversation starts. Everything here is optional.",
@@ -17892,7 +18030,14 @@
         "task": "First task"
       },
       "guideName": "AgenticOS",
-      "advancedAccess": "Email domains, starting roles and account limits ↗"
+      "advancedAccess": "Email domains, starting roles and account limits ↗",
+      "announcementTone": "Announcement type",
+      "advancedSafetyHint": "Choose when approval is required and how public links use live data.",
+      "advancedAssistantsHint": "Set up the workspace assistant and optional background work.",
+      "advancedVoiceHint": "Choose transcription and voice settings for this workspace.",
+      "openGovernanceSettings": "Open budget and approvals",
+      "openAssistantSettings": "Open assistant settings",
+      "openVoiceSettings": "Open voice settings"
     }
   },
   "skillImprovement": {
@@ -21009,5 +21154,50 @@
     "remove": "Remove connection",
     "loading": "Loading connections…",
     "defaultEndpoint": "Provider default"
+  },
+  "consoleExperience": {
+    "title": "Chat home",
+    "personalHint": "Only in this workspace. Inherit its defaults or choose what appears before a conversation. Deployment availability always applies.",
+    "organizationHint": "Starting defaults for members of this workspace. People can override them in their profile; deployment availability always applies.",
+    "deploymentHint": "Choose which chat-home elements are available across this installation. This changes presentation, never access to resources or agent behavior.",
+    "unavailable": "Unavailable for this deployment.",
+    "inheritShown": "Inherit (shown)",
+    "inheritHidden": "Inherit (hidden)",
+    "show": "Show",
+    "hide": "Hide",
+    "reset": "Use workspace defaults",
+    "retry": "Retry",
+    "items": {
+      "inbox": {
+        "label": "Inbox preview",
+        "hint": "A short preview above the composer. The full Inbox and its approvals stay available."
+      },
+      "starters": {
+        "label": "Prompt suggestions",
+        "hint": "Suggested first messages below the empty composer."
+      },
+      "greeting": {
+        "label": "Welcome greeting",
+        "hint": "The welcome heading before a new conversation. Does not change how agents reply."
+      },
+      "feature_hints": {
+        "label": "Feature hints",
+        "hint": "Product-discovery copy and the / and @ composer hint. Essential labels and tooltips stay visible."
+      }
+    },
+    "remindersTitle": "Setup reminders",
+    "remindersPersonalHint": "Reminders about unfinished setup in this workspace. Turning them off keeps the manual setup link in Settings.",
+    "remindersOrganizationHint": "Starting reminder settings for members. People can override them; deployment availability still applies.",
+    "remindersDeploymentHint": "Allow reminders about unfinished setup. People can always open setup manually from Settings.",
+    "remindersEnabled": "Setup reminders",
+    "remindersFrequency": "Remind again after dismissing",
+    "inheritDays": "{count, plural, one {Inherit (1 day)} other {Inherit (# days)}}",
+    "days": "{count, plural, one {1 day} other {# days}}",
+    "announcementExpiry": "Announcement expires",
+    "announcementExpiryHint": "Optional. Time in {zone}, stored in UTC. The announcement stops appearing after this time.",
+    "maintenanceEnd": "Planned maintenance end",
+    "maintenanceEndHint": "Optional. Time in {zone}, stored in UTC. Informational only; an administrator must end maintenance.",
+    "maintenanceEndInformational": "This is an estimate. Access returns when an administrator ends maintenance.",
+    "invalidTime": "Choose a valid local date and time."
   }
 }

@@ -1,5 +1,5 @@
 ---
-source_sha: "419bd9ea9a93"
+source_sha: "0efa3a5b6024"
 ---
 
 # Conceptos { #concepts }
@@ -35,6 +35,12 @@ o una acción del servidor lo cambió, el guardado se pausa y los cambios
 locales permanecen en pantalla. Copia lo que quieras conservar antes de
 elegir **Recargar el último draft**. Después aplica esos cambios a la versión
 actual; un guardado obsoleto no puede sobrescribirla.
+
+En un agent publicado con cambios en el borrador, elige **Más → Descartar
+borrador** para volver a la última versión publicada. Se descartan los cambios
+sin publicar, sin crear una versión ni cambiar ningún entorno. Si llega otra
+edición o publicación antes de confirmar, se rechaza la operación. Si el agent
+nunca se ha publicado, no hay una versión a la que volver.
 
 El spec cumple dos reglas, y son las que lo hacen útil.
 

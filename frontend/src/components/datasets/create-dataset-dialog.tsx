@@ -7,7 +7,7 @@ import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { ArrowRight, FlaskConical, ListChecks, Play, Scale } from "lucide-react";
 import { DatasetChip, DatasetIcon } from "./dataset-chip";
 import { useId, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 

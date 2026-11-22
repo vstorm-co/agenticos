@@ -14,7 +14,7 @@ import { useModelProviders, useOrganizations, usePermissions } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
 import { useTenantId } from "@/hooks/use-organizations";
 import { useSystemAgents } from "@/hooks/use-system-agents";
-import { submitFailure } from "@/lib/api-error";
+import { getErrorMessage, submitFailure } from "@/lib/api-error";
 import type { SystemAgent } from "@/lib/system-agents-api";
 import type { Organization } from "@/types";
 import { Perm } from "@/types/permissions";
@@ -40,17 +40,25 @@ export function OrgSystemAgents({
   excludeBriefing?: boolean;
 }) {
   const { can } = usePermissions();
+  const tc = useTranslations("common");
+  const tErrors = useTranslations("errors");
   const tenantId = useTenantId();
   // The roles are the active organization's: this page can be opened for another one the
   // person belongs to, and showing - or changing - the active organization's model and
   // budget under that other name would be a settings page lying about whose it is.
   const allowed = can(Perm.budgetsManage) && tenantId === org.id;
-  const { roles, isLoading, error } = useSystemAgents(allowed);
+  const { roles, isLoading, error, refresh } = useSystemAgents(allowed);
   if (!allowed) return null;
   if (isLoading) return <RolesLoading />;
   // Said, not hidden: an operator must not read a failed request as a product with no
   // system-agent settings.
-  if (error || !roles) return <ErrorState />;
+  if (error || !roles)
+    return (
+      <ErrorState
+        description={error ? getErrorMessage(error, tErrors) : undefined}
+        cta={{ label: tc("retry"), onClick: () => void refresh() }}
+      />
+    );
   return (
     <div className="grid items-stretch gap-3" data-tour="org-system-agents">
       {roles

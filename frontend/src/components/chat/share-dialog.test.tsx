@@ -1,8 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ShareDialog, sharedPerson, toPermission } from "./share-dialog";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import type { OrganizationMember } from "@/types";
 
 const shareConversation = vi.fn();
@@ -244,6 +245,24 @@ describe("choosing who to share with", () => {
     expect(fetchMembers).toHaveBeenCalled();
   });
 
+  it("holds recipient and permission choices while the current share is being saved", async () => {
+    let finish = () => {};
+    const saving = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    shareConversation.mockReturnValueOnce(saving);
+    renderDialog();
+    await pick(/Nina Vale/);
+    await userEvent.click(screen.getByRole("button", { name: /^Share$/ }));
+    expect(screen.getByRole("button", { name: "Nina Vale" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Access level" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Share$/ })).toBeDisabled();
+    await act(async () => {
+      finish();
+    });
+    expect(screen.getByRole("combobox", { name: "Access level" })).toBeEnabled();
+  });
+
   it("shares with the id the picker holds, not an address", async () => {
     // `shared_with` has always been accepted beside `shared_with_email`, so
     // this is a client change rather than a contract one - and it cannot name
@@ -357,7 +376,9 @@ describe("sharing by link", () => {
       generate_link: true,
       permission: "view",
     });
-    expect(screen.getByText(`${window.location.origin}/shared/tok-123`)).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue(`${window.location.origin}/shared/tok-123`),
+    ).toBeInTheDocument();
     expect(toast.success).toHaveBeenCalledWith("Share link generated");
   });
 
@@ -371,6 +392,16 @@ describe("sharing by link", () => {
     await userEvent.click(copyButton);
 
     expect(copySpy).toHaveBeenCalledWith(`${window.location.origin}/shared/tok-123`);
+  });
+
+  it("stops offering the URL after revoking a link minted in this dialog", async () => {
+    shareConversation.mockResolvedValue({ id: "s-1", share_token: "tok-123" });
+    renderDialog();
+    await userEvent.click(screen.getByRole("button", { name: "Generate share link" }));
+    await userEvent.click(screen.getByRole("button", { name: "Revoke access" }));
+
+    expect(revokeShare).toHaveBeenCalledWith("c1", "s-1");
+    expect(screen.queryByRole("button", { name: "Copy share link" })).not.toBeInTheDocument();
   });
 
   it("shows nothing when the server answered without a token", async () => {
@@ -438,7 +469,7 @@ describe("who it is shared with", () => {
     expect(screen.getByText("u-9")).toBeInTheDocument();
     // A link share is the general access, not a person in the list.
     expect(screen.getByText("Anyone with the link can view")).toBeInTheDocument();
-    expect(screen.getByText(/\/shared\/tok$/)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/\/shared\/tok$/)).toBeInTheDocument();
     // The catalog's word, capitalised - not the API's raw `"view"`.
     expect(screen.getAllByText("View").length).toBeGreaterThan(0);
     expect(screen.queryByText("view")).toBeNull();
@@ -533,4 +564,24 @@ it("shows loading rather than an empty access list while shares are being read",
   sharesLoading.mockReturnValue(true);
   renderDialog();
   expect(screen.getByRole("status")).toHaveTextContent("Loading");
+});
+
+it("replaces sheet content with sharing and returns without opening another dialog", async () => {
+  const user = userEvent.setup();
+  const onOpenChange = vi.fn();
+  render(
+    <Sheet open onOpenChange={vi.fn()}>
+      <SheetContent>
+        <SheetTitle>Chats</SheetTitle>
+        <ShareDialog conversationId="c1" open embedded onOpenChange={onOpenChange} />
+      </SheetContent>
+    </Sheet>,
+  );
+  const sheet = screen.getByRole("dialog", { name: "Chats" });
+  expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  expect(within(sheet).getByRole("heading", { name: "Share conversation" })).toBeVisible();
+  await user.click(within(sheet).getByRole("button", { name: "Back" }));
+  expect(onOpenChange).toHaveBeenCalledWith(false);
+  expect(shareConversation).not.toHaveBeenCalled();
+  expect(revokeShare).not.toHaveBeenCalled();
 });

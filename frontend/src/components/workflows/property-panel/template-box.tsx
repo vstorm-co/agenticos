@@ -187,7 +187,7 @@ export const TemplateBox = forwardRef<HTMLInputElement & HTMLTextAreaElement, Te
           placeholder={placeholder}
           aria-invalid={invalid}
           className={cn(
-            "selection:bg-primary/20 caret-foreground relative bg-transparent text-transparent",
+            "selection:bg-primary/20 caret-foreground relative bg-transparent text-transparent enabled:hover:bg-transparent",
             multiline && "[scrollbar-gutter:stable]",
           )}
           // A text box throughout, as a textarea must be: a role switched while

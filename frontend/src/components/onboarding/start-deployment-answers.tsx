@@ -12,7 +12,7 @@ import {
   Palette,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { FormField, Switch, Textarea, Button } from "@/components/ui";
+import { Switch, Textarea, Button } from "@/components/ui";
 import type {
   DefaultOrganizationRole,
   DeploymentSettingsPatch,
@@ -134,67 +134,63 @@ export function DeploymentAnnouncement({
   const t = useTranslations("start.guided");
   return (
     <div className={styles.announcementLayout}>
-      <div>
-        <FormField label={t("welcomeMessage")} htmlFor="start-announcement">
-          <Textarea
-            id="start-announcement"
-            rows={3}
-            maxLength={4000}
-            value={value ?? ""}
-            disabled={pending}
-            onChange={(event) => onChange({ announcement: event.target.value || null })}
-          />
-        </FormField>
-        <div className={styles.presets}>
-          {(["info", "warning", "critical"] as const).map((option) => (
-            <Button
-              key={option}
-              variant={level === option ? "secondary" : "outline"}
-              aria-pressed={level === option}
-              disabled={pending}
-              onClick={() => onChange({ announcement_level: option })}
-            >
-              {t(option)}
-            </Button>
-          ))}
-        </div>
-      </div>
       <div
         className={styles.preview}
         role="region"
         aria-label={t("livePreview")}
         data-level={level}
       >
-        <strong>{t("livePreview")}</strong>
-        <p>{value || t("announcementEmpty")}</p>
+        <div className={styles.previewHeader}>
+          <strong>{t("livePreview")}</strong>
+          <label htmlFor="start-announcement">{t("welcomeMessage")}</label>
+        </div>
+        <Textarea
+          id="start-announcement"
+          className={styles.announcementEditor}
+          rows={3}
+          maxLength={4000}
+          placeholder={t("announcementEmpty")}
+          value={value ?? ""}
+          disabled={pending}
+          onChange={(event) => onChange({ announcement: event.target.value || null })}
+        />
+      </div>
+      <div className={styles.presets} role="group" aria-label={t("announcementTone")}>
+        {(["info", "warning", "critical"] as const).map((option) => (
+          <Button
+            key={option}
+            variant={level === option ? "secondary" : "outline"}
+            aria-pressed={level === option}
+            disabled={pending}
+            onClick={() => onChange({ announcement_level: option })}
+          >
+            {t(option)}
+          </Button>
+        ))}
       </div>
     </div>
   );
 }
 
-export function DeploymentExtras({ maintenance }: { maintenance: boolean }) {
+export function DeploymentExtras({ maintenance, orgId }: { maintenance: boolean; orgId: string }) {
   const t = useTranslations("start.guided");
   return (
     <div className={styles.extras}>
       {(
         [
-          [Palette, "branding", "identity"],
-          [Mic, "voice", "services"],
-          [Smartphone, "mobile", "services"],
-          [ShieldCheck, "maintenance", "operations"],
+          [Palette, "branding", "/admin/settings?section=identity"],
+          [Mic, "voice", `/orgs/${orgId}/members?tab=voice`],
+          [Smartphone, "mobile", "/admin/settings?section=services"],
+          [ShieldCheck, "maintenance", "/admin/settings?section=notices"],
         ] as const
-      ).map(([Icon, name, section]) => (
+      ).map(([Icon, name, href]) => (
         <article className={styles.extra} key={name}>
           <div className={styles.extraHeader}>
             <Icon aria-hidden />
             <h3>{t(`${name}Title`)}</h3>
           </div>
           <p>{t(`${name}Body`)}</p>
-          <Link
-            href={`/admin/settings?section=${section}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <Link href={href} target="_blank" rel="noopener noreferrer">
             {t("openSettings")}
           </Link>
         </article>

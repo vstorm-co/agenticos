@@ -19,6 +19,7 @@ import {
   openAgent,
   openBuilderTab,
   pageHeading,
+  readAppearanceAs,
   pageStatus,
   saveDraft,
   selectSavedModel,
@@ -264,12 +265,18 @@ test.describe("Agents", () => {
     // Builder that renders its shell while the agent fails to load shows the
     // same headings and none of this.
     await expect(pageStatus(page)).toContainText("published");
-    await expect(page.getByRole("textbox", { name: "Description" })).toHaveValue(
+    await expect(page.getByRole("textbox", { name: "Description" })).toHaveCount(0);
+    await page.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("menuitem", { name: "Details" }).click();
+    const details = page.getByRole("dialog", { name: "Details" });
+    await expect(details.getByRole("textbox", { name: "Description" })).toHaveValue(
       /organization's general-purpose assistant/,
     );
+    await expect(details.getByRole("heading", { name: "Categories and tags" })).toBeVisible();
+    await details.getByRole("button", { name: "Close" }).click();
 
     await expect(page.getByRole("textbox", { name: "Instructions" })).toHaveValue(
-      /You are \{\{agent_name\}\}, the helpful general-purpose assistant in/,
+      /You are \{\{agent_name\}\}, the general-purpose assistant in/,
     );
 
     // The model section leads with the profile this agent actually runs on, and
@@ -672,3 +679,62 @@ test.describe("Agents", () => {
     await expect(page.getByRole("dialog").getByRole("button", { name: "Publish" })).toBeVisible();
   });
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`agent separators align across descriptions and attention states in ${theme}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await readAppearanceAs(page, theme);
+    const response = await page.request.get("/api/agents");
+    expect(response.ok()).toBe(true);
+    const body: unknown = await response.json();
+    if (!body || typeof body !== "object" || !("items" in body) || !Array.isArray(body.items))
+      throw new Error("Expected an agent catalog");
+    const first: unknown = body.items[0];
+    if (!first || typeof first !== "object") throw new Error("Expected a seeded agent");
+    const ids = ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"];
+    await page.route(/\/api\/agents(?:\?|$)/, (route) =>
+      route.fulfill({
+        json: {
+          ...body,
+          items: ids.map((id, index) => ({
+            ...first,
+            id,
+            name: index ? "Long agent description" : "Short agent",
+            description: index ? "Detailed agent description. ".repeat(30) : null,
+          })),
+          total: 2,
+        },
+      }),
+    );
+    await page.route("**/api/stats/attention?*", (route) =>
+      route.fulfill({
+        json: {
+          from: "2026-11-01",
+          to: "2026-11-30",
+          items: [
+            {
+              agent_id: ids[0],
+              name: "Short agent",
+              rated_down: 0,
+              failed_runs: 1,
+              failing_suites: 0,
+              can_edit: true,
+            },
+          ],
+        },
+      }),
+    );
+    await page.goto("/agents");
+    const cards = page.locator('[data-slot="resource-card"]');
+    await expect(cards).toHaveCount(2);
+    await expect(page.getByRole("button", { name: /Needs attention/ })).toBeVisible();
+    const left = await cards.nth(0).locator(":scope > .border-t").boundingBox();
+    const right = await cards.nth(1).locator(":scope > .border-t").boundingBox();
+    expect(left).not.toBeNull();
+    expect(right).not.toBeNull();
+    expect(left?.y).toBeCloseTo(right?.y ?? -1, 0);
+    expect(left?.height).toBeCloseTo(right?.height ?? -1, 0);
+  });
+}

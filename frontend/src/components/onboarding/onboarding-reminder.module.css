@@ -1,0 +1,140 @@
+.card {
+  margin: 0 12px 8px;
+  padding: 14px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-card);
+}
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.heading h3 {
+  min-width: 0;
+  flex: 1;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.4;
+}
+.artwork {
+  position: relative;
+  display: block;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+}
+.artwork > div {
+  width: 100%;
+  height: 100%;
+}
+.spark {
+  position: absolute;
+  right: -1px;
+  top: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-card);
+}
+.hint {
+  margin-top: 10px;
+  color: var(--color-muted-foreground);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.action {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 34px;
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: var(--color-secondary);
+  color: var(--color-secondary-foreground);
+  font-size: 12px;
+  font-weight: 550;
+}
+.action:hover {
+  background: var(--color-accent);
+}
+.action:focus-visible,
+.dismiss:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+.dismiss {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: -4px -4px 0 0;
+  flex-shrink: 0;
+  border-radius: 6px;
+  color: var(--color-muted-foreground);
+}
+.dismiss:hover {
+  background: var(--color-accent);
+  color: var(--color-foreground);
+}
+.dismiss:disabled {
+  opacity: 0.5;
+}
+.railMark {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.unfinished::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-brand);
+}
+@media (pointer: coarse) {
+  .action,
+  .dismiss {
+    min-height: 44px;
+  }
+  .dismiss {
+    min-width: 44px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :global(html:not([data-motion="reduce"])) .artwork {
+    animation: setup-greeting 2.8s ease-in-out 2;
+  }
+  :global(html:not([data-motion="reduce"])) .unfinished::after {
+    animation: setup-signal 2.8s ease-in-out 2;
+  }
+}
+@keyframes setup-greeting {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  45% {
+    transform: translateY(-2px) rotate(-5deg);
+  }
+  65% {
+    transform: translateY(-1px) rotate(3deg);
+  }
+}
+@keyframes setup-signal {
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-brand) 12%, transparent);
+  }
+}

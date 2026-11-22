@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { McpBindingDialog } from "@/components/agents/mcp-binding-dialog";
 import { useBranding } from "@/components/branding/branding-provider";
@@ -8,26 +8,17 @@ import { CardStatus, McpServerCard } from "@/components/mcp/mcp-server-card";
 import { PlatformServerCard } from "./platform-server-card";
 import { Checkbox, Pager, SearchInput, Switch, useListControls } from "@/components/ui";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
-import { entryForConnection } from "@/lib/mcp-servers";
+import {
+  entryForConnection,
+  restoreMcpBindings,
+  bindingKey,
+  type McpBindingSlot,
+} from "@/lib/mcp-servers";
 import type { McpConnectionRecord, McpToolInfo } from "@/lib/mcp-connections-api";
 import type { AccountRef } from "@/components/agents/mcp-binding-dialog";
 import type { McpServerRef, PlatformMcpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
 import { useTranslations } from "next-intl";
-
-/**
- * What identifies a binding in the spec: the connection it names, or the
- * service each person reaches through their own account.
- *
- * Two bindings with one key are the same binding, which is what the Builder
- * needs to replace a binding's tools without knowing which kind it is.
- */
-export function bindingKey(ref: McpServerRef): string {
-  if (ref.account === "platform") return "platform";
-  return ref.account === "personal"
-    ? `personal:${ref.catalog_key}`
-    : `organization:${ref.connection_id}`;
-}
 
 interface McpServerPickerProps {
   /** The organization's servers - what an organization binding may name. */
@@ -122,6 +113,8 @@ export function McpServerPicker({
   const { appName } = useBranding();
   const [connectedOnly, setConnectedOnly] = useState(false);
   const [boundOnly, setBoundOnly] = useState(false);
+  const switchedOff = useRef(new Map<string, McpBindingSlot[]>());
+  const toggleOrder = useRef<string[]>([]);
   const known = new Set(connections.map((connection) => connection.id));
   const catalogKeys = new Set(catalog.map((entry) => entry.key));
   // Of either kind: an organization binding to a connection this organization no
@@ -144,10 +137,66 @@ export function McpServerPicker({
   const platform =
     value.find((ref): ref is PlatformMcpServerRef => ref.account === "platform") ?? null;
 
-  /** Replace every binding this row held with `next` - several, one, or none. */
+  /** Update this row's bindings without moving them ahead of or behind other servers. */
   const rebind = (row: CardRow, next: AccountRef[]) => {
-    const mine = new Set<McpServerRef>(bindingsFor(row, value));
-    onChange([...value.filter((ref) => !mine.has(ref)), ...next]);
+    const current = bindingsFor(row, value);
+    const mine = new Set<McpServerRef>(current);
+    if (next.length < current.length) {
+      // Removing an account leaves the surviving references in their own slots.
+      const retained = new Set<McpServerRef>(next);
+      onChange(value.filter((ref) => !mine.has(ref) || retained.has(ref)));
+      return;
+    }
+    // The dialog edits accounts in place and appends new ones. The length check
+    // above guarantees a replacement for every occupied slot.
+    let index = 0;
+    const updated = value.map((ref) => (mine.has(ref) ? next[index++]! : ref));
+    onChange([...updated, ...next.slice(index)]);
+  };
+
+  const toggleBindings = (
+    key: string,
+    current: McpServerRef[],
+    on: boolean,
+    next: McpServerRef[],
+    explicitAccount = false,
+  ) => {
+    if (!on) {
+      if (switchedOff.current.size === 0) toggleOrder.current = value.map(bindingKey);
+      for (const binding of value) {
+        const key = bindingKey(binding);
+        if (!toggleOrder.current.includes(key)) toggleOrder.current.push(key);
+      }
+      const removed = new Set(current);
+      switchedOff.current.set(
+        key,
+        value.flatMap((binding) =>
+          removed.has(binding)
+            ? [{ binding, index: toggleOrder.current.indexOf(bindingKey(binding)) }]
+            : [],
+        ),
+      );
+      onChange(value.filter((binding) => !removed.has(binding)));
+      return;
+    }
+    const previous = switchedOff.current.get(key);
+    switchedOff.current.delete(key);
+    const changedAccount =
+      explicitAccount &&
+      previous &&
+      !next.every((binding) =>
+        previous.some((slot) => bindingKey(slot.binding) === bindingKey(binding)),
+      );
+    if (!previous || changedAccount) {
+      onChange([...value, ...next]);
+      return;
+    }
+    const order = new Map(toggleOrder.current.map((key, index) => [key, index]));
+    const restored = restoreMcpBindings(value, previous);
+    restored.sort(
+      (a, b) => (order.get(bindingKey(a)) ?? order.size) - (order.get(bindingKey(b)) ?? order.size),
+    );
+    onChange(restored);
   };
 
   // A connection the catalog does not describe is a custom server somebody
@@ -230,7 +279,7 @@ export function McpServerPicker({
         </label>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid auto-rows-fr gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {/* First, and on every page a search does not rule out: the one server
             that needs no connection, because it is this deployment (#2190). */}
         {list.page === 0 &&
@@ -240,10 +289,10 @@ export function McpServerPicker({
             <PlatformServerCard
               binding={platform}
               onChange={(next) =>
-                onChange([
-                  ...value.filter((ref) => ref.account !== "platform"),
-                  ...(next === null ? [] : [next]),
-                ])
+                onChange(value.flatMap((ref) => (ref !== platform ? [ref] : next ? [next] : [])))
+              }
+              onToggle={(on, fallback) =>
+                toggleBindings("platform", platform ? [platform] : [], on, [fallback])
               }
               disabled={disabled}
             />
@@ -254,6 +303,15 @@ export function McpServerPicker({
             row={row}
             bindings={bindingsFor(row, value)}
             onRebind={(next) => rebind(row, next)}
+            onToggle={(on, fallback, explicitAccount) =>
+              toggleBindings(
+                `row:${row.key}`,
+                bindingsFor(row, value),
+                on,
+                fallback,
+                explicitAccount,
+              )
+            }
             onTools={onTools}
             onConnect={onConnect}
             personalTools={
@@ -324,6 +382,7 @@ function ServerCard({
   row,
   bindings,
   onRebind,
+  onToggle,
   onTools,
   onConnect,
   personalTools,
@@ -337,6 +396,7 @@ function ServerCard({
   row: CardRow;
   bindings: AccountRef[];
   onRebind: (next: AccountRef[]) => void;
+  onToggle: (on: boolean, fallback: AccountRef[], explicitAccount?: boolean) => void;
   onTools: (ref: McpServerRef, probed: OrgMcpConnectionRecord, name: string) => void;
   onConnect: (entry: McpCatalogEntry) => void;
   personalTools: McpToolInfo[] | null;
@@ -375,13 +435,15 @@ function ServerCard({
   // each person's own where there is not - the one kind that needs no connection
   // to exist - and opens its settings, because which accounts and which tools
   // is the next thing to decide. Off unbinds every account it had.
-  const toggle = (on: boolean) => {
+  const toggle = (on: boolean, preferred?: AccountRef) => {
     if (!on) {
-      onRebind([]);
+      onToggle(false, []);
       return;
     }
-    if (connection) {
-      onRebind([
+    if (preferred) {
+      onToggle(true, [preferred], true);
+    } else if (connection) {
+      onToggle(true, [
         {
           account: "organization",
           connection_id: connection.id,
@@ -390,7 +452,7 @@ function ServerCard({
         },
       ]);
     } else if (entry) {
-      onRebind([
+      onToggle(true, [
         { account: "personal", catalog_key: entry.key, allowed_tools: null, approval: "none" },
       ]);
     }

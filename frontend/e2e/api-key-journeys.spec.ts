@@ -45,6 +45,11 @@ for (const device of [
       let release: (() => void) | undefined;
       try {
         await page.goto("/settings/api-keys");
+        await expect(page.getByRole("tab", { name: "MCP clients" })).toHaveAttribute(
+          "aria-selected",
+          "true",
+        );
+        await page.getByRole("tab", { name: "API", exact: true }).click();
         await expect(page.getByRole("button", { name: "Create key", exact: true })).toBeVisible();
         const catalog = await page.request.get("/api/api-keys/scopes");
         expect(catalog.ok(), `scope catalog answered ${catalog.status()}`).toBe(true);

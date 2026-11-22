@@ -412,13 +412,18 @@ async def list_provider_models(
         if provider not in CUSTOM_LISTINGS:
             raise refused_field(
                 "base_url",
-                "Only OpenRouter, Stav and Otari support a custom model listing endpoint",
+                "Only OpenRouter, Stav, Otari, Custom (OpenAI-compatible) and Custom "
+                "(Anthropic-compatible) support a custom model listing endpoint",
             )
         if not ctx.has(Perm.CONNECTIONS_MANAGE):
             raise AuthorizationError(
                 message="Managing connections is required for a custom endpoint"
             )
         base_url = await validate_endpoint_url(base_url)
+        # The SDK's own path is below the endpoint, so an endpoint that already
+        # carries it is trimmed: the listing is asked for where the requests go.
+        if (spec := PROVIDERS.get(provider)) is not None:
+            base_url = spec.endpoint(base_url)
     sends_key = base_url is None or CUSTOM_LISTINGS[provider]
     if base_url is not None and sends_key and secret_id is None:
         raise refused_field("secret_id", "Choose a vault key before listing this endpoint")

@@ -537,7 +537,9 @@ class TestWhatTheNightlyLookSends:
         await look.look(org.id, person.id)
 
         prompt = thinker.think.await_args.kwargs["prompt"]
-        assert json.loads(prompt)["requests_this_week"] == ["Draft the Monday sales report"]
+        assert [request["text"] for request in json.loads(prompt)["requests_this_week"]] == [
+            "Draft the Monday sales report"
+        ]
         assert "falcon" not in prompt
 
     async def test_a_week_of_only_refused_prompts_is_nothing_new(self, db) -> None:
@@ -619,7 +621,10 @@ class TestOnlyWhatPassedTheInputEdgeIsRead:
         await look.look(org.id, person.id)
         if thinker.think.await_args is None:
             return None
-        return json.loads(thinker.think.await_args.kwargs["prompt"])["requests_this_week"]
+        return [
+            item["text"]
+            for item in json.loads(thinker.think.await_args.kwargs["prompt"])["requests_this_week"]
+        ]
 
     @staticmethod
     async def _looked_at(db, org: Organization, person: User, at: datetime) -> None:

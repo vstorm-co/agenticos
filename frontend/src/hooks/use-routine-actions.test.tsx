@@ -38,3 +38,19 @@ it("refreshes a rejected review before a person can submit another consent", asy
   expect(api.replace).toHaveBeenNthCalledWith(2, "agent", "routine", [], "new");
   expect(api.get).toHaveBeenCalledTimes(2);
 });
+
+it("does not fetch an action catalog until restricted mode needs it", async () => {
+  api.get.mockClear();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  }
+  const view = renderHook(({ enabled }) => useRoutineActions("agent", "routine", { enabled }), {
+    wrapper: Wrapper,
+    initialProps: { enabled: false },
+  });
+  expect(api.get).not.toHaveBeenCalled();
+  view.rerender({ enabled: true });
+  await waitFor(() => expect(api.get).toHaveBeenCalledOnce());
+  expect(api.get).toHaveBeenCalledWith("agent", "routine");
+});

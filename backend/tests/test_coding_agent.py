@@ -1939,7 +1939,7 @@ def test_coding_instructions_distinguish_parallel_local_work_from_sandbox_snapsh
     assert "queue" in sandbox and "not separate files" in sandbox
     assert "can work at once" not in sandbox
     private = CodingAgent(runs_on="personal_sandbox").get_instructions()
-    assert "isolated copy" in private and "queue" not in private
+    assert "own files and native CLI history" in private and "bounded queue" in private
 
 
 @pytest.mark.security

@@ -1,7 +1,9 @@
 "use client";
 
+import { NATIVE_CHOICE } from "@/components/ui/control-styles";
+
 import { useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { AlertTriangle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -225,7 +227,7 @@ export function ChangeVersionDialog({
       <input
         type="radio"
         name="skill-binding"
-        className="mt-1"
+        className={cn(NATIVE_CHOICE, "mt-1")}
         checked={
           target.state === choice.state && (choice.state !== "fork" || sameTarget(choice, target))
         }

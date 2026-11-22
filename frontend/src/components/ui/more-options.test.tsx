@@ -19,7 +19,7 @@ describe("MoreOptions", () => {
     expect(screen.getByText("A note")).toBeVisible();
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     await userEvent.click(toggle);
-    expect(screen.queryByText("A note")).toBeNull();
+    expect(screen.getByText("A note")).not.toBeVisible();
   });
 
   it("starts open where the caller says so", () => {
@@ -52,4 +52,39 @@ describe("MoreOptions", () => {
     );
     expect(screen.getByText("A note")).toBeVisible();
   });
+});
+
+it("preserves edited form values after folding and restores focus on collapse", async () => {
+  function Fields({ open }: { open: boolean }) {
+    return (
+      <MoreOptions label="Advanced" open={open}>
+        <input aria-label="Notes" defaultValue="" />
+      </MoreOptions>
+    );
+  }
+  const view = render(<Fields open />);
+  const field = screen.getByRole("textbox", { name: "Notes" });
+  await userEvent.type(field, "Keep this draft");
+  view.rerender(<Fields open={false} />);
+  expect(screen.getByRole("button", { name: "Advanced" })).toHaveFocus();
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  view.rerender(<Fields open />);
+  expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue("Keep this draft");
+});
+
+it("reveals and focuses a retained required field when a submit fails validation", async () => {
+  const submit = vi.fn((event: import("react").FormEvent) => event.preventDefault());
+  render(
+    <form onSubmit={submit}>
+      <MoreOptions label="Advanced" defaultOpen>
+        <input required aria-label="Endpoint" />
+      </MoreOptions>
+      <button type="submit">Save</button>
+    </form>,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Advanced" }));
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(submit).not.toHaveBeenCalled();
+  expect(screen.getByRole("textbox", { name: "Endpoint" })).toHaveFocus();
 });

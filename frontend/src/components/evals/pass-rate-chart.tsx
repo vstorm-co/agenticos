@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useLocale, useTranslations } from "next-intl";
 
 import type { PassRateLine, PassRatePoint } from "@/components/charts/pass-rate-lines.impl";
-import { ChoiceGroup } from "@/components/settings/choice-group";
+import { ChoiceGroup } from "@/components/ui/choice-group";
 import { useUrlState } from "@/hooks/use-url-state";
 import { ROUTES } from "@/lib/constants";
 import { CHART_MIN_HEIGHT, LINE_WIDTH, STROKE_TOKEN } from "@/lib/dashboard/system";

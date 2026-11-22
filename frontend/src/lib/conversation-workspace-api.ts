@@ -58,6 +58,8 @@ export interface ConversationWorkspace {
    * configuration somebody chose, and it has a one-line fix the message names.
    */
   unreadable_reason: string | null;
+  /** Missing archive, with no retained session reference; does not assert the files never existed. */
+  unreadable_code?: "workspace_not_retained" | null;
 }
 
 export interface ConversationFileContent {

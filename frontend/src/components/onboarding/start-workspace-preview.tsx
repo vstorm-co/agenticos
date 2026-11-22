@@ -30,7 +30,10 @@ export function StartWorkspacePreview({
           <path d="M50 75V90Q50 105 40 105H15V135M50 90Q50 105 60 105H85V135" />
         </svg>
         <div className={styles.previewOrganization}>
-          <span className={styles.workspaceMonogram} aria-hidden="true">
+          <span
+            className={organization ? styles.workspaceLogo : styles.workspaceMonogram}
+            aria-hidden="true"
+          >
             {organization ? (
               <EntityAvatar
                 seed={organization.id}

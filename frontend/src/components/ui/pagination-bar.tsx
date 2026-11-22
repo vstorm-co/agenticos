@@ -20,24 +20,27 @@ export function PaginationBar({
   total,
   isLoading,
   onPage,
+  showSinglePage = false,
 }: {
   page: number;
   pageSize: number;
   total: number;
   isLoading?: boolean;
+  /** Keep the footer visible for a primary list, including zero records. */
+  showSinglePage?: boolean;
   onPage: (page: number) => void;
 }) {
   const tc = useTranslations("common");
-  if (total === 0) return null;
+  if (total === 0 && !showSinglePage) return null;
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
-  const start = page * pageSize + 1;
+  const start = total === 0 ? 0 : page * pageSize + 1;
   const end = Math.min(total, (page + 1) * pageSize);
 
   return (
     <div className="flex min-h-9 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <span className="text-muted-foreground text-[13px] tabular-nums">
-        {tc("rangeOfTotal", { start, end, total })}
+        {isLoading ? tc("loading") : tc("rangeOfTotal", { start, end, total })}
       </span>
       <PageNavigation
         page={page}

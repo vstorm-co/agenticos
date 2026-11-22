@@ -57,7 +57,16 @@ def broadcast_mentioned(platform: str, text: str) -> bool:
 # Surface a conversation is happening on. "web" is the chat UI / API; the
 # others are messaging platforms. Extend this when adding new channels.
 ChannelType = Literal[
-    "web", "slack", "telegram", "mattermost", "teams", "sms", "email", "discord", "imessage"
+    "web",
+    "slack",
+    "telegram",
+    "mattermost",
+    "teams",
+    "sms",
+    "email",
+    "discord",
+    "imessage",
+    "matrix",
 ]
 
 # Default access policy applied to new channel bots.  Imported by models and
@@ -631,7 +640,12 @@ class ChannelAdapter(ABC):
         raise ChannelDirectoryUnsupported("This platform does not support agent-chosen reactions")
 
     async def acknowledge_message(  # noqa: B027 - a no-op where the platform has no reactions
-        self, bot_token: str, incoming: IncomingMessage, reaction: str
+        self,
+        bot_token: str,
+        incoming: IncomingMessage,
+        reaction: str,
+        *,
+        api_base_url: str | None = None,
     ) -> None:
         """React to a question the moment it arrives, so the asker sees it was heard."""
 

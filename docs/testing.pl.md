@@ -1,5 +1,5 @@
 ---
-source_sha: "76c60cd662bd"
+source_sha: "b4b7a56be679"
 ---
 
 # Testowanie { #testing }
@@ -655,9 +655,18 @@ zaimportował, i sprawdza payload, tak jak fixture `queued_fires` w
 
 ## Podział CI { #ci-distribution }
 
-Zestaw backendowy mierzy cały kod aplikacji raz. Raport platformy nadal wymaga
-100% pokrycia; `make coverage-all REUSE_COVERAGE=1` raportuje kod odziedziczony
-z tych samych danych, bez ponownego uruchamiania testów.
+Testy backendu działają w czterech odizolowanych jobach, każdy z własnym
+PostgreSQL, Redisem i magazynem obiektów. Każdy plik testowy trafia dokładnie do
+jednego joba; początkowy podział równoważy rozmiar źródeł. Każda część używa do
+czterech workerów pytest i zbiera coverage bez progu dla niepełnej suity.
+Wymagany check `test` odrzuca nieudany job oraz brakujące, nadmiarowe, puste lub
+uszkodzone dane, scala cztery raporty i stosuje niezmieniony **próg 100% pokrycia
+platformy**. Względne ścieżki umożliwiają scalanie danych z różnych checkoutów.
+
+Raporty JUnit i 30 najwolniejszych faz testów pozostają dostępne dla każdej części.
+Rozmiar pliku to początkowe przybliżenie; rzeczywiste przyspieszenie trzeba zmierzyć
+w CI. `make test` zachowuje pełną lokalną suitę i próg, a
+`make coverage-all REUSE_COVERAGE=1` używa scalonych danych bez powtarzania testów.
 
 Lint frontendu, build produkcyjny i cztery shardy testów działają niezależnie.
 Shardy zachowują izolację plików, a niezmienione progi pokrycia sprawdza jeden

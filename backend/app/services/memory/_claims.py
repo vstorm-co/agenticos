@@ -386,15 +386,24 @@ async def provenance(
 def profile_text(claims: Sequence[MemoryClaim]) -> str:
     """The profile block: bounded, newest first, with when each began to hold."""
     lines: list[str] = []
+    counts: dict[str, int] = {}
     used = 0
     for claim in claims[:PROFILE_CLAIMS]:
         since = f" (since {claim.effective_from:%Y-%m-%d})" if claim.effective_from else ""
-        line = f"- {claim.statement}{since}"
-        if used + len(line) > PROFILE_CHARS:
+        line = f"- [{claim.kind}] {claim.statement}{since}"
+        # Leave room for the count line. It describes only the entries actually supplied.
+        if used + len(line) + 1 > PROFILE_CHARS - 100:
             break
         lines.append(line)
-        used += len(line)
-    return "\n".join(lines)
+        counts[claim.kind] = counts.get(claim.kind, 0) + 1
+        used += len(line) + 1
+    if not lines:
+        return ""
+    heading = (
+        f"Included here: {counts.get('fact', 0)} facts, {counts.get('preference', 0)} "
+        f"preferences, {counts.get('decision', 0)} decisions. Use recall for more."
+    )
+    return "\n".join([heading, *lines])
 
 
 async def profile(

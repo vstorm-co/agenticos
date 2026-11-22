@@ -20,12 +20,21 @@ vi.mock("@/hooks/use-suggestions", () => ({
     return state;
   },
 }));
+const questions = vi.hoisted(() => ({
+  count: 2,
+  isLoading: false,
+  error: null as Error | null,
+  refetch: vi.fn(),
+}));
+vi.mock("@/hooks/use-waiting-chat-questions", () => ({ useWaitingChatQuestions: () => questions }));
 beforeEach(() => {
   state.allowed = true;
   state.loaded = true;
   state.isLoading = false;
   state.error = null;
   state.suggestions = [{ id: "proposal" }];
+  questions.error = null;
+  questions.isLoading = false;
   vi.clearAllMocks();
 });
 it("counts the reader's open Inbox proposals", () => {
@@ -39,6 +48,7 @@ it("does not read proposals without permission or count cached proposals", () =>
   state.allowed = false;
   expect(renderHook(useWaitingOnMe).result.current).toMatchObject({
     suggestions: 0,
+    questions: 2,
     settled: true,
     failed: false,
   });
@@ -62,10 +72,18 @@ it("does not retry a successful read", () => {
   renderHook(useWaitingOnMe).result.current.retry();
   expect(state.refetch).not.toHaveBeenCalled();
 });
-it("lists only personal approvals and proposals, omitting zero counts", () => {
-  expect(waitingOn(2, { suggestions: 3 })).toEqual([
+it("counts questions separately and retries their failed read", () => {
+  questions.error = new Error("offline");
+  const { result } = renderHook(useWaitingOnMe);
+  expect(result.current).toMatchObject({ questions: 2, settled: false, failed: true });
+  result.current.retry();
+  expect(questions.refetch).toHaveBeenCalledOnce();
+});
+it("lists personal approvals, questions and proposals, omitting zero counts", () => {
+  expect(waitingOn(2, { questions: 1, suggestions: 3 })).toEqual([
     ["approvals", 2],
+    ["questions", 1],
     ["suggestions", 3],
   ]);
-  expect(waitingOn(0, { suggestions: 0 })).toEqual([]);
+  expect(waitingOn(0, { questions: 0, suggestions: 0 })).toEqual([]);
 });

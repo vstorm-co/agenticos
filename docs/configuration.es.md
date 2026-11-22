@@ -1,11 +1,20 @@
 ---
-source_sha: "321cae7a1b30"
+source_sha: "b190a21ae0c5"
 ---
 
 # Configuración { #configuration }
 
-Toda la configuración se gestiona con variables de entorno, cargadas desde
+La configuración de los servicios usa variables de entorno, cargadas desde
 `backend/.env` con [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
+
+La presentación de la consola y los plazos de avisos se guardan en la base de datos
+desde la interfaz. La disponibilidad de la instalación limita los elementos del
+inicio del chat y los recordatorios; los valores de la organización y las
+preferencias personales de cada pertenencia eligen entre los disponibles. El
+aplazamiento dura 1, 3 o 7 días. El servidor aplica la caducidad del anuncio; el fin
+previsto del mantenimiento solo informa y no vuelve a abrir la instalación.
+[La experiencia de la consola](console.es.md#console-experience) describe los
+controles y la herencia.
 
 Los ajustes se definen en `app/core/config.py` y se leen a través del objeto
 global `settings`:
@@ -89,7 +98,11 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 
 Para enviar imágenes a canales en producción, configura `VISUAL_RENDER_CDP_URL=http://visual-render:9222` y `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` en `backend/.env`. `scripts/deploy.sh` activa entonces el perfil `visuals` en `docker-compose-prod.yml`; para iniciar manualmente, añade `--profile visuals`.
 
-La navegación pública necesita un navegador separado: configure `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` y `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. El despliegue activa el perfil `browser`. Configure `browser_use.cdp_url` del agent como `http://browser:9222` y publique su borrador. El navegador solo sale mediante el proxy; Squid rechaza destinos privados y de metadatos. Mantenga `VISUAL_RENDER_CDP_URL=http://visual-render:9222` para dibujar con aislamiento. Sin restricción de dominios se permiten sitios públicos; una lista explícita de dominios sigue vigente.
+La navegación pública necesita un navegador separado: configure `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` y `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. El despliegue activa el perfil `browser`. Los agentes con **Built in** usan `BROWSER_SIGN_IN_CDP_URL` cuando su propio `cdp_url` está vacío. El navegador solo sale mediante el proxy; Squid rechaza destinos privados y de metadatos. Mantenga `VISUAL_RENDER_CDP_URL=http://visual-render:9222` para dibujar con aislamiento. Sin restricción de dominios se permiten sitios públicos; una lista explícita de dominios sigue vigente.
+
+AgenticOS usa por defecto **Built in**, con hasta 100 pasos por llamada, y **Computer use → Docker / Sandbox** con el entorno `desktop`. Este incluye también las herramientas de workbench para código y documentos. Sin conexión a contenedores, el escritorio y las herramientas personales de código en la nube permanecen desactivados. Un endpoint de navegador ausente o un contenedor inaccesible solo afecta a sus llamadas; el agente puede publicarse y responder con sus otras herramientas. Los endpoints configurados siguen sujetos a la lista de hosts permitidos del operador.
+
+AgenticOS trabaja directamente salvo que el usuario solicite explícitamente subagentes o trabajo paralelo de agentes. En Delegates se habilitan todos los agentes publicados accesibles de la organización actual. Se mantienen los permisos y las versiones fijadas explícitamente; las rutinas sin usuario no reciben este catálogo. La creación dinámica de especialistas está desactivada.
 
 El renderizador no publica puertos ni tiene acceso a Internet, sirve a la API y al worker y tiene un límite de 1 CPU y 1 GiB de RAM. Las imágenes publicadas del backend incluyen el extra `browser`; una imagen propia necesita `EXTRAS="--extra browser"`. Si falla la renderización, la respuesta del canal indica expresamente que no se pudo adjuntar la imagen. Cada renderizado permite como máximo 256 solicitudes y 32 respuestas pendientes; las teselas también comparten `RATE_LIMIT_MAP_TILES_PER_MINUTE` entre renderizadores.
 
@@ -224,7 +237,7 @@ Dónde vive cada issuer, y qué registrar:
 
 | Proveedor | Issuer | Registra la redirect URI como |
 | --- | --- | --- |
-| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Una redirect URI de plataforma **Web** en el registro de la aplicación. Concede `openid`, `email`, `profile` en API permissions |
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Una redirect URI de plataforma **Web** en el registro de la aplicación. Concede `openid`, `email`, `profile` en API permissions. En **Token configuration**, añade los claims opcionales `email` y `xms_edov` al token **ID** |
 | **Okta** | `https://<org>.okta.com` (o `/oauth2/<id>` de un authorization server propio) | Una sign-in redirect URI en una aplicación **Web** |
 | **Keycloak** | `https://<host>/realms/<realm>` | Una valid redirect URI en un cliente confidencial con el standard flow activado |
 
@@ -240,6 +253,13 @@ Dos cosas que la plataforma exige del proveedor al que se la apunte:
   que cualquiera en ese proveedor puede reclamar la dirección de trabajo de otra
   persona, y la lista de dominios permitidos de abajo se sostiene sobre que una
   dirección signifique algo.
+  En Entra el claim tiene que ir en el **token ID**: su endpoint UserInfo solo
+  devuelve `sub`, `name`, `family_name`, `given_name`, `picture` y `email`.
+  `OIDC_VERIFIED_CLAIM` tiene que nombrar un claim cuyo *valor* sea verdadero para
+  una dirección confirmada; uno que lleva todo token, como `sub`, no confirma nada
+  y no se acepta. Un acceso rechazado registra `oauth_callback_claims_rejected` con
+  la condición que falló (`reason`) y los nombres, nunca los valores, de los
+  claims recibidos.
 - **Un `sub` estable.** La cuenta se indexa por él, no por la dirección, así que
   quien cambie de apellido o cuyo dominio sea comprado conserva su historial — y
   el siguiente titular de una dirección liberada no la hereda. Se guarda **con el

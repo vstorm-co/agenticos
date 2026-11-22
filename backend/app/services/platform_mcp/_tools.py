@@ -7,11 +7,12 @@ is one name, one description and one call for every caller.
 Every description names the permission the call needs, because the caller's key
 or token decides what succeeds and a model told up front stops asking for what
 it will be refused. Nothing here touches a credential. What deletes is undoing an
-agent draft its caller owns and never published, and removing a routine; what
-publishes is `publish_agent`, and `accept_improvement` when the person asked to
-publish, each held for the person's approval like every write here but
-`UNGATED` (#2301). `ALWAYS_ASKS` are held even where a binding names them
-`never`.
+agent draft its caller owns and never published, and removing a routine. Reads
+and authorized draft/record writes run under the default platform policy; explicit
+required/all settings can tighten that. Consequential calls in `ALWAYS_ASKS`
+require a fresh human answer even under standing consent. Task writes also ask
+when their post-state may start or reschedule agent work. These defaults never
+change the caller's permissions or a write's side-effect annotation.
 """
 
 import json as json_module
@@ -27,8 +28,15 @@ from fastmcp.exceptions import ValidationError as MCPValidationError
 from pydantic import AwareDatetime, BaseModel, Field, JsonValue, TypeAdapter, ValidationError
 
 from app.agents.spec import CapabilityBindingSpec, McpServerRef
+from app.core.platform_tool_policy import (
+    ALWAYS_ASKS,
+    CONDITIONAL_EXECUTION,
+    DEFAULT_APPROVAL_FREE,
+    UNGATED,
+)
 from app.db.models.agent_run import RunSurface
 from app.schemas.agent import PlatformToolGroup, QuestionAnswers
+from app.schemas.console_experience import ConsoleExperienceRead, ConsoleExperienceUpdate
 from app.schemas.context import ContextFileCreate, ContextFileUpdate
 from app.schemas.routine_notifications import ExternalNotificationChannel, WatchReportMode
 from app.schemas.skill import SkillResourceCreate, SkillUpdate
@@ -78,34 +86,6 @@ class _AppLinkState(BaseModel):
 
 
 InviteRole = Literal["admin", "builder", "operator", "member", "viewer"]
-
-UNGATED = frozenset({"set_my_language", "set_my_preferences"})
-"""Writes no binding holds for a person's approval, whatever its policy.
-
-Changing the console's language changes the person asking's own account on their
-own word, and Settings undoes it. Persistent routine/watch changes retain their
-binding's write gate: private-human identity alone is not consent to model output.
-Publishing, deletion and running now keep their normal approval policies, and
-inviting is held always - see `ALWAYS_ASKS`.
-`set_my_profile` is not here: what it saves is told to
-every agent the person runs, in every organization, so a page an agent read must
-not be able to write it unseen. `app.agents.mcp` names the same set as
-`PLATFORM_UNGATED_TOOLS`, and a test holds the two equal.
-"""
-
-ALWAYS_ASKS = frozenset(
-    {"invite_member", "update_proactivity_settings", "change_deployment", "change_organization"}
-)
-"""Writes every binding holds for the person's approval, a tool's own `never` included.
-
-They widen who has authority in the organization - a member and their role, the
-organization's initiative and what it may spend - and they run with the authority
-of whoever the agent runs for, not of whoever published it. A Builder must not be
-able to publish an agent that makes an Owner's run invite an Admin unasked.
-`app.agents.mcp` names the same set as `PLATFORM_ALWAYS_ASK_TOOLS`, and a test
-holds the two equal.
-"""
-
 
 _TOOL_FIELDS = frozenset({"last_tools", "allowed_tools", "used_by"})
 """Bulk details that do not belong in connection discovery."""
@@ -232,8 +212,8 @@ class PlatformTool:
     function: Callable[..., Awaitable[dict[str, Any]]]
     writes: bool
     """Whether it changes something. An MCP client is told so through the tool's
-    read-only hint, which is also what holds the call for a person's approval
-    under a binding's default `writes` policy."""
+    read-only hint. Approval defaults are a separate contract: a write remains
+    side-effecting even when it is allowed without a default confirmation."""
     group: PlatformToolGroup
     """What it works on, which is how the Builder groups the tools a binding picks from."""
 
@@ -246,6 +226,16 @@ class PlatformTool:
     def always_asks(self) -> bool:
         """Whether every binding holds a call to it for approval - see `ALWAYS_ASKS`."""
         return self.name in ALWAYS_ASKS
+
+    @property
+    def default_approval_free(self) -> bool:
+        """Runs under default writes policy; explicit tool/binding approvals still apply."""
+        return self.name in DEFAULT_APPROVAL_FREE
+
+    @property
+    def conditional_approval(self) -> bool:
+        """Whether task post-state may require fresh confirmation for new agent work."""
+        return self.name in CONDITIONAL_EXECUTION
 
     @property
     def summary(self) -> str:
@@ -1309,7 +1299,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         backend: Literal["auto", "state", "service"] | None = None,
         sandbox_connection_id: UUID | None = None,
     ) -> dict[str, Any]:
-        """Create a private home for ongoing work. Needs `projects:edit`; waits for approval.
+        """Create a private home for ongoing work. Needs `projects:edit`; runs under the default approval policy.
 
         Propose Projects for work continued across chats: research, a wiki,
         writing, coding or recurring analysis. Save the agreed objective, file
@@ -2116,6 +2106,16 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """
         return await api.request("PUT", f"/tasks/{task_id}", json=task.model_dump(mode="json"))
 
+    async def list_inbox_items(item_id: UUID | None = None) -> dict[str, object]:
+        """Read the person's Inbox cards across chats: findings and suggestions.
+
+        Use for “check my Inbox” or to discuss a specific Inbox card by ID. Only for
+        the person's private chat or console. Read-only. The result has a bounded
+        preview, the full card count and, when allowed, a separate pending approval count.
+        """
+        params = {"item_id": str(item_id)} if item_id is not None else None
+        return await api.request("GET", "/outcomes/inbox", params=params)
+
     async def list_inbox_cases(
         conversation_id: UUID | None = None, limit: DiscoveryLimit = 10, skip: DiscoverySkip = 0
     ) -> dict[str, JsonValue]:
@@ -2127,7 +2127,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         params: dict[str, str | int] = {"include_source": "true", "limit": limit, "skip": skip}
         if conversation_id is not None:
             params["conversation_id"] = str(conversation_id)
-        return _JSON_OBJECT.validate_python(await api.request("GET", "/outcomes", params=params))
+        result = _JSON_OBJECT.validate_python(await api.request("GET", "/outcomes", params=params))
+        return {**result, "scope": "working_chat_cases", "whole_inbox": False}
 
     async def settle_inbox_case(
         outcome_id: UUID, action: Literal["acknowledge", "resolve", "mute"]
@@ -2369,11 +2370,20 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         selects another target. `ends_at` is an ISO timestamp with its UTC offset;
         set it for time-bounded requests. `monthly_budget_usd` is a decimal USD cap.
         `pinned_version_id` keeps one published version; omitted, future fires
-        follow the published version. If configured sources are unavailable, the
-        routine is saved PAUSED with setup_required=true and setup_issues. Report
-        that state honestly, link /routines and the appropriate MCP settings, and
-        repair the existing routine. Do not retry with other agents or identities
-        or create duplicates. The result names the routine and its next activation.
+        follow the published version. New routines follow the agent's current
+        initial configuration and your current permissions without a separate
+        setup review. Later source/account/tool additions or instruction, skill,
+        context or delegate behavior changes need the owner's access review;
+        publication alone never extends the creator's authority. An unconnected
+        optional MCP service is unavailable to that run;
+        it does not block unrelated web research or other available tools. The
+        agent's own approvals and mandatory platform/native gates still apply.
+        People may optionally freeze reviewed sources under /routines. Existing
+        reviewed routines retain that policy until their owner changes it.
+        If setup_required=true, the routine is PAUSED: report the exact blocker
+        and link /routines. Do not claim it will run or silently change shared
+        agent bindings, retry with other identities, or create duplicates.
+        The result names the routine and its next activation.
         """
         body: dict[str, Any] = {"prompt": prompt, "runs_as_creator": runs_as_me}
         if result_mode is not None:
@@ -2707,6 +2717,38 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         return _JSON_OBJECT.validate_python(
             await api.request("PATCH", "/users/me/preferences", json=changes)
         )
+
+    async def get_my_console_experience() -> dict[str, JsonValue]:
+        """Read my chat-home and setup-reminder preferences in the active organization.
+
+        Returns deployment availability, organization defaults, my overrides and
+        effective presentation. This is separate from account theme/style/language.
+        Requires my active personal membership; never reads another person's settings.
+        """
+        result = ConsoleExperienceRead.model_validate(
+            await api.request("GET", "/users/me/console-experience")
+        )
+        return _JSON_OBJECT.validate_python(result.model_dump(mode="json"))
+
+    async def set_my_console_experience(update: ConsoleExperienceUpdate) -> dict[str, JsonValue]:
+        """Change my reversible chat-home or setup-reminder overrides in this organization.
+
+        Use only when the person asks. Omitted fields stay unchanged; null clears
+        that override to inherit. Null preferences/reminders resets that entire
+        group. Chat-home fields are inbox, starters, greeting and feature_hints;
+        reminders accepts enabled and snooze_days (1, 3 or 7). Only personal
+        presentation changes: never deployment ceilings, organization defaults,
+        agent initiative, permissions or approval rules. Theme/style/language
+        remain unchanged. Requires my active personal membership.
+        """
+        result = ConsoleExperienceRead.model_validate(
+            await api.request(
+                "PATCH",
+                "/users/me/console-experience",
+                json=update.model_dump(mode="json", exclude_unset=True),
+            )
+        )
+        return _JSON_OBJECT.validate_python(result.model_dump(mode="json"))
 
     async def set_my_language(locale: ConsoleLocale) -> dict[str, Any]:
         """Switch the console's language for the person asking, using a supported locale from the input schema.
@@ -4177,7 +4219,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def create_workflow_draft(
         name: str, description: str | None = None
     ) -> dict[str, JsonValue]:
-        """Create a private workflow draft after agreeing its purpose. Needs `workflows:create`; waits for approval.
+        """Create a private workflow draft after agreeing its purpose. Needs `workflows:create`; runs under the default approval policy.
 
         Name is 1-128 characters; description at most 2000. Returns the new ID.
         Save a graph with update_workflow_draft, test it, then request publication.
@@ -4191,7 +4233,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def prepare_workflow_draft(
         preparation: dict[str, JsonValue],
     ) -> dict[str, JsonValue]:
-        """Create a complete private draft and optional table in one approval.
+        """Create a complete private draft and optional table in one transaction.
 
         Needs workflows:create/edit and table permissions when a table is included.
         Show the complete proposed graph and schema before this call. Use one local
@@ -4218,7 +4260,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def update_workflow_draft(
         workflow_id: UUID, graph: dict[str, JsonValue], expected_revision: int
     ) -> dict[str, JsonValue]:
-        """Save a workflow graph against its read revision. Needs `workflows:edit`; waits for approval.
+        """Save a workflow graph against its read revision. Needs `workflows:edit`.
 
         Use catalog step versions and ports, unique UUIDs and explicit data bindings.
         Returns the updated definition and revision. On a revision conflict, reread
@@ -4325,7 +4367,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def create_virtual_table(
         name: str, columns: list[ColumnInput], description: str | None = None
     ) -> dict[str, JsonValue]:
-        """Create a private typed table for an automation's records. Needs `tables:create`; waits for approval.
+        """Create a private typed table for an automation's records. Needs `tables:create`; runs under the default approval policy.
 
         Name is at most 64 characters. Columns declare labels and types, including
         rich_text for Markdown notes; secrets belong in the vault, never a table.
@@ -4379,8 +4421,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def add_virtual_table_record(
         table_id: UUID, values: dict[str, JsonValue], external_id: str | None = None
     ) -> dict[str, JsonValue]:
-        """Add one typed record to a table. Needs edit access; waits for approval.
+        """Add one typed record to a table. Needs edit access.
 
+        Managed task writes still ask when they may start or reschedule agent work.
         Values are keyed by column UUIDs from get_virtual_table; display labels
         are not keys. single_select values use option UUIDs from that schema.
         external_id optionally identifies this record in the source system. Returns the record
@@ -4395,8 +4438,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def update_virtual_table_record(
         table_id: UUID, record_id: UUID, update: RecordUpdate
     ) -> dict[str, JsonValue]:
-        """Change selected cells against a record's read revision. Needs edit access; waits for approval.
+        """Change selected cells against a record's read revision. Needs edit access.
 
+        Managed task writes still ask when they may start or reschedule agent work.
         Read before writing. Omitted values stay; null clears a nullable cell.
         Returns the updated record. Reread and reconcile a revision conflict rather
         than replacing another person's changes.
@@ -4451,9 +4495,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def upsert_virtual_table_record(
         table_id: UUID, external_id: str, record: RecordUpsert
     ) -> dict[str, JsonValue]:
-        """Create or update a source-system record. Needs edit access; waits for approval.
+        """Create or update a source-system record. Needs edit access.
 
-        external_id is stable in the source system. An existing record requires its
+        Managed task upserts ask unless they explicitly leave the next step with
+        a person or set a terminal/waiting status. external_id is stable in the source system. An existing record requires its
         read expected_revision; a conflict is refused, never silently overwritten.
         For a managed task board, prefer create_task/update_task: they express
         the next actor, execution schedule and review lifecycle directly.
@@ -4581,6 +4626,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (get_task, False, PlatformToolGroup.TASKS),
         (create_task, True, PlatformToolGroup.TASKS),
         (update_task, True, PlatformToolGroup.TASKS),
+        (list_inbox_items, False, PlatformToolGroup.AUTOMATIONS),
         (list_inbox_cases, False, PlatformToolGroup.TASKS),
         (settle_inbox_case, True, PlatformToolGroup.TASKS),
         (list_routines, False, PlatformToolGroup.AUTOMATIONS),
@@ -4661,6 +4707,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (get_sandbox_policy, False, PlatformToolGroup.CONNECTIONS),
         (get_my_preferences, False, PlatformToolGroup.ACCOUNT),
         (set_my_preferences, True, PlatformToolGroup.ACCOUNT),
+        (get_my_console_experience, False, PlatformToolGroup.ACCOUNT),
+        (set_my_console_experience, True, PlatformToolGroup.ACCOUNT),
         (set_my_language, True, PlatformToolGroup.ACCOUNT),
         (set_my_profile, True, PlatformToolGroup.ACCOUNT),
     )

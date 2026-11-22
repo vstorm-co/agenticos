@@ -18,6 +18,7 @@ const others = vi.hoisted(() => ({
   review: 0,
   suites: 0,
   suggestions: 0,
+  questions: 0,
   settled: true,
   failed: false,
   retry: (() => {}) as () => void,
@@ -130,6 +131,13 @@ describe("a person's own period", () => {
     expect(screen.getByText("1 suggestion")).toBeVisible();
     expect(screen.queryByRole("link")).toBeNull();
     others.suggestions = 0;
+  });
+
+  it("links waiting questions to Inbox instead of the approval queue", () => {
+    others.questions = 1;
+    renderWidget({ usage: usage({ pending_approvals: 0 }) });
+    expect(screen.getByRole("link", { name: "1 question" })).toHaveAttribute("href", "/inbox");
+    others.questions = 0;
   });
 
   it("says nothing is waiting, at zero, rather than drawing an empty card", () => {
