@@ -7,7 +7,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  margin-block-end: 12px;
+  margin-block-end: 8px;
 }
 .heading h3 {
   font-size: 13px;
@@ -21,101 +21,138 @@
 }
 .controls {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
 }
 .controls button {
   display: grid;
   place-items: center;
-  inline-size: 32px;
-  block-size: 32px;
+  inline-size: 40px;
+  block-size: 40px;
   border: 1px solid var(--color-border);
-  border-radius: 9px;
+  border-radius: 12px;
+  background: var(--color-card);
+  touch-action: manipulation;
 }
 .controls button[aria-disabled="true"] {
   opacity: 0.35;
 }
-.track {
+.viewport {
   position: relative;
+  block-size: 244px;
+  min-inline-size: 0;
+  overflow: clip;
+  touch-action: pan-y pinch-zoom;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.viewport[data-dragging] {
+  cursor: grabbing;
+}
+.stageLight {
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-end: 14px;
+  inline-size: min(75%, 400px);
+  block-size: 45px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse, var(--color-foreground), transparent 70%);
+  opacity: 0.07;
+  pointer-events: none;
+}
+.track {
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-start: 22px;
   display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding-block: 8px 16px;
-  padding-inline: max(4px, calc(50% - 56px));
-  scroll-snap-type: x mandatory;
-  overscroll-behavior-x: contain;
-  scrollbar-width: thin;
-  touch-action: manipulation;
+  align-items: start;
+  gap: 20px;
+  inline-size: max-content;
 }
-.track > div {
-  flex: 0 0 112px;
-  scroll-snap-align: center;
+.look {
+  flex: 0 0 auto;
+  transform-origin: center 60%;
 }
-.track button {
+.look button {
   inline-size: 100%;
-  display: grid;
-  justify-items: center;
-  gap: 12px;
-  padding: 16px 8px 12px;
-  border-radius: 16px;
-  border: 1px solid transparent;
+  block-size: 194px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 18px 12px;
+  border-radius: 24px;
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+  box-shadow: 0 8px 18px -16px var(--color-foreground);
+  touch-action: pan-y pinch-zoom;
 }
-.track button[aria-pressed="true"] {
+.look button[aria-pressed="true"] {
   border-color: var(--color-foreground);
   background: var(--color-muted);
 }
-.track button:hover:not(:disabled) {
+.look button:hover:not(:disabled) {
   background: var(--color-muted);
+}
+.look[data-current="true"] button {
+  box-shadow: 0 12px 28px -20px var(--color-foreground);
 }
 .face {
   display: block;
-  inline-size: 72px;
-  block-size: 72px;
+  flex: 0 0 auto;
+  inline-size: min(112px, calc(100% - 20px));
+  aspect-ratio: 1;
+  pointer-events: none;
 }
 .caption {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  min-block-size: 28px;
   font-size: 11px;
   color: var(--color-muted-foreground);
+  text-align: center;
 }
-.track button[aria-pressed="true"] .caption {
+.look button[aria-pressed="true"] .caption {
   color: var(--color-foreground);
   font-weight: 550;
 }
-:global(html:not([data-motion="reduce"])) .track {
-  scroll-behavior: smooth;
+.position {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  color: var(--color-muted-foreground);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.positionMarks {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  block-size: 4px;
+}
+.positionMarks > span {
+  inline-size: 4px;
+  block-size: 4px;
+  border-radius: 9px;
+  background: var(--color-border);
+}
+.positionMarks > span[data-current="true"] {
+  inline-size: 16px;
+  background: var(--color-foreground);
+}
+:global(html:not([data-motion="reduce"])) .positionMarks > span {
+  transition:
+    inline-size var(--duration-panel) var(--ease-out),
+    background-color var(--duration-panel);
 }
 :global(html:not([data-motion="reduce"])) .face {
-  transition:
-    translate var(--duration-panel) var(--ease-out),
-    scale var(--duration-panel) var(--ease-out);
+  transition: translate var(--duration-panel) var(--ease-out);
 }
-:global(html:not([data-motion="reduce"])) .track button:hover .face,
-:global(html:not([data-motion="reduce"])) .track button[aria-pressed="true"] .face {
-  translate: 0 -3px;
-}
-:global(html:not([data-motion="reduce"])) .track > div[data-current="true"] .face {
-  scale: 1.06;
-}
-@supports ((animation-timeline: view()) and (animation-range: entry)) {
-  :global(html:not([data-motion="reduce"])) .face {
-    animation: avatar-arrive auto linear both;
-    animation-timeline: view(inline);
-  }
-}
-@keyframes avatar-arrive {
-  from {
-    opacity: 0.65;
-    transform: scale(0.9);
-  }
-  35%,
-  65% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  to {
-    opacity: 0.65;
-    transform: scale(0.9);
-  }
+:global(html:not([data-motion="reduce"])) .look button:hover .face {
+  translate: 0 -4px;
 }

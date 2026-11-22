@@ -1234,3 +1234,5 @@ These preview flows add a model step using the normal provider catalog, existing
 Administrators can continue to team and deployment setup or go straight to the installed AgenticOS and Architect. Opening either agent sends no AI request; unavailable agents retain their setup guidance.
 
 Studio is the default at `/onboarding`. The other layouts remain available through their preview parameters. Studio uses one form column and a compact journey rail, without repeated decorative character panels. Personal appearance uses a swipeable carousel of the account’s real avatar colors: browsing does not save a choice; selecting one uses the existing account save. Motion respects the app and operating-system preferences.
+
+Studio keeps its heading and bottom actions in place while the current step moves between them. The avatar gallery snaps to a centered preview when dragged or browsed with the arrow keys; selecting a preview saves it. Reduced motion removes the spring and step movement. Unfinished setup is offered only in the sidebar, without a second banner across the workspace.

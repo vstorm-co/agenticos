@@ -3291,13 +3291,12 @@ body .tour-spotlight {
   border-radius: var(--radius-lg);
   background: var(--color-control-active);
 }
-@media (prefers-reduced-motion: no-preference) {
-  :root:not([data-motion="reduce"]) [data-tab-indicator][data-indicator-ready]::before {
-    transition:
-      transform 220ms ease-out,
-      width 220ms ease-out,
-      height 220ms ease-out;
-  }
+/* The resolved application preference includes an explicit Full override of the OS. */
+:root:not([data-motion="reduce"]) [data-tab-indicator][data-indicator-ready]::before {
+  transition:
+    transform 220ms ease-out,
+    width 220ms ease-out,
+    height 220ms ease-out;
 }
 @media (forced-colors: active) {
   [data-tab-indicator="pill"][data-indicator-ready]::before {

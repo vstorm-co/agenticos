@@ -21,7 +21,12 @@ import { StartSubscriptions } from "./start-subscriptions";
 import { StartTasks } from "./start-tasks";
 import { StartFinish } from "./start-finish";
 import { rememberStartPosition } from "./start-position";
-import { useStartVariant, StartVariantPicker, StartJourney } from "./start-experience";
+import {
+  useStartVariant,
+  useStartTransition,
+  StartVariantPicker,
+  StartJourney,
+} from "./start-experience";
 import dynamic from "next/dynamic";
 import { StartSkeleton } from "./start-skeleton";
 import { StartLaunch } from "./start-launch";
@@ -76,12 +81,15 @@ export function StartMember({ data }: { data: Onboarding }) {
   const current = useRef(step);
   const mounted = useRef(true);
   const content = useRef<HTMLDivElement>(null);
+  const transition = useStartTransition(content, variant === "studio");
   useEffect(() => {
     content.current
       ?.querySelector<HTMLElement>("section:not([hidden]) h1")
       ?.focus({ preventScroll: true });
-    content.current?.closest("main")?.scrollIntoView?.({ block: "start", behavior: "instant" });
-  }, [step]);
+    if (variant === "studio" && content.current) content.current.scrollTop = 0;
+    else
+      content.current?.closest("main")?.scrollIntoView?.({ block: "start", behavior: "instant" });
+  }, [step, variant]);
   useLayoutEffect(() => {
     current.current = step;
   }, [step]);
@@ -96,7 +104,9 @@ export function StartMember({ data }: { data: Onboarding }) {
     search.get("entry") === "joined" ||
     !!(user?.avatar_url || user?.job_title || user?.about || user?.onboarding_completed_at);
   const go = (next: Step) => {
-    setDirection(steps.indexOf(next) < index ? "back" : "forward");
+    const nextDirection = steps.indexOf(next) < index ? "back" : "forward";
+    if (next !== step) transition(nextDirection);
+    setDirection(nextDirection);
     current.current = next;
     setStep(next);
     setVisited((old) => (old.includes(next) ? old : [...old, next]));
@@ -179,7 +189,13 @@ export function StartMember({ data }: { data: Onboarding }) {
                     </div>
                   )}
                   <h1 tabIndex={-1}>{t("memberWelcome", { workspace: data.organization_name })}</h1>
-                  <p>{t(knownProfile ? "memberExistingProfile" : "memberWelcomeBody")}</p>
+                  {variant === "studio" ? (
+                    <StartGuide
+                      message={t(knownProfile ? "memberExistingProfile" : "memberWelcomeBody")}
+                    />
+                  ) : (
+                    <p>{t(knownProfile ? "memberExistingProfile" : "memberWelcomeBody")}</p>
+                  )}
                   <StartActions>
                     {knownProfile && (
                       <Button variant="ghost" onClick={() => go("profile")}>

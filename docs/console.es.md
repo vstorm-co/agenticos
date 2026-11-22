@@ -1,5 +1,5 @@
 ---
-source_sha: "09aa9fccc5b5"
+source_sha: "eef4ab433451"
 ---
 
 El selector conserva el encabezado, las pestañas del proveedor y la búsqueda en su sitio; las listas de modelos y proveedores se desplazan por separado. Los cambios de pestaña del dashboard mantienen su transición breve. Entrar en el dashboard o restaurar el historial no anima todo el panel. El carrusel del onboarding sigue disponible junto a una foto subida, con una explicación de que el color corresponde al avatar que aparece cuando la foto no está disponible.
@@ -1296,3 +1296,5 @@ Estas variantes añaden un paso de selección de modelo con el catálogo habitua
 Los administradores pueden revisar los ajustes del equipo y del despliegue o ir directamente a los agentes instalados AgenticOS y Architect. Abrirlos no envía solicitudes de IA; los agentes no disponibles conservan sus indicaciones de configuración.
 
 Studio es el diseño predeterminado en `/onboarding`; los otros diseños siguen disponibles mediante parámetros de vista previa. Studio utiliza una columna de formulario y una navegación compacta sin personajes decorativos repetidos. El aspecto se elige en un carrusel de los colores reales del avatar de la cuenta: explorar no guarda una selección; elegir utiliza el guardado habitual de la cuenta. El movimiento respeta las preferencias de la aplicación y del sistema.
+
+Studio mantiene el encabezado y las acciones inferiores en su sitio al cambiar de paso. La galería de avatares centra la vista previa al arrastrar o usar las flechas; solo elegirla guarda la selección. El movimiento reducido desactiva el resorte y las transiciones entre pasos. La configuración pendiente se recuerda únicamente en la barra lateral, sin un segundo banner sobre el espacio de trabajo.

@@ -3,7 +3,17 @@
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ArrowRight, Circle, MessageCircle, PanelsTopLeft, Route } from "lucide-react";
-import { createContext, useContext, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  type ReactNode,
+  type RefObject,
+} from "react";
+import { LayoutGroup, motion } from "motion/react";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { AvatarFace } from "@/components/ui/avatar-face";
 import { CONTROL_FOCUS } from "@/components/ui/control-styles";
 import { START_VARIANTS, startVariant, type StartVariant } from "@/lib/onboarding/variants";
@@ -15,6 +25,35 @@ export function useStartVariant() {
   const inherited = useContext(StartExperienceContext);
   const explicit = startVariant(useSearchParams().get("variant"));
   return inherited ?? explicit;
+}
+
+/** Animate the mounted scene only after an explicit step change; drafts stay mounted. */
+export function useStartTransition(
+  ref: RefObject<HTMLElement | null>,
+  enabled: boolean,
+): (direction: "forward" | "back") => void {
+  const reduced = useReducedMotion();
+  const animation = useRef<Animation | null>(null);
+  useEffect(() => {
+    if (reduced || !enabled) animation.current?.cancel();
+    return () => animation.current?.cancel();
+  }, [reduced, enabled]);
+  return (direction: "forward" | "back") => {
+    animation.current?.cancel();
+    const scene = ref.current;
+    if (!enabled || reduced || !scene || typeof scene.animate !== "function") return;
+    const tokens = getComputedStyle(document.documentElement);
+    const duration = Number.parseFloat(tokens.getPropertyValue("--duration-base"));
+    const easing = tokens.getPropertyValue("--ease-out").trim();
+    if (!Number.isFinite(duration) || !easing) return;
+    animation.current = scene.animate(
+      [
+        { opacity: 0, transform: `translateX(${direction === "back" ? -24 : 24}px)` },
+        { opacity: 1, transform: "translateX(0)" },
+      ],
+      { duration, easing },
+    );
+  };
 }
 
 export function StartExperience({ children }: { children: ReactNode }) {
@@ -73,6 +112,8 @@ export function StartJourney<T extends string>({
 }) {
   const variant = useStartVariant();
   const t = useTranslations("start.experience");
+  const journeyId = useId();
+  const reduced = useReducedMotion();
   if (!variant) return null;
   const phaseFor = (step: string): string => {
     if (["workspace", "identity", "welcome"].includes(step)) return "workspace";
@@ -101,38 +142,53 @@ export function StartJourney<T extends string>({
           </div>
         </div>
       )}
-      <nav aria-label={t("journeyTitle")}>
-        <ol>
-          {phases.map((phase, index) => {
-            const phaseSteps = steps.filter((step) => phaseFor(step) === phase);
-            const active = phaseFor(current) === phase;
-            const target = active ? current : phaseSteps.find((step) => visited.includes(step));
-            const name = phaseName(phase);
-            return (
-              <li key={phase}>
-                <button
-                  type="button"
-                  className={CONTROL_FOCUS}
-                  aria-current={active ? "step" : undefined}
-                  disabled={target === undefined}
-                  onClick={() => {
-                    if (target !== undefined) onSelect(target);
-                  }}
-                >
-                  <span className={styles.stepNumber}>{String(index + 1).padStart(2, "0")}</span>
-                  <span>{name}</span>
-                  {variant !== "studio" &&
-                    (active ? (
-                      <ArrowRight size={14} aria-hidden />
-                    ) : (
-                      <Circle size={8} aria-hidden />
-                    ))}
-                </button>
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
+      <LayoutGroup id={journeyId}>
+        <nav aria-label={t("journeyTitle")}>
+          <ol>
+            {phases.map((phase, index) => {
+              const phaseSteps = steps.filter((step) => phaseFor(step) === phase);
+              const active = phaseFor(current) === phase;
+              const target = active ? current : phaseSteps.find((step) => visited.includes(step));
+              const name = phaseName(phase);
+              return (
+                <li key={phase}>
+                  <button
+                    type="button"
+                    className={CONTROL_FOCUS}
+                    aria-current={active ? "step" : undefined}
+                    disabled={target === undefined}
+                    onClick={() => {
+                      if (target !== undefined) onSelect(target);
+                    }}
+                  >
+                    <span className={styles.stepNumber}>{String(index + 1).padStart(2, "0")}</span>
+                    <span>{name}</span>
+                    {variant !== "studio" &&
+                      (active ? (
+                        <ArrowRight size={14} aria-hidden />
+                      ) : (
+                        <Circle size={8} aria-hidden />
+                      ))}
+                    {variant === "studio" && active && (
+                      <motion.span
+                        aria-hidden
+                        className={styles.phaseMarker}
+                        layoutId={reduced ? undefined : "phase"}
+                        initial={false}
+                        transition={
+                          reduced
+                            ? { duration: 0 }
+                            : { type: "spring", stiffness: 360, damping: 34 }
+                        }
+                      />
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </nav>
+      </LayoutGroup>
       {variant === "studio" && (
         <div className={styles.mobileProgress}>
           <span aria-current="step">{phaseName(phaseFor(current))}</span>

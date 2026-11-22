@@ -1,5 +1,5 @@
 ---
-source_sha: "09aa9fccc5b5"
+source_sha: "eef4ab433451"
 ---
 
 Die Modellauswahl behält Kopfzeile, Anbietertabs und Suche an ihrer Position; Modell- und Anbieterlisten scrollen unabhängig. Dashboard-Tabs behalten ihren kurzen Übergang. Beim Öffnen des Dashboards oder Wiederherstellen des Browserverlaufs wird nicht die gesamte Fläche animiert. Das Avatar-Karussell im Onboarding bleibt neben einem hochgeladenen Foto verfügbar. Ein Hinweis erklärt, dass die Farbe für den Avatar gilt, der ohne verfügbares Foto erscheint.
@@ -1347,3 +1347,5 @@ Diese Varianten ergänzen eine Modellauswahl mit dem normalen Anbieterkatalog, v
 Administratoren können Team- und Bereitstellungseinstellungen prüfen oder direkt zu den installierten Agenten AgenticOS und Architect wechseln. Beim Öffnen wird keine KI-Anfrage gesendet; nicht verfügbare Agenten behalten ihre Einrichtungshinweise.
 
 Studio ist unter `/onboarding` der Standard; die anderen Layouts bleiben über Vorschauparameter erreichbar. Studio zeigt eine Formularspalte und eine kompakte Navigation ohne wiederholte dekorative Figuren. Das Aussehen lässt sich in einem Karussell der tatsächlichen Avatarfarben des Kontos wählen: Blättern speichert nichts, erst die Auswahl nutzt den bisherigen Kontospeicher. Bewegung respektiert die Einstellungen der App und des Betriebssystems.
+
+Studio behält Überschrift und untere Aktionen beim Schrittwechsel an ihrer Position. Die Avatar-Galerie rastet nach Ziehen oder Blättern mit den Pfeiltasten auf einer mittigen Vorschau ein; erst die Auswahl speichert sie. Reduzierte Bewegung deaktiviert Federbewegung und Schrittübergänge. An unvollständige Einrichtung erinnert nur die Seitenleiste, ohne zweites Banner über dem Arbeitsbereich.

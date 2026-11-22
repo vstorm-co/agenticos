@@ -17915,15 +17915,6 @@
     "invite": "Zaproś osobę do zespołu",
     "loadHint": "Sprawdź połączenie albo wybierz inną organizację, do której należysz. Błąd sprawdzania nie usuwa Twoich danych.",
     "choiceNotSaved": "Nie udało się zapisać wyboru. Spróbuj ponownie.",
-    "offer": {
-      "adminTitle": "Przygotuj organizację dla zespołu",
-      "adminHint": "Organizacja, ludzie i AI — krok po kroku.",
-      "adminAction": "Kontynuuj konfigurację",
-      "memberTitle": "Zróbmy Twoje pierwsze zadanie",
-      "memberHint": "Wybierz przykład i zobacz, jak może pomóc Ci agent.",
-      "memberAction": "Wypróbuj przykład",
-      "dismiss": "Ukryj na 24 godziny"
-    },
     "snooze": "Ukryj na 24 godziny",
     "guided": {
       "guideLabel": "Twój przewodnik po konfiguracji",

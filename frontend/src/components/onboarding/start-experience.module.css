@@ -232,10 +232,12 @@
 .experience[data-onboarding-variant="studio"] :global([data-start-frame]) {
   display: grid;
   grid-template-columns: 184px minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  block-size: 100dvh;
   max-inline-size: 1120px;
   column-gap: 64px;
-  align-content: start;
   padding-inline: 32px;
+  padding-block-end: 0;
 }
 .experience[data-onboarding-variant="studio"] :global([data-start-topbar]),
 .experience[data-onboarding-variant="studio"] :global([data-start-header]) {
@@ -248,8 +250,9 @@
   grid-column: 1;
   grid-row: 3 / span 2;
   align-self: start;
-  position: sticky;
-  inset-block-start: 24px;
+  position: static;
+  max-block-size: 100%;
+  overflow-y: auto;
   padding-block: 20px;
 }
 .experience[data-onboarding-variant="studio"] .journey nav {
@@ -260,12 +263,21 @@
   gap: 6px;
 }
 .experience[data-onboarding-variant="studio"] .journey nav button {
+  position: relative;
+  isolation: isolate;
   gap: 10px;
   min-block-size: 42px;
   border-radius: 7px;
   padding: 10px;
 }
 .experience[data-onboarding-variant="studio"] .journey nav button[aria-current="step"] {
+  background: transparent;
+}
+.phaseMarker {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
   background: var(--color-muted);
 }
 .experience[data-onboarding-variant="studio"] .journey nav button:disabled {
@@ -275,15 +287,36 @@
 .experience[data-onboarding-variant="studio"] :global([data-start-navigation]) {
   grid-column: 2;
   inline-size: 100%;
-  max-inline-size: 640px;
-}
-.experience[data-onboarding-variant="studio"]
-  :global([data-start-content]):has([data-start-catalog], [data-chat-model-library]) {
   max-inline-size: 760px;
 }
 .experience[data-onboarding-variant="studio"] :global([data-start-content]) {
-  min-block-size: min(34rem, 65dvh);
-  padding-block: 20px 28px;
+  grid-row: 3;
+  min-block-size: 0;
+  padding: 20px 4px 28px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.experience[data-onboarding-variant="studio"]
+  :global([data-start-content] > section):has([data-start-catalog], [data-chat-model-library]) {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 20rem;
+}
+.experience[data-onboarding-variant="studio"] .connectionStage {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-block-size: 0;
+}
+.experience[data-onboarding-variant="studio"] .catalogViewport {
+  flex: 1;
+  block-size: auto;
+  min-block-size: 0;
+}
+.experience[data-onboarding-variant="studio"] .connectionFootnote {
+  flex-shrink: 0;
 }
 .experience[data-onboarding-variant="studio"] :global([data-start-content] > section > h1) {
   font-size: clamp(26px, 2.4vw, 32px);
@@ -309,10 +342,25 @@
   display: none;
 }
 .experience[data-onboarding-variant="studio"] :global([data-start-navigation]) {
-  margin-block-start: 12px;
+  grid-row: 4;
+  position: static;
+  min-block-size: 80px;
+  margin-block-start: 0;
+  padding-inline: 4px;
 }
-.experience[data-onboarding-variant="studio"] :global([data-start-navigation] button:last-child) {
+.experience[data-onboarding-variant="studio"] :global([data-start-forward] > button:last-child) {
   min-inline-size: 136px;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-forward]) {
+  min-inline-size: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+.experience[data-onboarding-variant="studio"] :global([data-start-forward] > *) {
+  min-inline-size: 0;
+  min-block-size: 44px;
+  block-size: auto;
+  white-space: normal;
 }
 .experience[data-onboarding-variant="studio"] .connectionHint {
   display: none;
@@ -383,10 +431,11 @@
 @media (max-width: 950px) {
   .experience[data-onboarding-variant="studio"] :global([data-start-frame]) {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   }
   .experience[data-onboarding-variant="studio"] .journey {
     grid-column: 1;
-    grid-row: auto;
+    grid-row: 3;
     position: static;
   }
   .experience[data-onboarding-variant="studio"] .journey {
@@ -421,6 +470,16 @@
   .experience[data-onboarding-variant="studio"] :global([data-start-navigation]) {
     grid-column: 1;
     max-inline-size: none;
+  }
+  .experience[data-onboarding-variant="studio"] :global([data-start-content]) {
+    grid-row: 4;
+  }
+  .experience[data-onboarding-variant="studio"] :global([data-start-navigation]) {
+    grid-row: 5;
+    min-block-size: 96px;
+  }
+  .experience[data-onboarding-variant="studio"] :global([data-start-forward] > button:last-child) {
+    min-inline-size: min(136px, 36vw);
   }
   .experience[data-onboarding-variant="launchpad"] .journey {
     grid-template-columns: minmax(0, 1fr);
@@ -459,19 +518,23 @@
   }
 }
 :global(html:not([data-motion="reduce"]))
-  .experience:not([data-onboarding-variant="classic"])
+  .experience:is([data-onboarding-variant="conversation"], [data-onboarding-variant="launchpad"])
   :global([data-start-content] > section:not([hidden])) {
   animation: stage-forward var(--duration-base) var(--ease-out) both;
 }
 :global(html:not([data-motion="reduce"]))
-  .experience
+  .experience:is([data-onboarding-variant="conversation"], [data-onboarding-variant="launchpad"])
   :global([data-start-frame][data-direction="back"] [data-start-content] > section:not([hidden])) {
   animation-name: stage-back;
 }
-:global(html:not([data-motion="reduce"])) .agentCard {
+:global(html:not([data-motion="reduce"]))
+  .experience:not([data-onboarding-variant="studio"])
+  .agentCard {
   animation: stage-forward var(--duration-slow) var(--ease-out) both;
 }
-:global(html:not([data-motion="reduce"])) .agentCard:nth-child(2) {
+:global(html:not([data-motion="reduce"]))
+  .experience:not([data-onboarding-variant="studio"])
+  .agentCard:nth-child(2) {
   animation-delay: calc(var(--duration-fast) / 2);
 }
 @keyframes stage-forward {

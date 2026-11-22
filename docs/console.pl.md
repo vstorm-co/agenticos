@@ -1,5 +1,5 @@
 ---
-source_sha: "09aa9fccc5b5"
+source_sha: "eef4ab433451"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -1262,3 +1262,5 @@ Warianty dodają wybór modelu ze zwykłego katalogu dostawców, istniejących k
 Administrator może przejrzeć ustawienia zespołu i wdrożenia albo przejść od razu do zainstalowanych AgenticOS i Architect. Otwarcie agenta nie wysyła zapytania do modelu; niedostępny agent zachowuje wskazówki konfiguracji.
 
 Studio jest domyślne pod `/onboarding`; pozostałe układy pozostają dostępne przez parametry podglądu. Studio ma jedną kolumnę formularza i krótką ścieżkę z boku, bez powtarzanych dekoracyjnych postaci. Wygląd profilu można wybrać w przesuwanej karuzeli rzeczywistych kolorów avatara konta: przeglądanie nie zapisuje wyboru, a wybranie korzysta z dotychczasowego zapisu konta. Animacje respektują ustawienia aplikacji i systemu.
+
+Studio zachowuje położenie nagłówka i dolnych przycisków podczas zmiany kroku. Galeria avatarów ustawia podgląd na środku po przeciągnięciu lub użyciu strzałek; dopiero wybranie podglądu go zapisuje. Ograniczenie ruchu wyłącza sprężyste przejścia galerii i ruch kroków. Przypomnienie o niedokończonej konfiguracji pozostaje wyłącznie w pasku bocznym, bez drugiego banera nad obszarem pracy.

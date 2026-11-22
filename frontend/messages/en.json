@@ -18142,15 +18142,6 @@
     "invite": "Invite a teammate",
     "loadHint": "Check the connection or choose another organization you belong to. A failed check does not remove your data.",
     "choiceNotSaved": "Your choice wasn't saved. Please try again.",
-    "offer": {
-      "adminTitle": "Set up your team’s organization",
-      "adminHint": "Organization, teammates and AI — one step at a time.",
-      "adminAction": "Continue setup",
-      "memberTitle": "Let’s try your first task",
-      "memberHint": "Pick an example and see how an agent can help.",
-      "memberAction": "Try an example",
-      "dismiss": "Hide for 24 hours"
-    },
     "snooze": "Hide for 24 hours",
     "guided": {
       "guideLabel": "Your setup companion",

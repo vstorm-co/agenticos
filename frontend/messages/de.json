@@ -17828,15 +17828,6 @@
     "invite": "Teammitglied einladen",
     "loadHint": "Prüfen Sie die Verbindung oder wählen Sie eine andere Organisation, der Sie angehören. Eine fehlgeschlagene Prüfung löscht keine Daten.",
     "choiceNotSaved": "Ihre Auswahl wurde nicht gespeichert. Bitte versuchen Sie es erneut.",
-    "offer": {
-      "adminTitle": "Richten Sie die Organisation für Ihr Team ein",
-      "adminHint": "Organisation, Team und KI — Schritt für Schritt.",
-      "adminAction": "Einrichtung fortsetzen",
-      "memberTitle": "Probieren wir Ihre erste Aufgabe",
-      "memberHint": "Wählen Sie ein Beispiel und sehen Sie, wie ein Agent helfen kann.",
-      "memberAction": "Beispiel ausprobieren",
-      "dismiss": "Für 24 Stunden ausblenden"
-    },
     "snooze": "Für 24 Stunden ausblenden",
     "guided": {
       "guideLabel": "Ihre Einrichtungshilfe",

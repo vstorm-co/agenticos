@@ -78,7 +78,7 @@ The user selected Studio and then requested the same principles across everyday 
 
 - Studio has one principal form column, a quiet phase rail and no top-right step counter. Optional administrator settings can follow the first useful task. Conversation and Launchpad remain explicit preview variants.
 - Models use the real catalog and existing Vault credentials; subscriptions connect directly from recognizable provider tiles. MCP setup uses the existing connection flow and retains the distinction between a connected account and tools assigned to an agent.
-- A native avatar carousel browses the actual account palette. Scrolling does not save; choosing a look uses the existing profile update. Uploaded photos remain the primary identity.
+- A draggable spring gallery browses the actual account palette. Swiping and keyboard navigation do not save; choosing a look uses the existing profile update. Uploaded photos remain the primary identity.
 - Shared page and section titles use consistent text roles. Lists wrap their controls on narrow screens. An embedded table shares its list's boundary instead of adding a second outer frame; its loading rows retain their configured height.
 - Settings section icons no longer need a decorative tile for ordinary structure. Destructive sections retain their existing emphasis.
 

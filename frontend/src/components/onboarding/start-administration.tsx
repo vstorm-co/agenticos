@@ -26,7 +26,12 @@ import { StartTasks } from "./start-tasks";
 import { StartFinish } from "./start-finish";
 import { StartActions, StartNavigation, StartNavigationScope } from "./start-navigation";
 import { StartLanguage } from "./start-language";
-import { useStartVariant, StartVariantPicker, StartJourney } from "./start-experience";
+import {
+  useStartVariant,
+  useStartTransition,
+  StartVariantPicker,
+  StartJourney,
+} from "./start-experience";
 import dynamic from "next/dynamic";
 import { StartLaunch } from "./start-launch";
 import styles from "./administration.module.css";
@@ -97,6 +102,7 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
     steps.slice(0, steps.indexOf(initialStep) + 1),
   );
   const content = useRef<HTMLDivElement>(null);
+  const transition = useStartTransition(content, variant === "studio");
   const previousStep = useRef(step);
   const index = steps.indexOf(step);
   const stepRef = useRef<Step>(step);
@@ -128,9 +134,11 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
     scopeRef.current = selectedOrgId;
   }, [step, selectedOrgId]);
   const go = (next: Step) => {
+    const nextDirection = steps.indexOf(next) < index ? "back" : "forward";
+    if (next !== step) transition(nextDirection);
     stepRef.current = next;
     rememberStartPosition(`admin.${next}`, scopeRef.current);
-    setDirection(steps.indexOf(next) < index ? "back" : "forward");
+    setDirection(nextDirection);
     setStep(next);
     setVisited((previous) => (previous.includes(next) ? previous : [...previous, next]));
   };
@@ -140,8 +148,10 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
     content.current
       ?.querySelector<HTMLElement>(":scope > section:not([hidden]) > h1")
       ?.focus({ preventScroll: true });
-    content.current?.closest("main")?.scrollIntoView?.({ block: "start", behavior: "instant" });
-  }, [step]);
+    if (variant === "studio" && content.current) content.current.scrollTop = 0;
+    else
+      content.current?.closest("main")?.scrollIntoView?.({ block: "start", behavior: "instant" });
+  }, [step, variant]);
   const advance = (from: Step, next: Step) => {
     if (mounted.current && stepRef.current === from && scopeRef.current === org?.id) go(next);
   };
@@ -215,8 +225,14 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
             {visited.includes("workspace") && (
               <section hidden={step !== "workspace"} aria-label={t("workspace")}>
                 <h1 tabIndex={-1}>{t("workspaceTitle")}</h1>
-                <p className={styles.stageHint}>{t("workspaceHint")}</p>
-                {variant !== "studio" && <StartGuide message={guide("workspaceGuide")} />}
+                {variant === "studio" ? (
+                  <StartGuide message={t("workspaceHint")} />
+                ) : (
+                  <>
+                    <p className={styles.stageHint}>{t("workspaceHint")}</p>
+                    <StartGuide message={guide("workspaceGuide")} />
+                  </>
+                )}
                 {organizations.isPending ? (
                   <StartSkeleton fullPage={false} />
                 ) : (
@@ -237,8 +253,14 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
                 aria-label={t("identity")}
               >
                 <h1 tabIndex={-1}>{t("identityTitle")}</h1>
-                <p className={styles.stageHint}>{t("identityHint")}</p>
-                {variant !== "studio" && <StartGuide message={guide("identityGuide")} />}
+                {variant === "studio" ? (
+                  <StartGuide message={t("identityHint")} />
+                ) : (
+                  <>
+                    <p className={styles.stageHint}>{t("identityHint")}</p>
+                    <StartGuide message={guide("identityGuide")} />
+                  </>
+                )}
                 <div className={styles.stageStudio} data-start-studio>
                   <StartNavigationScope active={step === "identity"}>
                     <OrganizationProfileSettings
@@ -259,8 +281,14 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
                 aria-label={t("profile")}
               >
                 <h1 tabIndex={-1}>{t("identityProfileTitle")}</h1>
-                <p className={styles.stageHint}>{t("identityProfileHint")}</p>
-                {variant !== "studio" && <StartGuide message={guide("profileGuide")} />}
+                {variant === "studio" ? (
+                  <StartGuide message={t("identityProfileHint")} />
+                ) : (
+                  <>
+                    <p className={styles.stageHint}>{t("identityProfileHint")}</p>
+                    <StartGuide message={guide("profileGuide")} />
+                  </>
+                )}
                 <div className={styles.stageStudio} data-start-studio>
                   <div className={styles.profileCard} data-start-profile>
                     <StartNavigationScope active={step === "profile"}>
@@ -286,8 +314,14 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
                 aria-label={t("context")}
               >
                 <h1 tabIndex={-1}>{t("contextTitle")}</h1>
-                <p className={styles.stageHint}>{t("contextHint")}</p>
-                {variant !== "studio" && <StartGuide message={guide("contextGuide")} />}
+                {variant === "studio" ? (
+                  <StartGuide message={t("contextHint")} />
+                ) : (
+                  <>
+                    <p className={styles.stageHint}>{t("contextHint")}</p>
+                    <StartGuide message={guide("contextGuide")} />
+                  </>
+                )}
                 <div className={styles.stageStudio} data-start-studio>
                   <div className={styles.profileCard} data-start-profile>
                     <StartNavigationScope active={step === "context"}>
