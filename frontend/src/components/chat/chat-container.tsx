@@ -34,7 +34,6 @@ import { TypingIndicator } from "./typing-indicator";
 import { useProjectMentions } from "@/hooks/use-project-mentions";
 import type { PageComment } from "./browser-comment";
 import { ChatInput, type ComposerDraft, type IncomingFiles } from "./chat-input";
-import { Button } from "@/components/ui/button";
 import { ComposerStatus } from "./composer-status";
 import { OutcomeCards } from "./outcome-cards";
 import { ProjectChip } from "./project-chip";
@@ -481,6 +480,7 @@ export function ChatContainer({
     sentTurnId,
     cancelQueued,
     retryQueued,
+    resumeQueued,
     sendQueuedNow,
     moveQueued,
     clearQueued,
@@ -660,7 +660,7 @@ export function ChatContainer({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sentTurnSpacerRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
-  const { dockHeight, revealQuestion, bindScroller } = useChatViewport({
+  const { dockHeight, bindScroller } = useChatViewport({
     conversationId: currentConversationId,
     messages,
     sentTurnId,
@@ -902,13 +902,13 @@ export function ChatContainer({
         queuedMessages={queuedMessages}
         onCancelQueued={cancelQueued}
         onRetryQueued={retryQueued}
+        onResumeQueued={resumeQueued}
         onSendQueuedNow={sendQueuedNow}
         onMoveQueued={moveQueued}
         transcriptRef={transcriptRef}
         bindScroller={bindScroller}
         dockRef={dockRef}
         dockHeight={dockHeight}
-        onRevealQuestion={revealQuestion}
         sentTurnSpacerRef={sentTurnSpacerRef}
         pendingApproval={pendingApproval}
         onResumeDecisions={sendResumeDecisions}
@@ -1034,6 +1034,7 @@ interface ChatUIProps {
   onCancelQueued?: (id: string) => void;
   /** Sends a message the server refused again, in its place in the queue. */
   onRetryQueued?: (id: string) => void;
+  onResumeQueued?: () => void;
   /** Sends one queued message into the running task instead of after it. */
   onSendQueuedNow?: (id: string) => void;
   /** Moves one queued message to another place in the order they are sent. */
@@ -1045,7 +1046,6 @@ interface ChatUIProps {
   bindScroller: (element: HTMLDivElement | null) => void;
   dockRef: React.RefObject<HTMLDivElement | null>;
   dockHeight: number;
-  onRevealQuestion: () => void;
   sentTurnSpacerRef: React.RefObject<HTMLDivElement | null>;
   pendingApproval?: PendingApproval | null;
   onResumeDecisions?: (decisions: Decision[]) => void;
@@ -1117,6 +1117,7 @@ function ChatUI({
   queuedMessages,
   onCancelQueued,
   onRetryQueued,
+  onResumeQueued,
   onSendQueuedNow,
   onMoveQueued,
   steers = [],
@@ -1124,7 +1125,6 @@ function ChatUI({
   bindScroller,
   dockRef,
   dockHeight,
-  onRevealQuestion,
   sentTurnSpacerRef,
   pendingApproval,
   onResumeDecisions,
@@ -1633,38 +1633,7 @@ function ChatUI({
               compact && "bg-background",
             )}
           >
-            {pendingQuestions?.length ? (
-              <div
-                data-chat-question-actions
-                className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-4"
-              >
-                <div className="chat-composer-width bg-background border-border flex items-center justify-between gap-2 rounded-xl border px-2 py-1.5">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={onRevealQuestion}
-                    className="h-auto min-h-11 min-w-0 text-start whitespace-normal"
-                  >
-                    {t("questions.reveal")}
-                  </Button>
-                  {onStop && !readOnly && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={onStop}
-                      disabled={isStopping}
-                      className="text-muted-foreground min-h-11 shrink-0"
-                    >
-                      {t(isStopping ? "questions.cancelling" : "questions.cancel")}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ) : null}
-            {/* Preserve drafts and attachment state without a disabled composer covering the question. */}
-            <div hidden={!!pendingQuestions?.length} data-chat-composer-region>
+            <div data-chat-composer-region>
               {/* Findings and approval decisions sit beside the composer. */}
               {conversationId && !compact && (
                 <OutcomeCards
@@ -1734,6 +1703,7 @@ function ChatUI({
                     steers={steers}
                     onCancel={onCancelQueued}
                     onRetry={onRetryQueued}
+                    onResume={onResumeQueued}
                     waitingForNetwork={!isConnected}
                     onSendNow={isProcessing && isConnected ? onSendQueuedNow : undefined}
                     onMove={onMoveQueued}
@@ -1870,8 +1840,7 @@ function ChatUI({
                                 (!isConnected && !keepsOutbox) ||
                                 readOnly ||
                                 onCall ||
-                                !!pendingApproval ||
-                                !!(pendingQuestions && pendingQuestions.length)
+                                !!pendingApproval
                               }
                               isProcessing={isProcessing}
                               canStop={

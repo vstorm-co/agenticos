@@ -1,6 +1,8 @@
 ---
-source_sha: "358a44ddade5"
+source_sha: "2ac651787fae"
 ---
+
+**Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
 
 Die Modellauswahl behält Kopfzeile, Anbietertabs und Suche an ihrer Position; Modell- und Anbieterlisten scrollen unabhängig. Dashboard-Tabs behalten ihren kurzen Übergang. Beim Öffnen des Dashboards oder Wiederherstellen des Browserverlaufs wird nicht die gesamte Fläche animiert. Das Avatar-Karussell im Onboarding bleibt neben einem hochgeladenen Foto verfügbar. Ein Hinweis erklärt, dass die Farbe für den Avatar gilt, der ohne verfügbares Foto erscheint.
 
@@ -20,7 +22,7 @@ Ist das Onboarding Ihrer aktuellen Organisation noch nicht abgeschlossen, führt
 
 **Einstellungen → Profil** behält immer einen manuellen Einrichtungslink, auch bei ausgeschalteten Erinnerungen. Die Erinnerung hat eine klare Aktion und eine kurze, begrenzte Illustration; reduzierte Bewegung hält sie still. Kein Rundgang startet automatisch. Im selben Browser merkt sich der Link den letzten zulässigen Schritt für dieses Konto und diese Organisation, ohne Formularwerte zu speichern.
 
-Die geführte Einrichtung speichert den aktuellen Schritt und den Aktualisierungszeitpunkt für Ihre Organisationsmitgliedschaft. Die Mitgliedertabelle zeigt nicht begonnen, in Bearbeitung oder abgeschlossen mit einer lesbaren Schrittbezeichnung. Die Benutzertabelle des Deployments führt jede Organisation separat auf; ein Abschluss in einer Organisation schließt die anderen nicht ab. Bereits gespeicherte Abschlüsse bleiben gültig, aber Profilinhalte gelten nie als Nachweis für Fortschritt oder Abschluss.
+Die geführte Einrichtung speichert den aktuellen Schritt und den Aktualisierungszeitpunkt für Ihre Organisationsmitgliedschaft. Die Mitgliedertabelle zeigt nicht begonnen, in Bearbeitung oder abgeschlossen mit einer lesbaren Schrittbezeichnung. Der Fortschritt gehört zur jeweiligen Mitgliedschaft; ein Abschluss in einer Organisation schließt die anderen nicht ab. Bereits gespeicherte Abschlüsse bleiben gültig, aber Profilinhalte gelten nie als Nachweis für Fortschritt oder Abschluss.
 
 Ein Schritt vor der Auswahl einer Organisation oder dem Beitritt wird nicht als Mitgliedschaftsfortschritt gespeichert. Kontosprache und Darstellung werden separat gespeichert. Im Organisationstab Assistent stehen Architect und die anderen Assistentendienste vor der Chat-Startseite; einheitliche Symbole und Kartenüberschriften erleichtern den Überblick.
 
@@ -1358,4 +1360,4 @@ Neue Konten öffnen `/onboarding` nach der Passwortregistrierung oder der ersten
 
 Nach den Abonnements zeigt die Modelleinrichtung zuerst den Anbieter, dann dessen Verbindung und Modell. Persönliche Abonnements bleiben im vorherigen Schritt. Werkzeuge beginnen mit vorgeschlagenen Diensten; **Alle Dienste durchsuchen** öffnet den vollständigen MCP-Katalog.
 
-Wenn ein Agent eine Frage stellt, bleiben Entwurf und Anhänge im normalen Editor erhalten, während dieser aus Ansicht und Tastaturnavigation verschwindet. Eine kompakte Antwort-/Abbruchleiste lässt Platz für die Frage; die Antwort stellt den Editor wieder her. Offline-Fragen bleiben bis zur Wiederverbindung gesperrt, während der Abbruch eines bereits wartenden Laufs den normalen HTTP-Abbruchweg nutzt.
+Wenn ein Agent eine Frage stellt, bleiben seine Karte und der normale Editor gemeinsam sichtbar. Der Editor behält Entwurf und Anhänge; neue Nachrichten warten in der Warteschlange, während Sie über die Karte antworten. Das Stoppen einer Antwort pausiert wartende Nachrichten bis zum ausdrücklichen Fortsetzen. Ein regulärer Abschluss verarbeitet die Warteschlange weiter.

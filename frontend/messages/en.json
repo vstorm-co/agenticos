@@ -1287,10 +1287,7 @@
       "heading": "Question for you",
       "answered": "Questions and answers",
       "submitting": "Sending your answers…",
-      "details": "Tool details",
-      "reveal": "Answer the agent’s question",
-      "cancel": "Cancel task",
-      "cancelling": "Cancelling…"
+      "details": "Tool details"
     },
     "loadEarlierMessages": "Load earlier messages",
     "accessLevel": "Access level",
@@ -2728,7 +2725,9 @@
       "empty": "You’re all caught up. New findings and important topics will appear here.",
       "failed": "Your inbox could not be loaded.",
       "refreshFailed": "Could not refresh your inbox. Showing the last loaded items."
-    }
+    },
+    "queuedPaused": "Queue paused",
+    "resumeQueue": "Resume queue"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -18171,8 +18170,6 @@
     "snooze": "Hide for 24 hours",
     "guided": {
       "guideLabel": "Your setup companion",
-      "question": "Question {current} of {total}",
-      "changeLater": "You can change this later",
       "back": "Back",
       "keepCurrent": "Keep current settings",
       "saving": "Saving…",
@@ -18194,11 +18191,9 @@
       "openBody": "People can create an account, subject to your allowed email domains.",
       "closedTitle": "Registration closed",
       "closedBody": "Pause new sign-ups. Existing accounts keep their access.",
-      "domainsPreserved": "Existing allowed email domains and account limits remain unchanged.",
       "destinationTitle": "Where should new accounts start?",
       "destinationGuide": "You can send new people straight into this company organization. This applies to future accounts; it doesn't move existing people or change their roles.",
       "destinationBody": "Use this organization for new accounts. Their configured starting role is: {role}.",
-      "destinationHint": "Select the company card to use this organization, or keep your current destination.",
       "otherDestination": "Another organization is currently the default. Selecting this card replaces it for future accounts only.",
       "personalTitle": "Also create personal organizations",
       "personalBody": "Give future accounts a personal organization as well. Switch off for a company-only setup.",
@@ -18226,16 +18221,11 @@
       "budgetTitle": "What's a comfortable monthly limit?",
       "budgetGuide": "You're in control of AI usage. Pick a starting amount or move the slider. I'll only save it when you continue.",
       "unlimited": "No limit",
-      "unlimitedHint": "Choose an amount below to set a ceiling",
-      "perMonth": "USD per month, across this organization",
       "budgetSlider": "Monthly budget in US dollars",
       "budgetInvalid": "Choose a positive amount, or no limit.",
       "budgetHint": "This caps tracked AI usage across agents in this organization. It is not a subscription or prepaid credit. Provider billing is separate.",
       "workspaceReadyTitle": "Ready for your first task",
       "workspaceReadyGuide": "The essentials are in place. We can try a first task now. Advanced policies and voice features are here if you need them — opening a section doesn't change its settings.",
-      "readyForPeople": "Your team's space is taking shape",
-      "readyForPeopleBody": "{workspace} has its own identity and settings. Your existing agents, conversations and policies stay in place.",
-      "advancedOptional": "Optional — explore these only when you need them. Each section uses its usual save controls.",
       "advancedSafety": "Approvals and public data",
       "advancedAssistants": "Organization assistants and automation",
       "advancedVoice": "Voice conversations",
@@ -18308,7 +18298,6 @@
       "agentUnavailable": "Your workspace has not made this agent available yet. Ask an administrator to set it up.",
       "architectUnavailable": "Architect is disabled, needs a model, or is not available to your account. Your administrator can configure it in workspace settings.",
       "launchHint": "Opening an agent starts no model request. Choose your task and send it when you are ready.",
-      "adminSetup": "Review team and workspace settings",
       "agentsFailed": "Could not load this agent",
       "retry": "Try again",
       "phases": {
@@ -21554,8 +21543,6 @@
     "notStarted": "Not started",
     "inProgress": "In progress",
     "unknown": "Not available",
-    "otherStep": "Setup",
-    "account": "Account setup",
-    "noWorkspace": "No workspace memberships"
+    "otherStep": "Setup"
   }
 }

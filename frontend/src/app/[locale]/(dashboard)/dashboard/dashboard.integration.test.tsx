@@ -1246,3 +1246,74 @@ it("keeps requested help open when the personal dashboard layout finishes loadin
   await screen.findByRole("group", { name: "dashboard.views.label" });
   expect(screen.getByRole("button", { name: "onboarding.pageHelp" })).toBeVisible();
 });
+
+describe("dashboard surface spacing", () => {
+  function expectSharedRhythm(view: string) {
+    const panel = document.querySelector(`[data-dashboard-view="${view}"]`);
+    expect(panel).toHaveClass("gap-6", "[&>*]:mt-0");
+    expect(panel?.firstElementChild).not.toBeNull();
+    expect(panel?.previousElementSibling).toHaveClass("mb-4");
+    return panel;
+  }
+  it.each(["me", "org", "group", "deployment"])(
+    "uses one boundary and section rhythm in the %s view",
+    async (view) => {
+      auth.isAppAdmin = true;
+      groupList = { items: [{ id: "g1", name: "Finance", icon: null, member_count: 3 }], total: 1 };
+      params.set("view", view);
+      render(<DashboardPage />, { wrapper });
+      await waitFor(() =>
+        expect(document.querySelector(`[data-dashboard-view="${view}"]`)).not.toBeNull(),
+      );
+      expectSharedRhythm(view);
+    },
+  );
+  it.each(["visible", "hidden", "loading"] as const)(
+    "keeps the same boundary when the organization checklist is %s",
+    async (state) => {
+      params.set("view", "org");
+      const org = "00000000-0000-4000-8000-000000000001";
+      useOrgStore.setState({ activeOrgId: org });
+      const previous = vi.mocked(apiClient.get).getMockImplementation()!;
+      const pending = Promise.withResolvers<unknown>();
+      vi.mocked(apiClient.get).mockImplementation((path, options) =>
+        path === "/me/onboarding"
+          ? state === "loading"
+            ? pending.promise
+            : Promise.resolve({
+                organization_id: org,
+                organization_name: "Demo",
+                goal: null,
+                dismissed: state === "hidden",
+                completed: state === "hidden",
+                can_prepare: true,
+                can_configure_model: true,
+                support_email: null,
+                agents: [],
+                latest_conversation_id: null,
+                latest_completed_at: null,
+                has_result: false,
+                has_activity: false,
+              })
+          : previous(path, options),
+      );
+      render(<DashboardPage />, { wrapper });
+      await waitFor(() =>
+        expect(document.querySelector('[data-dashboard-view="org"]')).not.toBeNull(),
+      );
+      if (state === "hidden")
+        await waitFor(() =>
+          expect(screen.queryByRole("region", { name: "start.offerTitle" })).toBeNull(),
+        );
+      else expect(await screen.findByRole("region", { name: "start.offerTitle" })).toBeVisible();
+      expectSharedRhythm("org");
+    },
+  );
+  it("keeps the same boundary for an empty organization layout", async () => {
+    params.set("view", "org");
+    savedLayout = { entries: [] };
+    render(<DashboardPage />, { wrapper });
+    expect(await screen.findByText("dashboard.edit.emptyTitle")).toBeVisible();
+    expectSharedRhythm("org");
+  });
+});

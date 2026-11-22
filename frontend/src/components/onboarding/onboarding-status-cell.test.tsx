@@ -1,6 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
-import { OnboardingStatusCell, UserOnboardingStatusCell } from "./onboarding-status-cell";
+import { OnboardingStatusCell } from "./onboarding-status-cell";
 
 it("distinguishes an old response from a confirmed unstarted membership", () => {
   const view = render(<OnboardingStatusCell />);
@@ -37,41 +37,4 @@ it("shows completion even for legacy records without a progress timestamp", () =
   expect(screen.getByText("Completed")).toBeVisible();
   expect(screen.queryByText("In progress")).toBeNull();
   expect(document.querySelector("time")).toHaveAttribute("dateTime", "2026-11-21T10:00:00Z");
-});
-it("keeps each organization's completion independent in the deployment table", () => {
-  render(
-    <UserOnboardingStatusCell
-      completedAt="2026-11-20T10:00:00Z"
-      onboarding={[
-        {
-          organization_id: "one",
-          organization_name: "Acme",
-          completed_at: "2026-11-21T10:00:00Z",
-          current_step: null,
-          updated_at: null,
-        },
-        {
-          organization_id: "two",
-          organization_name: "Research",
-          completed_at: null,
-          current_step: "member.profile",
-          updated_at: "2026-11-22T10:00:00Z",
-        },
-      ]}
-    />,
-  );
-  expect(within(screen.getByText("Acme").closest("li")!).getByText("Completed")).toBeVisible();
-  expect(
-    within(screen.getByText("Research").closest("li")!).getByText("In progress"),
-  ).toBeVisible();
-});
-it("labels the account-only legacy state without implying workspace completion", () => {
-  const view = render(
-    <UserOnboardingStatusCell onboarding={[]} completedAt="2026-11-20T10:00:00Z" />,
-  );
-  expect(screen.getByText("Account setup")).toBeVisible();
-  expect(screen.getByText("Completed")).toBeVisible();
-  view.rerender(<UserOnboardingStatusCell onboarding={[]} completedAt={null} />);
-  expect(screen.getByText("No workspace memberships")).toBeVisible();
-  expect(screen.getByText("Not started")).toBeVisible();
 });

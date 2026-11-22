@@ -55,6 +55,8 @@ const state = {
   refused: [] as string[],
   source: "live" as "live" | "curated" | null,
   loadingModels: false,
+  canRefresh: true,
+  listingError: null as Error | null,
   createProfile: { mutateAsync: vi.fn(), isPending: false },
   updateProfile: { mutateAsync: vi.fn(), isPending: false },
   permissions: [] as Permission[],
@@ -67,6 +69,7 @@ vi.mock("./subscription-model-form", () => ({
 }));
 
 const listingRequests = vi.fn();
+const refreshModels = vi.fn();
 const onCreatedSecret = { handler: undefined as ((id: string) => void) | undefined };
 
 vi.mock("@/hooks", () => ({
@@ -85,6 +88,9 @@ vi.mock("@/hooks", () => ({
       refused: state.refused,
       source: state.source,
       isLoading: state.loadingModels,
+      canRefresh: state.canRefresh,
+      error: state.listingError,
+      refetch: refreshModels,
     };
   },
   usePermissions: () => ({
@@ -177,6 +183,9 @@ beforeEach(() => {
   state.refused = [];
   state.source = "live";
   state.loadingModels = false;
+  state.canRefresh = true;
+  state.listingError = null;
+  refreshModels.mockReset();
   state.createProfile = { mutateAsync: vi.fn().mockResolvedValue({ id: "p-1" }), isPending: false };
   state.updateProfile = { mutateAsync: vi.fn().mockResolvedValue({ id: "p-1" }), isPending: false };
   // The form only exists for a caller holding `connections:manage`, and most of
@@ -2040,4 +2049,24 @@ it("routes a subscription choice to inline setup and keeps old profiles editable
   rerender(<AddModel key="fixed" fixedProviderId="subscription:codex" onCreated={vi.fn()} />);
   expect(screen.getByTestId("subscription-form")).toHaveTextContent("codex");
   expect(screen.queryByRole("combobox", { name: "Provider" })).toBeNull();
+});
+
+it("refreshes the selected provider catalog without creating a model or changing its draft", async () => {
+  state.secrets = [secret({ id: "s-openrouter", purpose: "openrouter" })];
+  state.models = [{ id: "anthropic/claude-opus-5", name: "Claude Opus 5" }];
+  mount({ fixedProviderId: "openrouter" });
+  await userEvent.click(screen.getByRole("combobox", { name: "Model" }));
+  await userEvent.click(screen.getByRole("button", { name: "Refresh models" }));
+  expect(refreshModels).toHaveBeenCalledOnce();
+  expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
+  expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+});
+
+it("does not offer a refresh before endpoint discovery is allowed and reports its failures", async () => {
+  state.canRefresh = false;
+  state.listingError = new Error("catalog offline");
+  mount({ fixedProviderId: "openrouter" });
+  await userEvent.click(screen.getByRole("combobox", { name: "Model" }));
+  expect(screen.queryByRole("button", { name: "Refresh models" })).not.toBeInTheDocument();
+  expect(screen.getByRole("alert")).toHaveTextContent("The catalog could not be refreshed");
 });

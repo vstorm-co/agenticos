@@ -376,12 +376,10 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
                 <StartGuide message={experience("toolsGuide")} />
                 <StartTools />
                 <StartActions>
-                  <Button variant="ghost" onClick={() => advance("tools", "team")}>
-                    {experience("adminSetup")}
-                  </Button>
-                  <Button onClick={() => advance("tools", "task")}>
+                  <Button variant="ghost" onClick={() => advance("tools", "task")}>
                     {experience("launchTitle")}
                   </Button>
+                  <Button onClick={() => advance("tools", "team")}>{experience("continue")}</Button>
                 </StartActions>
               </section>
             )}

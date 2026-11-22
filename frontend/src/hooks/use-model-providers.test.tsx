@@ -732,3 +732,17 @@ it("bypasses the backend catalog cache only on explicit refresh and exposes refr
   await waitFor(() => expect(result.current.error).toBeInstanceOf(Error));
   expect(result.current.models).toHaveLength(1);
 });
+
+it.each([
+  ["", undefined, undefined],
+  ["openai_chatgpt", undefined, undefined],
+  ["openai_compatible", undefined, undefined],
+])(
+  "does not offer refresh for an incomplete provider connection %s",
+  (provider, endpoint, secret) => {
+    const { result } = renderHook(() => useProviderModels(provider ?? "", endpoint, secret), {
+      wrapper,
+    });
+    expect(result.current.canRefresh).toBe(false);
+  },
+);

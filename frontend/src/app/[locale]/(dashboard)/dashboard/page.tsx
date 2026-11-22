@@ -472,7 +472,7 @@ export default function DashboardPage() {
       />
       <div
         key={panelKey}
-        className={cn(styles.panel, "flex flex-1 flex-col")}
+        className={cn(styles.panel, "flex flex-1 flex-col gap-6 [&>*]:mt-0")}
         // Only an explicit scope change enters; arriving at the dashboard or
         // restoring its URL must not animate the whole working surface.
         data-state={animatedPanel?.key === panelKey ? "active" : undefined}
@@ -517,7 +517,8 @@ export default function DashboardPage() {
             {view === "me" && <DiscoverTips />}
             {/* The bands own a rhythm of their own, four times the gap between two
           cards, which is what makes a band read as a band. The header and the
-          control strip above keep the 24px every other page uses. */}
+          control strip stays 16px above the first surface; the panel owns
+          24px between its rendered children, even when an optional one disappears. */}
             {view === "group" && group !== null ? (
               <QuietGroup
                 group={group}

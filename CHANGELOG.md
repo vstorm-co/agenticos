@@ -33,7 +33,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Record guided-setup progress per organization membership and show completed, in-progress or unstarted status in member and deployment-user tables, with readable steps and separate organization labels.
+- Record guided-setup progress per organization membership and show completed, in-progress or unstarted status in organization member tables, with readable step labels.
 
 - Start new accounts on onboarding with account language and appearance, explicit invitation acceptance, provider-first model setup and suggested service connections. Pass the account’s preferred language to agents through the `language` built-in variable and person briefing.
 
@@ -112,6 +112,10 @@ Two things are versioned separately from this file and worth knowing about:
 - Find unanswered web-chat questions in Inbox and return to their original question cards, including older conversations.
 
 ### Fixed
+
+- Keep the normal chat composer visible beside agent questions. Stop pauses queued follow-ups until explicit resume instead of sending them after cancellation.
+
+- Use one tab-to-content spacing across every dashboard view, align sidebar project rows with primary navigation and add model refresh controls to remaining catalogs and saved-profile selectors.
 
 - Keep pending agent questions clear of the chat composer, preserving its draft while answering or cancelling. Place Architect and assistant service cards before Chat home in organization settings, with consistent icons.
 

@@ -104,6 +104,26 @@ it("loads the selected vendor's real account catalog and creates a keyless profi
   });
   expect(selected).toHaveBeenCalledWith(expect.objectContaining({ id: "new-profile" }));
 });
+
+it("refreshes the plain account model picker without selecting a model", async () => {
+  mount();
+  const picker = await screen.findByRole("combobox", { name: "Model" });
+  await waitFor(() => expect(picker).toBeEnabled());
+  await userEvent.click(picker);
+  const before = vi
+    .mocked(apiClient.get)
+    .mock.calls.filter(([path]) => path === "/subscription-accounts/google.json/models").length;
+  await userEvent.click(screen.getByRole("button", { name: "Refresh models" }));
+  await waitFor(() =>
+    expect(
+      vi
+        .mocked(apiClient.get)
+        .mock.calls.filter(([path]) => path === "/subscription-accounts/google.json/models").length,
+    ).toBeGreaterThan(before),
+  );
+  expect(selected).not.toHaveBeenCalled();
+  expect(create).not.toHaveBeenCalled();
+});
 it("reuses a saved profile instead of creating duplicates", async () => {
   profiles = [{ id: "saved", provider: "subscription_accounts", model: pinned }];
   mount();

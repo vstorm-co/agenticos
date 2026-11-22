@@ -30,7 +30,7 @@ export function useChatViewport(options: ViewportOptions) {
     current.current.scroller.current = element;
     setMountedScroller(element);
   }, []);
-  const controller = useRef<{ sent: (id: string) => void; reveal: () => void } | null>(null);
+  const controller = useRef<{ sent: (id: string) => void } | null>(null);
   const previousSent = useRef<string | null>(null);
   const previousConversation = useRef(options.conversationId);
 
@@ -101,7 +101,7 @@ export function useChatViewport(options: ViewportOptions) {
       if (pointerActive || nativeControlScroll) return;
       const pending = !!transcript.querySelector("[data-question-pending]");
       // An incoming form can add a whole viewport at once. Keep the place the
-      // person was reading; the dock's explicit Reveal action takes them to it.
+      // person was reading rather than moving their draft out from under them.
       // An already-pending question on initial history load is not a live arrival.
       if (pending && !questionPending && hasTranscript) {
         pausedForQuestion = true;
@@ -295,23 +295,6 @@ export function useChatViewport(options: ViewportOptions) {
         mode = "sent";
         resize();
       },
-      reveal: () => {
-        const card = transcript.querySelector<HTMLElement>("[data-question-pending]");
-        if (!card) return;
-        cancelRelease();
-        pointerActive = false;
-        nativeControlScroll = false;
-        mode = "reading";
-        preserveAnchor = true;
-        const inset = Number.parseFloat(getComputedStyle(scrolling).scrollPaddingTop) || 24;
-        anchor = { element: card, offset: inset };
-        const desired =
-          scrolling.scrollTop + card.getBoundingClientRect().top - viewportTop() - inset;
-        const withoutReserve = scrolling.scrollHeight - space.offsetHeight - scrolling.clientHeight;
-        space.style.height = `${Math.max(0, Math.ceil(desired - withoutReserve))}px`;
-        write(desired);
-        card.querySelector<HTMLElement>('[role="group"]')?.focus({ preventScroll: true });
-      },
     };
     remember();
     resize();
@@ -345,6 +328,5 @@ export function useChatViewport(options: ViewportOptions) {
     }
   }, [options.messages, options.sentTurnId]);
 
-  const revealQuestion = useCallback(() => controller.current?.reveal(), []);
-  return { dockHeight, revealQuestion, bindScroller };
+  return { dockHeight, bindScroller };
 }

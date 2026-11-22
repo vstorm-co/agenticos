@@ -542,3 +542,29 @@ it("starts the default Studio with only the workspace decision and no repeated i
   expect(screen.queryByLabelText("Organization preview")).not.toBeInTheDocument();
   expect(screen.queryByRole("group", { name: "Onboarding design" })).not.toBeInTheDocument();
 });
+
+it.each([true, false])(
+  "continues from tools into team settings before launching (app admin: %s)",
+  async (appAdmin) => {
+    env.orgs = [org("company")];
+    env.activeId = "company";
+    window.history.replaceState(
+      null,
+      "",
+      "/onboarding?variant=studio&start-step=admin.tools&workspace=company",
+    );
+    render(<StartAdministration appAdmin={appAdmin} />);
+    expect(await screen.findByText("MCP services")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: /^Continue$/ }));
+    expect(screen.getByRole("heading", { name: "Invite your team" })).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: "Real installed teammates" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Continue setup" }));
+    if (appAdmin) expect(screen.getByRole("textbox", { name: "Deployment name" })).toBeVisible();
+    else {
+      expect(screen.getByRole("heading", { name: "Workspace spending cap" })).toBeVisible();
+      expect(env.deployment).not.toHaveBeenCalled();
+    }
+  },
+);

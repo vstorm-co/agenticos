@@ -303,7 +303,7 @@ beforeEach(() => {
 });
 
 describe("the chat container - answering a durable question", () => {
-  it("parks the mounted draft behind a compact question toolbar and reveals one inline form", async () => {
+  it("keeps the normal draft composer below one inline question and queues follow-ups", async () => {
     useChatStore.getState().addMessage({
       id: "question-start",
       role: "user",
@@ -318,17 +318,22 @@ describe("the chat container - answering a durable question", () => {
     receive("ask_user", {
       questions: [{ question: "Which format?", options: [{ label: "List" }] }],
     });
-    const reveal = await screen.findByRole("button", { name: "Answer the agent’s question" });
-    expect(editor).toHaveAttribute("contenteditable", "false");
-    expect(editor).toBeInTheDocument();
-    expect(editor).not.toBeVisible();
+    expect(editor).toHaveAttribute("contenteditable", "true");
+    expect(editor).toBeVisible();
     expect(messageOf(editor)).toBe("My unsent draft");
-    expect(screen.queryByRole("textbox", { name: "Type a message..." })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Stop generating" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Answer the agent’s question" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cancel task" })).toBeNull();
     expect(screen.getAllByRole("group", { name: "Question from the assistant" })).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Cancel task" })).toBeEnabled();
-    fireEvent.click(reveal);
-    expect(screen.getByRole("group", { name: "Question from the assistant" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Stop generating" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+    expect(await screen.findByText("My unsent draft")).toBeVisible();
+    expect(socket.send.mock.calls.some(([frame]) => frame.message === "My unsent draft")).toBe(
+      false,
+    );
+    expect(socket.send.mock.calls.some(([frame]) => frame.type === "ask_user_response")).toBe(
+      false,
+    );
+    expect(messageOf(editor)).toBe("");
   });
 
   it("keeps the question disabled offline and resumes on the connected socket", async () => {
@@ -355,8 +360,8 @@ describe("the chat container - answering a durable question", () => {
     });
     const answer = screen.getByRole("button", { name: /Casual/ });
     expect(answer).toBeDisabled();
-    expect(editor).not.toBeVisible();
-    expect(screen.getByRole("button", { name: "Cancel task" })).toBeEnabled();
+    expect(editor).toBeVisible();
+    expect(screen.getByRole("button", { name: "Stop generating" })).toBeEnabled();
     expect(answer.closest("[data-transcript]")).toBeInTheDocument();
     expect(answer.closest("[data-chat-dock]")).toBeNull();
     act(() => {
@@ -389,7 +394,7 @@ describe("the chat container - answering a durable question", () => {
     expect(await screen.findByText("Your answer was received.")).toBeInTheDocument();
     expect(await screen.findByRole("textbox", { name: "Type a message..." })).toBe(editor);
     expect(messageOf(editor)).toBe("Keep this draft while I answer");
-    expect(screen.queryByRole("button", { name: "Cancel task" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Stop generating" })).toBeNull();
   });
 
   it("cancels a durable question over HTTP even while the chat socket is offline", async () => {
@@ -414,13 +419,13 @@ describe("the chat container - answering a durable question", () => {
       useChatStore.setState({ messages: [...useChatStore.getState().messages] });
     });
     expect(screen.getByRole("button", { name: /Yes/ })).toBeDisabled();
-    await userEvent.click(screen.getByRole("button", { name: "Cancel task" }));
+    await userEvent.click(screen.getByRole("button", { name: "Stop generating" }));
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenCalledWith("/runs/cancel-question-run/cancel"),
     );
     await waitFor(() => expect(editor).toBeVisible());
     expect(messageOf(editor)).toBe("Draft after cancellation");
-    expect(screen.queryByRole("button", { name: "Cancel task" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Stop generating" })).toBeNull();
   });
 });
 
@@ -551,7 +556,7 @@ describe("the chat container - following the transcript", () => {
     });
   }
 
-  it("remeasures the compact dock so a pending question has the freed transcript space", async () => {
+  it("keeps the normal composer and its transcript clearance while a question is pending", async () => {
     const observers = observeSizes();
     const { dock, scroller } = await scrollerAndDock(observers);
     const region = dock.querySelector<HTMLElement>("[data-chat-composer-region]")!;
@@ -570,9 +575,9 @@ describe("the chat container - following the transcript", () => {
     receive("ask_user", {
       questions: [{ question: "Choose a format", options: [{ label: "List" }] }],
     });
-    expect(region).not.toBeVisible();
+    expect(region).toBeVisible();
     resize();
-    expect(scroller.style.paddingBottom).toBe("56px");
+    expect(scroller.style.paddingBottom).toBe("180px");
     expect(screen.getAllByRole("group", { name: "Question from the assistant" })).toHaveLength(1);
   });
 

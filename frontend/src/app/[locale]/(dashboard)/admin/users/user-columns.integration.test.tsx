@@ -125,35 +125,8 @@ it("shows per-account last activity and active sessions in the list", async () =
   expect(screen.getByText("Never signed in")).toBeInTheDocument();
 });
 
-it("shows onboarding per organization instead of one global completion flag", async () => {
-  vi.mocked(apiClient.get).mockResolvedValue({
-    items: [
-      {
-        ...USERS[0],
-        onboarding: [
-          {
-            organization_id: "a",
-            organization_name: "Acme",
-            completed_at: "2026-11-21T10:00:00Z",
-            current_step: null,
-            updated_at: null,
-          },
-          {
-            organization_id: "b",
-            organization_name: "Research",
-            completed_at: null,
-            current_step: "member.profile",
-            updated_at: "2026-11-22T10:00:00Z",
-          },
-        ],
-      },
-    ],
-    total: 1,
-  });
+it("keeps organization onboarding out of the deployment-wide user table", async () => {
   render(<AdminUsersPage />, { wrapper });
-  expect(await screen.findByText("Acme")).toBeVisible();
-  expect(screen.getByText("Research")).toBeVisible();
-  expect(screen.getByText("Completed")).toBeVisible();
-  expect(screen.getByText("In progress")).toBeVisible();
-  expect(screen.getByText("Your profile")).toBeVisible();
+  await screen.findByText("kacper@example.com");
+  expect(screen.queryByRole("columnheader", { name: "Onboarding" })).not.toBeInTheDocument();
 });

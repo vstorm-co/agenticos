@@ -83,7 +83,7 @@ parent's check.
 
 The aggregate ceiling is checked inside the mutation savepoint, under an organization lock, before commit. An over-limit write rolls back its record and every retained copy, including a batch row; remaining batch rows are reported as refused. Receipt replay, unchanged writes, reads and deletion remain available after a limit is lowered. Retention releases the bytes it removes. Stored PostgreSQL JSONB payload bytes per organization across records, history, receipts and outbox; physical table/index overhead is separate.
 
-Onboarding progress stores only an allowed step identifier and update timestamp on `organization_members`, alongside the recorded completion. It contains no form drafts or additional personal fields. Deployment administrators can read progress per organization; people already allowed to list that organization’s members can read its membership progress. Progress is not inferred from existing profile contents.
+Onboarding progress stores only an allowed step identifier and update timestamp on `organization_members`, alongside the recorded completion. It contains no form drafts or additional personal fields. People already allowed to list an organization’s members can read its membership progress in that list. Progress is not inferred from existing profile contents.
 
 | Store | Holds | Personal data in it | Purpose |
 | --- | --- | --- | --- |

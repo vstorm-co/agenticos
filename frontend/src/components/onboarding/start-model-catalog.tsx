@@ -37,7 +37,7 @@ export function StartModelCatalog(props: ChatModelPaneProps) {
   return (
     <div className={styles.catalog}>
       <Command shouldFilter={false} loop>
-        <div className={styles.catalogToolbar}>
+        <div className={styles.catalogToolbar} data-start-catalog-toolbar>
           <div className={styles.search}>
             <Search aria-hidden className="text-muted-foreground size-4" />
             <Command.Input
@@ -53,6 +53,40 @@ export function StartModelCatalog(props: ChatModelPaneProps) {
           {props.catalogConnection && (
             <div className={styles.catalogConnection}>{props.catalogConnection}</div>
           )}
+          <div className={styles.catalogFooter}>
+            <div>
+              {!props.loading && <p>{t("catalogCount", { count: models.length })}</p>}
+              {props.catalogError ? (
+                <p role="alert" className="text-destructive">
+                  {t("catalogFailed")}
+                </p>
+              ) : (
+                props.catalogSource && (
+                  <p>
+                    {t(
+                      props.catalogSource === "live"
+                        ? "catalogLive"
+                        : props.catalogSource === "curated"
+                          ? "catalogFallback"
+                          : "catalogUnlisted",
+                    )}
+                  </p>
+                )
+              )}
+            </div>
+            {props.onRefresh && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={t("refreshCatalog")}
+                disabled={props.loading || props.catalogRefreshing}
+                onClick={props.onRefresh}
+              >
+                <RefreshCw aria-hidden className="size-4" />
+              </Button>
+            )}
+          </div>
         </div>
         <Command.List className={styles.modelList}>
           {props.loading ? (
@@ -95,40 +129,6 @@ export function StartModelCatalog(props: ChatModelPaneProps) {
           )}
         </Command.List>
       </Command>
-      <div className={styles.catalogFooter}>
-        <div>
-          {!props.loading && <p>{t("catalogCount", { count: models.length })}</p>}
-          {props.catalogError ? (
-            <p role="alert" className="text-destructive">
-              {t("catalogFailed")}
-            </p>
-          ) : (
-            props.catalogSource && (
-              <p>
-                {t(
-                  props.catalogSource === "live"
-                    ? "catalogLive"
-                    : props.catalogSource === "curated"
-                      ? "catalogFallback"
-                      : "catalogUnlisted",
-                )}
-              </p>
-            )
-          )}
-        </div>
-        {props.onRefresh && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={t("refreshCatalog")}
-            disabled={props.loading || props.catalogRefreshing}
-            onClick={props.onRefresh}
-          >
-            <RefreshCw aria-hidden className="size-4" />
-          </Button>
-        )}
-      </div>
     </div>
   );
 }

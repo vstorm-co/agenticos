@@ -1287,10 +1287,7 @@
       "heading": "Frage an dich",
       "answered": "Fragen und Antworten",
       "submitting": "Antworten werden gesendet…",
-      "details": "Werkzeugdetails",
-      "reveal": "Frage des Agenten beantworten",
-      "cancel": "Aufgabe abbrechen",
-      "cancelling": "Wird abgebrochen…"
+      "details": "Werkzeugdetails"
     },
     "loadEarlierMessages": "Ältere Nachrichten laden",
     "accessLevel": "Zugriffsstufe",
@@ -2728,7 +2725,9 @@
       "empty": "Alles erledigt. Neue Erkenntnisse und wichtige Themen erscheinen hier.",
       "failed": "Dein Posteingang konnte nicht geladen werden.",
       "refreshFailed": "Dein Posteingang konnte nicht aktualisiert werden. Die zuletzt geladenen Einträge werden angezeigt."
-    }
+    },
+    "queuedPaused": "Warteschlange pausiert",
+    "resumeQueue": "Warteschlange fortsetzen"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -17857,8 +17856,6 @@
     "snooze": "Für 24 Stunden ausblenden",
     "guided": {
       "guideLabel": "Ihre Einrichtungshilfe",
-      "question": "Frage {current} von {total}",
-      "changeLater": "Später änderbar",
       "back": "Zurück",
       "keepCurrent": "Aktuelle Einstellungen behalten",
       "saving": "Wird gespeichert…",
@@ -17880,11 +17877,9 @@
       "openBody": "Personen können sich im Rahmen Ihrer erlaubten E-Mail-Domains registrieren.",
       "closedTitle": "Registrierung geschlossen",
       "closedBody": "Neue Registrierungen pausieren. Bestehende Konten behalten ihren Zugang.",
-      "domainsPreserved": "Bestehende erlaubte E-Mail-Domains und Kontolimits bleiben unverändert.",
       "destinationTitle": "Wo sollen neue Konten starten?",
       "destinationGuide": "Neue Personen können direkt in dieser Firmenorganisation starten. Bestehende Personen werden nicht verschoben und ihre Rollen nicht geändert.",
       "destinationBody": "Diese Organisation für neue Konten verwenden. Eingestellte Startrolle: {role}.",
-      "destinationHint": "Firmenkarte auswählen oder das aktuelle Startziel beibehalten.",
       "otherDestination": "Derzeit ist eine andere Organisation voreingestellt. Diese Auswahl ersetzt sie nur für zukünftige Konten.",
       "personalTitle": "Auch persönliche Organisationen erstellen",
       "personalBody": "Zukünftigen Konten zusätzlich eine persönliche Organisation geben. Für reine Firmennutzung ausschalten.",
@@ -17912,16 +17907,11 @@
       "budgetTitle": "Welches Monatslimit passt für Sie?",
       "budgetGuide": "Sie kontrollieren die KI-Nutzung. Wählen Sie einen Startbetrag oder bewegen Sie den Regler. Gespeichert wird erst beim Weitergehen.",
       "unlimited": "Ohne Limit",
-      "unlimitedHint": "Unten einen Betrag für die Obergrenze wählen",
-      "perMonth": "USD pro Monat, für die gesamte Organisation",
       "budgetSlider": "Monatsbudget in US-Dollar",
       "budgetInvalid": "Wähle einen positiven Betrag oder kein Limit.",
       "budgetHint": "Begrenzt die erfasste KI-Nutzung der Agenten in der Organisation. Kein Abo und kein Guthaben. Der Anbieter rechnet separat ab.",
       "workspaceReadyTitle": "Bereit für die erste Aufgabe",
       "workspaceReadyGuide": "Das Wichtigste ist bereit. Jetzt können wir eine erste Aufgabe ausprobieren. Erweiterte Regeln und Sprache sind bei Bedarf unten verfügbar; das Öffnen ändert nichts.",
-      "readyForPeople": "Die Organisation Ihres Teams nimmt Gestalt an",
-      "readyForPeopleBody": "{workspace} hat eine eigene Identität und Einstellungen. Bestehende Agenten, Gespräche und Regeln bleiben erhalten.",
-      "advancedOptional": "Optional: Nur bei Bedarf öffnen. Jeder Bereich nutzt seine eigenen Speicheraktionen.",
       "advancedSafety": "Freigaben und öffentliche Daten",
       "advancedAssistants": "Assistenten und Automatisierung der Organisation",
       "advancedVoice": "Sprachgespräche",
@@ -17994,7 +17984,6 @@
       "agentUnavailable": "Dieser Agent ist in Ihrem Workspace noch nicht verfügbar. Bitten Sie einen Administrator um die Einrichtung.",
       "architectUnavailable": "Architect ist deaktiviert, benötigt ein Modell oder ist für Ihr Konto nicht verfügbar. Ein Administrator kann ihn in den Workspace-Einstellungen konfigurieren.",
       "launchHint": "Beim Öffnen wird keine Modellanfrage gesendet. Wählen Sie eine Aufgabe und senden Sie sie, wenn Sie bereit sind.",
-      "adminSetup": "Team- und Workspace-Einstellungen prüfen",
       "agentsFailed": "Agent konnte nicht geladen werden",
       "retry": "Erneut versuchen",
       "phases": {
@@ -21240,8 +21229,6 @@
     "notStarted": "Nicht begonnen",
     "inProgress": "In Bearbeitung",
     "unknown": "Nicht verfügbar",
-    "otherStep": "Einrichtung",
-    "account": "Kontoeinrichtung",
-    "noWorkspace": "Keine Arbeitsbereichsmitgliedschaften"
+    "otherStep": "Einrichtung"
   }
 }

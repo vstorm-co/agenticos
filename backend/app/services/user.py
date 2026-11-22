@@ -47,7 +47,6 @@ from app.repositories import (
     conversation_repo,
     knowledge_base_repo,
     member_repo,
-    onboarding_repo,
     organization_repo,
     organization_secret_repo,
     personal_data_repo,
@@ -55,7 +54,6 @@ from app.repositories import (
     user_repo,
 )
 from app.schemas.conversation_share import AdminUserList, AdminUserRead
-from app.schemas.onboarding import OrganizationOnboardingRead
 from app.schemas.user import (
     AdminUserDetail,
     AdminUserMembership,
@@ -281,20 +279,6 @@ class UserService:
             sort_dir=sort_dir,
         )
         activity = await session_repo.admin_activity_for(self.db, [user.id for user, _ in rows])
-        progress: dict[UUID, list[OrganizationOnboardingRead]] = {}
-        for row in await onboarding_repo.progress_for_users(self.db, [user.id for user, _ in rows]):
-            completed_at = onboarding_repo.effective_completed_at(
-                row.member, row.account_completed_at
-            )
-            progress.setdefault(row.member.user_id, []).append(
-                OrganizationOnboardingRead(
-                    organization_id=row.member.organization_id,
-                    organization_name=row.organization_name,
-                    completed_at=completed_at,
-                    current_step=None if completed_at else row.member.onboarding_current_step,
-                    updated_at=row.member.onboarding_updated_at,
-                )
-            )
         items = []
         for user, conv_count in rows:
             last_seen, sessions = activity.get(user.id, (None, 0))
@@ -309,8 +293,6 @@ class UserService:
                     created_at=user.created_at,
                     last_seen_at=last_seen,
                     active_sessions=sessions,
-                    onboarding_completed_at=user.onboarding_completed_at,
-                    onboarding=progress.get(user.id, []),
                 )
             )
         return AdminUserList(items=items, total=total)

@@ -10412,10 +10412,9 @@
       "failed": "Gelen kutun yüklenemedi.",
       "refreshFailed": "Gelen kutunuz yenilenemedi. Son yüklenen öğeler gösteriliyor."
     },
-    "questions": {
-      "cancel": "Görevi iptal et",
-      "cancelling": "İptal ediliyor…"
-    }
+    "questions": {},
+    "queuedPaused": "Kuyruk duraklatıldı",
+    "resumeQueue": "Kuyruğu sürdür"
   },
   "admin": {
     "actions": "Eylemler",
@@ -14056,8 +14055,6 @@
     "snooze": "24 saat gizle",
     "guided": {
       "guideLabel": "Kurulum rehberin",
-      "question": "Soru {current} / {total}",
-      "changeLater": "Bunu sonra değiştirebilirsin",
       "back": "Geri",
       "keepCurrent": "Mevcut ayarları koru",
       "saving": "Kaydediliyor…",
@@ -14079,11 +14076,9 @@
       "openBody": "İzin verilen e-posta alan adlarına göre kişiler hesap oluşturabilir.",
       "closedTitle": "Kayıt kapalı",
       "closedBody": "Yeni kayıtları durdur. Mevcut hesaplar erişimlerini korur.",
-      "domainsPreserved": "İzin verilen e-posta alan adları ve hesap sınırları değişmez.",
       "destinationTitle": "Yeni hesaplar nerede başlasın?",
       "destinationGuide": "Yeni kişileri doğrudan bu şirket organizasyonunda başlatabilirsin. Bu, gelecekteki hesaplar içindir; mevcut kişiler taşınmaz ve rolleri değişmez.",
       "destinationBody": "Yeni hesaplar bu organizasyonda başlasın. Yapılandırılmış başlangıç rolü: {role}.",
-      "destinationHint": "Bu organizasyonu kullanmak için şirket kartını seç veya mevcut başlangıç yerini koru.",
       "otherDestination": "Şu anda başka bir kuruluş varsayılan. Bu kartı seçmek yalnızca gelecekteki hesaplar için onu değiştirir.",
       "personalTitle": "Kişisel organizasyonlar da oluştur",
       "personalBody": "Gelecekteki hesaplara kişisel organizasyon da ver. Yalnızca şirket organizasyonu için kapat.",
@@ -14111,16 +14106,11 @@
       "budgetTitle": "Aylık hangi sınır sana uygun?",
       "budgetGuide": "AI kullanımını sen kontrol edersin. Başlangıç tutarını seç veya kaydırıcıyı hareket ettir. Yalnızca devam ettiğinde kaydedeceğim.",
       "unlimited": "Sınırsız",
-      "unlimitedHint": "Sınır koymak için aşağıdan bir tutar seç",
-      "perMonth": "Organizasyonun tamamı için aylık USD",
       "budgetSlider": "ABD doları olarak aylık bütçe",
       "budgetInvalid": "Pozitif bir tutar veya limitsiz seçeneğini seç.",
       "budgetHint": "Bu organizasyondaki ajanların izlenen AI kullanımını sınırlar. Abonelik veya ön ödemeli kredi değildir. Sağlayıcı ayrı faturalandırır.",
       "workspaceReadyTitle": "İlk görevin için hazır",
       "workspaceReadyGuide": "Temel hazırlıklar tamam. İlk görevi deneyebiliriz. Gelişmiş kurallar ve ses özellikleri gerekirse aşağıda; bir bölümü açmak ayarları değiştirmez.",
-      "readyForPeople": "Ekibinin organizasyonu şekilleniyor",
-      "readyForPeopleBody": "{workspace} kendi kimliğine ve ayarlarına sahip. Mevcut ajanlar, görüşmeler ve kurallar korunur.",
-      "advancedOptional": "İsteğe bağlı: Yalnızca ihtiyaç duyduğunda incele. Her bölüm kendi kayıt kontrollerini kullanır.",
       "advancedSafety": "Onaylar ve herkese açık veriler",
       "advancedAssistants": "Organizasyon asistanları ve otomasyon",
       "advancedVoice": "Sesli görüşmeler",
@@ -17091,8 +17081,6 @@
     "notStarted": "Başlanmadı",
     "inProgress": "Devam ediyor",
     "unknown": "Veri yok",
-    "otherStep": "Kurulum",
-    "account": "Hesap kurulumu",
-    "noWorkspace": "Çalışma alanı üyeliği yok"
+    "otherStep": "Kurulum"
   }
 }

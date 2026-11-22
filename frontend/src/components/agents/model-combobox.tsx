@@ -2,9 +2,9 @@
 
 import { useId, useState } from "react";
 import { Command } from "cmdk";
-import { Check, ChevronsUpDown, Pencil } from "lucide-react";
+import { Check, ChevronsUpDown, Pencil, RefreshCw } from "lucide-react";
 
-import { Badge, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
+import { Badge, Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { COMMAND_ITEM_FOCUS, FORM_CONTROL, MENU_ROW } from "@/components/ui/control-styles";
 import { catalogModelName } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
@@ -27,6 +27,7 @@ interface ModelComboboxProps {
   /** Where the list came from, so the panel can be honest about it. */
   source: "live" | "curated" | "unlisted" | null;
   loading?: boolean;
+  onRefresh?: () => void;
   disabled?: boolean;
   allowCustom?: boolean;
   placeholder: string;
@@ -75,6 +76,7 @@ export function ModelCombobox({
   options,
   source,
   loading,
+  onRefresh,
   disabled,
   allowCustom = true,
   placeholder,
@@ -83,6 +85,7 @@ export function ModelCombobox({
   "aria-describedby": describedBy,
 }: ModelComboboxProps) {
   const t = useTranslations("agents");
+  const picker = useTranslations("chat.modelPicker");
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const listId = useId();
@@ -225,6 +228,24 @@ export function ModelCombobox({
             </p>
           )}
         </Command>
+        {onRefresh && (
+          <div className="border-border flex justify-end border-t px-2 py-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={disabled || loading}
+              onClick={onRefresh}
+            >
+              <RefreshCw
+                size={14}
+                aria-hidden
+                className={cn(loading && "animate-spin motion-reduce:animate-none")}
+              />
+              {picker("refreshCatalog")}
+            </Button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

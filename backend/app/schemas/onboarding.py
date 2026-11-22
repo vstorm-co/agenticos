@@ -28,21 +28,6 @@ class OnboardingAgent(BaseSchema):
     name: str
 
 
-class OrganizationOnboardingRead(BaseSchema):
-    """Reported setup progress in one organization, never inferred from profile fields."""
-
-    organization_id: UUID
-    organization_name: str
-    completed_at: datetime | None = None
-    current_step: OnboardingStep | None = Field(
-        default=None,
-        description="An explicitly visited setup screen, not evidence that its settings were saved",
-    )
-    updated_at: datetime | None = Field(
-        default=None, description="When the reported screen last changed or setup was completed"
-    )
-
-
 class OnboardingRead(BaseSchema):
     completed_at: datetime | None = None
     current_step: OnboardingStep | None = Field(

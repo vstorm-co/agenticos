@@ -37,6 +37,8 @@ export interface QueuedMessage {
    * held, marked, until the person sends it again or drops it.
    */
   refused?: string;
+  /** Stop holds follow-ups, including a sealed native outbox, until Resume queue. */
+  paused?: boolean;
 }
 
 /** The earlier message a turn answers, quoted above it. */

@@ -3,7 +3,7 @@
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
 import { useId, useLayoutEffect, useRef, useState } from "react";
-import { Check, ChevronRight, KeyRound, Trash2 } from "lucide-react";
+import { Check, ChevronRight, KeyRound, RefreshCw, Trash2 } from "lucide-react";
 
 import { AddModel } from "@/components/agents/add-model";
 import { CONTROL_FOCUS, MENU_ROW } from "@/components/ui/control-styles";
@@ -131,7 +131,24 @@ export function ModelProfilePicker({
 }: ModelProfilePickerProps) {
   const t = useTranslations("agents");
   const tc = useTranslations("common");
-  const { deleteProfile, refetchProfiles } = useModelProviders();
+  const picker = useTranslations("chat.modelPicker");
+  const { deleteProfile, refetchProfiles, isFetching } = useModelProviders();
+  const refresh = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      disabled={disabled || isFetching}
+      onClick={() => void refetchProfiles()}
+    >
+      <RefreshCw
+        size={14}
+        aria-hidden
+        className={cn(isFetching && "animate-spin motion-reduce:animate-none")}
+      />
+      {picker("refreshCatalog")}
+    </Button>
+  );
   const [selectionVersion, setSelectionVersion] = useState(0);
   const currentSelection = useRef(0);
   if (useChanged(value)) setSelectionVersion((version) => version + 1);
@@ -244,6 +261,8 @@ export function ModelProfilePicker({
     />
   );
 
+  const cachedFailure = profilesStatus === "failed" && offered.length > 0 ? failed : null;
+
   // A panel that only chooses between what exists is the list, and the line
   // saying which of them is in use.
   if (!allowAdd) {
@@ -264,13 +283,18 @@ export function ModelProfilePicker({
           <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-xs">
             {t("noModelAskAdmin")}
           </p>
+          {refresh}
         </div>
       );
     }
     if (compact) {
       return (
         <div className="space-y-2">
-          <p className="text-sm font-medium">{t("model2")}</p>
+          {cachedFailure}
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium">{t("model2")}</p>
+            {refresh}
+          </div>
           <Select
             value={value ?? "default"}
             disabled={disabled || profilesStatus !== "loaded"}
@@ -304,6 +328,8 @@ export function ModelProfilePicker({
     return (
       <div className="space-y-3">
         {current}
+        {cachedFailure}
+        <div className="flex justify-end">{refresh}</div>
         {list}
       </div>
     );
@@ -312,6 +338,7 @@ export function ModelProfilePicker({
   return (
     <div className="space-y-3">
       {current}
+      {cachedFailure}
 
       {/* Provider, model and key, always - and starting on the model in use, so the
           panel says what that is in the same two fields that change it rather than
@@ -354,6 +381,9 @@ export function ModelProfilePicker({
           the panel here and it already works, so a wait would stand in for a
           disclosure that may well have nothing to disclose. */}
       {offered.length === 0 && profilesStatus === "failed" && failed}
+      {offered.length === 0 && profilesStatus === "loaded" && (
+        <div className="flex justify-end">{refresh}</div>
+      )}
 
       {offered.length > 0 && (
         <NativeDisclosure className="group">
@@ -364,6 +394,7 @@ export function ModelProfilePicker({
             })}
           </summary>
           <div className="mt-2 space-y-2">
+            <div className="flex justify-end">{refresh}</div>
             {list}
             <p className="text-muted-foreground text-xs">{t("namedSoOrganizationCan")}</p>
           </div>

@@ -343,6 +343,11 @@ export function useProviderModels(
   decision = false,
 ) {
   const nextRefresh = useRef(false);
+  const canRefresh =
+    providerId !== "" &&
+    !(providerId === "openai_chatgpt" && !secretId) &&
+    !(LISTED_ONLY_AT_ENDPOINT.includes(providerId) && !baseUrl) &&
+    !([...LISTED_WITH_KEY, ...KEYED_LISTINGS].includes(providerId) && baseUrl && !secretId);
   const { data, isFetching, refetch, error } = useQuery({
     ...providerModelsQuery(providerId, baseUrl, secretId, decision),
     queryFn: () => {
@@ -350,11 +355,7 @@ export function useProviderModels(
       nextRefresh.current = false;
       return requestProviderModels(providerId, baseUrl, secretId, decision, requested);
     },
-    enabled:
-      providerId !== "" &&
-      !(providerId === "openai_chatgpt" && !secretId) &&
-      !(LISTED_ONLY_AT_ENDPOINT.includes(providerId) && !baseUrl) &&
-      !([...LISTED_WITH_KEY, ...KEYED_LISTINGS].includes(providerId) && baseUrl && !secretId),
+    enabled: canRefresh,
   });
 
   const refreshModels = useCallback(
@@ -381,6 +382,7 @@ export function useProviderModels(
     hasCachedListing: data !== undefined,
     error,
     refetch: refreshModels,
+    canRefresh,
   };
 }
 

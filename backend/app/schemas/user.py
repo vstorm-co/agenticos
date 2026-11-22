@@ -8,7 +8,6 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from app.schemas.base import BaseSchema, TimestampSchema
-from app.schemas.onboarding import OrganizationOnboardingRead
 
 ConsoleLocale = Literal["en", "pl", "de", "tr"]
 """The languages the console is translated into - `frontend/src/lib/locales.ts`."""
@@ -231,9 +230,6 @@ class UserInDB(UserRead):
 
 class AdminUserRead(BaseSchema):
     """Minimal user info for admin endpoints."""
-
-    onboarding_completed_at: datetime | None = None
-    onboarding: list[OrganizationOnboardingRead] = Field(default_factory=list)
 
     id: UUID
     email: str

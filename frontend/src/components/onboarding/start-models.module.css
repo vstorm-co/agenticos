@@ -114,6 +114,12 @@
   border-radius: 0.875rem;
 }
 .catalogToolbar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  background: var(--color-card);
+  border-start-start-radius: 0.875rem;
+  border-start-end-radius: 0.875rem;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -152,12 +158,11 @@
   border-radius: 0.875rem 0.875rem 0 0;
 }
 .modelList {
-  max-block-size: min(25rem, 55dvh);
-  overflow-y: auto;
-  overscroll-behavior: contain;
   padding: 0.375rem;
 }
 .model {
+  scroll-margin-block-start: 12rem;
+  scroll-margin-block-end: 1rem;
   display: flex;
   min-inline-size: 0;
   min-block-size: 3.25rem;
@@ -178,6 +183,8 @@
   cursor: default;
 }
 .catalogFooter {
+  flex: 1 0 100%;
+  padding: 0 0.375rem 0.375rem 1rem;
   display: flex;
   align-items: center;
   justify-content: space-between;

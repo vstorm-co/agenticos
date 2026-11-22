@@ -2,11 +2,11 @@
 
 import { useId, useState } from "react";
 import { Command } from "cmdk";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, RefreshCw } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ModelIcon } from "@/components/icons/model-icon";
-import { Badge, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
+import { Badge, Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { COMMAND_ITEM_FOCUS, FORM_CONTROL, MENU_ROW } from "@/components/ui/control-styles";
 import { hasKey, runsAgents, usableForAgents } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
@@ -18,20 +18,39 @@ export function PipelineProfileSelect({
   value,
   onChange,
   disabled,
+  onRefresh,
+  refreshing,
 }: {
   profiles: ModelProfile[];
   value: string | null;
   onChange: (value: string | null) => void;
   disabled?: boolean;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }) {
   const t = useTranslations("agents");
+  const picker = useTranslations("chat.modelPicker");
   const [open, setOpen] = useState(false);
   const listId = useId();
   const selected = profiles.find((profile) => profile.id === value);
   const offered = profiles.filter((profile) => usableForAgents(profile) || profile.id === value);
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium">{t("model2")}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium">{t("model2")}</p>
+        {onRefresh && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={picker("refreshCatalog")}
+            disabled={disabled || refreshing}
+            onClick={onRefresh}
+          >
+            <RefreshCw aria-hidden className="size-4" />
+          </Button>
+        )}
+      </div>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button

@@ -204,6 +204,7 @@ export function ChatModelPicker({
     hasCachedListing,
     refetch: refetchModels,
     error: catalogError,
+    canRefresh,
   } = useProviderModels(
     subscription ? "" : providerId,
     providerId === "openrouter" ? (endpoint ?? undefined) : undefined,
@@ -483,6 +484,24 @@ export function ChatModelPicker({
       </div>
     ) : null;
 
+  const credentialPicker = !requiresEndpoint && providerKeys.length > 1 && (
+    <div className="grid gap-1.5">
+      <Label htmlFor="chat-model-key">{tRoot("vault.key")}</Label>
+      <Select value={effectiveKey?.id} onValueChange={setPickedKey}>
+        <SelectTrigger id="chat-model-key">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {providerKeys.map((key) => (
+            <SelectItem key={key.id} value={key.id} textValue={key.name}>
+              <ProviderRow provider={providerId} name={key.name} hint={key.hint} />
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
   const Library = providerView?.component ?? ChatModelLibrary;
   if (presentation === "library" && can(Perm.connectionsManage))
     return (
@@ -531,7 +550,7 @@ export function ChatModelPicker({
         catalogSource={source}
         catalogError={!!catalogError}
         onRefresh={
-          providerId && !personalSource && !requiresEndpoint
+          canRefresh && !personalSource && !requiresEndpoint
             ? () => void refetchModels()
             : undefined
         }
@@ -543,26 +562,7 @@ export function ChatModelPicker({
           providerKeys.length === 0 &&
           !profiles.some((profile) => profile.provider === providerId && usableForAgents(profile))
         }
-        credentialPicker={
-          !requiresEndpoint &&
-          providerKeys.length > 1 && (
-            <div className="grid gap-1.5">
-              <Label htmlFor="chat-model-key">{tRoot("vault.key")}</Label>
-              <Select value={effectiveKey?.id} onValueChange={setPickedKey}>
-                <SelectTrigger id="chat-model-key">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {providerKeys.map((key) => (
-                    <SelectItem key={key.id} value={key.id} textValue={key.name}>
-                      <ProviderRow provider={providerId} name={key.name} hint={key.hint} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )
-        }
+        credentialPicker={credentialPicker}
         model={
           current?.provider === providerId &&
           currentEndpointMatches &&
@@ -700,6 +700,7 @@ export function ChatModelPicker({
               ) : (
                 <>
                   {catalogConnection}
+                  {credentialPicker}
                   <div className="space-y-1.5">
                     <Label htmlFor="chat-model-id">{t("model")}</Label>
                     {/* The Builder's own picker: the provider's catalog, searchable, and
@@ -714,10 +715,16 @@ export function ChatModelPicker({
                       }}
                       options={suggestions}
                       source={source}
+                      onRefresh={canRefresh ? () => void refetchModels() : undefined}
                       loading={loadingModels}
                       disabled={provider === undefined}
                       placeholder={placeholderWords(modelPlaceholder(provider?.id), tRoot)}
                     />
+                    {catalogError && (
+                      <p role="alert" className="text-destructive text-xs">
+                        {t("catalogFailed")}
+                      </p>
+                    )}
                     {failure !== null && <p className="text-destructive text-xs">{failure}</p>}
                   </div>
 

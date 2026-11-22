@@ -1,8 +1,10 @@
 ---
-source_sha: "358a44ddade5"
+source_sha: "2ac651787fae"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
+
+**Refresh models** w katalogu dostawcy ponownie pobiera listę, zachowując wyszukiwanie i wybór. Przy zapisanych modelach organizacji odczytuje ponownie zapisane profile. Odświeżenie nie zapisuje modelu ani nie uruchamia agenta. Endpoint, klucz Vault, typ API i region pojawiają się zgodnie z możliwościami dostawcy; osobiste subskrypcje korzystają z ustawień połączonego konta.
 
 Tytuły stron, kontrolki list i nagłówki tabel mają wspólną, zwartą hierarchię. Tabela osadzona w liście ma jedną zewnętrzną ramkę i zachowuje wysokość wierszy podczas ładowania. Karta agenta otwiera Build również wtedy, gdy Evals wymaga uwagi; znacznik pozostaje widoczny. Historia uruchomień jest w Aktywności, zamiast nad Builderem. Podgląd uruchomienia pokazuje zapisany powód błędu, a pełne surowe zdarzenia pozostają w rozwijanych sekcjach. Czat pokazuje nazwę modelu nad dostawcą lub osobistym kontem. Projekty poprzedzają Build w nawigacji; Wiedza zaczyna zwinięta i otwiera się dla aktywnej strony lub po Twoim wyborze.
 
@@ -20,7 +22,7 @@ Jeśli onboarding bieżącej organizacji nie został ukończony, **Dokończ konf
 
 **Ustawienia → Profil** zawsze zachowują ręczny link do konfiguracji, również po wyłączeniu przypomnień. Przypomnienie ma wyraźną akcję i krótką animację ilustracji, która respektuje ograniczenie ruchu. Wracasz z własnej inicjatywy: przewodnik nie uruchamia się automatycznie. W tej samej przeglądarce link pamięta ostatni dozwolony krok dla tego konta i organizacji, bez zapisywania wartości formularza.
 
-Konfiguracja z przewodnikiem zapisuje bieżący krok i czas aktualizacji dla twojego członkostwa w organizacji. Tabela członków pokazuje stan nierozpoczęty, w trakcie lub ukończony wraz z czytelną nazwą kroku. Tabela użytkowników wdrożenia wymienia każdą organizację osobno; ukończenie konfiguracji w jednej nie oznacza ukończenia w pozostałych. Wcześniej zapisane ukończenie pozostaje ważne, ale zawartość profilu nigdy nie stanowi dowodu postępu ani ukończenia.
+Konfiguracja z przewodnikiem zapisuje bieżący krok i czas aktualizacji dla twojego członkostwa w organizacji. Tabela członków pokazuje stan nierozpoczęty, w trakcie lub ukończony wraz z czytelną nazwą kroku. Postęp dotyczy danego członkostwa; ukończenie konfiguracji w jednej organizacji nie oznacza ukończenia w pozostałych. Wcześniej zapisane ukończenie pozostaje ważne, ale zawartość profilu nigdy nie stanowi dowodu postępu ani ukończenia.
 
 Krok wyświetlony przed wyborem organizacji lub dołączeniem do niej nie jest zapisywany jako postęp członkostwa. Język konta i wygląd zapisują się osobno. W karcie Asystent organizacji Architect i pozostałe usługi asystenta są przed stroną startową czatu; wspólne ikony i nagłówki kart ułatwiają przeglądanie usług.
 
@@ -1273,4 +1275,4 @@ Nowe konta otwierają `/onboarding` po rejestracji hasłem lub pierwszym logowan
 
 Po subskrypcjach konfiguracja modelu pokazuje najpierw dostawcę, następnie połączenie i model. Subskrypcje osobiste pozostają w poprzednim kroku. Narzędzia zaczynają od sugerowanych usług; **Przeglądaj wszystkie usługi** otwiera pełny katalog MCP.
 
-Gdy agent zadaje pytanie, zwykły edytor zachowuje szkic i załączniki, ale znika z widoku oraz nawigacji klawiaturą. Kompaktowy pasek odpowiedzi i anulowania zostawia miejsce na pytanie; odpowiedź przywraca edytor. Pytania bez połączenia pozostają nieaktywne do jego odzyskania, natomiast anulowanie wstrzymanego zadania korzysta ze zwykłej ścieżki HTTP.
+Gdy agent zadaje pytanie, karta i zwykły edytor pozostają widoczne razem. Edytor zachowuje szkic i załączniki; nowe wiadomości czekają w kolejce, a odpowiedź na pytanie wysyłasz przez kartę. Zatrzymanie odpowiedzi wstrzymuje kolejkę do jej świadomego wznowienia. Zwykłe zakończenie odpowiedzi nadal uruchamia kolejne wiadomości.

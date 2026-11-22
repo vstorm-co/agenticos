@@ -52,7 +52,7 @@ export function ViewSwitcher({
   useScrollFade(strip);
   useTabIndicator(strip, views.length > 1);
   if (views.length < 2)
-    return actions ? <div className="mb-5 flex justify-end">{actions}</div> : null;
+    return actions ? <div className="mb-4 flex justify-end">{actions}</div> : null;
 
   return (
     // Tabs, not a second pill control: which dashboard this is sits a level

@@ -3,10 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { Badge } from "@/components/ui";
 import { formatDate, formatDateTime } from "@/lib/utils";
-import type {
-  OnboardingProgressStatus,
-  OrganizationOnboardingStatus,
-} from "@/types/onboarding-status";
+import type { OnboardingProgressStatus } from "@/types/onboarding-status";
 
 const ADMIN_STEPS = [
   "workspace",
@@ -78,34 +75,5 @@ export function OnboardingStatusCell({
         <span className="text-muted-foreground text-xs">{step}</span>
       ) : null}
     </div>
-  );
-}
-
-/** App admins see each membership independently, never an invented global completion. */
-export function UserOnboardingStatusCell({
-  onboarding,
-  completedAt,
-}: {
-  onboarding?: OrganizationOnboardingStatus[];
-  completedAt?: string | null;
-}) {
-  const t = useTranslations("onboardingStatus");
-  if (onboarding === undefined) return <OnboardingStatusCell />;
-  if (onboarding.length === 0)
-    return (
-      <div className="text-muted-foreground grid gap-1 text-xs">
-        <span>{completedAt ? t("account") : t("noWorkspace")}</span>
-        <OnboardingStatusCell completed_at={completedAt ?? null} />
-      </div>
-    );
-  return (
-    <ul className="grid max-w-64 min-w-40 gap-3">
-      {onboarding.map((entry) => (
-        <li key={entry.organization_id} className="grid gap-1">
-          <span className="text-foreground text-xs font-medium">{entry.organization_name}</span>
-          <OnboardingStatusCell {...entry} />
-        </li>
-      ))}
-    </ul>
   );
 }

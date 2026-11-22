@@ -1,6 +1,6 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { Check, RefreshCw } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button, Skeleton } from "@/components/ui";
 import { ModelIcon } from "@/components/icons/model-icon";
@@ -31,7 +31,19 @@ export function StartAvailableModels({ providers }: { providers: readonly string
     );
   return (
     <div className={styles.stage}>
-      <p className={styles.hint}>{t("existingModels")}</p>
+      <div className="flex items-center justify-between gap-3">
+        <p className={styles.hint}>{t("existingModels")}</p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={picker("refreshCatalog")}
+          disabled={models.isFetching}
+          onClick={() => void models.refetchProfiles()}
+        >
+          <RefreshCw aria-hidden className="size-4" />
+        </Button>
+      </div>
       <div role="group" aria-label={picker("allModels")} className={styles.stage}>
         {profiles.map((profile) => (
           <button

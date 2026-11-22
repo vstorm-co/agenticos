@@ -2,6 +2,8 @@
 
 The model picker keeps its header, provider tabs and search in place while the model and provider lists scroll independently. Dashboard tab changes retain their short transition; entering the dashboard or restoring browser history does not animate the entire panel. The onboarding avatar carousel remains available beside an uploaded photo, with a hint that color changes affect the avatar shown when the photo is unavailable.
 
+**Refresh models** in a provider catalog fetches the list again while keeping your search and selection. Next to saved organization models, it reloads the saved profiles instead. Refresh does not save a model or start an agent. Endpoint, Vault key, API type and region controls appear when the provider supports them; personal subscriptions use their connected account settings.
+
 Page titles, list controls and table headers share a compact hierarchy. Tables embedded in lists use one outer frame and keep their row height while loading. Agent cards open Build even when Evals needs attention; its indicator stays visible. Run history remains in Activity instead of above the Builder. Run inspection shows the recorded failure reason and keeps complete raw events behind disclosures. Chat keeps the model name above its provider or personal account. Projects precede Build in navigation; Knowledge starts folded and opens for its active page or your explicit choice.
 
 The default themes distinguish the canvas, sidebar, cards and floating panels. Blue identifies links and keyboard focus; enabled switches use green. Navigation uses regular weight with a medium active label. Builder section summaries show the current model, variables, voice state and first messages before opening their editors. Sign-in and account recovery use the same concise heading style and a static identity panel.
@@ -16,7 +18,7 @@ If your current organization’s onboarding is unfinished, **Finish setup** retu
 
 **Settings → Profile** always keeps a manual setup link, including when reminders are off. The reminder has a clear action and a short, bounded illustration animation; reduced motion keeps it still. Returning is your choice: no tour starts automatically. In the same browser, the link remembers the last allowed step for this account and organization without storing form values.
 
-Guided setup records the current step and its update time on your organization membership. The members table shows whether setup is not started, in progress or completed, with a readable step label. The deployment user table lists each organization separately; completing setup in one does not mark the others complete. Existing recorded completion remains valid, but profile contents never imply progress or completion.
+Guided setup records the current step and its update time on your organization membership. The members table shows whether setup is not started, in progress or completed, with a readable step label. Progress belongs to that membership; completing setup in one organization does not mark the others complete. Existing recorded completion remains valid, but profile contents never imply progress or completion.
 
 A step shown before you choose or join an organization is not recorded as membership progress. Account language and appearance are saved separately. Under the organization’s Assistant tab, Architect and the other assistant services appear before Chat home; matching icons and card headers make the services easier to scan.
 
@@ -1245,4 +1247,4 @@ New accounts open `/onboarding` after password registration or their first OAuth
 
 After subscriptions, model setup presents a provider first, then its connection and model. Personal subscriptions remain in their previous step. Tools start with suggested services; **Browse all services** opens the complete MCP catalog.
 
-When an agent asks a question, the normal composer stays mounted with its draft and attachments but is hidden from view and keyboard navigation. A compact answer/cancel bar leaves room for the question; answering restores the composer. Offline questions remain unavailable until the connection returns, while cancelling an already parked run uses the normal HTTP cancellation path.
+When an agent asks a question, its card and the normal composer stay visible together. The composer keeps your draft and attachments; new messages wait in the queue while you answer through the card. Stopping a response pauses queued messages until you explicitly resume the queue. Natural completion continues the queue normally.

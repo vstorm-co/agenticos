@@ -4,8 +4,3 @@ export interface OnboardingProgressStatus {
   current_step?: string | null;
   updated_at?: string | null;
 }
-
-export interface OrganizationOnboardingStatus extends OnboardingProgressStatus {
-  organization_id: string;
-  organization_name: string;
-}

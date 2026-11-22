@@ -1,8 +1,6 @@
 """Scoped start preferences and evidence of real use; no prompts or secrets are stored."""
 
-from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import NamedTuple
 from uuid import UUID
 
 from sqlalchemy import select
@@ -10,8 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.conversation import Conversation, Message
-from app.db.models.organization import Organization, OrganizationMember
-from app.db.models.user import User
+from app.db.models.organization import OrganizationMember
 from app.schemas.onboarding import OnboardingUpdate
 
 
@@ -90,25 +87,3 @@ def effective_completed_at(
     if account_completed_at is not None and member.joined_at <= account_completed_at:
         return account_completed_at
     return None
-
-
-class MemberOnboardingRow(NamedTuple):
-    member: OrganizationMember
-    organization_name: str
-    account_completed_at: datetime | None
-
-
-async def progress_for_users(
-    db: AsyncSession, user_ids: Sequence[UUID]
-) -> list[MemberOnboardingRow]:
-    """Fetch every membership for one bounded user page in a single query."""
-    if not user_ids:
-        return []
-    result = await db.execute(
-        select(OrganizationMember, Organization.name, User.onboarding_completed_at)
-        .join(Organization, Organization.id == OrganizationMember.organization_id)
-        .join(User, User.id == OrganizationMember.user_id)
-        .where(OrganizationMember.user_id.in_(user_ids))
-        .order_by(OrganizationMember.user_id, OrganizationMember.joined_at, OrganizationMember.id)
-    )
-    return [MemberOnboardingRow(row[0], row[1], row[2]) for row in result.all()]

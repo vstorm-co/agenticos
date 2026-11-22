@@ -300,6 +300,7 @@ export function SubscriptionModelForm({
           }}
           options={listing.models}
           source="live"
+          onRefresh={() => void listing.refetch()}
           loading={listing.loading}
           disabled={
             disabled ||

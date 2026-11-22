@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
@@ -218,6 +218,26 @@ it("lets a member choose an existing model without permission to configure conne
   expect(apiClient.post).not.toHaveBeenCalled();
   expect(apiClient.patch).not.toHaveBeenCalled();
 });
+
+it("lets a member refresh configured models without creating or selecting one", async () => {
+  env.canManage = false;
+  mount();
+  await screen.findByRole("button", { name: "Claude Test" });
+  const before = vi
+    .mocked(apiClient.get)
+    .mock.calls.filter(([path]) => path === "/providers/model-profiles").length;
+  await userEvent.click(screen.getByRole("button", { name: "Refresh models" }));
+  await waitFor(() =>
+    expect(
+      vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === "/providers/model-profiles")
+        .length,
+    ).toBeGreaterThan(before),
+  );
+  expect(apiClient.post).not.toHaveBeenCalled();
+  expect(
+    useChatControlsStore.getState().byScope[chatControlScope(undefined, "org")]?.modelProfileId,
+  ).toBeUndefined();
+});
 it("distinguishes a failed provider catalog from an empty deployment and retries", async () => {
   env.catalogFails = true;
   mount();
@@ -335,4 +355,16 @@ it("returns the wizard viewport to the top only on provider or account-stage cha
   viewport.scrollTop = 500;
   await userEvent.click(screen.getByRole("button", { name: "All providers" }));
   expect(viewport.scrollTop).toBe(0);
+});
+
+it("keeps catalog status and recovery beside search before the single scrolling model list", async () => {
+  mount();
+  await userEvent.click(await screen.findByRole("button", { name: "OpenRouter" }));
+  const search = await screen.findByPlaceholderText("Search models…");
+  const toolbar = search.closest<HTMLElement>("[data-start-catalog-toolbar]")!;
+  const list = screen.getByRole("listbox");
+  expect(within(toolbar).getByText("481 models")).toBeVisible();
+  expect(within(toolbar).getByRole("button", { name: "Refresh models" })).toBeVisible();
+  expect(within(toolbar).getByRole("combobox", { name: "Catalog region" })).toBeVisible();
+  expect(toolbar.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });

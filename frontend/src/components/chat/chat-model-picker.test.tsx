@@ -60,6 +60,7 @@ vi.mock("@/hooks", () => ({
       refused: refusedModels(),
       source: "curated",
       isLoading: loadingModels(),
+      canRefresh: provider !== "",
       refetch: vi.fn(),
     };
   },

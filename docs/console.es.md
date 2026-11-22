@@ -1,6 +1,8 @@
 ---
-source_sha: "358a44ddade5"
+source_sha: "2ac651787fae"
 ---
+
+**Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
 
 El selector conserva el encabezado, las pestañas del proveedor y la búsqueda en su sitio; las listas de modelos y proveedores se desplazan por separado. Los cambios de pestaña del dashboard mantienen su transición breve. Entrar en el dashboard o restaurar el historial no anima todo el panel. El carrusel del onboarding sigue disponible junto a una foto subida, con una explicación de que el color corresponde al avatar que aparece cuando la foto no está disponible.
 
@@ -20,7 +22,7 @@ Si el onboarding de tu organización actual no está terminado, **Completar conf
 
 **Ajustes → Perfil** conserva siempre un enlace manual a la configuración, también cuando los recordatorios están desactivados. El recordatorio tiene una acción clara y una ilustración breve y limitada; el movimiento reducido la mantiene quieta. No se inicia ningún recorrido automáticamente. En el mismo navegador, el enlace recuerda el último paso permitido para esta cuenta y organización sin guardar valores del formulario.
 
-La configuración guiada guarda el paso actual y la fecha de actualización en tu pertenencia a la organización. La tabla de miembros indica si no se ha iniciado, está en curso o se ha completado, con un nombre de paso legible. La tabla de usuarios del despliegue muestra cada organización por separado; completar una no completa las demás. Las finalizaciones ya registradas siguen siendo válidas, pero el contenido del perfil nunca implica progreso ni finalización.
+La configuración guiada guarda el paso actual y la fecha de actualización en tu pertenencia a la organización. La tabla de miembros indica si no se ha iniciado, está en curso o se ha completado, con un nombre de paso legible. El progreso corresponde a cada pertenencia; completar una organización no completa las demás. Las finalizaciones ya registradas siguen siendo válidas, pero el contenido del perfil nunca implica progreso ni finalización.
 
 Un paso mostrado antes de elegir una organización o unirte a ella no se registra como progreso de pertenencia. El idioma y la apariencia de la cuenta se guardan por separado. En la pestaña Asistente de la organización, Architect y los demás servicios aparecen antes de la página de inicio del chat; los iconos y encabezados uniformes facilitan recorrer los servicios.
 
@@ -1307,4 +1309,4 @@ Las cuentas nuevas abren `/onboarding` tras registrarse con contraseña o inicia
 
 Después de las suscripciones, la configuración del modelo muestra primero el proveedor, luego su conexión y modelo. Las suscripciones personales permanecen en el paso anterior. Las herramientas empiezan con servicios sugeridos; **Explorar todos los servicios** abre el catálogo MCP completo.
 
-Cuando un agente hace una pregunta, el editor normal conserva el borrador y los adjuntos, pero se oculta de la vista y de la navegación por teclado. Una barra compacta para responder o cancelar deja espacio para la pregunta; al responder se restaura el editor. Las preguntas sin conexión permanecen inactivas hasta recuperarla, mientras que cancelar una ejecución en espera utiliza la ruta HTTP habitual.
+Cuando un agente hace una pregunta, su tarjeta y el editor normal permanecen visibles juntos. El editor conserva el borrador y los adjuntos; los mensajes nuevos esperan en la cola mientras respondes mediante la tarjeta. Detener una respuesta pausa los mensajes pendientes hasta que reanudes la cola explícitamente. La finalización normal sigue procesando la cola.

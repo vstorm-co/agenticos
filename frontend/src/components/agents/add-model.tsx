@@ -438,6 +438,9 @@ export function AddModel({
     refused,
     source,
     isLoading: loadingModels,
+    error: listingError,
+    refetch: refreshModels,
+    canRefresh,
   } = useProviderModels(
     KEYED_PLAN_ENDPOINTS.includes(providerId) && manualDiscovery && !confirmedGateway
       ? ""
@@ -743,11 +746,17 @@ export function AddModel({
             options={suggestions}
             source={source}
             loading={loadingModels}
-            disabled={provider === undefined}
+            onRefresh={canRefresh ? () => void refreshModels() : undefined}
+            disabled={disabled || provider === undefined}
             placeholder={placeholderWords(modelPlaceholder(provider?.id), tRoot)}
           />
         </FormField>
       </div>
+      {listingError && (
+        <p role="alert" className="text-destructive text-xs">
+          {tRoot("chat.modelPicker.catalogFailed")}
+        </p>
+      )}
 
       <ConnectionSettings
         collapsed={collapseConnection && selected !== undefined}
