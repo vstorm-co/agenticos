@@ -10,8 +10,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0347_room_mention_requests"
-down_revision: str = "0346_room_participants"
+revision: str = "0349_room_mention_requests"
+down_revision: str = "0348_room_participants"
 branch_labels: None = None
 depends_on: None = None
 

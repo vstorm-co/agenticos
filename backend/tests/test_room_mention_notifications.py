@@ -39,6 +39,7 @@ async def test_person_mention_has_scoped_dedupe_and_exact_message_link(monkeypat
     assert values["use_savepoint"] is True
     assert "mentioned" in values["summary"]
     assert values["render_context"] == {
+        "wording": "room_mention",
         "resource_kind": "conversation",
         "resource_id": str(room),
         "conversation_id": str(room),

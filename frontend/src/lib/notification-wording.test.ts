@@ -96,6 +96,15 @@ describe("wordedSummary", () => {
     ).toBe("Ann shared “Q3” with you.");
   });
 
+  it("words a room mention and a thread reply", () => {
+    expect(say({ wording: "room_mention", sender: "Alex", title: "Design" })).toBe(
+      "Alex mentioned you in Design",
+    );
+    expect(say({ wording: "room_thread_reply", sender: "Alex", title: "Design" })).toBe(
+      "Alex replied in a thread in Design",
+    );
+  });
+
   it("words ingestion and syncs", () => {
     expect(say({ wording: "ingestion_failed", filename: "a.pdf", error_message: "Empty" })).toBe(
       "“a.pdf” failed to ingest: Empty",
@@ -280,6 +289,8 @@ describe("every sentence", () => {
     { wording: "briefing", count: "1" },
     { wording: "sync_failed", collection_name: "", error: "x" },
     { wording: "conversation_shared", shared_by: "Ann", conversation_title: "Q3" },
+    { wording: "room_mention", sender: "Alex", title: "Design" },
+    { wording: "room_thread_reply", sender: "Alex", title: "Design" },
     { wording: "shared_change_applied", kind: "context", name: "FAQ", agent_name: "Clerk" },
     { wording: "background_task_paused", kind: "k", organization_name: "Acme", reason: "r" },
     {

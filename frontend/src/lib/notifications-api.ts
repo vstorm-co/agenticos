@@ -51,16 +51,6 @@ export interface Notification {
   params?: Record<string, string> | null;
   /** Versioned wording; legacy consoles ignore this and retain the stored summary. */
   wording_params?: Record<string, string> | null;
-  /** Safe, event-specific names and navigation ids. Message bodies are never included. */
-  render_context?: {
-    resource_kind?: string | null;
-    resource_id?: string | null;
-    conversation_id?: string | null;
-    message_id?: string | null;
-    thread_root_message_id?: string | null;
-    sender?: string | null;
-    title?: string | null;
-  } | null;
 }
 
 export interface NotificationAgent {

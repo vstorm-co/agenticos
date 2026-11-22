@@ -1564,6 +1564,7 @@ class NotificationService:
             summary=f"{sender} mentioned you in '{shown}'.",
             context_url=self._link(f"/chat?{urlencode(query)}", organization_id),
             render_context={
+                "wording": "room_mention",
                 "resource_kind": "conversation",
                 "resource_id": str(conversation_id),
                 "conversation_id": str(conversation_id),
@@ -1611,6 +1612,7 @@ class NotificationService:
             summary=f"{sender} replied in a thread in '{shown}'.",
             context_url=self._link(f"/chat?{urlencode(query)}", organization_id),
             render_context={
+                "wording": "room_thread_reply",
                 "resource_kind": "conversation",
                 "resource_id": str(conversation_id),
                 "conversation_id": str(conversation_id),

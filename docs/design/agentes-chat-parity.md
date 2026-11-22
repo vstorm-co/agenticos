@@ -139,8 +139,8 @@ socket's cached access decision; a removed private member stops following before
 another room event is relayed. Polling remains a recovery path.
 
 The migration chain continues from `0345_credential_continuations` through
-`0346_room_participants`, `0347_room_mention_requests`,
-`0348_room_message_reactions` and `0349_room_thread_state`. Legacy room requests
+`0348_room_participants`, `0349_room_mention_requests`,
+`0350_room_message_reactions` and `0351_room_thread_state`. Legacy room requests
 remain primary requests with explicit dispatch. Downgrades refuse to erase used
 feature evidence. Schema changes are exercised against disposable PostgreSQL;
 production migration and deployment are separate operations.
