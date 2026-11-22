@@ -299,6 +299,17 @@ function prepareCompactionChat() {
 }
 
 describe("manual conversation compaction", () => {
+  it("keeps its availability when Strict Mode replays scope effects", async () => {
+    prepareCompactionChat();
+    get.mockResolvedValue({ available: true });
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), {
+      wrapper,
+      reactStrictMode: true,
+    });
+
+    await waitFor(() => expect(result.current.compactionAvailable).toBe(true));
+  });
+
   it("checks availability and correlates progress and terminal results", async () => {
     prepareCompactionChat();
     get.mockResolvedValue({ available: true });
@@ -322,11 +333,39 @@ describe("manual conversation compaction", () => {
     const requestId = request?.request_id as string;
     receive("compaction_started", {
       kind: "compaction_started",
+      request_id: "stale-request",
+      messages_before: 48,
+      messages_after: null,
+    });
+    expect(result.current.compactionProgress).toBeNull();
+    receive("compaction_impossible", {
+      kind: "compaction_impossible",
+      request_id: "stale-request",
+      messages_before: null,
+      messages_after: null,
+      overhead_tokens: 3_843,
+      window_tokens: 5_000,
+    });
+    expect(result.current.compactionProgress).toBeNull();
+    receive("compaction_started", {
+      kind: "compaction_started",
       request_id: requestId,
       messages_before: 48,
       messages_after: null,
     });
     expect(result.current.compactionProgress?.messages_before).toBe(48);
+    receive("compaction_impossible", {
+      kind: "compaction_impossible",
+      request_id: requestId,
+      messages_before: null,
+      messages_after: null,
+      overhead_tokens: 3_843,
+      window_tokens: 5_000,
+    });
+    expect(result.current.compactionProgress).toMatchObject({
+      request_id: requestId,
+      overhead_tokens: 3_843,
+    });
 
     receive("compact_now_result", {
       request_id: "another-request",
@@ -441,6 +480,55 @@ describe("manual conversation compaction", () => {
     expect(
       sent.mock.calls.some(([value]) => (value as Record<string, unknown>).type === "compact_now"),
     ).toBe(false);
+  });
+
+  it("refuses compaction while a tool call is still waiting", async () => {
+    prepareCompactionChat();
+    useChatStore.getState().addMessage({
+      id: "assistant-tool-call",
+      role: "assistant",
+      content: "",
+      timestamp: new Date(),
+      conversationId: "c-1",
+      toolCalls: [
+        { id: "tc-1", name: "send_email", args: {}, status: "awaiting_approval" as const },
+      ],
+    });
+    get.mockResolvedValue({ available: true });
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.compactionAvailable).toBe(true));
+    expect(result.current.compactConversation()).toBe(false);
+    expect(
+      sent.mock.calls.some(([value]) => (value as Record<string, unknown>).type === "compact_now"),
+    ).toBe(false);
+  });
+
+  it("marks availability false when the service cannot be reached", async () => {
+    prepareCompactionChat();
+    get.mockRejectedValue(new Error("offline"));
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+
+    await waitFor(() =>
+      expect(
+        get.mock.calls.some(([url]) =>
+          String(url).includes("/conversations/c-1/compaction-availability"),
+        ),
+      ).toBe(true),
+    );
+    await waitFor(() => expect(result.current.compactionAvailable).toBe(false));
+  });
+
+  it("restores readiness when the compact command cannot be sent", async () => {
+    prepareCompactionChat();
+    get.mockResolvedValue({ available: true });
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.compactionAvailable).toBe(true));
+    sent.mockReturnValueOnce(false);
+    act(() => expect(result.current.compactConversation()).toBe(false));
+    expect(result.current.compactionStatus).toBe("failed");
+    expect(result.current.compactionReady).toBe(true);
   });
 });
 
@@ -5727,6 +5815,8 @@ describe("useChat - adding to a running turn (#2087)", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("draft the report"));
     receive("model_request_start", {});
+
+    act(() => expect(result.current.sendSteerMessage("   ")).toBe(false));
 
     let accepted = false;
     act(() => {

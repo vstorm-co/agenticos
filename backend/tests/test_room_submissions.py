@@ -28,6 +28,29 @@ from app.services import room_submission as module
 pytestmark = pytest.mark.anyio
 
 
+@pytest.mark.parametrize("reply_id", [None, uuid4()])
+def test_explicit_null_excerpt_is_valid_with_or_without_a_reply(reply_id) -> None:
+    post = RoomMessageCreate(
+        client_message_id="null-excerpt",
+        content="Hello",
+        reply_to_message_id=reply_id,
+        reply_to_excerpt=None,
+    )
+    assert post.reply_to_excerpt is None
+    assert post.reply_to_message_id == reply_id
+
+
+@pytest.mark.parametrize("excerpt", ["", "   ", chr(0xA0) + " " + chr(0xA0)])
+def test_an_excerpt_with_no_visible_text_is_refused(excerpt: str) -> None:
+    with pytest.raises(ValueError, match="visible text"):
+        RoomMessageCreate(
+            client_message_id="blank-excerpt",
+            content="Hello",
+            reply_to_message_id=uuid4(),
+            reply_to_excerpt=excerpt,
+        )
+
+
 @pytest.fixture
 def room(monkeypatch: pytest.MonkeyPatch):
     org, person, conversation_id = uuid4(), uuid4(), uuid4()

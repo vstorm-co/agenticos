@@ -26,10 +26,12 @@ from app.services.network_connections import facade
 
 pytestmark = pytest.mark.anyio
 
-_ORG_ID = uuid.uuid4()
-_USER_ID = uuid.uuid4()
-_SESSION_ID = uuid.uuid4()
-_CONNECTION_ID = uuid.uuid4()
+# Parametrize values become xdist collection ids, so keep these stable across
+# workers. Runtime-only test data can still use uuid4().
+_ORG_ID = uuid.UUID("c7e9b8a4-48eb-4a5f-ae15-58b3b294cecb")
+_USER_ID = uuid.UUID("ca71134c-7b79-4a49-a8e1-dfd65b7f7f2b")
+_SESSION_ID = uuid.UUID("818c2585-948f-459b-9cce-b3d55fb86dca")
+_CONNECTION_ID = uuid.UUID("c48f5ac1-b465-40c9-b1ca-2f3e8f4876f5")
 _LOGIN_URL = "https://login.tailscale.com/a/secret-session-url"
 _V1 = settings.API_V1_STR
 

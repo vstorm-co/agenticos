@@ -74,7 +74,7 @@ async def test_media_follows_the_rebased_credential_chain_and_preserves_publishe
         scripts.get_revision("0341_room_task_handoffs").down_revision
         == "0340_browser_teaching_review"
     )
-    assert scripts.get_heads() == ["0346_merge_t3_v1850"]
+    assert scripts.get_heads() == ["0347_network_connections"]
     assert scripts.get_revision("0333_room_threads").down_revision == "0332_merge_t3_pools_v1761"
     assert scripts.get_revision("0332_merge_t3_pools_v1761").down_revision == (
         "0331_merge_t3_rooms_and_v1761",

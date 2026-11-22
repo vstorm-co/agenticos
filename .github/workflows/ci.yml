@@ -21,27 +21,27 @@ name: CI
 # `concurrency` group is keyed on `github.ref`, so a stacked branch cancels its own
 # superseded runs like any other.
 #
-# No CI runs on pull requests (user decision, 2026-11-16). The quick check (lint,
-# type checks, related tests) runs in the T3 session before it pushes, and its
-# command and output are pasted into the pull request for the lead to read before
-# merging; `t3` requires no status checks. Every push to `t3` (each merge) and
-# every `v*` tag runs the full suite. A failed `t3` run is reverted or fixed
-# before the next merge, and a production deploy needs it green.
-# No CI unless the user asks (user decision, 2026-11-17). This workflow runs
-# only on manual dispatch, when the user requests a run. Each run is a full
-# run of every suite. The T3 session's quick check before each push is the
-# per-change evidence.
+# Pull requests run checks scoped to their diff (user decision, 2026-11-21, replaces
+# the 2026-11-16 no-PR-CI and 11-17 manual-only rules). `changes`
+# (scripts/ci_changed_scope.py lists the paths that rerun everything) skips the
+# suites a diff cannot reach, so selection only narrows PR feedback. The merge
+# queue (`merge_group`) runs the full suite on the exact commit that will land on
+# `t3`; nothing triggers on a plain push to `t3`. A `v*` tag and a manual dispatch
+# also run every suite, since neither emits scope outputs.
 on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
+  push:
+    tags: ['v*']
   workflow_dispatch:
 
-# One run per ref, and a newer run cancels an older one on every ref, `t3`
-# included (user decision, 2026-11-16). A cancelled `t3` run never becomes a
-# baseline: the next push classifies its changes against the last *successful*
-# `t3` run (see `changes`), so the commits whose run was cancelled are still
-# tested by the run that replaced it.
+# One run per pull request: a new commit cancels that PR's run in progress.
+# Merge-queue, tag and dispatch runs are never cancelled by a newer one, so the
+# commit that lands on `t3` always has its own complete full run.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Least privilege for every job. Nothing in this workflow writes anything back -
 # Codecov uses its own token - and a job that later needs more should declare it
@@ -100,10 +100,10 @@ jobs:
       pull-requests: read
       actions: read
     outputs:
-      full: ${{ github.event_name != 'pull_request' }}
-      backend: ${{ steps.reused.outputs.backend || steps.scope.outputs.backend || steps.pushed.outputs.backend }}
-      frontend: ${{ steps.reused.outputs.frontend || steps.scope.outputs.frontend || steps.pushed.outputs.frontend }}
-      e2e: ${{ steps.reused.outputs.e2e || steps.scope.outputs.e2e || steps.pushed.outputs.e2e }}
+      full: "true"
+      backend: ${{ steps.reused.outputs.backend || steps.scope.outputs.backend }}
+      frontend: ${{ steps.reused.outputs.frontend || steps.scope.outputs.frontend }}
+      e2e: ${{ steps.reused.outputs.e2e || steps.scope.outputs.e2e }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -126,8 +126,8 @@ jobs:
 
       - name: Work out which suites the changed paths require
         id: scope
-        # Pure cuts reuse suites only after the proof above. Other main pushes
-        # emit no scope outputs, so they run every suite.
+        # Pure cuts reuse suites only after the proof above. Merge-queue, tag and
+        # dispatch runs emit no scope outputs, so they run every suite.
         #
         # That covers a *skipped step*. It does not cover this *job* failing - a 502
         # from the API, a rate limit, `set -euo pipefail` catching anything - because
@@ -151,28 +151,6 @@ jobs:
           # above, with full-run evidence; paths alone never exempt manifests.
           python3 scripts/ci_changed_scope.py \
             "$RUNNER_TEMP/changed.txt" >> "$GITHUB_OUTPUT"
-
-      - name: Work out which suites a t3 push requires
-        id: pushed
-        # Docs-only merges skip the heavy suites. The diff is taken from the head of
-        # the last *successful* `t3` run, not from `github.event.before`: with
-        # cancel-in-progress, the previous push's run may have been cancelled, and
-        # its changes must still be tested here. No usable baseline emits nothing,
-        # which runs every suite.
-        if: github.event_name == 'push' && github.ref == 'refs/heads/t3' && steps.release.outputs.cut != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          base=$(gh api \
-            "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=t3&event=push&status=success&per_page=1" \
-            --jq '.workflow_runs[0].head_sha // empty')
-          if [ -n "$base" ] && git cat-file -e "$base^{commit}" 2>/dev/null \
-            && git merge-base --is-ancestor "$base" "$GITHUB_SHA"; then
-            git diff --name-only "$base" "$GITHUB_SHA" > "$RUNNER_TEMP/changed.txt"
-            python3 scripts/ci_changed_scope.py \
-              "$RUNNER_TEMP/changed.txt" >> "$GITHUB_OUTPUT"
-          fi
 
   lint:
     # Never gated. It is one billed minute, `make lint-spelling` reads every
@@ -903,7 +881,7 @@ jobs:
           WORKER_HEALTH_FILE: ${{ runner.temp }}/worker-alive
         run: |
           rm -f "$WORKER_HEALTH_FILE"
-          .venv/bin/python -m app.worker --pools agent,eval,system,ingest,workflow \
+          .venv/bin/python -m app.worker --pools agent,eval,system,ingest,network,workflow \
             > "$RUNNER_TEMP/worker.log" 2>&1 &
           worker_pid=$!
           echo "$worker_pid" > "$RUNNER_TEMP/worker.pid"

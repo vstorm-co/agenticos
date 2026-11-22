@@ -54,7 +54,8 @@ test.describe("Sidebar", () => {
     await sidebar.getByRole("button", { name: ACCOUNT }).click();
     await expect(page.getByRole("menuitem", { name: "Manage organizations" })).toHaveCount(0);
     await expect(page.getByRole("menuitem", { name: /Appearance/ })).toBeVisible();
-    await expect(page.getByRole("menuitem", { name: /Language/ })).toBeVisible();
+    // This CI deployment serves English only, so there is no language choice.
+    await expect(page.getByRole("menuitem", { name: /Language/ })).toHaveCount(0);
     await page.keyboard.press("Escape");
 
     // The point of the move: a 56px strip carrying one logo, on every page, is

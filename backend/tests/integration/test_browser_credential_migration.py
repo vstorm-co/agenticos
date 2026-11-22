@@ -123,7 +123,7 @@ async def test_chain_rebases_browser_credential_plans_after_the_current_t3_head(
         scripts.get_revision("0345_credential_continuations").down_revision
         == "0344_browser_procedure_teaching"
     )
-    assert scripts.get_heads() == ["0346_merge_t3_v1850"]
+    assert scripts.get_heads() == ["0347_network_connections"]
     assert scripts.get_revision("0333_room_threads").down_revision == "0332_merge_t3_pools_v1761"
     assert scripts.get_revision("0332_merge_t3_pools_v1761").down_revision == (
         "0331_merge_t3_rooms_and_v1761",

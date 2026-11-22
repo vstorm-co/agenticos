@@ -251,6 +251,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_workflow_run_status.py::test_a_retry_wait_outranks_a_running_sibling_but_not_an_approval": "Approval names the run status being prioritized; reporting, no refusal.",
     "tests/test_tool_errors.py::test_invalid_uuid_names_the_field_and_lookup_before_approval": "'approval' names validation ordering; this tests an argument schema, not an authorization decision",
     "tests/test_tool_errors.py::test_repeated_unknown_names_are_unavailable_without_permission_claims": "'permission' names a diagnostic wording assertion; this tests tool registration, not permission enforcement",
+    "tests/integration/test_browser_teaching_gaps.py::test_a_step_that_would_overflow_the_byte_budget_pauses_capture": "byte budget for teaching capture, not a cost/limit refusal",
 }
 
 

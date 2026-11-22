@@ -112,6 +112,7 @@ _CONSOLE_PATHS = {
     "artifact": "/apps/{id}",
     "dataset": "/datasets/{id}",
     "mcp_connection": "/mcp-servers",
+    "network_connection": "/connectors/devices",
     "project": "/projects/{id}",
     "table": "/tables/{id}",
     "workflow": "/workflows/{id}",

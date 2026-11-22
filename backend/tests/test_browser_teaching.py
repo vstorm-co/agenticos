@@ -116,6 +116,8 @@ async def test_held_does_not_record_an_input_the_page_refused() -> None:
         "http://portal.example.test",
         "https://localhost",
         "javascript:alert(1)",
+        "https://portal.example.test:99999",
+        "https://" + "a" * 70 + ".example.test",
         "",
     ],
 )

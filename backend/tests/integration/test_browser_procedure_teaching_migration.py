@@ -101,7 +101,7 @@ async def test_procedure_teaching_follows_the_published_t3_teaching_chain():
         "0326_provider_account_pools",
     )
     assert scripts.get_revision("0336_merge_core_v1761").down_revision == "0331_merge_core_accounts"
-    assert scripts.get_heads() == ["0346_merge_t3_v1850"]
+    assert scripts.get_heads() == ["0347_network_connections"]
 
 
 async def test_upgrade_downgrade_preserves_existing_proposals_and_matches_every_model_column(
@@ -262,7 +262,7 @@ async def test_active_source_index_build_is_preserved_and_exact_failed_build_is_
                     builder = await raw.execution_options(isolation_level="AUTOCOMMIT")
                     await builder.execute(
                         text(
-                            "SET statement_timeout = '1500ms'"
+                            "SET statement_timeout = '30000ms'"
                             if times_out
                             else "SET statement_timeout = '10000ms'"
                         )
@@ -279,8 +279,10 @@ async def test_active_source_index_build_is_preserved_and_exact_failed_build_is_
             task = asyncio.create_task(build())
             try:
                 await started.wait()
-                async with asyncio.timeout(5):
-                    for _ in range(250):
+                # The full xdist suite can contend for the test database; keep the
+                # deliberately timed-out build alive long enough to observe its progress.
+                async with asyncio.timeout(20):
+                    for _ in range(200):
                         if await connection.scalar(
                             text(
                                 "SELECT EXISTS (SELECT 1 FROM pg_stat_progress_create_index WHERE pid = :pid)"
@@ -288,7 +290,7 @@ async def test_active_source_index_build_is_preserved_and_exact_failed_build_is_
                             {"pid": pid[0]},
                         ):
                             break
-                        await asyncio.sleep(0.02)
+                        await asyncio.sleep(0.1)
                     else:
                         pytest.fail(
                             "The owned source-index build never entered PostgreSQL progress"

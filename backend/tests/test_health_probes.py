@@ -113,7 +113,7 @@ def _heartbeat(
     fired: datetime | Exception | None,
     every: int = 60,
     paused: tuple[str, ...] = (),
-    pools: tuple[str, ...] = ("agent", "eval", "ingest", "system", "workflow"),
+    pools: tuple[str, ...] = ("agent", "eval", "ingest", "network", "system", "workflow"),
 ) -> None:
     """Make the queue's tables report these workers, one schedule and these paused kinds."""
     from app.repositories import background_schedule, background_task_kind, background_worker
@@ -468,11 +468,11 @@ class TestSchedulerProbe:
     async def test_a_pool_no_live_worker_serves_is_unhealthy_by_name(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The `ingest` worker died; the `agent,eval,system,workflow` one keeps the schedules firing."""
+        """The `ingest` worker died; all other configured pools remain healthy."""
         _heartbeat(
             monkeypatch,
             fired=datetime.now(UTC),
-            pools=("agent", "eval", "system", "workflow"),
+            pools=("agent", "eval", "network", "system", "workflow"),
         )
 
         check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
@@ -485,7 +485,9 @@ class TestSchedulerProbe:
     ) -> None:
         """`WORKER_POOLS` set by hand before evals had a pool: they would wait queued."""
         _heartbeat(
-            monkeypatch, fired=datetime.now(UTC), pools=("agent", "ingest", "system", "workflow")
+            monkeypatch,
+            fired=datetime.now(UTC),
+            pools=("agent", "ingest", "network", "system", "workflow"),
         )
 
         check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]

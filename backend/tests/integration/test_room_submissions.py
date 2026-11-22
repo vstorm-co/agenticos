@@ -57,6 +57,7 @@ async def seed(db: AsyncSession) -> Room:
         backend="state",
         visibility="private",
     )
+    spec = {"name": "Responder", "model_profile_id": str(uuid4())}
     agent = Agent(
         id=uuid4(),
         organization_id=org.id,
@@ -64,7 +65,7 @@ async def seed(db: AsyncSession) -> Room:
         slug=f"agent-{uuid4().hex}",
         name="Responder",
         status="published",
-        draft_spec={},
+        draft_spec=spec,
     )
     db.add_all([member, project, agent])
     await db.flush()
@@ -73,7 +74,7 @@ async def seed(db: AsyncSession) -> Room:
         organization_id=org.id,
         agent_id=agent.id,
         version=1,
-        spec={"name": "Responder", "model_profile_id": str(uuid4())},
+        spec=spec,
     )
     db.add(version)
     await db.flush()

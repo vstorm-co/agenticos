@@ -60,13 +60,21 @@ def triggers(workflow: dict[str, Any]) -> dict[str, Any]:
     return block
 
 
-class TestPullRequestsRunNoCI:
-    """The PR quick check runs in the T3 session and is pasted into the PR (2026-11-16)."""
+class TestPullRequestsAndMergeQueue:
+    """PRs get scoped feedback; the merge queue runs everything before `t3` (2026-11-21)."""
 
-    def test_pull_requests_trigger_nothing(self, triggers: dict[str, Any]) -> None:
-        assert "pull_request" not in triggers, (
-            "CI runs after merge and on release tags only; the lead reads the quick "
-            "check output pasted into each pull request before merging."
+    def test_pull_requests_and_the_merge_queue_trigger_ci(self, triggers: dict[str, Any]) -> None:
+        assert set(triggers) == {"pull_request", "merge_group", "push", "workflow_dispatch"}
+        assert triggers["push"] == {"tags": ["v*"]}, (
+            "Pushes to `t3` arrive through the merge queue."
+        )
+
+    def test_only_a_pull_request_run_is_cancelled_by_a_newer_commit(
+        self, workflow: dict[str, Any]
+    ) -> None:
+        assert (
+            workflow["concurrency"]["cancel-in-progress"]
+            == "${{ github.event_name == 'pull_request' }}"
         )
 
     def test_no_trigger_is_filtered_by_path(self, triggers: dict[str, Any]) -> None:
@@ -83,25 +91,16 @@ class TestPullRequestsRunNoCI:
         }
         assert not filtered, f"path filters appear on {sorted(filtered)}."
 
-    def test_every_run_is_a_manual_full_run(
-        self, triggers: dict[str, Any], workflow: dict[str, Any]
-    ) -> None:
-        """CI runs only when the user dispatches it, and each run is full (#162, 2026-11-17)."""
-        assert set(triggers) == {"workflow_dispatch"}
-        assert workflow["jobs"]["changes"]["outputs"]["full"] == (
-            "${{ github.event_name != 'pull_request' }}"
-        ), "A dispatched run is never a pull request, so it runs every suite."
+    def test_every_suite_is_gated_by_scope_alone(self, workflow: dict[str, Any]) -> None:
+        """A merge-queue, tag or dispatch run emits no scope outputs, so it runs every suite."""
+        assert workflow["jobs"]["changes"]["outputs"]["full"] == "true"
 
-    def test_a_push_classifies_against_the_last_successful_t3_run(
-        self, workflow: dict[str, Any]
-    ) -> None:
-        """With cancel-in-progress, `github.event.before` may be a commit never tested."""
-        step = next(
-            step for step in workflow["jobs"]["changes"]["steps"] if step.get("id") == "pushed"
-        )
-        assert "status=success" in step["run"]
-        assert "github.event.before" not in step["run"]
-        assert "merge-base --is-ancestor" in step["run"]
+    def test_no_step_classifies_a_push_to_t3(self, workflow: dict[str, Any]) -> None:
+        """Only the merge queue lands on `t3`, and it runs every suite."""
+        steps = workflow["jobs"]["changes"]["steps"]
+        assert "pushed" not in {step.get("id") for step in steps}
+        outputs = workflow["jobs"]["changes"]["outputs"]
+        assert not any("steps.pushed" in str(value) for value in outputs.values())
 
 
 class TestWorkerBackedJourneys:

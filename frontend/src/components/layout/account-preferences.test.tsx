@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useThemeStore } from "@/stores/theme-store";
 
-const env = vi.hoisted(() => ({ mounted: true, push: vi.fn(), save: vi.fn() }));
+const env = vi.hoisted(() => ({ mounted: true, push: vi.fn(), save: vi.fn(), choose: vi.fn() }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
@@ -21,6 +21,7 @@ vi.mock("@/hooks/use-user-appearance", () => ({
 }));
 
 vi.mock("@/hooks/use-mounted", () => ({ useMounted: () => env.mounted }));
+vi.mock("@/hooks/use-choose-locale", () => ({ useChooseLocale: () => env.choose }));
 vi.mock("@/lib/locale-navigation", () => ({
   usePathname: () => "/agents",
   useRouter: () => ({ push: env.push }),
@@ -44,6 +45,7 @@ beforeEach(() => {
   env.mounted = true;
   env.push.mockClear();
   env.save.mockReset().mockResolvedValue({});
+  env.choose.mockClear();
   vi.mocked(toast.error).mockClear();
   useThemeStore.setState({ theme: "system", look: "standard" });
 });
@@ -121,5 +123,14 @@ describe("LanguageMenu", () => {
     const options = await screen.findAllByRole("menuitemradio");
     expect(options.map((option) => option.textContent)).toEqual(["🇬🇧English"]);
     expect(options[0]).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("routes the selected locale through the account preference callback", async () => {
+    inMenu(<LanguageMenu />);
+    await openSubmenu(/Language/);
+
+    await userEvent.click(await screen.findByRole("menuitemradio", { name: /English/ }));
+
+    expect(env.choose).toHaveBeenCalledExactlyOnceWith("en");
   });
 });

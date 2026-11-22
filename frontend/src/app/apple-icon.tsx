@@ -28,7 +28,6 @@ export default async function AppleIcon() {
     // and a maskable crop both land on violet rather than on a white corner.
     return new ImageResponse(
       <div style={{ width: "100%", height: "100%", display: "flex", background: TILE }}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse renders through Satori; next/image cannot run there, and the src is a data URI. */}
         <img src={LOGO_DATA_URI} alt="" width={180} height={180} />
       </div>,
       { ...size },

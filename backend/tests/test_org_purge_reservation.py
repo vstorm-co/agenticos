@@ -80,6 +80,10 @@ def _patched(mocks: dict):
             "app.repositories.telephony.organization_has_unfinished_calls",
             AsyncMock(return_value=False),
         ),
+        patch(
+            "app.services.network_connections.NetworkConnectionService.prepare_organization_deletion",
+            new=AsyncMock(),
+        ),
         patch("app.core.background.spawn_after_commit"),
         patch(SERVICE_TEARDOWN, new=AsyncMock()) as queued,
     ):

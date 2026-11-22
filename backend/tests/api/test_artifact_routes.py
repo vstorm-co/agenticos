@@ -348,6 +348,7 @@ class TestFavourites:
         with (
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
             patch(f"{PATH}._DELETE_LOCK_SECONDS", 0),
+            patch(f"{PATH}.hold_subject", new=AsyncMock()),
             patch(f"{PATH}.artifact_repo.lock_for_delete", new=AsyncMock(side_effect=failure)),
             patch(f"{PATH}.artifact_repo.delete_artifact", new=AsyncMock()) as delete,
             patch(f"{PATH}.spawn_after_commit") as cleanup,

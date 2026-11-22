@@ -393,3 +393,31 @@ async def test_streaming_cannot_bypass_the_single_durable_image_request():
         async with wrapped.request_stream([], None, ModelRequestParameters()):
             pytest.fail("The durable image boundary must refuse streaming")
     journal.start.assert_not_called()
+
+
+async def test_image_without_a_provider_response_id_still_records_its_cost() -> None:
+    from app.services.workflow_execution import context
+
+    response = ModelResponse(parts=[TextPart("No provider reference")], provider_response_id=None)
+    model = FunctionModel(lambda *_: response)
+    journal = Mock()
+    journal.start = AsyncMock()
+    journal.receipt = AsyncMock()
+    journal.cost = AsyncMock()
+    basis = _pricing.snapshot(image_config())
+    wrapped = DurableImageModel(model, journal, basis)
+    ctx = context.DispatchContext(
+        organization_id=uuid4(),
+        workflow_run_id=uuid4(),
+        node_run_id=uuid4(),
+        node_instance_id=uuid4(),
+        attempt_no=1,
+        auth=AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner"),
+        resumed_agent_run_id=None,
+    )
+    with context.dispatching_as(ctx):
+        result = await wrapped.request([], None, ModelRequestParameters())
+    assert result is response
+    journal.start.assert_awaited_once_with(ctx)
+    journal.receipt.assert_not_awaited()
+    journal.cost.assert_awaited_once_with(_pricing.image_cost(basis, result))
