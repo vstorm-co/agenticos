@@ -145,6 +145,9 @@ def may_decide_approval(ctx: AuthContext, run: AgentRun | None) -> bool:
         and ctx.has(Perm.APPROVALS_DECIDE)
         and _signed_in_person(ctx)
         and run.user_id == ctx.user_id
+        # A stranger's run through a publisher's fallback carries the
+        # publisher's id but was started by somebody else.
+        and not run.initiated_by_publisher_fallback
         and run.surface in _OWN_RUN_SURFACES
     )
 

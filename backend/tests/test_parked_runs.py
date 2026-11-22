@@ -62,6 +62,7 @@ def _run(
     return MagicMock(
         id=RUN,
         user_id=user_id,
+        initiated_by_publisher_fallback=False,
         organization_id=ORG,
         surface=surface,
         conversation_id=uuid.uuid4(),
@@ -400,6 +401,14 @@ class TestResuming:
     async def test_a_member_cannot_resume_somebody_elses_run(self) -> None:
         with _Patched(_run("web", user_id=uuid.uuid4())) as p, pytest.raises(AuthorizationError):
             await p.service.resume(_member(), RUN)
+        p.runner.resume.assert_not_awaited()
+
+    async def test_a_publisher_cannot_resume_a_strangers_fallback_run(self) -> None:
+        run = _run("slack", user_id=USER)
+        run.initiated_by_publisher_fallback = True
+        member = AuthContext(user_id=USER, organization_id=ORG, role=OrgRoleName.BUILDER)
+        with _Patched(run) as p, pytest.raises(AuthorizationError):
+            await p.service.resume(member, RUN)
         p.runner.resume.assert_not_awaited()
 
     async def test_a_members_key_cannot_resume_even_their_own_run(self) -> None:

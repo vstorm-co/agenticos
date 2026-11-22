@@ -35,8 +35,15 @@ def _ctx(role: str, user_id: uuid.UUID | None = _MEMBER, **overrides) -> AuthCon
     )
 
 
-def _run(user_id: uuid.UUID | None = _MEMBER, surface: str = RunSurface.WEB.value) -> AgentRun:
-    return AgentRun(user_id=user_id, surface=surface)
+def _run(
+    user_id: uuid.UUID | None = _MEMBER,
+    surface: str = RunSurface.WEB.value,
+    *,
+    publisher_fallback: bool = False,
+) -> AgentRun:
+    return AgentRun(
+        user_id=user_id, surface=surface, initiated_by_publisher_fallback=publisher_fallback
+    )
 
 
 class TestPrivilegedDeciders:
@@ -78,6 +85,15 @@ class TestOwnRunException:
         assert (
             may_decide_approval(_ctx("member"), _run(_MEMBER, RunSurface.WORKFLOW.value)) is False
         )
+
+    def test_a_publisher_cannot_decide_a_strangers_run_made_under_their_id(self):
+        """A fallback run stores the publisher's id, but the person who started it is somebody else."""
+        run = _run(_MEMBER, RunSurface.SLACK.value, publisher_fallback=True)
+        assert may_decide_approval(_ctx("builder"), run) is False
+
+    def test_an_owner_still_decides_a_fallback_run(self):
+        run = _run(_OTHER, RunSurface.SLACK.value, publisher_fallback=True)
+        assert may_decide_approval(_ctx("owner", _OWNER), run) is True
 
     def test_member_cannot_decide_a_run_nobody_can_name(self):
         assert may_decide_approval(_ctx("member"), None) is False

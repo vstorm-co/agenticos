@@ -1554,6 +1554,7 @@ class TestReadingWhatARunIsParkedOn:
             id=uuid4(),
             user_id=_CALLER_ID if started_by_caller else uuid4(),
             surface=RunSurface.WEB.value,
+            initiated_by_publisher_fallback=False,
         )
 
         class _Parked:
