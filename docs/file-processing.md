@@ -121,6 +121,8 @@ gets the file instead of the text:
 | tiff | PNG page(s) as `BinaryContent`, page cap noted | original `.tiff` written; PNG page(s) shown, page cap noted |
 | archive (`.zip`, `.tar.gz`) | refused: the model is told the agent has no workspace to unpack it into, and nothing of it is pasted | unpacked into `uploads/<id>-<name>/`; reference names the folder and lists the top of the tree |
 
+If the workspace is unavailable when an image is attached, the model still receives the image directly within the per-image and per-turn byte limits. The prompt explains that the workspace is unavailable.
+
 ### Archives { #archives }
 
 A `.zip` or `.tar.gz` is how a repository, or any folder of files, is given to an

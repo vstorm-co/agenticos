@@ -3,7 +3,7 @@ import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { rememberStartPosition } from "./start-position";
-import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { BrandMark } from "@/components/branding/brand-mark";
@@ -23,8 +23,8 @@ import { StartInviteTeam } from "./start-invite-team";
 import { StartOrganizationSettings } from "./start-organization-settings";
 import { StartTasks } from "./start-tasks";
 import { StartFinish } from "./start-finish";
+import { StartActions, StartNavigation, StartNavigationScope } from "./start-navigation";
 import { StartLanguage } from "./start-language";
-import { StartTour } from "./start-tour";
 import styles from "./administration.module.css";
 const STEPS = [
   "workspace",
@@ -44,16 +44,26 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
   const { appName } = useBranding();
   const { activeOrg, activeOrgId, switchOrg } = useOrganizations();
   const organizations = useOrganizationList();
-  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(
-    activeOrg && !activeOrg.is_personal ? activeOrg.id : null,
-  );
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(activeOrg?.id ?? null);
   const org = activeOrg?.id === selectedOrgId ? activeOrg : null;
   const steps = STEPS.filter((item) => appAdmin || item !== "deployment");
   const search = useSearchParams();
+  const requestedStep = steps.find((item) => `admin.${item}` === search.get("start-step"));
+  const requestedWorkspace = requestedStep ? search.get("workspace") : null;
   const initialStep =
-    activeOrg && !activeOrg.is_personal && search.get("workspace") === activeOrg.id
-      ? (steps.find((item) => `admin.${item}` === search.get("start-step")) ?? "workspace")
-      : "workspace";
+    activeOrg && requestedWorkspace === activeOrg.id ? (requestedStep ?? "workspace") : "workspace";
+  const attemptedWorkspace = useRef<string | null>(null);
+  const canResumeWorkspace = organizations.data?.some((item) => item.id === requestedWorkspace);
+  useEffect(() => {
+    if (
+      !requestedWorkspace ||
+      !canResumeWorkspace ||
+      attemptedWorkspace.current === requestedWorkspace
+    )
+      return;
+    attemptedWorkspace.current = requestedWorkspace;
+    if (activeOrgId !== requestedWorkspace) switchOrg(requestedWorkspace);
+  }, [activeOrgId, canResumeWorkspace, requestedWorkspace, switchOrg]);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [step, setStep] = useState<Step>(initialStep);
   const [visited, setVisited] = useState<readonly Step[]>(
@@ -72,17 +82,15 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
     };
   }, []);
   const resumeChanged = useChanged(`${activeOrg?.id}|${initialStep}`);
-  if (
-    resumeChanged &&
-    initialStep !== "workspace" &&
-    step === "workspace" &&
-    visited.length === 1
-  ) {
+  const resuming =
+    resumeChanged && initialStep !== "workspace" && step === "workspace" && visited.length === 1;
+  if (resuming) {
     setSelectedOrgId(activeOrg?.id ?? null);
     setStep(initialStep);
     setVisited(steps.slice(0, steps.indexOf(initialStep) + 1));
   }
-  const scopeChanged = useChanged(activeOrgId) && selectedOrgId && activeOrgId !== selectedOrgId;
+  const activeChanged = useChanged(activeOrgId);
+  const scopeChanged = !resuming && activeChanged && selectedOrgId && activeOrgId !== selectedOrgId;
   if (scopeChanged || !steps.includes(step)) {
     if (scopeChanged) setSelectedOrgId(null);
     setStep("workspace");
@@ -130,11 +138,7 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
     );
   return (
     <div className={styles.shell}>
-      <div
-        className={styles.frame}
-        data-direction={direction}
-        data-focused={step === "deployment" || step === "organization"}
-      >
+      <div className={styles.frame} data-direction={direction}>
         <nav className={styles.topbar} aria-label={appName}>
           <Link href="/chat" className={styles.brand}>
             <BrandMark size={28} />
@@ -151,12 +155,6 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
         <header className={styles.wizardHeader}>
           <div className={styles.wizardMeta}>
             <div className={styles.wizardScope}>
-              {index > 0 && !questionStep && (
-                <button className={styles.wizardBack} type="button" onClick={back}>
-                  <ArrowLeft size={14} aria-hidden />
-                  {t("backStep")}
-                </button>
-              )}
               <span>{org?.name ?? t(appAdmin ? "applicationAdmin" : "organizationAdmin")}</span>
             </div>
             <span>{t("stepPosition", { current: index + 1, total: steps.length })}</span>
@@ -174,150 +172,161 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
             ))}
           </ol>
         </header>
-        <div ref={content} className={styles.content}>
-          {visited.includes("workspace") && (
-            <section hidden={step !== "workspace"} aria-label={t("workspace")}>
-              <h1 tabIndex={-1}>{t("workspaceTitle")}</h1>
-              <p className={styles.stageHint}>{t("workspaceHint")}</p>
-              <StartGuide message={guide("workspaceGuide")} />
-              {organizations.isPending ? (
-                <StartSkeleton fullPage={false} />
-              ) : (
-                <StartWorkspace
-                  organizations={organizations.data ?? []}
-                  activeOrgId={activeOrgId}
-                  onSelect={select}
-                />
-              )}
-            </section>
-          )}
-          {org && visited.includes("identity") && (
-            <section
-              key={`identity-${org.id}`}
-              hidden={step !== "identity"}
-              aria-label={t("identity")}
-            >
-              <h1 tabIndex={-1}>{t("identityTitle")}</h1>
-              <p className={styles.stageHint}>{t("identityHint")}</p>
-              <StartGuide message={guide("identityGuide")} />
-              <div className={styles.stageStudio}>
-                <OrganizationProfileSettings
-                  org={org}
-                  onContinue={() => advance("identity", "profile")}
-                  saveLabel={t("saveContinue")}
-                />
-                <StartStageArtwork stage="identity" />
-              </div>
-            </section>
-          )}
-          {org && visited.includes("profile") && (
-            <section
-              key={`profile-${org.id}`}
-              hidden={step !== "profile"}
-              aria-label={t("profile")}
-            >
-              <h1 tabIndex={-1}>{t("identityProfileTitle")}</h1>
-              <p className={styles.stageHint}>{t("identityProfileHint")}</p>
-              <StartGuide message={guide("profileGuide")} />
-              <div className={styles.stageStudio}>
-                <div className={styles.profileCard}>
-                  <ProfileIdentitySettings
-                    section="identity"
-                    onContinue={() => advance("profile", "context")}
-                    saveLabel={t("saveContinue")}
-                    secondaryAction={
-                      <Button variant="ghost" onClick={() => go("context")}>
-                        {t("skipOptional")}
-                      </Button>
-                    }
-                  />
+        <StartNavigation onBack={index > 0 && !questionStep ? back : undefined}>
+          <div ref={content} className={styles.content}>
+            {visited.includes("workspace") && (
+              <section hidden={step !== "workspace"} aria-label={t("workspace")}>
+                <h1 tabIndex={-1}>{t("workspaceTitle")}</h1>
+                <p className={styles.stageHint}>{t("workspaceHint")}</p>
+                <StartGuide message={guide("workspaceGuide")} />
+                {organizations.isPending ? (
+                  <StartSkeleton fullPage={false} />
+                ) : (
+                  <StartNavigationScope active={step === "workspace"}>
+                    <StartWorkspace
+                      organizations={organizations.data ?? []}
+                      activeOrgId={activeOrgId}
+                      onSelect={select}
+                    />
+                  </StartNavigationScope>
+                )}
+              </section>
+            )}
+            {org && visited.includes("identity") && (
+              <section
+                key={`identity-${org.id}`}
+                hidden={step !== "identity"}
+                aria-label={t("identity")}
+              >
+                <h1 tabIndex={-1}>{t("identityTitle")}</h1>
+                <p className={styles.stageHint}>{t("identityHint")}</p>
+                <StartGuide message={guide("identityGuide")} />
+                <div className={styles.stageStudio}>
+                  <StartNavigationScope active={step === "identity"}>
+                    <OrganizationProfileSettings
+                      org={org}
+                      onContinue={() => advance("identity", "profile")}
+                      saveLabel={t("saveContinue")}
+                      renderActions={(actions) => <StartActions>{actions}</StartActions>}
+                    />
+                  </StartNavigationScope>
+                  <StartStageArtwork stage="identity" />
                 </div>
-                <StartStageArtwork stage="profile" />
-              </div>
-            </section>
-          )}
-          {org && visited.includes("context") && (
-            <section
-              key={`context-${org.id}`}
-              hidden={step !== "context"}
-              aria-label={t("context")}
-            >
-              <h1 tabIndex={-1}>{t("contextTitle")}</h1>
-              <p className={styles.stageHint}>{t("contextHint")}</p>
-              <StartGuide message={guide("contextGuide")} />
-              <div className={styles.stageStudio}>
-                <div className={styles.profileCard}>
-                  <ProfileIdentitySettings
-                    section="context"
-                    onContinue={() => advance("context", "team")}
-                    saveLabel={t("saveContinue")}
-                    secondaryAction={
-                      <Button variant="ghost" onClick={() => go("team")}>
-                        {t("skipOptional")}
-                      </Button>
-                    }
-                  />
+              </section>
+            )}
+            {org && visited.includes("profile") && (
+              <section
+                key={`profile-${org.id}`}
+                hidden={step !== "profile"}
+                aria-label={t("profile")}
+              >
+                <h1 tabIndex={-1}>{t("identityProfileTitle")}</h1>
+                <p className={styles.stageHint}>{t("identityProfileHint")}</p>
+                <StartGuide message={guide("profileGuide")} />
+                <div className={styles.stageStudio}>
+                  <div className={styles.profileCard}>
+                    <StartNavigationScope active={step === "profile"}>
+                      <ProfileIdentitySettings
+                        section="identity"
+                        onContinue={() => advance("profile", "context")}
+                        saveLabel={t("saveContinue")}
+                        renderActions={(actions) => <StartActions>{actions}</StartActions>}
+                      />
+                    </StartNavigationScope>
+                  </div>
+                  <StartStageArtwork stage="profile" />
                 </div>
-                <StartStageArtwork stage="context" />
-              </div>
-            </section>
-          )}
-          {org && visited.includes("team") && (
-            <section key={`team-${org.id}`} hidden={step !== "team"} aria-label={t("team")}>
-              <h1 tabIndex={-1}>{t("teamTitle")}</h1>
-              <p className={styles.stageHint}>{t("teamHint")}</p>
-              <StartGuide message={guide("teamGuide")} />
-              <div className={styles.stageStudio}>
-                <StartInviteTeam
-                  org={org}
-                  onContinue={() => advance("team", appAdmin ? "deployment" : "organization")}
-                />
-                <StartStageArtwork stage="team" />
-              </div>
-            </section>
-          )}
-          {org && appAdmin && visited.includes("deployment") && (
-            <section hidden={step !== "deployment"} aria-label={t("deployment")}>
-              <h1 className="sr-only" tabIndex={-1}>
-                {t("deploymentTitle")}
-              </h1>
-              <StartDeployment
-                active={step === "deployment"}
-                org={org}
-                onBack={back}
-                onContinue={() => advance("deployment", "organization")}
-              />
-            </section>
-          )}
-          {org && visited.includes("organization") && (
-            <section
-              key={`settings-${org.id}`}
-              hidden={step !== "organization"}
-              aria-label={t("organization")}
-            >
-              <h1 className="sr-only" tabIndex={-1}>
-                {t("organizationTitle", { workspace: org.name })}
-              </h1>
-              <StartOrganizationSettings
-                active={step === "organization"}
-                org={org}
-                onBack={back}
-                onContinue={() => advance("organization", "task")}
-              />
-            </section>
-          )}
-          {org && step === "task" && (
-            <section key={`task-${org.id}`} aria-label={t("task")}>
-              <h1 tabIndex={-1}>{t("taskTitle")}</h1>
-              <p className={styles.stageHint}>{t("taskHint")}</p>
-              <StartGuide message={guide("taskGuide")} />
-              <AdminFirstTask orgId={org.id} />
-            </section>
-          )}
-        </div>
-        <footer className="mt-6 flex justify-end">
-          <StartTour />
-        </footer>
+              </section>
+            )}
+            {org && visited.includes("context") && (
+              <section
+                key={`context-${org.id}`}
+                hidden={step !== "context"}
+                aria-label={t("context")}
+              >
+                <h1 tabIndex={-1}>{t("contextTitle")}</h1>
+                <p className={styles.stageHint}>{t("contextHint")}</p>
+                <StartGuide message={guide("contextGuide")} />
+                <div className={styles.stageStudio}>
+                  <div className={styles.profileCard}>
+                    <StartNavigationScope active={step === "context"}>
+                      <ProfileIdentitySettings
+                        section="context"
+                        onContinue={() => advance("context", "team")}
+                        saveLabel={t("saveContinue")}
+                        renderActions={(actions) => <StartActions>{actions}</StartActions>}
+                        secondaryAction={
+                          <Button variant="ghost" onClick={() => go("team")}>
+                            {t("skipOptional")}
+                          </Button>
+                        }
+                      />
+                    </StartNavigationScope>
+                  </div>
+                  <StartStageArtwork stage="context" />
+                </div>
+              </section>
+            )}
+            {org && visited.includes("team") && (
+              <section key={`team-${org.id}`} hidden={step !== "team"} aria-label={t("team")}>
+                <h1 tabIndex={-1}>{t("teamTitle")}</h1>
+                <p className={styles.stageHint}>{t("teamHint")}</p>
+                <StartGuide message={guide("teamGuide")} />
+                <div className={styles.stageStudio}>
+                  <StartNavigationScope active={step === "team"}>
+                    <StartInviteTeam
+                      org={org}
+                      onContinue={() => advance("team", appAdmin ? "deployment" : "organization")}
+                    />
+                  </StartNavigationScope>
+                  <StartStageArtwork stage="team" />
+                </div>
+              </section>
+            )}
+            {org && appAdmin && visited.includes("deployment") && (
+              <section hidden={step !== "deployment"} aria-label={t("deployment")}>
+                <h1 className="sr-only" tabIndex={-1}>
+                  {t("deploymentTitle")}
+                </h1>
+                <StartNavigationScope active={step === "deployment"}>
+                  <StartDeployment
+                    active={step === "deployment"}
+                    org={org}
+                    onBack={back}
+                    onContinue={() => advance("deployment", "organization")}
+                  />
+                </StartNavigationScope>
+              </section>
+            )}
+            {org && visited.includes("organization") && (
+              <section
+                key={`settings-${org.id}`}
+                hidden={step !== "organization"}
+                aria-label={t("organization")}
+              >
+                <h1 className="sr-only" tabIndex={-1}>
+                  {t("organizationTitle", { workspace: org.name })}
+                </h1>
+                <StartNavigationScope active={step === "organization"}>
+                  <StartOrganizationSettings
+                    active={step === "organization"}
+                    org={org}
+                    onBack={back}
+                    onContinue={() => advance("organization", "task")}
+                  />
+                </StartNavigationScope>
+              </section>
+            )}
+            {org && step === "task" && (
+              <section key={`task-${org.id}`} aria-label={t("task")}>
+                <h1 tabIndex={-1}>{t("taskTitle")}</h1>
+                <p className={styles.stageHint}>{t("taskHint")}</p>
+                <StartGuide message={guide("taskGuide")} />
+                <AdminFirstTask orgId={org.id} />
+              </section>
+            )}
+          </div>
+        </StartNavigation>
       </div>
     </div>
   );

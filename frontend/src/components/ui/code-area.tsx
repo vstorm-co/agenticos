@@ -58,7 +58,7 @@ const PIECE: Record<MdStyle, string> = {
   code: "rounded-sm bg-foreground/[0.07] text-foreground",
   link: "text-sky-700 underline decoration-sky-700/30 underline-offset-2 dark:text-sky-300",
   url: "text-muted-foreground",
-  variable: "rounded-sm bg-violet-500/12 text-violet-700 dark:text-violet-300",
+  variable: "code-area-variable rounded-sm",
 };
 
 const LINE: Record<MdLineKind, string> = {

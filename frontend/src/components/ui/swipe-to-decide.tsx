@@ -1,6 +1,8 @@
 "use client";
 
-import { useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { animate, motion, useMotionValue, useMotionValueEvent } from "motion/react";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { CheckCircle2, XCircle } from "lucide-react";
 
 import { haptic } from "@/lib/mobile/haptics";
@@ -50,20 +52,34 @@ export function SwipeToDecide({
   children: ReactNode;
 }) {
   const [offset, setOffset] = useState(0);
+  const x = useMotionValue(0);
+  const reduced = useReducedMotion();
   // Following the finger, which no transition may lag behind.
-  const [dragging, setDragging] = useState(false);
   const drag = useRef<Drag | null>(null);
   const past = useRef(false);
+  useMotionValueEvent(x, "change", (value) => {
+    if (value === 0) setOffset(0);
+  });
+  useEffect(() => () => x.stop(), [x]);
+  useEffect(() => {
+    if (reduced) {
+      drag.current = null;
+      past.current = false;
+      x.jump(0);
+    }
+  }, [reduced, x]);
 
   const reset = () => {
     drag.current = null;
     past.current = false;
-    setDragging(false);
     setOffset(0);
+    if (reduced) x.jump(0);
+    else animate(x, 0, { type: "spring", duration: 0.5, bounce: 0, velocity: x.getVelocity() });
   };
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    if (disabled || event.pointerType !== "touch") return;
+    if (disabled || event.pointerType !== "touch" || drag.current) return;
+    x.stop();
     drag.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, axis: null };
   };
 
@@ -75,15 +91,15 @@ export function SwipeToDecide({
     if (current.axis === null) {
       if (Math.abs(dx) < SLOP && Math.abs(dy) < SLOP) return;
       if (Math.abs(dy) >= Math.abs(dx)) {
-        drag.current = null;
+        reset();
         return;
       }
       current.axis = "x";
-      setDragging(true);
       event.currentTarget.setPointerCapture?.(event.pointerId);
     }
     const moved = rejectOnly ? Math.min(dx, 0) : dx;
     setOffset(moved);
+    x.set(moved);
     const beyond = Math.abs(moved) >= SWIPE_THRESHOLD;
     if (beyond !== past.current) {
       past.current = beyond;
@@ -94,10 +110,10 @@ export function SwipeToDecide({
   const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
     const current = drag.current;
     if (!current || current.pointerId !== event.pointerId) return;
-    const decided = current.axis === "x" && past.current;
-    const approve = offset > 0;
+    const decided = !disabled && current.axis === "x" && past.current;
+    const approve = x.get() > 0;
     reset();
-    if (!decided) return;
+    if (!decided || (approve && rejectOnly)) return;
     haptic(approve ? "success" : "warning");
     if (approve) onApprove();
     else onReject();
@@ -127,20 +143,16 @@ export function SwipeToDecide({
           </span>
         )}
       </div>
-      <div
+      <motion.div
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={reset}
-        style={{ transform: offset === 0 ? undefined : `translateX(${offset}px)` }}
-        className={cn(
-          "bg-card relative touch-pan-y",
-          !dragging && "transition-transform duration-200",
-          className,
-        )}
+        style={{ x }}
+        className={cn("bg-card relative touch-pan-y", className)}
       >
         {children}
-      </div>
+      </motion.div>
     </div>
   );
 }

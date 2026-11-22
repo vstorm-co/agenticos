@@ -32,7 +32,7 @@ export function RunAsCreatorField({
     <Label className="flex items-start gap-2 font-normal sm:col-span-2">
       <Checkbox
         checked={checked}
-        disabled={!isCreator && !checked}
+        disabled={!checked && !isCreator}
         onCheckedChange={(next) => onChange(next === true)}
       />
       <span>

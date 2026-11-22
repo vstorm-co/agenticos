@@ -1,5 +1,6 @@
 "use client";
 
+import { RESOURCE_CARD_TRIGGER } from "@/components/ui/resource-card";
 import { Settings2, ShieldAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties } from "react";
@@ -84,18 +85,19 @@ export function CapabilityCard({
     <div
       data-tour={`capability-${entry.id}`}
       className={cn(
-        "group bg-card flex w-full flex-col overflow-hidden rounded-xl border transition-colors",
+        "group bg-card relative isolate flex w-full flex-col overflow-hidden rounded-xl border transition-colors",
         focused ? "border-foreground/40" : "hover:border-foreground/25",
       )}
     >
       <button
         type="button"
+        data-press-feedback="quiet"
         onClick={onFocus}
         aria-current={focused ? "true" : undefined}
         aria-label={t("capabilitySettingsTitle", { name: entry.name })}
-        className="focus-visible:ring-ring flex flex-1 flex-col text-left outline-none focus-visible:ring-2 focus-visible:ring-inset"
+        className={RESOURCE_CARD_TRIGGER}
       >
-        <div className="relative w-full overflow-hidden border-b">
+        <div className="capability-art-viewport relative w-full overflow-hidden border-b">
           <CapabilityArt id={entry.id} name={entry.name} off={!enabled} />
           {entry.recommended && (
             <RecommendedBadge className="bg-background/90 absolute top-2 left-2 shadow-sm backdrop-blur" />
@@ -137,7 +139,7 @@ export function CapabilityCard({
           disabled={disabled}
           aria-label={t("giveThisAgent", { name: entry.name })}
           onCheckedChange={onToggle}
-          className="shrink-0"
+          className="relative z-10 shrink-0"
         />
       </div>
     </div>

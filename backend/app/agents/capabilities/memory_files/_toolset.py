@@ -3,11 +3,8 @@
 The methods below are the tools, and their docstrings are the whole of what the
 model reads before calling them.
 
-`MEMORY.md` is not special here. It is created, read, edited and deleted with the
-same five tools as any other note; what makes it the index is that the capability
-splices it into the instructions (see `_capability`). Keeping it ordinary is the
-point - one concept, one set of tools, and an index the agent maintains as a
-normal write rather than a second mechanism to keep honest.
+Notes keep longer material. Short facts, preferences and decisions use the
+claims ledger. Existing MEMORY.md notes remain editable as ordinary notes.
 
 No tool takes a store. A run touches exactly one - the conversation's own, decided
 server-side from who is listening (`app.agents.memory_scope`) - so there is no
@@ -118,9 +115,8 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
     async def list_memory(self, ctx: RunContext[AgentDeps]) -> str:
         """List your notes for this conversation, by name and description.
 
-        Your `MEMORY.md` is already in front of you, so reach for this when you
-        suspect it is out of date - a note you saved and forgot to list. Bodies are
-        not returned here; `read_memory` opens one.
+        The automatic overview shows a limited list in private conversations.
+        Use this for the longer list. Bodies are read separately with `read_memory`.
 
         Returns:
             One line per note, `- name [kind]: description`, most recently changed
@@ -185,11 +181,9 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
     ) -> str:
         """Save a new note under a name, so a later conversation can find it.
 
-        Add a line for it to `MEMORY.md` afterwards (with `edit_memory`, or
-        `write_memory` if you have no index yet) - the index is what you are shown
-        at the start of a conversation, and a note missing from it is a note you
-        will not know to look for. To change something you already saved, use
-        `edit_memory`.
+        Save substantial material, such as a briefing about a person or a checklist.
+        A one-line fact, preference or decision belongs in `remember`. Notes appear
+        in the overview automatically. Use `edit_memory` to update an existing note.
 
         Args:
             name: A short handle to find it by, unique among your notes here.
@@ -237,9 +231,8 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
     async def edit_memory(self, ctx: RunContext[AgentDeps], name: str, content: str) -> str:
         """Replace the body of a note you already saved.
 
-        This is also how you keep `MEMORY.md` current: read it, add or amend a
-        line, write the whole thing back. To save something new use `write_memory`;
-        to remove one entirely use `delete_memory`.
+        Read the note first so you preserve existing useful details. To create or
+        remove a note use `write_memory` or `delete_memory`.
 
         Args:
             name: The name of an existing note.

@@ -40,6 +40,19 @@ const t = createTranslator({ locale: "en", messages, namespace: "chat.tools" }) 
  * is the part nobody reads.
  */
 describe("the line for one tool call", () => {
+  it("identifies a question from validated text and tolerates incomplete streamed arguments", () => {
+    expect(
+      toolStep(
+        "ask_user_question",
+        { questions: [null, "invalid", { question: 1 }, { question: " Which plans? " }] },
+        false,
+        t,
+      ).detail,
+    ).toBe("Which plans?");
+    expect(toolStep("ask_user_question", { questions: [{}] }, false, t).detail).toBeNull();
+    expect(toolStep("ask_user_question", { questions: "unfinished" }, false, t).detail).toBeNull();
+  });
+
   it("writes a workspace call in the tense it is true in", () => {
     const args = { path: "/workspace/notes/test1.md", content: "hej" };
 

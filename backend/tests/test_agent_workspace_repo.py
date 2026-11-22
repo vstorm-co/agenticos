@@ -130,19 +130,21 @@ class TestWhoAListingIsFor:
     between them is whether that clause is there at all.
     """
 
-    async def test_an_operator_gets_the_organization_and_nothing_narrower(self):
-        organization_id = uuid.uuid4()
+    async def test_an_operator_still_cannot_list_other_peoples_personal_sessions(self):
+        organization_id, user_id = uuid.uuid4(), uuid.uuid4()
         session = _RecordingSession(_scalars([]))
 
         await agent_workspace_repo.list_for_reader(
-            session, organization_id=organization_id, user_id=uuid.uuid4(), see_all=True
+            session, organization_id=organization_id, user_id=user_id, see_all=True
         )
 
-        # The model's own columns are in the SELECT either way, so the question is
-        # what is in the WHERE: one predicate, the tenant, and no `OR` narrowing it.
+        # Operator access widens ordinary workspace visibility, while personal
+        # account files retain their separate owner boundary.
         where = str(session.statements[-1]).split("WHERE", 1)[1]
         assert organization_id in _filters(session).values()
-        assert " OR " not in where
+        assert "agent_workspaces.coding_account_id IS NULL" in where
+        assert "coding_accounts.user_id" in where
+        assert user_id in _filters(session).values()
         assert "last_used_at" in where
 
     async def test_a_member_gets_their_own_files_their_chats_and_their_agents(self):

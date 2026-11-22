@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { Sparkles, MessageSquare } from "lucide-react";
 import { EmptyState } from "@/components/states";
 import { ROUTES } from "@/lib/constants";

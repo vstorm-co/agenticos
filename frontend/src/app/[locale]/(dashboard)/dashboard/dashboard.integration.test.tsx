@@ -476,9 +476,7 @@ describe("the steward's dashboard", () => {
 
     // One button names the window; the presets open from it.
     await userEvent.click(screen.getByRole("button", { name: "dashboard.period.label" }));
-    await userEvent.click(
-      await screen.findByRole("menuitemradio", { name: "dashboard.period.7d" }),
-    );
+    await userEvent.click(await screen.findByRole("button", { name: "dashboard.period.7d" }));
 
     await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(before));
     const lastUrl = String(replaceState.mock.calls.at(-1)?.[2] ?? "");
@@ -545,6 +543,25 @@ describe("the app admin's dashboard", () => {
 });
 
 describe("the view switcher", () => {
+  it.each(["me", "org", "group", "deployment"])(
+    "keeps the greeting and scope controls in the %s view",
+    async (view) => {
+      auth.isAppAdmin = true;
+      groupList = { items: [{ id: "g1", name: "Finance", icon: null, member_count: 3 }], total: 1 };
+      params.set("view", view);
+      render(<DashboardPage />, { wrapper });
+      await waitFor(() =>
+        expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+      );
+      expect(screen.getByRole("heading", { name: /dashboard\.greeting/ })).toBeInTheDocument();
+      expect(screen.getByRole("group", { name: "dashboard.views.label" })).toBeInTheDocument();
+      expect(document.querySelector(`[data-dashboard-view="${view}"]`)).not.toBeNull();
+      expect(callsTo("/me/dashboard-layout/presets")).toHaveLength(view === "org" ? 1 : 0);
+      if (view !== "me")
+        expect(screen.getByText(`dashboard.views.${view}.description`)).toBeInTheDocument();
+    },
+  );
+
   it("opens a steward on their own view, not the organization's", async () => {
     render(<DashboardPage />, { wrapper });
     await waitFor(() =>
@@ -987,9 +1004,10 @@ describe("dashboard links while the page stays mounted", () => {
     params.delete("period");
     page.rerender(<DashboardPage />);
     await userEvent.click(screen.getByRole("button", { name: "dashboard.period.label" }));
-    expect(
-      await screen.findByRole("menuitemradio", { name: "dashboard.period.30d" }),
-    ).toHaveAttribute("aria-checked", "true");
+    expect(await screen.findByRole("button", { name: "dashboard.period.30d" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 
   it("updates group and section filters, then resets to defaults when the URL removes them", async () => {
@@ -1129,4 +1147,18 @@ it("keeps Me free of quality-management cards and their requests", async () => {
   expect(qualityRequests).toEqual([]);
   expect(callsTo("/knowledge-gaps")).toHaveLength(0);
   expect(callsTo("/workflows/summary")).toHaveLength(0);
+});
+
+it("keeps requested help open when the personal dashboard layout finishes loading", async () => {
+  const pending = Promise.withResolvers<unknown>();
+  vi.mocked(apiClient.get).mockImplementation((path: string) =>
+    path === "/me/dashboard-layout" ? pending.promise : Promise.resolve(respond(path)),
+  );
+  render(<DashboardPage />, { wrapper });
+  await waitFor(() => expect(callsTo("/me/dashboard-layout")).toHaveLength(1));
+  await userEvent.click(screen.getByRole("button", { name: "common.moreInformation" }));
+  expect(screen.getByRole("button", { name: "onboarding.pageHelp" })).toBeVisible();
+  pending.resolve(null);
+  await screen.findByRole("group", { name: "dashboard.views.label" });
+  expect(screen.getByRole("button", { name: "onboarding.pageHelp" })).toBeVisible();
 });

@@ -25,15 +25,16 @@ only thing keeping a rename in one from disagreeing with the other.
 """
 
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 from urllib.parse import urlparse
 from uuid import UUID
 
-from pydantic import Field, field_validator
+from pydantic import AwareDatetime, Field, field_validator
 
 from app.core.retention import MAX_RETENTION_DAYS, MIN_RETENTION_DAYS
 from app.schemas.base import BaseSchema
+from app.schemas.console_experience import ChatHomeOverrides
 from app.schemas.retention import RetentionDays
 
 SignupMode = Literal["open", "invite_only", "closed"]
@@ -114,6 +115,10 @@ class BrandingRead(BaseSchema):
 
     maintenance_mode: bool = False
     maintenance_message: str | None = None
+    maintenance_planned_end_at: AwareDatetime | None = Field(
+        default=None,
+        description="Informational planned end only; never automatically disables maintenance mode.",
+    )
 
 
 class NoticeRead(BaseSchema):
@@ -130,9 +135,17 @@ class NoticeRead(BaseSchema):
     """
 
     message: str | None = None
+    announcement_expires_at: AwareDatetime | None = Field(
+        default=None,
+        description="Aware instant after which the server hides the announcement; null means no expiry.",
+    )
     level: NoticeLevel = "info"
     maintenance_mode: bool = False
     maintenance_message: str | None = None
+    maintenance_planned_end_at: AwareDatetime | None = Field(
+        default=None,
+        description="Informational planned end only; never automatically disables maintenance mode.",
+    )
 
 
 class DeploymentLimits(BaseSchema):
@@ -149,6 +162,15 @@ class DeploymentLimits(BaseSchema):
 class DeploymentSettingsRead(BrandingRead):
     """The administrator's view: everything, in one request."""
 
+    chat_home_available: ChatHomeOverrides | None = None
+    onboarding_reminders_available: bool | None = Field(
+        default=None,
+        description="Installation availability ceiling for setup reminders; null keeps the default of enabled.",
+    )
+    announcement_expires_at: AwareDatetime | None = Field(
+        default=None,
+        description="Aware instant after which the server hides the announcement; null means no expiry.",
+    )
     announcement: str | None = None
     announcement_level: NoticeLevel = "info"
     max_organizations_per_user: int | None = None
@@ -191,6 +213,15 @@ class DeploymentSettingsUpdate(BaseSchema):
     a path is written only by the upload route, which puts the bytes there itself.
     """
 
+    chat_home_available: ChatHomeOverrides | None = None
+    onboarding_reminders_available: bool | None = Field(
+        default=None,
+        description="Installation availability ceiling for setup reminders; null keeps the default of enabled.",
+    )
+    announcement_expires_at: AwareDatetime | None = Field(
+        default=None,
+        description="Aware instant after which the server hides the announcement; null means no expiry.",
+    )
     app_name: str | None = Field(default=None, max_length=64)
     tagline: str | None = Field(default=None, max_length=160)
     description: str | None = Field(default=None, max_length=320)
@@ -207,6 +238,10 @@ class DeploymentSettingsUpdate(BaseSchema):
 
     maintenance_mode: bool | None = None
     maintenance_message: str | None = Field(default=None, max_length=500)
+    maintenance_planned_end_at: AwareDatetime | None = Field(
+        default=None,
+        description="Informational planned end only; never automatically disables maintenance mode.",
+    )
 
     # Null clears the ceiling, which is the same as never having set one. `ge=1`
     # because zero is not a limit anybody means: it would leave an account that
@@ -231,6 +266,11 @@ class DeploymentSettingsUpdate(BaseSchema):
     audit_retention_floor_days: int | None = Field(
         default=None, ge=MIN_RETENTION_DAYS, le=MAX_RETENTION_DAYS
     )
+
+    @field_validator("announcement_expires_at", "maintenance_planned_end_at")
+    @classmethod
+    def utc_notice_time(cls, value: datetime | None) -> datetime | None:
+        return value.astimezone(UTC) if value is not None else None
 
     @field_validator("retention_defaults", "retention_max_days", mode="after")
     @classmethod

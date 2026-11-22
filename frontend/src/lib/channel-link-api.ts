@@ -11,6 +11,8 @@ import { apiClient } from "./api-client";
 
 export interface ChannelLinkRequest {
   platform: string;
+  /** The Matrix homeserver whose identity claim was confirmed. */
+  server_url?: string | null;
   platform_username: string | null;
   platform_display_name: string | null;
   expires_at: string;
@@ -45,6 +47,8 @@ export interface LinkedPlace {
 export interface ChannelIdentity {
   id: string;
   platform: string;
+  /** The Matrix homeserver whose identity claim was confirmed. */
+  server_url?: string | null;
   platform_username: string | null;
   platform_display_name: string | null;
   is_active: boolean;

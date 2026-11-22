@@ -260,16 +260,25 @@ function QuestionSkeleton({
 }) {
   return (
     <div className={guided.journey}>
-      <div className={`${guided.question} ${styles.still}`}>
-        <div className={guided.questionMeta}>
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="h-3 w-36" />
+      <Skeleton className="h-14 w-4/5 sm:h-10" />
+      <div className={guided.questionMeta}>
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-3 w-36" />
+      </div>
+      <div className={guided.guide}>
+        <Skeleton className="size-16 shrink-0 rounded-2xl" />
+        <div className="flex-1 space-y-3">
+          <Skeleton className="h-3 w-32" />
+          <Lines />
         </div>
-        <Skeleton className="h-14 w-4/5 sm:h-9" />
-        <div className={guided.answer}>
-          <QuestionAnswers view={view} question={question} />
+      </div>
+      <div className={layout.stageStudio}>
+        <div className={`${guided.question} ${styles.still}`}>
+          <div className={guided.answer}>
+            <QuestionAnswers view={view} question={question} />
+          </div>
         </div>
-        <Actions />
+        <StartStageArtwork stage={view === "deployment" ? "deployment" : "organization"} />
       </div>
     </div>
   );

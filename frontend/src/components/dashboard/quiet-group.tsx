@@ -43,8 +43,8 @@ export function QuietGroup({
   if (usage?.total_runs !== 0) return children;
 
   return (
-    <Card className="mt-6">
-      <CardContent className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+    <Card className="mt-6 flex flex-1 flex-col">
+      <CardContent className="flex min-h-64 flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
         <span className="bg-muted grid size-11 place-items-center rounded-full">
           <Users className="text-muted-foreground size-5" aria-hidden />
         </span>

@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -238,10 +240,10 @@ export function ChangePreview({
         />
       )}
       {wizard ? (
-        <details>
+        <NativeDisclosure>
           <summary className="cursor-pointer text-sm font-medium">{tWidgets("reasons")}</summary>
           <div className="mt-2 space-y-3">{reasons}</div>
-        </details>
+        </NativeDisclosure>
       ) : (
         reasons
       )}

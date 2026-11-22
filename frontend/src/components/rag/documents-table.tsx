@@ -186,9 +186,10 @@ export function DocumentsTable({
           ? null
           : t("showingOfTotal", { loaded: documents.length, total: documentsTotal })
       }
-      contentClassName="mb-8 p-0"
+      contentClassName="p-0"
     >
       <DataTable<KBDocument>
+        fillHeight
         stackOnNarrow
         columns={columns}
         rows={documents}

@@ -163,6 +163,9 @@ export function useMcpServers({ retryOnMount = true }: { retryOnMount?: boolean 
      * as "no servers", on the one deployment state that cannot be true.
      */
     error: catalog.error ?? personal.error,
+    retry: async () => {
+      await Promise.all([catalog.refetch(), personal.refresh()]);
+    },
     organization,
     personal,
     /** Tools discovered by a check in this session, keyed by connection id. */

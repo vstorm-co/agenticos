@@ -1,22 +1,34 @@
 import { useChatControlsStore } from "@/stores/chat-controls-store";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useWorkOnStore } from "@/stores/work-on-store";
 import { ChatControls } from "./chat-controls";
+import { ChatLayout } from "./chat-layout";
 
 const state = vi.hoisted(() => ({
   desktop: false,
   personalModel: false,
-  profiles: [] as { id: string; label: string; provider: string; model: string }[],
+  profiles: [] as {
+    id: string;
+    label: string;
+    provider: string;
+    model: string;
+    chat_capable?: boolean;
+    missing_key?: boolean;
+  }[],
+  publishedModel: null as { provider: string; model: string; label: string } | null,
+  catalog: [] as { id: string; name: string }[],
   conversationId: null as string | null,
   // Both halves of "may this session waive approvals": the caller's permission
   // and the organization's ceiling (#925).
   mayDecide: true,
+  permissionsLoading: false,
   orgAllowsWaiving: true,
   orgLoaded: true,
   pathname: "/chat",
+  query: "",
   openPage: vi.fn(),
   personalHarness: null as "claude_code" | "codex" | null,
 }));
@@ -34,7 +46,10 @@ vi.mock("./work-on", () => ({
     ) : null,
   ConversationNotifications: () => (state.desktop ? <p>Conversation notifications</p> : null),
 }));
-vi.mock("next/navigation", () => ({ usePathname: () => state.pathname }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => state.pathname,
+  useSearchParams: () => new URLSearchParams(state.query),
+}));
 vi.mock("@/stores/onboarding-store", () => ({
   useOnboardingStore: (pick: (store: unknown) => unknown) => pick({ openPage: state.openPage }),
 }));
@@ -44,10 +59,15 @@ vi.mock("@/hooks", () => ({
     profiles: state.profiles,
     createProfile: { mutateAsync: vi.fn(), isPending: false },
   }),
-  useProviderModels: () => ({ models: [], refused: [], source: "curated", isLoading: false }),
+  useProviderModels: () => ({
+    models: state.catalog,
+    refused: [],
+    source: "curated",
+    isLoading: false,
+  }),
   useSecretPurposes: () => ({ purposes: [], isLoading: false }),
   useSecrets: () => ({ secrets: [] }),
-  usePermissions: () => ({ can: () => state.mayDecide }),
+  usePermissions: () => ({ can: () => state.mayDecide, isLoading: state.permissionsLoading }),
   useOrganizationList: () => ({
     data: state.orgLoaded
       ? [{ id: "org-1", chat_may_waive_approvals: state.orgAllowsWaiving }]
@@ -68,6 +88,7 @@ vi.mock("@/hooks/use-agents", () => ({
         id: "agent-1",
         personal_coding_harness: state.personalHarness,
         personal_model_key: state.personalModel,
+        published_model: state.publishedModel,
       },
     ],
   }),
@@ -88,11 +109,13 @@ vi.mock("./chat-model-picker", () => ({
   ChatModelPicker: ({
     value,
     onChange,
+    presentation,
   }: {
+    presentation?: string;
     value: string | null;
     onChange: (next: string | null) => void;
   }) => (
-    <button type="button" onClick={() => onChange("p-1")}>
+    <button type="button" data-presentation={presentation} onClick={() => onChange("p-1")}>
       pick a model ({value ?? "none"})
     </button>
   ),
@@ -108,15 +131,19 @@ const trigger = () => screen.getByRole("button", { name: /Chat controls/ });
 
 beforeEach(() => {
   useChatControlsStore.setState({ byScope: {} });
+  state.publishedModel = null;
+  state.catalog = [];
   state.desktop = false;
   state.personalModel = false;
   useWorkOnStore.setState({ byConversation: {}, draft: null, draftProjectKey: null });
   state.profiles = [{ id: "p-1", label: "openai default", provider: "openai", model: "gpt-4.1" }];
   state.conversationId = null;
   state.mayDecide = true;
+  state.permissionsLoading = false;
   state.orgAllowsWaiving = true;
   state.orgLoaded = true;
   state.pathname = "/chat";
+  state.query = "";
   state.openPage = vi.fn();
   state.personalHarness = null;
 });
@@ -374,8 +401,7 @@ describe("the compact settings panel", () => {
   it("explains available permission modes before they are selected", async () => {
     open();
     await userEvent.click(trigger());
-    const askHint =
-      "Ask before every tool this agent can use, including the ones it does not normally gate.";
+    const askHint = "Ask before every tool call.";
     expect(screen.getByText(askHint)).not.toBeVisible();
     await userEvent.click(screen.getByRole("tab", { name: "Preferences" }));
     expect(screen.getByText(askHint)).toBeVisible();
@@ -421,14 +447,14 @@ it("offers no tools tab on the web for an agent that needs no account of the per
   expect(screen.queryByRole("tab", { name: "Tools & files" })).toBeNull();
 });
 
-it("offers the one coding account the agent codes on, under tools and not the model", async () => {
+it("offers both personal coding accounts under tools, with neither in the model tab", async () => {
   state.personalHarness = "codex";
   open();
   await userEvent.click(trigger());
   expect(screen.queryByRole("region", { name: "Your codex account" })).toBeNull();
   await userEvent.click(screen.getByRole("tab", { name: "Tools & files" }));
   expect(screen.getByRole("region", { name: "Your codex account" })).toBeVisible();
-  expect(screen.queryByRole("region", { name: "Your claude_code account" })).toBeNull();
+  expect(screen.getByRole("region", { name: "Your claude_code account" })).toBeVisible();
 });
 
 it("returns to Model when the selected agent no longer offers Tools", async () => {
@@ -477,4 +503,226 @@ it("clears a saved model override when switching to a personal-key agent", async
   state.personalModel = true;
   rerender(<ChatControls onModelProfileChange={changed} />);
   expect(changed).toHaveBeenLastCalledWith(null);
+});
+
+describe("main chat composition", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("names the active model without its provider or saved profile label", () => {
+    state.publishedModel = {
+      provider: "openai_codex",
+      model: "gpt-6.2-astra",
+      label: "ChatGPT (Codex subscription) · gpt-6.2-astra",
+    };
+    state.catalog = [{ id: "gpt-6.2-astra", name: "GPT-6.2 Astra" }];
+
+    const { rerender } = render(
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>,
+    );
+    const control = screen.getByRole("button", { name: "Model" });
+    expect(control).toHaveTextContent(/^GPT-6.2 Astra$/);
+    expect(control).toHaveAccessibleDescription("GPT-6.2 Astra");
+
+    state.catalog = [];
+    rerender(
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>,
+    );
+    expect(control).toHaveTextContent(/^gpt-6.2-astra$/);
+    expect(control).toHaveAttribute("title", "gpt-6.2-astra");
+  });
+
+  it("offers one model control without repeated permission choices", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    render(
+      <ChatLayout>
+        <ChatControls />
+        <ChatControls settingsOnly />
+      </ChatLayout>,
+    );
+    expect(screen.getAllByRole("button", { name: "Model" })).toHaveLength(1);
+    await userEvent.click(trigger());
+    expect(screen.getByRole("dialog", { name: "Chat controls" })).toBeVisible();
+    expect(screen.queryByRole("group", { name: "Permissions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Model" })).not.toBeInTheDocument();
+  });
+
+  it("does not add a design switcher to the chat", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    render(
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>,
+    );
+    expect(screen.queryByRole("navigation", { name: "Chat design previews" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Model" })).toBeVisible();
+  });
+
+  it("keeps actual context usage directly reachable outside the settings popover", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    render(
+      <ChatLayout>
+        <ChatControls usageSlot={<button type="button">Current context usage</button>} />
+      </ChatLayout>,
+    );
+    expect(screen.getByRole("button", { name: "Current context usage" })).toBeVisible();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("puts context usage immediately before the model in Minimal", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    render(
+      <ChatLayout>
+        <ChatControls usageSlot={<button type="button">Current context usage</button>} />
+      </ChatLayout>,
+    );
+    const buttons = screen.getAllByRole("button");
+    expect(buttons.indexOf(screen.getByRole("button", { name: "Current context usage" }))).toBe(
+      buttons.indexOf(screen.getByRole("button", { name: "Model" })) - 1,
+    );
+  });
+
+  it("keeps the model arrow tied to the open state", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    render(
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>,
+    );
+    const model = screen.getByRole("button", { name: "Model" });
+    expect(model).toHaveAttribute("data-state", "closed");
+    expect(model.querySelector("svg.lucide-chevron-down")).toHaveClass(
+      "group-data-[state=open]/model:rotate-180",
+    );
+    await userEvent.click(model);
+    expect(model).toHaveAttribute("data-state", "open");
+    await userEvent.keyboard("{Escape}");
+    expect(model).toHaveAttribute("data-state", "closed");
+  });
+
+  it("leaves the account palette unchanged in the main chat", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    const view = render(
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>,
+    );
+    expect(document.documentElement).not.toHaveAttribute("data-chat-preview");
+    view.unmount();
+    expect(document.documentElement).not.toHaveAttribute("data-chat-preview");
+  });
+
+  it("delegates main-chat model selection to the provider library", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    state.profiles.push(
+      {
+        id: "image",
+        label: "Image only",
+        provider: "openai",
+        model: "image-model",
+        chat_capable: false,
+      },
+      {
+        id: "keyless",
+        label: "Missing key",
+        provider: "openai",
+        model: "chat-model",
+        missing_key: true,
+      },
+    );
+    render(
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Model" }));
+    expect(screen.getByRole("button", { name: /pick a model/ })).toHaveAttribute(
+      "data-presentation",
+      "library",
+    );
+  });
+
+  it("keeps model inspection reachable while the picker owns permission checks", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    state.mayDecide = false;
+    render(
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Model" }));
+    expect(screen.getByRole("button", { name: /pick a model/ })).toHaveAttribute(
+      "data-presentation",
+      "library",
+    );
+  });
+
+  it("keeps the library's panel while the initial permissions load", async () => {
+    state.permissionsLoading = true;
+    state.mayDecide = false;
+    const chat = (
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>
+    );
+    const { rerender } = render(chat);
+    await userEvent.click(screen.getByRole("button", { name: "Model" }));
+    const panel = screen.getByRole("dialog", { name: "Model" });
+    const size = "h-[min(29rem,var(--radix-popover-content-available-height,29rem))]";
+    expect(panel).toHaveClass(size);
+    expect(panel.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /pick a model/ })).toBeNull();
+
+    state.permissionsLoading = false;
+    state.mayDecide = true;
+    rerender(
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>,
+    );
+    expect(screen.getByRole("dialog", { name: "Model" })).toBe(panel);
+    expect(panel).toHaveClass(size);
+    expect(screen.getByRole("button", { name: /pick a model/ })).toBeVisible();
+  });
+
+  it("saves model overrides through the existing scoped controls", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    const changed = vi.fn();
+    render(
+      <ChatLayout>
+        <ChatControls onModelProfileChange={changed} />
+      </ChatLayout>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Model" }));
+    await userEvent.click(screen.getByRole("button", { name: /pick a model/ }));
+    expect(changed).toHaveBeenCalledWith("p-1");
+  });
+
+  it("keeps personal model connections separate from organization overrides", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    state.personalModel = true;
+    render(
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Model" }));
+    expect(screen.getByText("Private model connection form")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /pick a model/ })).not.toBeInTheDocument();
+  });
+
+  it("uses the selected composition in production without experimental flags", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    render(
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>,
+    );
+    expect(document.querySelector("[data-chat-layout]")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Model" })).toBeVisible();
+    expect(screen.queryByRole("tab", { name: "Model" })).toBeNull();
+  });
 });

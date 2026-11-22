@@ -54,6 +54,8 @@ template-inherited subsystems have different coverage gates, described below.
   `app.services.telephony.runtime` commits telephone admission, submission, transfer, hang-up and
   single-use media claims before external effects; unknown acceptance is retained
   for signed callbacks and cleanup, never automatic redial.
+  `PersonalCodingSessionFactory` commits private workspace ownership and initial source
+  before credential-bearing work, and retention or queued teardown in shielded cleanup;
   `ChannelMessageRouter._route_inner` commits admitted channel identity/session/conversation
   state before prompt resumption or independent platform MCP credential creation;
   `VoiceCallStarter.start` commits a call's row and its run before the call
@@ -349,9 +351,19 @@ judged by someone running a deployment, not by the size of the diff:
   section>`. Never push the tag first: it starts `images.yml` at once, and that
   attaches the release SBOMs only to a release that already exists. Production
   deploys wait for approval (`deploy.yml`).
-- One release per merged change, or one for a train merged together, numbered by
-  the largest change in it. Stacked PRs are released in merge order, each with its
-  own number.
+- Merge separate, reviewed PRs throughout the day. Prepare one manual release cut
+  per day when Unreleased contains changes; do not wait for an earlier PR's
+  release before merging the next ready PR. No scheduled release job is needed.
+  Number the release by the largest change in the train. Stacked PRs may share
+  that release after they merge in dependency order. Urgent hotfixes may ship
+  immediately through the same checks, cut and production approval.
+- Draft PRs run lint and dependency/security checks. Backend/frontend suites,
+  builds, E2E, docs builds and CodeQL start on Ready for review and subsequent
+  pushes. Returning to draft cancels the superseded heavy run. Test locally
+  with focused files while iterating; ready PRs retain every existing gate.
+- Before publishing, require successful CI and CodeQL for the cut merge SHA;
+  reuse is permitted only by the existing checked-source proof. Production
+  approval remains separate from publishing a release.
 - An agent asked to release may pick a PATCH or MINOR number by the table above.
   Never propose 2.0.0 or any later major; a number the maintainer has named is
   the maintainer's decision.

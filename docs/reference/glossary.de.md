@@ -1,5 +1,5 @@
 ---
-source_sha: "ddf3cb19ef8e"
+source_sha: "9c6ab12370a2"
 ---
 
 # Glossar { #glossary }
@@ -47,7 +47,7 @@ nicht bricht.
 | In der Konsole | Was es ist | In API und Spec |
 |---|---|---|
 | Chat | Das Gespräch mit einem Agent im Browser | `conversation` |
-| Kanal | Slack, Telegram, Mattermost oder Discord, wo Menschen einen Agent erreichen | `channel_bot` |
+| Kanal | Slack, Telegram, Mattermost, Discord oder Matrix, wo Menschen einen Agent erreichen | `channel_bot` |
 | Routine | Ein Agent, der selbstständig läuft, nach Zeitplan oder Ereignis | `trigger` |
 | Eval-Suite | Ein Dataset, an dem ein Agent gemessen wird, nach Zeitplan, bei Veröffentlichung oder Promotion oder nach einer Änderung | `eval_suite` |
 | Run | Ein Mal, dass ein Agent geantwortet hat, mit Kosten und Schritten | `agent_run` |

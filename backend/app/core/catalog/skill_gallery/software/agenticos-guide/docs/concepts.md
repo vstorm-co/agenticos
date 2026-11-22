@@ -31,6 +31,12 @@ action changed it, saving pauses and your local edits stay on screen. Copy
 anything you want to keep before choosing **Reload latest draft**. Then
 reapply those edits to the latest version; a stale save cannot overwrite it.
 
+For a published agent with draft changes, choose **More → Discard draft** to
+reset the draft to the latest published version. This discards unpublished
+edits without creating a version or moving any environment. If another edit or
+publish lands before confirmation, the discard is refused. An agent that has
+never been published has no version to reset to.
+
 The spec keeps two rules, and they are what make it useful.
 
 !!! abstract "References, never values"

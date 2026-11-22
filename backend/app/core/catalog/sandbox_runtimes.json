@@ -50,14 +50,19 @@
   },
   {
     "alias": "desktop",
-    "description": "A Linux desktop (XFCE and Firefox) for computer use, with Python and a shell",
+    "description": "Linux desktop with Firefox, document tools, Python, Node, Claude Code and Codex",
     "base_image": "python:3.12-slim",
     "setup_commands": [
+      "apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates ripgrep fd-find jq less procps xz-utils poppler-utils libreoffice-writer libreoffice-calc libreoffice-impress unzip zip tzdata fonts-dejavu-core && ln -s /usr/bin/fdfind /usr/local/bin/fd && rm -rf /var/lib/apt/lists/*",
+      "arch=\"$(dpkg --print-architecture)\"; case \"$arch\" in amd64) node_arch=x64 ;; arm64) node_arch=arm64 ;; *) echo \"no Node build for $arch\" >&2; exit 1 ;; esac; curl -fsSL \"https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-${node_arch}.tar.xz\" | tar -xJ -C /usr/local --strip-components=1 --exclude CHANGELOG.md --exclude README.md --exclude LICENSE && npm install -g tsx @anthropic-ai/claude-code@2.1.288 @openai/codex@0.160.0 && npm cache clean --force",
+      "curl -fsSL https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin INSTALLER_NO_MODIFY_PATH=1 sh",
       "apt-get update && apt-get install -y --no-install-recommends xvfb x11-utils xfce4 xfce4-terminal dbus-x11 xdotool scrot firefox-esr fonts-dejavu-core fonts-noto-color-emoji git curl ca-certificates jq procps unzip && rm -rf /var/lib/apt/lists/*"
     ],
     "env_vars": {
       "PYTHONUNBUFFERED": "1",
+      "PYTHONDONTWRITEBYTECODE": "1",
       "PYTHONUTF8": "1",
+      "MPLBACKEND": "Agg",
       "PIP_DISABLE_PIP_VERSION_CHECK": "1"
     },
     "briefing": [
@@ -65,6 +70,25 @@
       "To open something on the desktop from the shell, start it detached on that display - `DISPLAY=:0 setsid nohup firefox-esr https://example.com >/dev/null 2>&1 &` - then look with `computer_screenshot`. Reading or writing a file with the file tools is quicker and more precise than doing it through the screen, so use the screen for what has no other way in."
     ],
     "mem_limit": "2g",
-    "needs_network": true
+    "needs_network": true,
+    "packages": [
+      "liteparse",
+      "pypdf",
+      "python-docx",
+      "openpyxl",
+      "python-pptx",
+      "pillow",
+      "pandas",
+      "duckdb",
+      "matplotlib",
+      "httpx",
+      "requests",
+      "beautifulsoup4",
+      "lxml",
+      "markdownify",
+      "pyyaml",
+      "tabulate",
+      "reportlab"
+    ]
   }
 ]

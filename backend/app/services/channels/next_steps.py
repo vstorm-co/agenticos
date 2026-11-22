@@ -239,6 +239,7 @@ async def incoming_for_run(
         platform_chat_id=platform_chat_id,
         chat_type=session.chat_type,
         text="",
+        raw={"server_url": identity.server_url} if identity.platform == "matrix" else {},
     )
 
 

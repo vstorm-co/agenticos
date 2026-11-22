@@ -64,11 +64,18 @@ export function SkillImprovementPage({
   merge?: MergeKind | null;
 }) {
   const t = useTranslations("skillImprovement");
+  const common = useTranslations("common");
   const tErrors = useTranslations("errors");
-  const { skill, isLoading, error } = useSkill(skillId);
+  const { skill, isLoading, error, refetch } = useSkill(skillId);
   const { can } = usePermissions();
   if (isLoading) return <LoadingState variant="pending" />;
-  if (error || !skill) return <ErrorState description={getErrorMessage(error, tErrors)} />;
+  if (error || !skill)
+    return (
+      <ErrorState
+        description={getErrorMessage(error, tErrors)}
+        cta={{ label: common("retry"), onClick: () => void refetch() }}
+      />
+    );
   const header = (
     <SkillImprovementHeader
       skillId={skillId}

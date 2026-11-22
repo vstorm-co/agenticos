@@ -1,5 +1,5 @@
 ---
-source_sha: "9f2bffc2c0a6"
+source_sha: "a0844779ccba"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -284,9 +284,7 @@ cambio a un skill como para un archivo.
 
 ## Describir un agent nuevo { #describing-a-new-agent }
 
-El diálogo de creación ofrece describir el agent en lugar de rellenar el
-formulario. La descripción va al [Architect](console.md#the-assistant), que crea
-drafts de agents y pregunta antes de crear uno; el resultado es un draft normal.
+La acción **Create with Architect** del diálogo abre el widget del [Architect](console.md#the-assistant), sin enviar un prompt ni crear un agent. Describe lo que necesitas en esa conversación; el Architect pregunta antes de crear un draft normal.
 
 ## Coste y budget { #cost-and-budget }
 
@@ -443,6 +441,8 @@ intento.
 ### El asistente Improve { #the-improve-wizard }
 
 Abre **Improve** desde la barra de herramientas de **Evals** del agente, desde la insignia **Needs attention** en la lista de agentes, desde la tarjeta del dashboard o desde **Knowledge gaps**. Si la versión publicada actual tuvo respuestas valoradas negativamente o runs fallidos en los últimos 30 días, Improve muestra un punto de atención. La tarjeta **Improvements waiting for you** del dashboard muestra sesiones que esperan una decisión.
+
+El mismo punto marca las pestañas del agente que guardan algo que te espera. **Evals** lo muestra por esos motivos, por una suite fallida o por una sesión de Improve que te espera, y **Knowledge gaps** por lagunas abiertas; el motivo lo dicen la sugerencia al pasar sobre la pestaña y el lector de pantalla. Un agente marcado **Needs attention** en la lista de agentes o en la tarjeta del dashboard se abre en su pestaña **Evals**.
 
 Cada **Improve** abre la sesión abierta del agente - trabajando, esperándole, en su resultado o detenida o fallida - y empieza una nueva cuando esa sesión se guarda como borrador, se publica, se descarta, se cancela o se cierra; queda entonces en el [historial de mejoras](#improvement-history) del agente. **End it and start a new one**, junto a una sesión abierta, la termina primero.
 

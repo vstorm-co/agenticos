@@ -559,6 +559,8 @@ async def purge_identities_of(db: AsyncSession, user_id: UUID) -> int:
             ChannelIdentity.user_id == user_id,
             ChannelIdentity.platform == BackgroundJob.payload["platform"].astext,
             ChannelIdentity.platform_user_id == BackgroundJob.payload["platform_user_id"].astext,
+            ChannelIdentity.server_url
+            == func.coalesce(BackgroundJob.payload["server_url"].astext, ""),
         )
     )
     own_run = BackgroundJob.payload["run_id"].astext.in_(
