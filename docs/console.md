@@ -652,17 +652,31 @@ from then on, and the interview ends with up to three cards to set up - a
 routine, a service to connect, an agent of your own - each one click. Skip a
 question, or ask for something real, and it does the work instead.
 
-**What it noticed overnight.** Where your organization turned it on, once a day,
-early in your morning, the platform looks at your recent conversations in a
-background job: a request you keep
-repeating becomes a proposed routine, what an agent learnt about your role
-becomes a proposed profile, and your empty AgenticOS chat gets first messages
-written for your work. Proposals wait as cards in that empty chat, on your
-dashboard and in the bell, and **Settings → Assistant** lists them all - bring a
-dismissed one back there, or leave yourself out; accept one and it is set up, dismiss it and the same proposal is never
-made again. Nothing runs when nothing new happened, and what this may spend is
-[capped per person](governance.md#proactive-work). A chat link with
-`?agent=<slug>` opens the chat on that agent.
+**Personal assistance.** Where your organization enables it, the platform combines
+readable conversation history with your scoped memory, profile, visible projects,
+private or assigned tasks, current routines, visible table metadata and earlier Inbox decisions. Table records are not read unless they are typed tasks. Meaningful
+changes queue a background refresh; the morning sweep remains a safety net.
+History is indexed in bounded segments with source-linked quotes. Unchanged
+segments reuse their checkpoints; an unchanged reading makes no model call.
+Large histories continue across jobs rather than being cut to seven days or the
+first 400 characters. Existing permissions, opt-out and spending limits apply.
+
+A proposal must cite supplied evidence and pass a second model check. It can offer
+an on-demand agent, recurring work, an existing task or a relevant available feature.
+An authenticated answer to a native question counts as human evidence; arbitrary
+external tool results do not. Missing schedule choices remain questions. Proposals
+appear under **Suggestions**, while routine findings remain **Routine results**.
+Opening a proposal starts a concrete discussion, not a run or an activation.
+Paid work, schedules and publication retain their existing approval requirements.
+A deleted routine is not treated as paused, and dismissed intent stays quiet.
+
+Task and resource lists are bounded and marked incomplete when necessary; a missing
+item in a partial list is not proof it does not exist.
+
+Memory maintenance prioritizes human turns when fitting a transcript to its budget
+and includes authenticated native question answers in chronological order. It
+retains the existing durability and scope rules: a temporary task is not a permanent
+job title. A chat link with `?agent=<slug>` opens that agent.
 
 **Working hours** under **Settings → Profile** tell agents when you work, so a
 routine they propose lands inside your day. Nothing waits on them: they are

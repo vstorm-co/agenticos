@@ -8,8 +8,8 @@ before this revision keeps an empty list.
 
 The downgrade drops the column.
 
-Revision ID: 0349_skill_check_families
-Revises: 0348_architect_generated_avatar
+Revision ID: 0350_skill_check_families
+Revises: 0349_personal_work_context
 Create Date: 2026-11-19
 """
 
@@ -18,8 +18,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0349_skill_check_families"
-down_revision: str = "0348_architect_generated_avatar"
+revision: str = "0350_skill_check_families"
+down_revision: str = "0349_personal_work_context"
 branch_labels: None = None
 depends_on: None = None
 
