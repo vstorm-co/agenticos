@@ -81,6 +81,11 @@ import { PendingMessages } from "./pending-messages";
 import { PlanStrip } from "./plan-strip";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
 import { QuestionPrompt } from "@/components/ui";
+import { QuestionInteractionContext } from "./question-interaction";
+import { useMainChat } from "./main-chat-context";
+import { useChatHomeOptions } from "@/components/settings/console-experience-provider";
+import { DEFAULT_CHAT_HOME } from "@/lib/console-experience-api";
+import { ChatHomeInbox } from "./chat-home-inbox";
 import { SecretRequestCard } from "./secret-request-card";
 import type {
   PendingApproval,
@@ -123,9 +128,7 @@ import { useMounted } from "@/hooks/use-mounted";
 import { useOnline } from "@/hooks/use-online";
 import { offlineAvailable } from "@/lib/offline/device-cache";
 import { useSlashCommands } from "@/hooks";
-import { useFollowContent } from "@/hooks/use-follow-content";
-import { useSentTurnAnchor } from "@/hooks/use-sent-turn-anchor";
-import { useReaderScrolledUp } from "@/hooks/use-reader-scrolled-up";
+import { useChatViewport } from "@/hooks/use-chat-viewport";
 import { useFocusAfterCall } from "@/hooks/use-focus-after-call";
 import { useAgentDictation } from "@/hooks/use-agent-dictation";
 import { usePermissions, useVoiceReadiness, useVoiceSession, type VoiceSession } from "@/hooks";
@@ -575,6 +578,8 @@ export function ChatContainer({
     sendResumeDecisions,
     pendingQuestions,
     sendAskUserResponses,
+    submittingQuestions,
+    questionTarget,
     pendingSecretRequests,
     submitSecretRequest,
     declineSecretRequest,
@@ -774,14 +779,11 @@ export function ChatContainer({
 
   const transcriptRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  // true = user deliberately scrolled up; suppress auto-scroll until they return to bottom
-  const userScrolledUpRef = useRef(false);
-  const sentTurnAnchoredRef = useRef(false);
   const sentTurnSpacerRef = useRef<HTMLDivElement>(null);
-  const holdMessageJump = useCallback(() => {
-    userScrolledUpRef.current = true;
-    sentTurnAnchoredRef.current = false;
-  }, []);
+  const dockRef = useRef<HTMLDivElement>(null);
+  // The viewport hook treats a scroll it did not write as the reader's own, so a
+  // jump to a message needs no separate hold on following.
+  const holdMessageJump = useCallback(() => undefined, []);
   const jumpReady =
     meId !== undefined &&
     tenantId !== null &&
@@ -819,15 +821,16 @@ export function ChatContainer({
     (requestedConversationId === null || requestedConversationId === currentConversationId);
   // Transcript rows already carry pin state; fetch the paged list only when opened.
   const messagePins = useMessagePins(canUseMessagePins ? currentConversationId : null, false);
-  useSentTurnAnchor(
+  const { dockHeight, revealQuestion, bindScroller } = useChatViewport({
+    conversationId: currentConversationId,
     messages,
-    scrollContainerRef,
-    transcriptRef,
-    sentTurnSpacerRef,
-    sentTurnAnchoredRef,
     sentTurnId,
-    userScrolledUpRef,
-  );
+    empty: messages.length === 0 && callPhase === "idle",
+    scroller: scrollContainerRef,
+    content: transcriptRef,
+    spacer: sentTurnSpacerRef,
+    dock: dockRef,
+  });
 
   // Clear messages when conversation changes, but NOT when going from null to a new ID
   // (that happens when a new chat is saved - we want to keep the messages)
@@ -921,30 +924,6 @@ export function ChatContainer({
     soleAgentId,
   ]);
 
-  // Whether the reader has moved up to read, so the transcript stops following.
-  useReaderScrolledUp(scrollContainerRef, userScrolledUpRef);
-
-  // An empty conversation is not followed at all: its welcome reads from the
-  // top, and in a narrow window - the Architect's, the test panel - following
-  // the foot scrolled the greeting and the face above it out of view. A call is
-  // content even before any of its turns is saved: its captions are followed.
-  const empty = messages.length === 0 && callPhase === "idle";
-  const emptyRef = useRef(empty);
-  useEffect(() => {
-    emptyRef.current = empty;
-    const container = scrollContainerRef.current;
-    if (emptyRef.current) {
-      container?.scrollTo({ top: 0 });
-      return;
-    }
-  }, [empty]);
-  // And on growth the messages do not announce: an answer's last words are
-  // revealed over frames after its message has stopped changing.
-  const holdFollow = useCallback(
-    () => emptyRef.current || userScrolledUpRef.current || sentTurnAnchoredRef.current,
-    [],
-  );
-  useFollowContent(scrollContainerRef, transcriptRef, holdFollow);
   // A turn starting here is a thread at work in the list beside it; asked once as
   // it starts, the row shows it at once, and the listing then polls until it ends.
   useEffect(() => {
@@ -1404,10 +1383,13 @@ export function ChatContainer({
         onSendQueuedNow={sendQueuedNow}
         onMoveQueued={moveQueued}
         transcriptRef={transcriptRef}
-        scrollContainerRef={scrollContainerRef}
-        userScrolledUpRef={userScrolledUpRef}
-        sentTurnAnchoredRef={sentTurnAnchoredRef}
+        bindScroller={bindScroller}
+        dockRef={dockRef}
+        dockHeight={dockHeight}
+        onRevealQuestion={revealQuestion}
         sentTurnSpacerRef={sentTurnSpacerRef}
+        submittingQuestions={submittingQuestions}
+        questionTarget={questionTarget}
         pendingApproval={pendingApproval}
         onResumeDecisions={sendResumeDecisions}
         mayRememberApproval={mayRememberApproval}
@@ -1587,10 +1569,13 @@ interface ChatUIProps {
   steers?: SteerDraft[];
   /** The transcript's content, whose growth the scroller follows. */
   transcriptRef: React.RefObject<HTMLDivElement | null>;
-  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   /** Whether the reader scrolled up, and the scroller should stay where they left it. */
-  userScrolledUpRef: React.RefObject<boolean>;
-  sentTurnAnchoredRef: React.RefObject<boolean>;
+  bindScroller: (element: HTMLDivElement | null) => void;
+  dockRef: React.RefObject<HTMLDivElement | null>;
+  dockHeight: number;
+  onRevealQuestion: () => void;
+  submittingQuestions?: boolean;
+  questionTarget?: { id: string; messageId: string | null; toolCallIds: string[] } | null;
   sentTurnSpacerRef: React.RefObject<HTMLDivElement | null>;
   pendingApproval?: PendingApproval | null;
   onResumeDecisions?: (decisions: Decision[]) => void;
@@ -1693,9 +1678,12 @@ function ChatUI({
   onMoveQueued,
   steers = [],
   transcriptRef,
-  scrollContainerRef,
-  userScrolledUpRef,
-  sentTurnAnchoredRef,
+  bindScroller,
+  dockRef,
+  dockHeight,
+  onRevealQuestion,
+  submittingQuestions = false,
+  questionTarget,
   sentTurnSpacerRef,
   pendingApproval,
   onResumeDecisions,
@@ -1972,34 +1960,6 @@ function ChatUI({
   const [attachmentSlot, setAttachmentSlot] = useState<HTMLDivElement | null>(null);
   // Real tool identities keep desktop frames separate from browser pages.
   const surfaces = useMemo(() => browseSurfaces(messages), [messages]);
-  const dockRef = useRef<HTMLDivElement | null>(null);
-  const [dockHeight, setDockHeight] = useState(0);
-  useLayoutEffect(() => {
-    const dock = dockRef.current;
-    if (!dock) return;
-    const observer = new ResizeObserver(() => setDockHeight(dock.offsetHeight));
-    observer.observe(dock);
-    setDockHeight(dock.offsetHeight);
-    return () => observer.disconnect();
-  }, []);
-  // A taller dock is more padding under the last message, and padding is not
-  // content, so nothing follows it: when the call bar gave way to the composer
-  // at the end of a call, the last message was left under the composer. A reader
-  // at the bottom stays there; one who scrolled up is left where they are.
-  useLayoutEffect(() => {
-    const scroller = scrollContainerRef.current;
-    const empty = messages.length === 0 && voice.call.phase === "idle";
-    if (scroller === null || userScrolledUpRef.current || sentTurnAnchoredRef.current || empty)
-      return;
-    scroller.scrollTop = scroller.scrollHeight;
-  }, [
-    dockHeight,
-    scrollContainerRef,
-    userScrolledUpRef,
-    sentTurnAnchoredRef,
-    messages.length,
-    voice.call.phase,
-  ]);
   const callReady = offerCall && readiness?.available === true;
   const callShown = offerCall && (readiness !== null || readinessFailed);
   // Hidden, not unmounted, during a call: the pill holds its controls, and focus
@@ -2059,6 +2019,8 @@ function ChatUI({
       {pendingQuestions &&
         pendingQuestions.length > 0 &&
         onAnswerQuestions &&
+        // The main transcript shows its own question inline; a thread panel has none.
+        root !== null &&
         matchesAction(actionThreadRoots.questions, root) && (
           <div className="pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
             <QuestionPrompt
@@ -2111,6 +2073,11 @@ function ChatUI({
     messages.length === 0 &&
     voice.call.phase === "idle" &&
     !isLoadingConversation;
+  const mainChat = useMainChat();
+  const configuredHome = useChatHomeOptions();
+  const homeOptions = mainChat ? configuredHome : DEFAULT_CHAT_HOME;
+  const showDailyBriefing = showWorkspaceHome && mainChat && !emptyState && !conversationId;
+  const composeSuggestion = (text: string) => setIncoming({ id: Date.now(), files: [], text });
   return (
     <div className="chat-surface @container/sources-layout relative flex h-full min-h-0 w-full min-w-0 overflow-hidden">
       <div className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1">
@@ -2126,6 +2093,7 @@ function ChatUI({
           className={cn(
             "@container/chat relative flex h-full min-h-0 min-w-0 flex-1 flex-col",
             showWorkspaceHome && "chat-home-column justify-center-safe overflow-y-auto",
+            showDailyBriefing && "chat-home-timeline",
             threadRootId !== null && "max-lg:invisible",
           )}
         >
@@ -2167,7 +2135,7 @@ function ChatUI({
           )}
           <MessageJumpNotice jump={messageJump} />
           <div
-            ref={scrollContainerRef}
+            ref={bindScroller}
             data-chat-scroller
             className={cn(
               "min-h-0 min-w-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain",
@@ -2230,8 +2198,13 @@ function ChatUI({
                     emptyState((picked) => sendMessage(picked))
                   ) : (
                     <ChatEmptyState
+                      showSuggestions={!drafting && homeOptions.starters}
+                      showGreeting={homeOptions.greeting}
+                      showDiscoveryHints={homeOptions.feature_hints}
                       suggestionsSlot={!compact ? homeHintsSlot : undefined}
-                      onPick={(picked) => sendMessage(picked)}
+                      onPick={
+                        showDailyBriefing ? composeSuggestion : (picked) => sendMessage(picked)
+                      }
                     />
                   )}
                 </div>
@@ -2264,19 +2237,38 @@ function ChatUI({
                     {forkedFrom && onOpenForkSource && (
                       <ForkedFrom origin={forkedFrom} onOpen={onOpenForkSource} />
                     )}
-                    <MessageList
-                      messages={messages}
-                      delegations={delegations}
-                      sideThreadActions={sideThreadActions}
-                      messagePinActions={messagePinActions}
-                      onRegenerate={onRegenerate}
-                      onFork={onFork}
-                      forkingMessageId={forkingMessageId}
-                      pins={pins}
-                      onOpenThread={onOpenThread}
-                      canStartThread={canStartThread}
-                      allowReply={!readOnly && (roomProjectId === null || canStartThread)}
-                    />
+                    <QuestionInteractionContext
+                      value={
+                        pendingQuestions?.length && onAnswerQuestions
+                          ? {
+                              id: questionTarget?.id ?? "question",
+                              messageId:
+                                questionTarget?.messageId ??
+                                messages.findLast((message) => message.role === "assistant")?.id ??
+                                null,
+                              toolCallIds: questionTarget?.toolCallIds ?? [],
+                              questions: pendingQuestions,
+                              submitting: submittingQuestions,
+                              disabled: readOnly || !isConnected || isStopping,
+                              onAnswer: onAnswerQuestions,
+                            }
+                          : null
+                      }
+                    >
+                      <MessageList
+                        messages={messages}
+                        delegations={delegations}
+                        sideThreadActions={sideThreadActions}
+                        messagePinActions={messagePinActions}
+                        onRegenerate={onRegenerate}
+                        onFork={onFork}
+                        forkingMessageId={forkingMessageId}
+                        pins={pins}
+                        onOpenThread={onOpenThread}
+                        canStartThread={canStartThread}
+                        allowReply={!readOnly && (roomProjectId === null || canStartThread)}
+                      />
+                    </QuestionInteractionContext>
                   </ConversationVisualsProvider>
                 </LiveBrowsesProvider>
               )}
@@ -2372,6 +2364,21 @@ function ChatUI({
               compact && "bg-background",
             )}
           >
+            {pendingQuestions?.length && threadRootId === null ? (
+              <button
+                type="button"
+                // Blurring the disabled composer on press can collapse its phone
+                // controls and move this button before the click is delivered.
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={onRevealQuestion}
+                className="bg-popover text-foreground border-border focus-visible:outline-ring pointer-events-auto absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded-full border px-4 py-2 text-sm shadow-sm focus-visible:outline-2"
+              >
+                {t("questions.reveal")}
+              </button>
+            ) : null}
+            {showDailyBriefing && homeOptions.inbox && (
+              <ChatHomeInbox onDiscuss={composeSuggestion} />
+            )}
             {/* Actionable notices belong beside the composer, outside the transcript.
               The approval panel replaces approval notices, including older runs. */}
             {conversationId && !compact && (
