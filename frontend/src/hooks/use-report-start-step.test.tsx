@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useAuthStore, useOrgStore } from "@/stores";
 import { apiClient } from "@/lib/api-client";
 import type { StartStep } from "@/lib/onboarding-api";
+import { qk } from "@/lib/query-keys";
 import { useReportStartStep } from "./use-report-start-step";
 const notices = vi.hoisted(() => ({ error: vi.fn() }));
 vi.mock("@/lib/api-client", () => ({ apiClient: { patch: vi.fn() } }));
@@ -24,8 +25,9 @@ const result = {
   latest_completed_at: null,
   has_result: false,
 };
-function makeWrapper() {
-  const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+function makeWrapper(
+  client = new QueryClient({ defaultOptions: { mutations: { retry: false } } }),
+) {
   return function Wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   };
@@ -87,4 +89,35 @@ it("serializes rapid step reports instead of allowing late responses to reorder 
   await act(async () => release?.());
   await waitFor(() => expect(apiClient.patch).toHaveBeenCalledTimes(2));
   expect(vi.mocked(apiClient.patch).mock.calls[1]?.[1]).toEqual({ current_step: "member.context" });
+});
+
+it("does not replace completion with an older progress response", async () => {
+  const client = new QueryClient();
+  let release: (() => void) | undefined;
+  vi.mocked(apiClient.patch).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        release = () => resolve(result);
+      }),
+  );
+  renderHook(() => useReportStartStep("member.profile", org), { wrapper: makeWrapper(client) });
+  await waitFor(() => expect(apiClient.patch).toHaveBeenCalledTimes(1));
+  client.setQueryData(qk.onboarding.state("person", org), { ...result, completed: true });
+  await act(async () => release?.());
+  expect(client.getQueryData(qk.onboarding.state("person", org))).toMatchObject({
+    completed: true,
+  });
+});
+it("does not retry a historical step after moving to a newer step", async () => {
+  vi.mocked(apiClient.patch).mockRejectedValueOnce(new Error("refused"));
+  const { rerender } = renderHook(
+    ({ step }: { step: StartStep }) => useReportStartStep(step, org),
+    { wrapper: makeWrapper(), initialProps: { step: "member.profile" as StartStep } },
+  );
+  await waitFor(() => expect(notices.error).toHaveBeenCalled());
+  const options = notices.error.mock.calls[0]?.[1] as { action: { onClick: () => void } };
+  rerender({ step: "member.tools" });
+  await waitFor(() => expect(apiClient.patch).toHaveBeenCalledTimes(2));
+  act(() => options.action.onClick());
+  expect(apiClient.patch).toHaveBeenCalledTimes(2);
 });

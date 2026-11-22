@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/api-error";
-import { qk } from "@/lib/query-keys";
 import { useAuthStore, useOrgStore } from "@/stores";
 import { parseOnboarding, type StartStep } from "@/lib/onboarding-api";
 
@@ -14,7 +13,16 @@ import { parseOnboarding, type StartStep } from "@/lib/onboarding-api";
 export function useReportStartStep(step: StartStep, organizationId: string | null, enabled = true) {
   const userId = useAuthStore((state) => state.user?.id);
   const activeOrganizationId = useOrgStore((state) => state.activeOrgId);
-  const client = useQueryClient();
+  const current = useRef({ step, enabled, mounted: false });
+  useEffect(() => {
+    const context = current.current;
+    context.step = step;
+    context.enabled = enabled;
+    context.mounted = true;
+    return () => {
+      context.mounted = false;
+    };
+  }, [step, enabled]);
   const errors = useTranslations("errors");
   const common = useTranslations("common");
   const { mutate } = useMutation({
@@ -34,18 +42,30 @@ export function useReportStartStep(step: StartStep, organizationId: string | nul
       );
       return parseOnboarding(result);
     },
-    onSuccess: (data) => {
-      if (userId && organizationId && useAuthStore.getState().user?.id === userId)
-        client.setQueryData(qk.onboarding.state(userId, organizationId), data);
-    },
     onError: (error: unknown, currentStep: StartStep) => {
       if (
         useAuthStore.getState().user?.id !== userId ||
         useOrgStore.getState().activeOrgId !== organizationId
       )
         return;
+      if (
+        !current.current.mounted ||
+        !current.current.enabled ||
+        current.current.step !== currentStep
+      )
+        return;
       toast.error(getErrorMessage(error, errors), {
-        action: { label: common("retry"), onClick: () => mutate(currentStep) },
+        action: {
+          label: common("retry"),
+          onClick: () => {
+            if (
+              current.current.mounted &&
+              current.current.enabled &&
+              current.current.step === currentStep
+            )
+              mutate(currentStep);
+          },
+        },
       });
     },
   });
