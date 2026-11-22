@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Recognize the official November 12 and 14 AgenticOS starter templates when upgrading older organizations. Refresh untouched shipped defaults while preserving custom prompts, tools, model choices, budgets and unpublished edits.
+
 ## [1.89.0] - 2026-11-21
 
 ### Upgrading
