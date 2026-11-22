@@ -1,5 +1,5 @@
 ---
-source_sha: "5f9b68f4629d"
+source_sha: "8e450f21611e"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -185,7 +185,7 @@ Auf dem Smartphone halten gesendete Nachrichten unterhalb der schwebenden Chat-S
 
 Standardagenten schließen einmalige Anfragen ab, ohne die Antwort durch eine optionale Automatisierungsfrage offen zu halten. Fragen klären notwendige Entscheidungen zur aktuellen Aufgabe oder zu einer angefragten beziehungsweise akzeptierten Automatisierung. Optionale Einrichtungskarten bleiben unverbindliche Vorschläge und blockieren den Abschluss nicht.
 
-Die kompakte Quellen-Schaltfläche unter einer Antwort öffnet Sources neben dem Gespräch, auf dem Smartphone als vollbreites Panel. Files und Sources teilen sich den Seitenbereich: Das Öffnen eines Panels ersetzt das andere. Webquellen zeigen das ohne Referrer geladene Favicon oder ein bekanntes Dienstlogo; bei fehlendem Symbol bleibt der Globus. Wissensquellen behalten ihre Dateisymbole und die Originaldokumentansicht.
+Die kompakte Quellen-Schaltfläche unter einer Antwort schaltet Sources neben dem Gespräch um, auf dem Smartphone als vollbreites Panel. Erneutes Anklicken schließt das Panel; eine andere Antwort wechselt die Quellen. Zitate öffnen das Panel und fokussieren die zitierte Passage. Browserkarten schalten ebenfalls ihr Seitenpanel um; die Auswahl eines Tabs darin lässt es geöffnet. Files und Sources teilen sich den Seitenbereich: Das Öffnen eines Panels ersetzt das andere. Webquellen zeigen das ohne Referrer geladene Favicon oder ein bekanntes Dienstlogo; bei fehlendem Symbol bleibt der Globus. Wissensquellen behalten ihre Dateisymbole und die Originaldokumentansicht.
 
 Weblinks in Antworten verwenden dieselbe Favicon-Regel unabhängig von MCP-Verbindungen. Symbole unbekannter Seiten werden über den Proxy unter derselben Origin wie die Konsole und den festen Symboldienst von DuckDuckGo geladen. Dieser erhält nur den Hostnamen, keine Cookies oder IP-Adresse des Lesers, URL-Pfade oder Abfrageparameter. Der Proxy verweigert Weiterleitungen, nicht-rasterbasierte Inhalte und Symbole über 64 KiB; das Zeitlimit beträgt drei Sekunden. Bei fehlenden oder nicht erreichbaren Symbolen erscheint ein Globus. Inaktive Transkriptansichten laden weder entfernte Bilder noch Symbole unbekannter Seiten.
 

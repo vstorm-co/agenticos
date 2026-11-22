@@ -115,7 +115,8 @@ describe("TurnBrowses - a browse as a browser under its message", () => {
     await userEvent.click(
       screen.getByRole("button", { name: /example.test is open in the browser panel/ }),
     );
-    expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+    expect(live.calls.at(-1)).toEqual(["run-1", "c1", true]);
   });
 
   it("fetches a finished browse's cached last view", () => {
@@ -193,6 +194,11 @@ it("opens the native tab panel rather than presenting an empty screenshot", asyn
   const user = userEvent.setup();
   render(<BrowserCards browses={[browse({ nativeId: "native-browser-test", outcome: "done" })]} />);
   await user.click(screen.getByRole("button", { name: "Pricing" }));
+  expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+  expect(screen.getByRole("button", { name: "Pricing" })).toHaveAttribute("aria-expanded", "true");
+  await user.click(screen.getByRole("button", { name: "Pricing" }));
+  expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+  await user.keyboard("{Enter}");
   expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
 });
 
@@ -342,4 +348,22 @@ it("does not add a historical card beside a live view when the same tab is read 
   );
   expect(screen.getAllByRole("button", { name: "Pricing" })).toHaveLength(1);
   expect(screen.queryByRole("link", { name: /Visit site/ })).toBeNull();
+});
+
+it("switches browser cards without closing a different selected page", async () => {
+  render(
+    <BrowserCards
+      browses={[
+        browse({ navigable: true, tabId: "one" }),
+        browse({ navigable: true, tabId: "two", callId: "c2", title: "Docs" }),
+      ]}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Pricing" }));
+  await userEvent.click(screen.getByRole("button", { name: "Docs" }));
+  expect(useBrowserPanelStore.getState().openCallId).toBe("c2");
+  expect(screen.getByRole("button", { name: "Pricing" })).toHaveAttribute("aria-expanded", "false");
+  expect(screen.getByRole("button", { name: "Docs" })).toHaveAttribute("aria-expanded", "true");
+  await userEvent.click(screen.getByRole("button", { name: "Docs" }));
+  expect(useBrowserPanelStore.getState().openCallId).toBeNull();
 });

@@ -9,7 +9,8 @@ import { useConversationStore } from "./conversation-store";
 import { useFilePreviewStore } from "./file-preview-store";
 import { useOrgStore } from "./org-store";
 import { useSidebarStore } from "./sidebar-store";
-import { useSourcesPanelStore } from "./sources-panel-store";
+import { createSourcesPanelStore, useSourcesPanelStore } from "./sources-panel-store";
+import { createBrowserPanelStore } from "./browser-panel-store";
 import { getResolvedTheme, useThemeStore } from "./theme-store";
 import type { ChatMessageFile, ConversationMessage } from "@/types";
 
@@ -153,6 +154,22 @@ describe("the sources panel", () => {
     useSourcesPanelStore.getState().open([source]);
 
     expect(useSourcesPanelStore.getState().highlightedIndex).toBeNull();
+  });
+
+  it("toggles by answer identity rather than a recreated source array", () => {
+    const panel = createSourcesPanelStore();
+    const other = createSourcesPanelStore();
+    panel.getState().toggle("answer-one", [source]);
+    expect(panel.getState()).toMatchObject({ isOpen: true, messageId: "answer-one" });
+    expect(other.getState().isOpen).toBe(false);
+    panel.getState().toggle("answer-one", [{ ...source }]);
+    expect(panel.getState()).toMatchObject({ isOpen: false, messageId: null });
+    panel.getState().toggle("answer-one", [source]);
+    panel.getState().toggle("answer-two", [source]);
+    expect(panel.getState()).toMatchObject({ isOpen: true, messageId: "answer-two" });
+    panel.getState().open([source], 1, "answer-two");
+    panel.getState().toggle("answer-two", [source]);
+    expect(panel.getState()).toMatchObject({ isOpen: false, highlightedIndex: null });
   });
 
   it("forgets the highlight on close but keeps the sources", () => {
@@ -401,4 +418,18 @@ it("can close an explicitly opened sidebar group without duplicating stored pref
   useSidebarStore.getState().toggleGroup("connections");
   expect(useSidebarStore.getState().openGroups).toEqual(["connections"]);
   expect(useSidebarStore.getState().closedGroups).toEqual(["organization"]);
+});
+
+it("toggles one browser panel while explicit tab selection remains idempotent", () => {
+  const panel = createBrowserPanelStore();
+  const other = createBrowserPanelStore();
+  panel.getState().open("browse-one");
+  panel.getState().open("browse-one");
+  expect(panel.getState().openCallId).toBe("browse-one");
+  panel.getState().toggle("browse-one");
+  expect(panel.getState().openCallId).toBeNull();
+  panel.getState().toggle("browse-one");
+  panel.getState().toggle("browse-two");
+  expect(panel.getState().openCallId).toBe("browse-two");
+  expect(other.getState().openCallId).toBeNull();
 });

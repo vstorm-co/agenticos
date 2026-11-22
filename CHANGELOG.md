@@ -117,6 +117,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Toggle chat source and browser side panels closed from the same entry point; switching answers or browser sessions keeps the requested panel open.
+
+- Keep avatar colour selection and keyboard-focus rings fully visible inside expanded profile settings and other clipped panels.
+
 - Keep subscription account rows compact with a two-limit preview, expandable details and an account actions menu.
 
 - Restore the concrete subscription service, account and model in Builder model controls. Keep chat model search behind a magnifier beside the tabs, move refresh and the count into that row, and leave account details in Account to give models more space.

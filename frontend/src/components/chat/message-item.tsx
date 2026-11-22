@@ -155,6 +155,8 @@ export const MessageItem = memo(function MessageItem({
   const tReply = useTranslations("chat.reply");
   const openPreview = useFilePreviewStore((s) => s.open);
   const openSources = useSourcesPanelStore((s) => s.open);
+  const toggleSources = useSourcesPanelStore((s) => s.toggle);
+  const sourcesExpanded = useSourcesPanelStore((s) => s.isOpen && s.messageId === message.id);
   const { user: authUser } = useAuthStore();
   // A teammate's words in a project's chat: theirs, not the reader's "You".
   const teammate =
@@ -203,7 +205,9 @@ export const MessageItem = memo(function MessageItem({
   const watches = !isUser && authUser ? writtenWatches(toolCallsOf(message)) : [];
   // What the Copy action takes: the answer and the drafts the turn wrote, as plain text.
   const copyText = withDraftText(message.content, isUser ? [] : draftsOf(toolCallsOf(message)));
-  const onCiteClick = hasSources ? (index: number) => openSources(sources, index) : undefined;
+  const onCiteClick = hasSources
+    ? (index: number) => openSources(sources, index, message.id)
+    : undefined;
 
   const avatar = (
     <div
@@ -463,7 +467,11 @@ export const MessageItem = memo(function MessageItem({
 
         {hasSources && !isUser && (
           <div className="mt-1">
-            <MessageSources sources={sources} onOpen={(index) => openSources(sources, index)} />
+            <MessageSources
+              sources={sources}
+              expanded={sourcesExpanded}
+              onToggle={() => toggleSources(message.id, sources)}
+            />
           </div>
         )}
 
