@@ -197,7 +197,10 @@ describe("RoomDirectoryDialog", () => {
     hooks.join.mockReturnValueOnce(new Promise(() => {}));
     drawDirectory();
 
-    const [first, second] = screen.getAllByRole("button", { name: "Join" }) as [HTMLElement, HTMLElement];
+    const [first, second] = screen.getAllByRole("button", { name: "Join" }) as [
+      HTMLElement,
+      HTMLElement,
+    ];
     await user.click(first);
 
     expect(first.querySelector("svg.animate-spin")).not.toBeNull();

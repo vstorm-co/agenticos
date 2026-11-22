@@ -16,7 +16,12 @@ vi.mock("@/hooks", () => ({
     error: null,
     refetch: vi.fn(),
   }),
-  useRoomMentionables: () => ({ mentionables: [], isLoading: false, error: null, refetch: vi.fn() }),
+  useRoomMentionables: () => ({
+    mentionables: [],
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
   useAddRoomParticipant: () => ({ add: vi.fn(), isAdding: false }),
   useRemoveRoomParticipant: () => ({ remove: vi.fn(), isRemoving: false }),
   useUpdateRoomAgentAutoReply: () => ({ update: vi.fn(), isUpdating: false }),

@@ -191,7 +191,9 @@ describe("RoomParticipantsDialog", () => {
     expect(screen.getByRole("heading", { name: "Remove Sam?" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Remove" }));
 
-    await waitFor(() => expect(hooks.remove).toHaveBeenCalledWith({ kind: "user", id: "member-2" }));
+    await waitFor(() =>
+      expect(hooks.remove).toHaveBeenCalledWith({ kind: "user", id: "member-2" }),
+    );
     await waitFor(() =>
       expect(screen.queryByRole("heading", { name: "Remove Sam?" })).not.toBeInTheDocument(),
     );
