@@ -472,6 +472,27 @@ class BackgroundOutputTests(unittest.TestCase):
 
 
 class BackgroundTests(unittest.IsolatedAsyncioTestCase):
+    async def test_background_uses_a_resolved_model_without_replacing_its_transport(self) -> None:
+        case = next(item for item in runner.load("briefing") if item.id == "no-connector")
+        seen = []
+
+        def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            seen.extend(messages)
+            return ModelResponse(
+                parts=[ToolCallPart(info.output_tools[0].name, {"repeats": [], "profile": None})],
+                provider_details={"cost": 0.001},
+            )
+
+        model = FunctionModel(respond)
+        with patch.object(runner, "print", create=True) as emit:
+            self.assertEqual(
+                await runner.run_background(model, [case], model_label="Resolved QA profile"), 0
+            )
+        row = runner.Evidence.model_validate_json(emit.call_args.args[0])
+        self.assertEqual(row.model, "Resolved QA profile")
+        self.assertEqual(row.errors, [])
+        self.assertTrue(seen)
+
     async def test_memory_retries_a_quote_joined_across_turns(self) -> None:
         case = next(item for item in runner.load("memory") if item.id == "chosen-oncall")
         quote = case.case.input

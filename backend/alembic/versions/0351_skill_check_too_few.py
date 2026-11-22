@@ -8,15 +8,15 @@ read as a check that could not tell. `skill_check_agents.unknown_reason` takes
 
 **Downgrade** reads `too_few_questions` as `inconclusive`, the value it replaces.
 
-Revision ID: 0350_skill_check_too_few
-Revises: 0349_skill_check_families
+Revision ID: 0351_skill_check_too_few
+Revises: 0350_skill_check_families
 Create Date: 2026-11-19
 """
 
 from alembic import op
 
-revision: str = "0350_skill_check_too_few"
-down_revision: str = "0349_skill_check_families"
+revision: str = "0351_skill_check_too_few"
+down_revision: str = "0350_skill_check_families"
 branch_labels: None = None
 depends_on: None = None
 

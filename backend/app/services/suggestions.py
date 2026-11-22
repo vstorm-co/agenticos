@@ -92,6 +92,7 @@ class SuggestionService:
     async def dismiss(self, ctx: AuthContext, suggestion_id: UUID) -> Suggestion:
         """Decline it - and, kept as dismissed, it is not proposed again."""
         suggestion = await self._own_open(ctx, suggestion_id)
+        await ProactiveService(self.db).queue_context_change(ctx.organization_id, self._person(ctx))
         if suggestion.kind == SuggestionKind.FINDING.value:
             await self._settle_finding(ctx, suggestion, mute=True)
             return suggestion
@@ -108,6 +109,7 @@ class SuggestionService:
                 it is checked exactly as the profile form's own save is.
         """
         suggestion = await self._own_open(ctx, suggestion_id)
+        await ProactiveService(self.db).queue_context_change(ctx.organization_id, self._person(ctx))
         person = self._person(ctx)
         if suggestion.kind == SuggestionKind.FINDING.value:
             await self._settle_finding(ctx, suggestion, mute=False)
