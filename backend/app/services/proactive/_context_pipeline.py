@@ -109,7 +109,12 @@ already answered. Never add a new identity. When a grounded useful card merely a
 already answered choice or phrases an unknown as a fact, repair that card in
 corrections, preserving its identity and exact supporting evidence. Do not repair
 invented obligations or unrelated work; reject those. A confirmed human answer
-must be retained, without asking the same question again. If a resource appears in
+must be retained, without asking the same question again. Inspect every current
+routine's intent, name and prompt before approving a new routine. A current
+weekly-agenda routine is a likely match for repeated meeting preparation: reject
+another overlapping routine, especially when a peer action already repairs that
+existing routine. Do not treat a missing product label as proof of different work.
+If a resource appears in
 old assistant text but not in a complete current resource list, never describe it
 as an existing paused or blocked resource, even inside another card's detail.
 Remove such claims throughout the card and starters; propose only a genuinely
@@ -239,6 +244,20 @@ def supported(evidence: SourceEvidence, sources: Mapping[str, SourceFragments]) 
     fragments = sources.get(evidence.source_id, ())
     quote = " ".join(evidence.quote.split())
     return any(quote in " ".join(fragment.split()) for fragment in fragments)
+
+
+def clock_hours(text: str, *, short_answer: bool = False) -> set[str]:
+    """Normalize literal hours, including a native answer such as 'thu 18'."""
+    literal = re.findall(r"\b([01]?\d|2[0-3]):([0-5]\d)\b", text)
+    result = {f"{int(hour):02}:{minute}" for hour, minute in literal}
+    if short_answer:
+        selected = re.findall(
+            r"\b(?:thu(?:rsday)?|czw(?:artek)?|fri(?:day)?|piątek|when|time|godzina)[:\s]+(?:at\s+|o\s+)?([01]?\d|2[0-3])(?::([0-5]\d))?(?!\d)",
+            text,
+            re.IGNORECASE,
+        )
+        result.update(f"{int(hour):02}:{minute or '00'}" for hour, minute in selected)
+    return result
 
 
 def source_excerpt(evidence: SourceEvidence, sources: Mapping[str, SourceFragments]) -> str:
@@ -486,14 +505,16 @@ async def propose_context(
             topic for topic in topics if cited.intersection(ref.source_id for ref in topic.evidence)
         ]
         human_ids = (cited | {ref.source_id for topic in related for ref in topic.evidence}) & human
-        confirmed = " ".join(
-            fragment for identifier in human_ids for fragment in sources[identifier]
-        )
+        confirmed = {
+            hour
+            for identifier in human_ids
+            for fragment in sources[identifier]
+            for hour in clock_hours(fragment, short_answer=identifier.startswith("message:answer:"))
+        }
         proposed = " ".join(
             [card.title, card.detail, card.chat_prompt, card.proposed_schedule or ""]
         )
-        hours = r"\b(?:[01]?\d|2[0-3]):[0-5]\d\b"
-        return set(re.findall(hours, proposed)) - set(re.findall(hours, confirmed))
+        return clock_hours(proposed) - confirmed
 
     def eligible_card(card: PersonalAdvice) -> bool:
         return (
@@ -585,6 +606,15 @@ async def propose_context(
                 **common,
                 "mode": "one_card",
                 "unconfirmed_local_hours": sorted(unconfirmed_hours(card)),
+                "other_proposed_actions": [
+                    {
+                        "identity": peer.identity,
+                        "kind": peer.kind,
+                        "resource_ids": peer.resource_ids,
+                    }
+                    for peer in eligible
+                    if peer.identity != card.identity
+                ],
                 "candidates": [card.model_dump(mode="json")],
                 "original_sources": verifier_sources,
                 "source_metadata": {

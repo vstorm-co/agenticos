@@ -18,6 +18,7 @@ from app.schemas.personal_context import (
 from app.services.proactive._context_pipeline import (
     CHUNK_CHARS,
     chunks,
+    clock_hours,
     evidence_sources,
     extract_context,
     fingerprint,
@@ -888,3 +889,40 @@ async def test_a_model_cannot_promote_an_assistants_hour_to_a_human_choice(verif
     )
     assert result is not None
     assert len(result.opportunities) == (0 if verified == "approved" else 1)
+
+
+@pytest.mark.parametrize(
+    ("text", "short", "expected"),
+    [
+        ("Thu 18", True, {"18:00"}),
+        ("When: thu 18", True, {"18:00"}),
+        ("Thursday 17:30", True, {"17:30"}),
+        ("At 9:00", False, {"09:00"}),
+        ("At 09:00", False, {"09:00"}),
+        ("Thu 18", False, set()),
+        ("18 tasks", True, set()),
+    ],
+)
+def test_clock_evidence_preserves_short_native_answers_and_zero_padding(
+    text: str, short: bool, expected: set[str]
+) -> None:
+    assert clock_hours(text, short_answer=short) == expected
+
+
+async def test_a_short_native_answer_can_confirm_a_padded_clock_hour() -> None:
+    answer = SourceEvidence(source_id="message:answer:answer", quote="When: thu 18")
+    advice = card(
+        chat_prompt="Prepare Thursday at 18:00.",
+        proposed_schedule="Thursday 18:00",
+        evidence=[evidence().model_dump(), answer.model_dump()],
+    )
+    value = packet(tool_receipts=[receipt(thread_id="t")])
+    result = await propose_context(
+        Reader(
+            propose=PersonalReading(opportunities=[advice]),
+            verify=VerifiedReading(approved_identities=[advice.identity]),
+        ),
+        value,
+        [ContextDigest(topics=[topic(evidence=[evidence().model_dump(), answer.model_dump()])])],
+    )
+    assert result is not None and result.opportunities == [advice]
