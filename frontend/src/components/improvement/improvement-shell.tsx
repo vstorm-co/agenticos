@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, CircleDot, Loader2 } from "lucide-react";
@@ -193,10 +195,10 @@ export function ImprovementShell({
           </p>
         )}
         {session.error && (
-          <details className="text-muted-foreground text-sm">
+          <NativeDisclosure className="text-muted-foreground text-sm">
             <summary className="cursor-pointer">{t("technicalDetails")}</summary>
             <p className="mt-2 break-words">{session.error}</p>
-          </details>
+          </NativeDisclosure>
         )}
         <div
           ref={content}

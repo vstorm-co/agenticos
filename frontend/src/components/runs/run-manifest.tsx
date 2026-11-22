@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useTranslations } from "next-intl";
 import { FileWarning } from "lucide-react";
 
@@ -368,14 +370,14 @@ export function RunManifest({ runId }: { runId: string }) {
           title={t("lastRequestContext")}
           copyText={JSON.stringify(manifest.messages, null, 2)}
         >
-          <details className="rounded-md border">
+          <NativeDisclosure className="rounded-md border">
             <summary className="text-muted-foreground cursor-pointer px-3 py-1.5 text-xs select-none">
               {t("messagesCount", { count: manifest.messages.length })}
             </summary>
             <pre className="max-h-96 overflow-auto border-t p-3 text-xs">
               {JSON.stringify(manifest.messages, null, 2)}
             </pre>
-          </details>
+          </NativeDisclosure>
         </Section>
       )}
     </div>

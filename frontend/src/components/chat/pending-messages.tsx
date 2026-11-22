@@ -68,7 +68,7 @@ export function PendingMessages({
   };
 
   return (
-    <div className="panel border-foreground/8 mb-2 overflow-hidden rounded-xl border">
+    <div className="chat-composer-width panel border-foreground/8 mb-2 overflow-hidden rounded-xl border">
       <button
         type="button"
         aria-expanded={open}

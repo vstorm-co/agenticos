@@ -26,6 +26,7 @@ export { useConversationForks } from "./use-conversation-forks";
 export { useConversationMessageSearch } from "./use-conversation-message-search";
 export { useMessagePins } from "./use-message-pins";
 export { useConversationSearch, useConversations } from "./use-conversations";
+export { useWaitingChatQuestions } from "./use-waiting-chat-questions";
 export { useConversationShares } from "./use-conversation-shares";
 export { useOrganizations, useOrganizationList, preferredOrg } from "./use-organizations";
 export { useActiveOrganizationRecovery } from "./use-active-organization";

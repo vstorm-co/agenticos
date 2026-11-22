@@ -1,5 +1,5 @@
 ---
-source_sha: "6bf91cb53877"
+source_sha: "8d62b9e45517"
 ---
 
 # Governance { #governance }
@@ -847,17 +847,21 @@ permitidas coincidentes; no concede nada hasta guardar el review actual. Las acc
 nuevas y cuentas modificadas no se seleccionan automáticamente. Siguen vigentes las
 aprobaciones obligatorias, la revocación y los controles de review obsoleto.
 
-Una rutina desatendida pide aprobación antes de acciones de capacidades, cambios
-en archivos locales y delegaciones. Las llamadas MCP externas preguntan salvo que
-su servidor las marque como solo lectura; sigue vigente una política más estricta
-de la conexión. No cambian los valores del agente interactivo. El modo de código
-se desactiva en rutinas para que los scripts agrupados no eviten controles por acción.
+Las rutinas que siguen al agente usan sus reglas de aprobación sin un requisito adicional para toda la rutina. Las restringidas preguntan además antes de acciones de capacidades, cambios de archivos locales y delegaciones, y de llamadas MCP externas no marcadas como solo lectura. Los requisitos explícitos del agente o la conexión y las aprobaciones obligatorias siguen vigentes en ambos modos. El modo de código permanece desactivado en rutinas para impedir que scripts agrupados eludan controles por herramienta.
 
 Las escrituras en Virtual Tables de AgenticOS se ejecutan dentro de sus permisos vigentes de tabla y operación sin una excepción de rutina. Una política explícita de aprobación del agente sigue aplicándose a estas escrituras internas.
 
 El creador abre **Consentimiento para acciones** en su rutina y elige acciones de capacidades y acciones MCP individuales de una cuenta identificada. Requiere `approvals:decide` y el ajuste `chat_may_waive_approvals` de la organización. Una clave API, un agente, una sesión suplantada o un administrador actuando por otro propietario no pueden consentir. No se pueden omitir aprobaciones explícitas del agente o de una vinculación MCP.
 
 Una excepción MCP identifica la cuenta concreta, el hash de la dirección, la generación de autorización y el nombre original de la acción. Enviar correo no autoriza borrar ni escribir en otra cuenta. Las cuentas personales solo aparecen si la rutina actúa como su creador. El selector usa la lista de herramientas guardada; comprueba la conexión o pide ayuda a su administrador cuando no esté disponible. Revocar todo el consentimiento no requiere una lista operativa.
+
+La revisión muestra las capabilities del agente, AgenticOS y cada otra cuenta MCP como secciones separadas, cada una con sus grupos. Solo aparecen las acciones que el agente ya ejecuta sin preguntar: una ante la que pregunta no admite consentimiento aquí, así que no se muestra. **Usar la configuración del agente** selecciona exactamente esas acciones y reemplaza la selección actual; nada se guarda hasta elegir **Guardar consentimiento**.
+
+El panel **Fuentes revisadas** de arriba lista las fuentes de la rutina por tipo - capabilities, skills, bases de conocimiento, tablas, cuentas -, cada tipo plegado a un recuento y cada fuente con su nombre. Una fuente que ya no existe aparece como no disponible; su identificador se ve al pasar el cursor.
+
+Cuando una rutina actúa como su creador, las herramientas propias del servidor de AgenticOS aparecen en los grupos que muestra el Builder: tablas, tareas, workflows, agentes y el resto. Solo aparecen las que cambian algo, porque las lecturas nunca preguntan; la búsqueda de herramientas tampoco pregunta. Una herramienta ante la que el agente pregunta no aparece. Eso cubre cada cambio que su vinculación no marca como **Run freely** y las herramientas que siempre preguntan. Así, una rutina mantiene las aprobaciones del agente o las endurece, y nunca libera ninguna.
+
+Una excepción de la plataforma nombra solo la herramienta: las ejecuciones de la rutina llegan a la plataforma solo como su creador, la única persona que puede revisarla.
 
 Al guardar, la versión y configuración deben seguir coincidiendo con lo revisado
 por la persona. El consentimiento identifica la versión publicada inmutable, los identificadores
@@ -948,6 +952,8 @@ y sus últimas ejecuciones.
 | --- | --- | --- |
 | `daily_briefing` | La mirada nocturna a la semana de cada persona y el briefing que se construye con ella | En la pestaña Proactivity: el mismo modelo y límite, aquí solo de lectura |
 | `memory_maintenance` | Lee una vez un turno admitido terminado y registra los hechos, preferencias y decisiones duraderos que contiene como [claims](reference/capabilities.md#memory-claims) | Aquí: un interruptor, un modelo y un presupuesto mensual propio |
+
+Daily briefing lee la memoria vigente del perfil personal y la que la persona comparte con el agente inicial, además de las notas anteriores. Las propuestas de rutinas y agentes requieren evidencia de distintos hilos o días y se contrastan con las propuestas previas y las rutinas existentes. Memory maintenance compara las entradas vigentes del ámbito de origen y exige una cita del usuario antes de guardar una afirmación.
 
 El mantenimiento de memoria no necesita al agente inicial AgenticOS. Su run conserva el agente de origen como referencia de almacenamiento y se contabiliza como `memory_maintenance`; solo ejecuta las instrucciones de extracción de la plataforma con el modelo elegido para el rol. Eliminar o retirar la publicación del agente inicial no desactiva la extracción de otros agentes publicados.
 
@@ -2523,9 +2529,13 @@ La lista muestra la pausa automática y el número de fallos. Se conservan como 
 
 ## Fuentes revisadas de las rutinas { #routine-sources }
 
-Al crear una rutina se fija la configuración publicada de sus fuentes, las cuentas MCP concretas, las generaciones de consentimiento y los nombres de herramientas conocidos. La revisión incluye delegados fijados, colecciones de conocimiento, habilidades, contexto y configuración de capacidades; las inscripciones A2A remotas conservan también la vinculación de endpoint, tarjeta y credencial. Los cambios de instrucciones o ajustes del modelo pueden seguir una publicación. Añadir fuentes, cambiar cuentas o renovar su consentimiento requiere que el propietario revise el panel de fuentes en el diálogo de consentimientos. Esta revisión no elimina las aprobaciones de acciones ni concede acceso a recursos. Siguen aplicándose los permisos actuales.
+Las rutinas nuevas admiten automáticamente la configuración inicialmente disponible del agente publicado dentro de los permisos vigentes del creador. Las eliminaciones seguras de fuentes y los cambios exclusivamente de modelo o presentación del agente principal no requieren revisión. Las fuentes, cuentas o herramientas nuevas, los cambios de instrucciones o variables y los cambios de capacidades, skills efectivos, contexto o comportamiento delegado requieren la revisión de acceso del propietario antes de otra ejecución. Publicar el agente compartido no amplía por sí solo la autoridad permanente de una persona. Las cuentas MCP opcionales ausentes no bloquean otras tareas; siguen vigentes las entradas obligatorias de eventos, identidad, permisos, presupuestos y aprobaciones obligatorias.
 
-Las activaciones en cola, las esperas de dispositivos y las ejecuciones aparcadas conservan la identidad de su revisión original. Una revisión posterior no amplía los permisos del trabajo anterior. El sondeo del buzón comprueba la cuenta de entrada antes de leer; los eventos conservan el consentimiento admitido antes de esa lectura. Las llamadas MCP usan alias revisados y excluyen herramientas no aprobadas. Las fuentes revisadas no disponibles provocan un rechazo explícito. Una revisión necesaria antes de ejecutar aparece en el caso de atención existente del propietario y no cuenta como un fallo del modelo.
+Cambiar la versión fijada de un delegado requiere revisión, incluso si su publicación solo modifica el modelo.
+
+El propietario puede elegir `restricted`, que fija la configuración revisada, cuentas MCP concretas, generaciones de autorización y nombres de herramientas conocidos. La revisión incluye delegados fijados, conocimiento, skills, contexto, capacidades y registros A2A remotos. Las fuentes nuevas o cambios en la autorización de una cuenta requieren otra revisión. Las políticas existentes sin modo permanecen restringidas; actualizar no las amplía automáticamente.
+
+Cada ejecución admitida conserva su propia instantánea de fuentes y cuentas. Una ejecución aparcada no puede tomar una cuenta, autorización o revisión posterior. La titularidad, revocación y listas de herramientas permitidas se comprueban de nuevo antes de las llamadas. Las herramientas opcionales ausentes se comunican, no se tratan como trabajo completado. El propietario puede cambiar explícitamente el modo de una rutina existente mediante sus ajustes de acceso protegidos por un token de revisión.
 
 La migración `0276_routine_sources.py` no concede consentimiento a rutinas existentes. Drena los workers antiguos, actualiza API y workers conjuntamente y revisa explícitamente las rutinas antiguas antes de ejecutarlas. Solo el propietario en la consola puede sustituir el consentimiento; no pueden hacerlo las claves API, la suplantación ni los agentes desatendidos.
 

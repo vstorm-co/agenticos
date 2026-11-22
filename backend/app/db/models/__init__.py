@@ -1,6 +1,7 @@
 """Database models."""
 
 # ruff: noqa: I001, RUF022 - Imports structured for Jinja2 template conditionals
+from app.db.models.solution_installation import SolutionInstallation
 from app.db.models.task_board import TaskBoard, TaskLink
 from app.db.models.virtual_table_relation import (
     VirtualTableLinkEvidence,
@@ -259,6 +260,7 @@ from app.db.models.artifact_share_request import ArtifactShareRequest
 from app.db.models.artifact_favourite import ArtifactFavourite
 
 __all__ = [
+    "SolutionInstallation",
     "TaskBoard",
     "TaskLink",
     "PhoneCall",

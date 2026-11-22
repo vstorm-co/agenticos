@@ -80,6 +80,7 @@ from app.core.background import spawn_after_commit
 from app.core.blocking import run_blocking
 from app.core.config import settings
 from app.core.exceptions import (
+    AuthorizationError,
     BadRequestError,
     ExportTooLargeError,
     ExternalServiceError,
@@ -272,6 +273,8 @@ class WorkspaceContents:
 
     thumbnails: dict[str, str] = field(default_factory=dict)
     """Each small image scaled to a `data:` URI, by path, within the fetch budget."""
+
+    unreadable_code: Literal["workspace_not_retained"] | None = None
 
 
 @dataclass(frozen=True)
@@ -1687,13 +1690,53 @@ class SandboxWorkspaceService:
         user deleted. Only this platform knows the conversation is gone.
         """
         rows = await workspace_repo.list_for_conversation(
-            self.db, organization_id=ctx.organization_id, conversation_id=conversation_id
+            self.db,
+            organization_id=ctx.organization_id,
+            conversation_id=conversation_id,
+            include_personal_coding=True,
         )
         for row in rows:
-            if row.backend != "state" and row.session_id:
+            if row.backend != "state" and (row.session_id or row.coding_account_id is not None):
                 await self._purge_remote(ctx, row)
             await workspace_repo.delete(self.db, workspace=row)
         return len(rows)
+
+    async def purge_personal_coding(
+        self,
+        *,
+        organization_id: UUID | None = None,
+        user_id: UUID | None = None,
+        account_id: UUID | None = None,
+        agent_id: UUID | None = None,
+    ) -> int:
+        """Queue owned session teardown in the caller's deletion/consent transaction.
+
+        Internal lifecycle operation: callers have already authorized the account,
+        member, agent or organization change. It grants no read access to session files.
+        """
+        rows = await workspace_repo.list_personal_coding(
+            self.db,
+            organization_id=organization_id,
+            user_id=user_id,
+            account_id=account_id,
+            agent_id=agent_id,
+        )
+        for row in rows:
+            ctx = AuthContext(user_id=None, organization_id=row.organization_id, role="")
+            await self._purge_remote(ctx, row)
+            await workspace_repo.delete(self.db, workspace=row)
+        return len(rows)
+
+    async def discard_personal_coding(self, ctx: AuthContext, row: AgentWorkspace) -> None:
+        """Queue teardown of an admitted personal task whose cleanup cannot be trusted.
+
+        The personal runner supplies its own admitted row, never a model-selected
+        workspace. Commit this with the failed task's terminal bookkeeping.
+        """
+        if row.organization_id != ctx.organization_id or row.coding_account_id is None:
+            raise AuthorizationError(message="This is not an admitted personal coding workspace")
+        await self._purge_remote(ctx, row)
+        await workspace_repo.delete(self.db, workspace=row)
 
     async def _purge_remote(self, ctx: AuthContext, row: AgentWorkspace) -> None:
         """Delete the sandbox behind a workspace whose conversation or project is going.
@@ -2084,10 +2127,10 @@ class SandboxWorkspaceService:
             reason = _reason(exc)
             return [WorkspaceContents(entries=[], unreadable_reason=reason) for _ in rows]
         contents: list[WorkspaceContents] = []
-        for session in sessions:
+        for row, session in zip(rows, sessions, strict=True):
             tree = trees[session]
             if isinstance(tree, Exception):
-                contents.append(WorkspaceContents(entries=[], unreadable_reason=_reason(tree)))
+                contents.append(_unreadable_contents(row, tree))
                 continue
             if tree.truncated:
                 logger.warning(
@@ -2180,6 +2223,7 @@ class SandboxWorkspaceService:
         return WorkspaceContents(
             entries=browsable(contents.entries),
             unreadable_reason=contents.unreadable_reason,
+            unreadable_code=contents.unreadable_code,
             truncated=contents.truncated,
         )
 
@@ -2240,6 +2284,19 @@ class SandboxWorkspaceService:
         also discoverable here, but require both project view and use access;
         managing sandbox connections alone never grants access to a project.
         """
+        if row.coding_account_id is not None:
+            from app.repositories import coding_account as coding_account_repo
+
+            return (
+                ctx.user_id is not None
+                and await coding_account_repo.get(
+                    self.db,
+                    organization_id=ctx.organization_id,
+                    user_id=ctx.user_id,
+                    account_id=row.coding_account_id,
+                )
+                is not None
+            )
         if row.project_id is not None:
             if row.recovery_of_id is None:
                 return False
@@ -2617,7 +2674,7 @@ class SandboxWorkspaceService:
             logger.warning(
                 "workspace_listing_failed", extra={"scope_key": row.scope_key}, exc_info=True
             )
-            return WorkspaceContents(entries=[], unreadable_reason=_reason(exc))
+            return _unreadable_contents(row, exc)
 
     async def read_text(self, ctx: AuthContext, *, conversation_id: UUID, path: str) -> str | None:
         """One file's text, or `None` when there is no such workspace or file."""
@@ -3064,6 +3121,22 @@ def thumbnail_of(path: str, raw: bytes) -> str | None:
         )
         return None
     return f"data:image/webp;base64,{base64.b64encode(scaled.getvalue()).decode()}"
+
+
+def _unreadable_contents(row: AgentWorkspace, exc: Exception) -> WorkspaceContents:
+    # A missing archive says nothing about whether it once held files. Keep that
+    # uncertainty distinct from both an empty archive and a broken connection.
+    not_retained = (
+        row.session_id is None
+        and isinstance(exc, WorkspaceArchiveError)
+        and exc.status_code == 404
+        and _detail(exc) == f"No workspace for session: {row.scope_key}"
+    )
+    return WorkspaceContents(
+        entries=[],
+        unreadable_reason=_reason(exc),
+        unreadable_code="workspace_not_retained" if not_retained else None,
+    )
 
 
 def _reason(exc: Exception) -> str:

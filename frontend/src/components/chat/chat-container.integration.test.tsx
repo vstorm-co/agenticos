@@ -1335,25 +1335,6 @@ describe("the chat container - server dictation", () => {
     expect(screen.queryByText("0:42 of audio")).not.toBeInTheDocument();
   });
 
-  it("says the browser is transcribing for an agent whose Dictation switch is off", async () => {
-    readiness.current = { ...readiness.current, engine: "browser", requested: false };
-    class FakeRecognition {
-      start = vi.fn();
-      stop = vi.fn();
-    }
-    vi.stubGlobal("SpeechRecognition", FakeRecognition);
-    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
-    mount();
-    await waitFor(() => expect(get).toHaveBeenCalledWith("/agents/a-1/dictation"));
-
-    fireEvent.click(await screen.findByRole("button", { name: "Voice input" }));
-
-    expect(
-      await screen.findByText("Dictation isn't turned on for this agent,", { exact: false }),
-    ).toBeInTheDocument();
-    vi.unstubAllGlobals();
-  });
-
   it("cancels a recording when the agent leaves the server engine mid-sentence", async () => {
     dictation.phase = "recording";
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -3015,32 +2996,6 @@ describe("the chat container - a conversation shared with the reader", () => {
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Earlier plan" })).toBeVisible();
   });
-});
-
-it("keeps actionable outcome notices beside the composer instead of above the transcript", async () => {
-  const originalGet = get.getMockImplementation();
-  get.mockImplementation((url: string, ...args: unknown[]) =>
-    url.startsWith("/outcomes?")
-      ? Promise.resolve({
-          items: [
-            {
-              id: "notice",
-              kind: "approval_requested",
-              summary: "Review the pending operation",
-              status: "open",
-              context_url: "/runs?tab=approvals",
-              source_conversation_id: "c-notice",
-            },
-          ],
-        })
-      : originalGet?.(url, ...args),
-  );
-  useConversationStore.getState().setCurrentConversationId("c-notice");
-  mount();
-  const notice = await screen.findByText("Review the pending operation");
-  const dock = screen.getByRole("textbox").closest("[data-chat-dock]");
-  expect(dock).toContainElement(notice);
-  expect(document.querySelector("[data-transcript]")).not.toContainElement(notice);
 });
 
 describe("opening a saved chat", () => {

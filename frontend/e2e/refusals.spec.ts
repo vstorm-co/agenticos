@@ -82,6 +82,7 @@ test.describe("Refusals", () => {
 
     await page.locator('[id$="-add-model-provider"]:visible').click();
     await page.getByRole("option", { name: "OpenAI", exact: true }).click();
+    await page.getByRole("button", { name: /^Connection settings · OpenAI/ }).click();
 
     await page.locator('[id$="-add-model-key"]:visible').click();
     await expect(page.getByRole("option", { name: new RegExp(FAKE_KEY_LABEL) })).toBeVisible();

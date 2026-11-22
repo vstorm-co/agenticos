@@ -8,7 +8,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Button, Dialog, DialogContent, DialogTitle } from "@/components/ui";
 import { useDebounced } from "@/components/ui/list-controls";
 import { useConversationMessageSearch } from "@/hooks/use-conversation-message-search";
-import { useConversationSearch } from "@/hooks/use-conversations";
+import { useConversationTitleSearch } from "@/hooks/use-conversations";
 import type {
   ConversationMessageSearchHit,
   ConversationMessageSearchTarget,
@@ -41,7 +41,7 @@ export function ConversationSearchDialog({
   const preserveFocusAfterMessageSelection = useRef(false);
   const debounced = useDebounced(term);
   const messageSearch = useConversationMessageSearch(mode === "messages" ? debounced : "");
-  const titleSearch = useConversationSearch(mode === "titles" ? debounced : "");
+  const titleSearch = useConversationTitleSearch(mode === "titles" ? debounced : "");
   const searching = debounced.trim() !== "";
   const messageResults = (messageSearch.data ?? []).map((hit) => ({
     ...hit,

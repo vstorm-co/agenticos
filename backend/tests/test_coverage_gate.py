@@ -45,6 +45,7 @@ PLATFORM_PACKAGES = ("app/agents", "app/services/workflow_media")
 # Individual platform modules living in directories we share with the template.
 PLATFORM_MODULES = (
     "app/commands/bootstrap.py",
+    "app/commands/refresh_inbox.py",
     "app/core/permissions.py",
     "app/core/claude_subscription.py",
     "app/schemas/claude_subscription.py",
@@ -68,6 +69,11 @@ PLATFORM_MODULES = (
     "app/services/access.py",
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",
+    "app/services/solution.py",
+    "app/services/platform_mcp/_disclosure.py",
+    "app/services/platform_mcp/_details.py",
+    "app/services/platform_mcp/_administration.py",
+    "app/repositories/solution_installation.py",
     "app/services/agent_exposure.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",

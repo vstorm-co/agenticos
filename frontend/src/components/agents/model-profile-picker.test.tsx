@@ -217,10 +217,11 @@ describe("ModelProfilePicker", () => {
     expect(screen.getByRole("radio", { name: "openai default" })).toBeDisabled();
   });
 
-  it("names the model, not just the label somebody typed", () => {
+  it("shows the saved label without a second technical line", () => {
     mount();
 
-    expect(screen.getByText("openai · gpt-4.1")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "openai default" })).toBeVisible();
+    expect(screen.queryByText("openai · gpt-4.1")).not.toBeInTheDocument();
   });
 
   it("tells an empty organization what is wrong and where a model comes from", () => {
@@ -426,15 +427,6 @@ describe("ModelProfilePicker", () => {
     const current = screen.getByRole("group", { name: "Current model" });
     expect(within(current).getByText("OpenRouter · openai/gpt-5.5")).toBeInTheDocument();
     expect(within(current).queryByText(/openrouter · openai\/gpt-5\.5/)).toBeNull();
-  });
-
-  it("still names the model where the label does not, on the row that offers it", () => {
-    // The other half of `modelDetail`: a name somebody chose says nothing about what
-    // runs. It is the *list* that carries it now - the line above the form carries
-    // the name, and the form's own fields carry the pair.
-    mount({ value: "p1", profiles: [profile({ label: "the cheap one" })] });
-
-    expect(screen.getByText("openai · gpt-4.1")).toBeInTheDocument();
   });
 
   it("names what the agent runs on rather than relying on it reading differently", () => {

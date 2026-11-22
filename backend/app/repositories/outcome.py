@@ -85,6 +85,7 @@ async def list_for_user(
     statuses: Sequence[str],
     conversation_id: UUID | None,
     limit: int,
+    skip: int = 0,
 ) -> list[Outcome]:
     """The person's outcomes in these states, newest first."""
     query = select(Outcome).where(
@@ -94,7 +95,9 @@ async def list_for_user(
     )
     if conversation_id is not None:
         query = query.where(Outcome.source_conversation_id == conversation_id)
-    result = await db.execute(query.order_by(Outcome.created_at.desc(), Outcome.id).limit(limit))
+    result = await db.execute(
+        query.order_by(Outcome.created_at.desc(), Outcome.id).offset(skip).limit(limit)
+    )
     return list(result.scalars().all())
 
 

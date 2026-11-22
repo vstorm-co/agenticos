@@ -223,6 +223,12 @@ loses that tool rather than the agent losing the server. Null on either side
 means no narrowing from there, so a binding that names nothing gets whatever the
 connection allows, which is what every binding did before this existed.
 
+So a binding's null also takes every tool the server gains later. In the
+Builder, **Add tools the server gains later** says which a binding is: on, it is
+null; off, it lists today's tools and a tool added later stays out. Ticking every
+tool back after narrowing gives today's list, never null, and the switch turns on
+only with every tool ticked - a binding cannot say "these, and whatever comes".
+
 The Builder lists a server's tools from its **last successful probe**, recorded
 on the connection. Probing dials out to a third party and is gated on
 `connections:manage`; an agent author holds `agents:edit` and needs the list to
@@ -253,40 +259,46 @@ provider prompt caching, so fewer tool schemas alone do not establish lower cost
 
 ### Which calls wait for a person
 
-Every binding has an `approval` policy for its server's tools. The default,
-`none`, lets every call through, as a capability's tools run until somebody gates
-them. `writes` holds every tool the server does not mark read-only (MCP's
-`readOnlyHint`) until a person approves the call: the card shows the exact
-arguments, and the approved ones are what runs. `all` holds every call. The
-read-only hint is the server's own claim, so `writes` is only as strict as the
-server is honest — choose `all` for a server you do not control.
+For an external server, `approval: none` lets calls run, `writes` asks before tools
+without `readOnlyHint: true`, and `all` also asks before reads. The server supplies
+that hint; use `all` when you do not trust its classification. An external MCP
+client, such as Claude Code, applies its own confirmation settings.
 
-The Architect's template uses `writes` for the platform server. Bindings to that
-server enforce at least `writes`, including when configured as `none`, because
-tools act with the caller's permissions. Read-only tools, including `get_project`
-and `read_conversation`, run automatically under `writes`. Creating, updating,
-deleting and other state-changing operations require approval. Use `all` to
-require approval for reads as well.
+The platform binding enforces at least `writes`. Its trusted defaults let authorized
+reads, draft preparation, ordinary task and table-record changes, empty knowledge
+bases, projects, conversations, Skills, Context files and dataset cases run without
+confirmation. Writes still advertise `readOnlyHint: false`; this changes approval,
+not permissions or side effects. `prepare_solution` prepares a plan; installing it
+with `install_solution` still requires confirmation.
 
-In the Builder, a server's settings say this
-per group: its **Reads** and the tools that **Change things** each run freely
-or ask first.
+Task writes still ask when they may start or reschedule agent work: an active task
+with an assigned agent and an Agent next step. Human, completed, cancelled, blocked
+and waiting tasks do not acquire that floor. Generic task-board record updates use
+the same check and the mutation still requires the read revision. A task-board
+upsert asks unless its values explicitly select Person or a terminal/waiting status,
+because it can recreate a concurrently deleted record. Ordinary table writes do
+not ask again merely because an already approved automation listens to them.
 
-Each tool can also run freely or ask first on its own, whatever its group and
-its read-only hint say: press the shield beside it. A server that marks no tool
-read-only lists every tool as one group, which `writes` holds in full; setting its
-reads to run freely is how they run while its writes ask. The same control lets
-one write run unasked without `none` releasing every other one.
+Every schema update, deletion, publication, active-version change, promotion, public
+App link, Inbox settlement, execution or paid operation requires a fresh answer.
+This includes tests, evaluations and improvement steps, ingestion/sync, connection
+tests, automation definitions and immediate routine runs, agent environments,
+profile/model/embedding changes, invitations and administrative/proactivity settings.
+Approve everything, remembered decisions and routine standing consent cannot waive
+these floors. Self-only language and interface preferences remain ungated.
 
-The spec keeps these in the binding's `tool_approval`, keyed by the tool's name on
-the server. A group whose tools differ reads **Per tool**, and choosing for the
-group sets all of its tools again. A tool the server adds later follows its group.
+In the Builder, use each tool's shield or group control to require approval for a
+default-free operation. `tool_approval`, keyed by the original server tool name,
+keeps these choices: `required` asks and `never` waives the ordinary binding gate.
+A binding set to `all` asks for every otherwise-default operation, including reads;
+mandatory and conditional execution floors still win over `never`. A mixed group
+shows **Per tool**. Newly discovered tools follow the binding policy; unknown
+platform writes conservatively ask until explicitly classified.
 
-Channel runs follow the binding and per-tool approval settings for every admitted
-sender, whether or not their chat identity is linked. The channel adds no extra
-approval gate. Personal accounts still require the sender's linked identity and
-authorized connection; platform connections keep their minimum `writes` policy.
-A watch never reads a tool its binding asks before, because nobody is there to answer.
+These rules also apply to channel runs and routine actions. They do not grant a
+linked identity, a connection, resource access or broader OAuth scopes. Only the
+platform's trusted in-process catalog supplies default-free exceptions; a remote
+server cannot obtain them by advertising matching metadata.
 
 ### Whose account a binding speaks through
 
@@ -374,7 +386,9 @@ it.
 The organization's accounts bind side by side the same way: each of its
 connections to a server is its own binding under its own name, with its own
 tools. In the Builder, a server's settings list its bound accounts with **Add
-another account**. Wherever a run reaches one service through more than one
+another account**. Under **Tools**, choose the account whose tools and approvals
+you want to edit. That edit leaves the other accounts unchanged. Wherever a run
+reaches one service through more than one
 account, one line of its instructions names each account beside its prefix
 and tells the model to ask when it is unclear which one the person means.
 
@@ -1246,7 +1260,7 @@ would be; an expected refusal returns an explicit error envelope naming the miss
 
 Approving personal routines and watches requires the explicit `personal:consent` scope, selected under **Custom** when issuing a key or authorizing an MCP client. It is excluded from every preset, including **Full access**. The confirmation allows the credential to approve persistent routines and watches using your personal connections and data; ordinary `agents:run` and `runs:view` scopes do not. Existing keys and MCP authorizations gain no personal consent automatically.
 
-Connection checks update discovered tools and status. `test_my_connection` therefore waits for approval under both `writes` and `all`.
+Connection checks update discovered tools and status. `test_my_connection` therefore requires a fresh confirmation on every call.
 
 | Tool | Needs |
 | --- | --- |
@@ -1358,15 +1372,28 @@ named after this deployment; switching it on binds it as
   holding that person's permissions, so a Viewer's agent can read what the Viewer
   can read and create nothing. Nothing new is granted, and where nobody is behind
   the run - a public widget, a schedule acting for nobody - the binding is absent.
-- **Changes follow the binding's approval policy.** `writes`, the default, holds
-  publishing, inviting, deletion, running now, and creation or editing of personal
-  routines and watches; `all` also holds reads. Only `set_my_language` bypasses
-  this gate. Private-human identity, ownership and permissions remain necessary,
-  but do not replace confirmation of a persistent automation call.
-  `set_my_profile` also waits because its content reaches future agent runs.
+- **Changes use trusted platform defaults.** Drafts and ordinary records run without
+  confirmation; consequential actions and potentially new agent task work ask.
+  `set_my_language` and `set_my_console_experience` are ungated. Authors can require
+  confirmation for default-free operations. See [the approval rules](#which-calls-wait-for-a-person).
 
-- **The tools can be narrowed** in the card's settings, which list every tool and
-  mark the ones that change something.
+- **The tools can be narrowed** in the card's settings, which group them by what
+  they work on - tables, tasks, workflows, agents, knowledge bases, skills,
+  projects, automations, apps, runs, connections and the account - and mark each
+  tool that changes something with an icon that says so on hover.
+- **Each tool runs freely or asks first.** A group's control sets all of its
+  tools, and the shield beside a tool sets that one. The spec keeps a tool's own
+  setting in the binding's `tool_approval`, keyed by the tool's name; publishing
+  refuses a name the platform does not offer. Letting a change run freely is a
+  decision about that tool alone: the binding's default stays at `writes`, or
+  `all` once every read asks, so a read the platform adds later asks too.
+- **Some tools always ask.** `invite_member` and `update_proactivity_settings`
+  change who has authority in the organization, and they run with the authority
+  of the person the agent runs for, not of its author - so an agent a Builder
+  publishes cannot invite an Admin through an Owner's run unasked. Their shield
+  cannot be switched off, and publishing refuses `never` on either. Each call
+  waits for its own answer: neither **Approve all** nor a remembered decision
+  lets one run.
 
 The **AgenticOS** template binds it this way, and so does every agent created from
 scratch, so an agent can look the platform up - and set up a routine, or switch the
@@ -1427,9 +1454,9 @@ HTTP discovery for their own admission surfaces.
 including all returned entries. It never returns a partial contract. Inspect
 larger contracts through the HTTP endpoint outside the model context.
 
-For operational records use `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` and `update_virtual_table_record`. Schema and record writes preserve revision checks. All tools use the caller's organization, permissions and resource grants; write tools retain the platform MCP approval gate. Architect's workflow-builder and virtual-tables skills explain choosing triggers, wrapping a documented HTTP API when the MCP gallery lacks an integration, and binding a published callable workflow to an agent. Credentials are configured in the vault UI, never embedded in graphs or model output.
+For operational records use `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` and `update_virtual_table_record`. Schema and record writes preserve revision checks. All tools use the caller's organization, permissions and resource grants; ordinary draft/record writes use the trusted defaults, while schema changes, execution and publication always ask. Architect's workflow-builder and virtual-tables skills explain choosing triggers, wrapping a documented HTTP API when the MCP gallery lacks an integration, and binding a published callable workflow to an agent. Credentials are configured in the vault UI, never embedded in graphs or model output.
 
-Workflows and Tables use the AgenticOS platform MCP server as their common tool interface. Allow only the tools an agent needs. `run_workflow` starts a published workflow and returns its admitted run; poll `get_workflow_execution` for the result. Table tools include `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` and `list_virtual_table_views`. Updates and deletions use the revision read, and writes retain approval. Saved-view listing uses the same authenticated public API and table access checks. Legacy Workflows bindings remain editable. The Tables capability is removed: stored app grants migrate to `table_bindings`, and table operations require an explicit platform MCP connection.
+Workflows and Tables use the AgenticOS platform MCP server as their common tool interface. Allow only the tools an agent needs. `run_workflow` starts a published workflow and returns its admitted run; poll `get_workflow_execution` for the result. Table tools include `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` and `list_virtual_table_views`. Updates and deletions use the revision read, ordinary record writes run by default, while deletion always asks and task execution retains its conditional floor. Saved-view listing uses the same authenticated public API and table access checks. Legacy Workflows bindings remain editable. The Tables capability is removed: stored app grants migrate to `table_bindings`, and table operations require an explicit platform MCP connection.
 
 Expected API refusals return an explicit `error` envelope with HTTP status, code, message and safe field details. This is a refused operation, never a successful write. The envelope stays visible in chat history; unexpected server failures still use masked MCP errors. New workflow drafts can use `prepare_workflow_draft` to review their table and graph together. The read-only `check_workflow_draft` validates without executing actions. Refreshing an unmodified Architect also installs and binds its workflow-builder and virtual-tables skills, preserving existing bindings and refusing to overwrite pending draft changes.
 
@@ -1472,3 +1499,95 @@ Its message indexes refer to that filtered transcript. It returns bounded text w
 Named-agent Improve lookup checks every agent page before selecting a match or reporting ambiguity, rather than assuming the first 100 agents are the complete catalog.
 
 `read_conversation` uses the same bounded message and tool-metadata windows as run inspection, with 10 messages by default. `read_conversation_tool_call` reads a selected recorded payload, including older messages without run IDs, through the unchanged owner-scoped conversation API. Existing MCP consumers must follow the window continuations instead of expecting full tool results inline.
+
+## AI client plugin and lifecycle tools
+
+Use the [AI client guide](howto/operate-with-ai.md) to install the plugin, configure
+dependencies, release agents through evals and environments, or install reviewed
+solution bundles. Contract-1 discovery distinguishes server features from granted
+scopes. Vault reference discovery returns IDs and metadata, never values or hints;
+credential entry stays in the console. New assistant-only operations require OAuth.
+
+## Bounded results and personal preferences
+
+MCP contract 2 keeps discovery small: search first, use pages of 10 by default,
+and follow `next_skip`. Listings return metadata; named detail tools read a single
+case, Context body, skill file, model/provider, environment, workflow node or
+execution step. `get_authoring_schema` exposes large input contracts on demand;
+the API still validates complete inputs. A metadata summary is not an editable
+workflow graph: read the complete graph and retain bindings before replacement.
+
+Successful results are bounded to 16 KiB. Large reads issue a five-minute,
+credential-bound `continuation` for `read_platform_details`. It can repeat only
+the already authorized read with its original arguments, and rechecks API access.
+Inspect pointers, request content windows, follow continuation offsets and pin
+`expected_hash` to `value_hash`. Assemble JSON fragments before parsing them.
+A changed result or expired handle requires a new authorized read. Large writes
+return identity/status receipts; read the saved resource with its own permission
+instead of repeating the write. A receipt does not prove a background job finished.
+
+For large bundles, `prepare_solution` reserves a principal-scoped review for 24
+hours; `install_solution` accepts its `plan_id`, installation key and reviewed
+manifest hash. Installation receipts remain durable after the review expires.
+
+`get_my_console_experience` reads the active organization membership's chat-home
+and setup-reminder presentation: availability, organization defaults, personal
+overrides and effective values. `set_my_console_experience(update)` changes only
+those personal overrides. Chat-home choices are `inbox`, `starters`, `greeting`
+and `feature_hints`; reminder choices are `enabled` and `snooze_days` (1, 3 or 7).
+
+Omitted fields stay unchanged; a nested `null` restores inheritance for that choice,
+and `preferences: null` or `reminders: null` resets the whole group. The setter is
+ungated like other reversible console preferences. It cannot change deployment
+ceilings, organization defaults, agent initiative, permissions or approvals, and
+leaves account theme, style and language unchanged. Both tools require the caller's
+active personal membership; they accept no user or organization selector.
+
+`get_my_appearance` reads the caller's saved console appearance. `set_my_appearance`
+changes only the supplied tokens and `reset_my_appearance` clears them. They act
+only for the caller, follow the configured write approval, and open consoles
+refresh their appearance after the result. Existing accounts keep the device
+defaults until a choice is saved; migration `0350_drop_user_theme_look.py`
+keeps the single `users.appearance` document.
+
+A deliberate choice is saved even when the screen already uses that value; select it again to retry a failed save.
+
+Large run receipts preserve `parked`, including pending approval IDs. If pending
+calls do not fit, the response keeps up to ten approval identities, `parked_total`
+and an `approval_review_url` for the console. `approval_details_omitted` means the
+arguments are incomplete: inspect the full calls there before deciding; never
+approve from the abbreviated response.
+
+## Administration through MCP
+
+Search `list_administration_actions` by task or field, then use
+`get_administration_schema` for the selected action's path and body. The catalog
+covers installation settings, updates, diagnostics and push readiness, plus
+organization settings, retention, AI Architect, system agents, members, groups
+and invitations. Pages contain metadata; `read_administration` retrieves selected
+configuration with the same bounded detail windows as other MCP reads.
+
+Organization actions require the existing organization permissions and stay bound
+to the connected organization. `change_organization` cannot promote an organization
+administrator to installation administrator. Reading AI Architect or system-agent
+configuration creates no resources. Installing or refreshing shipped assistants is
+an explicit write; it may publish ready defaults.
+
+Installation actions require both the user's live application-admin flag and an
+explicit OAuth grant of `deployment:admin`. The consent screen offers a separate,
+initially unchecked checkbox only to application administrators. Reauthorize an
+existing connection to add this scope. It is outside organization permissions and
+presets. Internal agents, routines and ordinary API keys never inherit it;
+`change_deployment` is excluded from internal agent toolsets.
+
+Use `change_deployment` for installation writes and read back the selected action.
+Update preparation, application and cancellation are separate actions: acceptance
+does not mean an update finished. MCP authentication remains available during
+maintenance so an authorized client can reopen the installation; ordinary API
+operations remain blocked. Losing the application-admin flag blocks the next
+installation request, even if the token still lists the originally granted scope.
+
+APNs private-key entry and binary logo/favicon uploads return secure console
+handoffs. Secret values and image bytes stay out of model context. Environment-owned
+settings remain read-only. Console branding fetched through the frontend cache
+can take up to five minutes to reflect a direct MCP change.

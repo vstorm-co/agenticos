@@ -34,12 +34,16 @@ export function usePendingApprovals() {
       apiClient.get<ApprovalList>("/approvals", {
         params: { outside_live_calls: "true", limit: String(FIRST_ROWS) },
       }),
+    staleTime: 30_000,
+    gcTime: 30 * 60_000,
     refetchInterval: 30_000,
     enabled: allowed,
   });
   const steps = useQuery({
     queryKey: qk.workflows.approvalsWaitingOnMe(),
     queryFn: () => listDecidableWorkflowApprovals(FIRST_ROWS),
+    staleTime: 30_000,
+    gcTime: 30 * 60_000,
     refetchInterval: 30_000,
     enabled: allowed,
   });

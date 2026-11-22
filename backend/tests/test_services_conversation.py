@@ -14,6 +14,7 @@ from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, SystemP
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
+from app.db.models.conversation import ToolCall
 from app.repositories import conversation_repo, conversation_share_repo
 from app.repositories.conversation import RunOutcome
 from app.schemas.conversation import (
@@ -116,6 +117,7 @@ class MockMessage:
         self.attachment_context = None
         self.model_content = None
         self.parts: list[dict[str, object]] | None = None
+        self.tool_calls: list[ToolCall] = []
         # Who typed it and what it answers: nobody named, nothing answered.
         self.author_user_id = None
         self.channel_identity_id = None

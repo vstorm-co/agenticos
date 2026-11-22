@@ -222,13 +222,17 @@ async function openOrganizationSettings(appAdmin: boolean) {
 it("starts with one decision and no settings sidebar", () => {
   render(<StartAdministration appAdmin />);
   expect(screen.getByRole("heading", { name: "Where will your team work?" })).toBeVisible();
-  expect(screen.getByRole("textbox", { name: "Organization name" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Personal" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Create a new organization instead" })).toBeVisible();
+  expect(screen.queryByText("I want to use a personal organization")).not.toBeInTheDocument();
+  expect(screen.queryByText("Explore the application")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "People" })).not.toBeInTheDocument();
   expect(env.change).not.toHaveBeenCalled();
   expect(env.deployment).not.toHaveBeenCalled();
 });
 it("creates a company and guides identity, profile and context before team invitations", async () => {
   render(<StartAdministration appAdmin />);
+  await userEvent.click(screen.getByRole("button", { name: "Create a new organization instead" }));
   await userEvent.type(
     screen.getByRole("textbox", { name: "Organization name" }),
     "Northwind Labs",
@@ -254,6 +258,7 @@ it("can start without any existing workspace", async () => {
 it("keeps a failed creation on the same decision without advancing", async () => {
   env.create.mockRejectedValue(new Error("Cannot create workspace"));
   render(<StartAdministration appAdmin />);
+  await userEvent.click(screen.getByRole("button", { name: "Create a new organization instead" }));
   await userEvent.type(screen.getByRole("textbox", { name: "Organization name" }), "Northwind");
   await userEvent.click(screen.getByRole("button", { name: "Create" }));
   await waitFor(() => expect(screen.getByRole("button", { name: "Create" })).toBeEnabled());
@@ -339,6 +344,7 @@ it("does not offer invitations without member management permission", async () =
 });
 it("updates the preview while naming a workspace without creating anything", async () => {
   render(<StartAdministration appAdmin />);
+  await userEvent.click(screen.getByRole("button", { name: "Create a new organization instead" }));
   const preview = within(screen.getByRole("complementary", { name: "Organization preview" }));
   await userEvent.type(screen.getByRole("textbox", { name: "Organization name" }), "Acme Studio");
   expect(preview.getByText("Acme Studio")).toBeVisible();
@@ -413,7 +419,8 @@ it("finishes after all questions while leaving optional setup empty", async () =
   render(<StartAdministration appAdmin />);
   await selectCompany();
   await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
-  await userEvent.click(screen.getByRole("button", { name: "Skip for now" }));
+  expect(screen.queryByRole("button", { name: "Skip for now" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
   await userEvent.click(screen.getByRole("button", { name: "Skip for now" }));
   await userEvent.click(screen.getByRole("button", { name: "Continue setup" }));
   await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
@@ -422,6 +429,17 @@ it("finishes after all questions while leaving optional setup empty", async () =
   expect(env.finish).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Finish setup and open the app" }));
   expect(env.finish).toHaveBeenCalledWith({ completed: true }, expect.any(Object));
+});
+
+it("opens a valid link to another organization already available to the reader", () => {
+  env.orgs = [org("personal", true), org("company")];
+  env.activeId = "company";
+  window.history.replaceState(null, "", "/onboarding?start-step=admin.identity&workspace=personal");
+
+  const view = render(<StartAdministration appAdmin />);
+  expect(env.change).toHaveBeenCalledWith("personal");
+  view.rerender(<StartAdministration appAdmin />);
+  expect(screen.getByRole("heading", { name: "Give your organization an identity" })).toBeVisible();
 });
 
 it("resumes the matching organization's step after its membership list arrives", () => {

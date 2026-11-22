@@ -1,5 +1,5 @@
 ---
-source_sha: "543b61f10ddd"
+source_sha: "502f9d415d51"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -390,6 +390,7 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | GitHub Models | `github` | klucz API | |
 | Groq | `groq` | klucz API | |
 | Heroku AI | `heroku` | klucz API | ✓ |
+| LLMTR | `llmtr` | klucz API | |
 | Mistral | `mistral` | klucz API | |
 | Moonshot AI | `moonshotai` | klucz API | |
 | Nebius AI Studio | `nebius` | klucz API | |
@@ -402,6 +403,8 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | xAI (Grok) | `xai` | klucz API | ✓ (`api_host`) |
 | Cohere | `cohere` | klucz API | |
 | Hugging Face | `huggingface` | klucz API | ✓ |
+
+LLMTR pokazuje tylko modele deklarujące `CHAT_COMPLETIONS`. Model bez zweryfikowanej ceny we wbudowanym zestawie może działać tylko bez aktywnego limitu wydatków w dolarach; zapisany koszt pozostaje niepełny. Przy aktywnym limicie kolejne wywołanie LLMTR jest też odrzucane, jeśli koszt wcześniejszego użycia jest nieznany.
 
 ### Samodzielnie hostowane { #self-hosted }
 
@@ -434,6 +437,43 @@ ani nic, czym się uwierzytelnić.
     czyni ten drugi przypadek czymś zwyczajnym. Run rozwiązuje profil bez klucza
     tylko wtedy, gdy niesie on endpoint; w przeciwnym razie jest odrzucany z tym
     samym komunikatem „no key configured”, który miał zawsze.
+
+### Własny endpoint { #your-own-endpoint }
+
+| Provider | id | Poświadczenie | Custom URL |
+|---|---|---|---|
+| Custom (OpenAI-compatible) | `openai_compatible` | klucz API | ✓ |
+| Custom (Anthropic-compatible) | `anthropic_compatible` | klucz API | ✓ |
+
+Te dwa to *kształt* API, a nie dostawca. Wpisujesz adres serwera, który
+prowadzisz, albo bramki, której ufasz, oraz klucz, który ją uwierzytelnia.
+Wybierz ten, który pasuje do tego, co odpowiada Twój endpoint:
+
+| Twój endpoint odpowiada | Wybierz | Adres do wpisania |
+|---|---|---|
+| `POST /chat/completions` — vLLM, LM Studio, proxy LiteLLM, większość bramek | `openai_compatible` | katalog `/v1`, na przykład `https://llm.example/v1` |
+| `POST /v1/messages` — własny kształt API Anthropic | `anthropic_compatible` | katalog API, na przykład `https://llm.example` |
+
+Oba potrzebują endpointu i klucza. Nie ma żadnego publicznego API, do którego
+można by się wycofać, więc profil bez nich jest odrzucany, a nie kierowany
+gdzieś indziej.
+
+Klucz jest przechowywany w sejfie pod nazwą samego providera, więc w sejfie
+widać, że uwierzytelnia *ten* endpoint, a nie publiczne API dostawcy. Dlatego
+to osobne pozycje, a nie profil `openai` albo `anthropic` z adresem: klucz
+zapisany pod nazwą dostawcy mówi o tym dostawcy.
+
+!!! info "Adres Anthropic nie zawiera `/v1`"
+
+    SDK Anthropic wysyła żądanie na `<endpoint>/v1/messages`, więc endpointem
+    jest katalog API. Adres, który już kończy się na `/v1`, jest przycięty,
+    więc oba zapisy działają — ale to katalog API jest tym, o co pyta
+    platforma.
+
+**Load models** czyta listę z tego samego endpointu, tym samym kluczem, więc
+lista w polu oferuje to, co Twój serwer faktycznie udostępnia. Identyfikator
+modelu pozostaje wolnym tekstem: serwer, który nie publikuje listy, nadal da
+się użyć, wpisując identyfikator ręcznie.
 
 ### Kiedy poświadczeniem nie jest klucz API { #when-the-credential-is-not-an-api-key }
 
@@ -640,11 +680,13 @@ tak właśnie literówka albo wycofany model jest łapany zamiast wysyłany jako
 rozwijana, na którą provider odpowiada 404. Model, który migawka zna, ale którego
 nie wycenia, po prostu nie ma okna, co jest nullem opisanym poniżej.
 
+Selektor subskrypcji pobiera po otwarciu listę dostarczaną z wdrożeniem. Nie pobiera katalogu dla danego konta na żywo. Wpisy GPT-6.2 sprawdzono w Codex app server. Rozmiar kontekstu pozostaje pusty do czasu uzupełnienia katalogu cen.
+
 | Provider | Kuratorowane id |
 |---|---|
 | `anthropic` | `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`, `claude-haiku-4-5` |
 | `openai` | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.3-codex` |
-| `openai_codex` | te same cztery co `openai` |
+| `openai_codex` | GPT-6.2 Sol i Astra, GPT-6.1 Sol i Terra, GPT-6 Sol, Astra i Luna oraz wcześniejsze identyfikatory Codex |
 | `google` | `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview` |
 | `deepseek` | `deepseek-v4-pro`, `deepseek-v4-flash` |
 | `xai` | `grok-4.5`, `grok-4.3` |

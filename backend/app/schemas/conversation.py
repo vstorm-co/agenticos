@@ -846,6 +846,23 @@ class ConversationList(BaseSchema):
     total: int
 
 
+class WaitingChatQuestion(BaseSchema):
+    """A pending question's location, without its private prompt or arguments."""
+
+    run_id: UUID
+    conversation_id: UUID
+    conversation_title: str | None
+    agent_name: str
+    expires_at: datetime
+
+
+class WaitingChatQuestionList(BaseSchema):
+    """One page of the questions the signed-in person can answer in chat."""
+
+    items: list[WaitingChatQuestion]
+    total: int
+
+
 class ChatReader(ChatPerson):
     """Somebody who has had a chat open, and when they last did."""
 
@@ -916,3 +933,21 @@ class MessageList(BaseSchema):
             "before a cost could be read. Zeroes would be a claim this has none to make."
         ),
     )
+
+
+class ConversationSearchRead(BaseSchema):
+    """A readable thread with a highlighted excerpt from a matching message."""
+
+    conversation_id: UUID
+    title: str | None
+    updated_at: datetime
+    hits: int
+    snippet: str
+    speaker_role: str
+    speaker_name: str | None
+
+
+class ConversationSearchList(BaseSchema):
+    """The best matching threads, bounded by the requested limit."""
+
+    items: list[ConversationSearchRead]

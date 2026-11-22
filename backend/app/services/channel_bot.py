@@ -41,6 +41,7 @@ from app.repositories import (
     teams_conversation_repo,
 )
 from app.schemas.channel_bot import (
+    SELF_HOSTED,
     AccessPolicy,
     BotAgent,
     ChannelBotCreate,
@@ -61,6 +62,7 @@ from app.services.channels import (
 from app.services.channels.base import IncomingMessage
 from app.services.channels.email import is_address
 from app.services.channels.exceptions import ChannelNotConfigured
+from app.services.channels.identity_scope import canonical_matrix_server
 from app.services.channels.imessage import TAPBACK_REACTIONS
 from app.services.channels.imessage_transport import BridgeCredentials
 from app.services.channels.slack_manifest import slack_manifest
@@ -540,7 +542,12 @@ class ChannelBotService:
         an attachment, which is the state every Mattermost bot was in before the
         field existed.
         """
-        if platform in {"mattermost", "imessage"} and api_base_url is None:
+        if platform == "matrix" and api_base_url is not None:
+            try:
+                canonical_matrix_server(api_base_url)
+            except ValueError as exc:
+                raise refused_field("api_base_url", str(exc)) from exc
+        if platform in SELF_HOSTED and api_base_url is None:
             raise refused_field(
                 "api_base_url",
                 "A self-hosted bot cannot lose its server URL - "
@@ -553,7 +560,7 @@ class ChannelBotService:
                 raise refused_field(
                     "api_base_url", "An iMessage bridge endpoint cannot contain query or fragment"
                 )
-        if platform not in {"mattermost", "imessage"} and api_base_url is not None:
+        if platform not in SELF_HOSTED and api_base_url is not None:
             raise refused_field(
                 "api_base_url",
                 f"A server URL is for a self-hosted platform - a {platform} bot "

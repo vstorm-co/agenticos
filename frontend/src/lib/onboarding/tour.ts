@@ -448,12 +448,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "coding-task-revert",
     optional: true,
   },
-  {
-    id: "chat-background-tasks",
-    page: ROUTES.CHAT,
-    target: "chat-background-tasks",
-    optional: true,
-  },
   // Only there once an agent has planned something, so `optional` - an
   // organization whose agents carry no planning capability would otherwise wait
   // four seconds for a strip that never mounts.
@@ -583,8 +577,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "agent-identity",
     page: AGENT_BUILDER,
-    target: "agent-identity",
-    activate: "agent-tab-build",
+    target: "agent-share",
     permission: Perm.agentsView,
   },
   {
@@ -1784,6 +1777,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // What the platform brought the reader on its own (#2301). "?"-only, like the
   // routines stop: the launch walk does not take a first login here.
   { id: "inbox-filters", page: ROUTES.INBOX, target: "inbox-filters" },
+  { id: "inbox-questions", page: ROUTES.INBOX, target: "inbox-questions", optional: true },
 
   // The threads between the reader's agents. "?"-only, gated on running agents:
   // the walk does not take a first login here either.

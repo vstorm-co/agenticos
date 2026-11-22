@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { useMotionStore } from "@/stores/motion-store";
 import { PlanChecklist } from "./plan-checklist";
 import type { PlanStep, PlanStepStatus } from "@/lib/plan-state";
 import messages from "@/../messages/en.json";
@@ -23,7 +24,10 @@ function stopMotion(): void {
   );
 }
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  useMotionStore.setState({ motion: "system" });
+});
 
 function step(status: PlanStepStatus, content = "Read the handbook", id = "s1"): PlanStep {
   return { id, content, status };
@@ -127,5 +131,17 @@ describe("PlanChecklist - where the agent is, one row per step", () => {
   it("draws nothing at all for an empty plan", () => {
     draw([]);
     expect(screen.queryAllByRole("listitem")).toEqual([]);
+  });
+  it("does not replay entry effects when opening a saved plan", () => {
+    useMotionStore.setState({ motion: "full" });
+    const view = draw([step("completed")], true);
+    expect(screen.getByRole("listitem")).toHaveClass("step-in");
+    view.rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <PlanChecklist steps={[step("completed")]} live={false} />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.getByRole("listitem")).not.toHaveClass("step-in");
+    expect(screen.getByLabelText("Done")).toBeInTheDocument();
   });
 });

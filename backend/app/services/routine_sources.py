@@ -2,31 +2,61 @@
 
 import hashlib
 import json
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities import all_capabilities
 from app.agents.mcp import McpSourceIdentity, tool_prefix
 from app.agents.spec import AgentSpec, OrgMcpServerRef, PersonalMcpServerRef, PlatformMcpServerRef
 from app.core.audit import current_impersonator, record_audit
-from app.core.exceptions import AuthorizationError, ConflictError
+from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.agent_trigger import AgentTrigger
+from app.db.models.context import ContextFile
 from app.db.models.external_agent import ExternalAgent
+from app.db.models.knowledge_base import KBScope
 from app.db.models.project import Project
-from app.repositories import agent_repo, agent_trigger_repo, mcp_connection_repo, project_repo
+from app.db.models.skill import Skill
+from app.db.models.virtual_table import VirtualTable
+from app.repositories import (
+    agent_repo,
+    agent_trigger_repo,
+    context_repo,
+    knowledge_base_repo,
+    mcp_connection_repo,
+    organization_secret_repo,
+    project_repo,
+    skill_repo,
+    virtual_table_repo,
+)
 from app.repositories import external_agent as external_repo
 from app.schemas.mcp_connection import McpToolRead
 from app.schemas.routine_sources import (
     RoutineSourceAccount,
     RoutineSourceConsent,
+    RoutineSourceItem,
+    RoutineSourceMode,
     RoutineSourcePolicy,
     RoutineSourceReview,
 )
+from app.services.access import (
+    AGENT,
+    COLLECTION,
+    CONTEXT,
+    SECRET,
+    SKILL,
+    TABLE,
+    OwnedResource,
+    ResourceType,
+    accessible_ids,
+)
 from app.services.agent_registry import AgentRegistryService
+from app.services.collection_access import readable_kb
 from app.services.mcp_connection import reviewed_personal_sources
 from app.services.project import ProjectService
 
@@ -66,6 +96,75 @@ def spec_fingerprint(spec: AgentSpec) -> str:
             separators=(",", ":"),
         ).encode()
     ).hexdigest()
+
+
+def _fingerprint(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def materialized_behavior(
+    skills: list[Skill], contexts: list[ContextFile], *, namespace: str = "root"
+) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for skill in skills:
+        digest = _fingerprint(
+            {
+                "name": skill.name,
+                "description": skill.description,
+                "content": skill.content,
+                "resources": sorted((r.name, r.description, r.content) for r in skill.resources),
+            }
+        )
+        result[f"{namespace}:skill:{skill.id}:{digest}"] = digest
+    for context in contexts:
+        digest = _fingerprint(
+            {
+                "name": context.name,
+                "description": context.description,
+                "content": context.content,
+                "mode": context.mode,
+                "format": context.format,
+            }
+        )
+        result[f"{namespace}:context:{context.id}:{digest}"] = digest
+    return result
+
+
+def _within_behavior(current: dict[str, str], approved: dict[str, str]) -> bool:
+    return all(approved.get(key) == value for key, value in current.items())
+
+
+def _within_ceiling(current: RoutineSourcePolicy, approved: RoutineSourcePolicy) -> bool:
+    if (
+        approved.behavior is None
+        or current.behavior is None
+        or not _within_behavior(current.behavior, approved.behavior)
+    ):
+        return False
+    for now, before in (
+        (current.mirage_accounts, approved.mirage_accounts),
+        (current.secret_sources, approved.secret_sources),
+        (current.channel_sources, approved.channel_sources),
+        (current.phone_sources, approved.phone_sources),
+        (current.external_sources, approved.external_sources),
+    ):
+        if any(before.get(key) != value for key, value in now.items()):
+            return False
+    for key, source in current.mcp_sources.items():
+        before = approved.mcp_sources.get(key)
+        if (
+            before is None
+            or source.model_dump(exclude={"tool_ids"}) != before.model_dump(exclude={"tool_ids"})
+            or not set(source.tool_ids).issubset(before.tool_ids)
+        ):
+            return False
+    return (
+        current.project_id == approved.project_id
+        and current.project_hash == approved.project_hash
+        and set(current.root_mcp_ids).issubset(approved.root_mcp_ids)
+    )
 
 
 def source_scope(trigger: AgentTrigger) -> str:
@@ -260,6 +359,14 @@ def account_identities(policy: RoutineSourcePolicy) -> dict[UUID, McpSourceIdent
     }
 
 
+def _distinct(items: list[RoutineSourceItem]) -> list[RoutineSourceItem]:
+    """Each source once, grouped by kind and sorted by name, as the review lists them."""
+    unique = {(item.kind, item.id, item.detail): item for item in items}
+    return sorted(
+        unique.values(), key=lambda item: (item.kind, (item.name or "").lower(), item.id or "")
+    )
+
+
 @dataclass(frozen=True)
 class RoutineSourceSnapshot:
     policy: RoutineSourcePolicy
@@ -267,9 +374,13 @@ class RoutineSourceSnapshot:
     unavailable: list[str]
     resources: list[str]
     requires_creator_identity: bool = False
+    optional_unavailable: frozenset[str] = frozenset()
+    items: list[RoutineSourceItem] = field(default_factory=list)
+    behavior_fingerprints: dict[str, str] = field(default_factory=dict)
 
     def token(self) -> str:
         content = self.policy.model_dump(mode="json", exclude={"id", "reviewed_at"})
+        content["behavior_fingerprints"] = self.behavior_fingerprints
         return hashlib.sha256(
             json.dumps(content, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
@@ -291,11 +402,23 @@ class RoutineSourceService:
         ):
             raise AuthorizationError(message="Only the routine's owner can review its sources")
 
-    async def _review(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourceSnapshot:
-        if trigger.pinned_version_id is not None:
-            _, spec, version = await self.agents.get_pinned_spec(
-                ctx, trigger.agent_id, trigger.pinned_version_id
+    async def _review(
+        self,
+        ctx: AuthContext,
+        trigger: AgentTrigger,
+        *,
+        mode: RoutineSourceMode | None = None,
+        version_id: UUID | None = None,
+    ) -> RoutineSourceSnapshot:
+        if mode is None:
+            mode = (
+                "follow_agent"
+                if (trigger.approved_sources or {}).get("mode") == "follow_agent"
+                else "restricted"
             )
+        pinned = version_id or trigger.pinned_version_id
+        if pinned is not None:
+            _, spec, version = await self.agents.get_pinned_spec(ctx, trigger.agent_id, pinned)
         else:
             _, spec, version = await self.agents.get_runnable_spec(
                 ctx, trigger.agent_id, environment_id=trigger.environment_id
@@ -309,9 +432,15 @@ class RoutineSourceService:
         names: set[str] = set()
         unavailable: set[str] = set()
         requires_creator_identity = False
+        optional_unavailable: set[str] = set()
         specs = [spec]
+        spec_namespaces = ["root"]
         seen: set[UUID] = set()
         resources: set[str] = set()
+        # The same sources, named: the ids above stay the review's identity.
+        items: list[RoutineSourceItem] = []
+        delegates: list[UUID] = []
+        credentials: set[UUID] = set()
         for current in specs:
             resources.update(f"Knowledge · {identifier}" for identifier in current.collection_ids)
             resources.update(f"Context · {identifier}" for identifier in current.context_ids)
@@ -345,7 +474,9 @@ class RoutineSourceService:
                 ):
                     raise RoutineSourcesRequired()
                 specs.append(AgentSpec.model_validate(child_version.spec))
+                spec_namespaces.append(f"delegate:{delegate.agent_version_id}")
                 resources.add(f"Delegate · {delegate.agent_id} · {delegate.agent_version_id}")
+                delegates.append(delegate.agent_id)
         from app.agents.capabilities.mirage import MirageConfig, OrganizationAccount
         from app.repositories import channel_bot_repo, organization_secret_repo
         from app.repositories import telephony as phone_repo
@@ -396,11 +527,19 @@ class RoutineSourceService:
                         mirage_accounts[account.id] = account.authorization_generation
                         secret_sources[client[1]] = client[2]
                         resources.add(f"Terminal account · {account.id}")
+                        items.append(
+                            RoutineSourceItem(
+                                kind="terminal_account",
+                                id=str(account.id),
+                                name=account.label or account.name,
+                            )
+                        )
                     for identifier in mount.secrets.values():
                         generation = await organization_secret_repo.authorization_generation(
                             self.db, identifier, organization_id=ctx.organization_id
                         )
                         resources.add(f"Terminal credential · {identifier}")
+                        credentials.add(identifier)
                         if generation is None:
                             unavailable.add(f"Terminal credential · {identifier}")
                         else:
@@ -424,6 +563,13 @@ class RoutineSourceService:
                     else None
                 )
                 resources.add(f"Telephone endpoint · {config.endpoint_id}")
+                items.append(
+                    RoutineSourceItem(
+                        kind="phone",
+                        id=str(config.endpoint_id),
+                        name=None if bot is None else bot.name,
+                    )
+                )
                 if (
                     endpoint is None
                     or not endpoint.enabled
@@ -444,14 +590,20 @@ class RoutineSourceService:
             else:
                 external_sources[remote.id] = await external_fingerprint(self.db, remote)
                 resources.add(f"Remote agent · {remote.name} · {remote.id}")
+                items.append(
+                    RoutineSourceItem(kind="remote_agent", id=str(remote.id), name=remote.name)
+                )
         if len(external_sources) > 100:
             raise RoutineSourcesRequired(message="A routine can review at most 100 remote agents")
+        required_unavailable = set(unavailable)
         for ref in (ref for current in specs for ref in current.mcp_servers):
             if isinstance(ref, PlatformMcpServerRef):
                 resources.add("AgenticOS platform MCP")
+                items.append(RoutineSourceItem(kind="platform"))
                 if not trigger.runs_as_creator:
                     requires_creator_identity = True
                     unavailable.add(PlatformRoutineIdentityRequired.message)
+                    required_unavailable.add(PlatformRoutineIdentityRequired.message)
                 continue
             if isinstance(ref, OrgMcpServerRef):
                 connection = await mcp_connection_repo.get_org_scoped_by_id(
@@ -480,13 +632,14 @@ class RoutineSourceService:
                 continue
             if not accounts:
                 unavailable.add(missing_name)
+                optional_unavailable.add(missing_name)
             for account in accounts:
-                if ref in spec.mcp_servers:
-                    root_sources.add(account.id)
                 name = account.label or account.name
                 names.add(f"{name} · {account.id}")
+                items.append(RoutineSourceItem(kind="mcp_account", id=str(account.id), name=name))
                 if not account.is_enabled or account.last_tools is None:
                     unavailable.add(name)
+                    optional_unavailable.add(name)
                     continue
                 try:
                     tools = _TOOLS.validate_python(account.last_tools)
@@ -512,7 +665,10 @@ class RoutineSourceService:
                     )
                 except ValidationError:
                     unavailable.add(name)
+                    optional_unavailable.add(name)
                     continue
+                if ref in spec.mcp_servers:
+                    root_sources.add(account.id)
                 sources[account.id] = candidate
         from app.services.channel_actions import grant_fingerprint, granted_connections
 
@@ -523,6 +679,9 @@ class RoutineSourceService:
             )
         ).values():
             resources.add(f"Chat connection · {bot.name}")
+            items.append(
+                RoutineSourceItem(kind="chat_connection", id=str(exposure.id), name=bot.name)
+            )
             channel_sources[exposure.id] = grant_fingerprint(exposure, bot)
         input_source = None
         if trigger.connection_id is not None:
@@ -535,22 +694,34 @@ class RoutineSourceService:
                 or not connection.is_enabled
             ):
                 unavailable.add("event source")
+                required_unavailable.add("event source")
             else:
                 input_source = RoutineSourceAccount(
                     endpoint_hash=hashlib.sha256(connection.url.encode()).hexdigest(),
                     authorization_generation=connection.authorization_generation,
                 )
                 names.add(f"{connection.label or connection.name} · {connection.id}")
+                items.append(
+                    RoutineSourceItem(
+                        kind="event_source",
+                        id=str(connection.id),
+                        name=connection.label or connection.name,
+                    )
+                )
         if len(sources) > 100:
             raise RoutineSourcesRequired(message="A routine can review at most 100 source accounts")
+        behavior = await self._behavior(ctx, specs, spec_namespaces)
         return RoutineSourceSnapshot(
+            behavior_fingerprints=behavior,
             policy=RoutineSourcePolicy(
+                mode=mode,
                 id=uuid4(),
                 consented_by=ctx.subject_id,
                 reviewed_at=datetime.now(UTC),
                 version_id=version,
                 scope_hash=source_scope(trigger),
                 spec_hash=spec_fingerprint(spec),
+                behavior=behavior if mode == "follow_agent" else None,
                 project_id=trigger.project_id,
                 project_hash=project_hash,
                 mcp_sources=sources,
@@ -567,23 +738,237 @@ class RoutineSourceService:
             unavailable=sorted(unavailable),
             resources=sorted(resources),
             requires_creator_identity=requires_creator_identity,
+            optional_unavailable=frozenset(optional_unavailable - required_unavailable),
+            items=_distinct(
+                [
+                    *await self._named(
+                        ctx,
+                        specs,
+                        delegates=delegates,
+                        credentials=sorted(credentials),
+                    ),
+                    *items,
+                ]
+            ),
         )
 
-    async def initial(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourcePolicy:
-        """Creating the responsibility freezes its configured sources, never new grants."""
-        review = await self._review(ctx, trigger)
+    async def _behavior(
+        self, ctx: AuthContext, specs: list[AgentSpec], namespaces: list[str]
+    ) -> dict[str, str]:
+        from app.agents.capabilities.context import context_config
+        from app.agents.capabilities.subagents import SubagentsConfig
+        from app.services.context import ContextService
+        from app.services.skills import SkillService
+
+        lists = {
+            "capabilities",
+            "mcp_servers",
+            "skill_ids",
+            "skill_bindings",
+            "context_ids",
+            "collection_ids",
+            "table_bindings",
+            "subagents",
+            "external_agents",
+        }
+        metadata = {
+            "spec_version",
+            "name",
+            "description",
+            "starters",
+            "model_profile_id",
+            "model_settings",
+        }
+        result: dict[str, str] = {}
+        for prefix, spec in zip(namespaces, specs, strict=True):
+            result[prefix + ":instructions"] = _fingerprint(
+                spec.model_dump(mode="json", exclude=lists | metadata)
+            )
+            for name in (
+                "capabilities",
+                "mcp_servers",
+                "collection_ids",
+                "table_bindings",
+                "subagents",
+                "external_agents",
+            ):
+                for value in spec.model_dump(mode="json")[name]:
+                    if name == "capabilities" and value.get("enabled") is False:
+                        continue
+                    if name == "mcp_servers" and value.get("allowed_tools") == []:
+                        continue
+                    fingerprint = _fingerprint(value)
+                    result[f"{prefix}:{name}:{fingerprint}"] = fingerprint
+            resource_specs = [(prefix, spec)]
+            for binding in spec.capabilities:
+                if binding.id == "subagents" and binding.enabled:
+                    resource_specs.extend(
+                        (
+                            f"{prefix}:inline:{inline.name}",
+                            inline.to_agent_spec(fallback_model_profile_id=spec.model_profile_id),
+                        )
+                        for inline in SubagentsConfig.model_validate(binding.config).inline
+                    )
+            for resource_namespace, resource_spec in resource_specs:
+                skills = await SkillService(self.db).resolve_for_agent(
+                    ctx, resource_spec.skill_ids, bindings=resource_spec.skill_bindings
+                )
+                contexts = await ContextService(self.db).resolve_for_agent(
+                    ctx,
+                    resource_spec.context_ids,
+                    config=context_config(resource_spec.capabilities),
+                )
+                result.update(materialized_behavior(skills, contexts, namespace=resource_namespace))
+        return result
+
+    async def require_behavior(
+        self, ctx: AuthContext, trigger: AgentTrigger, policy: RoutineSourcePolicy
+    ) -> None:
+        if policy.mode != "follow_agent":
+            return
+        if policy.behavior is None or policy.approved_ceiling is None:
+            raise RoutineSourcesRequired()
+        try:
+            current = await self._review(
+                ctx, trigger, mode="follow_agent", version_id=policy.version_id
+            )
+        except BadRequestError, NotFoundError:
+            raise RoutineSourcesRequired() from None
+        if not _within_behavior(current.behavior_fingerprints, policy.behavior):
+            raise RoutineSourcesRequired()
+
+    async def _named(
+        self,
+        ctx: AuthContext,
+        specs: list[AgentSpec],
+        *,
+        delegates: list[UUID],
+        credentials: list[UUID],
+    ) -> list[RoutineSourceItem]:
+        """The agent's own sources and its delegates', by name, each read in one query.
+
+        A source that no longer exists, or that the reviewer may not view,
+        keeps its id and has no name: running a shared agent does not reveal
+        the name of a private skill, table or credential it uses, and never
+        another organization's.
+        """
+        organization_id = ctx.organization_id
+        skill_ids = sorted({identifier for spec in specs for identifier in spec.skill_ids})
+        context_ids = sorted({identifier for spec in specs for identifier in spec.context_ids})
+        collection_ids = sorted(
+            {identifier for spec in specs for identifier in spec.collection_ids}
+        )
+        table_ids = sorted({grant.table_id for spec in specs for grant in spec.table_bindings})
+        skills = await self._viewable(
+            ctx,
+            await skill_repo.get_many(self.db, skill_ids, organization_id=organization_id),
+            SKILL,
+        )
+        contexts = await self._viewable(
+            ctx,
+            await context_repo.get_many(self.db, context_ids, organization_id=organization_id),
+            CONTEXT,
+        )
+        found_collections = await knowledge_base_repo.get_by_ids(self.db, collection_ids)
+        special_scopes = {KBScope.APP.value, KBScope.PERSONAL.value}
+        collections = await self._viewable(
+            ctx,
+            {key: kb for key, kb in found_collections.items() if kb.scope not in special_scopes},
+            COLLECTION,
+        )
+        # App/personal visibility is independent of organization grants and does no I/O.
+        for key, kb in found_collections.items():
+            if kb.scope in special_scopes and await readable_kb(self.db, ctx, kb):
+                collections[key] = kb
+        agents = await self._viewable(
+            ctx,
+            await agent_repo.get_many(self.db, delegates, organization_id=organization_id),
+            AGENT,
+        )
+        secrets = await self._viewable(
+            ctx,
+            await organization_secret_repo.get_many(
+                self.db, credentials, organization_id=organization_id
+            ),
+            SECRET,
+        )
+        found_tables: dict[UUID, VirtualTable] = {}
+        for table_id in table_ids:
+            table = await virtual_table_repo.get_table(
+                self.db, table_id, organization_id=organization_id
+            )
+            if table is not None:
+                found_tables[table_id] = table
+        tables = await self._viewable(ctx, found_tables, TABLE)
+        # A capability this deployment no longer ships keeps its id and no name.
+        labels = {definition.id: definition.name for definition in all_capabilities()}
+        named: list[RoutineSourceItem] = []
+        for spec in specs:
+            named.extend(
+                RoutineSourceItem(kind="capability", id=binding.id, name=labels.get(binding.id))
+                for binding in spec.capabilities
+            )
+            for grant in spec.table_bindings:
+                table = tables.get(grant.table_id)
+                named.append(
+                    RoutineSourceItem(
+                        kind="table",
+                        id=str(grant.table_id),
+                        name=None if table is None else table.name,
+                        detail="/".join(operation.value for operation in grant.operations),
+                    )
+                )
+        for kind, identifiers, found in (
+            ("skill", skill_ids, skills),
+            ("context", context_ids, contexts),
+            ("knowledge", collection_ids, collections),
+            ("delegate", delegates, agents),
+            ("terminal_credential", credentials, secrets),
+        ):
+            for identifier in identifiers:
+                row = found.get(identifier)
+                named.append(
+                    RoutineSourceItem(
+                        kind=kind,
+                        id=str(identifier),
+                        name=None if row is None else row.name,
+                    )
+                )
+        return named
+
+    async def _viewable[Row: OwnedResource](
+        self, ctx: AuthContext, rows: Mapping[UUID, Row], resource_type: ResourceType
+    ) -> dict[UUID, Row]:
+        """The rows `ctx` may view, as the resource's own page decides it."""
+        allowed = await accessible_ids(
+            self.db, ctx, rows.values(), resource_type.view, resource_type=resource_type
+        )
+        return {identifier: row for identifier, row in rows.items() if row.id in allowed}
+
+    async def initial(
+        self, ctx: AuthContext, trigger: AgentTrigger, *, mode: RoutineSourceMode = "restricted"
+    ) -> RoutineSourcePolicy:
+        """Capture available sources under the chosen policy, never granting new access."""
+        review = await self._review(ctx, trigger, mode=mode)
         self._require_available(review)
-        return review.policy
+        return (
+            review.policy.model_copy(update={"approved_ceiling": review.policy})
+            if mode == "follow_agent"
+            else review.policy
+        )
 
     @staticmethod
     def _require_available(review: RoutineSourceSnapshot) -> None:
-        if review.unavailable:
+        unavailable = set(review.unavailable)
+        if review.policy.mode == "follow_agent":
+            unavailable -= review.optional_unavailable
+        if unavailable:
             refusal = (
                 PlatformRoutineIdentityRequired
                 if review.requires_creator_identity
                 else RoutineSourcesRequired
             )
-            raise refusal(details={"unavailable_sources": review.unavailable})
+            raise refusal(details={"unavailable_sources": sorted(unavailable)})
 
     async def snapshot(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourceSnapshot:
         """A single metadata snapshot for a console-owned preset confirmation."""
@@ -600,13 +985,30 @@ class RoutineSourceService:
             previous.model_dump(exclude={"id", "reviewed_at", "version_id"})
             == review.policy.model_dump(exclude={"id", "reviewed_at", "version_id"})
         )
+        if previous is not None and previous.mode == "follow_agent":
+            current = (
+                previous.approved_ceiling is not None
+                and previous.scope_hash == review.policy.scope_hash
+                and _within_ceiling(review.policy, previous.approved_ceiling)
+            )
+        required = set(review.unavailable) - review.optional_unavailable
         return RoutineSourceReview(
+            required_unavailable_sources=sorted(required),
+            mode=review.policy.mode,
             review_token=review.token(),
             version_id=review.policy.version_id,
-            current=current and not review.unavailable,
+            current=current
+            and (
+                not review.unavailable
+                or (
+                    review.policy.mode == "follow_agent"
+                    and not (set(review.unavailable) - review.optional_unavailable)
+                )
+            ),
             accounts=review.accounts,
             resources=review.resources,
             unavailable_sources=review.unavailable,
+            items=review.items,
         )
 
     async def replace(
@@ -619,15 +1021,34 @@ class RoutineSourceService:
         if current is None:
             raise RoutineSourcesRequired()
         self._human(ctx, current)
-        review = await self._review(ctx, current)
-        if review.unavailable or data.review_token != review.token():
+        previous_review = await self._review(ctx, current)
+        review = replace(
+            previous_review,
+            policy=previous_review.policy.model_copy(
+                update={
+                    "mode": data.mode,
+                    "behavior": previous_review.behavior_fingerprints
+                    if data.mode == "follow_agent"
+                    else None,
+                }
+            ),
+        )
+        blocked = set(review.unavailable)
+        if data.mode == "follow_agent":
+            blocked -= review.optional_unavailable
+        if blocked or data.review_token != previous_review.token():
             raise ConflictError(
                 message="The routine or its sources changed. Review them again before consenting."
             )
+        approved = (
+            review.policy.model_copy(update={"approved_ceiling": review.policy})
+            if data.mode == "follow_agent"
+            else review.policy
+        )
         await agent_trigger_repo.update(
             self.db,
             trigger=current,
-            update_data={"approved_sources": review.policy.model_dump(mode="json")},
+            update_data={"approved_sources": approved.model_dump(mode="json")},
         )
         await record_audit(
             self.db,
@@ -640,6 +1061,7 @@ class RoutineSourceService:
                 "trigger_id": str(current.id),
                 "version_id": str(review.policy.version_id),
                 "accounts": len(review.policy.mcp_sources),
+                "mode": data.mode,
             },
         )
         return await self.options(ctx, current)
@@ -657,6 +1079,27 @@ class RoutineSourceService:
             raise RoutineSourcesRequired()
         review = await self._review(ctx, trigger)
         self._require_available(review)
+        if policy.mode == "follow_agent":
+            if policy.approved_ceiling is None or not _within_ceiling(
+                review.policy, policy.approved_ceiling
+            ):
+                raise RoutineSourcesRequired()
+            if (
+                policy.input_connection_id != review.policy.input_connection_id
+                or policy.input_source != review.policy.input_source
+            ):
+                raise RoutineSourcesRequired()
+            # Refresh only at admission. A parked run retains its own immutable
+            # snapshot, so reconnecting or rotating an account cannot retarget it.
+            excluded = {"id", "reviewed_at", "version_id", "approved_ceiling"}
+            if policy.model_dump(exclude=excluded) == review.policy.model_dump(exclude=excluded):
+                return policy
+            current = review.policy.model_copy(
+                update={"id": policy.id, "approved_ceiling": policy.approved_ceiling}
+            )
+            trigger.approved_sources = current.model_dump(mode="json")
+            await self.db.flush()
+            return current
         excluded = {"id", "reviewed_at", "version_id"}
         if policy.model_dump(exclude=excluded) != review.policy.model_dump(exclude=excluded):
             raise RoutineSourcesRequired()

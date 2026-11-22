@@ -5,6 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 import { CodingAgentResult, parseCodingReport } from "./coding-agent";
 import type { ToolCall } from "@/types";
 
+vi.mock("./workspace", () => ({
+  WorkspaceFileCard: ({ path }: { path: string }) => <p>{`Archive ${path}`}</p>,
+}));
+
 vi.mock("./coding-changes", () => ({
   TaskChanges: ({ changeId, conversationId }: { changeId: string; conversationId?: string }) => (
     <p data-origin={conversationId}>{`changes ${changeId}`}</p>
@@ -176,4 +180,93 @@ describe("parseCodingReport", () => {
       harness: "claude_code",
     });
   });
+});
+
+it.each([
+  [true, "Session: api · continued"],
+  [false, "Session: api · new"],
+  [undefined, "Session: api"],
+])("shows the named personal session and its continuation state", (resumed, label) => {
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({ ...REPORT, session_name: "api", session_resumed: resumed })}
+    />,
+  );
+  expect(screen.getByText(label)).toBeInTheDocument();
+});
+
+it("does not render an invalid session name from stored tool output", () => {
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({ ...REPORT, session_name: "../private" })}
+    />,
+  );
+  expect(screen.queryByText(/Session:/)).not.toBeInTheDocument();
+});
+
+it("shows the personal account, source revision and validated result archive", () => {
+  const archive = "coding-results/12345678-1234-1234-1234-123456789abc.zip";
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({
+        ...REPORT,
+        account_label: "My Claude",
+        base_revision: "abcdef1234567890",
+        result_archive: archive,
+      })}
+    />,
+  );
+  expect(screen.getByText("Personal account: My Claude")).toBeInTheDocument();
+  expect(screen.getByText("Workspace snapshot: abcdef123456")).toBeInTheDocument();
+  expect(screen.getByText(`Archive ${archive}`)).toBeInTheDocument();
+});
+
+it("does not render a result archive outside the private result directory", () => {
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({
+        ...REPORT,
+        result_archive: "../private.zip",
+      })}
+    />,
+  );
+  expect(screen.queryByText(/Archive /)).not.toBeInTheDocument();
+});
+
+it.each([
+  { harness: "unknown" },
+  { steps: [{ kind: "unknown", title: "read" }] },
+  { steps: [{ kind: "read", title: 42 }] },
+  { steps: [null] },
+  { steps: "read" },
+  { files_changed: [42] },
+  { refused: [null] },
+  { answer: { text: "answer" } },
+  { session_resumed: "yes" },
+])("rejects malformed owned report fields instead of crashing the conversation: %j", (patch) => {
+  const text = JSON.stringify({ ...REPORT, ...patch });
+  expect(parseCodingReport(text)).toBeNull();
+  render(<CodingAgentResult toolCall={call()} resultText={text} />);
+  expect(screen.getByText(text)).toBeVisible();
+});
+
+it("reads nullable backend metadata without fetching a null changes id", () => {
+  const text = JSON.stringify({
+    ...REPORT,
+    changes_id: null,
+    session_name: null,
+    session_resumed: null,
+    account_label: null,
+    base_revision: null,
+    result_archive: null,
+    session_id: null,
+  });
+  expect(parseCodingReport(text)?.changes_id).toBeUndefined();
+  render(<CodingAgentResult toolCall={call()} resultText={text} />);
+  expect(screen.getByText("Claude Code")).toBeVisible();
+  expect(screen.queryByText("changes null")).toBeNull();
 });

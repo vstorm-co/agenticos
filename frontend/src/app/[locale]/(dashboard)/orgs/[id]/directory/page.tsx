@@ -32,7 +32,7 @@ export default function DirectoryPage({ params }: PageProps) {
   const { can, isLoaded, error: permissionsError } = usePermissions();
   const canRead = can(Perm.membersManage);
   const canEdit = canRead && can(Perm.rolesManage);
-  const { mappings, isLoading, error, remove } = useDirectoryMappings(orgId, canRead);
+  const { mappings, isLoading, error, refetch, remove } = useDirectoryMappings(orgId, canRead);
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState<DirectoryMapping | null>(null);
 
@@ -67,6 +67,7 @@ export default function DirectoryPage({ params }: PageProps) {
         ) : !isLoaded ? (
           <DirectoryMappingList
             mappings={[]}
+            onRetry={() => void refetch()}
             isLoading
             error={null}
             canEdit={false}
@@ -86,6 +87,7 @@ export default function DirectoryPage({ params }: PageProps) {
 
       <DirectoryMappingList
         mappings={mappings}
+        onRetry={() => void refetch()}
         isLoading={isLoading}
         error={error}
         canEdit={canEdit}

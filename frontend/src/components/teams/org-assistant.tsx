@@ -39,32 +39,26 @@ function AssistantCard({ assistant, agentId }: { assistant: AssistantState; agen
     <div data-tour="org-assistant">
       <ServiceCard
         icon={Bot}
-        collapsible
         action={
-          <Switch
-            checked={assistant.status !== "disabled"}
-            disabled={update.isPending}
-            onCheckedChange={(on) => update.mutate({ enabled: on })}
-            aria-label={t("enabled")}
-          />
+          <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center">
+            <Button variant="outline" size="sm" asChild>
+              <Link href={ROUTES.AGENT_DETAIL(agentId)}>{t("openBuilder")}</Link>
+            </Button>
+            <Switch
+              checked={assistant.status !== "disabled"}
+              disabled={update.isPending}
+              onCheckedChange={(on) => update.mutate({ enabled: on })}
+              aria-label={t("enabled")}
+            />
+          </div>
         }
         status={<SetupIndicator hints={architectSetupHints(assistant)} />}
         title={t("title")}
         description={t("description")}
       >
-        <div className="space-y-5">
-          {assistant.status === "needs_model" && (
-            <p className="text-muted-foreground text-sm">{t("needsModel")}</p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" asChild>
-              <Link href={ROUTES.AGENT_DETAIL(agentId)}>
-                <Bot className="h-4 w-4" />
-                {t("openBuilder")}
-              </Link>
-            </Button>
-          </div>
-        </div>
+        {assistant.status === "needs_model" && (
+          <p className="text-muted-foreground text-sm">{t("needsModel")}</p>
+        )}
       </ServiceCard>
     </div>
   );

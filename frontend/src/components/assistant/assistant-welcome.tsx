@@ -65,6 +65,7 @@ export function AssistantWelcome({
   return (
     <ChatWelcome
       compact
+      quiet
       mark={mark}
       title={
         greeting ??

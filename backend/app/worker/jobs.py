@@ -135,8 +135,9 @@ class ChannelMessage(Payload):
     organization_id: UUID
     bot_id: UUID
     authorization_generation: UUID
-    platform: Literal["slack", "telegram", "mattermost", "teams", "discord"]
+    platform: Literal["slack", "telegram", "mattermost", "teams", "discord", "matrix"]
     platform_user_id: str
+    server_url: str = ""
     platform_chat_id: str
     chat_type: Literal["private", "group"]
     text: str
@@ -388,6 +389,7 @@ class ThinkForPerson(Payload):
 
     organization_id: UUID
     user_id: UUID
+    refresh_open: bool = False
 
 
 class ExtractMemory(Payload):

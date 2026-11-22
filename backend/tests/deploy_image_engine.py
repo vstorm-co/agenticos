@@ -159,6 +159,9 @@ class Engine(BaseModel):
                 image = self.image(f"ghcr.io/vstorm-co/agenticos-{repo}:sha-{self.target[:7]}")
                 self.containers = [c for c in self.containers if c.service != service]
                 self.containers.append(Container(id=service, image=image.id, service=service))
+                if service == "app":
+                    self.containers = [c for c in self.containers if c.service != "worker"]
+                    self.containers.append(Container(id="worker", image=image.id, service="worker"))
             return ""
         raise RuntimeError(f"unexpected Docker command: {args}")
 

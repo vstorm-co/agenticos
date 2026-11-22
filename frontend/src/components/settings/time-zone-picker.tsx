@@ -5,7 +5,7 @@ import { Command } from "cmdk";
 import { Check, ChevronsUpDown, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
-import { COMMAND_ITEM_FOCUS, FORM_CONTROL } from "@/components/ui/control-styles";
+import { COMMAND_ITEM_FOCUS, FORM_CONTROL, MENU_ROW } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 
 const ZONES = [...new Set(["UTC", ...Intl.supportedValuesOf("timeZone")])];
@@ -70,10 +70,7 @@ export function TimeZonePicker({ value, onChange, ...props }: Props) {
             <Command.Item
               value={t("noTimeZone")}
               onSelect={() => pick("")}
-              className={cn(
-                COMMAND_ITEM_FOCUS,
-                "flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm",
-              )}
+              className={cn(COMMAND_ITEM_FOCUS, MENU_ROW, "cursor-pointer")}
             >
               <span className="flex-1">{t("noTimeZone")}</span>
               {!value && <Check size={16} aria-hidden />}
@@ -83,10 +80,7 @@ export function TimeZonePicker({ value, onChange, ...props }: Props) {
                 key={zone}
                 value={zone}
                 onSelect={() => pick(zone)}
-                className={cn(
-                  COMMAND_ITEM_FOCUS,
-                  "flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm",
-                )}
+                className={cn(COMMAND_ITEM_FOCUS, MENU_ROW, "cursor-pointer")}
               >
                 <span className="min-w-0 flex-1 truncate">{zone}</span>
                 {value === zone && <Check size={16} aria-hidden />}

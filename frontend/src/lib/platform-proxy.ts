@@ -158,11 +158,10 @@ export function platformProxy(): ProxyHandlers {
     // is how `detail` goes missing from a refusal and time-to-first-byte becomes
     // the whole transfer.
     const headers = describingHeaders(response.headers);
-    // The backend compressed this: `fetch` already decoded it, so the body is
-    // plain bytes and carries no `Content-Encoding` or `Content-Length`. It is
-    // never compressed again here - a second gzip on top of the edge's own left
-    // the client with gzip bytes where JSON was expected (#194). Compression for
-    // the browser is the edge's job; `Vary` keeps caches honest about it.
+    // Next.js owns response compression. Compressing this decoded stream here
+    // makes the HTTP server gzip it a second time under a single encoding header.
+    // `fetch` already decoded the backend's body; `Vary` keeps caches honest about the
+    // encoding the edge may still apply.
     if (response.headers.has("content-encoding")) {
       headers.set("vary", "Accept-Encoding");
     }

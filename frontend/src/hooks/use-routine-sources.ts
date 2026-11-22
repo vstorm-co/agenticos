@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
-import { routineSourcesApi } from "@/lib/routine-sources-api";
+import { routineSourcesApi, type RoutineSourceConsent } from "@/lib/routine-sources-api";
 import { qk } from "@/lib/query-keys";
 import { getErrorMessage } from "@/lib/api-error";
 
@@ -16,7 +16,8 @@ export function useRoutineSources(agentId: string, triggerId: string) {
     queryFn: () => routineSourcesApi.get(agentId, triggerId),
   });
   const replace = useMutation({
-    mutationFn: (token: string) => routineSourcesApi.replace(agentId, triggerId, token),
+    mutationFn: (consent: RoutineSourceConsent) =>
+      routineSourcesApi.replace(agentId, triggerId, consent),
     onSuccess: (data) => {
       client.setQueryData(key, data);
       void client.invalidateQueries({ queryKey: qk.triggers.all() });

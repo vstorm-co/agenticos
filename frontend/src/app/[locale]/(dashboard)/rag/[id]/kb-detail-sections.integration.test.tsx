@@ -259,6 +259,9 @@ describe("a failed section renders an error, not its empty state (#32)", () => {
     // its failure takes the whole page rather than reading as "no documents".
     await waitFor(() => expect(screen.getByText("Bad gateway")).toBeInTheDocument());
     expect(screen.queryByText("pages.kb.noDocumentsYet")).not.toBeInTheDocument();
+    mockApi({ documents: [DOC] });
+    await userEvent.click(screen.getByRole("button", { name: "pages.kb.retry" }));
+    expect(await screen.findByText("onboarding.md")).toBeVisible();
   });
 });
 

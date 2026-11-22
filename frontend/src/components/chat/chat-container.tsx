@@ -49,7 +49,7 @@ import { useRoomRequests, useRoomSync } from "@/hooks/use-room";
 import { TypingIndicator } from "./typing-indicator";
 import { useProjectMentions } from "@/hooks/use-project-mentions";
 import type { PageComment } from "./browser-comment";
-import { ChatInput, type IncomingFiles } from "./chat-input";
+import { ChatInput, type ComposerDraft, type IncomingFiles } from "./chat-input";
 import { ComposerStatus } from "./composer-status";
 import { OutcomeCards } from "./outcome-cards";
 import { ProjectChip } from "./project-chip";
@@ -79,7 +79,6 @@ import { ConnectAccountPrompt } from "./connect-account-prompt";
 import { ConnectServicesCard } from "./connect-services-card";
 import { PendingMessages } from "./pending-messages";
 import { PlanStrip } from "./plan-strip";
-import { BackgroundTasks } from "./background-tasks";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
 import { QuestionPrompt } from "@/components/ui";
 import { SecretRequestCard } from "./secret-request-card";
@@ -135,7 +134,7 @@ import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
 import { Perm } from "@/types/permissions";
 import { BrowserDictationPill, DictationPill } from "./dictation-bar";
-import { browserDictationHint, dictationHint, DictationStrip } from "./dictation-strip";
+import { dictationHint, DictationStrip } from "./dictation-strip";
 import { useAudioLevel } from "@/hooks/use-audio-level";
 import { AGENT_CALLS_ANCHOR, AGENT_DICTATION_ANCHOR } from "@/components/agents/voice-card";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -193,6 +192,9 @@ interface ChatContainerProps {
   sendDisabled?: boolean;
   /** Keep the welcome screen out of a saved conversation's initial load. */
   requestedConversationId?: string | null;
+  /** A saved question opened from Inbox. */
+  requestedQuestionRunId?: string | null;
+  composerDraft?: ComposerDraft;
   requestedThreadRootId?: string | null;
   requestedMessageId?: string | null;
   messageJumpRevision?: number;
@@ -231,6 +233,8 @@ export interface PinnedPrompts {
 
 export function ChatContainer({
   requestedConversationId = null,
+  requestedQuestionRunId = null,
+  composerDraft,
   requestedThreadRootId = null,
   requestedMessageId = null,
   messageJumpRevision = 0,
@@ -567,7 +571,6 @@ export function ChatContainer({
     setModelProfile,
     setApprovalMode,
     pendingApproval,
-    continuingApproval,
     mayRememberApproval,
     sendResumeDecisions,
     pendingQuestions,
@@ -587,6 +590,7 @@ export function ChatContainer({
     onTurnInterrupted: handleTurnInterrupted,
     testing,
     pageContext,
+    requestedQuestionRunId,
   });
   const startCall = useCallback(
     (transport: VoiceTransport) => {
@@ -1405,11 +1409,11 @@ export function ChatContainer({
         sentTurnAnchoredRef={sentTurnAnchoredRef}
         sentTurnSpacerRef={sentTurnSpacerRef}
         pendingApproval={pendingApproval}
-        continuingApproval={continuingApproval}
         onResumeDecisions={sendResumeDecisions}
         mayRememberApproval={mayRememberApproval}
         pendingQuestions={pendingQuestions}
         onAnswerQuestions={sendAskUserResponses}
+        composerDraft={composerDraft}
         pendingSecretRequests={pendingSecretRequests}
         onSubmitSecretRequest={submitSecretRequest}
         onDeclineSecretRequest={declineSecretRequest}
@@ -1589,11 +1593,11 @@ interface ChatUIProps {
   sentTurnAnchoredRef: React.RefObject<boolean>;
   sentTurnSpacerRef: React.RefObject<HTMLDivElement | null>;
   pendingApproval?: PendingApproval | null;
-  continuingApproval?: boolean;
   onResumeDecisions?: (decisions: Decision[]) => void;
   mayRememberApproval?: boolean;
   pendingQuestions?: AskUserQuestion[] | null;
   onAnswerQuestions?: (answers: AskUserAnswer[]) => void;
+  composerDraft?: ComposerDraft;
   /** The secrets a parked run asked its person for. See `SecretRequestCard`. */
   pendingSecretRequests?: ParkedSecretRequest[] | null;
   onSubmitSecretRequest?: (requestId: string, value: string) => void;
@@ -1694,11 +1698,11 @@ function ChatUI({
   sentTurnAnchoredRef,
   sentTurnSpacerRef,
   pendingApproval,
-  continuingApproval = false,
   onResumeDecisions,
   mayRememberApproval,
   pendingQuestions,
   onAnswerQuestions,
+  composerDraft,
   pendingSecretRequests,
   onSubmitSecretRequest,
   onDeclineSecretRequest,
@@ -1873,13 +1877,7 @@ function ChatUI({
     onShowApproval: showVoiceApproval,
     active: onCall,
   });
-  // Browser recognition works for every agent; while it listens for one whose
-  // Dictation switch is off, the strip says so and where to turn it on.
-  const browserStrip =
-    stopBrowserDictation !== null && status?.requested === false
-      ? browserDictationHint(agentVoiceHref, tDictation)
-      : null;
-  const composerStrip = voiceHint ?? callHint ?? dictationStrip ?? browserStrip;
+  const composerStrip = voiceHint ?? callHint ?? dictationStrip;
   // Focus went into the call bar when the call started. When the call is over
   // it goes to the box after "continue in text", and otherwise back to the call
   // button - but only if it was lost with the bar, never taken from where the
@@ -2379,12 +2377,6 @@ function ChatUI({
             {conversationId && !compact && (
               <OutcomeCards
                 conversationId={conversationId}
-                hasApprovalPanel={!!pendingApproval && !!onResumeDecisions}
-                isWorking={
-                  isProcessing ||
-                  continuingApproval ||
-                  messages.some((message) => message.isStreaming)
-                }
                 className="pointer-events-auto mx-auto max-h-40 w-full max-w-4xl min-w-0 overflow-y-auto overscroll-contain px-4 pb-2 sm:px-6"
               />
             )}
@@ -2431,7 +2423,6 @@ function ChatUI({
                 transcript because a plan is written in one turn and worked through
                 over the next several: as a step it scrolls away under the work it
                 describes, and what somebody wants is where the agent is now. */}
-              <BackgroundTasks conversationId={conversationId} />
               <PlanStrip
                 plan={plan}
                 live={isProcessing && (roomProjectId === null || activeThreadRootId === null)}
@@ -2560,6 +2551,7 @@ function ChatUI({
                           limit near its end changes an icon's colour and never
                           costs the row a button. */}
                           <ChatInput
+                            composerDraft={composerDraft}
                             autoFocus={!compact && !onCall && requestedMessageId === null}
                             preserveReadingFocus={requestedMessageId !== null}
                             focusRequest={composerFocusRequest}

@@ -24,6 +24,9 @@ from uuid import UUID
 
 from app.core.exceptions import AuthorizationError
 
+DEPLOYMENT_ADMIN_SCOPE = "deployment:admin"
+"""Explicit OAuth/run authority, never an organization permission or preset."""
+
 
 class Perm(StrEnum):
     """Everything a member can be allowed to do.

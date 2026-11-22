@@ -70,6 +70,20 @@ class SecretCreate(BaseSchema):
         return self
 
 
+class SecretReferenceRead(BaseSchema):
+    """An accessible credential identity, without values, hints or usage."""
+
+    id: UUID
+    name: str
+    kind: SecretKind
+    purpose: str
+
+
+class SecretReferenceList(BaseSchema):
+    items: list[SecretReferenceRead]
+    total: int
+
+
 class SecretUpdate(BaseSchema):
     """Rename, re-describe or rotate. Every field is optional; the kind is fixed."""
 

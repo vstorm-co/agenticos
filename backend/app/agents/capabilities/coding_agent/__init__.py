@@ -88,11 +88,10 @@ class CodingAgentConfig(BaseModel):
     """Which harness works, on which model, and for how long a task may run."""
 
     harness: Literal["claude_code", "codex"] = Field(
-        title="Coding agent",
+        title="Default coding agent",
         default="claude_code",
         description=(
-            "Which coding agent does the work: Claude Code, on an Anthropic key or a "
-            "Claude subscription token, or Codex, on an OpenAI key or a ChatGPT sign-in."
+            "The default when a task does not choose Claude Code or Codex. Personal cloud and desktop tasks use the person's own account for the selected coding agent. An organization sandbox uses only its configured coding agent and key."
         ),
         json_schema_extra={"x-enum-labels": {"claude_code": "Claude Code", "codex": "Codex"}},
     )
@@ -138,9 +137,7 @@ class CodingAgentConfig(BaseModel):
         title="Model",
         default=None,
         description=(
-            "The model the coding agent runs: a Claude model for Claude Code, an "
-            "OpenAI one for Codex. Not set takes the coding agent's own default. "
-            "Not available on this computer, where the agent uses its own setting."
+            "The model for the default coding agent: Claude for Claude Code, OpenAI for Codex. Empty uses its own default. Choosing the other coding agent per task uses that agent's default model. Desktop tasks use their local setting."
         ),
         json_schema_extra={
             "x-enum-labels": _MODEL_NAMES,

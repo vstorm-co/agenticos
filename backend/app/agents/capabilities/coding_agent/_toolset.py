@@ -25,6 +25,7 @@ from uuid import UUID
 
 import anyio
 from pydantic import ValidationError
+from pydantic_ai.exceptions import UserError
 from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
@@ -150,8 +151,8 @@ will ever resume.
 """
 DISCARD_ENV = "AGENTICOS_CODEX_DISCARD"
 READ_AUTH = (
-    f'cat "${HOME_ENV}/auth.json" 2>/dev/null; rm -rf "${HOME_ENV}"'
-    f' ${{{DISCARD_ENV}:+"${DISCARD_ENV}"}}'
+    f'cat "${HOME_ENV}/auth.json" 2>/dev/null; auth_read_status=$?; rm -rf "${HOME_ENV}"'
+    f' ${{{DISCARD_ENV}:+"${DISCARD_ENV}"}} || exit $?; exit "$auth_read_status"'
 )
 
 CODEX_HOMES = "/tmp/agenticos-codex"  # noqa: S108
@@ -241,16 +242,22 @@ def build_coding_toolset(
         Args:
             task: The task in full: the goal, the files or area it concerns,
                 constraints, and how to check the result. The coding agent sees
-                nothing of this conversation but this text and its own earlier
-                tasks in the same session.
+                this task and the allowed source files. Include the decisions and
+                context it needs; named personal cloud sessions retain earlier work.
             session: Which session to work in, by a short lower-case name such as
                 `main`, `api` or `review`. The same name continues that session's
                 earlier work; a new name opens another. Local sessions run side by side; sandbox tasks queue to keep
-                their workspace snapshots separate. Use distinct names for independent work.
+                their workspace snapshots separate. Named personal cloud sessions retain
+                separate files and histories, and may run in parallel on different accounts.
+                Tasks using the same personal account wait in a bounded queue.
+                Use distinct names for independent work.
             fresh_session: Start this session over instead of continuing it. Leave
                 it off unless its earlier work is unrelated or it went wrong.
+                Personal cloud keeps the named session's files when its history resets.
             harness: `claude_code` or `codex`, to choose the coding agent for this
-                session on the person's computer. Empty uses the configured one.
+                task in personal cloud mode or on this computer. Each uses the person's
+                own account for that harness. Empty uses the configured default.
+                Organization-sandbox mode uses only the configured harness.
             folder: A folder inside the chat's folder for this session to work in,
                 relative or absolute - one project of several. Only on the
                 person's computer. Empty uses the chat's folder.
@@ -266,12 +273,14 @@ def build_coding_toolset(
                 "Name the session in lower case letters, digits, `-` or `_`, up to 40 "
                 "characters, such as `main` or `api`.",
             )
+        chosen = harness or configured
         if runs_on != "this_computer":
-            if harness is not None and harness != configured:
+            if runs_on == "sandbox" and chosen != configured:
                 return steer(
                     ctx,
-                    f"This agent runs {label} here; {LABELS[harness]} runs only on the "
-                    "person's computer. Leave `harness` empty.",
+                    f"This agent's sandbox is configured for {label} only. To choose either "
+                    "harness per task, use personal cloud coding or this computer. "
+                    "Leave `harness` empty here.",
                 )
             if folder is not None:
                 return steer(
@@ -292,6 +301,12 @@ def build_coding_toolset(
                     "for personal-account work, or the organization's configured coding mode.",
                     configured,
                 )
+            if chosen == "codex" and access == "read_only":
+                return steer(
+                    ctx,
+                    "Codex cannot run read-only inside a container. Use Claude Code for this "
+                    "read-only task, or ask the agent's author to change its access policy.",
+                )
             if personal_executor is None:
                 return steer(
                     ctx,
@@ -303,16 +318,16 @@ def build_coding_toolset(
             await assert_ambient_budget()
             try:
                 async with personal_executor.session(
-                    ctx, harness=configured, timeout_seconds=timeout_seconds
+                    ctx, harness=chosen, timeout_seconds=timeout_seconds, session=session
                 ) as personal:
                     isolated = build_coding_toolset(
-                        harness=configured,
+                        harness=chosen,
                         access=access,
-                        model=model,
+                        model=model if chosen == configured else None,
                         base_url=None,
                         api_key=personal.api_key.get_secret_value() if personal.api_key else None,
                         timeout_seconds=timeout_seconds,
-                        effort=effort,
+                        effort=effort if chosen == configured else None,
                         sign_in=personal.sign_in,
                         shared_sandbox=False,
                         personal_isolated=True,
@@ -329,9 +344,8 @@ def build_coding_toolset(
                         else None
                     )
                     try:
-                        # Every personal task starts in a fresh isolated copy.
                         result: object = await isolated.tools["run_coding_agent"].function(
-                            private_ctx, task, fresh_session=True
+                            private_ctx, task, session=session, fresh_session=fresh_session
                         )
                         if not isinstance(result, str):
                             raise TypeError("The coding tool returned a non-text result")
@@ -361,6 +375,12 @@ def build_coding_toolset(
                                 "execution": "isolated_task",
                                 "base_revision": personal.base_revision,
                                 "result_archive": personal.result_archive,
+                                "session_name": session,
+                                "session_resumed": (
+                                    report.session_resumed
+                                    if report.session_resumed is not None
+                                    else personal.resumed and not fresh_session
+                                ),
                             }
                         ).model_dump_json(exclude_defaults=True)
                     finally:
@@ -370,7 +390,7 @@ def build_coding_toolset(
             except AppException as error:
                 return steer(ctx, error.message)
         if runs_on == "this_computer":
-            return await run_local(ctx, task, session, fresh_session, harness or configured, folder)
+            return await run_local(ctx, task, session, fresh_session, chosen, folder)
         if api_key is None and sign_in is None:
             # Unreachable once published - the key is required at publish and at
             # build. A missing key is a run that cannot start, not a prompt to
@@ -588,7 +608,12 @@ def build_coding_toolset(
                 return f"{label} could not run in this sandbox ({type(failed).__name__})."
             return await continued(ctx, task, session, fresh_session, narration, home=home)
         finally:
-            await _keep_rotated(ctx, source, written, env={HOME_ENV: home, **discard})
+            # A personal task can rotate a single-use refresh token just before
+            # Stop. Recover it and remove its auth file before cancellation wins.
+            with anyio.CancelScope(shield=personal_isolated):
+                await _keep_rotated(
+                    ctx, source, written, env={HOME_ENV: home, **discard}, strict=personal_isolated
+                )
 
     async def continued(
         ctx: RunContext[Any],
@@ -655,6 +680,7 @@ def build_coding_toolset(
     ) -> CodingReport | str:
         session_id = None if fresh_session else await remembered_session(ctx, harness, session)
         report = await attempt(ctx, task, session_id, narration, home=home)
+        continued_history = session_id is not None
         if (
             isinstance(report, CodingReport)
             and session_id
@@ -664,6 +690,9 @@ def build_coding_toolset(
             # A session the sandbox no longer holds - a fresh container, a session
             # the harness pruned - fails before any step. Once, from nothing.
             report = await attempt(ctx, task, None, narration, home=home)
+            continued_history = False
+        if personal_isolated and isinstance(report, CodingReport):
+            report = report.model_copy(update={"session_resumed": continued_history})
         if isinstance(report, CodingReport) and report.session_id:
             await remember_session(ctx, harness, report.session_id, session)
         return report
@@ -685,6 +714,8 @@ def build_coding_toolset(
             session_id=session_id,
             base_url=base_url,
         )
+        if personal_isolated:
+            command = replace(command, supervised=True)
         if home is not None:
             # The sign-in is this task's, and the sessions it resumes the conversation's.
             command = replace(command, env={**command.env, HOME_ENV: home})
@@ -768,6 +799,7 @@ async def _keep_rotated(
     written: OpenAICodexCredentials,
     *,
     env: dict[str, str],
+    strict: bool = False,
 ) -> None:
     """Take the sign-in back out of the sandbox, keeping whatever Codex refreshed it to.
 
@@ -780,9 +812,13 @@ async def _keep_rotated(
             READ_AUTH, shell=True, env=env, timeout=60
         )
     except SANDBOX_FAILURES as failed:
+        if strict:
+            raise
         logger.warning("Codex's sign-in could not be read back from the sandbox: %s", failed)
         return
-    rotated = rotated_sign_in(result.stdout, written)
+    if strict and result.exit_code != 0:
+        raise UserError("Codex could not remove its temporary sign-in from the private sandbox")
+    rotated = rotated_sign_in(result.stdout, written, strict=strict)
     if rotated is not None:
         await source.swap(written, rotated)
 

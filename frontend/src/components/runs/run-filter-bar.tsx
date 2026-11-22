@@ -38,6 +38,7 @@ export const SURFACES = [
   "email",
 
   "discord",
+  "matrix",
   "schedule",
   "eval",
   "workflow",

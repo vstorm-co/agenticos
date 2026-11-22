@@ -55,9 +55,9 @@ export function AssistantLauncher({
       // right edge and leaves a sliver to pull it back out by; a pointer over
       // the sliver shows the whole face again.
       className={cn(
-        "bg-background border-border fixed top-0.5 right-14 z-40 rounded-full p-1 transition-transform duration-300 ease-out hover:scale-105 active:scale-95 md:top-auto md:right-6 md:bottom-6 md:z-50 md:border md:shadow-lg [html[data-typing]_&]:hidden",
+        "bg-background border-border fixed top-0.5 right-14 z-40 rounded-full p-1 transition-transform duration-300 ease-out md:top-auto md:right-6 md:bottom-6 md:z-50 md:border md:shadow-lg [html[data-typing]_&]:hidden",
         docked &&
-          "md:right-0 md:translate-x-[calc(100%-1.125rem)] md:rounded-r-none md:border-r-0 md:hover:translate-x-0 md:hover:scale-100 md:focus-visible:translate-x-0",
+          "md:right-0 md:translate-x-[calc(100%-1.125rem)] md:rounded-r-none md:border-r-0 md:hover:translate-x-0 md:focus-visible:translate-x-0",
         open && "hidden",
         overComposer && "hidden",
         viewer && "top-auto right-4 bottom-4",

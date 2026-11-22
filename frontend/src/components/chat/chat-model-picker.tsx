@@ -4,14 +4,15 @@ import { useId, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
 import {
+  AddModel,
   modelIdIsWellFormed,
   modelPlaceholder,
   placeholderWords,
 } from "@/components/agents/add-model";
+import { ChatModelLibrary } from "./chat-model-library";
 import { ModelCombobox } from "@/components/agents/model-combobox";
-import { ClaudeSubscriptionModelSelect } from "@/components/chat/claude-subscription-model-select";
 import { getErrorMessage } from "@/lib/api-error";
-import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ModelIcon } from "@/components/icons/model-icon";
 import { ProviderRow } from "@/components/vault/provider-row";
 import {
   Button,
@@ -22,9 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
-import { InlineSecret } from "@/components/vault/inline-secret";
-import { PersonalApiConnection } from "@/components/vault/personal-api-connection";
+import { ModelProviderCredential } from "./model-provider-credential";
 import {
   useModelProviders,
   usePermissions,
@@ -32,19 +31,15 @@ import {
   useSecretPurposes,
   useSecrets,
 } from "@/hooks";
-import {
-  connectionModelLabel,
-  hasKey,
-  modelDetail,
-  runsAgents,
-  usableForAgents,
-} from "@/lib/model-profiles";
+import { hasKey, modelName, runsAgents, usableForAgents } from "@/lib/model-profiles";
 import type { PublishedModel } from "@/types/agents";
-import type { Secret } from "@/types/secrets";
 import { Perm } from "@/types/permissions";
+import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
 interface ChatModelPickerProps {
+  compact?: boolean;
+  presentation?: "form" | "library";
   /** The model profile this conversation overrides to, or null for the agent's own. */
   value: string | null;
   /** The agent's published model, shown as the current one when there is no override. */
@@ -76,7 +71,13 @@ interface ChatModelPickerProps {
  * likely to want to know (#926) - so the current-model summary renders above the
  * gate, and only the fields that write are withheld.
  */
-export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPickerProps) {
+export function ChatModelPicker({
+  value,
+  agentModel,
+  onChange,
+  compact = false,
+  presentation = "form",
+}: ChatModelPickerProps) {
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
   const tErrors = useTranslations("errors");
@@ -88,13 +89,19 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
   const { can } = usePermissions();
   const {
     profiles,
+    catalog = [],
     createProfile,
     isLoading: loadingProfiles,
     profilesStatus,
     refetchProfiles,
   } = useModelProviders();
-  const { purposes } = useSecretPurposes();
-  const { secrets } = useSecrets();
+  const { purposes, isLoading: loadingPurposes } = useSecretPurposes();
+  const {
+    secrets,
+    listError: secretReadError,
+    isLoading: loadingSecrets,
+    refetch: refetchSecrets,
+  } = useSecrets();
 
   const current = value === null ? agentModel : (profiles.find((p) => p.id === value) ?? null);
   const currentProfile = profiles.find(
@@ -105,68 +112,54 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     source: string;
     providerId: string;
     model: string;
-    secretId: string | null;
   } | null>(null);
-  const [createdConnection, setCreatedConnection] = useState<Secret | null>(null);
   const edited = draft?.source === sourceKey ? draft : null;
   const providerId = edited?.providerId ?? current?.provider ?? "";
   const model = edited?.model ?? current?.model ?? "";
   const setProviderId = (next: string) =>
-    setDraft({ source: sourceKey, providerId: next, model: "", secretId: null });
-  const setModel = (next: string) =>
-    setDraft({ source: sourceKey, providerId, model: next, secretId: edited?.secretId ?? null });
+    setDraft({ source: sourceKey, providerId: next, model: "" });
+  const setModel = (next: string) => setDraft({ source: sourceKey, providerId, model: next });
   const [failure, setFailure] = useState<string | null>(null);
-  const chooseConnection = (id: string) => {
-    setDraft({ source: sourceKey, providerId, model, secretId: id });
-    setFailure(null);
-  };
 
+  const [pickedKey, setPickedKey] = useState<string | null>(null);
+  const providerKeys = secrets.filter((secret) => secret.purpose === providerId);
+  const explicitKey = providerKeys.find((secret) => secret.id === pickedKey);
   const inheritedProfile = currentProfile?.provider === providerId ? currentProfile : undefined;
-  const availableSecrets =
-    createdConnection && !secrets.some((secret) => secret.id === createdConnection.id)
-      ? [...secrets, createdConnection]
-      : secrets;
-  const keys = availableSecrets.filter((secret) => secret.purpose === providerId);
-  const chosenSecretId =
-    edited?.secretId ??
-    (inheritedProfile ? inheritedProfile.secret_id : keys.length === 1 ? keys[0]!.id : null);
-  const key = keys.find((secret) => secret.id === chosenSecretId);
-  const personal = key?.usage_scope === "personal";
-  // A new personal connection starts on the provider's API, not an inherited gateway.
-  const endpoint =
-    personal && chosenSecretId !== inheritedProfile?.secret_id
-      ? null
-      : (inheritedProfile?.base_url ?? null);
+  const effectiveKey =
+    explicitKey ??
+    providerKeys.find((key) => key.id === inheritedProfile?.secret_id) ??
+    providerKeys[0];
+  const matchesKey = (profile: ModelProfile) =>
+    !effectiveKey || profile.secret_id === effectiveKey.id;
+  const endpoint = inheritedProfile?.base_url ?? null;
   const providers = purposes.filter((entry) => entry.category === "model_provider");
   const provider = providers.find((entry) => entry.id === providerId);
+  const requiresEndpoint = catalog.some(
+    (entry) => entry.id === providerId && entry.requires_base_url,
+  );
   const {
     models: suggestions,
     refused,
     source,
     isLoading: loadingModels,
+    hasCachedListing,
+    refetch: refetchModels,
   } = useProviderModels(
-    providerId === "claude-subscription" || (personal && endpoint) ? "" : providerId,
+    providerId,
     providerId === "openrouter" ? (endpoint ?? undefined) : undefined,
-    personal && !endpoint ? (chosenSecretId ?? undefined) : undefined,
+    effectiveKey?.id,
   );
   // An override profile and the agent's published model both carry
   // provider/model/label, so one summary renders whichever is current.
-  const currentDetail = current ? modelDetail(current) : null;
 
   const matching = profiles.filter(
     (profile) =>
       profile.provider === providerId &&
       profile.model === model.trim() &&
-      (chosenSecretId !== null
-        ? profile.secret_id === chosenSecretId
-        : inheritedProfile?.usage_scope === "personal"
-          ? profile.id === inheritedProfile.id
-          : profile.usage_scope !== "personal") &&
-      (!(personal && chosenSecretId !== inheritedProfile?.secret_id) || !profile.base_url) &&
       (!endpoint || profile.base_url?.replace(/\/+$/, "") === endpoint.replace(/\/+$/, "")),
   );
   const hasCustomEndpoint = matching.some(
-    (profile) => !!profile.base_url && usableForAgents(profile),
+    (profile) => matchesKey(profile) && !!profile.base_url && usableForAgents(profile),
   );
 
   const canApply =
@@ -176,17 +169,40 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     !createProfile.isPending &&
     !loadingProfiles &&
     profilesStatus !== "failed" &&
-    (keys.length <= 1 || chosenSecretId !== null) &&
+    !loadingSecrets &&
+    !secretReadError &&
     (!loadingModels || hasCustomEndpoint);
 
-  const apply = async () => {
-    if (provider === undefined) return;
-    const modelId = model.trim();
+  const apply = async (selectedModel = model) => {
+    if (
+      provider === undefined ||
+      createProfile.isPending ||
+      loadingProfiles ||
+      profilesStatus === "failed" ||
+      loadingSecrets ||
+      secretReadError
+    )
+      return;
+    const modelId = selectedModel.trim();
+    if (!modelIdIsWellFormed(provider.id, modelId)) return;
+    const matching = profiles.filter(
+      (profile) =>
+        profile.provider === providerId &&
+        profile.model === modelId &&
+        (!endpoint || profile.base_url?.replace(/\/+$/, "") === endpoint.replace(/\/+$/, "")),
+    );
+    if (
+      loadingModels &&
+      !matching.some(
+        (profile) => matchesKey(profile) && profile.base_url && usableForAgents(profile),
+      )
+    )
+      return;
     setFailure(null);
     if (
       current?.provider === provider.id &&
       current.model === modelId &&
-      (currentProfile ? currentProfile.secret_id === chosenSecretId : chosenSecretId === null) &&
+      (!currentProfile || matchesKey(currentProfile)) &&
       (currentProfile === undefined || usableForAgents(currentProfile))
     ) {
       onChange(value);
@@ -198,31 +214,32 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     // Several profiles can name the same vendor/model. Prefer one that can
     // chat, including a custom endpoint whose names the vendor cannot classify.
     const listingRefuses = refused.includes(modelId);
-    const usable = matching.filter(
+    const existing = matching.find(
       (profile) =>
-        usableForAgents(profile) && (!!profile.base_url || (!loadingModels && !listingRefuses)),
+        matchesKey(profile) &&
+        usableForAgents(profile) &&
+        (!!profile.base_url || (!loadingModels && !listingRefuses)),
     );
-    // Different connection IDs are a billing choice; an array's order cannot decide it.
-    if (new Set(usable.map((profile) => profile.secret_id)).size > 1) {
-      setFailure(tRoot("personalModels.chooseConnection"));
-      return;
-    }
-    const existing = usable[0];
     if (existing) {
       onChange(existing.id);
       return;
     }
     // The organization has this model, but its key was deleted (#2478). A second
     // profile under the same name is refused, and the fix is a key for this one.
-    if (!listingRefuses && matching.some((profile) => runsAgents(profile) && !hasKey(profile))) {
+    if (
+      providerKeys.length <= 1 &&
+      !listingRefuses &&
+      matching.some((profile) => runsAgents(profile) && !hasKey(profile))
+    ) {
       setFailure(t("modelHasNoKey", { model: modelId }));
       return;
     }
-    if (matching.length > 0 || listingRefuses) {
+    if (matching.some(matchesKey) || listingRefuses) {
       setFailure(t("notAChatModel", { model: modelId }));
       return;
     }
 
+    const key = effectiveKey;
     if (key === undefined) {
       // The form below offers to add one, so this says what is missing rather than
       // sending somebody to another page for it.
@@ -231,20 +248,16 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     }
 
     try {
-      const baseLabel = `${provider.label} · ${modelId}`;
-      const labels = profiles.map((profile) => profile.label);
       const profile = await createProfile.mutateAsync({
         label:
-          personal || labels.includes(baseLabel)
-            ? connectionModelLabel(baseLabel, key.name, labels)
-            : baseLabel,
+          providerKeys.length > 1
+            ? `${`${provider.label} · ${modelId}`.slice(0, 108)} · ${key.id.slice(0, 8)}`
+            : `${provider.label} · ${modelId}`,
         provider: provider.id,
         model: modelId,
         secret_id: key.id,
         ...(endpoint ? { base_url: endpoint } : {}),
-        ...(inheritedProfile?.api && (!personal || chosenSecretId === inheritedProfile.secret_id)
-          ? { api: inheritedProfile.api }
-          : {}),
+        ...(inheritedProfile?.api ? { api: inheritedProfile.api } : {}),
       });
       // An id the listing did not classify still reaches here: the server
       // classifies the new profile, and a conversation cannot run on it either.
@@ -260,28 +273,175 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     }
   };
 
+  const credentialForm = !secretReadError &&
+    !loadingSecrets &&
+    provider !== undefined &&
+    !secrets.some((secret) => secret.purpose === provider.id) && (
+      <ModelProviderCredential
+        key={provider.id}
+        provider={provider}
+        onCreated={() => {
+          setFailure(null);
+          void refetchModels();
+        }}
+      />
+    );
+
   const currentSummary = current ? (
     <>
-      <span className="bg-foreground/[0.05] text-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
-        <ProviderIcon provider={current.provider} className="size-5" />
-      </span>
+      <ModelIcon model={current.model} provider={current.provider} />
       <span className="min-w-0 flex-1">
-        <span className="block text-sm leading-5 font-medium break-words whitespace-normal">
-          {current.label}
+        <span
+          className={
+            compact
+              ? "block truncate text-xs font-medium"
+              : "block text-sm leading-5 font-medium break-words whitespace-normal"
+          }
+        >
+          {modelName(
+            current,
+            current.provider === providerId
+              ? suggestions.find((entry) => entry.id === current.model)?.name
+              : undefined,
+          )}
         </span>
-        {currentProfile?.usage_scope === "personal" && (
-          <span className="text-muted-foreground text-xs">{tRoot("personalModels.personal")}</span>
-        )}
-        {currentDetail !== null && (
-          <span className="text-muted-foreground mt-1 block truncate font-mono text-[11px]">
-            {currentDetail}
-          </span>
-        )}
       </span>
     </>
   ) : (
     t("changeModel")
   );
+
+  const connectionUnavailable =
+    loadingProfiles || profilesStatus === "failed" || !!secretReadError || !!loadingSecrets;
+  const endpointForm =
+    requiresEndpoint && !connectionUnavailable ? (
+      <div className="space-y-3">
+        {presentation !== "library" &&
+          profiles.some(
+            (profile) => profile.provider === providerId && usableForAgents(profile),
+          ) && (
+            <div role="group" aria-label={t("savedModels")} className="grid gap-2">
+              <p className="text-muted-foreground text-xs">{t("savedModels")}</p>
+              {profiles
+                .filter((profile) => profile.provider === providerId && usableForAgents(profile))
+                .map((profile) => (
+                  <Button
+                    key={profile.id}
+                    type="button"
+                    variant="outline"
+                    className="h-auto min-h-10 justify-start text-left whitespace-normal"
+                    onClick={() => onChange(profile.id)}
+                  >
+                    {modelName(profile)}
+                  </Button>
+                ))}
+            </div>
+          )}
+        <AddModel
+          key={providerId}
+          fixedProviderId={providerId}
+          purpose="chat"
+          onCreated={(profile) => onChange(profile.id)}
+        />
+      </div>
+    ) : null;
+
+  if (presentation === "library" && can(Perm.connectionsManage))
+    return (
+      <ChatModelLibrary
+        providers={providers.map((entry) => ({
+          id: entry.id,
+          label: entry.label,
+          connected:
+            secretReadError || loadingSecrets
+              ? null
+              : secrets.some((secret) => secret.purpose === entry.id) ||
+                profiles.some(
+                  (profile) => profile.provider === entry.id && usableForAgents(profile),
+                ),
+        }))}
+        providerId={providerId}
+        loadingProviders={loadingPurposes}
+        configurationForm={endpointForm}
+        needsCredential={
+          !requiresEndpoint &&
+          !!credentialForm &&
+          !profiles.some((profile) => profile.provider === providerId && usableForAgents(profile))
+        }
+        credentialPicker={
+          !requiresEndpoint &&
+          providerKeys.length > 1 && (
+            <div className="grid gap-1.5">
+              <Label htmlFor="chat-model-key">{tRoot("vault.key")}</Label>
+              <Select value={effectiveKey?.id} onValueChange={setPickedKey}>
+                <SelectTrigger id="chat-model-key">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {providerKeys.map((key) => (
+                    <SelectItem key={key.id} value={key.id} textValue={key.name}>
+                      <ProviderRow provider={providerId} name={key.name} hint={key.hint} />
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )
+        }
+        model={
+          current?.provider === providerId && (!currentProfile || matchesKey(currentProfile))
+            ? current.model
+            : ""
+        }
+        profileId={
+          currentProfile?.provider === providerId && matchesKey(currentProfile)
+            ? currentProfile.id
+            : undefined
+        }
+        models={suggestions}
+        profiles={profiles.filter(
+          (profile) => usableForAgents(profile) && (requiresEndpoint || matchesKey(profile)),
+        )}
+        loading={(loadingModels && !hasCachedListing) || loadingProfiles}
+        catalogRefreshing={loadingModels}
+        applying={createProfile.isPending}
+        disabled={
+          loadingProfiles || profilesStatus === "failed" || !!secretReadError || !!loadingSecrets
+        }
+        onProviderChange={(id) => {
+          setProviderId(id);
+          setPickedKey(null);
+          setFailure(null);
+        }}
+        onModelChange={(id) => void apply(id)}
+        onProfileChange={(profile) => {
+          if (!createProfile.isPending && !loadingProfiles && profilesStatus !== "failed")
+            onChange(profile.id);
+        }}
+        credentialForm={requiresEndpoint ? null : credentialForm}
+        failure={
+          profilesStatus === "failed" || secretReadError ? (
+            <p role="alert" className="text-destructive text-xs">
+              {t("profilesUnavailable")}{" "}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  void refetchProfiles();
+                  void refetchSecrets();
+                }}
+              >
+                {tRoot("common.retry")}
+              </Button>
+            </p>
+          ) : failure ? (
+            <p role="alert" className="text-destructive text-xs">
+              {failure}
+            </p>
+          ) : null
+        }
+      />
+    );
 
   return (
     <div className="space-y-4">
@@ -305,7 +465,11 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
             type="button"
             variant="outline"
             size="sm"
-            className="h-auto min-h-16 w-full items-start justify-start gap-3 rounded-xl px-3.5 py-3 text-left text-[13px]"
+            className={
+              compact
+                ? "h-auto min-h-10 w-full justify-start gap-2 rounded-lg px-2 py-2 text-left text-xs"
+                : "h-auto min-h-16 w-full items-start justify-start gap-3 rounded-xl px-3.5 py-3 text-left text-[13px]"
+            }
             aria-label={t("changeModel")}
             data-tour="chat-model-picker"
             aria-expanded={expanded}
@@ -326,107 +490,70 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
               id={panelId}
               className="animate-in fade-in space-y-4 pt-5 duration-150 motion-reduce:animate-none"
             >
-              {profilesStatus === "failed" && (
+              {(profilesStatus === "failed" || secretReadError) && (
                 <p role="alert" className="text-destructive text-xs">
                   {t("profilesUnavailable")}{" "}
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => void refetchProfiles()}
+                    onClick={() => {
+                      void refetchProfiles();
+                      void refetchSecrets();
+                    }}
                   >
                     {tRoot("common.retry")}
                   </Button>
                 </p>
               )}
-              <ClaudeSubscriptionModelSelect
-                profiles={profiles}
-                value={currentProfile?.id ?? null}
-                disabled={loadingProfiles || profilesStatus === "failed"}
-                onChange={(profileId) => {
-                  setFailure(null);
-                  onChange(profileId);
-                }}
-              />
-              {providerId === "claude-subscription" ? (
-                <Button type="button" variant="outline" size="sm" onClick={() => setProviderId("")}>
-                  {tRoot("claudeSubscription.chooseApiModel")}
-                </Button>
+              <div className="space-y-1.5">
+                <Label htmlFor="chat-model-provider">{t("provider")}</Label>
+                <Select
+                  value={providerId}
+                  onValueChange={(next) => {
+                    setProviderId(next);
+                    setFailure(null);
+                  }}
+                >
+                  <SelectTrigger id="chat-model-provider">
+                    <SelectValue placeholder={t("chooseProvider")} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-80">
+                    {providers.map((entry) => {
+                      const keyed = secrets.some((secret) => secret.purpose === entry.id);
+                      return (
+                        <SelectItem
+                          key={entry.id}
+                          value={entry.id}
+                          // Type-to-search keys off this rather than off the mark's own
+                          // title, which is otherwise part of the item's text.
+                          textValue={entry.label}
+                          // Outside the row: the trigger mirrors an item's text, and a
+                          // tick there reads as "selected" rather than "has a key".
+                          trailing={
+                            keyed && (
+                              <Check className="text-muted-foreground ml-auto h-3.5 w-3.5 shrink-0" />
+                            )
+                          }
+                        >
+                          <ProviderRow provider={entry.id} name={entry.label} />
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {requiresEndpoint ? (
+                endpointForm
               ) : (
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="chat-model-provider">{t("provider")}</Label>
-                    <Select
-                      value={providerId}
-                      onValueChange={(next) => {
-                        setProviderId(next);
-                        setFailure(null);
-                      }}
-                    >
-                      <SelectTrigger id="chat-model-provider">
-                        <SelectValue placeholder={t("chooseProvider")} />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-80">
-                        {providers.map((entry) => {
-                          const keyed = secrets.some((secret) => secret.purpose === entry.id);
-                          return (
-                            <SelectItem
-                              key={entry.id}
-                              value={entry.id}
-                              // Type-to-search keys off this rather than off the mark's own
-                              // title, which is otherwise part of the item's text.
-                              textValue={entry.label}
-                              // Outside the row: the trigger mirrors an item's text, and a
-                              // tick there reads as "selected" rather than "has a key".
-                              trailing={
-                                keyed && (
-                                  <Check className="text-muted-foreground ml-auto h-3.5 w-3.5 shrink-0" />
-                                )
-                              }
-                            >
-                              <ProviderRow provider={entry.id} name={entry.label} />
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {provider !== undefined && keys.length > 0 && (
-                    <div className="space-y-1.5">
-                      <Label htmlFor={`${panelId}-connection`}>
-                        {tRoot("personalModels.connection")}
-                      </Label>
-                      <Select value={chosenSecretId ?? ""} onValueChange={chooseConnection}>
-                        <SelectTrigger id={`${panelId}-connection`}>
-                          <SelectValue placeholder={tRoot("personalModels.chooseConnection")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {keys.map((secret) => (
-                            <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
-                              {secret.name}
-                              {secret.usage_scope === "personal" && (
-                                <span className="text-muted-foreground ml-2 text-xs">
-                                  {tRoot("personalModels.personal")}
-                                </span>
-                              )}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {personal && (
-                        <p className="text-muted-foreground text-xs">
-                          {tRoot("personalModels.personalUse")}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
+                <>
                   <div className="space-y-1.5">
                     <Label htmlFor="chat-model-id">{t("model")}</Label>
                     {/* The Builder's own picker: the provider's catalog, searchable, and
                 still able to carry an id that is not in it. */}
                     <ModelCombobox
+                      provider={provider?.id}
                       id="chat-model-id"
                       value={model}
                       onChange={(next) => {
@@ -446,36 +573,17 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
               only offer what is already stored, and answers "add one in the Vault"
               when nothing is, is a dead end - and the provider is already chosen, so
               the purpose this key needs is known. */}
-                  {provider !== undefined &&
-                    !secrets.some((secret) => secret.purpose === provider.id) &&
-                    (provider.kind === "openai_codex" ? (
-                      <InlineChatGPTSignIn
-                        suggestedName={provider.label}
-                        onCreated={chooseConnection}
-                      />
-                    ) : (
-                      <InlineSecret
-                        kind="api_key"
-                        purpose={provider.id}
-                        suggestedName={provider.label}
-                        onCreated={chooseConnection}
-                      />
-                    ))}
+                  {credentialForm}
 
-                  {provider !== undefined && ["anthropic", "openai"].includes(provider.id) && (
-                    <PersonalApiConnection
-                      provider={provider}
-                      onCreated={(secret) => {
-                        setCreatedConnection(secret);
-                        chooseConnection(secret.id);
-                      }}
-                    />
-                  )}
-
-                  <Button type="button" className="w-full" disabled={!canApply} onClick={apply}>
+                  <Button
+                    type="button"
+                    className="w-full"
+                    disabled={!canApply}
+                    onClick={() => void apply()}
+                  >
                     {t("runModel")}
                   </Button>
-                </div>
+                </>
               )}
             </div>
           )}

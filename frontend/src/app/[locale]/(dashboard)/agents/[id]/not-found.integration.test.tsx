@@ -181,6 +181,7 @@ describe("the agent detail page for an unreadable agent", () => {
     expect(
       screen.getByText("This is not in your organization, or you do not have access."),
     ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveClass("min-h-0", "flex-1", "flex-col");
     // Never the Builder: no skeleton and no tabs behind the refusal.
     expect(screen.queryByRole("tab", { name: "Build" })).toBeNull();
   });

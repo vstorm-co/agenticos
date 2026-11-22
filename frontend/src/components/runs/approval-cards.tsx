@@ -76,7 +76,9 @@ export function PendingApproval({
   onDecide,
   onOpenRun,
   onReviewCredential,
+  className,
 }: {
+  className?: string;
   approval: ToolApproval;
   deciding: boolean;
   onDecide: (approved: boolean) => void;
@@ -153,7 +155,7 @@ export function PendingApproval({
         rejectLabel={t("reject")}
         disabled={deciding}
         rejectOnly={!mayApprove}
-        className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start"
+        className={cn("flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start", className)}
       >
         <div className="flex min-w-0 flex-1 gap-3">
           <AgentFace agentId={approval.agent_id} className="size-9 shrink-0" />

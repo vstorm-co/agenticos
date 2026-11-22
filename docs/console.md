@@ -1,6 +1,52 @@
 # The console
 
+The default themes distinguish the canvas, sidebar, cards and floating panels. Blue identifies links and keyboard focus; enabled switches use green. Navigation uses regular weight with a medium active label. Builder section summaries show the current model, variables, voice state and first messages before opening their editors. Sign-in and account recovery use the same concise heading style and a static identity panel.
+
+New generated Inbox proposals carry a ready-to-send action request, rather than a question containing an item ID. Repeated work retains the source requests and their local dates, weekdays and time zone, so a suggested schedule can follow the evidence. Selecting a proposal prepares an editable draft and never sends it automatically. Phone chat shows two starter prompts; wider screens retain four.
+
+Operators can plan a refresh with `agenticos cmd refresh-inbox --organization-id UUID`, then add `--queue` to enqueue it. The configured model and existing budgets still apply. Only open generated proposals are replaced, after a valid reading; a failed or refused reading leaves them intact. Accepted or dismissed decisions, findings, linked cases and approvals remain unchanged. A decision made while generation runs cancels that person's replacement.
+
+Dashboard usage and spending aggregates reuse the same in-memory answer for the same time window for up to 30 minutes. They are not live counters: run events do not refresh these aggregates after every run. A full browser reload starts with a cold cache and asks the API again. Saved layout presets are requested only in the organization view, where their arrangement controls are available.
+
+If your current organization’s onboarding is unfinished, **Finish setup** returns to its guided setup. Dismissing the reminder snoozes it for the effective interval of 1, 3 or 7 days (one day by default). Completion and snoozing follow your membership on the server; loading or failed progress checks never label setup incomplete.
+
+**Settings → Profile** always keeps a manual setup link, including when reminders are off. The reminder has a clear action and a short, bounded illustration animation; reduced motion keeps it still. Returning is your choice: no tour starts automatically. In the same browser, the link remembers the last allowed step for this account and organization without storing form values.
+
+Inbox keeps the same list frame, row spacing, source marks, title/detail typography and responsive action alignment across All, Urgent, Routine results, Suggestions and Done. Done retains its decision badge and Bring back action for dismissed items, with source and time visible on phones too. Approval forms keep the same outer inset while retaining their required fields and permission checks.
+
+Files and Sources use the same compact side panel: 400px initially, adjustable from 360 to 420px and capped at 38% of the docked chat width. On a narrow desktop they can temporarily collapse the conversation list; closing restores the earlier choice unless you changed it manually. Browser keeps its wider working area, initially 55% and adjustable from 35% to 65%. Following a citation scrolls only the Sources list, keeping the transcript in place.
+
+When Files reports a workspace that has not been created yet or is no longer retained, this is distinct from a connection failure and does not prove that no files ever existed. Conversation attachments remain available. Attach and send a file through the composer, or ask the agent to create one, to use the workspace; genuine connection and archive failures remain explicit. In chat, a file link with a matching successful tool receipt opens the workspace viewer. Unverified paths remain ordinary links; an unavailable private file origin does not become a link.
+
+At the start of chat, Inbox shows up to two priorities without dates or a separate chat icon. Selecting a row puts its action request into the composer for editing; it does not send it. **Open Inbox** opens the complete list. **Workspace — projects** is the default conversation-list layout; `?sidebar=compact` and `?sidebar=comfortable` remain available for comparison.
+
+Hosted public chat and the embedded widget accept multiline messages: Enter sends, Shift+Enter adds a line, and IME composition never sends early. In the main chat, hosted chat and widget, reading earlier messages pauses automatic following. Streaming and content resizing preserve that position; returning to the bottom or deliberately sending a new message resumes following. Reconnecting or loading history does not pull the reader down.
+
+Workflow runs and logs use the same collection frame, with filters above scrolling rows and navigation below. Workflow templates use the same category-to-library interaction as agent templates. Starting a test with an inline Run panel uses that panel for confirmation instead of repeating the success in a toast; failures remain explicit. Workflow text fields keep their surface color on hover while focus and validation remain visible.
+
+Primary table collections fill the remaining workspace, keeping filters, column headings and the footer available while rows scroll. Complete local inventories have pages of 50, sorted before paging. The footer remains visible at **1 / 1**, with unavailable directions disabled. Server-paged lists keep their server pagination; virtual tables, project chats and knowledge documents retain their existing incremental loading and real loaded/total counts rather than an invented page total. Embedded reports and configuration matrices retain their own layout.
+
+Dataset categories, icons and tags use neutral styling; errors retain their warning color. Settings separates grading from generation and improvement. Changing a helper model keeps Save and Cancel in place, disabled until there is a change, with a stable explanation of its fallback.
+
+Sharing uses the same compact fields, menus and rows as the rest of the console. A failed initial read shows an error and Retry. A later service or network failure can retain previously loaded people; an authorization refusal or removed resource hides cached access rows and editing. A failed member lookup offers its own retry instead of implying that no people exist.
+
+Apps resolve which walkthrough targets exist before showing the first step, so its count excludes unavailable controls. The last visible step offers Finish. Help remains in the persistent viewer header even when other options are folded away.
+
+Agent galleries show publication state as a dot and text. Needs attention uses a small amber indicator whose reason is available on hover, keyboard focus or tap. Workflow cards focus on name, description, access, publication and existing actions; triggers, nodes, tags and run statistics remain in their editor, filters or history. Tag entry uses one field and preserves keyboard and duplicate handling.
+
+Resource galleries use restrained spacing, neutral metadata and consistent actions. Projects, knowledge bases, tables and datasets retain access, size and relevant resource links without gallery timestamps. In Build, Instructions has its own writing surface; Model and the optional Variables, Voice and First messages settings share one panel with separators. The primary model stays visible. Thinking and Answer format remain within Model settings; missing required configuration and validation errors remain reachable.
+
+In Build, First messages previews cards with the icon, title and message. Open a card to edit it. Saving a built-in example as a custom message keeps the other examples in the draft. The Skills, Context and Knowledge search pickers in Toolbox use selectable rows. A saved chat model stays visible in Models as well as Saved models.
+
+Variables, Voice, First messages, Run reviewers, Alerts and Tracing start collapsed, with the current configuration visible in each summary. Open the section you want to change; required setup and validation errors remain reachable. Model stays open, and Voice setup links open its matching tab.
+
+The inline instructions editor scales to the window height; expand it for longer editing. For an existing model, Provider and Model stay visible while **Connection settings** holds its endpoint, authorization, API and region; missing required setup or a refused field opens it.
+
+Creating a project asks for its name, workspace and audience first. **Instructions and defaults** holds its optional description, instructions and starting agent; a refusal concerning one of those fields opens the section. In a table with many columns, **Add record** keeps the first fields, required values, document bodies and grid-prefilled values visible. Expand **More fields** to fill the remaining optional properties.
+
 Organizations has a search field for membership names and slugs, with the matching count in the same toolbar. Clearing the search restores the full membership list.
+
+The AI Architect card links directly to its Builder beside the enable switch, without an extra disclosure. Other AI services retain collapsible forms where there are settings to edit.
 
 The Me view starts with its period summary in a card, followed by a compact Briefing with titles, sources and actions. Full proposal details remain in Inbox.
 
@@ -47,7 +93,7 @@ Page introductions and settings explanations are available from the information 
 
 In Agents, Skills, Context and run history, **Filters** reveals secondary controls on every screen size and shows how many filters are active.
 
-Agent cards show status, access and the edit date directly. Skills and Context cards keep the document preview, summary, **Used by** with agent portraits and **Add to an agent** visible. Category and audience metadata sit in a compact row beside the action. There is no Details expansion. To delete a skill or context file, open its editor and use the three-dot menu beside **Share**; deletion still asks for confirmation and is available only to an editor.
+Agent cards show publication and access directly. Skills and Context cards keep the document preview, summary, **Used by** with agent portraits and **Add to an agent** visible. Category and audience metadata sit beside the action. To delete a skill or context file, open its editor and use the three-dot menu beside **Share**; deletion asks for confirmation and requires edit access.
 
 Names, navigation and form values use strong foreground text; metadata stays
 secondary. Primary actions use a contrasting neutral fill. Glass keeps the native
@@ -68,7 +114,11 @@ When **Approve everything** is unavailable, chat settings distinguish missing ap
 
 The composer shows the active permission mode beside the agent picker. Open the label to change the saved mode before sending. The same permission and organization waiver checks apply as in Chat controls. Automatically granted calls retain approved audit entries; only genuinely pending calls show actionable approval prompts.
 
-Phone dialogs keep a 12px gutter on every edge. Compact page headers place the title and actions on one row when they fit. Context descriptions open from the editor toolbar.
+Centered phone dialogs keep a 12px gutter on every edge. Compact page headers place the title and actions on one row when they fit. Context descriptions open from the editor toolbar.
+
+Contextual sharing opens near the bottom of a phone screen, within the available height above the keyboard. Headers remain fixed while the contents scroll. The mobile conversation list edits titles in place and replaces its contents with sharing; **Back** restores the list. Search replaces the list temporarily. Escape cancels an inline title edit before closing the list. Standard phone form inputs and selects are at least 44px high; text inputs use 16px type. Command search keeps its search field and close control visible while results scroll.
+
+Catalog search fields remain visible and editable while their rows load; loading does not discard a typed filter. An empty Inbox preview on the new-chat page renders no message or link and retains its reserved space above the composer.
 
 On phones, primary page actions stay visible and secondary commands fold behind **More page actions**. Inbox filters and the table format use selects. Settings sections use a horizontal, scrollable tab strip, while the MCP client is selected from a dropdown. Opening a project or workspace file opens its full-screen reader; the back arrow returns to the folders. Workflow step dialogs show one chosen panel at a time: settings, input or output. Switching panels preserves edits; desktop keeps the panels side by side.
 
@@ -84,13 +134,15 @@ Changing the header selection requires `connections:manage`, as the existing mod
 
 Personal settings use horizontal, scrollable tabs on desktop and phones. Explanatory copy opens from information buttons; requirements, validation errors and destructive-action warnings stay visible. Account holds password changes and active sessions.
 
-Conversation titles lead the chat list, with agent names and activity below. Search, filters and New chat share its header. Header filters open below their button; collapsed-rail filters open beside it. Decorative illustrations rotate without playback controls and follow the reduced-motion preference.
+Conversation titles lead the chat list, with agent names and activity below. Search, filters and New chat share its header. Header filters open below their button; collapsed-rail filters open beside it. The main chat welcome shows the active agent and greeting.
+
+When the conversation list has spare height, it opens older date groups until the space is filled. Project groups follow the same saved manual choices: a group you collapse stays collapsed until you reopen it, including when its active conversation changes.
 
 Profile fields share a row when there is room; **Save changes** is available only after an edit. Capability cards have one settings target and a separate enable switch; settings panels keep examples behind an information icon rather than repeating the gallery illustration.
 
 Template category dialogs fit their content; choosing an agent or skill industry opens the larger library. On phones, appearance choices use compact rows with thumbnails.
 
-Agent and project instructions share one compact toolbar for their heading, help, source/preview and expansion. Expanded Markdown keeps the selected source or preview view. Unused prompt variables start folded, while existing custom variables or a custom time zone keep the panel open. Expanded text and file editors keep consistent phone gutters; phone text inputs use larger type without enlarging desktop fields.
+Agent and project instructions share one compact toolbar for their heading, help, source/preview and expansion. Expanded Markdown keeps the selected source or preview view. Prompt variables start folded with a summary of the configured variables; opening and closing the section preserves your draft. Expanded text and file editors keep consistent phone gutters; phone text inputs use larger type without enlarging desktop fields.
 
 On phones, focusing the chat message switches to a compact writing row with attachment and send controls. Agent selection and voice input remain available under **+**. The welcome suggestions and connection suggestions step aside while composing, and completion menus stay within the available height. Moving focus from the draft to Send keeps the layout stable.
 
@@ -108,7 +160,7 @@ The agent Builder’s **Visual map** fits the whole configuration on opening and
 
 The Builder’s test panel can expand to a full workspace without resetting its conversation or unsent text. Comparing two versions opens that workspace automatically; the full-screen button or Escape returns to the Builder. Version selectors have their own row, so the test controls remain usable in narrow panels. On phones, switch between the compared chats using their version buttons; both conversations keep running and keep their drafts. The shared prompt still asks both at once.
 
-Navigation keeps shared page layouts mounted when moving between sections, with a short fade instead of resetting the frame. Reduced motion disables the fade. Dashboard widgets wait for the saved arrangement, permission-dependent pages wait for the permission result, and the administration user list starts in a loading state rather than briefly claiming it is empty. Group and app-publisher filters reserve their space while loading. Inbox source marks wait for catalog metadata; links to a working conversation open the same chat route as the sidebar.
+Navigation keeps shared page layouts mounted without fading or animating static settings sections on entry. The top progress bar also covers navigation started by action buttons. Tab selection moves its underline between the actual labels; reduced motion keeps it static. Dashboard widgets wait for their saved arrangement, permission-dependent pages wait for the permission result, and administration lists begin loading instead of claiming to be empty. Group and app-publisher filters reserve their space while loading.
 
 On phones, sent messages stop below the floating chat buttons, keeping the user portrait visible. The initial transcript and the space reserved for a reply use the same toolbar clearance; desktop and embedded chats retain their smaller inset.
 
@@ -119,6 +171,20 @@ The compact source button below an answer opens Sources beside the conversation,
 Inline web links use the same favicon policy independently of MCP connections. Unknown-site icons pass through the console's same-origin proxy and DuckDuckGo's fixed icon service. Only the hostname is sent to that service, never the reader's cookies, IP address, URL path or query. The proxy refuses redirects, non-raster content and icons over 64 KiB, and times out after three seconds. Missing or unavailable icons fall back to a globe. Inert transcript views keep remote images and unknown-site icons unloaded.
 
 A failed chat run shows its failure separately from the assistant’s answer, outside folded tool work, including after reloading the conversation. A provider content filter is identified explicitly; raw provider responses and unknown historical error strings are not copied into shared transcripts. Partial work remains available, and failed work is not labelled as completed.
+
+Conversation search checks both titles and indexed message text, including archived chats you may read. Results show plain-text excerpts with highlighted matches and message counts. Use the arrow keys and Enter to open a result. Search failures offer a retry instead of appearing as an empty result.
+
+## Console experience { #console-experience }
+
+Deployment administrators choose availability in **account menu → Admin → Deployment → Identity**. Organization administrators set starting defaults in the organization’s **AI & services** settings. Each member can override those defaults in **Settings → Profile**, for the current workspace only. **Inbox preview**, **Prompt suggestions**, **Welcome greeting** and **Feature hints** are independent choices. A deployment-disabled element stays unavailable; a member can override an organization default. Theme, style and language remain account-wide.
+
+Hiding the Inbox preview leaves the full Inbox and approval queue available. Greeting and suggestion slots retain their space, so changing visibility does not reposition the composer. Feature hints control generic discovery copy and the `/` and `@` composer hint; essential field labels and tooltips stay available. These choices change presentation, not resource permissions or agent behavior.
+
+**Setup reminders** follow the same hierarchy: deployment availability, organization defaults, then personal choices. Choose whether they appear and whether dismissal lasts 1, 3 or 7 days. The default is one day. The server calculates the return time for this membership; no notification schedule or successful task is created. Turning reminders off leaves the manual setup link in Profile.
+
+Deployment settings also offer an optional **Announcement expires** time. The server stops returning that announcement after the deadline; open pages receive this through their regular notice poll. **Planned maintenance end** is informational: it never reopens the application. An administrator ends maintenance explicitly. Date fields show the device’s time zone and store aware UTC instants.
+
+Administration is reached from the account menu. Its settings use the shared tabs and preserve drafts when changing sections. Memory and Notes fill their remaining workspace, scroll their own rows and retain a **1 / 1** footer. The ordinary Architect now uses the same generated portrait family as other agents; custom uploads remain intact. Inbox views share their row treatment, and Kanban dragging previews the actual card. Guided setup keeps a consistent heading, form and illustration layout through its later steps; continuing an unchanged profile does not report a save.
 
 ## The dashboard
 
@@ -134,16 +200,16 @@ than sitting there empty.
 A switch at the top says whose dashboard it is, and offers only the views you
 may open. Everybody opens on **Me**:
 
-| View             | Answers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Me** | Your period, Briefing and Discover tips; recent conversations, projects, your agents, agents you use most and recent visuals. Decision, background-topic and shared-resource cards are omitted from this default personal view. |
-| **Organization** | The arrangeable page below                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| **Group**        | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch. A group whose members ran nothing in the period says so once, with a way to the group, rather than showing a page of empty cards                                                                                                                                                                                                                                                                                   |
-| **Deployment**   | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| View             | Answers                                                                                                                                                                                                                                                                      |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Me**           | Your period, Briefing and Discover tips; recent conversations, projects, your agents, agents you use most and recent visuals. Decision, background-topic and shared-resource cards are omitted from this default personal view.                                              |
+| **Organization** | The arrangeable page below                                                                                                                                                                                                                                                   |
+| **Group**        | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch. A group whose members ran nothing in the period says so once, with a way to the group, rather than showing a page of empty cards |
+| **Deployment**   | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings                                                                                                                                                                            |
 
 The personal Briefing aligns each title and source with its actions. Discover follows it directly. Recent visuals fit their images inside centered previews. Answered questions stop waiting when the server starts their admitted continuation. Clicking a dismissible toast closes it with a short exit; loading notices remain visible.
 
-Quality-management cards, including **Agents that need attention** and **Improvements waiting for you**, remain available in the organization view through **Customize**. Their decisions, permissions and links to the agent improvement flows are unchanged. Personal waiting counts include only the reader’s tool approvals and open Inbox proposals.
+Quality-management cards, including **Agents that need attention** and **Improvements waiting for you**, remain available in the organization view through **Customize**. Their decisions, permissions and links to the agent improvement flows are unchanged. Personal waiting counts include the reader’s tool approvals, parked chat questions and open Inbox proposals.
 
 The organization's view shows the cards that answer with data, grouped into
 bands. The rest - integrations, channels, routines, knowledge sync, departments,
@@ -205,7 +271,7 @@ snapshot you meant to keep.
 
 ## Routines and watches
 
-New schedules and API triggers are saved paused, then show **Review routine access**. Review sources and select the actions that may run without asking; **Enable routine** saves both choices and activates it. **Finish later** leaves it paused. Explicit agent approvals still apply. Resuming unfinished setup reopens this review; activation revalidates the sources.
+New routines automatically use the agent's available configuration at creation, within an approved access and behavior ceiling. No initial access review is required; missing optional MCP accounts do not block unrelated work. Later source or tool expansions and changes to instructions, skills, context or delegates require the creator's review before running. Model-only updates and safe removals stay within the ceiling. Agent approvals, mandatory platform approvals and native folder consent still apply. The access dialog can instead keep a reviewed snapshot; existing restricted routines retain that policy until the owner changes it.
 
 If **Skip this run** prevents an overlapping occurrence, history records the reason without starting or charging another run. You can stop a waiting run directly in this history when the server permits it. Stopping preserves its spend and lets the next scheduled occurrence proceed. Repeated skips behind the same unfinished run share one history entry.
 
@@ -227,9 +293,23 @@ Projects show descriptions, and agent rows use the same avatars as chat.
 
 Dashboard cards use the same compact rows, service marks and status labels. Counts and charts adapt to the card width, including custom layouts. Loading placeholders follow the kind of content being loaded; an unavailable briefing shows a retry instead of claiming that no proposals exist.
 
-An empty chat greets you by local time, with the composer first and up to four opening messages beneath it. Published agent prompts take priority; AgenticOS can use personal suggestions, cached in the current account session for five minutes. Placeholders hold their space until the source is ready. Inbox and background-work previews and keyboard-shortcut hints stay off the welcome screen; use **Inbox** or **Background work** in navigation to review them.
+A new chat greets you by local time and shows a compact composer. Files sit beside the agent; chat settings and the permission shield sit beside the model. Context usage stays an icon until opened.
+
+Above the composer, an Inbox timeline shows priority items first and sorts each group newest first, with source marks and no dates. Selecting a row prepares an editable action request in the composer; Open Inbox leads to the full list. Approval counts link to the approval queue. Loading, failure and empty states remain distinct. Dictation and calls use the same light surface as the composer. The Architect widget shares the primary action and dictation controls.
+
+Before the first message, Files and context usage remain visible but disabled. The attachment menu shows its available actions directly. Chat controls use compact sections for connections and remembered approvals; Inbox previews show source and priority.
+
+Attachments stay inside the composer on one scrolling row. Safe images show a local thumbnail while uploading; pending uploads show an indeterminate spinner rather than an invented percentage. Tab underlines and segmented selections glide between choices, with immediate selection when motion is reduced.
+
+New chats show up to four opening prompts from the active agent below the composer, in two columns when space permits. Selecting one adds it to an editable draft. Typing hides these prompts without moving the composer; clearing the draft restores them. Focusing the empty field keeps its static `/` command and `@` resource hint visible. IME confirmation does not send a message.
+
+The timeline previews up to two Inbox entries, including any pending-approval link, and links to the full Inbox. Loading reserves space for the preview. Inbox and approval reads reuse cached data immediately across navigation, treat reads as fresh for 30 seconds and retain unused entries for 30 minutes. Refresh failures keep cached items visible with a warning. Account and organization switches retain the existing cache-clearing behavior.
+
+Shared console fields, menu rows, pickers, tabs and settings sections use the same compact presentation. Folding an optional form preserves its draft; a required invalid field can reopen its section. Native disclosures share trigger spacing and animate where intrinsic sizing is supported, with ordinary native opening elsewhere. Reduced motion and larger touch targets remain available.
 
 Opening a saved conversation shows transcript placeholders directly, without flashing welcome suggestions; the sidebar and transcript load independently. Explicit sends glide the message near the top; queued messages do not reposition the reader. Scroll, touch and keyboard input cancel the glide. Shared menus and dialogs use small, eased transitions; the Motion preference disables movement.
+
+The main chat uses a wide composer. Its model library groups connected providers first, with provider logos and capitalized names, and separates the catalog from saved models. Selecting a model applies it directly. Missing credentials can be added through the existing Vault forms inside the picker, including structured provider credentials; the existing permissions and model validation still apply. The microphone and Send controls transition as the draft changes.
 
 ## The inbox { #the-inbox }
 
@@ -243,6 +323,8 @@ when, and the answers in the row. Filter by where they came from, or open
 watches. Shorter rows head your dashboard as **Briefing**, and the empty chat
 with the starter agent offers the first of them as a card, with a link to the
 rest.
+
+**Questions waiting for you** appears under **All** and **Urgent** when a web-chat agent is waiting for your answer. The row shows the chat, agent and expiry time. Open it to answer in the original chat; opening it alone does not clear it. The item counts as waiting until the run continues, is cancelled or the question expires. Only the person the agent asked sees it in Inbox, independently of approval permissions.
 
 What a watch finds that need not be heard at once waits for your morning: at
 the hour your organization's proactivity keeps, one notification and one direct
@@ -539,9 +621,11 @@ Revert runs as a durable job in an isolated conversation workspace. Shared-scope
 
 Revert snapshots are limited to 2 MiB per file and 16 MiB across their before/after blobs; larger changes remain viewable without undo. Verification also bounds reads of older snapshots. Admission allows six requests per person and twenty per organization per minute, with a local ceiling during Redis outages. Each organization runs at most one revert job at a time.
 
-While an agent works, progress messages and their following tool calls appear in arrival order inside one expanded timeline. Completing the run collapses that history under one “Worked for…” or “Thought for…” control, with only the final answer below it. Opening the history restores the same chronological messages and tool groups. Reasoning remains a separate, optional disclosure; its headings do not create process stages. Questions and approvals keep their waiting status until resolved, including delegated requests. Actionable approval cards and visual results remain visible outside completed history.
+Chat uses the same chronological timeline live and from history. Routine tool calls and reasoning stay behind collapsed work controls. Progress messages, answers, question receipts and visual outputs keep their place when a run finishes. Expanding work reveals the individual calls without automatically opening their arguments. Questions and approvals retain their waiting status until resolved.
 
-Consecutive tool calls between messages share a collapsed group; expand it to inspect individual calls.
+Expanded tool steps show raw arguments and results. Charts, generated media, produced files and coding change reports appear once in the conversation, outside work details. Previews use the same authenticated or hosted access boundary as the conversation.
+
+Questions appear inside the conversation, outside the composer dock. Choices stay visible and disabled while answers are submitted, until the server acknowledges them. An acknowledged question becomes a compact answer receipt; expand it once to read all questions and answers. A button above the composer returns to a pending question. Reading earlier messages preserves your position and incoming questions do not steal focus.
 
 Chat approvals stay in one compact card beside the composer: the operation, its icon and the task or object title, with extra arguments behind Details. Approve and Reject sit beside the request, or below it on narrow screens. Completed activity uses a quiet completion mark, waiting steps keep a distinct status, and running steps retain their operation icon instead of animating a separate orb for every call.
 
@@ -549,11 +633,11 @@ Reopening a chat also restores approvals and questions for delegated tools absen
 
 Incoming text remains readable while its Markdown formatting module loads. The composer uses an opaque surface with a quiet focus state, without a moving border or background blur.
 
-The live timeline follows the page flow; completed, expanded history has a height limit and its own scrolling area. Adjacent segments of the same agent run share one summary and the run’s start time, including progress messages between tools and continuations after approval. A different agent or an intervening user message starts a separate turn. Finished and nested agent exchanges remain available, including coding-agent reports; open an exchange to inspect its instructions, response and collapsed reasoning.
+Expanded work has a height limit and its own scrolling area during both live execution and replay. Adjacent segments of the same agent run share one summary and the run’s start time, including progress messages between tools and continuations after approval. A different agent or an intervening user message starts a separate turn. Finished and nested agent exchanges remain available, including coding-agent reports; open an exchange to inspect its instructions, response and collapsed reasoning.
 
 Successful MCP writes show linked cards for projects, tables, tasks, records, agents, workflows, skills and Context. Errors do not become success cards. After sending a message, the chat places it near the top with space for the answer; scrolling manually keeps your position. Person and Agent pickers scroll inside record dialogs. Questions remain available after an approval resumes a chat through HTTP.
 
-Outcome notices also sit beside the composer. Approval notices are hidden while a decision panel is visible or the chat is working, including notices from older runs. Otherwise they link to the approval queue. They never offer Seen, Done or Stop asking: only approving or rejecting the actual request decides the operation. The Inbox and bell retain their own approval notifications.
+Finding notices sit beside the composer. When you reopen or refresh a conversation, pending tool approvals reappear as decision cards with details and Approve and Reject for people who can decide them. Inbox and the bell also surface approval notifications. A single request uses a compact bar with expandable details. In Inbox, Discuss with agent stays visible and other actions move into the row menu. Chat highlights links to console resources and gives inline code its own neutral background.
 
 **Under an answer.** An agent with [Follow-ups](reference/capabilities.md#follow-ups)
 offers up to three next steps as buttons under its latest answer, and a click
@@ -735,22 +819,20 @@ tab of [its Voice card](#an-agents-voice-card):
   limits and what is recorded.
 - Off, or with no key to send it with — the browser's own speech recognition, so
   the audio goes to the browser vendor (Google, Apple) and costs nothing.
-  Firefox has none: its microphone says so when pressed. While it listens, a
-  note above the composer says the agent's Dictation is off, and links whoever
-  may edit the agent to its Dictation tab.
+  Firefox has no built-in speech recognition. The composer reports if the microphone or recognition is unavailable.
 
-With a provider, pressing the microphone floats a **recording pill** above the
-composer, which does not change: Cancel, the level, a timer and Stop. **Enter**
+With a provider, the main chat displays Cancel, audio level, a timer and Stop inside the composer.
+**Enter**
 stops and transcribes, **Escape** cancels, and nothing typed or pressed while a
 recording is running or being transcribed is sent. The recording stops by itself
 at the organization's longest dictation and is transcribed, and a microphone
 unplugged mid-way ends it the same way rather than discarding it. While the
 recording uploads, the pill shows how much has gone up, once that takes longer
-than a second; after that it says **Transcribing** until the text arrives. The
-browser's recognition has a pill of its own, with **Done**.
+than a second; after that it says **Transcribing** until the text arrives.
 
-Everything dictation has to say appears in a strip above the composer, beside
-the pill: the permission prompt, a blocked or missing microphone, the last 30
+The browser's recognition shows **Listening** with **Done**. Typing or sending from the main composer ends browser dictation. The primary button shows Send when a draft is ready.
+
+Dictation notices appear above the composer: the permission prompt, a blocked or missing microphone, the last 30
 seconds, five seconds without sound, a recording under a second (not sent), a
 recording that stopped at the limit, and every failure. How many words were
 inserted is announced to a screen reader rather than shown, since the words are
@@ -959,7 +1041,7 @@ In full desktop chat, **Tasks** on the right opens background work beside the co
 
 Enable **Background topics** on a published agent to ask, for example: “Investigate the export bug in a new topic while we continue the release plan”, or “Have the finance agent check these figures while we discuss the proposal”. It can use its own pinned version or a published delegate pinned in its spec. Start from a conversation you own; the fresh topic belongs to the same project and carries the agent's brief and a link back, without copying the original transcript.
 
-The **Background topics** strip above the composer shows queued, working and waiting tasks. Open the independent topic to inspect its work or answer an ordinary approval/question. **Stop** cancels further work; it cannot undo file edits or external actions already completed. The dashboard has the same tasks. Up to four may be active per person; a task and its result turn cannot spawn another background topic.
+Open **Background work** in the sidebar to see active and past tasks. Open the independent topic to inspect its work or answer an ordinary approval/question. **Stop** cancels further work; it cannot undo file edits or external actions already completed. The dashboard also has a background work widget. Up to four may be active per person; a task and its result turn cannot spawn another background topic.
 
 When the task finishes, the original agent wakes for a result turn using the conversation's current history. It waits for foreground turns to finish and summarizes without tools, so task output cannot become permission for another action. Your selected main model and reasoning setting are retained; local inference stays local. Local coding work stays on the exact paired computer and approved folder. The child keeps its ordinary budgets and approvals. Closing the chat does not cancel it. A worker interruption is reported and external actions are not automatically replayed. Tasks waiting for an approval continue after it; missing membership or project access stops new work and result delivery.
 
@@ -1036,7 +1118,7 @@ opens its wizard to be read, with what was decided on its last step; see
 
 Organization details use three tabs: **Members**, **Budget and approvals**, and **AI & services**. Members has name/email search, a role filter and the latest recorded action in this workspace. This is an audited action, not a visit or sign-in; impersonated actions are excluded and missing history shows a dash. **Edit workspace** opens a guarded name, avatar and colour dialog. AI & services uses individual function cards without parent groups. Expand configuration without losing drafts. Controls retain their own permission gates. Old `?tab=profile` links open the workspace dialog; `?tab=voice` and `?tab=proactivity` open their settings in AI & services.
 
-Daily briefing & suggestions is one service, configured once rather than through duplicate controls. Its card also shows spending and recent executions. Memory maintenance has its own model and budget and starts off. Choose a model before enabling either service. AI Architect keeps its switch visible and opens the Agent Builder from its expanded card, without a greeting editor. All seven functions share the same card header, icon layout and disclosure controls.
+Daily briefing & suggestions is one service, configured once rather than through duplicate controls. Its card also shows spending and recent executions. Memory maintenance has its own model and budget and starts off. Choose a model before enabling either service. AI Architect keeps its switch and direct Agent Builder link visible, without a greeting editor or an extra disclosure. Other services use the same card header and icon layout, with disclosures only where they contain editable settings.
 
 After signing in, addressed email invitations also appear in the console and onboarding without opening the email link. The recipient chooses a workspace and accepts explicitly; Later keeps an Invitations shortcut available. Only live invitations to the account’s current email are shown, excluding shareable links and organizations already joined. Acceptance switches to the chosen organization and opens its welcome flow. The server never returns the invitation token through this inbox.
 
@@ -1146,7 +1228,7 @@ List footers stay at the bottom of their panel, with a solid background and cons
 
 The administration organization directory shows the uploaded organization picture, or initials in its chosen color when no image is set. Image access is limited to deployment administrators; the regular organization avatar route continues to require membership.
 
-**Chat controls → Tools & files** shows the coding account an agent needs when its Coding agent runs as **Private cloud task with my account**: only that harness, with its logo and consent status. Connect or manage it without leaving the chat; every account appears under **Settings → Profile**. Connecting does not change the agent’s execution mode: private cloud tasks still require **Private cloud task with my account**, while desktop coding uses its separate local sign-in.
+**Chat controls → Tools & files** shows both Claude Code and Codex connections when an agent uses **Private cloud task with my account**, with separate logos and consent status. Connect or manage either without leaving chat; all accounts appear under **Settings → Profile**. Each task uses only the initiating person’s enabled account for its selected harness. The default harness is a starting choice, not an exclusive provider. Connecting does not change the agent’s execution mode; desktop coding still uses separate local sign-ins.
 
 ## Your first task
 
@@ -1154,11 +1236,7 @@ In a new organization, the shipped **AgenticOS** is selected before publication 
 
 When no published agent is available, onboarding offers somebody who may prepare an agent **Connect a model**, which picks a model and prepares one. Everybody else is offered an accessible shipped AgenticOS draft as a setup chat. Members can open it without model-management permissions; it provides configuration guidance, not an AI task result. Inaccessible drafts remain unavailable, and an accessible published agent takes precedence.
 
-Closing the start banner or choosing **Hide for 24 hours** snoozes the offer for 24 hours,
-using server time. It can return afterward if setup is unfinished and the organization still
-needs a first start. After going through the questions, **Finish setup and open the app**
-records completion for this membership. Optional fields, invitations, a model, an agent
-and an AI run are not required. Completion and a successful task are separate states.
+Closing the start offer snoozes it for this membership’s effective 1, 3 or 7 day interval, using server time. It can return if setup is unfinished and reminders are enabled. After the questions, **Finish setup and open the app** records completion for this membership. Optional fields, invitations, a model, an agent and an AI run are not required. Completion and a successful task are separate states.
 
 Open **Get started** from the dashboard, the first-use offer or a page's help.
 On desktop, the chat start notice is a translucent overlay above the console.
@@ -1170,12 +1248,12 @@ fails, the sign-in form keeps the destination and the account already created.
 
 The start follows the person's authority and existing work:
 
-| Person | Guided start |
-| --- | --- |
-| Application administrator | Create or choose a company organization, prepare identity and invitations, then decide how future accounts join. |
-| Organization administrator | Prepare their organization and its spending limit; no deployment controls. |
-| New member account | Welcome, optional personal profile and work context, then a first task. |
-| Existing account joining another organization | Welcome to that organization; use the saved personal profile or deliberately review it. |
+| Person                                        | Guided start                                                                                                     |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Application administrator                     | Create or choose a company organization, prepare identity and invitations, then decide how future accounts join. |
+| Organization administrator                    | Prepare their organization and its spending limit; no deployment controls.                                       |
+| New member account                            | Welcome, optional personal profile and work context, then a first task.                                          |
+| Existing account joining another organization | Welcome to that organization; use the saved personal profile or deliberately review it.                          |
 
 A scripted AgenticOS companion explains each decision. These are interface messages,
 not model responses, and they make no AI calls. Personal identity and work context
@@ -1239,7 +1317,7 @@ Member managers can check whether an existing teammate and they can run a common
 
 Completed chat turns keep the text delivered before an agent asks a question visible beside the final answer, including after the question is declined or the run resumes. Tool results and reasoning stay in the expandable work history. This applies to stored conversations and shared chat views; it does not infer answers from text length.
 
-Run history distinguishes the person asking from the publisher whose authority admits an external request. An unlinked channel sender appears as their chat account, explicitly unverified, on desktop and phones; an anonymous request has no invented member identity. The run API retains `user_id` for its authority context and exposes `initiated_by_publisher_fallback` and `asked_in_chat` for truthful attribution. This presentation does not link accounts or grant access to a publisher’s personal connections.
+Run history distinguishes the person asking from the publisher whose authority admits an external request. An unlinked channel sender appears as their chat account, explicitly unverified, on desktop and phones; an anonymous request has no invented member identity. **Asked by** is visible by default. The run API retains `user_id` for its authority context and exposes `initiated_by_publisher_fallback` and `asked_in_chat` for truthful attribution. This presentation does not link accounts or grant access to a publisher’s personal connections.
 
 The period selector sits beside the dashboard view tabs. Recent visuals prefer saved thumbnails; when a thumbnail is unavailable, a drawing is rebuilt for its owner and rendered in the isolated visual frame as its tile approaches the viewport. This fallback does not require a server browser.
 
@@ -1253,6 +1331,6 @@ Settings uses horizontal, scrollable tabs on desktop and phones. Standard settin
 
 Sidebar groups expand and collapse smoothly. Hidden destinations cannot receive focus, and collapsing the sidebar keeps the current destination visible. Motion follows your Appearance settings; reduced motion keeps these controls static.
 
-Settings retains horizontal tabs. API keys and MCP clients share **API & MCP**, with separate access controls and existing URLs; the selected inner view is stored in the URL. Mobile setup is linked from **Account**. Profile groups identity and agent context side by side on wide screens, with separate appearance and linked-account cards. List workspaces stretch to the available height. Organizations and Groups are reached through **Manage organizations** in the workspace switcher rather than duplicated in the sidebar. Page, list and table empty states share the same decorative illustration. Directory waits for permissions and list data before presenting its single empty-state creation action.
+Settings retains horizontal tabs. API keys and MCP clients share **API & MCP**, with separate access controls and existing URLs; MCP is the default view and the URL can select either tab. Mobile setup is linked from **Account**. Profile groups identity and agent context side by side on wide screens, with separate appearance and linked-account cards. List workspaces stretch to the available height. Organizations and Groups are reached through **Manage organizations** in the workspace switcher rather than duplicated in the sidebar. Page, list and table empty states share the same decorative illustration. Directory waits for permissions and list data before presenting its single empty-state creation action.
 
 Personal settings have no separate Assistant tab. Page tips live in **Account**; the old `/settings/assistant` URL redirects there. **Inbox preferences** contains the personal nightly-suggestion delivery switch, while suggestion history and restoration remain in Inbox. Organization models, budgets, memory maintenance and Voice stay in **AI & services**. Form labels share a minimum row height, including inline help; standard inputs and selects use the same height, with larger touch targets on coarse pointers. Compact table filters retain their own size. MCP setup owns its frame rather than being wrapped in a second bordered container.

@@ -723,3 +723,5 @@ changes presentation only, so a client that ignores it gains no additional acces
 ::: app.core.permissions.Scope
 
 ::: app.core.permissions.AuthContext
+
+Installation administration through MCP requires the live application-admin flag and a separately approved OAuth `deployment:admin` scope. It is not a `Perm`, role permission or preset. Organization administration alone cannot grant it. Only an explicitly authorized external client receives it; internal agents, routines and ordinary API keys never inherit it. Reauthorize existing connections to opt in. See [MCP administration](mcp.md#administration-through-mcp).

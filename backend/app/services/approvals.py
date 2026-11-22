@@ -339,6 +339,11 @@ class ApprovalService:
                 details={"approval_id": str(approval_id)},
             )
 
+        # This namespace is reserved for the platform; MCP tools are not capability aliases.
+        if approved and approval.tool_id == "agenticos_change_deployment" and not ctx.is_app_admin:
+            raise AuthorizationError(
+                message="An application administrator must approve this deployment change"
+            )
         if approved and approval.always_asks and await self.hidden_fields(ctx, approval):
             raise AuthorizationError(
                 message=(

@@ -781,17 +781,21 @@ reviewed actions** is an explicit new choice over matching eligible identities; 
 nothing until you save the current review. New actions and changed accounts are not
 selected automatically. Mandatory approvals, revocation and stale-review checks still apply.
 
-An unattended routine asks before capability actions, local file changes and
-delegation. External MCP calls ask unless their server marks them read-only;
-a connection's stronger approval policy still applies. Ordinary interactive
-agent defaults are unchanged. Code mode is disabled for routine runs so bundled
-scripts cannot skip the individual action gates.
+Following routines use the agent's own action approval rules, without an additional routine-wide approval requirement. Restricted routines additionally ask before capability effects, local file changes and delegation, and before external MCP calls not marked read-only. Explicit agent or connection gates and mandatory approvals apply in both modes. Code mode stays disabled for routine runs so bundled scripts cannot bypass individual tool checks.
 
 Writes to AgenticOS Virtual Tables run within their live table and operation grants without a routine exception. An explicit agent approval policy still applies to these internal writes.
 
 The creator can open **Action consent** on their routine and select capability actions and individual MCP actions on a named account. This requires `approvals:decide` and the organization's `chat_may_waive_approvals` switch. An API key, agent, impersonated session or administrator acting for another owner cannot grant it. Explicit required approvals from the agent or an MCP binding cannot be waived here.
 
 An MCP exception names the concrete account, endpoint hash, authorization generation and original action name. Sending mail does not authorize deletion or another account's writes. Personal accounts are offered only when the routine acts as its creator. The picker uses the connection's recorded tool list; check the connection, or ask its administrator, when that list is unavailable. Revoking all consent remains available without a working tool list.
+
+The review lists the agent's capabilities, AgenticOS and each other MCP account as separate sections, each with its groups. Only actions the agent already runs without asking appear: one it asks before cannot be consented to, so it is left out. **Use the agent's settings** selects exactly those actions and replaces the current selection; nothing is saved until you choose **Save consent**.
+
+The **Reviewed sources** panel above it lists the routine's sources by kind - capabilities, skills, knowledge bases, tables, accounts - each kind folded to a count, and each source by its name. A source that no longer exists shows as no longer available; its id is on hover.
+
+When a routine acts as its creator, the AgenticOS server's own tools are listed in the groups the Builder shows: tables, tasks, workflows, agents and the rest. Only tools that change something appear, because reads never ask; tool search does not ask either. A tool the agent asks before is not listed. That covers every change its binding does not set to **Run freely**, and the tools that always ask. So a routine keeps the agent's approvals or adds to them, and never releases one.
+
+A platform exception names the tool alone: the routine's runs reach the platform only as its creator, the only person who can review it.
 
 Saving requires the version and configuration the person reviewed to remain
 current. Consent names the immutable published version, stable capability/tool IDs and
@@ -876,6 +880,8 @@ spend and its recent executions.
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | `daily_briefing`     | The nightly look at each person's week and the briefing built from it                                                                                    | In the Proactivity tab: the same model and limit, shown here read-only |
 | `memory_maintenance` | Reads a completed admitted turn once and records the durable facts, preferences and decisions in it as [claims](reference/capabilities.md#memory-claims) | Here: a switch, a model and a monthly budget of its own                |
+
+Daily briefing reads current personal profile memory and the person's memory with the starter agent, alongside legacy notes. Routine and agent proposals need evidence from separate threads or dates and are checked against prior proposals and existing routines. Memory maintenance compares against current claims in the source scope and requires a quote from a user turn before recording a claim.
 
 Memory maintenance does not require the AgenticOS starter. Its run retains the originating agent as a storage reference and is accounted as `memory_maintenance`; only platform extraction instructions and the role-selected model execute. Removing or unpublishing the starter does not disable extraction for other published agents.
 
@@ -2373,9 +2379,13 @@ The list shows when a routine was paused automatically and its failure count. He
 
 ## Reviewed routine sources { #routine-sources }
 
-A routine freezes its published source configuration, exact MCP accounts, credential consent generations and known tool names when it is created. The review includes pinned delegates, knowledge collections, skills, context and capability configuration; remote A2A registrations also retain their endpoint/card/credential binding. Changing instructions or model settings alone can follow publication. Adding sources, changing an account or granting it renewed consent requires the owner to review the Sources panel in the routine's consent dialog. This review does not waive action approvals or grant access to resources. Current resource permissions still apply.
+New routines automatically admit the selected published agent's initial available configuration within the creator's current permissions. Safe source removals and changes limited to the root agent’s model or display metadata can follow without review. New sources, accounts or tools, changed instructions or variables, and changed capability, effective skill, context or delegated behavior require the owner's access review before another execution. Publishing a shared agent alone cannot expand a person's standing authority. Missing optional MCP accounts do not block unrelated work; required event inputs, identity, resource grants, budgets and mandatory approvals remain enforced.
 
-Queued activations, offline waits and parked runs keep their original review identity. A later review never lends new authority to old work. The mailbox poll checks the input account before reading, and its events retain the review admitted before that read. MCP calls use reviewed aliases and exclude unreviewed tools; unavailable reviewed sources produce an explicit refusal. A review needed before an execution appears in the owner's existing attention case and does not count as a model failure.
+Changing a pinned delegate version requires review, including a model-only publication of that delegate.
+
+The owner may instead select `restricted`, which freezes the reviewed source configuration, exact MCP accounts, credential generations and known tool names. Its review includes pinned delegates, knowledge, skills, context, capabilities and remote A2A registrations. New sources or changed account authorization require another review. Existing policies without a mode remain restricted; upgrading does not silently broaden them.
+
+Every admitted execution retains its own source and account snapshot. A parked run cannot borrow a later account, authorization or review. Source ownership, revocation and tool allowlists are checked again before calls. Missing optional tools are reported rather than treated as successful work. The owner can explicitly switch an existing routine's mode through its token-bound access settings.
 
 Migration `0276_routine_sources.py` leaves existing routines without consent. Drain old workers, update API and workers together, then explicitly review legacy routines before running them. Only the console owner may replace a review; API keys, impersonation and unattended agents cannot do so.
 

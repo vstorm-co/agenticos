@@ -148,3 +148,18 @@ it("names an OpenSandbox server and shows its configured address", () => {
   expect(screen.getByText("OpenSandbox")).toBeInTheDocument();
   expect(screen.getByText("https://sandbox.example")).toBeInTheDocument();
 });
+
+it("pages all held connections and preserves row actions on later pages", async () => {
+  const user = userEvent.setup();
+  const handlers = mount(
+    Array.from({ length: 51 }, (_, index) =>
+      connection({ id: `host-${index}`, name: `Host ${String(index).padStart(2, "0")}` }),
+    ),
+  );
+  expect(screen.getByText("1 / 2")).toBeInTheDocument();
+  expect(screen.queryByText("Host 50")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Next page" }));
+  expect(screen.getByText("Host 50")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /Edit/ }));
+  expect(handlers.onEdit).toHaveBeenCalledWith(expect.objectContaining({ id: "host-50" }));
+});

@@ -170,14 +170,23 @@ class TestSpecContract:
         assert AgentSpec.from_yaml(spec.to_yaml()) == spec
 
     @pytest.mark.security
-    def test_the_platform_server_takes_no_approval_per_tool(self):
-        """Its calls act with the asker's own authority and never drop below
-        `writes`; a tool's `never` would be the way under that floor."""
-        with pytest.raises(ValueError, match="tool_approval"):
-            AgentSpec(
-                name="x",
-                mcp_servers=[{"account": "platform", "tool_approval": {"publish_agent": "never"}}],
-            )
+    def test_the_platform_server_releases_only_the_tools_it_names(self):
+        """Its calls act with the asker's own authority: `none` is held to `writes`
+        when the run attaches it, and a change runs unasked only where the spec
+        names that one tool `never`."""
+        spec = AgentSpec(
+            name="x",
+            mcp_servers=[
+                {
+                    "account": "platform",
+                    "approval": "none",
+                    "tool_approval": {"add_virtual_table_record": "never"},
+                }
+            ],
+        )
+
+        (platform,) = spec.mcp_servers
+        assert platform.tool_approval == {"add_virtual_table_record": "never"}
 
     def test_a_tool_cannot_be_bound_twice(self):
         """A duplicate would silently shadow itself in the toolset."""

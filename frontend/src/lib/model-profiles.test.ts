@@ -5,6 +5,7 @@ import {
   hasKey,
   modelDetail,
   modelInUse,
+  modelName,
   modelShortName,
   runsAgents,
   usableForAgents,
@@ -55,6 +56,25 @@ describe("modelDetail", () => {
 
   it("still names the model where only the provider is in the name", () => {
     expect(modelDetail(profile({ label: "openai default" }))).toBe("openai · gpt-4.1");
+  });
+});
+
+describe("modelName", () => {
+  it("uses the catalog's spelling for a profile with an automatic label", () => {
+    expect(
+      modelName(
+        profile({
+          label: "OpenRouter · anthropic/claude-sonnet-5",
+          provider: "openrouter",
+          model: "anthropic/claude-sonnet-5",
+        }),
+        "Anthropic: Claude Sonnet 5",
+      ),
+    ).toBe("Claude Sonnet 5");
+  });
+
+  it("keeps a custom profile label when a catalog name is available", () => {
+    expect(modelName(profile(), "GPT-4.1")).toBe("the cheap one");
   });
 });
 

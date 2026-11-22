@@ -35,6 +35,7 @@ class PersonalCodingTask:
     base_revision: str
     result_archive: str
     selection_reason: Literal["manual_default", "opt_in_pool"] = "manual_default"
+    resumed: bool = False
     redactions: tuple[SecretStr, ...] = field(default=(), repr=False)
     api_key: SecretStr | None = field(default=None, repr=False)
     sign_in: SignIn | None = field(default=None, repr=False)
@@ -48,4 +49,5 @@ class PersonalCodingExecutor(Protocol):
         *,
         harness: Harness,
         timeout_seconds: int,
+        session: str = "main",
     ) -> AbstractAsyncContextManager[PersonalCodingTask]: ...
