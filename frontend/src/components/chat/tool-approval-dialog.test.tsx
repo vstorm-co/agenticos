@@ -10,8 +10,9 @@ import type { Permission } from "@/types/permissions";
 /**
  * What the caller may do. Every case below describes the decision itself, which
  * is offered only to somebody holding `approvals:decide` - the permission on the
- * two endpoints `onDecisions` calls. `tool-approval-dialog.integration.test.tsx`
- * covers that gate, against the real hook.
+ * two endpoints `onDecisions` calls - and, where the backend answered per action,
+ * only on a run that is theirs: a member holds the permission at `OWN`.
+ * `tool-approval-dialog.integration.test.tsx` covers that gate, against the real hook.
  */
 const held: { permissions: Permission[] } = { permissions: [] };
 
@@ -72,6 +73,32 @@ describe("the tool approval dialog", () => {
     expect(screen.getByRole("group", { name: "Tool approval required" })).toBeVisible();
     // The catalog's words - the same ones the step above it uses - as a question.
     expect(screen.getByText("Allow Run Python?")).toBeVisible();
+  });
+
+  it("does not offer the decision on a run that is not this person's", () => {
+    // A member holds `approvals:decide` at `OWN`, so the role check alone
+    // would offer them a Submit on somebody else's reloaded run and have the
+    // API refuse it on the first call. The backend's per-action `can_decide`
+    // narrows it: what stays is the call itself and the sentence saying who
+    // can decide.
+    const onDecisions = mount([action("a-1", { can_decide: false })]);
+
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
+    expect(
+      screen.getByText(
+        "Approving or refusing this needs a permission you do not hold. The run waits until somebody who can decide approvals does.",
+      ),
+    ).toBeVisible();
+    expect(onDecisions).not.toHaveBeenCalled();
+  });
+
+  it("offers the decision when the backend says this person may decide it", () => {
+    const onDecisions = mount([action("a-1", { can_decide: true })]);
+
+    expect(screen.getByRole("button", { name: "Approve" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeVisible();
+    expect(onDecisions).not.toHaveBeenCalled();
   });
 
   it("reads a call from an MCP server as its service and what it does there", () => {

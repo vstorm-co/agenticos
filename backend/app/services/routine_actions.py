@@ -15,7 +15,7 @@ from app.agents.mcp import approval_needed
 from app.agents.spec import AgentSpec, OrgMcpServerRef, PersonalMcpServerRef, PlatformMcpServerRef
 from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.mcp_connection import McpConnection
 from app.repositories import agent_repo, agent_trigger_repo, mcp_connection_repo, organization_repo
@@ -322,7 +322,11 @@ class RoutineActionService:
             review_changes.append("actions")
         organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
         blocked: WaiveBlockedReason | None = None
-        if not ctx.has(Perm.APPROVALS_DECIDE):
+        # Standing consent for an unattended routine is the stricter regime:
+        # it takes a privileged decider, not merely somebody who may decide
+        # their own run's approvals in chat. `approvals:decide` at `OWN`
+        # decides one chat run, not what a schedule may do unwatched.
+        if not ctx.has_at(Perm.APPROVALS_DECIDE, Scope.ALL):
             blocked = "permission"
         elif organization is None or not organization.chat_may_waive_approvals:
             blocked = "organization"
@@ -350,7 +354,7 @@ class RoutineActionService:
         if data.actions:
             organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
             if (
-                not ctx.has(Perm.APPROVALS_DECIDE)
+                not ctx.has_at(Perm.APPROVALS_DECIDE, Scope.ALL)
                 or organization is None
                 or not organization.chat_may_waive_approvals
             ):

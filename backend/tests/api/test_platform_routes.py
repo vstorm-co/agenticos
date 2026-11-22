@@ -37,6 +37,7 @@ from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import NotFoundError, RunExecutionError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
+from app.db.models.agent_run import RunSurface
 from app.db.models.ml_service_call import MLServiceCall
 from app.db.models.resource_grant import Visibility
 from app.main import app
@@ -384,8 +385,10 @@ CALLS: tuple[Call, ...] = (
         Perm.RUNS_VIEW,
         query="?started_from=2020-01-01T00:00:00&started_to=2020-01-02T00:00:00",
     ),
-    Call("GET", "/runs/{run_id}", Perm.RUNS_VIEW),
-    Call("POST", "/runs/{run_id}/retry", Perm.RUNS_VIEW),
+    # `GET /runs/{run_id}` and `POST /runs/{run_id}/retry` carry no gate: `runs:view`
+    # opens any run, and the person who started one opens and retries that one
+    # without it - the link in an expired-approval notice. The runner service decides;
+    # `tests/test_own_run_open.py` proves the refusals.
     Call("GET", "/runs/{run_id}/parked", Perm.APPROVALS_DECIDE),
     Call("POST", "/runs/{run_id}/resume", Perm.APPROVALS_DECIDE),
     Call("GET", "/approvals", Perm.APPROVALS_DECIDE),
@@ -395,7 +398,9 @@ CALLS: tuple[Call, ...] = (
         Perm.APPROVALS_DECIDE,
         query="?created_from=2020-01-01T00:00:00&created_to=2020-01-02T00:00:00",
     ),
-    Call("POST", "/approvals/{approval_id}", Perm.APPROVALS_DECIDE, body={"approved": True}),
+    # No `POST /approvals/{approval_id}` entry: the route carries no gate -
+    # see `get_parked_run_service` above - so there is no permission for the
+    # table to demand of it.
     Call("GET", "/spend", Perm.RUNS_VIEW),
     Call(
         "GET",
@@ -1279,6 +1284,12 @@ RESOURCE_AWARE_SERVICES = (
     # which is what made a listing of *their own* files an operator screen.
     # `TestWorkspacesAreScopedToTheirReader` is where those refusals are proven.
     deps.get_sandbox_workspace_service,
+    # Deciding a parked tool call is per run, not per role: a privileged
+    # decider may decide any run, anybody else only a run they started, from
+    # a signed-in web/chat session. The route carries no gate for exactly that
+    # reason, and the service refuses the rest. `TestOwnRunApprovalDecides`
+    # proves the refusals.
+    deps.get_parked_run_service,
     # The stats service decides per *scope parameter* rather than per grant on
     # a row - org-wide numbers demand runs:view, a caller's own rows demand
     # only that there is a caller. A route gate would refuse a member's
@@ -1538,6 +1549,9 @@ class TestReadingWhatARunIsParkedOn:
                 "subagent_name": None,
                 "content_hidden": False,
                 "always_asks": False,
+                # The stubbed calls carry the field's default: nothing here
+                # said this caller may decide them.
+                "can_decide": False,
             },
             {
                 "id": str(shared_id),
@@ -1552,6 +1566,7 @@ class TestReadingWhatARunIsParkedOn:
                 "subagent_name": None,
                 "content_hidden": False,
                 "always_asks": False,
+                "can_decide": False,
             },
         ]
 
@@ -1571,6 +1586,38 @@ class TestReadingWhatARunIsParkedOn:
             response = await client.get(_url(f"/runs/{uuid4()}/parked"))
 
         assert response.status_code == 404
+
+    @pytest.mark.parametrize(
+        ("started_by_caller", "status"), [(True, 200), (False, 403)], ids=["own-run", "other-run"]
+    )
+    async def test_a_caller_holding_decide_only_at_own_reads_only_their_own_runs_calls(
+        self,
+        as_role: ClientFactory,
+        monkeypatch: pytest.MonkeyPatch,
+        started_by_caller: bool,
+        status: int,
+    ) -> None:
+        """A colleague's parked run reads as a refusal, not as an empty list."""
+        monkeypatch.setitem(ROLE_PERMS, "test:own-decide", {Perm.APPROVALS_DECIDE: Scope.OWN})
+        run = MagicMock(
+            id=uuid4(),
+            user_id=_CALLER_ID if started_by_caller else uuid4(),
+            surface=RunSurface.WEB.value,
+            initiated_by_publisher_fallback=False,
+        )
+
+        class _Parked:
+            async def get_run(self, *args: Any, **kwargs: Any) -> Any:
+                return run
+
+            async def parked_calls(self, *args: Any, **kwargs: Any) -> list[ParkedCall]:
+                return []
+
+        overrides = {deps.get_agent_runner_service: lambda: _Parked()}
+        async with as_role("test:own-decide", overrides) as client:
+            response = await client.get(_url(f"/runs/{run.id}/parked"))
+
+        assert response.status_code == status
 
 
 class TestTheQueueNamesWhatItAsks:

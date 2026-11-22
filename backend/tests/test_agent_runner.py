@@ -4078,6 +4078,11 @@ class TestApprovals:
                 "app.services.approvals.agent_run_repo.get_approval",
                 new=AsyncMock(return_value=approval),
             ),
+            # The decision is checked against the run it belongs to.
+            patch(
+                "app.services.approvals.agent_run_repo.get_run",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
             patch(
                 "app.services.approvals.agent_run_repo.decide_approval",
                 new=AsyncMock(return_value=approval),
@@ -4103,6 +4108,11 @@ class TestApprovals:
             patch(
                 "app.services.approvals.agent_run_repo.get_approval",
                 new=AsyncMock(return_value=approval),
+            ),
+            # The decision is checked against the run it belongs to.
+            patch(
+                "app.services.approvals.agent_run_repo.get_run",
+                new=AsyncMock(return_value=MagicMock()),
             ),
             pytest.raises(BadRequestError),
         ):
@@ -4133,6 +4143,11 @@ class TestApprovals:
             patch(
                 "app.services.approvals.agent_run_repo.get_approval",
                 new=AsyncMock(return_value=approval),
+            ),
+            # The decision is checked against the run it belongs to.
+            patch(
+                "app.services.approvals.agent_run_repo.get_run",
+                new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
                 "app.services.approvals.agent_run_repo.decide_approval",

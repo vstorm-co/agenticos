@@ -785,7 +785,7 @@ Following routines use the agent's own action approval rules, without an additio
 
 Writes to AgenticOS Virtual Tables run within their live table and operation grants without a routine exception. An explicit agent approval policy still applies to these internal writes.
 
-The creator can open **Action consent** on their routine and select capability actions and individual MCP actions on a named account. This requires `approvals:decide` and the organization's `chat_may_waive_approvals` switch. An API key, agent, impersonated session or administrator acting for another owner cannot grant it. Explicit required approvals from the agent or an MCP binding cannot be waived here.
+The creator can open **Action consent** on their routine and select capability actions and individual MCP actions on a named account. This requires `approvals:decide` at `ALL` and the organization's `chat_may_waive_approvals` switch. An API key, agent, impersonated session or administrator acting for another owner cannot grant it. Explicit required approvals from the agent or an MCP binding cannot be waived here.
 
 An MCP exception names the concrete account, endpoint hash, authorization generation and original action name. Sending mail does not authorize deletion or another account's writes. Personal accounts are offered only when the routine acts as its creator. The picker uses the connection's recorded tool list; check the connection, or ask its administrator, when that list is unavailable. Revoking all consent remains available without a working tool list.
 
@@ -1221,7 +1221,7 @@ the database.
 | Ask                     | Answer                                                                                        |
 | ----------------------- | --------------------------------------------------------------------------------------------- |
 | `GET /runs/export`      | Run history, the same filters as `GET /runs` and the same top-level-only default. `runs:view` |
-| `GET /approvals/export` | The approvals record, the same filters as `GET /approvals`. `approvals:decide`                |
+| `GET /approvals/export` | The approvals record, the same filters as `GET /approvals`. `approvals:decide` — a caller holding it only at `OWN` exports their own runs' rows |
 | `GET /spend/export`     | The per-agent spend breakdown, the same window as `GET /spend`. `runs:view`                   |
 | `GET /audit/export`     | The audit trail over a window, CSV or JSONL (`?fmt=`). `audit:read`                           |
 
@@ -1458,8 +1458,9 @@ Five properties worth knowing:
   with the pending calls (the approval to decide, the tool, its arguments), which
   is how the chat rebuilds the approval panel the live
   `tool_approval_required` frame gave to whoever was watching. It answers empty
-  for a run that is not parked, and it is gated on `approvals:decide` like the
-  queue, because its rows are offered to be decided
+  for a run that is not parked, and it is gated on deciding the run - a privileged
+  decider, or the person who started it - like the queue, because its rows are
+  offered to be decided
   ([#601](https://github.com/vstorm-co/agenticos/issues/601)). The step does not
   read as waiting for ever: a resume settles it with what the call returned, an
   expiry settles it with the timeout notice.
@@ -1578,14 +1579,15 @@ Four things make it a session setting rather than a hole in the model:
   a fresh run and a resumed one share, rather than at the socket a caller could
   forget.
 - **Waiving needs `approvals:decide`, and the organization's leave.** A standing
-  consent _is_ the decision the approval queue exists to record, and `member` and
-  `builder` run agents without holding it — so without the permission check the
-  everyday chat user grants themselves, in one click, the authority the API
-  refuses them one endpoint over. The organization's own switch
-  (`chat_may_waive_approvals`, on by default for new organizations, changed by somebody holding
-  `approvals:decide`) is the ceiling: without one, a Builder's deliberate gate on
-  `send_email` is one click from nothing in every conversation and the per-tool
-  model is advisory.
+  consent _is_ the decision the approval queue exists to record, and a member or
+  builder holds the permission at `OWN` - their own runs only - so they may waive
+  a run they start, from a signed-in web/chat session, and nothing else. Without
+  the permission check the everyday chat user grants themselves, in one click,
+  the authority the API refuses them one endpoint over. The organization's own
+  switch (`chat_may_waive_approvals`, on by default for new organizations,
+  changed only by somebody holding `approvals:decide` at `ALL`) is the ceiling:
+  without one, a Builder's deliberate gate on `send_email` is one click from
+  nothing in every conversation and the per-tool model is advisory.
 - **No channel still means no.** Only a web chat session may waive. A schedule, a
   webhook, an embed and a channel are all refused, because `ApprovalGate` already
   refuses a run with nobody to ask and standing consent must not become the way
@@ -1619,7 +1621,7 @@ queue, so its approvals are decided in the call, by the person on it:
 - **60 seconds** without a decision expires it, with no decider - the same null
   the sweep writes. A call that ends for any reason expires whatever it was
   still waiting on.
-- A member without `approvals:decide` is told plainly, and the tool is refused.
+- A caller without `approvals:decide` is told plainly, and the tool is refused.
   A visitor on a widget or a hosted page never sees a tool that needs an
   approval: it is left out of their call.
 
@@ -1642,6 +1644,16 @@ hourly sweep denies by timeout anything still pending past `APPROVAL_EXPIRY_HOUR
 Such a run sits in history and in the oldest-waiting age on the dashboard, so the
 sweep follows each expired call down to the run behind it and ends it, `cancelled` —
 nobody came back, and what it spent before it parked stands.
+
+The run's owner is told it died, with the reason and the run to retry it from: a
+run that parked in a chat already heard the expiry there, so a web-console run's
+owner is told through the notification centre instead - one notice, naming the
+agent and the tool, and a link to the run, where Retry is one click. The row on
+its own only ever reads `cancelled`, which is no notice at all.
+
+The starter opens that run, reads its transcript and retries it without `runs:view`, which a member does not hold: the run is theirs by its stored starter, from a signed-in web session with an active membership, and only while they still hold `approvals:decide` - they need the run to decide it. No other run opens this way, and the run's manifest, the runs list and exports stay with `runs:view`. An API key, a publisher's fallback identity, a routine, an impersonated session and another member's run are refused.
+
+The notice goes only to a starter who could still decide the approval, by the same check as the decision itself, so a starter demoted to viewer or removed from the organization hears nothing.
 
 Three things it deliberately does not do:
 
@@ -1768,8 +1780,8 @@ own record. A step that names its approvers can be decided only by
 them. One nobody decides in time expires, and a cancelled run cancels its requests.
 
 A step that names approvers or [approval groups](#approval-groups) tells those
-approvers and the group members holding `approvals:decide`. A step naming
-neither tells everyone holding `approvals:decide`. They are told at the bell,
+approvers and the group members holding `approvals:decide` at `ALL`. A step naming
+neither tells everyone holding `approvals:decide` at `ALL`. They are told at the bell,
 and the request leads the Inbox of whoever may decide it.
 
 A step that is `editable` also shows the approver a proposal, such as a drafted
@@ -1986,23 +1998,27 @@ it reports is edited there.
 
 ### The approval alert is two emails
 
-`approvals:decide` belongs to `owner`, `admin` and `operator`. The default
-audience for a parked call includes whoever started the run, and a builder
-starting their own agent from the chat is the ordinary initiator - so the alert
-routinely reached somebody the platform would refuse. They got **"waiting on
-your approval"** with a **Review the request** button, followed it, and Activity
-drew no Approvals tab at all: the refusal arriving as an absent tab rather than a
-sentence.
+`approvals:decide` at `ALL` belongs to `owner`, `admin` and `operator`; member
+and builder hold it at `OWN`, for a run they started. The default audience for
+a parked call includes whoever started the run, and a builder starting their own
+agent from the chat is the ordinary initiator - so the alert used to reach
+somebody the platform would refuse. They got **"waiting on your approval"** with
+a **Review the request** button, followed it, and Activity drew no Approvals tab
+at all: the refusal arriving as an absent tab rather than a sentence.
 
-So the audience is split by the permission rather than trimmed to it:
+So the audience is split by whether the recipient may decide *this* run, rather
+than trimmed to the permission:
 
 | Recipient holds    | Gets                                                                                                                      |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `approvals:decide` | the request, with the link to the queue                                                                                   |
-| anything less      | the _fact_: the run is held not failed, approving it belongs to an owner, admin or operator, and nothing is asked of them |
+| `approvals:decide` at `ALL` | the request, with the link to the queue                                                                            |
+| the run's owner, at `OWN` | the request, with the link to their own queue - their own runs' rows, not the organization's                        |
+| anything less      | the _fact_: the run is held not failed, deciding it belongs to its owner or a privileged decider, and nothing is asked of them |
 
 Trimming instead would leave the one person definitely waiting on the run - the
 person who started it - hearing nothing about why it stopped.
+
+The link is held to the same check as the decision. A run's owner who was demoted to viewer since the run parked, and a publisher whose fallback identity stood in for a stranger, read the fact without the link, in the inbox and in the e-mail.
 
 The second email carries **no link**, and that is deliberate rather than
 unfinished. `agents:view` being a role permission does not make one agent
@@ -2435,7 +2451,7 @@ private Inbox cases.
 
 ## Approval groups
 
-Workflow human-approval and MCP-call steps can name individual approvers, organization groups, or both. Any one eligible person may decide, and they must independently hold `approvals:decide`. With neither users nor groups configured, the existing unrestricted permission-based rule applies. A configured empty or deleted group never makes a request unrestricted.
+Workflow human-approval and MCP-call steps can name individual approvers, organization groups, or both. Any one eligible person may decide, and they must independently hold `approvals:decide` at `ALL`. With neither users nor groups configured, the existing unrestricted permission-based rule applies. A configured empty or deleted group never makes a request unrestricted.
 
 Group membership and active account status are checked at decision time. Notifications resolve eligible group members when the request is created and deduplicate overlap with named users. Joining later can grant decision eligibility without sending another notification; leaving or losing permission removes it.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "755ac26ee3be"
+source_sha: "45127605c8f9"
 ---
 
 # Permisos { #permissions }
@@ -101,6 +101,16 @@ Los permisos **globales** son binarios y valen para toda la organización:
 `members:view`, `members:manage`, `roles:manage`, `org:settings`, `org:delete`,
 `budgets:manage`, `approvals:decide`, `promotions:override`, `connections:view`, `connections:manage`,
 `channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`, `mcp:personal:use`.
+
+Una excepción: `approvals:decide` es global, pero `member` y `builder` lo tienen en
+`OWN`, solo para un run que ellos mismos iniciaron. El scope se aplica por run en el
+camino de la decisión, no por el rol — un rol no puede ver a qué run pertenece una
+approval — así que un `member` puede decidir la approval de su propio run desde una
+sesión web o de chat con sesión iniciada, y la de ningún otro. Las approvals ajenas,
+las approvals de workflow, el consentimiento permanente para routines y el interruptor
+de waiver de la organización quedan en manos de `owner`, `admin` y `operator`.
+
+La misma persona abre su propio run, lee su transcripción y lo reintenta sin `runs:view`, que es como funciona el enlace del aviso de caducidad para un `member`. Lee solo su propio run, como sesión web iniciada con una membresía activa y solo mientras conserve `approvals:decide`. No ve enlace de trace ni runs vecinos, y el manifiesto sigue con `runs:view`. Las claves de API, el respaldo del publicador, las routines y las sesiones suplantadas no obtienen nada de esto.
 
 El scope explícito `mcp:personal:use` permite que las ejecuciones externas por API u OAuth usen las conexiones MCP personales del emisor de la credencial. Selecciónelo en **Custom** y confirme la delegación; ningún ajuste predefinido, incluido **Full access**, lo contiene, y las credenciales existentes conservan solo el acceso de la organización. No concede memoria personal, búsqueda de conversaciones ni consentimiento para rutinas. Las reanudaciones tras una aprobación conservan el propietario y la credencial originales; antes de invocar herramientas personales se comprueban de nuevo las cuentas conectadas, los scopes actuales de la clave y el acceso al agente principal y a los subagentes seleccionados automáticamente.
 
@@ -217,9 +227,9 @@ Hoy `TEAM` no lo usa ningún rol integrado; existe para los roles personalizados
 | --- | --- | --- | --- | --- |
 | `owner` | posee la organización | todos `ALL` | `ALL` | todo, incluido `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
 | `admin` | la lleva en el día a día | todos `ALL` | `ALL` | todo **menos** `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
-| `builder` | construye, y aprende de toda la organización | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:use`/`mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `builder` | construye, y aprende de toda la organización | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `approvals:decide` `OWN`, `mcp:use`/`mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `operator` | mantiene sano el sistema en marcha | `view`/`run` `ALL`, sin edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
-| `member` | el usuario de cada día | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
+| `member` | el usuario de cada día | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `approvals:decide` `OWN`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `viewer` | lee | `view` `SHARED` | ninguno | `members:view` |
 
 La distinción entre `builder` y `admin` es la interesante: un builder ve la

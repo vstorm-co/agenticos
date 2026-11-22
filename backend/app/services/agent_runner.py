@@ -309,7 +309,7 @@ from app.core.exceptions import (
     RunExecutionError,
     RunFailedError,
 )
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 from app.core.tool_identity import ToolIdentity
 from app.core.update_gate import require_admission
@@ -376,6 +376,7 @@ from app.services.agent_registry import (
     models_a_run_reaches,
 )
 from app.services.api_key import ApiKeyService, mint_for_run
+from app.services.approval_authority import may_decide_approval, may_open_own_run, may_waive_own_run
 from app.services.approvals import ApprovalService, withhold
 from app.services.attachments import (
     UPLOAD_DIR,
@@ -4429,11 +4430,14 @@ class AgentRunnerService:
         Three things have to hold for `APPROVE_ALL`, and each is a different
         failure if it does not:
 
-        - the caller holds `approvals:decide`. A standing consent *is* the
-          decision the approval queue exists to record, and `member` and `builder`
-          hold `agents:run` without it - so without this gate the everyday chat
-          user grants themselves, in one click, the authority the API refuses them
-          one endpoint over;
+        - the caller may waive for a run they start: a privileged decider, or
+          a signed-in person holding `approvals:decide` deciding their own
+          run in advance. A standing consent *is* the decision the approval
+          queue exists to record, and a member who may decide each of their
+          own calls one by one may also say so once, for that conversation -
+          but only there: a key, a routine, a publisher fallback or an
+          impersonated session may not waive, even when the role behind it
+          could, because none of them is the person the run belongs to;
         - the organization allows waiving at all. Without a ceiling a Builder's
           deliberate gate is one click from nothing in every conversation, which
           makes the per-tool model advisory;
@@ -4451,7 +4455,7 @@ class AgentRunnerService:
                 message="Approvals can only be waived from a chat session.",
                 details={"surface": surface.value},
             )
-        if not ctx.has(Perm.APPROVALS_DECIDE):
+        if not may_waive_own_run(ctx):
             raise AuthorizationError(
                 message="You may not waive approvals; ask somebody who can decide them.",
                 details={"permission": Perm.APPROVALS_DECIDE.value},
@@ -8463,8 +8467,10 @@ class AgentRunnerService:
         for approval in approvals:
             if approval.status != ApprovalStatus.PENDING.value:
                 continue
-            # The same withholding the approvals queue applies: this route is
-            # reachable with the run's id by anybody who may read the queue.
+            # The same withholding the approvals queue applies: this is read
+            # for a run the caller may decide, and the parked route refuses
+            # anybody else - so the rows below are offered to be decided, and
+            # `can_decide` says so per row rather than the reader assuming it.
             hidden = await reader.hidden_fields(ctx, approval)
             tool_args, context = withhold(
                 hidden, tool_args=approval.tool_args or {}, context=approval.context
@@ -8484,6 +8490,7 @@ class AgentRunnerService:
                     account=approval.account,
                     content_hidden=bool(hidden),
                     always_asks=approval.always_asks,
+                    can_decide=may_decide_approval(ctx, run),
                 )
             )
         return parked
@@ -8980,7 +8987,11 @@ class AgentRunnerService:
                 run.user_id == ctx.user_id
                 or (
                     run.status == RunStatus.AWAITING_APPROVAL.value
-                    and ctx.has(Perm.APPROVALS_DECIDE)
+                    # A privileged decider only: `approvals:decide` at `OWN`
+                    # is the run's own person deciding their own run, which
+                    # the first branch already covers - reading it here would
+                    # let any member stop anybody's parked run.
+                    and ctx.has_at(Perm.APPROVALS_DECIDE, Scope.ALL)
                 )
             )
         )
@@ -9002,7 +9013,7 @@ class AgentRunnerService:
         )
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": run_id})
-        decider = ctx.has(Perm.APPROVALS_DECIDE) and run.status in (
+        decider = ctx.has_at(Perm.APPROVALS_DECIDE, Scope.ALL) and run.status in (
             RunStatus.AWAITING_APPROVAL.value,
             RunStatus.CANCELLED.value,
         )
@@ -9081,6 +9092,13 @@ class AgentRunnerService:
                 message="Retry this run from a signed-in session", details={"run_id": run_id}
             )
         run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        # Without `runs:view` only the starter's own run is open, and everybody
+        # else is refused before the run is confirmed to exist.
+        if not ctx.has(Perm.RUNS_VIEW) and (run is None or not may_open_own_run(ctx, run)):
+            raise AuthorizationError(
+                message="Insufficient permissions",
+                details={"required": [Perm.RUNS_VIEW.value]},
+            )
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
         if run.user_id != ctx.user_id:
@@ -10219,6 +10237,29 @@ class AgentRunnerService:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
         return run
 
+    async def read_run(self, ctx: AuthContext, run_id: UUID) -> AgentRun:
+        """One run for the detail view: any run to `runs:view`, else the caller's own.
+
+        A starter without `runs:view` - a member whose approval expired - opens
+        the run the notice names, and no other. Everybody else without the
+        permission is refused whether or not the run exists, so the refusal
+        confirms nothing.
+
+        Raises:
+            AuthorizationError: No `runs:view`, and the run is not the caller's own.
+            NotFoundError: The caller holds `runs:view` and the run is not in
+                their organization.
+        """
+        if ctx.has(Perm.RUNS_VIEW):
+            return await self.get_run(ctx, run_id)
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        if run is None or not may_open_own_run(ctx, run):
+            raise AuthorizationError(
+                message="Insufficient permissions",
+                details={"required": [Perm.RUNS_VIEW.value]},
+            )
+        return run
+
     async def neighbor_run_ids(
         self, ctx: AuthContext, run: AgentRun
     ) -> tuple[UUID | None, UUID | None]:
@@ -10270,6 +10311,11 @@ class AgentRunnerService:
         `runs:view` become a 403: a refusal that necessarily tells a member the
         run exists, and only ever reaches a member.
 
+        The one way in without `runs:view` is the run's own starter
+        (`may_open_own_run`): a member reads the transcript of a run they started,
+        which is their own conversation, and no other member's. That never grants
+        the permission - a colleague's run is refused as before.
+
         A run with no conversation has no transcript by construction - the runner
         never writes a turn for one (:meth:`TranscriptService.record` returns at
         once when `conversation_id` is `None`) - so its emptiness is reported
@@ -10289,12 +10335,12 @@ class AgentRunnerService:
             NotFoundError: The run is not in the caller's organization - whether
                 it belongs to another tenant or to nobody.
             AuthorizationError: The caller's organization holds the run but the
-                caller does not hold `runs:view`.
+                caller holds neither `runs:view` nor the run itself as its starter.
         """
         run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
-        if not ctx.has(Perm.RUNS_VIEW):
+        if not (ctx.has(Perm.RUNS_VIEW) or may_open_own_run(ctx, run)):
             raise AuthorizationError(
                 message="Insufficient permissions",
                 details={"required": [Perm.RUNS_VIEW.value], "run_id": str(run_id)},
@@ -10351,12 +10397,12 @@ class AgentRunnerService:
                 not exist: this route must not confirm one to a caller who cannot
                 read the transcript it hangs on.
             AuthorizationError: The caller's organization holds the run but the
-                caller does not hold `runs:view`.
+                caller holds neither `runs:view` nor the run itself as its starter.
         """
         run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
-        if not ctx.has(Perm.RUNS_VIEW):
+        if not (ctx.has(Perm.RUNS_VIEW) or may_open_own_run(ctx, run)):
             raise AuthorizationError(
                 message="Insufficient permissions",
                 details={"required": [Perm.RUNS_VIEW.value], "run_id": str(run_id)},

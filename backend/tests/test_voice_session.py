@@ -165,6 +165,7 @@ async def _sessions():
 
 
 _MEMBER_CTX = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="member")
+_VIEWER_CTX = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="viewer")
 _DECIDER_CTX = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
 
 
@@ -937,7 +938,7 @@ async def test_a_caller_who_lost_approvals_decide_stops_deciding_at_the_next_hea
     socket = FakeSocket([_START, 0.1, json.dumps({"type": "end"})])
     started = _started(FakeRealtime(hold=True))
 
-    await _run(socket, started, reauthorize=AsyncMock(return_value=_MEMBER_CTX), heartbeat=0.01)
+    await _run(socket, started, reauthorize=AsyncMock(return_value=_VIEWER_CTX), heartbeat=0.01)
 
     started.bridge.refresh_decider.assert_called_with(None)
 

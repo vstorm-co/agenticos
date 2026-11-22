@@ -24,16 +24,18 @@ import { Perm } from "@/types/permissions";
  * server-side on every turn: this switch says whether anybody here may, never
  * who.
  *
- * Gated on `approvals:decide` rather than on `org:settings`, matching the PATCH:
- * raising the ceiling on standing consent is a decision about the approval queue,
- * and somebody who may not decide one approval should not be able to switch the
- * queue off for every conversation. Hidden rather than disabled, like the
- * spending limit beside it - a section that could only report a refusal is worse
- * than no section.
+ * Gated on `approvals:decide` at `ALL` rather than on `org:settings`, matching
+ * the PATCH: raising the ceiling on standing consent is a decision about the
+ * approval queue, and somebody who may not decide one approval should not be
+ * able to switch the queue off for every conversation. A member holds the
+ * permission at `OWN` - their own runs only - and that is not this switch:
+ * the switch waives approvals for the whole organization, so it asks for the
+ * full scope. Hidden rather than disabled, like the spending limit beside it -
+ * a section that could only report a refusal is worse than no section.
  */
 export function OrgApprovalWaiver({ org }: { org: Organization }) {
-  const { can } = usePermissions();
-  return can(Perm.approvalsDecide) ? <WaiverSwitch org={org} /> : null;
+  const { scopeOf } = usePermissions();
+  return scopeOf(Perm.approvalsDecide) === "all" ? <WaiverSwitch org={org} /> : null;
 }
 
 function WaiverSwitch({ org }: { org: Organization }) {

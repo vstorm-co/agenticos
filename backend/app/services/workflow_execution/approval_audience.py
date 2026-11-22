@@ -4,18 +4,25 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.permissions import Perm, role_has
+from app.core.permissions import Perm, Scope, role_has_at
 from app.repositories import group as group_repo
 
 
 async def group_approvers(
     db: AsyncSession, *, organization_id: UUID, group_ids: list[UUID]
 ) -> set[UUID]:
-    """Resolve current active members who independently hold approval authority."""
+    """Resolve current active members who independently hold approval authority.
+
+    Privileged deciders only: a member holding `approvals:decide` at `OWN`
+    may decide their own run's approvals, not a workflow step's - a group
+    with no Operator+ member still has nobody, silently, as before.
+    """
     members = await group_repo.audience_members(
         db, organization_id=organization_id, group_ids=group_ids
     )
-    return {user_id for user_id, role in members if role_has(role, Perm.APPROVALS_DECIDE)}
+    return {
+        user_id for user_id, role in members if role_has_at(role, Perm.APPROVALS_DECIDE, Scope.ALL)
+    }
 
 
 async def groups_deciding_through(

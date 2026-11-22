@@ -42,11 +42,13 @@ interface ToolApprovalDialogProps {
  *
  * **It checks `approvals:decide` itself**, for the same reason the model picker
  * beside it checks `connections:manage`: the permission belongs to the write, and
- * `onDecisions` sends `POST /approvals/{id}` followed by `POST /runs/{id}/resume`,
- * both gated on `Perm.APPROVALS_DECIDE`. Running an agent is not - `member` and
- * `builder` hold `agents:run` and not the decision - so the everyday chat user was
- * offered a Submit and refused by the API on the first call. What stays for them is
- * the call itself and the sentence saying who can decide: a panel that goes quiet
+ * `onDecisions` sends `POST /approvals/{id}` followed by `POST /runs/{id}/resume`.
+ * A member or builder holds the permission at `OWN` - their own runs only - so
+ * the role check alone would offer them a Submit on somebody else's run and
+ * have the API refuse it on the first call. Each action therefore also carries
+ * the backend's own `can_decide`, which a reloaded panel reads and the live
+ * frame leaves absent; what stays for somebody who may not decide is the call
+ * itself and the sentence saying who can decide: a panel that goes quiet
  * leaves a stopped conversation unexplained.
  *
  * **The arguments are read, not edited.** They used to sit in a `<textarea>` whose
@@ -74,7 +76,12 @@ export function ToolApprovalDialog({
   const tTools = useTranslations("chat.tools");
   const browser = useTranslations("browserCredentials");
   const { can } = usePermissions();
-  const mayDecide = can(Perm.approvalsDecide);
+  // The role check, narrowed per action where the backend answered: a reloaded
+  // panel names runs that are not this person's, and the live frame - which
+  // carries no `can_decide` - keeps the role check alone, since it only ever
+  // reaches whoever was watching their own run park.
+  const mayDecide =
+    can(Perm.approvalsDecide) && actionRequests.every((action) => action.can_decide !== false);
   const phrase = useActionPhrase();
   const batch = actionRequests.length > 1;
 

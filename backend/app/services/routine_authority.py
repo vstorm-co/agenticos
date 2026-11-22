@@ -35,7 +35,7 @@ from app.agents.mcp import (
 from app.agents.routine_actions import RoutineToolDecision
 from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.agent_trigger import AgentTrigger
@@ -644,7 +644,7 @@ class RoutineAuthority:
             raise _refused()
         if not AuthContext(
             user_id=self.user_id, organization_id=self.organization_id, role=member.role
-        ).has(Perm.APPROVALS_DECIDE):
+        ).has_at(Perm.APPROVALS_DECIDE, Scope.ALL):
             return None
         try:
             current = CONSENTS.validate_python(trigger.action_consents)

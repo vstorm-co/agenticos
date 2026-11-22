@@ -28,7 +28,7 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.core.permissions import AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_run import RunStatus
 from app.db.models.organization_assistant import OrganizationAssistant
@@ -42,7 +42,7 @@ from app.repositories import (
     organization_assistant_repo,
     skill_repo,
 )
-from app.repositories.agent_run import RunFilters
+from app.repositories.agent_run import ApprovalFilters, RunFilters
 from app.schemas.assistant import (
     AssistantConfigurationRead,
     AssistantRead,
@@ -179,8 +179,19 @@ class AssistantService:
         """
         pending = 0
         if ctx.has(Perm.APPROVALS_DECIDE):
+            # Counted the way the queue is read: a caller holding the
+            # permission only at `OWN` counts their own runs' approvals, not
+            # the organization's - the bubble must never speak to a queue its
+            # page would not show.
             _rows, pending = await agent_run_repo.list_approvals(
-                self.db, organization_id=ctx.organization_id, limit=1
+                self.db,
+                organization_id=ctx.organization_id,
+                filters=(
+                    ApprovalFilters(triggered_by_user_id=ctx.user_id)
+                    if ctx.scope_for(Perm.APPROVALS_DECIDE) is Scope.OWN
+                    else None
+                ),
+                limit=1,
             )
         failed_run_id = None
         if ctx.has(Perm.RUNS_VIEW) and ctx.user_id is not None:

@@ -117,7 +117,7 @@ describe("the notifications settings page", () => {
     // and the four workflow/page events offer both channels (17*2 = 34); budget_exceeded, approval_requested,
     // usage_report and agent_usage_report offer only in-app (4*1 = 4). 34 + 4 =
     // 38; and all twenty-one offer push (#2097), 38 + 21 = 59; plus the three
-    // 76 email/in-app switches plus the 28 selected chat-channel switches.
+    // 78 email/in-app/push switches plus the 29 selected chat-channel switches.
     expect(available.has("Run completed - In-app")).toBe(true);
     expect(available.has("Run completed - Email")).toBe(true);
     expect(available.has("Per-agent usage report - In-app")).toBe(true);
@@ -153,7 +153,7 @@ describe("the notifications settings page", () => {
     ]) {
       expect(available.has(`${event} - Push`)).toBe(true);
     }
-    expect(available.size).toBe(104);
+    expect(available.size).toBe(107);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {
