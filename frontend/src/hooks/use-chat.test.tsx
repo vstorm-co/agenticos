@@ -1,4 +1,3 @@
-import { useThemeStore } from "@/stores/theme-store";
 import { useChatControlsStore } from "@/stores/chat-controls-store";
 import { projectFolderKey, useProjectFoldersStore } from "@/stores/project-folders-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

@@ -27,13 +27,15 @@ it("announces a language change using its resolved URL without altering locale r
   expect(events.mock.calls[0]?.[0].type).toBe(NAVIGATION_START);
 });
 
-it("preserves the current route locale, object hrefs and default English navigation", () => {
+// The T3 fork serves English only: a retired locale prefix (`/pl`) is never carried
+// into navigation, so every resolved href uses the default locale.
+it("resolves object hrefs in the default English locale, ignoring a retired locale prefix", () => {
   window.history.replaceState({}, "", "/pl/chat");
   locale.path.mockReturnValue("/pl/projects?team=one");
   const { result, rerender } = renderHook(useRouter);
   const href = { pathname: "/projects", query: { team: "one" } };
   act(() => result.current.push(href));
-  expect(locale.path).toHaveBeenLastCalledWith({ href, locale: "pl" });
+  expect(locale.path).toHaveBeenLastCalledWith({ href, locale: "en" });
   expect(locale.router.push).toHaveBeenCalledWith(href);
   expect(result.current.back).toBe(locale.router.back);
   const first = result.current;
@@ -45,13 +47,13 @@ it("preserves the current route locale, object hrefs and default English navigat
   expect(locale.path).toHaveBeenLastCalledWith({ href: "/projects", locale: "en" });
 });
 
-it("does not start progress for replacing the same localized page", () => {
+it("does not start progress for replacing the same page", () => {
   window.history.replaceState({}, "", "/pl/chat");
   locale.path.mockReturnValue("/pl/chat");
   const events = vi.spyOn(window, "dispatchEvent");
   const { result } = renderHook(useRouter);
   act(() => result.current.replace("/chat"));
-  expect(locale.path).toHaveBeenLastCalledWith({ href: "/chat", locale: "pl" });
+  expect(locale.path).toHaveBeenLastCalledWith({ href: "/chat", locale: "en" });
   expect(events).not.toHaveBeenCalled();
   window.history.replaceState({}, "", "/chat");
   locale.path.mockReturnValue("/projects");

@@ -11,6 +11,7 @@ import {
 } from "@/components/agents/add-model";
 import { ChatModelLibrary } from "./chat-model-library";
 import { ModelCombobox } from "@/components/agents/model-combobox";
+import { ClaudeSubscriptionModelSelect } from "@/components/chat/claude-subscription-model-select";
 import { getErrorMessage } from "@/lib/api-error";
 import { ModelIcon } from "@/components/icons/model-icon";
 import { ProviderRow } from "@/components/vault/provider-row";
@@ -23,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { PersonalApiConnection } from "@/components/vault/personal-api-connection";
 import { ModelProviderCredential } from "./model-provider-credential";
 import {
   useModelProviders,
@@ -31,8 +33,15 @@ import {
   useSecretPurposes,
   useSecrets,
 } from "@/hooks";
-import { hasKey, modelName, runsAgents, usableForAgents } from "@/lib/model-profiles";
+import {
+  connectionModelLabel,
+  hasKey,
+  modelName,
+  runsAgents,
+  usableForAgents,
+} from "@/lib/model-profiles";
 import type { PublishedModel } from "@/types/agents";
+import type { Secret } from "@/types/secrets";
 import { Perm } from "@/types/permissions";
 import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -112,26 +121,53 @@ export function ChatModelPicker({
     source: string;
     providerId: string;
     model: string;
+    secretId: string | null;
   } | null>(null);
+  const [createdConnection, setCreatedConnection] = useState<Secret | null>(null);
   const edited = draft?.source === sourceKey ? draft : null;
   const providerId = edited?.providerId ?? current?.provider ?? "";
   const model = edited?.model ?? current?.model ?? "";
   const setProviderId = (next: string) =>
-    setDraft({ source: sourceKey, providerId: next, model: "" });
-  const setModel = (next: string) => setDraft({ source: sourceKey, providerId, model: next });
+    setDraft({ source: sourceKey, providerId: next, model: "", secretId: null });
+  const setModel = (next: string) =>
+    setDraft({ source: sourceKey, providerId, model: next, secretId: edited?.secretId ?? null });
   const [failure, setFailure] = useState<string | null>(null);
 
-  const [pickedKey, setPickedKey] = useState<string | null>(null);
-  const providerKeys = secrets.filter((secret) => secret.purpose === providerId);
-  const explicitKey = providerKeys.find((secret) => secret.id === pickedKey);
+  // Several connections never default: which one is billed is the person's choice,
+  // and a personal connection is never picked for them.
+  const pickedKey = edited?.secretId ?? null;
+  const setPickedKey = (id: string | null) =>
+    setDraft({ source: sourceKey, providerId, model, secretId: id });
+  const chooseConnection = (id: string) => {
+    setPickedKey(id);
+    setFailure(null);
+  };
+  const availableSecrets =
+    createdConnection && !secrets.some((secret) => secret.id === createdConnection.id)
+      ? [...secrets, createdConnection]
+      : secrets;
+  const providerKeys = availableSecrets.filter((secret) => secret.purpose === providerId);
   const inheritedProfile = currentProfile?.provider === providerId ? currentProfile : undefined;
-  const effectiveKey =
-    explicitKey ??
-    providerKeys.find((key) => key.id === inheritedProfile?.secret_id) ??
-    providerKeys[0];
+  const chosenSecretId =
+    pickedKey ??
+    (inheritedProfile
+      ? inheritedProfile.secret_id
+      : providerKeys.length === 1
+        ? providerKeys[0]!.id
+        : null);
+  const effectiveKey = providerKeys.find((secret) => secret.id === chosenSecretId);
+  const personal = effectiveKey?.usage_scope === "personal";
   const matchesKey = (profile: ModelProfile) =>
-    !effectiveKey || profile.secret_id === effectiveKey.id;
-  const endpoint = inheritedProfile?.base_url ?? null;
+    chosenSecretId !== null
+      ? profile.secret_id === chosenSecretId
+      : inheritedProfile?.usage_scope === "personal"
+        ? profile.id === inheritedProfile.id
+        : profile.usage_scope !== "personal";
+  // A new personal connection starts on the provider's API, not an inherited gateway.
+  const endpoint =
+    personal && chosenSecretId !== inheritedProfile?.secret_id
+      ? null
+      : (inheritedProfile?.base_url ?? null);
   const providers = purposes.filter((entry) => entry.category === "model_provider");
   const provider = providers.find((entry) => entry.id === providerId);
   const requiresEndpoint = catalog.some(
@@ -145,7 +181,7 @@ export function ChatModelPicker({
     hasCachedListing,
     refetch: refetchModels,
   } = useProviderModels(
-    providerId,
+    providerId === "claude-subscription" || (personal && endpoint) ? "" : providerId,
     providerId === "openrouter" ? (endpoint ?? undefined) : undefined,
     effectiveKey?.id,
   );
@@ -156,6 +192,8 @@ export function ChatModelPicker({
     (profile) =>
       profile.provider === providerId &&
       profile.model === model.trim() &&
+      matchesKey(profile) &&
+      (!(personal && chosenSecretId !== inheritedProfile?.secret_id) || !profile.base_url) &&
       (!endpoint || profile.base_url?.replace(/\/+$/, "") === endpoint.replace(/\/+$/, "")),
   );
   const hasCustomEndpoint = matching.some(
@@ -171,6 +209,7 @@ export function ChatModelPicker({
     profilesStatus !== "failed" &&
     !loadingSecrets &&
     !secretReadError &&
+    (providerKeys.length <= 1 || chosenSecretId !== null) &&
     (!loadingModels || hasCustomEndpoint);
 
   const apply = async (selectedModel = model) => {
@@ -189,6 +228,8 @@ export function ChatModelPicker({
       (profile) =>
         profile.provider === providerId &&
         profile.model === modelId &&
+        matchesKey(profile) &&
+        (!(personal && chosenSecretId !== inheritedProfile?.secret_id) || !profile.base_url) &&
         (!endpoint || profile.base_url?.replace(/\/+$/, "") === endpoint.replace(/\/+$/, "")),
     );
     if (
@@ -202,7 +243,7 @@ export function ChatModelPicker({
     if (
       current?.provider === provider.id &&
       current.model === modelId &&
-      (!currentProfile || matchesKey(currentProfile)) &&
+      (currentProfile ? currentProfile.secret_id === chosenSecretId : chosenSecretId === null) &&
       (currentProfile === undefined || usableForAgents(currentProfile))
     ) {
       onChange(value);
@@ -214,12 +255,16 @@ export function ChatModelPicker({
     // Several profiles can name the same vendor/model. Prefer one that can
     // chat, including a custom endpoint whose names the vendor cannot classify.
     const listingRefuses = refused.includes(modelId);
-    const existing = matching.find(
+    const usable = matching.filter(
       (profile) =>
-        matchesKey(profile) &&
-        usableForAgents(profile) &&
-        (!!profile.base_url || (!loadingModels && !listingRefuses)),
+        usableForAgents(profile) && (!!profile.base_url || (!loadingModels && !listingRefuses)),
     );
+    // Different connection IDs are a billing choice; an array's order cannot decide it.
+    if (new Set(usable.map((profile) => profile.secret_id)).size > 1) {
+      setFailure(tRoot("personalModels.chooseConnection"));
+      return;
+    }
+    const existing = usable[0];
     if (existing) {
       onChange(existing.id);
       return;
@@ -248,16 +293,22 @@ export function ChatModelPicker({
     }
 
     try {
+      const baseLabel = `${provider.label} · ${modelId}`;
+      const labels = profiles.map((profile) => profile.label);
       const profile = await createProfile.mutateAsync({
         label:
-          providerKeys.length > 1
-            ? `${`${provider.label} · ${modelId}`.slice(0, 108)} · ${key.id.slice(0, 8)}`
-            : `${provider.label} · ${modelId}`,
+          personal || labels.includes(baseLabel)
+            ? connectionModelLabel(baseLabel, key.name, labels)
+            : providerKeys.length > 1
+              ? `${baseLabel.slice(0, 108)} · ${key.id.slice(0, 8)}`
+              : baseLabel,
         provider: provider.id,
         model: modelId,
         secret_id: key.id,
         ...(endpoint ? { base_url: endpoint } : {}),
-        ...(inheritedProfile?.api ? { api: inheritedProfile.api } : {}),
+        ...(inheritedProfile?.api && (!personal || chosenSecretId === inheritedProfile.secret_id)
+          ? { api: inheritedProfile.api }
+          : {}),
       });
       // An id the listing did not classify still reaches here: the server
       // classifies the new profile, and a conversation cannot run on it either.
@@ -273,6 +324,18 @@ export function ChatModelPicker({
     }
   };
 
+  const personalConnectionForm = !secretReadError &&
+    !loadingSecrets &&
+    provider !== undefined &&
+    ["anthropic", "openai"].includes(provider.id) && (
+      <PersonalApiConnection
+        provider={provider}
+        onCreated={(secret) => {
+          setCreatedConnection(secret);
+          chooseConnection(secret.id);
+        }}
+      />
+    );
   const credentialForm = !secretReadError &&
     !loadingSecrets &&
     provider !== undefined &&
@@ -285,6 +348,33 @@ export function ChatModelPicker({
           void refetchModels();
         }}
       />
+    );
+  const connectionPickerFor = (label: string) =>
+    provider !== undefined &&
+    providerKeys.length > 1 && (
+      <div className="space-y-1.5">
+        <Label htmlFor={`${panelId}-connection`}>{label}</Label>
+        <Select value={chosenSecretId ?? ""} onValueChange={chooseConnection}>
+          <SelectTrigger id={`${panelId}-connection`}>
+            <SelectValue placeholder={tRoot("personalModels.chooseConnection")} />
+          </SelectTrigger>
+          <SelectContent>
+            {providerKeys.map((secret) => (
+              <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
+                <ProviderRow provider={providerId} name={secret.name} hint={secret.hint} />
+                {secret.usage_scope === "personal" && (
+                  <span className="text-muted-foreground ml-2 text-xs">
+                    {tRoot("personalModels.personal")}
+                  </span>
+                )}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {personal && (
+          <p className="text-muted-foreground text-xs">{tRoot("personalModels.personalUse")}</p>
+        )}
+      </div>
     );
 
   const currentSummary = current ? (
@@ -305,6 +395,9 @@ export function ChatModelPicker({
               : undefined,
           )}
         </span>
+        {currentProfile?.usage_scope === "personal" && (
+          <span className="text-muted-foreground text-xs">{tRoot("personalModels.personal")}</span>
+        )}
       </span>
     </>
   ) : (
@@ -348,99 +441,100 @@ export function ChatModelPicker({
 
   if (presentation === "library" && can(Perm.connectionsManage))
     return (
-      <ChatModelLibrary
-        providers={providers.map((entry) => ({
-          id: entry.id,
-          label: entry.label,
-          connected:
-            secretReadError || loadingSecrets
-              ? null
-              : secrets.some((secret) => secret.purpose === entry.id) ||
-                profiles.some(
-                  (profile) => profile.provider === entry.id && usableForAgents(profile),
-                ),
-        }))}
-        providerId={providerId}
-        loadingProviders={loadingPurposes}
-        configurationForm={endpointForm}
-        needsCredential={
-          !requiresEndpoint &&
-          !!credentialForm &&
-          !profiles.some((profile) => profile.provider === providerId && usableForAgents(profile))
-        }
-        credentialPicker={
-          !requiresEndpoint &&
-          providerKeys.length > 1 && (
-            <div className="grid gap-1.5">
-              <Label htmlFor="chat-model-key">{tRoot("vault.key")}</Label>
-              <Select value={effectiveKey?.id} onValueChange={setPickedKey}>
-                <SelectTrigger id="chat-model-key">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {providerKeys.map((key) => (
-                    <SelectItem key={key.id} value={key.id} textValue={key.name}>
-                      <ProviderRow provider={providerId} name={key.name} hint={key.hint} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )
-        }
-        model={
-          current?.provider === providerId && (!currentProfile || matchesKey(currentProfile))
-            ? current.model
-            : ""
-        }
-        profileId={
-          currentProfile?.provider === providerId && matchesKey(currentProfile)
-            ? currentProfile.id
-            : undefined
-        }
-        models={suggestions}
-        profiles={profiles.filter(
-          (profile) => usableForAgents(profile) && (requiresEndpoint || matchesKey(profile)),
-        )}
-        loading={(loadingModels && !hasCachedListing) || loadingProfiles}
-        catalogRefreshing={loadingModels}
-        applying={createProfile.isPending}
-        disabled={
-          loadingProfiles || profilesStatus === "failed" || !!secretReadError || !!loadingSecrets
-        }
-        onProviderChange={(id) => {
-          setProviderId(id);
-          setPickedKey(null);
-          setFailure(null);
-        }}
-        onModelChange={(id) => void apply(id)}
-        onProfileChange={(profile) => {
-          if (!createProfile.isPending && !loadingProfiles && profilesStatus !== "failed")
-            onChange(profile.id);
-        }}
-        credentialForm={requiresEndpoint ? null : credentialForm}
-        failure={
-          profilesStatus === "failed" || secretReadError ? (
-            <p role="alert" className="text-destructive text-xs">
-              {t("profilesUnavailable")}{" "}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  void refetchProfiles();
-                  void refetchSecrets();
-                }}
-              >
-                {tRoot("common.retry")}
-              </Button>
-            </p>
-          ) : failure ? (
-            <p role="alert" className="text-destructive text-xs">
-              {failure}
-            </p>
-          ) : null
-        }
-      />
+      <div className="space-y-4">
+        <ClaudeSubscriptionModelSelect
+          profiles={profiles}
+          value={currentProfile?.id ?? null}
+          disabled={loadingProfiles || profilesStatus === "failed"}
+          onChange={(profileId) => {
+            setFailure(null);
+            onChange(profileId);
+          }}
+        />
+        <ChatModelLibrary
+          providers={providers.map((entry) => ({
+            id: entry.id,
+            label: entry.label,
+            connected:
+              secretReadError || loadingSecrets
+                ? null
+                : secrets.some((secret) => secret.purpose === entry.id) ||
+                  profiles.some(
+                    (profile) => profile.provider === entry.id && usableForAgents(profile),
+                  ),
+          }))}
+          providerId={providerId}
+          loadingProviders={loadingPurposes}
+          configurationForm={endpointForm}
+          needsCredential={
+            !requiresEndpoint &&
+            !!credentialForm &&
+            !profiles.some((profile) => profile.provider === providerId && usableForAgents(profile))
+          }
+          credentialPicker={!requiresEndpoint && connectionPickerFor(tRoot("vault.key"))}
+          model={
+            current?.provider === providerId &&
+            (currentProfile
+              ? currentProfile.secret_id === chosenSecretId
+              : chosenSecretId === null || providerKeys.length <= 1)
+              ? current.model
+              : ""
+          }
+          profileId={
+            currentProfile?.provider === providerId && matchesKey(currentProfile)
+              ? currentProfile.id
+              : undefined
+          }
+          models={suggestions}
+          profiles={profiles.filter(
+            (profile) => usableForAgents(profile) && (requiresEndpoint || matchesKey(profile)),
+          )}
+          loading={(loadingModels && !hasCachedListing) || loadingProfiles}
+          catalogRefreshing={loadingModels}
+          applying={createProfile.isPending}
+          disabled={
+            loadingProfiles || profilesStatus === "failed" || !!secretReadError || !!loadingSecrets
+          }
+          onProviderChange={(id) => {
+            setProviderId(id);
+            setFailure(null);
+          }}
+          onModelChange={(id) => void apply(id)}
+          onProfileChange={(profile) => {
+            if (!createProfile.isPending && !loadingProfiles && profilesStatus !== "failed")
+              onChange(profile.id);
+          }}
+          credentialForm={
+            requiresEndpoint ? null : (
+              <>
+                {credentialForm}
+                {personalConnectionForm}
+              </>
+            )
+          }
+          failure={
+            profilesStatus === "failed" || secretReadError ? (
+              <p role="alert" className="text-destructive text-xs">
+                {t("profilesUnavailable")}{" "}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    void refetchProfiles();
+                    void refetchSecrets();
+                  }}
+                >
+                  {tRoot("common.retry")}
+                </Button>
+              </p>
+            ) : failure ? (
+              <p role="alert" className="text-destructive text-xs">
+                {failure}
+              </p>
+            ) : null
+          }
+        />
+      </div>
     );
 
   return (
@@ -506,7 +600,21 @@ export function ChatModelPicker({
                   </Button>
                 </p>
               )}
-              <div className="space-y-1.5">
+              <ClaudeSubscriptionModelSelect
+                profiles={profiles}
+                value={currentProfile?.id ?? null}
+                disabled={loadingProfiles || profilesStatus === "failed"}
+                onChange={(profileId) => {
+                  setFailure(null);
+                  onChange(profileId);
+                }}
+              />
+              {providerId === "claude-subscription" && (
+                <Button type="button" variant="outline" size="sm" onClick={() => setProviderId("")}>
+                  {tRoot("claudeSubscription.chooseApiModel")}
+                </Button>
+              )}
+              <div className="space-y-1.5" hidden={providerId === "claude-subscription"}>
                 <Label htmlFor="chat-model-provider">{t("provider")}</Label>
                 <Select
                   value={providerId}
@@ -544,10 +652,11 @@ export function ChatModelPicker({
                 </Select>
               </div>
 
-              {requiresEndpoint ? (
+              {providerId === "claude-subscription" ? null : requiresEndpoint ? (
                 endpointForm
               ) : (
                 <>
+                  {connectionPickerFor(tRoot("personalModels.connection"))}
                   <div className="space-y-1.5">
                     <Label htmlFor="chat-model-id">{t("model")}</Label>
                     {/* The Builder's own picker: the provider's catalog, searchable, and
@@ -574,6 +683,7 @@ export function ChatModelPicker({
               when nothing is, is a dead end - and the provider is already chosen, so
               the purpose this key needs is known. */}
                   {credentialForm}
+                  {personalConnectionForm}
 
                   <Button
                     type="button"

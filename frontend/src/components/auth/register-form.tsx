@@ -116,7 +116,7 @@ export function RegisterForm() {
   return (
     <div className="space-y-8">
       <div className="space-y-2">
-        <AuthHeading>{t("createHeading")}</AuthHeading>
+        <AuthHeading>{t.rich("createHeading", { em: (chunks) => <em>{chunks}</em> })}</AuthHeading>
         <p className="text-foreground/65 text-sm">
           {t("hasAccount")}{" "}
           <Link

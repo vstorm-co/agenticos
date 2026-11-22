@@ -585,6 +585,9 @@ def _hosted_browser(binding: CapabilityBindingSpec) -> bool:
         config = WebBrowserConfig.model_validate(binding.config)
         if config.connection == "local":
             return False
+        # The default built-in browser names no remote target, so nothing is configured.
+        if config.connection == "built_in" and not config.cdp_url:
+            return False
         if config.connection == "hosted" and binding.secret_id is None:
             return False
         if connection_problems(config, has_secret=binding.secret_id is not None):

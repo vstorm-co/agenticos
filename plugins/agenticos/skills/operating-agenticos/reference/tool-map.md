@@ -192,8 +192,9 @@ new body windows support up to 2000 chars.
 | `get_workflow_execution_step` | read access to the run; actual node-run ID, including loop instance | no |
 | `prepare_solution` | `agents:edit`; reserves a principal-scoped review for 24 hours | yes, temporary review only |
 | `get_solution_installation` | `agents:edit`; only the caller's receipt in this organization | no |
-| `get_my_preferences` | the caller's own account, `agents:run` for keys | no |
-| `set_my_preferences` | the caller's own account, `agents:run` for keys | yes, theme/style/language only |
+| `get_my_appearance` | the caller's own account, `agents:run` for keys | no |
+| `set_my_appearance` | the caller's own account, `agents:run` for keys | yes, supplied appearance tokens only |
+| `reset_my_appearance` | the caller's own account, `agents:run` for keys | yes, clears the saved appearance |
 | `get_my_console_experience` | active personal membership, `agents:run` for keys | no, reads presentation availability, defaults and effective preferences |
 | `set_my_console_experience` | active personal membership, `agents:run` for keys | yes, own chat-home and setup-reminder overrides only; omitted fields stay, null inherits |
 

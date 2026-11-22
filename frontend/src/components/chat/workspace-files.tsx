@@ -148,7 +148,8 @@ export function WorkspaceFiles({
     return () => window.removeEventListener("keydown", onKey);
   }, [visible, onOpenChange]);
   if (useChanged(conversationId)) {
-    setOpen(false);
+    // A controlled panel is closed by its owner, which also resets the shared surface.
+    if (controlledOpen === undefined) setOwnOpen(false);
     setReading(null);
   }
   // The chat addresses files through its conversation, not through the workspace's
@@ -256,6 +257,7 @@ export function WorkspaceFiles({
         <ChatSidePanel
           label={t("title")}
           sizing="sources"
+          layout="browser"
           panelId={panelId}
           contained={overlay}
           onClose={closePanel}
@@ -263,6 +265,7 @@ export function WorkspaceFiles({
           {({ fullscreen, toggleFullscreen }) => (
             <>
               <ChatPanelHeader
+                layout="browser"
                 title={t("title")}
                 icon={<FolderOpen className="size-4" />}
                 closeLabel={t("close")}

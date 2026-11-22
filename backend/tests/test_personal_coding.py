@@ -138,7 +138,7 @@ async def test_busy_pool_lease_selects_the_next_account_before_admission(
         yield object()
 
     @asynccontextmanager
-    async def isolated(_self, _ctx, account, _harness, *, selection_reason):
+    async def isolated(_self, _ctx, account, _harness, _session, *, selection_reason):
         attempted.append((account.id, selection_reason))
         yield account
 
@@ -244,7 +244,7 @@ async def test_an_error_after_admission_never_starts_a_replacement_account(
         yield object()
 
     @asynccontextmanager
-    async def isolated(_self, _ctx, account, _harness, *, selection_reason):
+    async def isolated(_self, _ctx, account, _harness, _session, *, selection_reason):
         attempted.append((account.id, selection_reason))
         yield account
 

@@ -1205,7 +1205,6 @@
     "forgotHeading": "Happens to the <em>best of us.</em>",
     "forgotPasswordPrompt": "Forgot password?",
     "forgotShort": "Forgot?",
-    "getStarted": "Let's set you up",
     "googleNotConfigured": "Google sign-in is not configured for this deployment.",
     "hasAccount": "Already have an account?",
     "linkSentHeading": "Link sent. <em>On its way.</em>",
@@ -1287,8 +1286,7 @@
     "signupClosedHeading": "Sign-up is closed",
     "signupClosedBody": "{app} is not accepting new accounts. Ask an administrator to invite you.",
     "signupWithInvitation": "You are registering with an invitation, so this deployment's sign-up restrictions do not apply to you.",
-    "useEmailInstead": "Use email and password instead",
-    "welcomeBack": "Welcome back"
+    "useEmailInstead": "Use email and password instead"
   },
   "billing": {
     "description": "Manage your subscription for {org}.",
@@ -4137,7 +4135,7 @@
       "dismiss": "Hide the checklist",
       "hints": {
         "agent": "The Architect builds one with you.",
-        "channel": "Slack, Teams, Telegram, Mattermost or Discord.",
+        "channel": "Slack, Teams, Telegram, Mattermost, Discord or Matrix.",
         "chat": "Ask AgenticOS anything about your work.",
         "connection": "Your mail, calendar or files, with your own account.",
         "knowledge": "The documents it answers from.",
@@ -9981,7 +9979,7 @@
     "shareNamed": "Share {name}",
     "sharingUpdated": "Sharing updated",
     "visibilityOrg": "Everyone in the organization",
-    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} context {context files} mcp_connection {MCP servers} other {secrets}} at all.",
+    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} context {context files} mcp_connection {MCP servers} workflow {workflows} other {secrets}} at all.",
     "visibilityPrivate": "Only people with access",
     "visibilityPrivateReaches": "Only the people listed above. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} artifact {app} context {context file} mcp_connection {MCP server} project {project} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
     "visibilityTeam": "Team (no longer offered)",
@@ -18712,7 +18710,6 @@
     "removeFromPool": "Remove from pool",
     "apiKey": "API key",
     "baseRevision": "Workspace snapshot: {revision}",
-    "callback": "Callback address",
     "chatGPT": "ChatGPT sign-in",
     "chatHelp": "This agent runs coding tasks as a private cloud task on your own account. Other members cannot use it.",
     "chatTitle": "Your {name} account",
@@ -18722,7 +18719,6 @@
     "connectNamed": "Connect {name}",
     "connecting": "Connecting…",
     "consent": "Allow agents in this organization to use this account for coding tasks I start.",
-    "continueOpenAI": "Continue at OpenAI",
     "label": "Account label",
     "credential": "API key or Claude setup token",
     "description": "Your own account for coding tasks you start in this organization. Other members cannot use it.",
@@ -18736,11 +18732,9 @@
     "loadFailed": "Could not load your coding accounts",
     "localHelp": "In the Coding agent tool, choose Private cloud task with my account to use this profile. On this computer uses the local CLI sign-in and your approved folder instead; local credentials stay on your computer.",
     "notConnected": "Not connected",
-    "oauthHelp": "Start a fresh sign-in, finish it in your browser, then paste the complete localhost callback address here. Do not import a CLI auth.json file.",
     "personalAccount": "Personal account: {label}",
     "retry": "Try again",
     "sharing": "Private cloud tasks copy the workspace into an isolated container. Results are shared with chat readers; shared project files are not changed automatically.",
-    "startSignIn": "Start sign-in",
     "title": "Coding accounts",
     "loading": "Loading your coding accounts…",
     "usage": {

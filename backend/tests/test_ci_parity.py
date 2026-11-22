@@ -55,7 +55,6 @@ GATING_JOBS = (
     "lint",
     "test-shard",
     "test",
-    "backend-shards",
     "lint-frontend",
     "frontend-shards",
     "build-frontend",
@@ -337,9 +336,6 @@ class TestCheckRunsNothingCIDoesNot:
         leaves = {target for target in prerequisites["check"] if not prerequisites.get(target)} | {
             leaf for target in prerequisites["check"] for leaf in prerequisites.get(target, [])
         }
-        # The backend test target is transported as file shards plus an aggregate.
-        if {"test-backend-shard", "test-backend-merge"} <= invoked:
-            invoked.add("test")
         missing = sorted(leaves - invoked)
         assert not missing, (
             f"`make check` runs {missing} and no CI job does. Either CI is missing a "

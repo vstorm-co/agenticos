@@ -55,8 +55,9 @@ Inspect pointers, request content windows and assemble fragments before using a
 contract. Read a complete workflow graph before replacing it. Large write results
 are receipts: inspect status and read back the resource, never repeat the write.
 Authoring contracts are available through `get_authoring_schema` on demand.
-`set_my_preferences` changes only the asking person's theme, style or language;
-`get_my_preferences` discovers their current choice. Never infer an application
+`set_my_appearance` changes only the asking person's supplied appearance tokens;
+`get_my_appearance` discovers their current choice and `reset_my_appearance`
+clears it. `set_my_language` sets the language; never infer an application
 language from the documentation languages: use the tool's locale enum.
 
 ## Choosing the mechanism

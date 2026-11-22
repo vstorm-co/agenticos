@@ -13,10 +13,13 @@ export function ChatSidePanel({
   onClose,
   children,
   sizing = "wide",
+  layout = "sources",
 }: {
   label: string;
   panelId?: string;
   sizing?: PanelSizing;
+  /** The container query the dock responds to: the chat's own, or the browser workspace's. */
+  layout?: "browser" | "sources";
   contained: boolean;
   onClose: () => void;
   children: (layout: { fullscreen: boolean; toggleFullscreen: () => void }) => ReactNode;
@@ -47,7 +50,7 @@ export function ChatSidePanel({
       label={label}
       contained={contained}
       panelId={panelId}
-      layout="sources"
+      layout={layout}
       sizing={sizing}
     >
       {(layout) => (
@@ -74,6 +77,7 @@ export function ChatPanelHeader({
   actions,
   subtitle,
   contained = false,
+  layout = "sources",
 }: {
   title: ReactNode;
   icon: ReactNode;
@@ -84,6 +88,7 @@ export function ChatPanelHeader({
   actions?: ReactNode;
   subtitle?: ReactNode;
   contained?: boolean;
+  layout?: "browser" | "sources";
 }) {
   const t = useTranslations("chat");
   return (
@@ -102,7 +107,11 @@ export function ChatPanelHeader({
               aria-label={t(fullscreen ? "browserDock" : "browserMaximize")}
               className={
                 "text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring size-8 shrink-0 items-center justify-center rounded-lg outline-none focus-visible:ring-2 " +
-                (fullscreen ? "flex" : "hidden @min-[900px]/sources-layout:flex")
+                (fullscreen
+                  ? "flex"
+                  : layout === "browser"
+                    ? "hidden @min-[900px]/browser-layout:flex"
+                    : "hidden @min-[900px]/sources-layout:flex")
               }
             >
               {fullscreen ? (

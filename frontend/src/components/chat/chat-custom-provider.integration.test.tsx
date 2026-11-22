@@ -124,6 +124,12 @@ async function mount(presentation: "form" | "library", provider: ProviderInfo) {
     );
   }
   await screen.findByLabelText("Endpoint");
+  // Several connections never default: the first key is chosen explicitly, so a
+  // personal connection is never picked for the person.
+  await userEvent.click(screen.getByLabelText("Key"));
+  await userEvent.click(
+    await screen.findByRole("option", { name: new RegExp(`${provider.id} key 1`) }),
+  );
   return onChange;
 }
 
