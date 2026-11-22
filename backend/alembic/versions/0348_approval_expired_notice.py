@@ -36,9 +36,13 @@ _EVENT_TYPE_VALUES = (
 )
 _WITH_EXPIRED = f"{_EVENT_TYPE_VALUES}, 'approval_expired'"
 
+# The names the earlier revisions created. The metadata naming convention
+# (`%(table_name)s_%(constraint_name)s_check`) puts the table in front of the
+# model's own `ck_...` name, and SQLAlchemy shortens a name past PostgreSQL's 63
+# bytes to a hashed form, which is what the second one is in the database.
 _EVENT_TYPE_CONSTRAINTS = (
-    ("notifications", "ck_notifications_event_type"),
-    ("notification_preferences", "ck_notification_preferences_event_type"),
+    ("notifications", "notifications_ck_notifications_event_type_check"),
+    ("notification_preferences", "notification_preferences_ck_notification_preferences_ev_cd4d"),
 )
 
 
@@ -47,7 +51,7 @@ def _event_types(values: str) -> None:
     # VALIDATE then checks the existing rows after commit, which blocks no
     # reads or writes. The names and values are revision-owned, never request data.
     for table, name in _EVENT_TYPE_CONSTRAINTS:
-        op.drop_constraint(name, table, type_="check")
+        op.drop_constraint(op.f(name), table, type_="check")
         op.execute(
             f"ALTER TABLE {table} ADD CONSTRAINT {name} CHECK (event_type IN ({values})) NOT VALID"
         )
