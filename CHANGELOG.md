@@ -40,15 +40,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Preserve authenticated value-only question-answer citations when restoring labelled answer context, so a confirmed multi-question automation request is not dropped before proposal generation.
-
-- Initialize channel adapters before personal Inbox workers verify current channel membership, so authorized Slack and Mattermost conversations are not omitted when the API lifespan has not run. Unavailable or revoked membership still refuses access.
 - **A skill's Improve session names what accepting it did.** Its status line read "Kept as draft", an agent session's label, for a change applied to the skill. It now says Applied, Made a fork, Caught up with main or Moved to main. A new `skill-checks-rejudge` command judges again, from their stored runs and with no model call, the agents of finished skill checks that an older rule judged: one kept before families shows them, and one kept before `too_few_questions` existed no longer says its run could not grade every answer. It also counts the judge's gradings in a session attempt that counted only its check's answers, and a skill check's cost now counts them, so a session's spend and budget include its judge. A decided check keeps its decision, and the group of agents with too few questions says so once, without any agent's counts (#3189).
 
 ### Upgrading
 
 - Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
 - Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+
+## [1.90.1] - 2026-11-22
+
+### Fixed
+
+- Preserve authenticated value-only question-answer citations when restoring labelled answer context, so a confirmed multi-question automation request is not dropped before proposal generation.
+
+- Initialize channel adapters before personal Inbox workers verify current channel membership, so authorized Slack and Mattermost conversations are not omitted when the API lifespan has not run. Unavailable or revoked membership still refuses access.
 
 ## [1.90.0] - 2026-11-22
 
@@ -22511,7 +22516,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.90.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...HEAD
+[1.90.1]: https://github.com/vstorm-co/agenticos/compare/v1.90.0...v1.90.1
 [1.90.0]: https://github.com/vstorm-co/agenticos/compare/v1.89.1...v1.90.0
 [1.89.1]: https://github.com/vstorm-co/agenticos/compare/v1.89.0...v1.89.1
 [1.89.0]: https://github.com/vstorm-co/agenticos/compare/v1.88.0...v1.89.0
