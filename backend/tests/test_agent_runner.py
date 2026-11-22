@@ -11666,3 +11666,49 @@ async def test_routine_delegate_consumes_only_its_exact_reviewed_resources(topol
     assert resources["routine_behavior_namespace"] == namespace
     assert "routine_behavior_namespace" not in parent
     terminal.assert_awaited_once()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "case",
+    ["ok", "dispatch_failure", "scheduled", "foreign_audience", "no_audience", "impersonated"],
+)
+async def test_personal_context_refresh_uses_the_admitted_interactive_subject(case):
+    service = AgentRunnerService(_db())
+    prepared = _prepared()
+    person = uuid.uuid4()
+    finished = prepared.run
+    finished.organization_id = uuid.uuid4()
+    finished.user_id = person
+    finished.initiated_by_publisher_fallback = False
+    finished.is_test = False
+    finished.parent_run_id = None
+    finished.key_scopes = None
+    finished.surface = RunSurface.SCHEDULE.value if case == "scheduled" else RunSurface.WEB.value
+    prepared.built.deps.audience = (
+        None
+        if case == "no_audience"
+        else SimpleNamespace(user_id=uuid.uuid4() if case == "foreign_audience" else person)
+    )
+    prepared.built.deps.impersonated = case == "impersonated"
+    service._queue_memory_extraction = AsyncMock()
+    with (
+        patch(
+            "app.services.agent_runner.agent_run_repo.finish_run",
+            new=AsyncMock(return_value=finished),
+        ),
+        patch("app.services.agent_runner.RoutineHealthService.run_result", new=AsyncMock()),
+        patch(
+            "app.services.proactive.ProactiveService.queue_context_change",
+            new=AsyncMock(
+                side_effect=RuntimeError("queue unavailable")
+                if case == "dispatch_failure"
+                else None
+            ),
+        ) as queue,
+    ):
+        await service.finish(prepared, status=RunStatus.COMPLETED)
+    if case in {"ok", "dispatch_failure"}:
+        queue.assert_awaited_once_with(finished.organization_id, person)
+    else:
+        queue.assert_not_awaited()

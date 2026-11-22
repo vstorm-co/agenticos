@@ -31,6 +31,7 @@ from pydantic_ai.exceptions import (
     UsageLimitExceeded,
 )
 from pydantic_ai.messages import ModelResponse
+from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RunUsage, UsageLimits
 
@@ -775,9 +776,12 @@ def briefing_errors(scenario: Scenario, found: nightly.NightlyReading) -> list[s
     return errors
 
 
-async def run_background(model: str, scenarios: list[Scenario]) -> int:
+async def run_background(
+    model: str | Model, scenarios: list[Scenario], *, model_label: str | None = None
+) -> int:
     label = scenarios[0].suite if scenarios else "Background replay"
-    console(f"{label} · {model} · {len(scenarios)} cases")
+    resolved_label = model_label or (model if isinstance(model, str) else model.model_name)
+    console(f"{label} · {resolved_label} · {len(scenarios)} cases")
     progress = Progress(label, len(scenarios))
     settings = ModelSettings(
         thinking="low", max_tokens=BACKGROUND_RESPONSE_TOKENS, request_timeout=90
@@ -846,7 +850,7 @@ async def run_background(model: str, scenarios: list[Scenario]) -> int:
         has_usage = usage.requests > 0 or usage.has_values()
         evidence = Evidence(
             case=item.id,
-            model=model,
+            model=resolved_label,
             errors=errors,
             output=output,
             input_tokens=usage.input_tokens if has_usage else None,
