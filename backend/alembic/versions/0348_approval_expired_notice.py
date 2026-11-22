@@ -7,7 +7,7 @@ person who started the run, with the reason and the run to retry it from, so
 the new event type has to be admitted by both CHECK constraints that hold
 every notification row to the event vocabulary.
 
-Revision ID: 0348_approval_expired_notification
+Revision ID: 0348_approval_expired_notice
 Revises: 0347_network_connections
 Create Date: 2026-11-22
 """
@@ -16,7 +16,7 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0348_approval_expired_notification"
+revision: str = "0348_approval_expired_notice"
 down_revision: str | None = "0347_network_connections"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
