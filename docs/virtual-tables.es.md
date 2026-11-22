@@ -1,5 +1,5 @@
 ---
-source_sha: "3e730a85b6b4"
+source_sha: "2297a17a854b"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -530,7 +530,9 @@ en que se leen todos sus valores - entero, número, sí/no, fecha, fecha y hora 
 y si no, texto, o texto largo cuando un valor tiene un salto de línea o pasa de 1.000
 caracteres. El nombre sale del archivo, y ambos se pueden cambiar antes de crear, lo
 que cuesta menos que un cambio de tipo después. Cuando la tabla existe, la importación se abre
-con cada columna ya asignada, y después se abre la tabla.
+con cada columna ya asignada, y después se abre la tabla. Cada fila debe tener el mismo número de celdas que la cabecera:
+una fila con menos o más celdas se muestra como error y se omite, y no se importa ninguno
+de sus valores.
 
 ## Reintentos seguros { #safe-retries }
 

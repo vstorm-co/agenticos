@@ -189,15 +189,17 @@ def _rows(text: str, fmt: DatasetFileFormat) -> list[tuple[int, dict[str, Any] |
             if None in row:
                 rows.append((number, "The row has more cells than the header has columns"))
                 continue
+            # `DictReader` fills a missing trailing cell with `None`; a short row is
+            # refused rather than read as blanks, which would store empty fields
+            # nobody wrote.
+            if None in row.values():
+                rows.append((number, "The row has fewer cells than the header has columns"))
+                continue
             try:
                 rows.append(
                     (
                         number,
-                        {
-                            column: _from_csv_cell(column, raw)
-                            for column, raw in row.items()
-                            if raw is not None
-                        },
+                        {column: _from_csv_cell(column, raw) for column, raw in row.items()},
                     )
                 )
             except (json.JSONDecodeError, ValueError) as exc:
