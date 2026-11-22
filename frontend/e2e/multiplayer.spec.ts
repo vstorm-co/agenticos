@@ -230,7 +230,8 @@ async function openThread(
 }
 
 async function closeThread(page: Page, panel: Locator = threadPanel(page)): Promise<void> {
-  await panel.getByRole("button", { name: "Close thread", exact: true }).click();
+  // "Close thread" is the thread's state action; the panel's own button is "Close thread panel".
+  await panel.getByRole("button", { name: "Close thread panel", exact: true }).click();
   await expect(panel).toBeHidden();
   await expect(page).not.toHaveURL(/[?&]thread=/);
 }
