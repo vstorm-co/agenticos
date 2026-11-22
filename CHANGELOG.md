@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve authenticated value-only question-answer citations when restoring labelled answer context, so a confirmed multi-question automation request is not dropped before proposal generation.
+
+- Initialize channel adapters before personal Inbox workers verify current channel membership, so authorized Slack and Mattermost conversations are not omitted when the API lifespan has not run. Unavailable or revoked membership still refuses access.
+
 ## [1.90.0] - 2026-11-22
 
 ### Upgrading
