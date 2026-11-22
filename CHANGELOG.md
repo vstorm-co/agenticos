@@ -28,6 +28,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Agent Improve puts a criterion down to a skill only when it quotes the skill's own line stating the wrong value or rule, and that line is in the skill's text. Where the skill is only silent, or only forbids other sections, the criterion stays the agent's to fix: the helper proposes the agent change, a skill problem without a line is advice, and the verdict holds the agent to that family (#3178).
 - A skill's Improve started from an agent's Improve learns from the failed training answers that session read that used the skill, so it no longer refuses with "Nothing to learn from yet" when the agent's problems came from evals (#3178).
 - A dataset case's `keys` check lists the facts a written document must carry - an invoice number, a total, a date - each as a label and the value the document should show. It scores the share of keys the answer carries, passes only when it carries them all, and names up to 20 missing labels. A value matches as a whole token: a number is not found inside a longer one, and a space may group thousands. The case and grading editors write it, and anonymising a case removes its keys with its reference answer (#2524).
+- **List keys from the reference answer** in the case editor: the Key extractor system agent reads a saved case's reference answer in a job, as the person who asked, metered and in Activity, and drafts its keys. Only a value the answer states as written is kept, and nothing reaches the case until a person uses the draft and saves it. `POST`, `GET` and `DELETE /datasets/{id}/cases/{case_id}/key-draft`. A draft is deleted once used or dismissed, or after 7 days, and the extractor's run forgets the reference answer whenever its draft goes (#2524).
 
 ### Changed
 
@@ -51,6 +52,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
 - Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
 - Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+- Migration `backend/alembic/versions/0353_case_key_drafts.py` adds `case_key_drafts` and the `extractor` agent kind. A draft nobody uses or dismisses is deleted after 7 days by the daily `expire-case-key-drafts` job. Its downgrade drops the table and turns extractor agents into ordinary ones.
 
 ## [1.90.0] - 2026-11-22
 
