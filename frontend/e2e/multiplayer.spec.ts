@@ -91,8 +91,34 @@ async function newRoom(page: Page): Promise<string> {
   return room.id;
 }
 
-async function postMessage(page: Page, roomId: string, content: string) {
-  await page.getByRole("textbox", { name: "Message to the team" }).fill(content);
+async function mentionAgent(page: Page, box: Locator, name: string): Promise<void> {
+  await box.fill("");
+  // A mention query holds no whitespace; the list matches names with it folded out.
+  await box.pressSequentially(`@${name.replace(/\s+/g, "")}`);
+  await page.getByRole("option", { name: `${name}, Agents` }).click();
+  const add = page.getByRole("button", { name: "Add and mention", exact: true });
+  await expect(async () => {
+    if (await add.isVisible()) await add.click();
+    await expect(box).toHaveValue(`@${name} `);
+  }).toPass();
+}
+
+async function fillMessage(page: Page, box: Locator, content: string, agent?: string) {
+  if (agent === undefined) {
+    await box.fill(content);
+    return;
+  }
+  await mentionAgent(page, box, agent);
+  await box.pressSequentially(content);
+}
+
+async function postMessage(page: Page, roomId: string, content: string, agent?: string) {
+  await fillMessage(
+    page,
+    page.getByRole("textbox", { name: "Message to the team" }),
+    content,
+    agent,
+  );
   const received = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === `/api/conversations/${roomId}/room-messages` &&
@@ -100,11 +126,6 @@ async function postMessage(page: Page, roomId: string, content: string) {
   );
   await page.getByRole("button", { name: "Post message", exact: true }).click();
   return accepted<RoomMessageResult>(await received, "posting to the room");
-}
-
-async function askAgent(page: Page, name = fixture.agentName): Promise<void> {
-  await page.getByRole("combobox", { name: "Who should answer" }).click();
-  await page.getByRole("option", { name: `Ask @${name}`, exact: true }).click();
 }
 
 async function colleaguePage(
@@ -214,9 +235,9 @@ async function closeThread(page: Page, panel: Locator = threadPanel(page)): Prom
   await expect(page).not.toHaveURL(/[?&]thread=/);
 }
 
-async function postThread(page: Page, roomId: string, content: string) {
+async function postThread(page: Page, roomId: string, content: string, agent?: string) {
   const panel = threadPanel(page);
-  await panel.getByRole("textbox", { name: "Reply to thread" }).fill(content);
+  await fillMessage(page, panel.getByRole("textbox", { name: "Reply to thread" }), content, agent);
   const received = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === "/api/conversations/" + roomId + "/room-messages" &&
@@ -472,9 +493,6 @@ test.describe("multiplayer project rooms", () => {
       await expect(peer.getByRole("textbox", { name: "Message to the team" })).toBeEnabled();
       await expect(page.locator('[data-tour="chat-team-room"]')).toContainText("Colleague is here");
       await expect(peer.locator('[data-tour="chat-team-room"]')).toContainText("Owner is here");
-      await expect(page.getByRole("combobox", { name: "Who should answer" })).toHaveText(
-        "Team only",
-      );
 
       const note = await postMessage(page, roomId, `Owner update ${roomId}`);
       expect(note.request).toBeNull();
@@ -538,8 +556,12 @@ test.describe("multiplayer project rooms", () => {
       await expect(peer.locator(`[data-message-id="${retryResult.message.id}"]`)).toHaveCount(1);
 
       await peer.context().setOffline(true);
-      await askAgent(page);
-      const asked = await postMessage(page, roomId, "Please acknowledge the team's updates.");
+      const asked = await postMessage(
+        page,
+        roomId,
+        "Please acknowledge the team's updates.",
+        fixture.agentName,
+      );
       expect(asked.request).not.toBeNull();
       const completed = await requestStatus(page.request, roomId, asked.request!.id, "completed");
       expect(completed.requester_id).toBe(note.message.sender!.user_id);
@@ -583,8 +605,12 @@ test.describe("multiplayer project rooms", () => {
           ],
         }),
       ).toString("base64url");
-      await askAgent(page);
-      const first = await postMessage(page, roomId, `CALL-TOOL:ask_user_question:${args}`);
+      const first = await postMessage(
+        page,
+        roomId,
+        `CALL-TOOL:ask_user_question:${args}`,
+        fixture.agentName,
+      );
       const parked = await requestStatus(
         page.request,
         roomId,
@@ -610,8 +636,12 @@ test.describe("multiplayer project rooms", () => {
       });
       expect(refused.status()).toBe(403);
 
-      await askAgent(peer);
-      const cancelled = await postMessage(peer, roomId, "This queued request will be cancelled.");
+      const cancelled = await postMessage(
+        peer,
+        roomId,
+        "This queued request will be cancelled.",
+        fixture.agentName,
+      );
       await requestStatus(page.request, roomId, cancelled.request!.id, "queued");
       await expect(peer.getByRole("button", { name: "Cancel request", exact: true })).toBeVisible();
       await expect(page.getByRole("button", { name: "Cancel request", exact: true })).toHaveCount(
@@ -622,8 +652,12 @@ test.describe("multiplayer project rooms", () => {
         await requestStatus(page.request, roomId, cancelled.request!.id, "cancelled"),
       ).toMatchObject({ run_id: null });
 
-      await askAgent(peer, fixture.queuedAgentName);
-      const later = await postMessage(peer, roomId, "Answer after the first request is complete.");
+      const later = await postMessage(
+        peer,
+        roomId,
+        "Answer after the first request is complete.",
+        fixture.queuedAgentName,
+      );
       expect(await requestStatus(page.request, roomId, later.request!.id, "queued")).toMatchObject({
         run_id: null,
         requester_id: fixture.colleagueId,
@@ -814,8 +848,6 @@ test.describe("multiplayer project rooms", () => {
     const root = await postMessage(page, roomId, "Agent thread root " + roomId);
     const sibling = await postMessage(page, roomId, "Unrelated discussion root " + roomId);
     const panel = await openThread(page, root.message.id);
-    await panel.getByRole("combobox", { name: "Who should answer" }).click();
-    await page.getByRole("option", { name: "Ask @" + fixture.agentName, exact: true }).click();
     const question = "Continue this thread request?";
     const argumentsEncoded = Buffer.from(
       JSON.stringify({
@@ -832,7 +864,12 @@ test.describe("multiplayer project rooms", () => {
         ],
       }),
     ).toString("base64url");
-    const asked = await postThread(page, roomId, "CALL-TOOL:ask_user_question:" + argumentsEncoded);
+    const asked = await postThread(
+      page,
+      roomId,
+      "CALL-TOOL:ask_user_question:" + argumentsEncoded,
+      fixture.agentName,
+    );
     expect(asked.message.thread_root_message_id).toBe(root.message.id);
     expect(asked.request).toMatchObject({ thread_root_message_id: root.message.id });
     const parked = await requestStatus(page.request, roomId, asked.request!.id, "awaiting_answer");
