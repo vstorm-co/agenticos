@@ -5,12 +5,13 @@ const STEPS = new Set([
     "identity",
     "profile",
     "context",
+    "subscriptions",
     "team",
     "deployment",
     "organization",
     "task",
   ].map((step) => `admin.${step}`),
-  ...["welcome", "profile", "context", "task"].map((step) => `member.${step}`),
+  ...["welcome", "profile", "context", "subscriptions", "task"].map((step) => `member.${step}`),
 ]);
 const QUESTIONS: Record<string, readonly string[]> = {
   "admin.deployment": ["access", "destination", "announcement", "extras"],

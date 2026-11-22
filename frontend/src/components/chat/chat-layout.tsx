@@ -4,7 +4,14 @@ import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
 import { useId, useState, type ReactNode } from "react";
 import "./chat-layout.css";
-import { ChevronDown, SlidersHorizontal, ShieldCheck, SquareTerminal, X } from "lucide-react";
+import {
+  ChevronDown,
+  SlidersHorizontal,
+  ShieldCheck,
+  SquareTerminal,
+  RotateCcw,
+  X,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { useModelProviders, usePermissions, useProviderModels } from "@/hooks";
@@ -12,6 +19,7 @@ import { useAgentSelectionStore } from "@/stores";
 import { useAgents } from "@/hooks/use-agents";
 import { ModelIcon } from "@/components/icons/model-icon";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PersonalCodingAccount } from "@/components/settings/coding-accounts";
 import { Perm } from "@/types/permissions";
@@ -129,14 +137,22 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
             }}
           />
         )}
-        {modelProfileId !== null && (
-          <button
-            type="button"
-            className="text-muted-foreground mx-4 my-3 text-xs hover:underline"
-            onClick={() => change(null)}
-          >
-            {t("backAgentAposS")}
-          </button>
+        {modelProfileId !== null && agent?.published_model && (
+          <div className="border-border border-t px-3 py-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-xs"
+              onClick={() => {
+                change(null);
+                setOpen(false);
+              }}
+            >
+              <RotateCcw aria-hidden className="size-3.5" />
+              {t("backAgentAposS")}
+            </Button>
+          </div>
         )}
       </PopoverContent>
     </Popover>

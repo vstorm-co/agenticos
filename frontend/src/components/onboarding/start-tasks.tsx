@@ -11,7 +11,6 @@ import { exampleChat, type Onboarding, type StartGoal } from "@/lib/onboarding-a
 import { getErrorMessage } from "@/lib/api-error";
 import { StartTaskMenu } from "./start-task-menu";
 import { StartTaskCanvas } from "./start-task-canvas";
-import { StartSubscriptions } from "./start-subscriptions";
 import { StartSetup } from "./start-setup";
 import styles from "./workbench.module.css";
 
@@ -54,7 +53,6 @@ export function StartTasks({ data }: { data: Onboarding }) {
   };
   return (
     <div className="space-y-6">
-      <StartSubscriptions />
       <div className={styles.workbench} data-goal={goal}>
         <StartTaskMenu goal={goal} savedGoal={data.goal} saving={saving} onChange={choose} />
         <section className={styles.canvas} aria-label={t(`examples.${goal}.title`)}>

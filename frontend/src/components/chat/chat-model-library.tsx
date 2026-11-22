@@ -38,7 +38,6 @@ export interface ChatModelLibraryProps {
   providers: LibraryProvider[];
   providerId: string;
   model: string;
-  profileId?: string;
   models: ProviderModel[];
   profiles: ModelProfile[];
   catalogProfiles?: ModelProfile[];
@@ -55,7 +54,6 @@ export interface ChatModelLibraryProps {
   disabled: boolean;
   onProviderChange: (id: string) => void;
   onModelChange: (model: string) => void;
-  onProfileChange: (profile: ModelProfile) => void;
   credentialForm: ReactNode;
   /** An endpoint-required provider uses the shared connection/model form before creation. */
   configurationForm?: ReactNode;
@@ -182,9 +180,6 @@ export function ChatModelPane(props: ChatModelPaneProps) {
       });
     }
   }
-  const saved = profiles.filter((entry) =>
-    matches(entry.model, `${entry.label} ${modelName(entry, catalog.get(entry.model)?.name)}`),
-  );
   const modelRows = [...catalog.values()]
     .filter((entry) => matches(entry.id, entry.name))
     .sort((a, b) => Number(b.id === props.model) - Number(a.id === props.model));
@@ -233,22 +228,17 @@ export function ChatModelPane(props: ChatModelPaneProps) {
         <Tabs value={activeTab} onValueChange={setTab}>
           <TabsList className="px-2" aria-label={t("model")}>
             <TabsTrigger value="catalog">{t("allModels")}</TabsTrigger>
-            <TabsTrigger value="saved">{t("savedModels")}</TabsTrigger>
             {hasCredentials && (
               <TabsTrigger value="key">{props.credentialTabLabel ?? vault("key")}</TabsTrigger>
             )}
           </TabsList>
           <TabsContent value="key" className="mt-0">
-            <div className="space-y-3 p-2">
+            <div className="max-h-[400px] space-y-3 overflow-y-auto overscroll-contain p-3">
               {props.credentialPicker}
               {props.credentialForm}
             </div>
           </TabsContent>
-          <TabsContent
-            value={activeTab === "saved" ? "saved" : "catalog"}
-            key={activeTab}
-            className="mt-0"
-          >
+          <TabsContent value="catalog" key={activeTab} className="mt-0">
             {activeTab === "catalog" && props.configurationForm ? (
               <div className="max-h-[400px] overflow-y-auto overscroll-contain p-3">
                 {props.configurationForm}
@@ -280,31 +270,8 @@ export function ChatModelPane(props: ChatModelPaneProps) {
                   <Command.List className="max-h-[340px] overflow-y-auto overscroll-contain p-1.5">
                     {!props.loading && (
                       <Command.Empty className="text-muted-foreground px-3 py-5 text-xs">
-                        {t(
-                          query.trim()
-                            ? "noMatchingModels"
-                            : activeTab === "saved"
-                              ? "noSavedModels"
-                              : "searchOrType",
-                        )}
+                        {t(query.trim() ? "noMatchingModels" : "searchOrType")}
                       </Command.Empty>
-                    )}
-                    {activeTab === "saved" && saved.length > 0 && (
-                      <Command.Group
-                        heading={t("savedModels")}
-                        className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[10px]"
-                      >
-                        {saved.map((entry) =>
-                          row(
-                            entry.id,
-                            entry.model,
-                            modelName(entry, catalog.get(entry.model)?.name),
-                            props.profileId === entry.id,
-                            () => props.onProfileChange(entry),
-                            entry.context_length,
-                          ),
-                        )}
-                      </Command.Group>
                     )}
                     {activeTab === "catalog" &&
                       modelRows.map((entry) =>

@@ -835,6 +835,20 @@ def _build_model(credential: ResolvedCredential, model: str) -> Model:
             provider=_build_provider(spec, credential),
             settings=OpenAIResponsesModelSettings(openai_store=False),
         )
+    if (spec.personal_gateway or spec.id == "cliproxyapi") and model.rsplit("/", 1)[-1].startswith(
+        "claude"
+    ):
+        from pydantic_ai.models.openai import OpenAIChatModel
+        from pydantic_ai.profiles.openai import OpenAIModelProfile
+
+        # Anthropic permits at most 20 strict tools. The gateway's OpenAI dialect
+        # cannot apply its native adaptive limit; keep all tools and validate
+        # their arguments locally, without requesting strict schemas upstream.
+        return OpenAIChatModel(
+            model,
+            provider=_build_provider(spec, credential),
+            profile=OpenAIModelProfile(openai_supports_strict_tool_definition=False),
+        )
     if spec.prefix == "openrouter":
         return _openrouter_model(spec, credential, model)
     return infer_model(

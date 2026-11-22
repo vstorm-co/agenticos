@@ -105,7 +105,7 @@ export function ChatModelPicker({
     isLoading: loadingProfiles,
     profilesStatus,
     refetchProfiles,
-  } = useModelProviders();
+  } = useModelProviders({ silentCreate: true });
   const { purposes, isLoading: loadingPurposes } = useSecretPurposes();
   const {
     secrets,
@@ -546,14 +546,6 @@ export function ChatModelPicker({
             ? current.model
             : ""
         }
-        profileId={
-          currentProfile &&
-          currentSource === providerId &&
-          currentEndpointMatches &&
-          matchesKey(currentProfile)
-            ? currentProfile.id
-            : undefined
-        }
         models={suggestions}
         profiles={sourceProfiles}
         catalogProfiles={sourceProfiles.filter(matchesEndpoint)}
@@ -567,10 +559,6 @@ export function ChatModelPicker({
           setFailure(null);
         }}
         onModelChange={(id) => void apply(id)}
-        onProfileChange={(profile) => {
-          if (!createProfile.isPending && !loadingProfiles && profilesStatus !== "failed")
-            onChange(profile.id);
-        }}
         credentialForm={requiresEndpoint ? null : credentialForm}
         failure={
           profilesStatus === "failed" || (!personalSource && secretReadError) ? (

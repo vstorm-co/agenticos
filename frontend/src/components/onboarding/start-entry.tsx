@@ -64,7 +64,7 @@ export function StartEntry() {
         }
         question={search.get("question")}
         workspaceCount={organizations.data?.length}
-        steps={appAdmin ? 8 : search.get("start-step")?.startsWith("admin.") ? 7 : 4}
+        steps={appAdmin ? 9 : search.get("start-step")?.startsWith("admin.") ? 8 : 5}
       />
     );
   return <StartHub />;

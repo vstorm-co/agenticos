@@ -1678,7 +1678,6 @@
     "membersCouldNotBeRead": "Die Personen in dieser Organisation konnten nicht gelesen werden.",
     "modelPicker": {
       "noMatchingModels": "Keine passenden Modelle.",
-      "noSavedModels": "Keine gespeicherten Modelle für diesen Anbieter.",
       "allModels": "Modelle",
       "applyingModel": "Modell wird ausgewählt…",
       "selected": "Ausgewählt",
@@ -17565,7 +17564,13 @@
       "devin": "Devin",
       "meta": "Meta AI"
     },
-    "localReturnHelp": "Diese Anmeldung kehrt zu localhost auf deinem Computer zurück, nicht zur AgenticOS-Website. Eine Website kann diesen Tab nicht lesen oder eine Seite auf diesem lokalen Port anzeigen. Die Adressleiste enthält weiterhin das Ergebnis für die Kontoverbindung."
+    "localReturnHelp": "Diese Anmeldung kehrt zu localhost auf deinem Computer zurück, nicht zur AgenticOS-Website. Eine Website kann diesen Tab nicht lesen oder eine Seite auf diesem lokalen Port anzeigen. Die Adressleiste enthält weiterhin das Ergebnis für die Kontoverbindung.",
+    "tableProvider": "Anbieter",
+    "tableStatus": "Status",
+    "tableActions": "Aktionen",
+    "noAccount": "Noch kein Konto",
+    "search": "Abonnements suchen...",
+    "noMatches": "Keine passenden Abonnements gefunden."
   },
   "mirage": {
     "folders": "Ordner",
@@ -17677,7 +17682,8 @@
       "identityProfileHint": "Füge dein Foto und den Namen hinzu, den dein Team sieht. Rolle und Arbeitszeiten folgen im nächsten Schritt.",
       "identityProfileBenefitTitle": "Ein vertrautes Gesicht in jeder Organisation",
       "identityProfileBenefitBody": "Dein Foto und Anzeigename helfen dem Team, dich in gemeinsamen Gesprächen zu erkennen.",
-      "teamHint": "Hole dein Team in die Organisation. Lade es jetzt ein oder fahre fort und komme später zurück."
+      "teamHint": "Hole dein Team in die Organisation. Lade es jetzt ein oder fahre fort und komme später zurück.",
+      "subscriptions": "Deine Abonnements"
     },
     "workbench": {
       "memberHint": "Der Eigentümer der Organisation kann einen Agenten für Sie freigeben. Sie benötigen keinen eigenen API-Schlüssel.",
@@ -17904,7 +17910,8 @@
         "welcome": "Willkommen",
         "profile": "Ihr Profil",
         "context": "Ihr Kontext",
-        "task": "Erste Aufgabe"
+        "task": "Erste Aufgabe",
+        "subscriptions": "Deine Abonnements"
       },
       "guideName": "AgenticOS",
       "advancedAccess": "E-Mail-Domains, Startrollen und Kontolimits ↗",
@@ -17914,7 +17921,8 @@
       "advancedVoiceHint": "Wähle Transkriptions- und Spracheinstellungen für diesen Arbeitsbereich.",
       "openGovernanceSettings": "Budget und Freigaben öffnen",
       "openAssistantSettings": "Assistenteneinstellungen öffnen",
-      "openVoiceSettings": "Spracheinstellungen öffnen"
+      "openVoiceSettings": "Spracheinstellungen öffnen",
+      "subscriptionsGuide": "Verbinde die Abonnements, die du bereits nutzt. Du kannst später weitere Konten hinzufügen oder ohne Verbindung fortfahren."
     },
     "subscriptions": {
       "title": "Welche Abonnements hast du bereits?",

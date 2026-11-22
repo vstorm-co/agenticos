@@ -21,6 +21,7 @@ import { StartSkeleton } from "./start-skeleton";
 import { StartWorkspace } from "./start-workspace";
 import { StartInviteTeam } from "./start-invite-team";
 import { StartOrganizationSettings } from "./start-organization-settings";
+import { StartSubscriptions } from "./start-subscriptions";
 import { StartTasks } from "./start-tasks";
 import { StartFinish } from "./start-finish";
 import { StartActions, StartNavigation, StartNavigationScope } from "./start-navigation";
@@ -31,6 +32,7 @@ const STEPS = [
   "identity",
   "profile",
   "context",
+  "subscriptions",
   "team",
   "deployment",
   "organization",
@@ -252,11 +254,11 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
                     <StartNavigationScope active={step === "context"}>
                       <ProfileIdentitySettings
                         section="context"
-                        onContinue={() => advance("context", "team")}
+                        onContinue={() => advance("context", "subscriptions")}
                         saveLabel={t("saveContinue")}
                         renderActions={(actions) => <StartActions>{actions}</StartActions>}
                         secondaryAction={
-                          <Button variant="ghost" onClick={() => go("team")}>
+                          <Button variant="ghost" onClick={() => go("subscriptions")}>
                             {t("skipOptional")}
                           </Button>
                         }
@@ -265,6 +267,20 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
                   </div>
                   <StartStageArtwork stage="context" />
                 </div>
+              </section>
+            )}
+            {org && visited.includes("subscriptions") && (
+              <section hidden={step !== "subscriptions"} aria-label={t("subscriptions")}>
+                <h1 tabIndex={-1}>{t("subscriptions")}</h1>
+                <StartGuide message={guide("subscriptionsGuide")} />
+                <StartSubscriptions />
+                <StartNavigationScope active={step === "subscriptions"}>
+                  <StartActions>
+                    <Button onClick={() => advance("subscriptions", "team")}>
+                      {t("saveContinue")}
+                    </Button>
+                  </StartActions>
+                </StartNavigationScope>
               </section>
             )}
             {org && visited.includes("team") && (

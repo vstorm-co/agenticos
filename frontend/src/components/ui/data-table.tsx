@@ -96,6 +96,8 @@ interface DataTableProps<T> {
   fillHeight?: boolean;
   /** Page a complete in-memory collection after sorting. Never use with server paging or infinite loading. */
   clientPagination?: boolean;
+  /** Page size for a client-paged collection; defaults to the standard list size. */
+  pageSize?: number;
   /** Stack compact, non-virtual tables into labeled rows in narrow containers. */
   stackOnNarrow?: boolean;
   /** Number of skeleton rows while loading. */
@@ -159,6 +161,7 @@ export function DataTable<T>({
   isRowActive,
   fillHeight = false,
   clientPagination = false,
+  pageSize = PAGE_SIZE,
   stackOnNarrow = false,
   skeletonRows = 6,
   className,
@@ -209,9 +212,9 @@ export function DataTable<T>({
   }, [rowHeight]);
 
   const recordCount = visible?.length ?? 0;
-  const currentPage = Math.min(page, Math.max(0, Math.ceil(recordCount / PAGE_SIZE) - 1));
-  const pageOffset = clientPagination ? currentPage * PAGE_SIZE : 0;
-  const pageRows = clientPagination ? visible?.slice(pageOffset, pageOffset + PAGE_SIZE) : visible;
+  const currentPage = Math.min(page, Math.max(0, Math.ceil(recordCount / pageSize) - 1));
+  const pageOffset = clientPagination ? currentPage * pageSize : 0;
+  const pageRows = clientPagination ? visible?.slice(pageOffset, pageOffset + pageSize) : visible;
   useEffect(() => {
     if (clientPagination && scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [clientPagination, currentPage, clientSort]);
@@ -436,7 +439,7 @@ export function DataTable<T>({
           <PaginationBar
             showSinglePage
             page={currentPage}
-            pageSize={PAGE_SIZE}
+            pageSize={pageSize}
             total={recordCount}
             isLoading={loading || showError}
             onPage={setPage}

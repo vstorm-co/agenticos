@@ -603,3 +603,74 @@ async def test_account_usage_route_keeps_the_authenticated_context(
     assert answer.status_code == 200 and answer.json()["status"] == "unavailable"
     assert bad.status_code == 422
     service.account_usage.assert_awaited_once_with(caller, "a.json")
+
+
+@pytest.mark.parametrize("provider", ["subscription_accounts", "cliproxyapi"])
+async def test_claude_gateway_keeps_all_tools_without_exceeding_strict_tool_limits(
+    provider: str,
+) -> None:
+    import httpx2
+    from pydantic_ai import Agent, Tool
+    from pydantic_ai.models.openai import OpenAIChatModel
+
+    from app.agents.model_resolver import build_model
+
+    name = "account-" + "a" * 24 + "/claude-haiku-4-5-20251001"
+    seen: list[httpx2.Request] = []
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request)
+        payload = json.loads(request.content)
+        assert payload["model"] == name
+        assert len(payload["tools"]) == 79
+        assert all("strict" not in tool["function"] for tool in payload["tools"])
+        return httpx2.Response(
+            200,
+            json={
+                "id": "test",
+                "object": "chat.completion",
+                "created": 1,
+                "model": name,
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "ready"},
+                    }
+                ],
+            },
+        )
+
+    def available_tool() -> str:
+        return "ready"
+
+    model = build_model(
+        ResolvedCredential(
+            provider=provider,
+            secret=ApiKeySecret(api_key="scope-key"),
+            base_url="http://gateway.test/v1",
+        ),
+        name,
+    )
+    assert isinstance(model, OpenAIChatModel)
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as transport:
+        model._provider._client = model.client.with_options(http_client=transport, max_retries=0)
+        result = await Agent(
+            model, tools=[Tool(available_tool, name=f"tool_{i}", strict=True) for i in range(79)]
+        ).run("hello")
+    assert result.output == "ready"
+    assert len(seen) == 1
+
+
+def test_other_subscription_models_keep_their_supported_strict_tools() -> None:
+    from app.agents.model_resolver import build_model
+
+    model = build_model(
+        ResolvedCredential(
+            provider="subscription_accounts",
+            secret=ApiKeySecret(api_key="scope-key"),
+            base_url="http://gateway.test/v1",
+        ),
+        "account-" + "a" * 24 + "/gpt-6-sol",
+    )
+    assert model.profile.get("openai_supports_strict_tool_definition", True)

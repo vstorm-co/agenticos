@@ -274,7 +274,12 @@ export function AddModel({
   // `placeholderWords`. The chat's picker resolves the same keys from its own
   // namespace, so they cannot be relative to either caller's.
   const tRoot = useTranslations();
-  const { createProfile, updateProfile, catalog, profiles = [] } = useModelProviders();
+  const {
+    createProfile,
+    updateProfile,
+    catalog,
+    profiles = [],
+  } = useModelProviders({ silentCreate: purpose === "chat" });
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
   const { can } = usePermissions();

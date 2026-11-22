@@ -18,6 +18,7 @@ import { ErrorState } from "@/components/states";
 import { ModelCombobox } from "./model-combobox";
 import { SubscriptionAccountUsage } from "./subscription-account-usage";
 import { SubscriptionSignInDialog } from "@/components/settings/subscription-accounts";
+import { ProviderIcon } from "@/components/vault/provider-icon";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useSubscriptionAccounts, useSubscriptionModels } from "@/hooks/use-subscription-accounts";
 import { useModelProviders } from "@/hooks";
@@ -56,7 +57,7 @@ export function SubscriptionModelForm({
   const agents = useTranslations("agents");
   const id = useId();
   const actions = useSubscriptionAccounts();
-  const { createProfile, profiles } = useModelProviders();
+  const { createProfile, profiles } = useModelProviders({ silentCreate: true });
   const [connecting, setConnecting] = useState(false);
   const [pickedAccount, setPickedAccount] = useState<string | null>(null);
   const [model, setModel] = useState(subscriptionModelId(initialModel));
@@ -230,7 +231,6 @@ export function SubscriptionModelForm({
     const paneProps: ChatModelPaneProps = {
       providerId: "subscription_accounts",
       model,
-      profileId: accountProfiles.find((entry) => subscriptionModelId(entry.model) === model)?.id,
       models: listing.models,
       profiles: accountProfiles,
       catalogProfiles: [],
@@ -243,14 +243,39 @@ export function SubscriptionModelForm({
       connectionLabel: account ? identity(account, own.indexOf(account)) : undefined,
       needsCredential: !connected && !actions.accounts.isLoading,
       credentialPicker: connected ? accountSettings : null,
-      credentialForm: connected ? null : accountSettings,
+      credentialForm: connected ? null : (
+        <div className="mx-auto flex max-w-sm flex-col items-center gap-3 py-6 text-center">
+          <ProviderIcon provider={SUBSCRIPTION_MARK[provider]} className="size-10" />
+          <h3 className="text-base font-semibold">{accountsCopy(`providers.${provider}`)}</h3>
+          <p className="text-muted-foreground text-sm">{t("subscriptionHint")}</p>
+          {actions.accounts.error ? (
+            <ErrorState
+              title={accountsCopy("loadFailed")}
+              cta={{ label: accountsCopy("retry"), onClick: () => void actions.accounts.refetch() }}
+            />
+          ) : (
+            <Button
+              type="button"
+              disabled={!actions.ready || actions.accounts.data?.enabled === false}
+              onClick={() => setConnecting(true)}
+            >
+              {accountsCopy("connect")}
+            </Button>
+          )}
+          {connecting && (
+            <SubscriptionSignInDialog
+              key={actions.scope}
+              provider={provider}
+              actions={actions}
+              onClose={() => setConnecting(false)}
+            />
+          )}
+        </div>
+      ),
       applying: pending,
       disabled: !!disabled || !!listing.error || !connected,
       onModelChange: (next) => {
         if (account) void choose(account, next);
-      },
-      onProfileChange: (profile) => {
-        if (account) void choose(account, subscriptionModelId(profile.model));
       },
       failure: failure ? (
         <p role="alert" className="text-destructive text-xs">

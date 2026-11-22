@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { StartSubscriptions } from "./start-subscriptions";
@@ -54,13 +54,12 @@ beforeEach(() => {
 });
 it("lets a person select plans and sign in immediately without a shared API key", async () => {
   mount();
-  const claude = screen.getByRole("checkbox", { name: "Claude Code (Pro, Max)" });
-  await waitFor(() => expect(claude).not.toBeDisabled());
-  await userEvent.click(claude);
-  await userEvent.click(screen.getByRole("checkbox", { name: "ChatGPT (Codex)" }));
-  await userEvent.click(screen.getByRole("checkbox", { name: "ChatGPT (Codex)" }));
-  expect(screen.getAllByRole("button", { name: "Connect" })).toHaveLength(1);
-  await userEvent.click(screen.getByRole("button", { name: "Connect" }));
+  const claude = within(screen.getByText("Claude Code (Pro, Max)").closest("li")!);
+  const connect = claude.getByRole("button", { name: "Connect" });
+  await waitFor(() => expect(connect).not.toBeDisabled());
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  expect(screen.getAllByRole("button", { name: "Connect" })).toHaveLength(8);
+  await userEvent.click(connect);
   expect(await screen.findByText("PLAN-CODE")).toBeInTheDocument();
   expect(apiClient.post).toHaveBeenCalledWith("/subscription-accounts/sign-ins", {
     provider: "claude",
@@ -91,9 +90,13 @@ it("marks already connected plans and offers reconnection for unavailable accoun
   ];
   mount();
   expect(await screen.findByText("Connected")).toBeInTheDocument();
-  expect(screen.getByRole("checkbox", { name: "ChatGPT (Codex)" })).toBeChecked();
-  expect(screen.getByRole("checkbox", { name: "ChatGPT (Codex)" })).toBeDisabled();
-  expect(screen.getByRole("checkbox", { name: "Claude Code (Pro, Max)" })).not.toBeChecked();
+  const codex = within(screen.getByText("ChatGPT (Codex)").closest("li")!);
+  expect(codex.getByRole("button", { name: "Add account" })).toBeEnabled();
+  expect(
+    within(screen.getByText("Claude Code (Pro, Max)").closest("li")!).getByRole("button", {
+      name: "Connect",
+    }),
+  ).toBeEnabled();
 });
 it("stays absent on deployments without subscription support", async () => {
   enabled = false;

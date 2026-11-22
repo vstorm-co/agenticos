@@ -1,6 +1,6 @@
 """Read subscription quota metadata through the credential-owning process.
 
-Only fixed Google quota URLs are reachable here. CLIProxyAPI substitutes the
+Only fixed provider quota URLs are reachable here. CLIProxyAPI substitutes the
 account token inside its process; neither tokens nor provider responses leave
 this adapter. No inference request is made.
 """

@@ -163,3 +163,11 @@ it("remembers a safe current step without entry metadata and clears it after com
     ).toBeUndefined(),
   );
 });
+
+it.each(["admin.subscriptions", "member.subscriptions"])(
+  "restores the subscription loading view: %s",
+  async (step) => {
+    const { startLoadingView } = await import("./start-skeleton");
+    expect(startLoadingView(step, null)).toBe("subscriptions");
+  },
+);

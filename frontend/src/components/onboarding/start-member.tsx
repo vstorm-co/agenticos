@@ -17,13 +17,14 @@ import { StartLanguage } from "./start-language";
 import { StartCompanions } from "./start-companions";
 import { StartGuide } from "./start-guide";
 import { StartStageArtwork } from "./start-stage-artwork";
+import { StartSubscriptions } from "./start-subscriptions";
 import { StartTasks } from "./start-tasks";
 import { StartFinish } from "./start-finish";
 import { rememberStartPosition } from "./start-position";
 import styles from "./administration.module.css";
 import guided from "./guided-start.module.css";
 
-const STEPS = ["welcome", "profile", "context", "task"] as const;
+const STEPS = ["welcome", "profile", "context", "subscriptions", "task"] as const;
 type Step = (typeof STEPS)[number];
 
 /** Members prepare their own profile and first task, never deployment or team policy. */
@@ -128,7 +129,7 @@ export function StartMember({ data }: { data: Onboarding }) {
                         {t("reviewProfile")}
                       </Button>
                     )}
-                    <Button onClick={() => go(knownProfile ? "task" : "profile")}>
+                    <Button onClick={() => go(knownProfile ? "subscriptions" : "profile")}>
                       {t(knownProfile ? "useSavedProfile" : "letsGo")}
                       <ArrowRight size={16} aria-hidden />
                     </Button>
@@ -152,11 +153,11 @@ export function StartMember({ data }: { data: Onboarding }) {
                             saveLabel={admin("saveContinue")}
                             renderActions={(actions) => <StartActions>{actions}</StartActions>}
                             onContinue={() =>
-                              advance(item, item === "profile" ? "context" : "task")
+                              advance(item, item === "profile" ? "context" : "subscriptions")
                             }
                             secondaryAction={
                               item === "context" && (
-                                <Button variant="ghost" onClick={() => go("task")}>
+                                <Button variant="ghost" onClick={() => go("subscriptions")}>
                                   {admin("skipOptional")}
                                 </Button>
                               )
@@ -168,6 +169,18 @@ export function StartMember({ data }: { data: Onboarding }) {
                     </div>
                   </section>
                 ),
+            )}
+            {step === "subscriptions" && (
+              <section aria-label={t("memberStep.subscriptions")}>
+                <h1 tabIndex={-1}>{admin("subscriptions")}</h1>
+                <StartGuide message={t("subscriptionsGuide")} />
+                <StartSubscriptions />
+                <StartActions>
+                  <Button onClick={() => advance("subscriptions", "task")}>
+                    {admin("saveContinue")}
+                  </Button>
+                </StartActions>
+              </section>
             )}
             {step === "task" && (
               <section aria-label={t("memberStep.task")}>

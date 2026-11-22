@@ -19,7 +19,6 @@ function props() {
     disabled: false,
     onProviderChange: vi.fn(),
     onModelChange: vi.fn(),
-    onProfileChange: vi.fn(),
     credentialForm: null,
     failure: null,
   };
@@ -74,7 +73,7 @@ it("keeps existing key selection in its own keyboard-accessible tab", async () =
   render(<ChatModelLibrary {...props()} credentialPicker={<button>Choose stored key</button>} />);
   expect(screen.queryByRole("button", { name: "Choose stored key" })).not.toBeInTheDocument();
 
-  await user.click(screen.getByRole("tab", { name: "Saved models" }));
+  await user.click(screen.getByRole("tab", { name: "Models" }));
   await user.keyboard("{ArrowRight}");
   expect(screen.getByRole("tab", { name: "Key" })).toHaveAttribute("aria-selected", "true");
   expect(screen.getByRole("button", { name: "Choose stored key" })).toBeVisible();
@@ -110,7 +109,6 @@ it("keeps saved models in the catalog and marks the active one", async () => {
     <ChatModelLibrary
       {...p}
       model={saved.model}
-      profileId={saved.id}
       profiles={[saved, { ...saved, id: "saved-custom", model: "other/custom", label: "Custom" }]}
     />,
   );
@@ -120,8 +118,7 @@ it("keeps saved models in the catalog and marks the active one", async () => {
   expect(p.onModelChange).toHaveBeenCalledWith(saved.model);
   expect(screen.getByRole("option", { name: "Custom" })).toBeVisible();
 
-  await userEvent.click(screen.getByRole("tab", { name: "Saved models" }));
-  expect(screen.getByRole("option", { name: /My Claude/ })).toBeVisible();
+  expect(screen.queryByRole("tab", { name: "Saved models" })).not.toBeInTheDocument();
 });
 
 it("shows familiar subscriptions before API keys and lists custom gateways immediately", async () => {

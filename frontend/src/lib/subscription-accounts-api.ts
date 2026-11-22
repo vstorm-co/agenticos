@@ -76,7 +76,7 @@ export const cancelSubscriptionSignIn = (state: string) =>
 export const disconnectSubscriptionAccount = (name: string) =>
   apiClient.delete<void>(`/subscription-accounts/${encodeURIComponent(name)}`);
 
-/** The vendor mark each sign-in wears; Devin has none and gets the monogram. */
+/** The vendor mark for each subscription sign-in. */
 export const SUBSCRIPTION_MARK: Readonly<Record<SubscriptionProvider, string>> = {
   claude: "anthropic",
   codex: "openai",

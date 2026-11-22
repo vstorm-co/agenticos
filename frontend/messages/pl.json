@@ -670,7 +670,6 @@
     "membersCouldNotBeRead": "Nie udało się odczytać osób w tej organizacji.",
     "modelPicker": {
       "noMatchingModels": "Brak pasujących modeli.",
-      "noSavedModels": "Nie ma zapisanych modeli tego dostawcy.",
       "allModels": "Modele",
       "applyingModel": "Wybieranie modelu…",
       "selected": "Wybrany",
@@ -17652,7 +17651,13 @@
       "devin": "Devin",
       "meta": "Meta AI"
     },
-    "localReturnHelp": "To logowanie wraca na localhost na Twoim komputerze, a nie na stronę AgenticOS. Strona internetowa nie może odczytać tej karty ani wyświetlić strony na tym lokalnym porcie. Pasek adresu nadal zawiera wynik potrzebny do połączenia konta."
+    "localReturnHelp": "To logowanie wraca na localhost na Twoim komputerze, a nie na stronę AgenticOS. Strona internetowa nie może odczytać tej karty ani wyświetlić strony na tym lokalnym porcie. Pasek adresu nadal zawiera wynik potrzebny do połączenia konta.",
+    "tableProvider": "Dostawca",
+    "tableStatus": "Stan",
+    "tableActions": "Działania",
+    "noAccount": "Brak konta",
+    "search": "Szukaj subskrypcji...",
+    "noMatches": "Brak subskrypcji pasujących do wyszukiwania."
   },
   "mirage": {
     "folders": "Foldery",
@@ -17764,7 +17769,8 @@
       "identityProfileHint": "Dodaj zdjęcie i nazwę widoczną dla zespołu. W następnym kroku uzupełnisz rolę i godziny pracy.",
       "identityProfileBenefitTitle": "Znajoma twarz w każdej organizacji",
       "identityProfileBenefitBody": "Zdjęcie i nazwa pomagają zespołowi rozpoznać Cię we wspólnych rozmowach.",
-      "teamHint": "Zaproś swoich ludzi do organizacji. Możesz zrobić to teraz albo kontynuować i wrócić tu później."
+      "teamHint": "Zaproś swoich ludzi do organizacji. Możesz zrobić to teraz albo kontynuować i wrócić tu później.",
+      "subscriptions": "Twoje subskrypcje"
     },
     "workbench": {
       "memberHint": "Właściciel organizacji może udostępnić Ci agenta. Nie potrzebujesz własnego klucza API.",
@@ -17991,7 +17997,8 @@
         "welcome": "Powitanie",
         "profile": "Twój profil",
         "context": "Twój kontekst",
-        "task": "Pierwsze zadanie"
+        "task": "Pierwsze zadanie",
+        "subscriptions": "Twoje subskrypcje"
       },
       "guideName": "AgenticOS",
       "advancedAccess": "Domeny e-mail, role początkowe i limity kont ↗",
@@ -18001,7 +18008,8 @@
       "advancedVoiceHint": "Wybierz ustawienia transkrypcji i głosu dla tej organizacji.",
       "openGovernanceSettings": "Otwórz budżet i zatwierdzanie",
       "openAssistantSettings": "Otwórz ustawienia asystenta",
-      "openVoiceSettings": "Otwórz ustawienia głosu"
+      "openVoiceSettings": "Otwórz ustawienia głosu",
+      "subscriptionsGuide": "Połącz subskrypcje, z których już korzystasz. Więcej kont możesz dodać później; możesz też kontynuować bez łączenia."
     },
     "subscriptions": {
       "title": "Z których subskrypcji już korzystasz?",

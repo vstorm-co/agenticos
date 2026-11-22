@@ -16,11 +16,14 @@ import {
   FormField,
   IconButton,
   Input,
+  DataTable,
+  type Column,
 } from "@/components/ui";
 import { ErrorState } from "@/components/states";
 import { SubscriptionAccountUsage } from "@/components/agents/subscription-account-usage";
 import { SectionCard } from "@/components/settings/settings-section";
-import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ProviderRow } from "@/components/vault/provider-row";
+import { SearchInput } from "@/components/ui/list-controls";
 import {
   useSubscriptionAccounts,
   useSubscriptionSignInStatus,
@@ -32,89 +35,169 @@ import {
   subscriptionBelongsTo,
   type SubscriptionProvider,
   type SubscriptionSignIn,
+  type SubscriptionAccount,
 } from "@/lib/subscription-accounts-api";
 
-/** A person's own subscription accounts, which models on "Subscription accounts" run on. */
+interface SubscriptionRow {
+  id: string;
+  provider: SubscriptionProvider;
+  account: SubscriptionAccount | null;
+  name: string;
+}
+
+/** One account per row, using the same table and pagination as the vault. */
 export function SubscriptionAccounts() {
   const t = useTranslations("subscriptionAccounts");
+  const models = useTranslations("modelSources");
   const errors = useTranslations("errors");
   const actions = useSubscriptionAccounts();
   const [connecting, setConnecting] = useState<SubscriptionProvider | null>(null);
+  const [query, setQuery] = useState("");
   const listed = actions.accounts.data;
   if (listed !== undefined && !listed.enabled) return null;
-  const rows = listed?.items ?? [];
+  const own = listed?.items ?? [];
   const providers = [...SUBSCRIPTION_PROVIDERS].sort(
     (a, b) =>
-      Number(rows.some((account) => subscriptionBelongsTo(account, b))) -
-      Number(rows.some((account) => subscriptionBelongsTo(account, a))),
+      Number(own.some((account) => subscriptionBelongsTo(account, b))) -
+      Number(own.some((account) => subscriptionBelongsTo(account, a))),
+  );
+  const rows: SubscriptionRow[] = providers.flatMap<SubscriptionRow>((provider) => {
+    const accounts = own.filter((account) => subscriptionBelongsTo(account, provider));
+    return accounts.length
+      ? accounts.map((account, index) => ({
+          id: account.name,
+          provider,
+          account,
+          name: account.email || account.label || models("accountNumber", { number: index + 1 }),
+        }))
+      : [{ id: `provider:${provider}`, provider, account: null, name: "" }];
+  });
+  const needle = query.trim().toLocaleLowerCase();
+  const filtered = rows.filter((row) =>
+    `${t(`providers.${row.provider}`)} ${row.name}`.toLocaleLowerCase().includes(needle),
   );
   const failure = (error: unknown) => toast.error(getErrorMessage(error, errors));
+  const columns: Column<SubscriptionRow>[] = [
+    {
+      key: "provider",
+      header: t("tableProvider"),
+      sortable: true,
+      sortValue: (row) => t(`providers.${row.provider}`),
+      className: "w-[22%] min-w-40",
+      cell: (row) => (
+        <ProviderRow
+          wrap
+          provider={SUBSCRIPTION_MARK[row.provider]}
+          name={t(`providers.${row.provider}`)}
+        />
+      ),
+    },
+    {
+      key: "account",
+      header: models("account"),
+      sortable: true,
+      sortValue: (row) => row.name,
+      className: "w-[22%] max-w-64 @max-md/table:w-full @max-md/table:max-w-none",
+      cell: (row) => (
+        <span className="block text-xs [overflow-wrap:anywhere]" title={row.name}>
+          {row.account ? row.name : t("noAccount")}
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      header: t("tableStatus"),
+      className: "w-28",
+      cell: (row) => (
+        <Badge
+          variant={
+            row.account && !row.account.disabled && !row.account.unavailable ? "success" : "outline"
+          }
+        >
+          {row.account
+            ? row.account.disabled || row.account.unavailable
+              ? t("unavailable")
+              : models("connected")
+            : t("notConnected")}
+        </Badge>
+      ),
+    },
+    {
+      key: "usage",
+      header: models("usageAndLimits"),
+      className: "min-w-64",
+      cell: (row) =>
+        row.account ? (
+          <SubscriptionAccountUsage account={row.account} />
+        ) : (
+          <span className="text-muted-foreground text-xs">—</span>
+        ),
+    },
+    {
+      key: "actions",
+      header: t("tableActions"),
+      align: "right",
+      className: "w-36",
+      cell: (row) => (
+        <div className="flex flex-wrap justify-end gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant={row.account ? "ghost" : "outline"}
+            disabled={!actions.ready || actions.accounts.isLoading}
+            onClick={() => setConnecting(row.provider)}
+          >
+            {row.account ? t("connectAnother") : t("connect")}
+          </Button>
+          {row.account && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={actions.disconnect.isPending}
+              onClick={() => {
+                if (row.account)
+                  void actions.disconnect.mutateAsync(row.account.name).catch(failure);
+              }}
+            >
+              {t("disconnect")}
+            </Button>
+          )}
+        </div>
+      ),
+    },
+  ];
   return (
     <SectionCard
       title={t("title")}
       description={<p>{t("description")}</p>}
       tour="personal-subscription-accounts"
+      className="flex min-h-0 flex-1 flex-col border-0"
+      contentClassName="flex min-h-0 flex-1 flex-col gap-3 py-0"
     >
-      {actions.accounts.error ? (
-        <ErrorState
-          title={t("loadFailed")}
-          cta={{ label: t("retry"), onClick: () => void actions.accounts.refetch() }}
-        />
-      ) : (
-        <ul className="divide-border divide-y">
-          {providers.map((provider) => {
-            const accounts = rows.filter((account) => subscriptionBelongsTo(account, provider));
-            return (
-              <li key={provider} className="flex flex-wrap items-start justify-between gap-3 py-3">
-                <div className="flex min-w-0 flex-1 items-start gap-3">
-                  <span className="bg-muted grid size-9 shrink-0 place-items-center rounded-lg">
-                    <ProviderIcon provider={SUBSCRIPTION_MARK[provider]} className="size-5" />
-                  </span>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <p className="text-sm font-medium">{t(`providers.${provider}`)}</p>
-                    {accounts.length === 0 && (
-                      <p className="text-muted-foreground text-xs">{t("notConnected")}</p>
-                    )}
-                    {accounts.map((account) => (
-                      <div key={account.name} className="space-y-2 py-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="truncate text-xs">
-                            {account.email ?? account.label ?? account.name}
-                          </span>
-                          {(account.disabled || account.unavailable) && (
-                            <Badge variant="outline">{t("unavailable")}</Badge>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-xs"
-                            disabled={actions.disconnect.isPending}
-                            onClick={() =>
-                              void actions.disconnect.mutateAsync(account.name).catch(failure)
-                            }
-                          >
-                            {t("disconnect")}
-                          </Button>
-                        </div>
-                        <SubscriptionAccountUsage account={account} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!actions.ready || actions.accounts.isLoading}
-                  onClick={() => setConnecting(provider)}
-                >
-                  {accounts.length > 0 ? t("connectAnother") : t("connect")}
-                </Button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <p role="note" className="text-muted-foreground mt-4 text-xs">
+      <SearchInput value={query} onChange={setQuery} placeholder={t("search")} />
+      <DataTable
+        key={query}
+        clientPagination
+        pageSize={5}
+        fillHeight
+        stackOnNarrow
+        columns={columns}
+        rows={filtered}
+        getRowKey={(row) => row.id}
+        loading={actions.accounts.isLoading}
+        error={
+          actions.accounts.error ? (
+            <ErrorState
+              title={t("loadFailed")}
+              cta={{ label: t("retry"), onClick: () => void actions.accounts.refetch() }}
+            />
+          ) : undefined
+        }
+        empty={<p className="text-muted-foreground p-5 text-sm">{t("noMatches")}</p>}
+        className="rounded-none border-0 bg-transparent"
+      />
+      <p role="note" className="text-muted-foreground pb-4 text-xs">
         {t("risk")}
       </p>
       {connecting && (

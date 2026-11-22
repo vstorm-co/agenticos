@@ -212,7 +212,7 @@ async function selectCompany() {
   await userEvent.click(screen.getByRole("button", { name: "Northwind" }));
 }
 async function completePersonalization() {
-  for (let i = 0; i < 3; i++)
+  for (let i = 0; i < 4; i++)
     await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
 }
 async function openOrganizationSettings(appAdmin: boolean) {
@@ -424,6 +424,8 @@ it("finishes after all questions while leaving optional setup empty", async () =
   expect(screen.queryByRole("button", { name: "Skip for now" })).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
   await userEvent.click(screen.getByRole("button", { name: "Skip for now" }));
+  expect(screen.getByRole("heading", { name: "Your subscriptions" })).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
   await userEvent.click(screen.getByRole("button", { name: "Continue setup" }));
   await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
   await userEvent.click(screen.getByRole("button", { name: "Keep current settings" }));

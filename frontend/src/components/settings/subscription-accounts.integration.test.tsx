@@ -60,8 +60,11 @@ beforeEach(() => {
 });
 
 async function rowOf(name: string) {
+  const search = screen.getByRole("textbox", { name: "Search subscriptions..." });
+  await userEvent.clear(search);
+  await userEvent.type(search, name);
   const title = await screen.findByText(name);
-  const row = title.closest("li");
+  const row = title.closest("tr");
   if (!row) throw new Error(`No row for ${name}`);
   return within(row);
 }
@@ -248,4 +251,28 @@ it("keeps several accounts of the same provider and their quota windows separate
   expect(screen.getByText("second@example.com")).toBeInTheDocument();
   expect(apiClient.get).toHaveBeenCalledWith("/subscription-accounts/first.json/usage");
   expect(apiClient.get).toHaveBeenCalledWith("/subscription-accounts/second.json/usage");
+});
+
+it("pages individual accounts and resets to the first page when searching", async () => {
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+    path.endsWith("/usage")
+      ? { status: "unavailable", observed_at: null, windows: [] }
+      : {
+          enabled: true,
+          items: Array.from({ length: 6 }, (_, index) => ({
+            ...ACCOUNT,
+            name: `account-${index}.json`,
+            email: `person${index}@example.com`,
+          })),
+        },
+  );
+  mount();
+  expect(await screen.findByText("person0@example.com")).toBeVisible();
+  expect(screen.queryByText("person5@example.com")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+  expect(screen.getByText("person5@example.com")).toBeVisible();
+  expect(screen.queryByText("person0@example.com")).not.toBeInTheDocument();
+  await userEvent.type(screen.getByRole("textbox", { name: "Search subscriptions..." }), "person0");
+  expect(screen.getByText("person0@example.com")).toBeVisible();
+  expect(screen.queryByText("person5@example.com")).not.toBeInTheDocument();
 });

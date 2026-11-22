@@ -30,6 +30,7 @@ vi.mock("./start-stage-artwork", () => ({ StartStageArtwork: () => null }));
 vi.mock("./start-language", () => ({ StartLanguage: () => null }));
 vi.mock("./start-companions", () => ({ StartCompanions: () => null }));
 vi.mock("@/components/ui/avatar-face", () => ({ AvatarFace: () => null }));
+vi.mock("./start-subscriptions", () => ({ StartSubscriptions: () => null }));
 vi.mock("./start-tasks", () => ({ StartTasks: () => <h2>First task examples</h2> }));
 vi.mock("./start-finish", () => ({
   StartFinish: () => <button onClick={env.finish}>Finish setup</button>,
@@ -88,6 +89,8 @@ it("guides a new account through personal questions and a first task without adm
     screen.getByRole("heading", { name: "What should your agents know about you?" }),
   ).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Skip for now" }));
+  expect(screen.getByRole("heading", { name: "Your subscriptions" })).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
   expect(screen.getByRole("heading", { name: "First task examples" })).toBeVisible();
   expect(screen.queryByRole("slider")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Finish setup" }));
@@ -98,6 +101,8 @@ it("welcomes an existing account to another organization without repeating its p
   render(<StartMember data={data} />);
   expect(screen.getByText(/profile already exists/)).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Use my saved profile" }));
+  expect(screen.getByRole("heading", { name: "Your subscriptions" })).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
   expect(screen.getByRole("heading", { name: "First task examples" })).toBeVisible();
   expect(env.callbacks.size).toBe(0);
 });
@@ -144,6 +149,8 @@ it("lets an invited account reuse its saved identity even without a job descript
   window.history.replaceState(null, "", "/onboarding?welcome=1&entry=joined");
   render(<StartMember data={data} />);
   await userEvent.click(screen.getByRole("button", { name: "Use my saved profile" }));
+  expect(screen.getByRole("heading", { name: "Your subscriptions" })).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
   expect(screen.getByRole("heading", { name: "First task examples" })).toBeVisible();
   expect(env.callbacks.size).toBe(0);
 });

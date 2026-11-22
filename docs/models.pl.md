@@ -1,5 +1,5 @@
 ---
-source_sha: "59728d39c017"
+source_sha: "7a55db1d461a"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -447,8 +447,7 @@ Wszystkie grupy połączeń są od razu widoczne. Podłączone subskrypcje pokaz
 Modele subskrypcji korzystają z instrukcji i narzędzi AgenticOS w runtime Pydantic AI. Nie uruchamiają Claude Code ani innego harnessu programistycznego. W Capabilities grupa **Delegowanie do agentów** łączy subagentów, **Claude Code i Codex** oraz **Inne zainstalowane agenty**. Coding Agent pozostaje włączony w domyślnym szablonie AgenticOS. Kolejność grup to codzienna praca, wiedza, research, wyniki, delegowanie, automatyzacja i kanały, a zaawansowane ustawienia są zwinięte na końcu. W każdej grupie najpierw są włączone capability, potem zalecane.
 
 Osoby logują się do własnych subskrypcji z konsoli, a modele dostawcy
-**Subscription accounts** działają na nich. W **Ustawienia → Profil → Konta
-subskrypcyjne** każda osoba łączy konta Claude (Pro, Max), ChatGPT (Codex),
+**Subscription accounts** działają na nich. W **Ustawienia → Subskrypcje** każda osoba łączy konta Claude (Pro, Max), ChatGPT (Codex),
 Google Antigravity, Grok, Kimi, Devin lub Meta AI. Logowanie pokazuje kod do
 wpisania na stronie dostawcy albo prosi o adres, na którym przeglądarka
 skończyła po zatwierdzeniu.

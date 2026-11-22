@@ -1,5 +1,5 @@
 ---
-source_sha: "d1f9d3257b4e"
+source_sha: "b01ada556fc9"
 ---
 
 # La consola { #the-console }
@@ -40,7 +40,7 @@ Las galerías de agentes muestran la publicación mediante un punto y texto. Un 
 
 Los catálogos usan espaciado discreto, metadatos neutros y acciones coherentes. Proyectos, bases de conocimiento, tablas y datasets conservan acceso, tamaño y vínculos relevantes sin fechas en las tarjetas. En Build, Instrucciones tiene su propia superficie de escritura; Modelo y las opciones Variables, Voz y Primeros mensajes comparten un panel con separadores. El modelo principal permanece visible. Thinking y Answer format siguen en los ajustes del modelo; la configuración obligatoria pendiente y los errores de validación siguen accesibles.
 
-En Build, First messages muestra tarjetas con icono, título y mensaje. Abre una tarjeta para editarla. Al guardar un ejemplo editado, los demás ejemplos se conservan en el borrador. Skills, Context y Knowledge search en Toolbox usan listas seleccionables. Un modelo de chat guardado sigue visible en Models y Saved models. Desactiva las sugerencias para ver más elementos de Inbox en el chat nuevo.
+En Build, First messages muestra tarjetas con icono, título y mensaje. Abre una tarjeta para editarla. Al guardar un ejemplo editado, los demás ejemplos se conservan en el borrador. Skills, Context y Knowledge search en Toolbox usan listas seleccionables. Los modelos utilizados siguen visibles en una única lista Models. Desactiva las sugerencias para ver más elementos de Inbox en el chat nuevo.
 
 Variables, Voice, First messages, Run reviewers, Alerts y Tracing empiezan plegados; sus resúmenes muestran la configuración actual. Abre la sección que quieras cambiar. Los ajustes necesarios y los errores de validación siguen accesibles. Model permanece abierto y los enlaces de configuración de Voice abren la pestaña correspondiente.
 
@@ -182,7 +182,7 @@ Los chats nuevos muestran hasta cuatro sugerencias del agente activo debajo del 
 
 La cronología muestra hasta dos elementos de la bandeja, incluido el enlace a aprobaciones pendientes, y enlaza con la bandeja completa. Durante la carga se reserva espacio para la vista previa. La bandeja y las aprobaciones reutilizan inmediatamente los datos almacenados en caché al navegar: se consideran recientes durante 30 segundos y se conservan durante 30 minutos sin uso. Si falla la actualización, los elementos guardados siguen visibles con un aviso. Cambiar de cuenta u organización sigue vaciando la caché.
 
-El chat principal tiene un cuadro de mensaje ancho. La biblioteca muestra primero los proveedores conectados, con logotipos y nombres que empiezan en mayúscula, y separa el catálogo de los modelos guardados. Pulsar un modelo lo selecciona directamente. Las credenciales que falten se añaden mediante los formularios existentes de Vault dentro del selector, incluidas las credenciales de varios campos. Se conservan los permisos y la validación de modelos. El micrófono y el envío cambian suavemente al escribir.
+El chat principal tiene un cuadro de mensaje ancho. La biblioteca muestra primero los proveedores conectados, con logotipos y nombres que empiezan en mayúscula, con una única lista Models y una pestaña separada para la cuenta o clave. Pulsar un modelo lo selecciona directamente. Las credenciales que falten se añaden mediante los formularios existentes de Vault dentro del selector, incluidas las credenciales de varios campos. Se conservan los permisos y la validación de modelos. El micrófono y el envío cambian suavemente al escribir.
 
 La búsqueda de conversaciones revisa títulos y texto indexado de mensajes, incluidos los chats archivados que puedes leer. Los resultados muestran fragmentos de texto, coincidencias resaltadas y el número de mensajes coincidentes. Usa las flechas y Enter para abrir un resultado. Los errores ofrecen reintentar en lugar de simular una lista vacía.
 
@@ -1282,3 +1282,5 @@ Los grupos de la barra lateral se expanden y contraen con suavidad. Los destinos
 Los ajustes conservan pestañas horizontales. Claves API y clientes MCP comparten **API y MCP**, con controles de acceso separados y las URL existentes; MCP se abre de forma predeterminada y la URL puede seleccionar cualquiera de las pestañas. La configuración móvil se enlaza desde **Cuenta**. El perfil coloca identidad y contexto de agentes en paralelo en pantallas amplias, con tarjetas de apariencia y cuentas conectadas. Las listas ocupan la altura disponible. Organizaciones y grupos se abren desde **Gestionar organizaciones** en el selector de espacio. Las páginas, listas y tablas vacías comparten ilustración. Directory espera permisos y datos antes de mostrar una única acción para crear una asignación.
 
 Los ajustes personales ya no tienen una pestaña Assistant independiente. Los consejos de página están en **Account**; la antigua URL `/settings/assistant` redirige allí. **Inbox preferences** contiene el interruptor personal para recibir sugerencias nocturnas; el historial y la restauración permanecen en Inbox. Los modelos, presupuestos, mantenimiento de memoria y Voice de la organización permanecen en **AI & services**. Las etiquetas de formulario comparten una altura mínima, incluida la ayuda contextual. Los campos y selectores estándar tienen la misma altura, con objetivos táctiles mayores en dispositivos de puntero impreciso. Los filtros compactos conservan su tamaño. La configuración MCP utiliza su propio marco sin un segundo contenedor con borde.
+
+La selección de modelo se aplica directamente sin notificación de éxito. **Volver al modelo del agente** elimina la selección de la conversación. Las suscripciones tienen un paso propio después del contexto personal durante la configuración: cada servicio ofrece **Conectar** directamente en su tarjeta. **Settings → Subscriptions** muestra una fila por cuenta con búsqueda, paginación y ventanas de uso comunicadas por el proveedor; los límites desconocidos se indican expresamente.

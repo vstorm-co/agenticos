@@ -1678,7 +1678,6 @@
     "membersCouldNotBeRead": "The people in this organization could not be read.",
     "modelPicker": {
       "noMatchingModels": "No matching models.",
-      "noSavedModels": "No saved models for this provider.",
       "allModels": "Models",
       "applyingModel": "Selecting model…",
       "selected": "Selected",
@@ -17879,7 +17878,13 @@
       "devin": "Devin",
       "meta": "Meta AI"
     },
-    "localReturnHelp": "This sign-in returns to localhost on your computer, not to the AgenticOS website. A website cannot read that tab or display a page on that local port. The address bar still contains the result needed to finish connecting."
+    "localReturnHelp": "This sign-in returns to localhost on your computer, not to the AgenticOS website. A website cannot read that tab or display a page on that local port. The address bar still contains the result needed to finish connecting.",
+    "tableProvider": "Provider",
+    "tableStatus": "Status",
+    "tableActions": "Actions",
+    "noAccount": "No account yet",
+    "search": "Search subscriptions...",
+    "noMatches": "No subscriptions match your search."
   },
   "mirage": {
     "folders": "Folders",
@@ -17991,7 +17996,8 @@
       "identityProfileHint": "Add your photo and the name your teammates will see. Your role and working hours come next.",
       "identityProfileBenefitTitle": "A familiar face in every organization",
       "identityProfileBenefitBody": "Your photo and display name help teammates recognize you in shared conversations.",
-      "teamHint": "Bring your people into the organization. You can invite them now or continue and come back later."
+      "teamHint": "Bring your people into the organization. You can invite them now or continue and come back later.",
+      "subscriptions": "Your subscriptions"
     },
     "workbench": {
       "memberHint": "Your organization's owner can share an agent with you. You do not need your own API key.",
@@ -18218,7 +18224,8 @@
         "welcome": "Welcome",
         "profile": "Your profile",
         "context": "Your context",
-        "task": "First task"
+        "task": "First task",
+        "subscriptions": "Your subscriptions"
       },
       "guideName": "AgenticOS",
       "advancedAccess": "Email domains, starting roles and account limits ↗",
@@ -18228,7 +18235,8 @@
       "advancedVoiceHint": "Choose transcription and voice settings for this workspace.",
       "openGovernanceSettings": "Open budget and approvals",
       "openAssistantSettings": "Open assistant settings",
-      "openVoiceSettings": "Open voice settings"
+      "openVoiceSettings": "Open voice settings",
+      "subscriptionsGuide": "Connect the subscriptions you already use. You can add more accounts later or continue without connecting."
     },
     "subscriptions": {
       "title": "Which subscriptions do you already have?",

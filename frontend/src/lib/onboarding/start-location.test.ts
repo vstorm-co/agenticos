@@ -23,6 +23,8 @@ it.each([
 });
 it.each([
   "/onboarding?start-step=member.context&workspace=org",
+  "/onboarding?start-step=member.subscriptions&workspace=org",
+  "/onboarding?start-step=admin.subscriptions&workspace=org",
   "/onboarding?start-step=admin.deployment&workspace=org&question=announcement",
   "/onboarding?start-step=admin.organization&workspace=org&question=advanced",
 ])("preserves only the wizard's own navigation URL: %s", (href) => {

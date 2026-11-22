@@ -86,7 +86,16 @@ describe("ProviderIcon", () => {
   });
 
   it("draws every provider the vault offers with a mark, not an initial", () => {
-    for (const provider of ["xai", "cohere", "huggingface", "heroku", "ovhcloud", "litellm"]) {
+    for (const provider of [
+      "xai",
+      "cohere",
+      "huggingface",
+      "heroku",
+      "ovhcloud",
+      "litellm",
+      "devin",
+      "meta",
+    ]) {
       const { container, unmount } = render(<ProviderIcon provider={provider} />);
       expect(container.querySelector("svg")).not.toBeNull();
       unmount();

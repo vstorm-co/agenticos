@@ -1,5 +1,5 @@
 ---
-source_sha: "d1f9d3257b4e"
+source_sha: "b01ada556fc9"
 ---
 
 # Konsola { #the-console }
@@ -40,7 +40,7 @@ Galeria agentów pokazuje publikację jako kropkę i tekst. Potrzeba uwagi ma ma
 
 Katalogi zasobów mają spokojne odstępy, neutralne metadane i spójne akcje. Projekty, bazy wiedzy, tabele i datasety zachowują dostęp, rozmiar i istotne powiązania bez dat na kartach. W Build Instrukcje mają osobny obszar pisania; Model i opcjonalne Zmienne, Głos oraz Pierwsze wiadomości są w jednym panelu z separatorami. Główny model pozostaje widoczny. Thinking i Answer format są częścią ustawień modelu; brak wymaganej konfiguracji i błędy walidacji pozostają dostępne.
 
-W Build sekcja First messages pokazuje karty z ikoną, tytułem i wiadomością. Otwórz kartę, żeby ją edytować. Zapisanie zmian we wbudowanym przykładzie zachowuje pozostałe przykłady w szkicu. Skills, Context i Knowledge search w Toolbox używają list wyboru. Zapisany model czatu pozostaje w Models i w Saved models.
+W Build sekcja First messages pokazuje karty z ikoną, tytułem i wiadomością. Otwórz kartę, żeby ją edytować. Zapisanie zmian we wbudowanym przykładzie zachowuje pozostałe przykłady w szkicu. Skills, Context i Knowledge search w Toolbox używają list wyboru. Wcześniej używane modele pozostają na jednej liście Models.
 
 Variables, Voice, First messages, Run reviewers, Alerts i Tracing są początkowo zwinięte; podsumowania pokazują bieżącą konfigurację. Rozwiń sekcję, którą chcesz zmienić. Wymagane ustawienia i błędy walidacji pozostają dostępne. Model jest otwarty, a link do ustawień Voice otwiera odpowiednią zakładkę.
 
@@ -1248,3 +1248,5 @@ Grupy paska bocznego rozwijają się i zwijają płynnie. Ukryte miejsca nie prz
 Ustawienia zachowują poziome taby. Klucze API i klienci MCP są razem w **API i MCP**, z oddzielnymi kontrolami dostępu i zachowanymi adresami; domyślnie otwiera się MCP, a adres URL może wskazać każdą z zakładek. Konfiguracja aplikacji mobilnej jest pod **Account**. Profil układa dane osobowe i kontekst agentów obok siebie na szerokim ekranie, z osobnymi kartami wyglądu i połączonych kont. Kontenery list wypełniają dostępną wysokość. Organizacje i grupy otwiera się przez **Manage organizations** w przełączniku workspace, bez powielania ich w sidebarze. Puste strony, listy i tabele korzystają ze wspólnej ilustracji. Directory czeka na uprawnienia i dane, zanim pokaże pojedynczą akcję utworzenia mapowania.
 
 Ustawienia osobiste nie mają osobnej zakładki Assistant. Wskazówki stron znajdują się w **Account**, a stary adres `/settings/assistant` przekierowuje do tej zakładki. **Inbox preferences** zawiera osobisty przełącznik dostarczania nocnych sugestii; historia sugestii i ich przywracanie pozostają w Inbox. Modele organizacji, budżety, utrzymanie pamięci i Voice pozostają w **AI & services**. Etykiety formularzy mają wspólną minimalną wysokość, również przy przycisku pomocy. Standardowe pola tekstowe i selecty mają jednakową wysokość oraz większe obszary dotykowe przy niedokładnym wskaźniku. Kompaktowe filtry tabel zachowują własny rozmiar. Konfiguracja MCP ma jedną własną ramkę zamiast dodatkowego obramowanego kontenera.
+
+Selektor stosuje wybór modelu bez powiadomienia o sukcesie. Przycisk **Powrót do modelu agenta** usuwa model wybrany dla rozmowy. Subskrypcje mają osobny krok po kontekście osobistym w onboardingu: każdy kafelek usługi ma bezpośredni przycisk **Połącz**. **Settings → Subscriptions** pokazuje osobny wiersz dla każdego konta, wyszukiwanie, paginację i okna limitów zgłoszone przez usługę; brak danych jest jawnie oznaczony.

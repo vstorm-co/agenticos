@@ -247,6 +247,7 @@ const PROVIDERS: Readonly<Record<string, Source>> = {
   cline: lobehub("cline"),
   cohere: lobehub("cohere"),
   deepseek: lobehub("deepseek"),
+  devin: lobehub("devin"),
   // Text to speech's provider (#2259); a black mark, so it keeps the text colour.
   elevenlabs: lobehub("elevenlabs"),
   fireworks: lobehub("fireworks"),
@@ -257,6 +258,7 @@ const PROVIDERS: Readonly<Record<string, Source>> = {
   heroku: simple("heroku"),
   huggingface: lobehub("huggingface"),
   inception: lobehub("inception"),
+  meta: simple("meta"),
   minimax: lobehub("minimax"),
   mistral: lobehub("mistral"),
   moonshotai: lobehub("moonshot"),

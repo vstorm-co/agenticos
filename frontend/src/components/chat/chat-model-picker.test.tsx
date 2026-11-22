@@ -104,8 +104,7 @@ vi.mock("@/components/agents/subscription-model-form", () => ({
   }) => {
     const paneProps: import("./chat-model-library").ChatModelPaneProps = {
       providerId: "subscription_accounts",
-      profileId: listedProfiles().find((entry) => entry.model === initialModel)?.id,
-      model: "",
+      model: initialModel ?? "",
       models: [],
       profiles: listedProfiles().filter((entry) =>
         personalAccounts.some(
@@ -115,11 +114,15 @@ vi.mock("@/components/agents/subscription-model-form", () => ({
       loading: false,
       applying: false,
       disabled: false,
-      onModelChange: () => undefined,
-      onProfileChange: onCreated,
+      onModelChange: (model) => {
+        const found = listedProfiles().find((entry) => entry.model === model);
+        if (found) onCreated(found);
+      },
       credentialForm: null,
       failure: null,
-      configurationForm: <div data-testid="connection-form">{`subscription:${provider}`}</div>,
+      configurationForm: initialModel ? undefined : (
+        <div data-testid="connection-form">{`subscription:${provider}`}</div>
+      ),
     };
     return <LibraryPane {...paneProps} />;
   },
@@ -779,7 +782,7 @@ it("offers inline key creation for a provider selected in the library", async ()
   await userEvent.click(within(providers).getByRole("button", { name: /OpenRouter/ }));
   expect(screen.getByRole("button", { name: "Add a key: OpenRouter" })).toBeVisible();
 });
-it("preserves a saved profile's own endpoint when another profile names the same model", async () => {
+it("reuses the active endpoint profile when another region names the same model", async () => {
   const one = {
     ...profile("one", "openrouter", "demo/model"),
     label: "Gateway EU",
@@ -796,9 +799,8 @@ it("preserves a saved profile's own endpoint when another profile names the same
   render(
     <ChatModelPicker presentation="library" value="one" agentModel={null} onChange={changed} />,
   );
-  await userEvent.click(screen.getByRole("tab", { name: "Saved models" }));
-  await userEvent.click(screen.getByRole("option", { name: /Gateway US/ }));
-  expect(changed).toHaveBeenCalledWith("two");
+  await userEvent.click(screen.getByRole("option", { name: /Gateway EU/ }));
+  expect(changed).toHaveBeenCalledWith("one");
   expect(mutateAsync).not.toHaveBeenCalled();
 });
 
@@ -911,7 +913,7 @@ it("does not claim that provider keys are missing when their read failed", () =>
   expect(screen.queryByRole("button", { name: /Add a key/ })).not.toBeInTheDocument();
 });
 
-it("leaves non-chat models and profiles without keys out of Saved models", async () => {
+it("leaves non-chat models and profiles without keys out of the model list", async () => {
   listedProfiles.mockReturnValue([
     profile("chat", "openrouter", "demo/chat"),
     { ...profile("image", "openrouter", "demo/image"), chat_capable: false },
@@ -921,7 +923,6 @@ it("leaves non-chat models and profiles without keys out of Saved models", async
   render(
     <ChatModelPicker presentation="library" value="chat" agentModel={null} onChange={vi.fn()} />,
   );
-  await userEvent.click(screen.getByRole("tab", { name: "Saved models" }));
   expect(screen.getByRole("option", { name: /Team demo\/chat/ })).toBeVisible();
   expect(
     screen.queryByRole("option", { name: /demo\/image|demo\/missing/ }),
@@ -1024,7 +1025,8 @@ it.each([
     />,
   );
   expect(screen.getByRole("button", { name: label })).toHaveAttribute("aria-pressed", "true");
-  expect(screen.getByTestId("connection-form")).toHaveTextContent(`subscription:${source}`);
+  expect(screen.getByRole("tab", { name: "Models" })).toBeVisible();
+  expect(screen.queryByRole("tab", { name: "Saved models" })).not.toBeInTheDocument();
 });
 
 it("changes the OpenRouter region deliberately without reusing the previous regional profile", async () => {
@@ -1130,7 +1132,6 @@ it("keeps saved subscription models selectable and excludes another person's acc
   render(
     <ChatModelPicker presentation="library" value="mine" agentModel={null} onChange={changed} />,
   );
-  await userEvent.click(screen.getByRole("tab", { name: "Saved models" }));
   const mine = screen.getByRole("option", { name: /My renamed model/ });
   expect(within(mine).getByLabelText("Selected")).toBeInTheDocument();
   expect(screen.queryByRole("option", { name: /Someone else's/ })).not.toBeInTheDocument();
@@ -1138,7 +1139,7 @@ it("keeps saved subscription models selectable and excludes another person's acc
   expect(changed).toHaveBeenCalledWith("mine");
 });
 
-it("keeps other regions in saved models without adding them to the active catalog", async () => {
+it("keeps profiles from other regions out of the active catalog", async () => {
   const regional = {
     ...profile("eu", "openrouter", "vendor/eu"),
     base_url: "https://eu.openrouter.ai/api/v1",
@@ -1153,6 +1154,5 @@ it("keeps other regions in saved models without adding them to the active catalo
     <ChatModelPicker presentation="library" value="eu" agentModel={null} onChange={vi.fn()} />,
   );
   expect(screen.queryByRole("option", { name: /Global only/ })).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole("tab", { name: "Saved models" }));
-  expect(screen.getByRole("option", { name: /Global only/ })).toBeInTheDocument();
+  expect(screen.queryByRole("tab", { name: "Saved models" })).not.toBeInTheDocument();
 });

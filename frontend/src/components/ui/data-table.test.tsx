@@ -442,3 +442,21 @@ describe("DataTable client pagination", () => {
     expect(screen.queryByRole("button", { name: messages.ui.nextPage })).not.toBeInTheDocument();
   });
 });
+
+it("paginates tall account rows with an explicit page size", async () => {
+  renderTable({
+    clientPagination: true,
+    pageSize: 2,
+    rows: [
+      { id: "a", name: "Account A" },
+      { id: "b", name: "Account B" },
+      { id: "c", name: "Account C" },
+    ],
+  });
+  expect(screen.queryByText("Account C")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: messages.ui.nextPage }));
+  expect(screen.getByText("Account C")).toBeVisible();
+  expect(screen.queryByText("Account A")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: messages.ui.previousPage }));
+  expect(screen.getByText("Account A")).toBeVisible();
+});

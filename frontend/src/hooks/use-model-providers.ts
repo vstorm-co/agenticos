@@ -125,7 +125,7 @@ export function useModelProfiles({ enabled = true }: { enabled?: boolean } = {})
   return { profiles: query.data?.items ?? [] };
 }
 
-export function useModelProviders() {
+export function useModelProviders({ silentCreate = false }: { silentCreate?: boolean } = {}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("settings");
   const queryClient = useQueryClient();
@@ -180,7 +180,7 @@ export function useModelProviders() {
       apiClient.post<ModelProfile>("/providers/model-profiles", data),
     onSuccess: async (profile) => {
       await invalidate();
-      toast.success(t("modelAdded", { label: profile.label }));
+      if (!silentCreate) toast.success(t("modelAdded", { label: profile.label }));
     },
   });
 

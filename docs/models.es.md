@@ -1,5 +1,5 @@
 ---
-source_sha: "59728d39c017"
+source_sha: "7a55db1d461a"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -457,7 +457,7 @@ Los modelos de suscripción utilizan las instrucciones y herramientas de Agentic
 
 Las personas inician sesión en sus propias suscripciones desde la consola, y los
 modelos del proveedor **Subscription accounts** se ejecutan con ellas. En
-**Ajustes → Perfil → Cuentas de suscripción**, cada persona conecta cuentas de
+**Ajustes → Suscripciones**, cada persona conecta cuentas de
 Claude (Pro, Max), ChatGPT (Codex), Google Antigravity, Grok, Kimi, Devin o Meta
 AI. Un inicio de sesión muestra un código para introducir en la página del
 proveedor, o pide la dirección en la que terminó el navegador tras aprobarlo.

@@ -305,7 +305,7 @@ it("keeps saved models tied to the selected account and reports failed selection
   );
   await userEvent.click(screen.getByRole("button", { name: "saved@example.com" }));
   expect(screen.getByRole("tab", { name: "Account" })).toHaveAttribute("aria-selected", "true");
-  await userEvent.click(screen.getByRole("tab", { name: "Saved models" }));
+  await userEvent.click(screen.getByRole("tab", { name: "Models" }));
   vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("selection refused"));
   await userEvent.click(await screen.findByRole("option"));
   expect(await screen.findByRole("alert")).toHaveTextContent("selection refused");
@@ -317,4 +317,32 @@ it("offers connection setup in the library when no account is connected", async 
   mount(undefined, true);
   expect(await screen.findByRole("button", { name: "Connect" })).toBeInTheDocument();
   expect(screen.queryByRole("tab", { name: "Models" })).not.toBeInTheDocument();
+});
+
+it("opens direct sign-in from the branded disconnected view", async () => {
+  items = [];
+  vi.mocked(apiClient.post).mockResolvedValue({
+    url: "https://example.test/sign-in",
+    state: "signin",
+    flow: "device",
+    user_code: "TEST-CODE",
+  });
+  mount(undefined, true);
+  await userEvent.click(await screen.findByRole("button", { name: "Connect" }));
+  expect(await screen.findByRole("dialog")).toBeVisible();
+  expect(await screen.findByText("TEST-CODE")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+});
+it("retries account reads from the disconnected view", async () => {
+  vi.mocked(apiClient.get).mockRejectedValue(new Error("offline"));
+  mount(undefined, true);
+  await userEvent.click(await screen.findByRole("button", { name: "Retry" }));
+  expect(apiClient.get).toHaveBeenCalledTimes(2);
+});
+it("withholds sign-in when subscription support is disabled", async () => {
+  items = [];
+  enabled = false;
+  mount(undefined, true);
+  await waitFor(() => expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled());
 });

@@ -31,6 +31,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Subscription onboarding uses directly connectable service tiles after personal context. Subscriptions settings lists individual accounts in a searchable, paginated table with usage windows.
+
 - A dedicated Subscriptions settings tab with per-account usage bars and reset times, live quota metadata for Codex and Antigravity, and separate Antigravity model-group windows.
 
 - Optional subscription selection and inline sign-in during onboarding, before the first chat.
@@ -100,6 +102,10 @@ Two things are versioned separately from this file and worth knowing about:
 - Find unanswered web-chat questions in Inbox and return to their original question cards, including older conversations.
 
 ### Fixed
+
+- Claude subscription and custom-gateway models retain all agent tools without exceeding Anthropic’s limit of 20 strict tool schemas.
+
+- Chat model selection uses one list without a Saved models tab or success notification, with a button to restore the agent’s model and branded connection screens. Devin and Meta display their provider logos.
 
 - Hide subscription account routing from model catalog names in the chat composer.
 

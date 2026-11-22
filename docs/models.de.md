@@ -1,5 +1,5 @@
 ---
-source_sha: "59728d39c017"
+source_sha: "7a55db1d461a"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -477,7 +477,7 @@ Abonnementmodelle nutzen die Anweisungen und Werkzeuge von AgenticOS in der Lauf
 
 Personen melden sich in der Konsole bei ihren eigenen Abonnements an, und
 Modelle des Anbieters **Subscription accounts** laufen darauf. Unter
-**Einstellungen → Profil → Abonnement-Konten** verbindet jede Person Konten von
+**Einstellungen → Abonnements** verbindet jede Person Konten von
 Claude (Pro, Max), ChatGPT (Codex), Google Antigravity, Grok, Kimi, Devin oder
 Meta AI. Eine Anmeldung zeigt einen Code, den du auf der Seite des Anbieters
 eingibst, oder fragt nach der Adresse, auf der der Browser nach der Bestätigung

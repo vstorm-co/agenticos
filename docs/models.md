@@ -435,8 +435,7 @@ All connection groups are visible immediately. Connected subscriptions show a st
 Subscription models use the AgenticOS instructions and tools in the Pydantic AI runtime. They do not launch Claude Code or another coding harness. In Capabilities, **Delegate to agents** groups subagents, **Claude Code & Codex** and **Other installed agents**. Coding Agent remains enabled in the default AgenticOS template. Groups follow everyday work, knowledge, research, outputs, delegation, automation and channels, with advanced tuning collapsed last. Enabled capabilities appear first within each group, followed by recommended ones.
 
 People sign in to their own subscriptions from the console, and models on the
-**Subscription accounts** provider run on them. Under **Settings → Profile →
-Subscription accounts**, each person connects Claude (Pro, Max), ChatGPT (Codex),
+**Subscription accounts** provider run on them. Under **Settings → Subscriptions**, each person connects Claude (Pro, Max), ChatGPT (Codex),
 Google Antigravity, Grok, Kimi, Devin or Meta AI accounts. A sign-in shows a code
 to enter on the provider's page, or asks for the address the browser ended on
 after approving.

@@ -87,6 +87,23 @@ describe("useModelProviders", () => {
     );
   });
 
+  it("silently creates chat selections while refreshing the shared profile list", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ label: "Personal Claude" });
+    const { result } = renderHook(() => useModelProviders({ silentCreate: true }), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    const before = vi.mocked(apiClient.get).mock.calls.length;
+    await act(async () => {
+      await result.current.createProfile.mutateAsync({
+        label: "Personal Claude",
+        provider: "subscription_accounts",
+        secret_id: null,
+        model: "claude",
+      });
+    });
+    expect(toastSuccess).not.toHaveBeenCalled();
+    expect(vi.mocked(apiClient.get).mock.calls.length).toBeGreaterThan(before);
+  });
+
   it("surfaces a refused removal instead of leaving the row in place silently", async () => {
     // The server refuses deleting a profile an agent still points at, and the
     // panel's only way to say so is the toast.
@@ -164,7 +181,6 @@ describe("useModelProviders", () => {
                 model: "acme/painter",
                 base_url: baseUrl,
                 secret_id: "s1",
-                params: {},
                 fallback_profile_ids: [],
                 chat_capable: true,
               },
@@ -225,7 +241,6 @@ describe("useModelProviders", () => {
                 provider: "openrouter",
                 model: "acme/chat",
                 secret_id: "s1",
-                params: {},
                 fallback_profile_ids: [],
               },
             ],

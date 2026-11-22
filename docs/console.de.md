@@ -1,5 +1,5 @@
 ---
-source_sha: "d1f9d3257b4e"
+source_sha: "b01ada556fc9"
 ---
 
 # Die Konsole { #the-console }
@@ -40,7 +40,7 @@ Agent-Galerien zeigen den Veröffentlichungsstatus mit Punkt und Text. Ein klein
 
 Ressourcenkataloge verwenden zurückhaltende Abstände, neutrale Metadaten und einheitliche Aktionen. Projekte, Wissensbasen, Tabellen und Datensätze behalten Zugriff, Größe und wichtige Verknüpfungen ohne Zeitstempel auf den Karten. In Build haben Anweisungen eine eigene Schreibfläche; Modell und die optionalen Variablen, Sprache und ersten Nachrichten teilen ein Panel mit Trennlinien. Das Hauptmodell bleibt sichtbar. Thinking und Answer format bleiben in den Modelleinstellungen; fehlende Pflichtkonfiguration und Validierungsfehler bleiben erreichbar.
 
-In Build zeigt First messages Karten mit Symbol, Titel und Nachricht. Öffnen Sie eine Karte, um sie zu bearbeiten. Beim Speichern eines bearbeiteten Beispiels bleiben die anderen Beispiele im Entwurf. Skills, Context und Knowledge search in Toolbox verwenden auswählbare Zeilen. Gespeicherte Chatmodelle bleiben in Models und Saved models sichtbar. Deaktivieren Sie Vorgeschlagene Prompts anzeigen, um im neuen Chat mehr Inbox-Einträge zu sehen.
+In Build zeigt First messages Karten mit Symbol, Titel und Nachricht. Öffnen Sie eine Karte, um sie zu bearbeiten. Beim Speichern eines bearbeiteten Beispiels bleiben die anderen Beispiele im Entwurf. Skills, Context und Knowledge search in Toolbox verwenden auswählbare Zeilen. Zuvor verwendete Modelle bleiben in der gemeinsamen Liste Models sichtbar. Deaktivieren Sie Vorgeschlagene Prompts anzeigen, um im neuen Chat mehr Inbox-Einträge zu sehen.
 
 Variables, Voice, First messages, Run reviewers, Alerts und Tracing beginnen eingeklappt; ihre Zusammenfassungen zeigen die aktuelle Konfiguration. Öffnen Sie den Bereich, den Sie ändern möchten. Erforderliche Einstellungen und Validierungsfehler bleiben erreichbar. Model bleibt geöffnet; Links zur Voice-Einrichtung öffnen den passenden Tab.
 
@@ -182,7 +182,7 @@ Neue Chats zeigen unter dem Eingabefeld bis zu vier Einstiege des aktiven Agente
 
 Die Zeitleiste zeigt bis zu zwei Posteingangseinträge einschließlich eines Links zu offenen Genehmigungen und führt zum vollständigen Posteingang. Während des Ladens bleibt Platz für die Vorschau reserviert. Posteingang und Genehmigungen verwenden bei der Navigation sofort zwischengespeicherte Daten. Diese gelten 30 Sekunden als aktuell; ungenutzte Einträge bleiben 30 Minuten gespeichert. Bei Aktualisierungsfehlern bleiben vorhandene Einträge mit einem Hinweis sichtbar. Konto- und Organisationswechsel leeren weiterhin den Cache.
 
-Der Hauptchat bietet ein breites Eingabefeld. Die Modellbibliothek zeigt verbundene Anbieter zuerst, mit Logos und großgeschriebenen Namen, und trennt Katalog und gespeicherte Modelle. Ein Klick wählt das Modell direkt aus. Fehlende Zugangsdaten lassen sich über die bestehenden Vault-Formulare im Auswahlfenster hinzufügen, auch mehrteilige Anbieterzugangsdaten. Berechtigungen und Modellvalidierung bleiben wirksam. Mikrofon und Senden wechseln beim Schreiben fließend.
+Der Hauptchat bietet ein breites Eingabefeld. Die Modellbibliothek zeigt verbundene Anbieter zuerst, mit Logos und großgeschriebenen Namen, mit einer gemeinsamen Liste Models und einem separaten Tab für Konto oder Schlüssel. Ein Klick wählt das Modell direkt aus. Fehlende Zugangsdaten lassen sich über die bestehenden Vault-Formulare im Auswahlfenster hinzufügen, auch mehrteilige Anbieterzugangsdaten. Berechtigungen und Modellvalidierung bleiben wirksam. Mikrofon und Senden wechseln beim Schreiben fließend.
 
 Die Gesprächssuche durchsucht Titel und indexierte Nachrichtentexte, einschließlich lesbarer Archive. Ergebnisse zeigen Textauszüge mit hervorgehobenen Treffern und der Anzahl passender Nachrichten. Pfeiltasten und Enter öffnen ein Ergebnis. Suchfehler bieten eine Wiederholung, statt eine leere Liste vorzutäuschen.
 
@@ -1333,3 +1333,5 @@ Gruppen der Seitenleiste öffnen und schließen sich fließend. Verborgene Ziele
 Einstellungen behalten horizontale Tabs. API-Schlüssel und MCP-Clients teilen **API & MCP**, mit getrennten Zugriffskontrollen und bestehenden URLs; MCP ist die Standardansicht. Die URL kann beide Tabs auswählen. Mobile Einrichtung ist unter **Konto** verlinkt. Das Profil zeigt Identität und Agentenkontext auf breiten Bildschirmen nebeneinander, mit eigenen Karten für Erscheinungsbild und verbundene Konten. Listen füllen die verfügbare Höhe. Organisationen und Gruppen öffnen über **Organisationen verwalten** im Workspace-Wechsler statt über doppelte Sidebar-Einträge. Leere Seiten, Listen und Tabellen teilen dieselbe Illustration. Directory wartet auf Berechtigungen und Daten, bevor es eine einzelne Aktion zum Erstellen einer Zuordnung zeigt.
 
 Persönliche Einstellungen haben keinen eigenen Assistant-Tab mehr. Seitenhinweise stehen unter **Account**; die alte URL `/settings/assistant` leitet dorthin weiter. **Inbox preferences** enthält den persönlichen Schalter für die Zustellung nächtlicher Vorschläge. Verlauf und Wiederherstellung bleiben im Inbox. Organisationsmodelle, Budgets, Speicherpflege und Voice bleiben unter **AI & services**. Formularbeschriftungen haben eine gemeinsame Mindestzeilenhöhe, auch mit Inline-Hilfe. Standard-Eingaben und Auswahllisten sind gleich hoch; bei groben Zeigegeräten sind die Berührungsflächen größer. Kompakte Tabellenfilter behalten ihre eigene Größe. Die MCP-Einrichtung besitzt einen eigenen Rahmen statt eines zweiten umschließenden Containers.
+
+Die Modellauswahl wird direkt und ohne Erfolgsmeldung übernommen. **Zurück zum Modell des Agenten** entfernt die Auswahl für dieses Gespräch. Persönliche Abonnements haben beim Onboarding einen eigenen Schritt nach dem persönlichen Kontext: Jede Dienstkachel bietet direkt **Verbinden**. **Settings → Subscriptions** zeigt eine Zeile je Konto mit Suche, Seitennavigation und gemeldeten Nutzungslimits; fehlende Daten werden ausdrücklich gekennzeichnet.
