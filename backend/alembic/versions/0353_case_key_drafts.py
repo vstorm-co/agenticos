@@ -14,8 +14,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0352_case_key_drafts"
-down_revision: str = "0351_eval_answer_gaps"
+revision: str = "0353_case_key_drafts"
+down_revision: str = "0352_eval_answer_gaps"
 branch_labels: None = None
 depends_on: None = None
 

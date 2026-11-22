@@ -254,3 +254,22 @@ it("reserves source metadata instead of painting a temporary routine label", () 
   view.rerender(<SuggestionRows items={[finding]} />);
   expect(row).toHaveTextContent("Linear");
 });
+
+it("labels personal proposals separately and records a decision without scheduling work", async () => {
+  render(
+    <SuggestionRows
+      dense
+      items={[
+        item("personal", {
+          kind: "personal",
+          payload: { category: "routine", personal_context: true },
+        }),
+      ]}
+    />,
+  );
+  expect(screen.getByText(/Personal suggestion/)).toBeInTheDocument();
+  expect(screen.queryByText("Done")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Got it" }));
+  expect(state.accept).toHaveBeenCalledWith("personal");
+  expect(state.dialogs).toBe(0);
+});

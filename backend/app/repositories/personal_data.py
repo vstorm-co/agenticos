@@ -83,6 +83,7 @@ from app.db.models.notification_route import NotificationRoute
 from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.outcome import Outcome
+from app.db.models.personal_context import PersonalContextCache
 from app.db.models.personal_model_key import PersonalModelKey
 from app.db.models.project_tracking import ProjectTracking
 from app.db.models.routine_delivery import RoutineDelivery
@@ -924,6 +925,7 @@ BRIEFING_SUGGESTION_KINDS = (
     SuggestionKind.AGENT,
     SuggestionKind.PROFILE,
     SuggestionKind.ROLE_PACK,
+    SuggestionKind.PERSONAL,
 )
 """What a daily briefing proposes, each drawn from the person's requests and notes."""
 
@@ -946,11 +948,20 @@ async def forget_briefings_of(db: AsyncSession, user_id: UUID, *, organization_i
         )
         .values(personal_starters=None, personal_starters_at=None)
     )
+    await db.execute(
+        sa_delete(PersonalContextCache).where(
+            PersonalContextCache.organization_id == organization_id,
+            PersonalContextCache.user_id == user_id,
+        )
+    )
     removed = await db.execute(
         sa_delete(Suggestion).where(
             Suggestion.organization_id == organization_id,
             Suggestion.user_id == user_id,
-            Suggestion.kind.in_([kind.value for kind in BRIEFING_SUGGESTION_KINDS]),
+            or_(
+                Suggestion.kind.in_([kind.value for kind in BRIEFING_SUGGESTION_KINDS]),
+                Suggestion.payload["personal_context"].as_boolean().is_(True),
+            ),
         )
     )
     await db.flush()
