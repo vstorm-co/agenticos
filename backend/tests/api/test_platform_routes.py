@@ -345,8 +345,10 @@ CALLS: tuple[Call, ...] = (
         Perm.RUNS_VIEW,
         query="?started_from=2020-01-01T00:00:00&started_to=2020-01-02T00:00:00",
     ),
-    Call("GET", "/runs/{run_id}", Perm.RUNS_VIEW),
-    Call("POST", "/runs/{run_id}/retry", Perm.RUNS_VIEW),
+    # `GET /runs/{run_id}` and `POST /runs/{run_id}/retry` carry no gate: `runs:view`
+    # opens any run, and the person who started one opens and retries that one
+    # without it - the link in an expired-approval notice. The runner service decides;
+    # `tests/test_own_run_open.py` proves the refusals.
     Call("GET", "/runs/{run_id}/parked", Perm.APPROVALS_DECIDE),
     Call("POST", "/runs/{run_id}/resume", Perm.APPROVALS_DECIDE),
     Call("GET", "/approvals", Perm.APPROVALS_DECIDE),

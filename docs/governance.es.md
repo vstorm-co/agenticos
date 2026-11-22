@@ -1,5 +1,5 @@
 ---
-source_sha: "0de6ccb00951"
+source_sha: "19c7218888e5"
 ---
 
 # Governance { #governance }
@@ -1752,6 +1752,10 @@ mantiene.
 
 Al propietario del run se le dice que murió, con el motivo y el run desde el que reintentarlo: un run aparcado en un chat ya oyó allí la caducidad, así que al propietario de un run de la consola web se le dice en cambio a través del centro de notificaciones — un aviso, que nombra al agent y la herramienta, y un enlace al run, donde Retry es un clic. La fila sola solo se lee como `cancelled`, que no es ningún aviso.
 
+El iniciador abre ese run, lee su transcripción y lo reintenta sin `runs:view`, que un `member` no tiene: el run es suyo por el iniciador almacenado, desde una sesión web iniciada con una membresía activa, y solo mientras conserve `approvals:decide` — necesita el run para decidir. Ningún otro run se abre así, y el manifiesto del run, la lista de runs y las exportaciones siguen con `runs:view`. Se rechazan una clave de API, la identidad de respaldo de un publicador, una routine, una sesión suplantada y el run de otro `member`.
+
+El aviso solo llega a un iniciador que aún podría decidir la approval, con la misma comprobación que la decisión misma, así que un iniciador degradado a `viewer` o retirado de la organización no oye nada.
+
 Tres cosas que deliberadamente no hace:
 
 - **No continúa el run.** Una llamada _rechazada_ se resuelve reanudando: la
@@ -2137,6 +2141,8 @@ Así que la audiencia se divide según si quien recibe puede decidir *este* run,
 
 Recortarla dejaría a la única persona que seguro espera el run — quien lo inició — sin
 oír nada sobre por qué se detuvo.
+
+El enlace se somete a la misma comprobación que la decisión. El propietario de un run que fue degradado a `viewer` desde que el run se aparcó, y un publicador cuya identidad de respaldo hizo de un desconocido, leen el hecho sin el enlace, en la bandeja y en el correo.
 
 El segundo correo **no lleva enlace**, y eso es deliberado, no algo a medias. Que
 `agents:view` sea un permiso de rol no hace alcanzable un agent: el acceso se resuelve

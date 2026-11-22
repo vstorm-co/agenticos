@@ -1,5 +1,5 @@
 ---
-source_sha: "e580e8c82849"
+source_sha: "f6937674a662"
 ---
 
 # Uprawnienia { #permissions }
@@ -105,6 +105,8 @@ na ścieżce decyzji, a nie przez rolę — rola nie widzi, do którego runa nal
 więc `member` może zdecydować o zatwierdzeniu własnego runa z zalogowanej sesji web lub czatu,
 a o niczyim innym. Zatwierdzenia cudzych runów, zatwierdzenia workflow, stała zgoda na routines
 i przełącznik waiver organizacji pozostają przy `owner`, `admin` i `operator`.
+
+Ta sama osoba otwiera własny run, czyta jego transkrypt i ponawia go bez `runs:view`, i tak działa link w powiadomieniu o wygaśnięciu dla `member`. Czyta tylko własny run, jako zalogowana sesja web z aktywnym członkostwem i tylko dopóki nadal ma `approvals:decide`. Nie widzi linku do trace ani sąsiednich runów, a manifest zostaje przy `runs:view`. Klucze API, zastępstwo wydawcy, routines i sesje podszywające się nie dostają nic z tego.
 
 Jawny scope `mcp:personal:use` pozwala zewnętrznym runom API lub OAuth korzystać z osobistych połączeń MCP wystawcy credentiala. Wybierz go w **Custom** i potwierdź delegację; żaden preset, także **Full access**, go nie zawiera, a istniejące credentiale zachowują dostęp wyłącznie do zasobów organizacji. Nie daje dostępu do osobistej pamięci, wyszukiwania rozmów ani zgody na routines. Wznowienie po zatwierdzeniu zachowuje pierwotnego właściciela i credential; przed wywołaniem osobistego narzędzia ponownie sprawdzane są połączenia, aktualne scope’y klucza oraz dostęp do agenta głównego i automatycznie dobranych subagentów.
 

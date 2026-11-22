@@ -1,5 +1,5 @@
 ---
-source_sha: "0de6ccb00951"
+source_sha: "19c7218888e5"
 ---
 
 # Governance { #governance }
@@ -1741,6 +1741,10 @@ zaparkował, pozostaje w mocy.
 
 Właściciel runa dowiaduje się, że run umarł, wraz z powodem i runem, od którego może go wznowić: run zaparkowany na czacie już tam usłyszał o wygaśnięciu, więc właściciel runa z konsoli web dowiaduje się o tym za pośrednictwem centrum powiadomień — jedno powiadomienie, z nazwą agenta i narzędzia oraz linkiem do runa, gdzie Retry to jedno kliknięcie. Sam wiersz czyta się tylko jako `cancelled`, co nie jest żadnym powiadomieniem.
 
+Osoba, która rozpoczęła run, otwiera go, czyta jego transkrypt i ponawia go bez `runs:view`, którego `member` nie ma: run jest jej według zapisanego inicjatora, z zalogowanej sesji web z aktywnym członkostwem, i tylko dopóki nadal ma `approvals:decide` — potrzebuje runa, żeby o nim zdecydować. Żaden inny run nie otwiera się w ten sposób, a manifest runa, lista runów i eksporty zostają przy `runs:view`. Odrzucane są klucz API, tożsamość zastępcza wydawcy, routine, sesja podszywająca się i run innego `member`.
+
+Powiadomienie trafia tylko do inicjatora, który nadal mógłby zdecydować o zatwierdzeniu, tą samą kontrolą co sama decyzja, więc inicjator zdegradowany do `viewer` lub usunięty z organizacji niczego nie usłyszy.
+
 Trzy rzeczy, których celowo nie robi:
 
 - **Nie kontynuuje runa.** _Odrzucone_ wywołanie rozlicza się przez wznowienie:
@@ -2126,6 +2130,8 @@ Dlatego odbiorcy są dzieleni według tego, czy odbiorca może rozstrzygnąć *t
 Przycięcie zamiast tego zostawiłoby jedyną osobę, która na pewno czeka na ten run
 — osobę, która go uruchomiła — bez żadnej informacji o tym, dlaczego się
 zatrzymał.
+
+Link podlega tej samej kontroli co decyzja. Właściciel runa zdegradowany do `viewer` od czasu zaparkowania runa oraz wydawca, którego tożsamość zastępcza wystąpiła za obcą osobę, czytają sam fakt bez linku, w skrzynce i w e-mailu.
 
 Drugi e-mail nie niesie **żadnego linku**, i to jest celowe, a nie
 niedokończone. To, że `agents:view` jest uprawnieniem roli, nie czyni

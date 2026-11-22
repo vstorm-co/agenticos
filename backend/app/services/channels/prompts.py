@@ -42,7 +42,8 @@ from app.repositories import (
     member_repo,
 )
 from app.services.agent_runner import AgentRunnerService, PausedRunState, RunSegment
-from app.services.approvals import ApprovalService, may_decide_approval
+from app.services.approval_authority import may_decide_approval
+from app.services.approvals import ApprovalService
 from app.services.channel_bot import unseal_bot_token
 from app.services.channels import get_adapter
 from app.services.channels.base import (

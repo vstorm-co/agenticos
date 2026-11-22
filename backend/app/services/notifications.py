@@ -94,6 +94,8 @@ from app.schemas.change_event import ChangeEvent
 from app.schemas.eval_suite import EvalSuiteSummary, ThresholdReason
 from app.schemas.improvement import NextStepBlocked
 from app.schemas.notification import CriterionSources, MovedCriterion
+from app.services.access import member_context
+from app.services.approval_authority import may_decide_approval, starter_of
 from app.services.notification_center import NotificationCenterService, absolute_context_url
 from app.services.outcome import OutcomeService, routine_failure_cause
 from app.services.spend import month_start, organization_spend_since
@@ -525,8 +527,10 @@ class NotificationService:
             # read time: the link belongs to a privileged decider, or to the
             # person who started the run - not to any other recipient of the
             # request, who now holds `approvals:decide` at `OWN` for their own
-            # runs and must not be handed somebody else's.
-            **({"run_user_id": str(run.user_id)} if run.user_id is not None else {}),
+            # runs and must not be handed somebody else's. Left out when the
+            # run has no such starter (a publisher's fallback identity, an
+            # unattended surface), so no recipient is offered the link as one.
+            **({"run_user_id": str(starter)} if (starter := starter_of(run)) is not None else {}),
             "tools": ", ".join(tools) if tools else "a tool call",
             "asked_by": asked_by,
             "approvals_url": absolute_context_url(approvals_path),
@@ -564,6 +568,11 @@ class NotificationService:
         The audience is only whoever started the run: the administrators were
         told when the approval was requested, and the expiry is the owner's
         work dying, not the organization's. A run nobody started tells nobody.
+        So does a starter who could no longer decide it - the notice offers a
+        link to a run they would be refused, so it is held to the same
+        predicate as the decision (`may_decide_approval`): a starter demoted to
+        viewer, removed from the organization or standing in as a publisher's
+        fallback hears nothing.
 
         The link opens the run itself, where Retry is one click: the run is
         finished, it has a conversation and a user turn of its own, so the
@@ -576,6 +585,11 @@ class NotificationService:
         is the occurrence key.
         """
         if run.user_id is None:
+            return
+        starter = await member_context(
+            self.db, organization_id=run.organization_id, user_id=run.user_id
+        )
+        if starter is None or not may_decide_approval(starter, run):
             return
         tools = sorted({approval.tool_id for approval in approvals})
         agent_name = agent.name if agent is not None else "An agent"

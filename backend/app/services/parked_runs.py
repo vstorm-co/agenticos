@@ -54,7 +54,8 @@ from app.services.agent_runner import (
     parked_question_items,
     parked_secret_request_items,
 )
-from app.services.approvals import ApprovalService, may_decide_approval
+from app.services.approval_authority import may_decide_approval
+from app.services.approvals import ApprovalService
 from app.services.channels.continuation import continue_in_chat
 from app.services.channels.handback import chat_destination, continues_in_chat
 from app.services.channels.handback_jobs import queue_segment

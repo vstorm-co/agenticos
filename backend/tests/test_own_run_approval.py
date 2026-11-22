@@ -17,7 +17,8 @@ from app.core.audit import set_impersonator
 from app.core.exceptions import AuthorizationError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunSurface
-from app.services.approvals import ApprovalService, may_decide_approval, may_waive_own_run
+from app.services.approval_authority import may_decide_approval, may_waive_own_run
+from app.services.approvals import ApprovalService
 
 pytestmark = pytest.mark.security
 
@@ -220,6 +221,17 @@ class TestDecideEnforcesIt:
         ctx = _ctx("member")
         with (
             self._repositories(_run(_OTHER)) as (approval, decide),
+            pytest.raises(AuthorizationError),
+        ):
+            await self._service().decide(ctx, approval.id, approved=True)
+
+        decide.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_starter_demoted_to_viewer_cannot_decide_through_the_service(self):
+        ctx = _ctx("viewer")
+        with (
+            self._repositories(_run(_MEMBER)) as (approval, decide),
             pytest.raises(AuthorizationError),
         ):
             await self._service().decide(ctx, approval.id, approved=True)

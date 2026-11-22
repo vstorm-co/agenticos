@@ -48,6 +48,7 @@ from app.repositories import (
 from app.repositories import workflow_run as workflow_run_repo
 from app.repositories.agent_run import ApprovalFilters, ApprovalRow
 from app.schemas.agent_run import ToolConsentRead
+from app.services.approval_authority import may_decide_approval
 from app.services.channels.handback import (
     EXPIRED_NOTICE,
     STRANDED_NOTICE,
@@ -87,83 +88,6 @@ def _parked_tool_call_ids(run: AgentRun) -> list[str]:
 
 def _own_run(ctx: AuthContext, run_user_id: UUID | None) -> bool:
     return ctx.user_id is not None and ctx.api_key_id is None and run_user_id == ctx.user_id
-
-
-# The surfaces an own-run decision may come from: the web console, and the
-# chats a run can be continued in. Anything else - an API call, a schedule, a
-# workflow step, an evaluation, an embedded widget running as its publisher -
-# has no signed-in person at the keyboard, so the exception does not reach it.
-_OWN_RUN_SURFACES: Final = frozenset(
-    {RunSurface.WEB.value, *(surface.value for surface in CHANNEL_SURFACES)}
-)
-
-
-def _signed_in_person(ctx: AuthContext) -> bool:
-    """Whether this caller is a person at the keyboard, not a credential acting for one.
-
-    A session, not a key: an API key's issuer may have started the run, but a
-    key is a script, and a script deciding its own approval is the agent
-    approving itself. A publisher fallback, a fired routine and an impersonated
-    session are the same shape - somebody other than the person the run
-    belongs to - so they are out too.
-    """
-    return (
-        ctx.user_id is not None
-        and ctx.api_key_id is None
-        and ctx.key_scopes is None
-        and not ctx.subject_is_publisher_fallback
-        and ctx.fired_as_creator is None
-        and ctx.routine_id is None
-        and current_impersonator() is None
-    )
-
-
-def may_decide_approval(ctx: AuthContext, run: AgentRun | None) -> bool:
-    """Whether this caller may decide an approval on this run.
-
-    Two ways in, and they are deliberately not the same authority:
-
-    - a privileged decider - `approvals:decide` at `ALL`, the owner, admin and
-      operator - may decide any run's approval, as before;
-    - anybody else may decide only an approval on a run *they* started, from a
-      signed-in web/chat session, and only while they still hold the permission
-      at all. That is the own-run exception: a member or builder holds
-      `approvals:decide` at `OWN`, and the ownership is enforced here, not in
-      the role - a role cannot see which run an approval belongs to, and
-      `AuthContext.has` alone cannot tell `OWN` from `ALL`. A member demoted
-      to viewer after starting a run loses the decision with the permission,
-      rather than keeping it on ownership alone.
-
-    A run nobody can name (`None`) is decidable by nobody this way: the
-    privileged branch above is the only one that does not need it, and it is
-    checked first.
-    """
-    if ctx.scope_for(Perm.APPROVALS_DECIDE) is Scope.ALL:
-        return True
-    return (
-        run is not None
-        and ctx.has(Perm.APPROVALS_DECIDE)
-        and _signed_in_person(ctx)
-        and run.user_id == ctx.user_id
-        # A stranger's run through a publisher's fallback carries the
-        # publisher's id but was started by somebody else.
-        and not run.initiated_by_publisher_fallback
-        and run.surface in _OWN_RUN_SURFACES
-    )
-
-
-def may_waive_own_run(ctx: AuthContext) -> bool:
-    """Whether this caller may waive approvals for a run they start.
-
-    The advance form of the own-run exception: a standing consent *is* the
-    decision the approval queue exists to record, so the same person has to
-    stand behind it - a signed-in person holding `approvals:decide` at any
-    scope, starting their own run. A key, a routine, a publisher fallback or
-    an impersonated session may not waive, even when the role behind it could.
-    The web-chat surface and the organization's waiver switch are checked
-    where this is used, not here.
-    """
-    return ctx.has(Perm.APPROVALS_DECIDE) and _signed_in_person(ctx)
 
 
 def _notice(run: AgentRun, destination: ChannelDestination, text: str) -> ChatNotice:

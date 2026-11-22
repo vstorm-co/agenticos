@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
-from app.core.permissions import AuthContext, OrgRoleName, Perm, Scope
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.announcement import Announcement
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.notification import (
@@ -42,6 +42,7 @@ from app.repositories import workflow as workflow_repo
 from app.schemas.notification import CriterionSources
 from app.services import rate_limit
 from app.services.access import ARTIFACT, PROJECT, WORKFLOW, resolve_access
+from app.services.approval_authority import may_follow_decision_link, stored_starter_id
 from app.services.collection_access import readable_kb
 from app.services.criterion_access import criterion_source_access, readable_criterion_skill_ids
 from app.services.notification_catalog import ContentGate, content_gate_for, is_mandatory
@@ -1450,10 +1451,7 @@ class NotificationCenterService:
             # link to a decision that is not theirs to make. Rows written
             # before `run_user_id` existed carry no owner, and read as not
             # theirs: the link-less summary, which is the safe direction.
-            owner = context.get("run_user_id")
-            if ctx.has_at(Perm.APPROVALS_DECIDE, Scope.ALL) or (
-                owner is not None and ctx.user_id is not None and str(ctx.user_id) == owner
-            ):
+            if may_follow_decision_link(ctx, stored_starter_id(context.get("run_user_id"))):
                 return _Gate(visible=True)
             render_context = notification.render_context or {}
             agent_name = render_context.get("agent_name", "An agent")

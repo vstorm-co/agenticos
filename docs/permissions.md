@@ -98,6 +98,8 @@ a member may decide their own run's approval from a signed-in web/chat session
 and nobody else's. Cross-person approvals, workflow approvals, routine standing
 consent and the organization waiver switch stay with owner, admin and operator.
 
+The same person opens their own run, reads its transcript and retries it without `runs:view`, which is how the expiry notice's link works for a member. It reads only their own run, as a signed-in web session with an active membership, and only while they still hold `approvals:decide`. It shows no trace link and no neighbouring runs, and the manifest stays with `runs:view`. API keys, publisher fallback, routines and impersonated sessions get none of it.
+
 The explicit `mcp:personal:use` scope lets external API or OAuth runs use the credential issuer's personal MCP connections. Select it under **Custom** and confirm this delegation; no preset, including **Full access**, includes it, and existing credentials keep organization-only access. It grants no personal memory, conversation search or routine consent. Approval resumes retain the original owner and credential; connected accounts, live key scopes and access to the root and discovered delegates are rechecked before personal tool calls.
 
 Approving personal routines and watches requires the explicit `personal:consent` scope, selected under **Custom** when issuing a key or authorizing an MCP client. It is excluded from every preset, including **Full access**. The confirmation allows the credential to approve persistent routines and watches using your personal connections and data; ordinary `agents:run` and `runs:view` scopes do not. Existing keys and MCP authorizations gain no personal consent automatically.

@@ -376,7 +376,8 @@ from app.services.agent_registry import (
     models_a_run_reaches,
 )
 from app.services.api_key import ApiKeyService, mint_for_run
-from app.services.approvals import ApprovalService, may_decide_approval, may_waive_own_run, withhold
+from app.services.approval_authority import may_decide_approval, may_open_own_run, may_waive_own_run
+from app.services.approvals import ApprovalService, withhold
 from app.services.attachments import (
     UPLOAD_DIR,
     AttachmentRouter,
@@ -9069,6 +9070,13 @@ class AgentRunnerService:
                 message="Retry this run from a signed-in session", details={"run_id": run_id}
             )
         run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        # Without `runs:view` only the starter's own run is open, and everybody
+        # else is refused before the run is confirmed to exist.
+        if not ctx.has(Perm.RUNS_VIEW) and (run is None or not may_open_own_run(ctx, run)):
+            raise AuthorizationError(
+                message="Insufficient permissions",
+                details={"required": [Perm.RUNS_VIEW.value]},
+            )
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
         if run.user_id != ctx.user_id:
@@ -10207,6 +10215,29 @@ class AgentRunnerService:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
         return run
 
+    async def read_run(self, ctx: AuthContext, run_id: UUID) -> AgentRun:
+        """One run for the detail view: any run to `runs:view`, else the caller's own.
+
+        A starter without `runs:view` - a member whose approval expired - opens
+        the run the notice names, and no other. Everybody else without the
+        permission is refused whether or not the run exists, so the refusal
+        confirms nothing.
+
+        Raises:
+            AuthorizationError: No `runs:view`, and the run is not the caller's own.
+            NotFoundError: The caller holds `runs:view` and the run is not in
+                their organization.
+        """
+        if ctx.has(Perm.RUNS_VIEW):
+            return await self.get_run(ctx, run_id)
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        if run is None or not may_open_own_run(ctx, run):
+            raise AuthorizationError(
+                message="Insufficient permissions",
+                details={"required": [Perm.RUNS_VIEW.value]},
+            )
+        return run
+
     async def neighbor_run_ids(
         self, ctx: AuthContext, run: AgentRun
     ) -> tuple[UUID | None, UUID | None]:
@@ -10258,6 +10289,11 @@ class AgentRunnerService:
         `runs:view` become a 403: a refusal that necessarily tells a member the
         run exists, and only ever reaches a member.
 
+        The one way in without `runs:view` is the run's own starter
+        (`may_open_own_run`): a member reads the transcript of a run they started,
+        which is their own conversation, and no other member's. That never grants
+        the permission - a colleague's run is refused as before.
+
         A run with no conversation has no transcript by construction - the runner
         never writes a turn for one (:meth:`TranscriptService.record` returns at
         once when `conversation_id` is `None`) - so its emptiness is reported
@@ -10277,12 +10313,12 @@ class AgentRunnerService:
             NotFoundError: The run is not in the caller's organization - whether
                 it belongs to another tenant or to nobody.
             AuthorizationError: The caller's organization holds the run but the
-                caller does not hold `runs:view`.
+                caller holds neither `runs:view` nor the run itself as its starter.
         """
         run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
-        if not ctx.has(Perm.RUNS_VIEW):
+        if not (ctx.has(Perm.RUNS_VIEW) or may_open_own_run(ctx, run)):
             raise AuthorizationError(
                 message="Insufficient permissions",
                 details={"required": [Perm.RUNS_VIEW.value], "run_id": str(run_id)},
@@ -10339,12 +10375,12 @@ class AgentRunnerService:
                 not exist: this route must not confirm one to a caller who cannot
                 read the transcript it hangs on.
             AuthorizationError: The caller's organization holds the run but the
-                caller does not hold `runs:view`.
+                caller holds neither `runs:view` nor the run itself as its starter.
         """
         run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
-        if not ctx.has(Perm.RUNS_VIEW):
+        if not (ctx.has(Perm.RUNS_VIEW) or may_open_own_run(ctx, run)):
             raise AuthorizationError(
                 message="Insufficient permissions",
                 details={"required": [Perm.RUNS_VIEW.value], "run_id": str(run_id)},

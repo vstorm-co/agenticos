@@ -1,5 +1,5 @@
 ---
-source_sha: "e580e8c82849"
+source_sha: "f6937674a662"
 ---
 
 # Berechtigungen { #permissions }
@@ -110,6 +110,8 @@ zu welchem Run eine Approval gehört — sodass ein `member` die Approval seines
 Runs aus einer angemeldeten Web- oder Chat-Sitzung entscheiden kann, und keine andere.
 Fremde Approvals, Workflow-Approvals, die stehende Zustimmung für Routinen und der
 Waiver-Schalter der Organisation bleiben bei `owner`, `admin` und `operator`.
+
+Dieselbe Person öffnet ihren eigenen Run, liest sein Transkript und wiederholt ihn ohne `runs:view`; so funktioniert der Link der Ablauf-Benachrichtigung für einen `member`. Sie liest nur ihren eigenen Run, als angemeldete Web-Sitzung mit aktiver Mitgliedschaft und nur solange sie noch `approvals:decide` hält. Sie sieht weder einen Trace-Link noch benachbarte Runs, und das Manifest bleibt bei `runs:view`. API-Schlüssel, Veröffentlicher-Ersatz, Routinen und imitierte Sitzungen erhalten nichts davon.
 
 Der ausdrückliche Scope `mcp:personal:use` erlaubt externen API- oder OAuth-Runs, persönliche MCP-Verbindungen des Zugangsausstellers zu verwenden. Wählen Sie ihn unter **Custom** und bestätigen Sie die Delegation; keine Voreinstellung, auch **Full access** nicht, enthält ihn. Bestehende Zugänge behalten ausschließlich Organisationszugriff. Er gewährt weder persönlichen Speicher noch Gesprächssuche oder Zustimmung zu Routinen. Fortsetzungen nach einer Genehmigung behalten den ursprünglichen Eigentümer und Zugang bei; vor persönlichen Tool-Aufrufen werden verbundene Konten, aktuelle Schlüssel-Scopes sowie der Zugriff auf den Hauptagent und automatisch ausgewählte Subagents erneut geprüft.
 

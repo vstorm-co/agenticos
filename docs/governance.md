@@ -1645,6 +1645,10 @@ owner is told through the notification centre instead - one notice, naming the
 agent and the tool, and a link to the run, where Retry is one click. The row on
 its own only ever reads `cancelled`, which is no notice at all.
 
+The starter opens that run, reads its transcript and retries it without `runs:view`, which a member does not hold: the run is theirs by its stored starter, from a signed-in web session with an active membership, and only while they still hold `approvals:decide` - they need the run to decide it. No other run opens this way, and the run's manifest, the runs list and exports stay with `runs:view`. An API key, a publisher's fallback identity, a routine, an impersonated session and another member's run are refused.
+
+The notice goes only to a starter who could still decide the approval, by the same check as the decision itself, so a starter demoted to viewer or removed from the organization hears nothing.
+
 Three things it deliberately does not do:
 
 - **It does not continue the run.** A _rejected_ call is settled by resuming: the
@@ -2007,6 +2011,8 @@ than trimmed to the permission:
 
 Trimming instead would leave the one person definitely waiting on the run - the
 person who started it - hearing nothing about why it stopped.
+
+The link is held to the same check as the decision. A run's owner who was demoted to viewer since the run parked, and a publisher whose fallback identity stood in for a stranger, read the fact without the link, in the inbox and in the e-mail.
 
 The second email carries **no link**, and that is deliberate rather than
 unfinished. `agents:view` being a role permission does not make one agent

@@ -1,5 +1,5 @@
 ---
-source_sha: "0de6ccb00951"
+source_sha: "19c7218888e5"
 ---
 
 # Governance { #governance }
@@ -1846,6 +1846,10 @@ Parken ausgegeben hat, bleibt stehen.
 
 Der Eigentümer des Runs erfährt, dass er gestorben ist, mit dem Grund und dem Run, von dem aus er ihn neu starten kann: Ein Run, der in einem Chat geparkt ist, hat den Ablauf dort bereits gehört, also erfährt der Eigentümer eines Web-Konsolen-Runs es stattdessen über das Benachrichtigungszentrum — eine Benachrichtigung, die den Agent und das Tool nennt, und einen Link zum Run, wo Retry ein Klick ist. Die Zeile allein liest sich nur als `cancelled`, was überhaupt keine Benachrichtigung ist.
 
+Der Starter öffnet diesen Run, liest sein Transkript und wiederholt ihn ohne `runs:view`, das ein `member` nicht hat: Der Run gehört ihm über den gespeicherten Starter, aus einer angemeldeten Web-Sitzung mit aktiver Mitgliedschaft, und nur solange er noch `approvals:decide` hält — er braucht den Run, um zu entscheiden. Kein anderer Run öffnet sich so, und das Manifest des Runs, die Run-Liste und Exporte bleiben bei `runs:view`. Ein API-Schlüssel, die Ersatzidentität eines Veröffentlichers, eine Routine, eine imitierte Sitzung und der Run eines anderen `member` werden abgelehnt.
+
+Die Benachrichtigung geht nur an einen Starter, der die Approval noch entscheiden könnte, nach derselben Prüfung wie die Entscheidung selbst — ein zum `viewer` zurückgestufter oder aus der Organisation entfernter Starter erfährt also nichts.
+
 Drei Dinge, die er bewusst nicht tut:
 
 - **Er setzt den Run nicht fort.** Ein _zurückgewiesener_ Aufruf wird durch
@@ -2259,6 +2263,8 @@ Das Publikum wird also danach aufgeteilt, ob der Empfänger *diesen* Run entsche
 Zu beschneiden würde stattdessen die eine Person, die definitiv auf den Run
 wartet — die Person, die ihn gestartet hat —, nichts darüber hören lassen, warum
 er gestoppt hat.
+
+Der Link unterliegt derselben Prüfung wie die Entscheidung. Der Eigentümer eines Runs, der seit dem Parken zum `viewer` zurückgestuft wurde, und ein Veröffentlicher, dessen Ersatzidentität für einen Fremden einsprang, lesen die Tatsache ohne den Link, im Posteingang wie in der E-Mail.
 
 Die zweite E-Mail trägt **keinen Link**, und das ist gewollt und nicht
 unfertig. Dass `agents:view` eine Rollenberechtigung ist, macht keinen einzelnen

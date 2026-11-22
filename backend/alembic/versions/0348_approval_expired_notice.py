@@ -43,9 +43,17 @@ _EVENT_TYPE_CONSTRAINTS = (
 
 
 def _event_types(values: str) -> None:
+    # Added NOT VALID so the ACCESS EXCLUSIVE lock never covers a table scan;
+    # VALIDATE then checks the existing rows after commit, which blocks no
+    # reads or writes. The names and values are revision-owned, never request data.
     for table, name in _EVENT_TYPE_CONSTRAINTS:
         op.drop_constraint(name, table, type_="check")
-        op.create_check_constraint(name, table, f"event_type IN ({values})")
+        op.execute(
+            f"ALTER TABLE {table} ADD CONSTRAINT {name} CHECK (event_type IN ({values})) NOT VALID"
+        )
+    with op.get_context().autocommit_block():
+        for table, name in _EVENT_TYPE_CONSTRAINTS:
+            op.execute(f"ALTER TABLE {table} VALIDATE CONSTRAINT {name}")
 
 
 def upgrade() -> None:

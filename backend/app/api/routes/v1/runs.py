@@ -62,7 +62,8 @@ from app.schemas.agent_run import (
 )
 from app.schemas.conversation import MessageList
 from app.schemas.run_manifest import RunManifestRead
-from app.services.approvals import may_decide_approval, withhold
+from app.services.approval_authority import may_decide_approval
+from app.services.approvals import withhold
 from app.services.channels.handback import continues_in_chat
 from app.services.parked_runs import waiting_update
 
@@ -296,9 +297,7 @@ async def export_runs(
     return csv_response(result)
 
 
-@router.get(
-    "/runs/{run_id}", response_model=AgentRunRead, dependencies=[Depends(require(Perm.RUNS_VIEW))]
-)
+@router.get("/runs/{run_id}", response_model=AgentRunRead)
 async def get_run(
     run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, skills: SkillSvc, ctx: Auth
 ) -> Any:
@@ -312,13 +311,21 @@ async def get_run(
     the eval run and the case an eval run's answer belongs to, which is where its
     answer and grade are read - such a run keeps no conversation. `skills_used`
     names the skills it opened or read, at the version each was served.
+
+    No `require(...)` gate, on purpose: `runs:view` opens any run, and the person
+    who started a run opens that one without it - the link in an expired-approval
+    notice. The service decides, and a reader without `runs:view` gets neither the
+    trace link nor the neighbouring runs, which are other runs' ids.
     """
-    run = await service.get_run(ctx, run_id)
+    run = await service.read_run(ctx, run_id)
+    reads_all = ctx.has(Perm.RUNS_VIEW)
     evaluated = run.surface == RunSurface.EVAL.value
     eval_case = await evals.case_link(ctx, run.id) if evaluated else None
     origin = (await service.origins(ctx, [run.id])).get(run.id) if evaluated else None
     down_rated = await service.down_rated_run_ids(ctx, [run.id])
-    prev_run_id, next_run_id = await service.neighbor_run_ids(ctx, run)
+    prev_run_id, next_run_id = (
+        await service.neighbor_run_ids(ctx, run) if reads_all else (None, None)
+    )
     askers = (
         await service.run_chat_askers(ctx, [run.id])
         if run.initiated_by_publisher_fallback and run.channel_identity_id is not None
@@ -327,7 +334,7 @@ async def get_run(
     return AgentRunRead.model_validate(run).model_copy(
         update={
             "asked_in_chat": askers.get(run.id),
-            "logfire_url": await service.trace_url(ctx, run),
+            "logfire_url": await service.trace_url(ctx, run) if reads_all else None,
             "down_rated": run.id in down_rated,
             "prev_run_id": prev_run_id,
             "next_run_id": next_run_id,
@@ -371,7 +378,8 @@ async def get_run_transcript(
 
     No `require(...)` gate, on purpose: reading a run is authorized rather than
     owned, so the decision belongs to the service, which resolves the run against
-    the caller's organization and then checks `runs:view`. A run in another tenant
+    the caller's organization and then checks `runs:view` - or that the caller
+    started the run, which a member without `runs:view` may read. A run in another tenant
     reads as absent - the same 404 an id that never existed answers with - so the
     response cannot be used to discover that a run exists. The conversation
     endpoint one route over stays owner-scoped; this does not widen it.
@@ -572,11 +580,7 @@ async def cancel_parked_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) ->
     return await service.cancel_parked(ctx, run_id)
 
 
-@router.post(
-    "/runs/{run_id}/retry",
-    response_model=AgentRunResult,
-    dependencies=[Depends(require(Perm.RUNS_VIEW))],
-)
+@router.post("/runs/{run_id}/retry", response_model=AgentRunResult)
 async def retry_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     """Run a finished run's request again, as a new run linked to it.
 
@@ -587,9 +591,8 @@ async def retry_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     no conversation, or has no user turn of its own is refused rather than
     guessed at. A run that parks on an approval reports it in `parked`.
 
-    Gated on `runs:view` like the single-run read, because retrying starts by
-    reading the run and its transcript; the starter rule is the service's, and
-    is the refusal a colleague meets.
+    No `require(...)` gate, like the single-run read: the starter's own run is
+    open to them without `runs:view`, and the service refuses everybody else.
     """
     return await service.retry_run(ctx, run_id)
 
