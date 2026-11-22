@@ -15,6 +15,7 @@ moving a pointer backwards - would make run history lie about what was live.
 import contextlib
 import logging
 import re
+from base64 import b64encode
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -126,6 +127,7 @@ from app.schemas.agent import (
     MAX_CATEGORIES,
     MAX_TAGS,
     AgentCeiling,
+    AgentDetail,
     AgentDraftRevision,
     AgentRead,
     AgentTemplateCatalog,
@@ -1191,7 +1193,7 @@ def _local_coding_agent(binding: PublishedCodingAgent | None) -> LocalCodingAgen
 def _personal_coding_harness(
     binding: PublishedCodingAgent | None,
 ) -> Literal["claude_code", "codex"] | None:
-    """The harness a version runs as a private cloud task on the person's account."""
+    """The default harness for a version that offers personal cloud coding."""
     if binding is None or binding.runs_on != "personal_sandbox":
         return None
     return binding.harness
@@ -1395,6 +1397,24 @@ class AgentRegistryService:
             self.db, ctx, agent, Perm.AGENTS_PUBLISH, resource_type=AGENT
         )
 
+    async def detail_for(self, ctx: AuthContext, agent: Agent) -> AgentDetail:
+        """Add the caller's effective permissions to an already-authorized agent response."""
+        # ShippedAgentService composes this registry, so resolve it after module loading.
+        from app.services.shipped_agents import ShippedAgentService
+
+        can_edit = await self.may_edit(ctx, agent)
+        can_publish = await self.may_publish(ctx, agent)
+        return AgentDetail.model_validate(agent).model_copy(
+            update={
+                "can_run": await self.may_run(ctx, agent),
+                "can_edit": can_edit,
+                "can_publish": can_publish,
+                "can_review_shipped_update": (
+                    ShippedAgentService.reviewable(agent) and can_edit and can_publish
+                ),
+            }
+        )
+
     async def _visible_scope(
         self, ctx: AuthContext, *, shared_with_me: bool
     ) -> tuple[bool, list[UUID]]:
@@ -1554,6 +1574,9 @@ class AgentRegistryService:
         version_ids = [agent.current_version_id for agent in agents if agent.current_version_id]
         budget_caps = await agent_repo.published_budget_caps(self.db, version_ids=version_ids)
         starters = await agent_repo.published_starters(self.db, version_ids=version_ids)
+        hidden_starters = await agent_repo.published_hidden_starters(
+            self.db, version_ids=version_ids
+        )
         starter_icons = await agent_repo.published_starter_icons(self.db, version_ids=version_ids)
         starter_titles = await agent_repo.published_starter_titles(self.db, version_ids=version_ids)
         published_capabilities = await agent_repo.published_capabilities(
@@ -1667,6 +1690,7 @@ class AgentRegistryService:
                 starters=(
                     starters.get(agent.current_version_id, []) if agent.current_version_id else []
                 ),
+                show_starters=agent.current_version_id not in hidden_starters,
                 starter_titles=(
                     starter_titles.get(agent.current_version_id, {})
                     if agent.current_version_id
@@ -1740,6 +1764,13 @@ class AgentRegistryService:
                         AgentTemplateRead(
                             key=template.key,
                             name=template.name,
+                            slug=slugify(template.name),
+                            avatar_url=(
+                                "data:image/png;base64,"
+                                + b64encode(template.avatar.read_bytes()).decode("ascii")
+                                if template.avatar is not None
+                                else None
+                            ),
                             description=template.description,
                             capabilities=[binding["id"] for binding in template.capabilities],
                             skills=list(template.skills),
@@ -1847,7 +1878,7 @@ class AgentRegistryService:
 
             await ShippedAgentService(self.db).ensure_skills(ctx.organization_id)
             update["skill_ids"] = [row.id for row in await self.template_skills(ctx, template)]
-        if not spec.starters:
+        if spec.show_starters and not spec.starters:
             update["starters"] = list(template.starters)
         if spec.budget is None and template.budget_usd is not None:
             update["budget"] = {"monthly_usd": template.budget_usd}
@@ -2214,12 +2245,9 @@ class AgentRegistryService:
         Server-side commands already owning the current draft may omit it.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
-        if expected_revision is not None and expected_revision != agent_draft_revision(
-            AgentSpec.model_validate(agent.draft_spec)
-        ):
-            raise ConflictError(
-                message="The draft changed elsewhere. Reload the latest draft before saving.",
-                details={"reason": "draft_changed"},
+        if expected_revision is not None:
+            self._check_draft_revision(
+                AgentSpec.model_validate(agent.draft_spec), expected_revision
             )
         spec = _without_unselectable(spec)
         await skill_repo.hold(self.db, bound_skill_ids(spec), organization_id=ctx.organization_id)
@@ -2234,6 +2262,83 @@ class AgentRegistryService:
                 "description": spec.description,
             },
         )
+
+    @staticmethod
+    def _check_draft_revision(current: AgentSpec, expected_revision: str) -> None:
+        if expected_revision != agent_draft_revision(current):
+            raise ConflictError(
+                message="The draft changed elsewhere. Reload the latest draft before saving.",
+                details={"reason": "draft_changed"},
+            )
+
+    async def discard_draft(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        *,
+        expected_revision: str,
+        expected_version_id: UUID,
+    ) -> Agent:
+        """Replace only the draft with the latest published spec the editor confirmed.
+
+        Hold the same lock as save and publish, and check both revisions before
+        writing. Publication and environment pointers are not changed.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
+        # Unlike a save's response, the returned draft contains a spec the caller
+        # did not supply. An edit-only API key must not use this as a read.
+        if not await resolve_access(self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT):
+            raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
+        if agent.status == AgentStatus.ARCHIVED.value:
+            raise BadRequestError(
+                message="An archived agent's draft cannot be discarded",
+                details={"agent_id": agent.id},
+            )
+        current = AgentSpec.model_validate(agent.draft_spec)
+        self._check_draft_revision(current, expected_revision)
+        latest = await agent_repo.newest_version(
+            self.db, agent_id=agent.id, organization_id=ctx.organization_id
+        )
+        if latest is None:
+            raise BadRequestError(
+                message="This agent has no published version to return to",
+                details={"agent_id": agent.id},
+            )
+        if latest.id != expected_version_id:
+            raise ConflictError(
+                message="The latest published version changed. Review it before discarding.",
+                details={"reason": "published_version_changed"},
+            )
+        published = AgentSpec.model_validate(latest.spec)
+        if agent_draft_revision(current) == agent_draft_revision(published):
+            return agent
+        await skill_repo.hold(
+            self.db, bound_skill_ids(published), organization_id=ctx.organization_id
+        )
+        updated = await agent_repo.update(
+            self.db,
+            agent=agent,
+            update_data={
+                "draft_spec": latest.spec,
+                "name": published.name,
+                "description": published.description,
+            },
+        )
+        batch = await authoring_repo.get_open_batch(
+            self.db, organization_id=ctx.organization_id, agent_id=agent.id, lock=True
+        )
+        if batch is not None:
+            await authoring_repo.close_batch(self.db, batch=batch, status=BatchStatus.SUPERSEDED)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="agent.draft_discarded",
+            target_type="agent",
+            target_id=str(agent.id),
+            details={"version": latest.version},
+        )
+        return updated
 
     async def import_spec(
         self, ctx: AuthContext, agent_id: UUID, text: str, *, expected_revision: str | None = None
@@ -4290,6 +4395,7 @@ class AgentRegistryService:
         # so the provider side is swept first, best-effort. Imported locally:
         # the trigger service imports this module at module scope.
         from app.services.agent_trigger import AgentTriggerService
+        from app.services.sandbox_workspace import SandboxWorkspaceService
         from app.services.tasks import TaskService
 
         await agent_repo.fence_deletion(self.db, agent.id, organization_id=ctx.organization_id)
@@ -4305,6 +4411,9 @@ class AgentRegistryService:
             organization_id=ctx.organization_id,
             resource_type=AGENT.key,
             resource_id=agent.id,
+        )
+        await SandboxWorkspaceService(self.db).purge_personal_coding(
+            organization_id=ctx.organization_id, agent_id=agent.id
         )
         await agent_repo.delete(self.db, agent)
         await record_audit(

@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.repositories import member_repo
+from app.repositories import member_repo, suggestion_repo
 from app.repositories.member import SweepCandidate
 from app.schemas.user import WorkingHours
 from app.services.background_jobs import enqueue
@@ -128,11 +128,32 @@ class ProactiveService:
             queued += 1
         return queued
 
-    async def think_for(self, organization_id: UUID, user_id: UUID) -> int:
+    async def think_for(
+        self, organization_id: UUID, user_id: UUID, *, refresh_open: bool = False
+    ) -> int:
         """The nightly look at one person. Returns how many proposals are new."""
         from app.services.proactive._nightly import NightlyLook
 
-        return await NightlyLook(self.db).look(organization_id, user_id)
+        return await NightlyLook(self.db).look(organization_id, user_id, refresh_open=refresh_open)
+
+    async def queue_open_refresh(self, organization_id: UUID) -> list[UUID]:
+        """Queue one bounded refresh per person, serialized with their ordinary nightly look."""
+        queued = []
+        for user_id in await suggestion_repo.open_generated_people(
+            self.db, organization_id=organization_id
+        ):
+            job_id = await enqueue(
+                self.db,
+                THINK_FOR_PERSON,
+                ThinkForPerson(organization_id=organization_id, user_id=user_id, refresh_open=True),
+                organization_id=organization_id,
+                dedupe_key=_per_person("refresh-open", organization_id, user_id),
+                concurrency_key=_per_person("proactivity", organization_id, user_id),
+                dedupe_active=True,
+            )
+            if job_id is not None:
+                queued.append(job_id)
+        return queued
 
     async def sweep_watches(self, *, now: datetime) -> int:
         """Queue a look for every watch whose time has come. Returns how many were queued."""

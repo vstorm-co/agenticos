@@ -4,6 +4,7 @@ import { useId, useState, type ReactNode } from "react";
 import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { FILTER_CONTROL } from "./control-styles";
 import { cn } from "@/lib/utils";
 
 /** Secondary list controls are disclosed on demand at every screen size. */
@@ -37,7 +38,8 @@ export function ListFilters({
           onOpenChange?.(!open);
         }}
         className={cn(
-          "border-input bg-field touch:min-h-11 touch:min-w-11 hover:bg-control-hover focus-visible:outline-foreground/40 inline-flex min-h-9 shrink-0 touch-manipulation items-center justify-center gap-1.5 rounded-lg border px-3 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2",
+          FILTER_CONTROL,
+          "touch:min-h-11 touch:min-w-11 inline-flex shrink-0 touch-manipulation items-center justify-center border",
           compact && "max-sm:min-w-11 max-sm:px-2.5",
         )}
       >
@@ -52,7 +54,7 @@ export function ListFilters({
         )}
         <ChevronDown
           className={cn(
-            "text-muted-foreground size-4 transition-transform",
+            "text-muted-foreground size-4 transition-transform motion-reduce:transition-none",
             open && "rotate-180",
             compact && "max-sm:hidden",
           )}

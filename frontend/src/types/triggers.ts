@@ -1,3 +1,4 @@
+import type { RoutineSourceMode } from "@/lib/routine-sources-api";
 import type { RoutineNotificationChannel } from "@/types/routines";
 /**
  * Types for agent triggers - when an agent runs with nobody at the keyboard.
@@ -161,6 +162,7 @@ export interface TriggerList {
 export type TriggerAnswerTo = "run_log" | "primary" | "conversation";
 
 export interface TriggerCreate {
+  source_mode?: RoutineSourceMode;
   review_before_activation?: boolean;
   max_failures?: number | null;
   is_active?: boolean;

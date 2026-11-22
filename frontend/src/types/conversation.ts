@@ -275,6 +275,8 @@ export interface AdminUser {
   is_active: boolean;
   is_app_admin: boolean;
   conversation_count: number;
+  last_seen_at?: string | null;
+  active_sessions?: number;
   created_at: string;
 }
 

@@ -16,8 +16,9 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import inspect, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.memory_keys import person_owner_key, room_owner_key
 from app.db.models.agent import Agent
@@ -86,6 +87,26 @@ async def _create(db, *, agent, owner_key, name, content="body", kind="note"):
 
 async def _fresh_agent(db) -> Agent:
     return await _agent(db, org=await _org(db, owner=await _user(db)))
+
+
+async def test_summary_listing_defers_bodies_without_losing_owner_scope(db: AsyncSession) -> None:
+    agent = await _fresh_agent(db)
+    own = await _create(db, agent=agent, owner_key=ANNA, name="own", content="Private body")
+    await _create(db, agent=agent, owner_key=BEN, name="other", content="Other body")
+    own_id = own.id
+    organization_id, agent_id = agent.organization_id, agent.id
+    db.expunge_all()
+    notes = await memory_repo.list_for_owner(
+        db,
+        organization_id=organization_id,
+        agent_id=agent_id,
+        owner_key=ANNA,
+        include_content=False,
+    )
+    assert [note.id for note in notes] == [own_id]
+    assert "content" in inspect(notes[0]).unloaded
+    await db.refresh(notes[0], ["content"])
+    assert notes[0].content == "Private body"
 
 
 class TestUniqueness:

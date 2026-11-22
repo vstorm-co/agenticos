@@ -369,6 +369,7 @@ class TestProviderCatalog:
             "system-one": ("decisions",),
             "azure": ("responses", "chat"),
             "stav": ("responses", "chat"),
+            "openai_compatible": ("chat",),
         }
 
     def test_only_stav_takes_its_api_from_the_model(self):
@@ -1949,6 +1950,147 @@ class TestAnEndpointOfItsOwn:
         assert written["base_url"] == "http://localhost:11434/v1"
 
 
+class TestACustomEndpoint:
+    """A provider that is an API shape rather than a vendor.
+
+    The organization's own endpoint, reached at an address somebody types and a
+    key somebody stores. Two shapes are spoken in the wild: OpenAI's Chat
+    Completions and Anthropic's Messages. They are separate entries rather than
+    an `openai` or an `anthropic` profile with an endpoint, because the key is
+    the point - a key filed under a vendor names that vendor's public API, which
+    the organization never talks to.
+    """
+
+    def test_the_chat_completions_one_serves_chat_and_nothing_else(self):
+        spec = PROVIDERS["openai_compatible"]
+        assert spec.apis == ("chat",)
+        assert spec.default_api("https://models.example/v1") == "chat"
+        assert spec.requires_base_url
+        assert spec.keyless is False
+
+    def test_the_messages_one_serves_one_api_and_needs_an_endpoint(self):
+        spec = PROVIDERS["anthropic_compatible"]
+        assert spec.apis == ()
+        assert spec.default_api("https://models.example") is None
+        assert spec.requires_base_url
+        assert spec.keyless is False
+
+    def test_the_endpoint_carries_no_path_the_sdk_adds_itself(self):
+        """Anthropic's SDK posts to `<endpoint>/v1/messages`.
+
+        An endpoint that already ends in `/v1` would ask for `/v1/v1/messages`,
+        and the 404 names the path rather than the cause - so the platform trims
+        it, and an endpoint copied out of a provider's own documentation works as
+        written.
+        """
+        spec = PROVIDERS["anthropic_compatible"]
+        assert spec.endpoint("https://models.example/v1") == "https://models.example"
+        assert spec.endpoint("https://models.example/v1/") == "https://models.example"
+        assert spec.endpoint("https://models.example") == "https://models.example"
+        # A path that ends in something else is the server's own and is kept.
+        assert spec.endpoint("https://models.example/api/v1") == "https://models.example/api"
+
+    def test_the_chat_completions_one_keeps_the_endpoint_as_written(self):
+        """OpenAI's SDK takes the `/v1` root as the endpoint itself."""
+        spec = PROVIDERS["openai_compatible"]
+        assert spec.endpoint("https://models.example/v1") == "https://models.example/v1"
+
+    def test_the_chat_completions_one_runs_on_the_chat_completions_wrapper(self):
+        """The API shape is the whole point: a server that answers
+        `/chat/completions` and nothing else."""
+        credential = ResolvedCredential(
+            provider="openai_compatible",
+            secret=ApiKeySecret(api_key="sk-test-abcd1234"),
+            base_url="https://models.example/v1",
+        )
+        model = build_model(credential, "llama3.3")
+        assert type(model) is OpenAIChatModel
+        assert str(model.base_url) == "https://models.example/v1/"
+
+    @pytest.mark.anyio
+    async def test_a_custom_profile_needs_an_endpoint(self):
+        """There is no public API for it to fall back on."""
+        with pytest.raises(BadRequestError) as exc:
+            await ModelProfileService(_db()).create_profile(
+                _ctx(),
+                label="Our gateway",
+                provider="openai_compatible",
+                model="llama3.3",
+                secret_id=uuid.uuid4(),
+            )
+        assert exc.value.details["fields"][0]["field"] == "base_url"
+
+    @pytest.mark.anyio
+    async def test_the_endpoint_is_stored_as_the_sdk_will_use_it(self):
+        """The trimming happens on the way in, so what is stored is what the
+        client is built with - and what the form shows afterwards."""
+        ctx = _ctx()
+        secret = _vault_secret(ctx, purpose="anthropic_compatible")
+
+        with (
+            patch(
+                "app.services.model_profile.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret),
+            ),
+            patch(
+                "app.services.model_profile.credential_repo.create_profile",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.model_profile.record_audit", new=AsyncMock()),
+            patch(
+                "app.services.model_profile.models_for",
+                new=AsyncMock(return_value=([], "unlisted")),
+            ),
+        ):
+            await ModelProfileService(_db()).create_profile(
+                ctx,
+                label="Our gateway",
+                provider="anthropic_compatible",
+                model="claude-sonnet-4-6",
+                secret_id=secret.id,
+                base_url="https://models.example/v1",
+            )
+
+        assert create.call_args.kwargs["base_url"] == "https://models.example"
+
+    @pytest.mark.anyio
+    async def test_a_custom_profile_is_listed_from_the_endpoint_it_names(self):
+        """The model list is the endpoint's own, read with the profile's key.
+
+        It is the only source of suggestions for a provider nobody else knows,
+        so the listing has to reach the endpoint rather than a vendor's API.
+        """
+        ctx = _ctx()
+        secret = _vault_secret(ctx, purpose="openai_compatible")
+
+        with (
+            patch(
+                "app.services.model_profile.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret),
+            ),
+            patch(
+                "app.services.model_profile.credential_repo.create_profile",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.model_profile.record_audit", new=AsyncMock()),
+            patch(
+                "app.services.model_profile.models_for",
+                new=AsyncMock(return_value=([], "live")),
+            ) as listing,
+        ):
+            await ModelProfileService(_db()).create_profile(
+                ctx,
+                label="Our gateway",
+                provider="openai_compatible",
+                model="llama3.3",
+                secret_id=secret.id,
+                base_url="https://models.example/v1",
+            )
+
+        assert listing.await_args.kwargs["base_url"] == "https://models.example/v1"
+        assert listing.await_args.kwargs["api_key"] is not None
+
+
 class TestTheApiAProfileUses:
     """Which of OpenAI's two APIs a profile's requests go to, stored on the profile.
 
@@ -2292,6 +2434,23 @@ class TestStavRegion:
                 api="responses",
                 region="eu",
             )
+
+
+class TestLlmtrEndpoint:
+    """LLMTR has no Pydantic AI provider of its own, so its endpoint is the platform's to set."""
+
+    def test_requests_go_to_llmtr_over_chat_completions(self):
+        credential = ResolvedCredential(
+            provider="llmtr", secret=ApiKeySecret(api_key="sk_llmtr_test")
+        )
+        model = build_model(credential, "llmtr/qwen3-8-27b")
+
+        from app.agents.llmtr import LlmtrModel
+
+        assert isinstance(model, LlmtrModel)
+        assert isinstance(model.wrapped, OpenAIChatModel)
+        # Inferred from `openai-chat` alone, the client would point at api.openai.com.
+        assert str(model.wrapped._provider.client.base_url) == "https://llmtr.com/v1/"
 
 
 @pytest.mark.anyio

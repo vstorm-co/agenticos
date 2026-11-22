@@ -131,6 +131,7 @@ def ensure_channel_adapters() -> None:
     from app.services.channels.discord import DiscordAdapter
     from app.services.channels.email import EmailAdapter
     from app.services.channels.imessage import ImessageAdapter
+    from app.services.channels.matrix import MatrixAdapter
     from app.services.channels.mattermost import MattermostAdapter
     from app.services.channels.slack import SlackAdapter
     from app.services.channels.sms import SmsAdapter
@@ -142,6 +143,7 @@ def ensure_channel_adapters() -> None:
         TelegramAdapter,
         MattermostAdapter,
         DiscordAdapter,
+        MatrixAdapter,
         SmsAdapter,
         EmailAdapter,
         ImessageAdapter,

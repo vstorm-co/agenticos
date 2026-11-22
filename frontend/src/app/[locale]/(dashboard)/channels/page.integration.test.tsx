@@ -19,7 +19,12 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { toast } from "sonner";
 
-const permissions = { can: vi.fn(() => true), isLoading: false, error: null as Error | null };
+const permissions = {
+  can: vi.fn(() => true),
+  isLoading: false,
+  error: null as Error | null,
+  refetch: vi.fn(),
+};
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => permissions }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -747,4 +752,12 @@ describe("the channels page", () => {
       ),
     );
   });
+});
+
+it("offers recovery when permissions could not be read", async () => {
+  permissions.can.mockReturnValue(false);
+  permissions.error = new Error("permissions unavailable");
+  render(<ChannelsPage />, { wrapper });
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(permissions.refetch).toHaveBeenCalledOnce();
 });

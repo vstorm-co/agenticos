@@ -329,6 +329,7 @@ export function CaseTable({
           </ul>
         )}
         <PaginationBar
+          showSinglePage
           page={skip / PAGE}
           pageSize={PAGE}
           total={total}

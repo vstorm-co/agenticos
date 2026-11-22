@@ -76,7 +76,7 @@ interface OnboardingState {
    */
   systemAgentPage: boolean;
   setSystemAgentPage: (systemAgentPage: boolean) => void;
-  /** The first-run walkthrough, from the top — the auto-start and a full replay. */
+  /** The full walkthrough, opened explicitly from the beginning. */
   openTour: () => void;
   /** The current page's highlights only — the header "?" button. */
   openPage: () => void;

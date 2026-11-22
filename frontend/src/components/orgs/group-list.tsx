@@ -9,6 +9,10 @@ import { GroupIcon } from "@/components/groups/group-icon";
 import { ErrorState } from "@/components/states";
 import {
   Button,
+  ResourceCard,
+  ResourceCardHeader,
+  ResourceCardDescription,
+  ResourceCardFooter,
   IconButton,
   ListCard,
   ListCardEmpty,
@@ -103,58 +107,52 @@ export function GroupList({
         <div className="space-y-4">
           <ul className="grid auto-rows-fr gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {list.visible.map((group) => (
-              <li
-                key={group.id}
-                className="border-border bg-card hover:border-foreground/20 flex min-w-0 flex-col rounded-2xl border p-4 transition-colors"
-              >
-                <div className="flex flex-1 items-start gap-3">
-                  <GroupIcon icon={group.icon} className="size-11 rounded-xl [&_svg]:size-5" />
-                  <div className="min-w-0 flex-1">
-                    <Link
-                      href={ROUTES.GROUP_DETAIL(group.id)}
-                      className="text-foreground text-sm font-semibold [overflow-wrap:anywhere] underline-offset-4 hover:underline"
-                    >
-                      {group.name}
-                    </Link>
-                    {group.description && (
-                      <p
-                        className="text-muted-foreground mt-1.5 line-clamp-3 text-[13px] leading-relaxed"
-                        title={group.description}
+              <li key={group.id} className="min-w-0">
+                <ResourceCard>
+                  <ResourceCardHeader>
+                    <GroupIcon icon={group.icon} className="size-11 rounded-xl [&_svg]:size-5" />
+                    <div className="min-w-0 flex-1">
+                      <Link
+                        href={ROUTES.GROUP_DETAIL(group.id)}
+                        className="text-foreground text-base font-semibold [overflow-wrap:anywhere] underline-offset-4 hover:underline"
                       >
-                        {group.description}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="border-border mt-4 flex items-center justify-between gap-2 border-t pt-3">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="-ml-2 min-w-0"
-                    onClick={() => onOpenMembers(group)}
-                    aria-label={t("membersOf", { name: group.name })}
-                  >
-                    <Users aria-hidden className="size-4" />
-                    {t("memberCount", { count: group.member_count })}
-                  </Button>
-                  {canManage && (
-                    <div className="flex shrink-0 items-center gap-0.5">
-                      <IconButton
-                        onClick={() => onEdit(group)}
-                        aria-label={t("editNamed", { name: group.name })}
-                      >
-                        <Pencil />
-                      </IconButton>
-                      <IconButton
-                        className="text-muted-foreground hover:text-destructive"
-                        onClick={() => onDelete(group)}
-                        aria-label={tc("removeNamed", { name: group.name })}
-                      >
-                        <Trash2 />
-                      </IconButton>
+                        {group.name}
+                      </Link>
                     </div>
-                  )}
-                </div>
+                  </ResourceCardHeader>
+                  <ResourceCardDescription title={group.description ?? undefined}>
+                    {group.description}
+                  </ResourceCardDescription>
+                  <ResourceCardFooter className="justify-between">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="-ml-2 min-w-0"
+                      onClick={() => onOpenMembers(group)}
+                      aria-label={t("membersOf", { name: group.name })}
+                    >
+                      <Users aria-hidden className="size-4" />
+                      {t("memberCount", { count: group.member_count })}
+                    </Button>
+                    {canManage && (
+                      <div className="flex shrink-0 items-center gap-0.5">
+                        <IconButton
+                          onClick={() => onEdit(group)}
+                          aria-label={t("editNamed", { name: group.name })}
+                        >
+                          <Pencil />
+                        </IconButton>
+                        <IconButton
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => onDelete(group)}
+                          aria-label={tc("removeNamed", { name: group.name })}
+                        >
+                          <Trash2 />
+                        </IconButton>
+                      </div>
+                    )}
+                  </ResourceCardFooter>
+                </ResourceCard>
               </li>
             ))}
           </ul>

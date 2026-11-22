@@ -214,9 +214,10 @@ export default function AdminOrganizationsPage() {
         className="rounded-none border-0 bg-transparent [&_table]:min-w-[36rem]"
       />
 
-      {total > 0 && (
+      {!error && (
         <ListCardFootRow>
           <PaginationBar
+            showSinglePage
             page={page}
             pageSize={PAGE_SIZE}
             total={total}

@@ -66,6 +66,7 @@ export function ProjectChats({ project }: { project: Project }) {
       ) : (
         <>
           <DataTable<ProjectChat>
+            fillHeight
             columns={columns}
             rows={chats}
             getRowKey={(chat) => chat.id}

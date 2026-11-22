@@ -24,13 +24,24 @@ export interface RoutineSourceItem {
   detail?: string | null;
 }
 
+export type RoutineSourceMode = "follow_agent" | "restricted";
+
+export interface RoutineSourceConsent {
+  review_token: string;
+  mode?: RoutineSourceMode;
+}
+
 export interface RoutineSourceReview {
+  /** Older cached responses represent a restricted reviewed snapshot. */
+  mode?: RoutineSourceMode;
   review_token: string;
   version_id: string;
   current: boolean;
   resources: string[];
   accounts: string[];
   unavailable_sources: string[];
+  /** Absent in older responses, where every unavailable source must block saving. */
+  required_unavailable_sources?: string[];
   items?: RoutineSourceItem[];
 }
 
@@ -40,6 +51,16 @@ const path = (agentId: string, triggerId: string) =>
 export const routineSourcesApi = {
   get: (agentId: string, triggerId: string) =>
     apiClient.get<RoutineSourceReview>(path(agentId, triggerId)),
-  replace: (agentId: string, triggerId: string, reviewToken: string) =>
-    apiClient.put<RoutineSourceReview>(path(agentId, triggerId), { review_token: reviewToken }),
+  replace: (agentId: string, triggerId: string, consent: RoutineSourceConsent) =>
+    apiClient.put<RoutineSourceReview>(path(agentId, triggerId), consent),
 };
+
+/** Missing classifications fail closed; only explicit optional gaps can be inherited. */
+export function routineSourceBlockers(
+  review: RoutineSourceReview,
+  mode: RoutineSourceMode,
+): readonly string[] {
+  return mode === "restricted"
+    ? review.unavailable_sources
+    : (review.required_unavailable_sources ?? review.unavailable_sources);
+}

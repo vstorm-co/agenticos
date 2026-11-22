@@ -10,6 +10,10 @@ import type { ConversationWorkspace } from "@/lib/conversation-workspace-api";
 import type { ConversationCost, TurnUsage } from "@/types";
 
 interface UsageMeterProps {
+  /** This conversation has not sent a first message yet. */
+  beforeFirstMessage?: boolean;
+  /** Keep numeric readings in the popover rather than beside the context ring. */
+  iconOnly?: boolean;
   /** The last turn's usage, or `null` before one has been measured. */
   usage: TurnUsage | null;
   /**
@@ -71,11 +75,14 @@ type Translate = (key: string, values?: Record<string, string | number>) => stri
  */
 export function UsageMeter({
   usage,
+  iconOnly = false,
+  beforeFirstMessage = false,
   workspace = null,
   total = null,
   contextWindow = null,
 }: UsageMeterProps) {
   const t = useTranslations("chat.usage");
+  const controls = useTranslations("chat.controls");
   const context = contextOf(usage, contextWindow);
   const fill = usage === null ? null : fillOf(usage, workspace, t);
   const agentShare = usage?.agent_budget_percent ?? null;
@@ -97,10 +104,17 @@ export function UsageMeter({
       <PopoverTrigger asChild>
         <button
           type="button"
+          disabled={beforeFirstMessage}
           aria-label={level === "calm" ? t("label") : t("labelNearLimit")}
-          title={level === "calm" ? t("label") : t("labelNearLimit")}
+          title={
+            beforeFirstMessage
+              ? controls("afterFirstMessage")
+              : level === "calm"
+                ? t("label")
+                : t("labelNearLimit")
+          }
           className={cn(
-            "hover:bg-foreground/[0.06] relative inline-flex h-9 min-w-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 transition-colors",
+            "hover:bg-foreground/[0.06] relative inline-flex h-9 min-w-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 transition-colors disabled:cursor-not-allowed disabled:opacity-35",
             // The ring and its share are the context's own colour: a budget near
             // its limit painted "0.9%" amber, which reads as the context being
             // nearly full. Another reading near its limit is the dot instead.
@@ -123,9 +137,11 @@ export function UsageMeter({
             <>
               <ContextRing percent={context.percent} />
               {/* The share at a glance; what it is a share of is in the popover. */}
-              <span className="text-xs tabular-nums">
-                {t("percent", { percent: share(context.percent) })}
-              </span>
+              {!iconOnly && (
+                <span className="text-xs tabular-nums">
+                  {t("percent", { percent: share(context.percent) })}
+                </span>
+              )}
             </>
           )}
         </button>
@@ -133,8 +149,10 @@ export function UsageMeter({
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="border-border bg-popover w-[300px] rounded-xl border p-1.5 shadow-md"
+        aria-label={t("label")}
+        className="border-border bg-popover max-h-[var(--radix-popover-content-available-height)] w-[min(21rem,calc(100vw-1.5rem))] overflow-y-auto overscroll-contain rounded-2xl border p-3 shadow-md"
       >
+        <h2 className="text-muted-foreground mb-2 px-2 text-xs font-medium">{t("label")}</h2>
         {empty && <p className="text-muted-foreground px-2 py-1.5 text-xs">{t("empty")}</p>}
         <dl className="text-xs">
           {context !== null && (

@@ -22,6 +22,7 @@ import {
   FormField,
   Input,
   Label,
+  MoreOptions,
   Textarea,
 } from "@/components/ui";
 import { useProjects } from "@/hooks/use-projects";
@@ -60,6 +61,7 @@ export function CreateProjectDialog({
   const shell = useShell();
   const folder = useProjectFolder(null);
   const [localFolder, setLocalFolder] = useState<LocalTarget | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState("");
@@ -74,6 +76,7 @@ export function CreateProjectDialog({
 
   const source = useId();
   function reset() {
+    setMoreOpen(false);
     setLocalFolder(null);
     setName("");
     setDescription("");
@@ -143,6 +146,10 @@ export function CreateProjectDialog({
         tErrors,
       );
       setErrors(failure.fields);
+      if (
+        ["description", "instructions", "default_agent_id"].some((field) => failure.fields[field])
+      )
+        setMoreOpen(true);
       if (failure.toast) toast.error(failure.toast);
       return false;
     }
@@ -170,53 +177,6 @@ export function CreateProjectDialog({
                 maxLength={120}
               />
             </FormField>
-            <FormField
-              label={t("description")}
-              htmlFor="new-project-description"
-              error={errors.description}
-            >
-              <Input
-                value={description}
-                onChange={(event) => {
-                  setDescription(event.target.value);
-                  clearError("description");
-                }}
-                placeholder={t("descriptionPlaceholder")}
-                maxLength={500}
-              />
-            </FormField>
-            <FormField
-              label={t("defaultAgent")}
-              htmlFor="new-project-agent"
-              description={t("defaultAgentHint")}
-              error={errors.default_agent_id}
-            >
-              <DefaultAgentSelect
-                id="new-project-agent"
-                value={agentId}
-                onChange={(next) => {
-                  setAgentId(next);
-                  clearError("default_agent_id");
-                }}
-              />
-            </FormField>
-            <FormField
-              label={t("instructions")}
-              htmlFor="new-project-instructions"
-              description={t("instructionsHint")}
-              error={errors.instructions}
-            >
-              <Textarea
-                value={instructions}
-                onChange={(event) => {
-                  setInstructions(event.target.value);
-                  clearError("instructions");
-                }}
-                placeholder={t("instructionsPlaceholder")}
-                rows={5}
-                maxLength={20000}
-              />
-            </FormField>
             <ProjectSandboxChoice
               value={sandbox}
               onChange={(next) => {
@@ -236,6 +196,55 @@ export function CreateProjectDialog({
               <Label>{t("whoWorksInIt")}</Label>
               <AudiencePicker value={audience} onChange={setAudience} />
             </div>
+            <MoreOptions label={t("initialSetup")} open={moreOpen} onOpenChange={setMoreOpen}>
+              <FormField
+                label={t("description")}
+                htmlFor="new-project-description"
+                error={errors.description}
+              >
+                <Input
+                  value={description}
+                  onChange={(event) => {
+                    setDescription(event.target.value);
+                    clearError("description");
+                  }}
+                  placeholder={t("descriptionPlaceholder")}
+                  maxLength={500}
+                />
+              </FormField>
+              <FormField
+                label={t("defaultAgent")}
+                htmlFor="new-project-agent"
+                description={t("defaultAgentHint")}
+                error={errors.default_agent_id}
+              >
+                <DefaultAgentSelect
+                  id="new-project-agent"
+                  value={agentId}
+                  onChange={(next) => {
+                    setAgentId(next);
+                    clearError("default_agent_id");
+                  }}
+                />
+              </FormField>
+              <FormField
+                label={t("instructions")}
+                htmlFor="new-project-instructions"
+                description={t("instructionsHint")}
+                error={errors.instructions}
+              >
+                <Textarea
+                  value={instructions}
+                  onChange={(event) => {
+                    setInstructions(event.target.value);
+                    clearError("instructions");
+                  }}
+                  placeholder={t("instructionsPlaceholder")}
+                  rows={5}
+                  maxLength={20000}
+                />
+              </FormField>
+            </MoreOptions>
           </fieldset>
         </div>
 

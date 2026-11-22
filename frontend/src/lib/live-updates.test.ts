@@ -39,8 +39,13 @@ describe("staleQueries", () => {
       qk.conversations.list(),
       qk.outcomes.all(),
       qk.projects.all(),
+      qk.stats.attentionAll(),
     ]);
-    expect(staleQueries(change("eval_suite"))).toEqual([qk.evalSuites.all(), qk.evalRuns.all()]);
+    expect(staleQueries(change("eval_suite"))).toEqual([
+      qk.evalSuites.all(),
+      qk.evalRuns.all(),
+      qk.stats.attentionAll(),
+    ]);
     expect(staleQueries(change("eval_run"))).toEqual([
       qk.evalRuns.all(),
       qk.datasets.all(),
