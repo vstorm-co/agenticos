@@ -121,16 +121,16 @@ test.describe("Models", () => {
     // by its label so this contract survives harmless field-id changes.
     const key = page.getByRole("combobox", { name: "Key", exact: true });
     const automaticKey = page.getByText(FAKE_KEY_LABEL, { exact: true });
-    // The key lives under the collapsed "Model access" disclosure.
-    const access = page.getByRole("button", { name: /^Model access/ });
+    // The key lives under the collapsed "Connection settings" disclosure.
+    const access = page.getByRole("button", { name: /^Connection settings/ });
     if (!(await key.isVisible()) && (await access.count()) > 0) await access.first().click();
     await expect(key.or(automaticKey).first()).toBeVisible();
     if (await key.isVisible()) {
       await key.click();
       await page.getByRole("option", { name: new RegExp(FAKE_KEY_LABEL) }).click();
-      // Choosing a key folds the "Model access" disclosure; open it to read the choice back.
-      if (!(await key.isVisible())) await access.first().click();
-      await expect(key).toContainText(FAKE_KEY_LABEL);
+      // The chosen key reads back from the control itself, whatever its name becomes
+      // once it holds a value.
+      await expect(page.locator('[id$="-add-model-key"]:visible')).toContainText(FAKE_KEY_LABEL);
     } else {
       // A sole matching key is selected automatically and named in the form.
       await expect(automaticKey).toBeVisible();

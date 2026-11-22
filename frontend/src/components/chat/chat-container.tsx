@@ -2074,6 +2074,7 @@ function ChatUI({
     voice.call.phase === "idle" &&
     !isLoadingConversation;
   const mainChat = useMainChat();
+  const [composerFilesSlot, setComposerFilesSlot] = useState<HTMLSpanElement | null>(null);
   const configuredHome = useChatHomeOptions();
   const homeOptions = mainChat ? configuredHome : DEFAULT_CHAT_HOME;
   const showDailyBriefing = showWorkspaceHome && mainChat && !emptyState && !conversationId;
@@ -2637,6 +2638,13 @@ function ChatUI({
                                     <AgentPicker />
                                   </fieldset>
                                 )}
+                                {mainChat && (
+                                  <span
+                                    ref={setComposerFilesSlot}
+                                    data-chat-files
+                                    className="contents"
+                                  />
+                                )}
                                 {!mainChat && (
                                   <ChatApprovalSelector
                                     onChange={onApprovalModeChange}
@@ -2787,6 +2795,7 @@ function ChatUI({
         <FilePreviewDialog />
         {/* The browser shares the chat's width; a narrow chat opens it full screen. */}
         <WorkspacePanels
+          filesButtonSlot={mainChat ? composerFilesSlot : undefined}
           teamRoom={roomProjectId !== null}
           compact={compact}
           browses={browses}
