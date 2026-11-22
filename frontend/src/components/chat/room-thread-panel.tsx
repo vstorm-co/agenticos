@@ -211,6 +211,10 @@ export function RoomThreadPanel({
     updateVisibleCursor();
   }, [last?.id, last?.content, messages.length, updateVisibleCursor]);
   useEffect(() => {
+    const cursorIndex =
+      visibleThroughId === page?.root.id
+        ? -1
+        : messages.findIndex((message) => message.id === visibleThroughId);
     if (
       !isRoom ||
       !authorized ||
@@ -218,14 +222,10 @@ export function RoomThreadPanel({
       visibleThroughId === null ||
       document.visibilityState !== "visible" ||
       threadActions.isMarkingRead ||
-      pendingReadMessageId.current !== null
+      pendingReadMessageId.current !== null ||
+      (visibleThroughId !== page?.root.id && cursorIndex < 0)
     )
       return;
-    const cursorIndex =
-      visibleThroughId === page?.root.id
-        ? -1
-        : messages.findIndex((message) => message.id === visibleThroughId);
-    if (visibleThroughId !== page?.root.id && cursorIndex < 0) return;
     const lastId = lastReadMessageId.current;
     const lastIndex =
       lastId === null
