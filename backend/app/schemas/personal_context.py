@@ -97,3 +97,10 @@ class ConversationContext(BaseModel):
     digests: list[ContextDigest]
     messages: list[ContextTurn]
     receipts: list[dict[str, JsonValue]]
+    part_keys: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def aligned_segments(self) -> Self:
+        if self.part_keys and len(self.part_keys) != len(self.digests):
+            raise ValueError("Each segment key must have one digest")
+        return self

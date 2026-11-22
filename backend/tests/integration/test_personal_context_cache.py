@@ -982,3 +982,65 @@ async def test_extraction_segments_do_not_repeat_a_whole_threads_answer_history(
     monkeypatch.setattr(ProactiveThinker, "think", think)
     assert await PersonalLook(db).look(org.id, user.id) == 0
     assert receipts_per_segment == [1, 1]
+
+
+async def test_an_append_and_an_edit_reuse_unchanged_completed_segments(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pydantic import BaseModel
+
+    from app.schemas.personal_context import ContextDigest, PersonalReading
+    from app.services.proactive._context_pipeline import CHUNK_CHARS
+    from app.services.proactive._personal import PersonalLook
+    from app.services.proactive._thinker import ProactiveThinker
+
+    user, org, agent, version, model, _ = await _world(db)
+    agent.slug = "agenticos"
+    org.proactive_enabled = True
+    org.proactive_model_profile_id = model.id
+    run, conversation = await _chat_run(db, org, agent, version, user, input_tokens=10)
+    await _transcript(db, conversation, run, [("user", "x" * (CHUNK_CHARS * 3 + 200))])
+    await db.commit()
+    calls = []
+
+    async def think(self: ProactiveThinker, ctx: object, **kwargs: object) -> BaseModel:
+        output = kwargs["output_type"]
+        assert output in {ContextDigest, PersonalReading}
+        calls.append(output)
+        return output()
+
+    monkeypatch.setattr(ProactiveThinker, "think", think)
+    assert await PersonalLook(db).look(org.id, user.id) == 0
+    await db.commit()
+    assert calls.count(ContextDigest) == 4
+    stored = await cache.load(db, organization_id=org.id, user_id=user.id)
+    assert not any(key.startswith("part:") for key in stored)
+    assert len(stored[f"conversation:{conversation.id}"]["part_keys"]) == 4
+    db.add(
+        Message(
+            conversation_id=conversation.id,
+            run_id=run.id,
+            role="user",
+            content="Also prepare the release agenda",
+            ordinal=1,
+        )
+    )
+    await db.commit()
+    calls.clear()
+    assert await PersonalLook(db).look(org.id, user.id) == 0
+    await db.commit()
+    assert calls.count(ContextDigest) == 1
+    original = await db.scalar(
+        select(Message).where(Message.conversation_id == conversation.id, Message.ordinal == 0)
+    )
+    assert original is not None
+    original.content = "y" + original.content[1:]
+    await db.commit()
+    calls.clear()
+    assert await PersonalLook(db).look(org.id, user.id) == 0
+    await db.commit()
+    assert calls.count(ContextDigest) == 1
+    assert not any(
+        key.startswith("part:")
+        for key in await cache.load(db, organization_id=org.id, user_id=user.id)
+    )

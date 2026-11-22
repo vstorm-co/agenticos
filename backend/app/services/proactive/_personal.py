@@ -304,13 +304,28 @@ class PersonalLook(NightlyLook):
                 messages.extend(index.messages)
                 receipts.extend(index.receipts)
                 continue
+            previous = (
+                ConversationContext.model_validate(stored) if stored.get("part_keys") else None
+            )
+            completed_parts = (
+                dict(zip(previous.part_keys, previous.digests, strict=True))
+                if previous is not None
+                else {}
+            )
             turns, answers = await self._turns(ctx, conversation, since)
             parts = chunks(turns)
             fresh: list[ContextDigest] = []
+            part_keys: list[str] = []
             # Per-segment progress is durable even when a conversation is large.
             for index, part in enumerate(parts):
-                part_key = f"part:{conversation.id}:{fingerprint([revision, index])[:32]}"
-                existing = cached.get(part_key)
+                part_answers = [
+                    receipt
+                    for receipt in answers
+                    if f"answer:{receipt['id']}" in {turn.id for turn in part}
+                ]
+                part_key = f"part:{conversation.id}:{fingerprint([EXTRACTOR_VERSION, since, index, [turn.model_dump(mode='json') for turn in part], part_answers])[:32]}"
+                part_keys.append(part_key)
+                existing = completed_parts.get(part_key) or cached.get(part_key)
                 keys.add(part_key)
                 if existing is not None:
                     digest = ContextDigest.model_validate(existing)
@@ -323,11 +338,7 @@ class PersonalLook(NightlyLook):
                         packet.model_copy(
                             update={
                                 "messages": part,
-                                "tool_receipts": [
-                                    receipt
-                                    for receipt in answers
-                                    if f"answer:{receipt['id']}" in {turn.id for turn in part}
-                                ],
+                                "tool_receipts": part_answers,
                             }
                         ),
                     )
@@ -378,6 +389,7 @@ class PersonalLook(NightlyLook):
             payload: dict[str, object] = {
                 "revision": revision,
                 "digests": [digest.model_dump(mode="json") for digest in fresh],
+                "part_keys": part_keys,
                 "messages": [turn.model_dump(mode="json") for turn in kept],
                 "receipts": answers,
             }
@@ -593,6 +605,13 @@ class PersonalLook(NightlyLook):
                 key=key,
                 payload=payload,
             )
+            if key == f"conversation:{conversation_id}":
+                await context_repo.clear_parts(
+                    writer,
+                    organization_id=ctx.organization_id,
+                    user_id=ctx.user_id,
+                    conversation_id=conversation_id,
+                )
         return True
 
     async def _continue(self, ctx: AuthContext) -> None:

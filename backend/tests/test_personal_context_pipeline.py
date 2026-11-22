@@ -9,6 +9,7 @@ from pydantic_ai import ModelRetry
 from app.schemas.personal_context import (
     ContextDigest,
     ContextPacket,
+    ConversationContext,
     PersonalAdvice,
     PersonalReading,
     SourceEvidence,
@@ -1114,3 +1115,8 @@ def test_native_answers_cannot_restore_revoked_or_erased_sources(fence: str) -> 
     )
     value = packet(messages=[], tool_receipts=[receipt(thread_id="t")], current_state=state)
     assert with_human_answers(value, restore_cached=True).messages == []
+
+
+def test_completed_index_segment_keys_cannot_disagree_with_its_digests() -> None:
+    with pytest.raises(ValidationError, match="one digest"):
+        ConversationContext(revision="r", digests=[], messages=[], receipts=[], part_keys=["extra"])

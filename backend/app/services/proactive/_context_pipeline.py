@@ -26,7 +26,7 @@ from app.schemas.personal_context import (
     WorkTopic,
 )
 
-EXTRACTOR_VERSION = "personal-work-v4"
+EXTRACTOR_VERSION = "personal-work-v5"
 CHUNK_CHARS = 16000
 MAX_SELECTED_TOPICS = 12
 

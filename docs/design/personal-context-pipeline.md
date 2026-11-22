@@ -65,7 +65,11 @@ progress nor existing Inbox cards.
 Events share one queued job per person. An event during an active scan may queue
 one follow-up, under the same concurrency key as nightly work. A large initial
 backfill continues after eight new segments; unchanged segments do not call a model.
-An unchanged final snapshot does not call a model either.
+An unchanged final snapshot does not call a model either. Segment keys include
+the actual admitted segment and its answer context, not the entire conversation's
+revision. Appending a turn therefore reuses unchanged completed segments; editing
+an old segment invalidates that segment. Completed indexes retain the ordered
+segment keys and digests and discard temporary progress rows.
 
 Every proposed citation must match a supplied original fragment. Each card then
 gets an independent semantic check restricted to its related work evidence, with

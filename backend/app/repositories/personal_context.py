@@ -368,3 +368,17 @@ async def lock_delivery_sources(
         await db.execute(
             statement.order_by(statement.selected_columns[0]).with_for_update(read=True)
         )
+
+
+async def clear_parts(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, conversation_id: UUID
+) -> None:
+    """A completed index owns its segment digests; discard temporary progress rows."""
+    await db.execute(
+        delete(PersonalContextCache).where(
+            PersonalContextCache.organization_id == organization_id,
+            PersonalContextCache.user_id == user_id,
+            PersonalContextCache.source_key.startswith(f"part:{conversation_id}:"),
+        )
+    )
+    await db.flush()
