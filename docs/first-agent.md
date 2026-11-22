@@ -9,9 +9,12 @@ You need a running stack first — see [Install](install.md).
 
 !!! tip "The product will walk you through this too"
 
-    The first time anyone signs in, a walkthrough opens on the dashboard, and
-    finishing it offers to build the first agent *with* you, operating the real
-    dialogs.
+    Nothing opens on its own the first time you sign in. Until you have
+    finished a first run, the dashboard shows a first-run checklist and the
+    chat shows a start offer, both opening the guided start: pick a goal, run
+    one task with an agent, and see the result. The walkthrough itself opens
+    only when you ask for it — from the guided start, or with the **?** in
+    the header of any walked page.
 
     The manual path is still worth reading once, which is what this page is. The
     guided one is described [at the end](#the-guided-walkthrough).
@@ -209,10 +212,11 @@ Everything after this is more of steps 4, 5 and 9.
 The product teaches itself, and it is worth knowing how — because the walkthrough
 is also how anybody you hand this to will learn it.
 
-**It shows once, and the ? replays it.** Finishing, skipping or closing it is
-remembered against the account rather than the browser, so it does not return on
-the next device. The **?** in the header of any walked page replays that page's
-tips whenever they are wanted.
+The walkthrough never opens by itself. It is offered from the dashboard's
+first-run checklist and the guided start, and the **?** in the header of any
+walked page replays that page's tips whenever they are wanted. Finishing,
+skipping or closing it is remembered against the account rather than the
+browser, so it does not return on the next device.
 
 It is offered only where there is something to replay. A section with no stops —
 the deployment-admin pages — has **no ?** at all, rather than one that opens an

@@ -43,6 +43,7 @@ ADMIN_PASSWORD=""
 ORG_NAME=""
 WANT_MCP=""
 WANT_SANDBOX=""
+WANT_DEMO=0
 
 BOLD=""; DIM=""; RED=""; GREEN=""; YELLOW=""; BLUE=""; RESET=""
 if [ -t 1 ] && [ "${NO_COLOR:-}" = "" ]; then
@@ -77,6 +78,10 @@ AgenticOS quickstart
                        Start the sandbox service, which gives agents a container to
                        run code in and holds the Docker socket to do it (default: yes
                        where /var/run/docker.sock exists)
+  --demo               Seed a demo workspace into the organization: a fictional
+                       Northwind project and conversation, so the guided first
+                       run has something to show before your own first run lands.
+                       No model runs, no app is connected, safe to delete.
   --dir PATH           Where to put docker-compose.yml and .env when not in a clone
                        (default ./agenticos)
   -h, --help           This.
@@ -98,6 +103,7 @@ while [ $# -gt 0 ]; do
     --no-mcp) WANT_MCP=no ;;
     --sandbox) WANT_SANDBOX=yes ;;
     --no-sandbox) WANT_SANDBOX=no ;;
+    --demo) WANT_DEMO=1 ;;
     --dir) INSTALL_DIR="${2:-}"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown option: $1 (try --help)" ;;
@@ -638,6 +644,17 @@ sync_mcp() {
   run_sh "docker compose exec -T app agenticos cmd mcp-registry-sync"
 }
 
+seed_demo() {
+  [ "$WANT_DEMO" = "1" ] || return 0
+  step "Seeding the demo workspace"
+  note "A fictional Northwind project and conversation, so the guided first run has something to show before your own first run lands. No model runs, no app is connected."
+  # Real argv, not a string through `sh -c`: an organization name with a
+  # space or a quote in it has to reach the container as typed. The command
+  # resolves the name itself and refuses an ambiguous one; it is idempotent,
+  # so re-running quickstart with --demo creates nothing twice.
+  run docker compose exec -T app agenticos cmd seed-demo "$ORG_NAME"
+}
+
 summary() {
   local down="docker compose down" logs="docker compose logs -f"
   if [ "$IN_CLONE" = "1" ]; then
@@ -663,6 +680,9 @@ ${BOLD}Day to day${RESET}${DIM}  (from $(pwd))${RESET}
                        can this deployment actually run an agent?
 
 EOF
+  if [ "$WANT_DEMO" = "1" ]; then
+    note "Demo workspace seeded (\"Demo — first-run example\"): it shows what a finished result looks like. Delete it from Projects when you no longer need it."
+  fi
   if [ "$PROVIDER" = "none" ] || [ -z "$API_KEY" ]; then
     warn "No provider key was given, so the agent cannot answer yet."
     note "Add one in the console: Vault → add a key, then Agents → your agent → Model."
@@ -686,6 +706,7 @@ main() {
   start_stack
   wait_for_api
   bootstrap_platform
+  seed_demo
   sync_mcp
   summary
 }
