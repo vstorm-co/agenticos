@@ -18,18 +18,40 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-def upgrade() -> None:
-    op.add_column("conversations", sa.Column("room_visibility", sa.String(16), nullable=True))
-    op.create_check_constraint(
-        op.f("conversations_ck_conversation_room_visibility_check"),
-        "conversations",
+_ROOM_CHECKS = (
+    (
+        "conversations_ck_conversation_room_visibility_check",
         "room_visibility IS NULL OR room_visibility IN ('private', 'public')",
-    )
-    op.create_check_constraint(
-        op.f("conversations_ck_conversation_room_project_scope_check"),
-        "conversations",
+    ),
+    (
+        "conversations_ck_conversation_room_project_scope_check",
         "room_visibility IS NULL OR project_id IS NULL",
+    ),
+)
+
+
+def upgrade() -> None:
+    # `conversations` is the busiest chat table. The nullable column is a
+    # catalog-only change, and each CHECK is added NOT VALID so the ACCESS
+    # EXCLUSIVE lock lasts for the catalog write alone. The scan that proves
+    # existing rows happens in the autocommit step below, which takes only
+    # SHARE UPDATE EXCLUSIVE and lets chat reads and writes continue. Every
+    # statement tolerates a retry after an interrupted run.
+    op.execute("SET LOCAL lock_timeout = '5s'")
+    op.add_column(
+        "conversations",
+        sa.Column("room_visibility", sa.String(16), nullable=True),
+        if_not_exists=True,
     )
+    for name, expression in _ROOM_CHECKS:
+        op.execute(f"ALTER TABLE conversations DROP CONSTRAINT IF EXISTS {name}")
+        op.execute(
+            f"ALTER TABLE conversations ADD CONSTRAINT {name} CHECK ({expression}) NOT VALID"
+        )
+    with op.get_context().autocommit_block():
+        for name, _expression in _ROOM_CHECKS:
+            op.execute(f"ALTER TABLE conversations VALIDATE CONSTRAINT {name}")
+    op.execute("SET LOCAL lock_timeout = '5s'")
     op.create_table(
         "room_participants",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),

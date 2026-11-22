@@ -42,7 +42,7 @@ import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, delete, insert, select, text, update
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as DatabaseSession
@@ -3599,6 +3599,204 @@ def test_room_message_reactions_migration_rehearses_upgrade_and_guarded_rollback
                 ).scalar_one()
                 is None
             )
+
+        restored = _alembic("upgrade", "head")
+        assert restored.returncode == 0, restored.stderr
+        drift = _alembic("check")
+        assert drift.returncode == 0, drift.stderr
+    finally:
+        engine.dispose()
+
+
+def _constraint_states(connection: Connection, table: str) -> dict[str, bool]:
+    """Constraint name to whether Postgres has proven it against every row."""
+    return {
+        row[0]: row[1]
+        for row in connection.execute(
+            text(
+                "SELECT conname, convalidated FROM pg_constraint "
+                "WHERE conrelid = CAST(:table AS regclass)"
+            ),
+            {"table": table},
+        )
+    }
+
+
+def _index_states(connection: Connection, table: str) -> dict[str, bool]:
+    """Index name to whether it is valid, that is built and enforced."""
+    return {
+        row[0]: row[1]
+        for row in connection.execute(
+            text(
+                "SELECT c.relname, i.indisvalid FROM pg_index i "
+                "JOIN pg_class c ON c.oid = i.indexrelid "
+                "WHERE i.indrelid = CAST(:table AS regclass)"
+            ),
+            {"table": table},
+        )
+    }
+
+
+def test_room_migrations_are_lock_safe_on_populated_tables_and_retry() -> None:
+    """0348 and 0349 add checks NOT VALID, then prove them and build indexes outside the lock.
+
+    The tables already hold rows, so a validated ADD would scan them under ACCESS
+    EXCLUSIVE and an ordinary index build would block writes. The proof here is
+    that the rows survive, every constraint ends up validated, every index ends
+    up valid, uniqueness is enforced afterwards, and an interrupted run can be
+    repeated.
+    """
+    upgraded = _alembic("upgrade", "head")
+    assert upgraded.returncode == 0, upgraded.stderr
+    base = _alembic("downgrade", "0347_network_connections")
+    assert base.returncode == 0, base.stderr
+
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    organization, user, conversation, message = uuid4(), uuid4(), uuid4(), uuid4()
+    submission = uuid4()
+    insert_submission = text(
+        "INSERT INTO room_submissions (id, organization_id, conversation_id, "
+        "requester_id, message_id, client_message_id, fingerprint, status) "
+        "VALUES (:id, :organization, :conversation, :user, :message, "
+        ":client, 'fingerprint', 'posted')"
+    )
+    try:
+        with engine.begin() as connection:
+            # Replica mode skips the unrelated parent rows; only the populated
+            # tables matter to the lock behaviour.
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(
+                text(
+                    "INSERT INTO conversations (id, organization_id, user_id, title, is_archived) "
+                    "VALUES (:id, :organization, :user, 'Saved before rooms', false)"
+                ),
+                {"id": conversation, "organization": organization, "user": user},
+            )
+        step = _alembic("upgrade", "0348_room_participants")
+        assert step.returncode == 0, step.stderr
+        with engine.connect() as connection:
+            states = _constraint_states(connection, "conversations")
+            assert states["conversations_ck_conversation_room_visibility_check"] is True
+            assert states["conversations_ck_conversation_room_project_scope_check"] is True
+            assert (
+                connection.execute(
+                    text("SELECT room_visibility FROM conversations WHERE id = :id"),
+                    {"id": conversation},
+                ).scalar_one()
+                is None
+            )
+
+        with engine.begin() as connection:
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(
+                text(
+                    "INSERT INTO messages (id, conversation_id, role, content) "
+                    "VALUES (:id, :conversation, 'user', 'before mentions')"
+                ),
+                {"id": message, "conversation": conversation},
+            )
+            connection.execute(
+                insert_submission,
+                {
+                    "id": submission,
+                    "organization": organization,
+                    "conversation": conversation,
+                    "user": user,
+                    "message": message,
+                    "client": "client-1",
+                },
+            )
+        step = _alembic("upgrade", "0349_room_mention_requests")
+        assert step.returncode == 0, step.stderr
+
+        def check_end_state() -> None:
+            with engine.connect() as connection:
+                constraints = _constraint_states(connection, "room_submissions")
+                for name in (
+                    "fk_room_submission_parent",
+                    "room_submissions_child_request_check",
+                    "room_submissions_dispatch_check",
+                ):
+                    assert constraints[name] is True
+                assert "room_submissions_message_id_key" not in constraints
+                assert "uq_room_submission_client_legacy" not in constraints
+                for table, name in (
+                    ("notifications", "notifications_ck_notifications_event_type_check"),
+                    (
+                        "notification_preferences",
+                        "notification_preferences_ck_notification_preferences_ev_cd4d",
+                    ),
+                ):
+                    states = _constraint_states(connection, table)
+                    assert states[name] is True
+                    # The old check is replaced, not left beside the new one.
+                    admitting = connection.execute(
+                        text(
+                            "SELECT count(*) FROM pg_constraint "
+                            "WHERE conrelid = CAST(:table AS regclass) "
+                            "AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%event_type%' "
+                            "AND pg_get_constraintdef(oid) NOT LIKE '%room_mention%'"
+                        ),
+                        {"table": table},
+                    ).scalar_one()
+                    assert admitting == 0
+                indexes = _index_states(connection, "room_submissions")
+                for name in (
+                    "uq_room_submission_client",
+                    "uq_room_submission_message",
+                    "uq_room_submission_post_agent",
+                ):
+                    assert indexes[name] is True
+                assert "uq_room_submission_client_legacy" not in indexes
+                row = connection.execute(
+                    text("SELECT dispatch, parent_submission_id FROM room_submissions")
+                ).one()
+                assert tuple(row) == ("explicit", None)
+                assert (
+                    connection.execute(
+                        text("SELECT room_mentions FROM messages WHERE id = :id"),
+                        {"id": message},
+                    ).scalar_one()
+                    == []
+                )
+
+        check_end_state()
+        with engine.connect() as connection, pytest.raises(IntegrityError):
+            connection.execute(
+                insert_submission,
+                {
+                    "id": uuid4(),
+                    "organization": organization,
+                    "conversation": conversation,
+                    "user": user,
+                    "message": message,
+                    "client": "client-2",
+                },
+            )
+
+        # An interrupted run leaves an INVALID index behind and the revision
+        # unstamped. Repeating it must rebuild that index, not skip it.
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE pg_index SET indisvalid = false "
+                    "WHERE indexrelid = 'uq_room_submission_message'::regclass"
+                )
+            )
+            connection.execute(
+                text("UPDATE alembic_version SET version_num = '0348_room_participants'")
+            )
+        retried = _alembic("upgrade", "0349_room_mention_requests")
+        assert retried.returncode == 0, retried.stderr
+        check_end_state()
+
+        rolled_back = _alembic("downgrade", "0348_room_participants")
+        assert rolled_back.returncode == 0, rolled_back.stderr
+        with engine.connect() as connection:
+            constraints = _constraint_states(connection, "room_submissions")
+            assert "uq_room_submission_client" in constraints
+            assert "room_submissions_message_id_key" in constraints
+            assert "uq_room_submission_message" not in _index_states(connection, "room_submissions")
 
         restored = _alembic("upgrade", "head")
         assert restored.returncode == 0, restored.stderr
