@@ -906,3 +906,29 @@ async def test_archiving_a_thread_revokes_an_already_queued_agents_reply(room, m
     with pytest.raises(BadRequestError, match="archived"):
         await room.service.authority(row)
     replyable.assert_awaited_once_with(room.topic.id, root_id)
+
+
+async def test_an_explicit_agent_in_a_shared_room_runs_only_when_it_is_a_room_participant(
+    multiplayer,
+):
+    m, room = multiplayer, multiplayer.room
+    result = await room.service.post(
+        room.ctx, room.topic.id, request(agent_id=m.second.id), room.user
+    )
+    assert [item.agent_id for item in result.requests] == [m.second.id]
+    assert [row.agent_id for row in room.rows] == [m.second.id]
+    assert room.rows[0].dispatch == "explicit"
+    m.automatic.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_an_explicit_agent_outside_the_shared_room_is_refused_before_anything_is_saved(
+    multiplayer,
+):
+    m, room = multiplayer, multiplayer.room
+    m.validate.side_effect = AuthorizationError(message="Agent is not in this room")
+    with pytest.raises(AuthorizationError):
+        await room.service.post(room.ctx, room.topic.id, request(agent_id=uuid4()), room.user)
+    assert room.rows == []
+    room.add_message.assert_not_awaited()
+    room.enqueue.assert_not_awaited()

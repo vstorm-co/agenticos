@@ -4,17 +4,17 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.core.background import discard_deferred
+from app.core.background import _DEFERRED_KEY, discard_deferred
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.conversation import Message
 from app.db.models.notification import Notification, NotificationEventType
 from app.db.models.organization import OrganizationMember
-from app.db.models.room_thread import RoomThread
+from app.db.models.room_thread import RoomThread, RoomThreadFollow
 from app.db.models.user import User
 from app.repositories import room_participant as room_participant_repo
 from app.repositories import room_thread as room_thread_repo
@@ -457,4 +457,377 @@ async def test_thread_page_exposes_lifecycle_controls_and_preserves_unarchive_st
     assert page.root.thread_summary.state == "archived"
     assert (await threads.unarchive(room.ctx, room.conversation.id, root.id)).state == "closed"
     assert (await threads.reopen(room.ctx, room.conversation.id, root.id)).state == "open"
+    discard_deferred(db)
+
+
+def announcements(db: AsyncSession) -> int:
+    """How many thread-changed invalidations this transaction has queued."""
+    return len(db.info.get(_DEFERRED_KEY, []))
+
+
+async def lifecycle_row(db: AsyncSession, room, root: Message) -> RoomThread:
+    row = await room_thread_repo.get_thread(
+        db,
+        organization_id=room.ctx.organization_id,
+        conversation_id=room.conversation.id,
+        root_message_id=root.id,
+    )
+    assert row is not None
+    return row
+
+
+@pytest.mark.parametrize(
+    "action", ["close", "reopen", "archive", "unarchive", "follow", "unfollow"]
+)
+async def test_thread_actions_refuse_an_unknown_root_and_a_reply_as_root(
+    db: AsyncSession, action: str
+):
+    room = await private_room(db)
+    root = await root_message(db, room)
+    reply = await reply_message(db, room, root, author_id=room.user.id)
+    threads = RoomThreadService(db)
+
+    for bogus_root in (uuid4(), reply.id):
+        with pytest.raises(NotFoundError, match="Room thread not found"):
+            await getattr(threads, action)(room.ctx, room.conversation.id, bogus_root)
+    with pytest.raises(NotFoundError, match="Room thread not found"):
+        await threads.mark_read(room.ctx, room.conversation.id, uuid4(), root.id)
+    discard_deferred(db)
+
+
+async def test_a_reader_who_cannot_post_sees_a_public_thread_but_cannot_manage_it(
+    db: AsyncSession,
+):
+    room = await private_room(db)
+    room.conversation.room_visibility = "public"
+    outsider = User(
+        id=uuid4(),
+        email=f"outsider-{uuid4()}@example.com",
+        full_name="Outsider",
+        hashed_password="x",
+        is_active=True,
+    )
+    db.add(outsider)
+    await db.flush()
+    db.add(
+        OrganizationMember(
+            id=uuid4(),
+            organization_id=room.ctx.organization_id,
+            user_id=outsider.id,
+            role="builder",
+        )
+    )
+    await db.flush()
+    ctx = AuthContext(user_id=outsider.id, organization_id=room.ctx.organization_id, role="builder")
+    root = await root_message(db, room, author_id=outsider.id)
+    threads = RoomThreadService(db)
+
+    # Starting the root does not let a non-participant post, so it cannot manage it.
+    with pytest.raises(AuthorizationError, match="thread starter or a room manager"):
+        await threads.close(ctx, room.conversation.id, root.id)
+    followed = await threads.follow(ctx, room.conversation.id, root.id)
+    assert followed.following and not followed.can_manage and followed.state == "open"
+    discard_deferred(db)
+
+
+async def test_close_and_archive_are_idempotent_and_stay_silent_when_nothing_changes(
+    db: AsyncSession,
+):
+    room = await private_room(db)
+    root = await root_message(db, room)
+    threads = RoomThreadService(db)
+
+    await threads.close(room.ctx, room.conversation.id, root.id)
+    closed_at = (await lifecycle_row(db, room, root)).closed_at
+    queued = announcements(db)
+    again = await threads.close(room.ctx, room.conversation.id, root.id)
+    assert again.state == "closed"
+    assert (await lifecycle_row(db, room, root)).closed_at == closed_at
+    assert announcements(db) == queued
+
+    await threads.archive(room.ctx, room.conversation.id, root.id)
+    archived_at = (await lifecycle_row(db, room, root)).archived_at
+    queued = announcements(db)
+    again = await threads.archive(room.ctx, room.conversation.id, root.id)
+    assert again.state == "archived"
+    assert (await lifecycle_row(db, room, root)).archived_at == archived_at
+    assert announcements(db) == queued
+    discard_deferred(db)
+
+
+async def test_reopen_and_unarchive_on_a_thread_that_is_not_in_that_state_change_nothing(
+    db: AsyncSession,
+):
+    room = await private_room(db)
+    root = await root_message(db, room)
+    threads = RoomThreadService(db)
+
+    reopened = await threads.reopen(room.ctx, room.conversation.id, root.id)
+    assert reopened.state == "open"
+    queued = announcements(db)
+    unarchived = await threads.unarchive(room.ctx, room.conversation.id, root.id)
+    assert unarchived.state == "open"
+    row = await lifecycle_row(db, room, root)
+    assert row.state == "open" and row.archived_at is None and row.closed_at is None
+    assert announcements(db) == queued
+    discard_deferred(db)
+
+
+@pytest.mark.parametrize(
+    ("action", "message"),
+    [
+        ("close", "Unarchive this thread before closing it"),
+        ("reopen", "Unarchive this thread before reopening it"),
+    ],
+)
+async def test_an_archived_thread_must_be_unarchived_before_it_is_closed_or_reopened(
+    db: AsyncSession, action: str, message: str
+):
+    room = await private_room(db)
+    root = await root_message(db, room)
+    threads = RoomThreadService(db)
+    await threads.archive(room.ctx, room.conversation.id, root.id)
+
+    with pytest.raises(ConflictError, match=message):
+        await getattr(threads, action)(room.ctx, room.conversation.id, root.id)
+    assert (await lifecycle_row(db, room, root)).state == "archived"
+    discard_deferred(db)
+
+
+async def test_following_twice_stores_one_choice_and_announces_only_the_change(
+    db: AsyncSession,
+):
+    room = await private_room(db)
+    person = await add_room_person(db, room, name="Reader")
+    ctx = AuthContext(user_id=person.id, organization_id=room.ctx.organization_id, role="builder")
+    root = await root_message(db, room)
+    threads = RoomThreadService(db)
+
+    first = await threads.follow(ctx, room.conversation.id, root.id)
+    assert first.following
+    queued = announcements(db)
+    second = await threads.follow(ctx, room.conversation.id, root.id)
+    assert second.following
+    assert announcements(db) == queued
+    rows = (
+        await db.scalars(select(RoomThreadFollow).where(RoomThreadFollow.user_id == person.id))
+    ).all()
+    assert [row.following for row in rows] == [True]
+    discard_deferred(db)
+
+
+async def test_reading_only_the_root_stores_no_cursor_and_announces_nothing(db: AsyncSession):
+    room = await private_room(db)
+    root = await root_message(db, room)
+    await reply_message(db, room, root, author_id=room.user.id)
+    threads = RoomThreadService(db)
+    queued = announcements(db)
+
+    state = await threads.mark_read(room.ctx, room.conversation.id, root.id, root.id)
+
+    assert state.state == "open"
+    assert announcements(db) == queued
+    assert (
+        await room_thread_repo.get_thread(
+            db,
+            organization_id=room.ctx.organization_id,
+            conversation_id=room.conversation.id,
+            root_message_id=root.id,
+        )
+    ) is None
+    discard_deferred(db)
+
+
+async def test_a_room_that_cannot_have_threads_lists_only_roots_that_already_have_replies(
+    db: AsyncSession,
+):
+    room = await private_room(db)
+    room.conversation.room_visibility = None
+    await db.flush()
+    bare_root = await root_message(db, room)
+    replied_root = await root_message(db, room)
+    reply = await reply_message(db, room, replied_root, author_id=room.user.id)
+    threads = RoomThreadService(db)
+
+    listed = await threads.summaries_for_messages(
+        room.conversation,
+        [bare_root, replied_root, reply],
+        user_id=room.user.id,
+        ctx=None,
+    )
+    assert set(listed) == {replied_root.id}
+    assert not listed[replied_root.id].can_manage
+
+    everything = await threads.summaries_for_messages(
+        room.conversation,
+        [bare_root, replied_root],
+        user_id=room.user.id,
+        ctx=None,
+        include_all_roots=True,
+    )
+    assert set(everything) == {bare_root.id, replied_root.id}
+    discard_deferred(db)
+
+
+async def test_a_page_without_roots_has_no_thread_summaries(db: AsyncSession):
+    room = await private_room(db)
+    root = await root_message(db, room)
+    reply = await reply_message(db, room, root, author_id=room.user.id)
+    threads = RoomThreadService(db)
+
+    assert (
+        await threads.summaries_for_messages(
+            room.conversation, [reply], user_id=room.user.id, ctx=room.ctx
+        )
+        == {}
+    )
+    assert (
+        await threads.summaries_for_messages(
+            room.conversation, [], user_id=room.user.id, ctx=room.ctx
+        )
+        == {}
+    )
+    assert (
+        await room_thread_repo.summaries_for_roots(
+            db,
+            organization_id=room.ctx.organization_id,
+            conversation_id=room.conversation.id,
+            root_message_ids=set(),
+            user_id=room.user.id,
+        )
+        == {}
+    )
+    discard_deferred(db)
+
+
+async def test_assert_replyable_refuses_unknown_workflow_and_rootless_targets(db: AsyncSession):
+    room = await private_room(db)
+    root = await root_message(db, room)
+    threads = RoomThreadService(db)
+
+    await threads.assert_replyable(room.conversation.id, root.id)
+    with pytest.raises(NotFoundError, match="Room thread not found"):
+        await threads.assert_replyable(uuid4(), root.id)
+    with pytest.raises(NotFoundError, match="Room thread not found"):
+        await threads.assert_replyable(room.conversation.id, uuid4())
+    room.conversation.origin = "workflow"
+    await db.flush()
+    with pytest.raises(NotFoundError, match="Room thread not found"):
+        await threads.assert_replyable(room.conversation.id, root.id)
+    discard_deferred(db)
+
+
+async def test_reply_saved_refuses_a_reply_that_does_not_belong_to_the_thread(db: AsyncSession):
+    room = await private_room(db)
+    root = await root_message(db, room)
+    other_root = await root_message(db, room)
+    elsewhere = await reply_message(db, room, other_root, author_id=room.user.id)
+    own_reply = await reply_message(db, room, root, author_id=room.user.id)
+    threads = RoomThreadService(db)
+
+    for organization_id, reply_id in (
+        (room.ctx.organization_id, elsewhere.id),
+        (room.ctx.organization_id, uuid4()),
+        (uuid4(), own_reply.id),
+    ):
+        with pytest.raises(NotFoundError, match="Room thread reply not found"):
+            await threads.reply_saved(
+                organization_id=organization_id,
+                conversation_id=room.conversation.id,
+                root_message_id=root.id,
+                reply_message_id=reply_id,
+                actor_user_id=room.user.id,
+                sender="Someone",
+            )
+    discard_deferred(db)
+
+
+async def test_thread_reply_notice_skips_followers_who_cannot_read_the_room_any_more(
+    db: AsyncSession,
+):
+    room = await private_room(db)
+    deactivated = await add_room_person(db, room, name="Deactivated")
+    removed = await add_room_person(db, room, name="Removed")
+    following = await add_room_person(db, room, name="Following")
+    root = await root_message(db, room)
+    await room_thread_repo.ensure_thread(
+        db,
+        organization_id=room.ctx.organization_id,
+        conversation_id=room.conversation.id,
+        root_message_id=root.id,
+    )
+    for user in (deactivated, removed, following):
+        await room_thread_repo.set_following(
+            db,
+            organization_id=room.ctx.organization_id,
+            conversation_id=room.conversation.id,
+            root_message_id=root.id,
+            user_id=user.id,
+            following=True,
+        )
+    deactivated.is_active = False
+    await room_participant_repo.remove(
+        db,
+        organization_id=room.ctx.organization_id,
+        conversation_id=room.conversation.id,
+        user_id=removed.id,
+    )
+    await db.flush()
+
+    reply = await reply_message(
+        db,
+        room,
+        root,
+        author_id=room.user.id,
+        room_mentions=[
+            {"kind": "agent", "id": str(room.agent.id), "name": "Responder"},
+            {"kind": "user", "id": "not-a-uuid", "name": "Broken"},
+            {"kind": "user", "name": "No id"},
+        ],
+    )
+    await RoomThreadService(db).reply_saved(
+        organization_id=room.ctx.organization_id,
+        conversation_id=room.conversation.id,
+        root_message_id=root.id,
+        reply_message_id=reply.id,
+        actor_user_id=room.user.id,
+        sender="",
+    )
+    notices = list(
+        (
+            await db.scalars(
+                select(Notification).where(
+                    Notification.event_type == NotificationEventType.ROOM_THREAD_REPLY,
+                    Notification.occurrence_id == str(reply.id),
+                )
+            )
+        ).all()
+    )
+    assert {notice.recipient_user_id for notice in notices} == {following.id}
+    discard_deferred(db)
+
+
+async def test_a_lifecycle_row_deleted_before_it_is_read_back_is_an_error_not_a_none(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    room = await private_room(db)
+    root = await root_message(db, room)
+    root_id = root.id
+    organization_id = room.ctx.organization_id
+    conversation_id = room.conversation.id
+    original_get_thread = room_thread_repo.get_thread
+
+    async def deleted_by_a_concurrent_writer(db: AsyncSession, **kwargs):
+        await db.execute(delete(RoomThread).where(RoomThread.root_message_id == root_id))
+        return await original_get_thread(db, **kwargs)
+
+    monkeypatch.setattr(room_thread_repo, "get_thread", deleted_by_a_concurrent_writer)
+
+    with pytest.raises(RuntimeError, match="could not be read back"):
+        await room_thread_repo.ensure_thread(
+            db,
+            organization_id=organization_id,
+            conversation_id=conversation_id,
+            root_message_id=root_id,
+        )
     discard_deferred(db)
