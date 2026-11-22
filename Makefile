@@ -519,11 +519,23 @@ endif
 # Only the workflow's ephemeral service container may use reduced durability.
 ci-test-db-configure:
 	@test "$(CI)" = true && test -n "$(POSTGRES_CONTAINER)"
+	# Parallel workers each run whole migration chains in one transaction and hold a
+	# lock per table and index; Postgres's default of 64 locks per transaction ran the
+	# shared lock table out ("out of shared memory", #232). The setting only applies at
+	# server start, and a service container takes no server flags and keeps its data on
+	# tmpfs, which a restart wipes - so an init script writes it into the fresh cluster.
+	printf '%s\n' '#!/bin/sh' 'echo "max_locks_per_transaction = 256" >> "$$PGDATA/postgresql.conf"' > "$${RUNNER_TEMP:-/tmp}/10-max-locks.sh"
+	chmod 0755 "$${RUNNER_TEMP:-/tmp}/10-max-locks.sh"
+	docker cp "$${RUNNER_TEMP:-/tmp}/10-max-locks.sh" "$(POSTGRES_CONTAINER):/docker-entrypoint-initdb.d/10-max-locks.sh"
+	docker restart "$(POSTGRES_CONTAINER)"
+	@# TCP, not the socket: during init the entrypoint's temporary server listens on the socket only.
+	@for i in $$(seq 60); do docker exec "$(POSTGRES_CONTAINER)" pg_isready -q -h 127.0.0.1 -U postgres && exit 0; sleep 1; done; echo "Postgres did not come back after the restart" >&2; exit 1
 	@for setting in fsync synchronous_commit full_page_writes; do \
 	  docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c "ALTER SYSTEM SET $$setting = off" || exit 1; \
 	done
 	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c 'SELECT pg_reload_conf()'
-	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c 'SHOW fsync' -c 'SHOW synchronous_commit' -c 'SHOW full_page_writes'
+	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c 'SHOW fsync' -c 'SHOW synchronous_commit' -c 'SHOW full_page_writes' -c 'SHOW max_locks_per_transaction'
+	@test "$$(docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -tAc 'SHOW max_locks_per_transaction')" = 256
 
 # The pinned ffmpeg build the media-inspection tests run; it writes `$GITHUB_PATH`.
 ci-media-inspector:
