@@ -944,7 +944,7 @@ async def test_retrieval_includes_bounded_related_failed_operation_metadata() ->
                 stage=stage, instructions=instructions, material=material, output_type=output_type
             )
 
-    receipts = [
+    receipts: list[dict[str, object]] = [
         {
             "id": f"failure-{i}",
             "thread_id": "t",
@@ -1120,3 +1120,64 @@ def test_native_answers_cannot_restore_revoked_or_erased_sources(fence: str) -> 
 def test_completed_index_segment_keys_cannot_disagree_with_its_digests() -> None:
     with pytest.raises(ValidationError, match="one digest"):
         ConversationContext(revision="r", digests=[], messages=[], receipts=[], part_keys=["extra"])
+
+
+async def test_restored_answers_preserve_citations_from_runtime_value_only_turns() -> None:
+    answer = receipt(
+        thread_id="t",
+        submitted_answers={
+            "When": ["thu 18"],
+            "Delivery": ["Post to team channel"],
+            "Sources": ["web search"],
+        },
+    )
+    quote = "thu 18 Post to team channel web search"
+    native = (
+        packet()
+        .messages[0]
+        .model_copy(update={"id": "answer:answer", "text": quote, "source_fragments": [quote]})
+    )
+    value = packet(messages=[native.model_dump()], tool_receipts=[answer])
+    ref = SourceEvidence(source_id="message:answer:answer", quote=quote)
+    indexed = topic(evidence=[ref.model_dump()], intent="explicit_automation")
+
+    class RestoredReader(Reader):
+        async def read[Result: BaseModel](
+            self, *, stage: str, instructions: str, material: object, output_type: type[Result]
+        ) -> Result | None:
+            assert stage == "propose" and isinstance(material, dict)
+            assert [row["identity"] for row in material["topics"]] == [indexed.identity]
+            return await super().read(
+                stage=stage, instructions=instructions, material=material, output_type=output_type
+            )
+
+    restored = with_human_answers(value, restore_cached=True)
+    assert supported(ref, evidence_sources(restored))
+    assert not supported(
+        SourceEvidence(source_id=ref.source_id, quote="Monday 09:00"),
+        evidence_sources(restored),
+    )
+    assert (
+        await propose_context(
+            RestoredReader(propose=PersonalReading()), value, [ContextDigest(topics=[indexed])]
+        )
+        == PersonalReading()
+    )
+
+
+@pytest.mark.security
+def test_unknown_cached_answer_text_cannot_be_restored_as_human_evidence() -> None:
+    invented = (
+        packet()
+        .messages[0]
+        .model_copy(
+            update={"id": "answer:answer", "text": "Monday 09:00", "source_fragments": None}
+        )
+    )
+    value = packet(messages=[invented.model_dump()], tool_receipts=[receipt(thread_id="t")])
+    restored = with_human_answers(value, restore_cached=True)
+    assert restored.messages[0].source_fragments is None
+    assert not supported(
+        SourceEvidence(source_id="message:answer:answer", quote="Monday 09:00"),
+        evidence_sources(restored),
+    )
