@@ -153,16 +153,23 @@ The judge grades only rows that passed deterministic checks. It evaluates an iso
 
 ## Richer context regression packets
 
-`datasets/context.jsonl` adds **44 synthetic cases**: 34 for proactive assistance
-and 10 for memory. They cover weekly/monthly cycles, high activity, important text
+`datasets/context.jsonl` adds **47 synthetic cases**: 36 for proactive assistance
+and 11 for memory. They cover weekly/monthly cycles, high activity, important text
 after the old clip, changed task state without a new chat, tool receipts, shared
 responsibility, feature availability and usage, memory corrections and erasure.
+Three appended training cases supply explicit conversation links and an existing
+routine for native answers/corrections, and a memory reference aligned with the
+writer's durable-fact contract. The original 44 packets remain unchanged: two
+native-answer references lack a question-to-conversation link or an identifiable
+job, and one asks for assignment expiry unsupported by that writer. Report their
+raw results and this fixture audit separately; do not silently relabel failures.
+
 The additional adversarial cases cover authenticated Ask user answers, corrections,
 deleted routines, citations that do not support a claim, incomplete resource pages,
 revoked cached evidence, expired questions and timezone-aware schedules.
 Thirty-two cases are marked `holdout`. Their labels remain useful for reporting, but cases inspected during implementation are no longer an unseen holdout. Report that exposure rather than claiming independent validation.
 
-These are desired-behavior fixtures, not another 44 successes for the older
+These are desired-behavior fixtures, not another 47 successes for the older
 `NightlyReading` schema. Their references and counter-examples need semantic
 review. The existing 222-case corpus and its scores remain separate. The packets
 use the platform's `DatasetCaseContent` JSONL format, so the normal Dataset import

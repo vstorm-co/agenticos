@@ -895,6 +895,7 @@ BRIEFING_SUGGESTION_KINDS = (
     SuggestionKind.AGENT,
     SuggestionKind.PROFILE,
     SuggestionKind.ROLE_PACK,
+    SuggestionKind.PERSONAL,
 )
 """What a daily briefing proposes, each drawn from the person's requests and notes."""
 

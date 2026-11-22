@@ -989,3 +989,39 @@ async def test_receipt_clock_confirmation_uses_submitted_values_not_unselected_o
         [ContextDigest(topics=[topic(evidence=[evidence().model_dump(), ref.model_dump()])])],
     )
     assert result is not None and len(result.opportunities) == (1 if hour == "18:00" else 0)
+
+
+@pytest.mark.parametrize("kind", ["attention", "task"])
+async def test_a_current_task_deadline_is_not_an_unconfirmed_new_schedule(kind: str) -> None:
+    value = packet(
+        messages=[],
+        current_state={
+            "tasks": [
+                {
+                    "id": "task",
+                    "title": "Review release",
+                    "owner": "a",
+                    "status": "planned",
+                    "due_at": "2026-11-21T16:00:00Z",
+                }
+            ]
+        },
+    )
+    advice = card(
+        kind=kind,
+        title="Review release",
+        detail="The task was due at 16:00 UTC yesterday.",
+        chat_prompt="Help me finish the existing task.",
+        proposed_schedule=None,
+        resource_ids=["task"],
+        evidence=[{"source_id": "task:task", "quote": "Review release"}],
+    )
+    result = await propose_context(
+        Reader(
+            propose=PersonalReading(opportunities=[advice]),
+            verify=VerifiedReading(approved_identities=[advice.identity]),
+        ),
+        value,
+        [],
+    )
+    assert result is not None and result.opportunities == [advice]

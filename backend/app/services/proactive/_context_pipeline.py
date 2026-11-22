@@ -516,6 +516,8 @@ async def propose_context(
     }
 
     def unconfirmed_hours(card: PersonalAdvice) -> set[str]:
+        if card.kind != "routine":
+            return set()
         cited = {ref.source_id for ref in card.evidence}
         related = [
             topic for topic in topics if cited.intersection(ref.source_id for ref in topic.evidence)
