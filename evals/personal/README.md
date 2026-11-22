@@ -150,3 +150,36 @@ uv run --directory backend --env-file ../evals/personal/.env sh -c '
 ```
 
 The judge grades only rows that passed deterministic checks. It evaluates an isolated write by the attempted action and what the answer claims happened. Live probes verify the actual effect. A judge provider or token-limit failure is recorded separately from a model verdict. Keep its model fixed across candidate comparisons and log its cost separately. Compare tool accuracy, judged correctness, cost per passing case, p50/p95 latency and incomplete-cost rows. The [design and cost assumptions](DESIGN.md) specify the initial model and expected spend.
+
+## Richer context regression packets
+
+`datasets/context.jsonl` adds **32 synthetic cases**: 24 for proactive assistance
+and 8 for memory. They cover weekly/monthly cycles, high activity, important text
+after the old clip, changed task state without a new chat, tool receipts, shared
+responsibility, feature availability and usage, memory corrections and erasure.
+Twenty cases are marked `holdout`. Keep that partition separate when tuning.
+
+These are desired-behavior fixtures, not another 32 successes for the older
+`NightlyReading` schema. Their references and counter-examples need semantic
+review. The existing 222-case corpus and its scores remain separate. The packets
+use the platform's `DatasetCaseContent` JSONL format, so the normal Dataset import
+and evaluation path can consume them; the background replay's fixed four-request
+adapter does not exercise their richer state.
+
+```sh
+cd backend
+uv run python ../evals/personal/context_cases.py
+uv run python ../evals/personal/context_cases.py --export /tmp/context-cases.jsonl
+uv run python -m unittest discover -s ../evals/personal
+```
+
+The validator uses the production importer and checks unique case/source IDs,
+partitions, target components and typed context packets. It makes no model calls.
+Private conversation exports, prompts and raw reports belong outside Git. Add
+synthetic regressions for the observed failure instead of committing a user's
+history.
+
+The Python background runner also accepts a resolved Pydantic AI `Model` and an
+explicit `model_label`. This preserves a configured authenticated gateway without
+copying credentials into report files or silently switching to a public endpoint.
+Its CLI model-name behavior is unchanged.
