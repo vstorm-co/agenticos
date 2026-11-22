@@ -162,6 +162,12 @@ export const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     channels: ["in_app", "push"],
   },
   {
+    eventType: "approval_expired",
+    words: "optionalApprovalExpired",
+    icon: Hand,
+    channels: ["in_app", "push"],
+  },
+  {
     eventType: "usage_report",
     words: "optionalUsage",
     icon: PieChart,

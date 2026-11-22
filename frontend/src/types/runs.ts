@@ -742,6 +742,8 @@ export interface ParkedCall {
   content_hidden?: boolean;
   /** As `ToolApproval.always_asks`. */
   always_asks?: boolean;
+  /** Whether this caller may decide this call: a privileged decider, or the person who started the run. */
+  can_decide?: boolean;
 }
 
 /** One tool call an execution of a run made, and what came back from it. */

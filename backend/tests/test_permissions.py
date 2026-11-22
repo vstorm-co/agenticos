@@ -53,11 +53,23 @@ class TestCatalogInvariants:
             assert not empty, f"{role} lists {empty} at scope none; drop the entry instead"
 
     def test_global_permissions_are_never_partially_scoped(self):
-        """A global permission is binary - org-wide or not held at all."""
+        """A global permission is binary - org-wide or not held at all.
+
+        With one exception: `approvals:decide` is global but member and builder
+        hold it at `OWN`, for a run they started only. The scope is enforced
+        per run in the decide path, not by the role - see
+        `may_decide_approval` - because a role cannot see which run an
+        approval belongs to. No other global permission is partially scoped.
+        """
         for role, perms in ROLE_PERMS.items():
             for perm, scope in perms.items():
-                if perm not in RESOURCE_PERMS:
+                if perm not in RESOURCE_PERMS and perm is not Perm.APPROVALS_DECIDE:
                     assert scope is Scope.ALL, f"{role}.{perm} is global but scoped {scope}"
+        for role in ("member", "builder"):
+            assert ROLE_PERMS[role][Perm.APPROVALS_DECIDE] is Scope.OWN, (
+                f"{role} holds approvals:decide at "
+                f"{ROLE_PERMS[role][Perm.APPROVALS_DECIDE]}, not OWN"
+            )
 
     def test_owner_holds_everything(self):
         assert set(ROLE_PERMS[OrgRoleName.OWNER]) == set(Perm)

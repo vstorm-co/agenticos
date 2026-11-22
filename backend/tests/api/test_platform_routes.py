@@ -355,7 +355,9 @@ CALLS: tuple[Call, ...] = (
         Perm.APPROVALS_DECIDE,
         query="?created_from=2020-01-01T00:00:00&created_to=2020-01-02T00:00:00",
     ),
-    Call("POST", "/approvals/{approval_id}", Perm.APPROVALS_DECIDE, body={"approved": True}),
+    # No `POST /approvals/{approval_id}` entry: the route carries no gate -
+    # see `get_parked_run_service` above - so there is no permission for the
+    # table to demand of it.
     Call("GET", "/spend", Perm.RUNS_VIEW),
     Call(
         "GET",
@@ -1232,6 +1234,12 @@ RESOURCE_AWARE_SERVICES = (
     # which is what made a listing of *their own* files an operator screen.
     # `TestWorkspacesAreScopedToTheirReader` is where those refusals are proven.
     deps.get_sandbox_workspace_service,
+    # Deciding a parked tool call is per run, not per role: a privileged
+    # decider may decide any run, anybody else only a run they started, from
+    # a signed-in web/chat session. The route carries no gate for exactly that
+    # reason, and the service refuses the rest. `TestOwnRunApprovalDecides`
+    # proves the refusals.
+    deps.get_parked_run_service,
     # The stats service decides per *scope parameter* rather than per grant on
     # a row - org-wide numbers demand runs:view, a caller's own rows demand
     # only that there is a caller. A route gate would refuse a member's
@@ -1491,6 +1499,9 @@ class TestReadingWhatARunIsParkedOn:
                 "subagent_name": None,
                 "content_hidden": False,
                 "always_asks": False,
+                # The stubbed calls carry the field's default: nothing here
+                # said this caller may decide them.
+                "can_decide": False,
             },
             {
                 "id": str(shared_id),
@@ -1505,6 +1516,7 @@ class TestReadingWhatARunIsParkedOn:
                 "subagent_name": None,
                 "content_hidden": False,
                 "always_asks": False,
+                "can_decide": False,
             },
         ]
 

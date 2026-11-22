@@ -521,6 +521,12 @@ class NotificationService:
             "agent_name": agent.name,
             **agent_face(agent),
             **_outcome_links(run),
+            # Whose run this is, for the decide link's recheck at send and
+            # read time: the link belongs to a privileged decider, or to the
+            # person who started the run - not to any other recipient of the
+            # request, who now holds `approvals:decide` at `OWN` for their own
+            # runs and must not be handed somebody else's.
+            **({"run_user_id": str(run.user_id)} if run.user_id is not None else {}),
             "tools": ", ".join(tools) if tools else "a tool call",
             "asked_by": asked_by,
             "approvals_url": absolute_context_url(approvals_path),
@@ -546,6 +552,51 @@ class NotificationService:
             summary=summary,
             context_url=approvals_path,
             render_context=render_context,
+            organization_id=run.organization_id,
+            use_savepoint=True,
+        )
+
+    async def approval_expired(
+        self, run: AgentRun, *, agent: Agent | None, approvals: list[ToolApproval]
+    ) -> None:
+        """A run ended because nobody decided its approval in time.
+
+        The audience is only whoever started the run: the administrators were
+        told when the approval was requested, and the expiry is the owner's
+        work dying, not the organization's. A run nobody started tells nobody.
+
+        The link opens the run itself, where Retry is one click: the run is
+        finished, it has a conversation and a user turn of its own, so the
+        retry endpoint can re-issue it. The summary carries the reason - no
+        decision within the window - because the run row on its own only ever
+        reads `cancelled`.
+
+        Written through the centre like every other notice, so the in-app row
+        and the email share one occurrence: a run expires once, so the run id
+        is the occurrence key.
+        """
+        if run.user_id is None:
+            return
+        tools = sorted({approval.tool_id for approval in approvals})
+        agent_name = agent.name if agent is not None else "An agent"
+        summary = (
+            f"Your run with {agent_name} was cancelled: nobody approved "
+            f"{', '.join(tools) if tools else 'its tool call'} within "
+            f"{settings.APPROVAL_EXPIRY_HOURS}h. Retry it from the run."
+        )
+        run_path = self._link(f"/runs?run={run.id}", run.organization_id)
+        await self._center.write(
+            recipients=[run.user_id],
+            event_type=NotificationEventType.APPROVAL_EXPIRED,
+            occurrence_id=str(run.id),
+            summary=summary,
+            context_url=run_path,
+            render_context={
+                "agent_name": agent_name,
+                **_outcome_links(run),
+                "run_user_id": str(run.user_id),
+                "tools": ", ".join(tools) if tools else "a tool call",
+            },
             organization_id=run.organization_id,
             use_savepoint=True,
         )

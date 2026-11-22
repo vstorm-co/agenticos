@@ -25,6 +25,7 @@ from app.api.public_api import INTERNAL, PUBLIC
 from app.api.responses import csv_response
 from app.api.routes.v1._chat_file_bytes import chat_file_response
 from app.api.routes.v1._run_results import run_result
+from app.core.exceptions import AuthorizationError
 from app.core.permissions import Perm
 from app.db.models.agent_run import (
     ApprovalStatus,
@@ -61,7 +62,7 @@ from app.schemas.agent_run import (
 )
 from app.schemas.conversation import MessageList
 from app.schemas.run_manifest import RunManifestRead
-from app.services.approvals import withhold
+from app.services.approvals import may_decide_approval, withhold
 from app.services.channels.handback import continues_in_chat
 from app.services.parked_runs import waiting_update
 
@@ -512,9 +513,17 @@ async def get_parked_calls(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> 
     were all decided and which is now waiting to be resumed.
 
     Gated on `approvals:decide` like the resume and the queue, because the rows
-    are offered here to be decided.
+    are offered here to be decided - and narrowed to what the caller may
+    decide: a privileged decider reads any run's calls, anybody else only
+    their own run's, from a signed-in session. A colleague's parked run reads
+    as a refusal, not as an empty list.
     """
     run = await service.get_run(ctx, run_id)
+    if not may_decide_approval(ctx, run):
+        raise AuthorizationError(
+            message="Only the person who started this run, or somebody who may decide approvals, may read its parked calls",
+            details={"run_id": str(run_id)},
+        )
     return await service.parked_calls(ctx, run)
 
 
@@ -701,6 +710,10 @@ async def list_approvals(
     Oldest first by default, and the default is load-bearing. Nothing expires a
     parked call, so the oldest row can be from months ago; a newest-first queue
     would bury exactly the row somebody needs to see.
+
+    A caller holding `approvals:decide` only at `OWN` sees their own runs'
+    approvals here: the queue is the organization's, but the scope answers
+    which rows of it are theirs.
     """
     items, total = await service.list_approvals(
         ctx,
@@ -734,9 +747,10 @@ async def export_approvals(
 ) -> Any:
     """The approvals record as CSV, over exactly the rows `GET /approvals` lists.
 
-    Gated on `approvals:decide` like the list route - organization-wide, so no
-    `Scope.OWN` floor - with the same mandatory-range and row-cap rules the runs
-    export has. Absent `status`, the pending queue; asking for `approved` and
+    Gated on `approvals:decide` like the list route, with the same mandatory-range
+    and row-cap rules the runs export has - and the same `OWN` floor: a caller
+    holding the permission only at `OWN` exports their own runs' rows, not the
+    organization's. Absent `status`, the pending queue; asking for `approved` and
     `rejected` is the decided record, decider and note included.
     """
     result = await service.export_approvals(
@@ -755,12 +769,17 @@ async def export_approvals(
 @router.post(
     "/approvals/{approval_id}",
     response_model=ApprovalRead,
-    dependencies=[Depends(require(Perm.APPROVALS_DECIDE))],
 )
 async def decide_approval(
     approval_id: UUID, data: ApprovalDecision, service: ParkedRunSvc, ctx: Auth
 ) -> Any:
     """Approve or reject a parked tool call. A decision cannot be revisited.
+
+    No route gate: this is a per-resource route, and a role cannot see which
+    run the row belongs to. The service enforces it - a privileged decider
+    may decide any run, anybody else only a run they started, from a
+    signed-in web/chat session - so a member deciding their own run reaches
+    this endpoint and a colleague's does not.
 
     On a run asked in a chat, a person's decision on its last pending call makes
     the server continue the run as them and post the answer to the chat. A decision

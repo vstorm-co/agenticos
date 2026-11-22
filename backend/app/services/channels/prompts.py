@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities import all_capabilities
 from app.core.background import spawn_after_commit
 from app.core.exceptions import AppException, AuthorizationError
-from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.core.permissions import AuthContext, OrgRoleName
 from app.core.tool_identity import ToolIdentity
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus
 from app.db.models.channel_bot import ChannelBot
@@ -42,7 +42,7 @@ from app.repositories import (
     member_repo,
 )
 from app.services.agent_runner import AgentRunnerService, PausedRunState, RunSegment
-from app.services.approvals import ApprovalService
+from app.services.approvals import ApprovalService, may_decide_approval
 from app.services.channel_bot import unseal_bot_token
 from app.services.channels import get_adapter
 from app.services.channels.base import (
@@ -592,8 +592,20 @@ class ChannelPrompts:
     async def _decide(
         self, ctx: AuthContext, prompt: ChannelPrompt, choice: int | None
     ) -> RunSegment | None:
-        """Record the decision; continue the run once nothing else is pending."""
-        if not ctx.has(Perm.APPROVALS_DECIDE):
+        """Record the decision; continue the run once nothing else is pending.
+
+        A privileged decider may press any prompt; anybody else only one on a
+        run they started, from their signed-in session - the own-run
+        exception, enforced on the run rather than on the role, since the
+        presser in a shared channel is whoever tapped and the run is whose
+        it is. A colleague's press on somebody else's run is refused before
+        anything is written, exactly as a press on a question that was not
+        asked of them is.
+        """
+        run = await agent_run_repo.get_run(
+            self.db, prompt.run_id, organization_id=ctx.organization_id
+        )
+        if not may_decide_approval(ctx, run):
             raise AuthorizationError(message=NOT_YOURS)
         if prompt.approval_id is None:  # pragma: no cover - the table's check constraint
             return None

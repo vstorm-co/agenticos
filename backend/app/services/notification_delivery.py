@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import AppException
-from app.core.permissions import ROLE_PERMS, AuthContext, Perm
+from app.core.permissions import ROLE_PERMS, AuthContext, Perm, Scope
 from app.db.models.notification import (
     CHAT_NOTIFICATION_CHANNELS,
     NOTIFICATION_OUTER_RETENTION_DAYS,
@@ -68,12 +68,17 @@ CLAIM_LEASE = timedelta(minutes=2)
 # row, rather than left to hold its claim to the lease's edge.
 SEND_TIMEOUT_SECONDS = 30
 
-# The roles holding `approvals:decide`, derived from the catalog rather than
-# listed, so a role gaining or losing the permission cannot leave the render
-# choice behind (the same reasoning `notifications.py` used to state for its
-# own copy of this, before this became the only place it is computed).
+# The roles holding `approvals:decide` at `ALL`, derived from the catalog
+# rather than listed, so a role gaining or losing the permission cannot leave
+# the render choice behind (the same reasoning `notifications.py` used to
+# state for its own copy of this, before this became the only place it is
+# computed). `ALL` and not merely holding it: a member or builder holds the
+# permission at `OWN`, for their own runs only, and a decision link handed to
+# them for somebody else's run would point at a queue that cannot contain it.
+# The run's own owner is handled beside this, in `_render`, from the
+# `run_user_id` the request stores.
 _DECIDING_ROLES = frozenset(
-    role for role, perms in ROLE_PERMS.items() if Perm.APPROVALS_DECIDE in perms
+    role for role, perms in ROLE_PERMS.items() if perms.get(Perm.APPROVALS_DECIDE) is Scope.ALL
 )
 
 # The event types with a bespoke template, mapped to it. `approval_requested`
@@ -427,7 +432,20 @@ class NotificationDeliveryService:
             # Rows stored before the asker line existed have no such key, and a
             # missing one would print as a literal placeholder.
             context.setdefault("asked_by", "")
-            decides = recipient.is_app_admin or role in _DECIDING_ROLES
+            # The link belongs to a privileged decider, or to the person who
+            # started the run - a member holding `approvals:decide` at `OWN`
+            # may decide their own run, and no other recipient may be handed
+            # a link to a decision that is not theirs to make. Rows written
+            # before `run_user_id` existed carry no owner, and read as not
+            # theirs: the link-less notice, which is the safe direction.
+            decides = (
+                recipient.is_app_admin
+                or role in _DECIDING_ROLES
+                or (
+                    context.get("run_user_id") is not None
+                    and str(recipient.id) == context["run_user_id"]
+                )
+            )
             if decides:
                 return EmailKey.APPROVAL_REQUESTED, context
             # No link at all, and that is the point of it - the same "nothing

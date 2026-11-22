@@ -309,7 +309,7 @@ from app.core.exceptions import (
     RunExecutionError,
     RunFailedError,
 )
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 from app.core.tool_identity import ToolIdentity
 from app.core.update_gate import require_admission
@@ -376,7 +376,7 @@ from app.services.agent_registry import (
     models_a_run_reaches,
 )
 from app.services.api_key import ApiKeyService, mint_for_run
-from app.services.approvals import ApprovalService, withhold
+from app.services.approvals import ApprovalService, may_decide_approval, may_waive_own_run, withhold
 from app.services.attachments import (
     UPLOAD_DIR,
     AttachmentRouter,
@@ -4429,11 +4429,14 @@ class AgentRunnerService:
         Three things have to hold for `APPROVE_ALL`, and each is a different
         failure if it does not:
 
-        - the caller holds `approvals:decide`. A standing consent *is* the
-          decision the approval queue exists to record, and `member` and `builder`
-          hold `agents:run` without it - so without this gate the everyday chat
-          user grants themselves, in one click, the authority the API refuses them
-          one endpoint over;
+        - the caller may waive for a run they start: a privileged decider, or
+          a signed-in person holding `approvals:decide` deciding their own
+          run in advance. A standing consent *is* the decision the approval
+          queue exists to record, and a member who may decide each of their
+          own calls one by one may also say so once, for that conversation -
+          but only there: a key, a routine, a publisher fallback or an
+          impersonated session may not waive, even when the role behind it
+          could, because none of them is the person the run belongs to;
         - the organization allows waiving at all. Without a ceiling a Builder's
           deliberate gate is one click from nothing in every conversation, which
           makes the per-tool model advisory;
@@ -4451,7 +4454,7 @@ class AgentRunnerService:
                 message="Approvals can only be waived from a chat session.",
                 details={"surface": surface.value},
             )
-        if not ctx.has(Perm.APPROVALS_DECIDE):
+        if not may_waive_own_run(ctx):
             raise AuthorizationError(
                 message="You may not waive approvals; ask somebody who can decide them.",
                 details={"permission": Perm.APPROVALS_DECIDE.value},
@@ -8441,8 +8444,10 @@ class AgentRunnerService:
         for approval in approvals:
             if approval.status != ApprovalStatus.PENDING.value:
                 continue
-            # The same withholding the approvals queue applies: this route is
-            # reachable with the run's id by anybody who may read the queue.
+            # The same withholding the approvals queue applies: this is read
+            # for a run the caller may decide, and the parked route refuses
+            # anybody else - so the rows below are offered to be decided, and
+            # `can_decide` says so per row rather than the reader assuming it.
             hidden = await reader.hidden_fields(ctx, approval)
             tool_args, context = withhold(
                 hidden, tool_args=approval.tool_args or {}, context=approval.context
@@ -8462,6 +8467,7 @@ class AgentRunnerService:
                     account=approval.account,
                     content_hidden=bool(hidden),
                     always_asks=approval.always_asks,
+                    can_decide=may_decide_approval(ctx, run),
                 )
             )
         return parked
@@ -8958,7 +8964,11 @@ class AgentRunnerService:
                 run.user_id == ctx.user_id
                 or (
                     run.status == RunStatus.AWAITING_APPROVAL.value
-                    and ctx.has(Perm.APPROVALS_DECIDE)
+                    # A privileged decider only: `approvals:decide` at `OWN`
+                    # is the run's own person deciding their own run, which
+                    # the first branch already covers - reading it here would
+                    # let any member stop anybody's parked run.
+                    and ctx.has_at(Perm.APPROVALS_DECIDE, Scope.ALL)
                 )
             )
         )
@@ -8980,7 +8990,7 @@ class AgentRunnerService:
         )
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": run_id})
-        decider = ctx.has(Perm.APPROVALS_DECIDE) and run.status in (
+        decider = ctx.has_at(Perm.APPROVALS_DECIDE, Scope.ALL) and run.status in (
             RunStatus.AWAITING_APPROVAL.value,
             RunStatus.CANCELLED.value,
         )

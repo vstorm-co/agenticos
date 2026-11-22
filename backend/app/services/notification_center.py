@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
-from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.core.permissions import AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.announcement import Announcement
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.notification import (
@@ -1444,7 +1444,16 @@ class NotificationCenterService:
                 or cache.criterion_visible_by_id.get(notification.id, False)
             )
         if gate is ContentGate.DEGRADE:
-            if ctx.has(Perm.APPROVALS_DECIDE):
+            # The link belongs to a privileged decider, or to the person who
+            # started the run - a member holding `approvals:decide` at `OWN`
+            # may decide their own run, and no other reader may be handed a
+            # link to a decision that is not theirs to make. Rows written
+            # before `run_user_id` existed carry no owner, and read as not
+            # theirs: the link-less summary, which is the safe direction.
+            owner = context.get("run_user_id")
+            if ctx.has_at(Perm.APPROVALS_DECIDE, Scope.ALL) or (
+                owner is not None and ctx.user_id is not None and str(ctx.user_id) == owner
+            ):
                 return _Gate(visible=True)
             render_context = notification.render_context or {}
             agent_name = render_context.get("agent_name", "An agent")

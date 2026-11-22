@@ -1,5 +1,5 @@
 ---
-source_sha: "6bf91cb53877"
+source_sha: "0de6ccb00951"
 ---
 
 # Governance { #governance }
@@ -840,7 +840,7 @@ wyłączony w rutynach, aby skrypt zbiorczy nie omijał kontroli pojedynczych dz
 
 Zapisy do Virtual Tables w AgenticOS działają w granicach aktualnych uprawnień do tabel i operacji, bez wyjątku dla rutyny. Jawna polityka zatwierdzania agenta nadal obowiązuje dla tych wewnętrznych zapisów.
 
-Twórca może otworzyć **Zgody na działania** swojej rutyny i wybrać działania funkcji oraz pojedyncze działania MCP na wskazanym koncie. Wymaga to `approvals:decide` i ustawienia organizacji `chat_may_waive_approvals`. Klucz API, agent, sesja podszywania się ani administrator działający za innego właściciela nie mogą nadać zgody. Nie da się tu wyłączyć zatwierdzeń jawnie wymaganych przez agenta lub powiązanie MCP.
+Twórca może otworzyć **Zgody na działania** swojej rutyny i wybrać działania funkcji oraz pojedyncze działania MCP na wskazanym koncie. Wymaga to `approvals:decide` w `ALL` i ustawienia organizacji `chat_may_waive_approvals`. Klucz API, agent, sesja podszywania się ani administrator działający za innego właściciela nie mogą nadać zgody. Nie da się tu wyłączyć zatwierdzeń jawnie wymaganych przez agenta lub powiązanie MCP.
 
 Wyjątek MCP wskazuje konkretne konto, skrót adresu, generację autoryzacji i oryginalną nazwę działania. Wysyłanie poczty nie upoważnia do kasowania ani zapisów na innym koncie. Konta osobiste są dostępne tylko dla rutyny działającej jako jej twórca. Wybór korzysta z zapisanej listy narzędzi połączenia; gdy jest niedostępna, sprawdź połączenie lub poproś jego administratora. Cofnięcie wszystkich zgód nie wymaga działającej listy narzędzi.
 
@@ -1293,7 +1293,7 @@ nim, odsyła ludzi do bazy danych.
 | Pytanie | Odpowiedź |
 | --- | --- |
 | `GET /runs/export` | Historia runów, te same filtry co `GET /runs` i to samo domyślne ograniczenie do najwyższego poziomu. `runs:view` |
-| `GET /approvals/export` | Zapis zatwierdzeń, te same filtry co `GET /approvals`. `approvals:decide` |
+| `GET /approvals/export` | Zapis zatwierdzeń, te same filtry co `GET /approvals`. `approvals:decide` — osoba mająca je tylko w `OWN` eksportuje wiersze własnych runów |
 | `GET /spend/export` | Rozbicie wydatków per agent, to samo okno co `GET /spend`. `runs:view` |
 | `GET /audit/export` | Ślad audytowy w oknie czasu, CSV albo JSONL (`?fmt=`). `audit:read` |
 
@@ -1545,8 +1545,7 @@ Pięć właściwości, które warto znać:
   rozstrzygnięcia, narzędzie, jego argumenty), i tak właśnie czat odbudowuje
   panel zatwierdzenia, który ramka `tool_approval_required` na żywo dała temu,
   kto akurat patrzył. Dla runa, który nie jest zaparkowany, odpowiada pusto i
-  jest bramkowany przez `approvals:decide` tak samo jak kolejka, bo jego wiersze
-  są oferowane do rozstrzygnięcia
+  jest bramkowany przez rozstrzyganie runa — uprzywilejowany rozstrzygający albo osoba, która go rozpoczęła — tak samo jak kolejka, bo jego wiersze są oferowane do rozstrzygnięcia
   ([#601](https://github.com/vstorm-co/agenticos/issues/601)). Krok nie czyta się
   jako czekający w nieskończoność: wznowienie rozlicza go tym, co zwróciło
   wywołanie, a wygaśnięcie — powiadomieniem o upływie czasu.
@@ -1673,11 +1672,9 @@ Cztery rzeczy czynią z tego ustawienie sesji, a nie dziurę w modelu:
   runa, a nie przy sockecie, o którym wołający mógłby zapomnieć.
 - **Zrzeczenie się wymaga `approvals:decide` i zgody organizacji.** Stała zgoda
   _jest_ tą decyzją, dla której zapisywania istnieje kolejka zatwierdzeń, a
-  `member` i `builder` uruchamiają agentów, nie mając tego uprawnienia — więc bez
-  sprawdzenia uprawnienia codzienny użytkownik czatu przyznaje sobie, jednym
-  kliknięciem, władzę, której API odmawia mu jeden endpoint dalej. Pułapem jest
+  `member` i `builder` mają to uprawnienie w `OWN` — tylko dla własnych runów — więc mogą zrzec się pytań w runie, który sami rozpoczną, z zalogowanej sesji web lub czatu, i w żadnym innym. Bez sprawdzenia uprawnienia codzienny użytkownik czatu przyznaje sobie, jednym kliknięciem, władzę, której API odmawia mu jeden endpoint dalej. Pułapem jest
   własny przełącznik organizacji (`chat_may_waive_approvals`, domyślnie
-  włączony dla nowych organizacji, zmieniany przez kogoś z `approvals:decide`): bez niego świadomie
+  włączony dla nowych organizacji, zmieniany wyłącznie przez kogoś z `approvals:decide` w `ALL`): bez niego świadomie
   postawiona przez Buildera bramka na `send_email` jest jedno kliknięcie od
   zniknięcia w każdej rozmowie, a model per narzędzie staje się doradczy.
 - **Brak kanału dalej znaczy nie.** Zrzec się pytań może wyłącznie sesja czatu w
@@ -1716,7 +1713,7 @@ która w niej jest:
 - **60 sekund** bez decyzji powoduje jej wygaśnięcie, bez decydenta - ten sam
   null, który zapisuje przemiatanie. Rozmowa, która kończy się z dowolnego
   powodu, powoduje wygaśnięcie wszystkiego, na co jeszcze czekała.
-- Członek bez `approvals:decide` słyszy to wprost, a narzędzie jest odrzucane.
+- Osoba bez `approvals:decide` słyszy to wprost, a narzędzie jest odrzucane.
   Odwiedzający w widgecie albo na hostowanej stronie nigdy nie widzi narzędzia,
   które wymaga zatwierdzenia: jest ono pomijane w jego rozmowie.
 
@@ -1741,6 +1738,8 @@ Taki run siedzi w historii i w wieku najdłużej czekającego na dashboardzie, w
 przemiatanie idzie za każdym wygasłym wywołaniem w dół, do stojącego za nim runa,
 i kończy go jako `cancelled` — nikt nie wrócił, a to, co run wydał, zanim
 zaparkował, pozostaje w mocy.
+
+Właściciel runa dowiaduje się, że run umarł, wraz z powodem i runem, od którego może go wznowić: run zaparkowany na czacie już tam usłyszał o wygaśnięciu, więc właściciel runa z konsoli web dowiaduje się o tym za pośrednictwem centrum powiadomień — jedno powiadomienie, z nazwą agenta i narzędzia oraz linkiem do runa, gdzie Retry to jedno kliknięcie. Sam wiersz czyta się tylko jako `cancelled`, co nie jest żadnym powiadomieniem.
 
 Trzy rzeczy, których celowo nie robi:
 
@@ -1879,8 +1878,8 @@ oni. Prośba, której nikt nie rozstrzygnie na czas, wygasa, a anulowany run anu
 swoje prośby.
 
 Krok, który wskazuje zatwierdzających lub [grupy akceptujące](#approval-groups),
-powiadamia tych zatwierdzających i członków grup z `approvals:decide`. Krok, który
-nie wskazuje ani jednych, ani drugich, powiadamia każdego z `approvals:decide`.
+powiadamia tych zatwierdzających i członków grup z `approvals:decide` w `ALL`. Krok, który
+nie wskazuje ani jednych, ani drugich, powiadamia każdego z `approvals:decide` w `ALL`.
 Powiadomienie przychodzi przy dzwonku, a prośba trafia na początek Inboxu
 każdego, kto może ją rozstrzygnąć.
 
@@ -2109,20 +2108,20 @@ raportuje, edytuje się właśnie tam.
 
 ### Alert o zatwierdzeniu to dwa e-maile { #the-approval-alert-is-two-emails }
 
-`approvals:decide` należy do `owner`, `admin` i `operator`. Domyślni odbiorcy
+`approvals:decide` w `ALL` należy do `owner`, `admin` i `operator`; `member` i `builder` mają je w `OWN`, dla runa, który sami rozpoczęli. Domyślni odbiorcy
 zaparkowanego wywołania obejmują tego, kto uruchomił run, a builder uruchamiający
-własnego agenta z czatu jest zwyczajnym inicjatorem — więc alert rutynowo
-docierał do kogoś, komu platforma by odmówiła. Dostawał **„waiting on your
+własnego agenta z czatu jest zwyczajnym inicjatorem — więc alert kiedyś docierał do kogoś, komu platforma by odmówiła. Dostawał **„waiting on your
 approval”** z przyciskiem **Review the request**, klikał go, a Aktywność nie
 rysowała żadnej zakładki Approvals: odmowa przybywała jako nieobecna zakładka, a
 nie jako zdanie.
 
-Dlatego odbiorcy są dzieleni według uprawnienia, a nie przycinani do niego:
+Dlatego odbiorcy są dzieleni według tego, czy odbiorca może rozstrzygnąć *ten* run, a nie przycinani do uprawnienia:
 
 | Odbiorca ma | Dostaje |
 | --- | --- |
-| `approvals:decide` | prośbę, z linkiem do kolejki |
-| cokolwiek mniej | _fakt_: run jest wstrzymany, a nie przewrócony, zatwierdzenie go należy do właściciela, administratora albo operatora, i nic się od niego nie wymaga |
+| `approvals:decide` w `ALL` | prośbę, z linkiem do kolejki |
+| właściciel runa, w `OWN` | prośbę, z linkiem do własnej kolejki — wierszy własnych runów, nie organizacji |
+| cokolwiek mniej | _fakt_: run jest wstrzymany, a nie przewrócony, rozstrzygnięcie go należy do jego właściciela albo uprzywilejowanego rozstrzygającego, i nic się od niego nie wymaga |
 
 Przycięcie zamiast tego zostawiłoby jedyną osobę, która na pewno czeka na ten run
 — osobę, która go uruchomiła — bez żadnej informacji o tym, dlaczego się
@@ -2563,7 +2562,7 @@ czytać ani zamykać prywatnych spraw.
 
 ## Grupy zatwierdzające { #approval-groups }
 
-Kroki workflow wymagające zatwierdzenia przez człowieka oraz kroki wywołań MCP mogą wskazywać osoby, grupy organizacji lub jedne i drugie. Decyzję może podjąć dowolna uprawniona osoba, która niezależnie musi mieć `approvals:decide`. Gdy nie skonfigurowano ani osób, ani grup, obowiązuje dotychczasowa reguła oparta na tym uprawnieniu. Skonfigurowana pusta lub usunięta grupa nigdy nie sprawia, że prośba staje się dostępna dla wszystkich.
+Kroki workflow wymagające zatwierdzenia przez człowieka oraz kroki wywołań MCP mogą wskazywać osoby, grupy organizacji lub jedne i drugie. Decyzję może podjąć dowolna uprawniona osoba, która niezależnie musi mieć `approvals:decide` w `ALL`. Gdy nie skonfigurowano ani osób, ani grup, obowiązuje dotychczasowa reguła oparta na tym uprawnieniu. Skonfigurowana pusta lub usunięta grupa nigdy nie sprawia, że prośba staje się dostępna dla wszystkich.
 
 Członkostwo w grupie i aktywność konta są sprawdzane przy podejmowaniu decyzji. Powiadomienia trafiają do uprawnionych członków przy tworzeniu prośby; osoby wskazane kilkoma sposobami dostają je raz. Późniejsze dołączenie może dać prawo do decyzji bez nowego powiadomienia; wyjście lub utrata uprawnienia je odbiera.
 
