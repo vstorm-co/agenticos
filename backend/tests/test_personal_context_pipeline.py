@@ -488,3 +488,42 @@ async def test_starters_are_checked_even_without_a_candidate_card() -> None:
         [],
     )
     assert result == PersonalReading()
+
+
+@pytest.mark.security
+async def test_attention_needs_current_resource_evidence_not_a_historical_assistant_claim() -> None:
+    source = (
+        packet().messages[0].model_copy(update={"role": "assistant", "speaker_id": "assistant"})
+    )
+    proposed = card(kind="attention")
+    reader = Reader(
+        propose=PersonalReading(opportunities=[proposed]),
+        verify=VerifiedReading(approved_identities=[proposed.identity]),
+    )
+    result = await propose_context(
+        reader,
+        packet(
+            messages=[source.model_dump()],
+            current_state={"routines": [], "routines_complete": True},
+        ),
+        [],
+    )
+    assert result == PersonalReading()
+
+
+async def test_attention_can_cite_a_current_project_record() -> None:
+    proposed = card(
+        kind="attention",
+        evidence=[SourceEvidence(source_id="project:p", quote="Review the release")],
+        resource_ids=["p"],
+    )
+    value = packet(current_state={"projects": [{"id": "p", "description": "Review the release"}]})
+    result = await propose_context(
+        Reader(
+            propose=PersonalReading(opportunities=[proposed]),
+            verify=VerifiedReading(approved_identities=[proposed.identity]),
+        ),
+        value,
+        [],
+    )
+    assert result is not None and result.opportunities == [proposed]

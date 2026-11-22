@@ -28,6 +28,13 @@ from app.services.sandbox_workspace import WorkspaceContents
 
 pytestmark = pytest.mark.anyio
 
+
+@pytest.fixture(autouse=True)
+def context_change_dispatch():
+    with patch("app.services.proactive.ProactiveService.queue_context_change", new=AsyncMock()):
+        yield
+
+
 ORG = uuid.uuid4()
 
 

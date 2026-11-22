@@ -71,7 +71,7 @@ not prove absence. Unknown current state is not a confirmed blocker or failure.
 
 Kinds: agent for reusable on-demand work, routine for recurring work, task for a
 real owned commitment or useful structured storage, attention for a verified open
-matter, feature_tip for a relevant available feature. resource_ids name only actual
+matter backed by a current task/routine/agent/project source (not only historical chat), feature_tip for a relevant available feature. resource_ids name only actual
 supplied resource IDs. feature_tip requires feature_id from available_features;
 unknown usage is not proof of never using a feature. Do not advertise a fixed count
 of providers or confuse adapters with configured working profiles. Choose a feature
@@ -95,7 +95,11 @@ already answered. Never add a new identity. When a grounded useful card merely a
 already answered choice or phrases an unknown as a fact, repair that card in
 corrections, preserving its identity and exact supporting evidence. Do not repair
 invented obligations or unrelated work; reject those. A confirmed human answer
-must be retained, without asking the same question again. Approved identities are
+must be retained, without asking the same question again. If a resource appears in
+old assistant text but not in a complete current resource list, never describe it
+as an existing paused or blocked resource, even inside another card's detail.
+Remove such claims throughout the card and starters; propose only a genuinely
+supported investigation or new setup. Approved identities are
 unchanged cards; corrections are complete replacement cards. Check each starter
 against the same evidence and current state; return only its zero-based index when
 safe. A starter must not repeat an unverified assistant claim about a live resource.
@@ -418,6 +422,10 @@ async def propose_context(
         else set()
     )
 
+    attention_sources = owned_tasks | {
+        key for key in sources if key.startswith(("routine:", "agent:", "project:"))
+    }
+
     def eligible_card(card: PersonalAdvice) -> bool:
         return (
             all(supported(ref, sources) for ref in card.evidence)
@@ -427,6 +435,10 @@ async def propose_context(
                 or any(ref.source_id in human | owned_tasks for ref in card.evidence)
             )
             and (card.kind != "feature_tip" or card.feature_id in features)
+            and (
+                card.kind != "attention"
+                or any(ref.source_id in attention_sources for ref in card.evidence)
+            )
         )
 
     eligible = [
