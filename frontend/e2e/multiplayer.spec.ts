@@ -591,7 +591,8 @@ test.describe("multiplayer project rooms", () => {
         first.request!.id,
         "awaiting_answer",
       );
-      await expect(page.getByText(question, { exact: true })).toBeVisible();
+      // The dock asks it; the work summary's tool step repeats the title, so scope to the dock.
+      await expect(page.locator("li").getByText(question, { exact: true })).toBeVisible();
 
       const questions = await json<{ tool_call_id: string }[]>(
         page.request,
@@ -629,7 +630,7 @@ test.describe("multiplayer project rooms", () => {
         requester_id: fixture.colleagueId,
       });
       await page.reload();
-      await expect(page.getByText(question, { exact: true })).toBeVisible();
+      await expect(page.locator("li").getByText(question, { exact: true })).toBeVisible();
       // Reload recovers the original requester's question even with a later
       // queued request. Answer through the real chat's continuation path.
       await page.getByRole("button", { name: /Continue the first request/ }).click();
