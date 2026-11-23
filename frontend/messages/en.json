@@ -16900,6 +16900,7 @@
       "cancelled": "Cancelled",
       "stale": "The starting point changed",
       "accepted": "Kept as draft",
+      "skillAccepted": "{outcome, select, applied {Applied} applied_pinned {Applied} forked {Made a fork} caught_up {Caught up with main} returned_to_main {Moved to main} other {Accepted}}",
       "published": "Published",
       "rejected": "Discarded",
       "waiting": "Waiting for you",
@@ -18053,6 +18054,7 @@
       },
       "fixedBroken": "{fixed, plural, =1 {Fixes 1 question} other {Fixes # questions}}, {broken, plural, =1 {breaks 1} other {breaks #}}.",
       "fixedBrokenUnconfirmed": "{fixed, plural, =1 {1 question looked fixed} other {# questions looked fixed}} and {broken, plural, =1 {1 looked broken} other {# looked broken}} at first, but asking them again did not confirm it, so the agent counts as no change.",
+      "tooFewGroup": "Too few questions to be sure: each agent below was asked fewer held-out questions than a result needs.",
       "unknown": {
         "no_questions": "Not checked: it has no test questions where it loaded the skill, and the skill has none of its own.",
         "no_access": "Not checked: you may not run this agent.",
