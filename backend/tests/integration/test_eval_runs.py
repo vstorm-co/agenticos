@@ -1869,7 +1869,7 @@ async def test_with_no_history_an_answer_with_tools_is_priced_as_several_request
         label="nano",
         model="gpt-4.1-nano",
         provider="openai",
-        credential=SimpleNamespace(custom_pricing=None),
+        credential=SimpleNamespace(custom_pricing=None, exchange_rates={"USD": Decimal(1)}),
     )
 
     with patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=priced)):
