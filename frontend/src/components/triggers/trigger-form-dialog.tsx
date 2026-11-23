@@ -537,9 +537,11 @@ export function TriggerFormDialog({
       // Send the explicit choice, including an opt-out from creator identity.
       runs_as_creator: runsAsCreator,
       action_mode:
-        approvalChoice === "manual" || approvalChoice === "custom"
-          ? ("per_tool" as const)
-          : ("agent" as const),
+        approvalChoice === "manual"
+          ? ("manual" as const)
+          : approvalChoice === "custom"
+            ? ("per_tool" as const)
+            : ("agent" as const),
       source_mode: reviewBeforeActivation ? ("restricted" as const) : ("follow_agent" as const),
       ...(reviewBeforeActivation || approvalChoice === "custom" || (runsAsCreator && localTarget)
         ? { is_active: false }
@@ -639,7 +641,12 @@ export function TriggerFormDialog({
         // would overwrite an environment somebody rebound in between.
         const patch: TriggerUpdate = {};
         if (approvalChoice !== null)
-          patch.action_mode = approvalChoice === "automatic" ? "agent" : "per_tool";
+          patch.action_mode =
+            approvalChoice === "automatic"
+              ? "agent"
+              : approvalChoice === "manual"
+                ? "manual"
+                : "per_tool";
         if (maxFailures !== (trigger.max_failures === undefined ? 3 : trigger.max_failures))
           patch.max_failures = maxFailures;
         if (prompt !== trigger.prompt) patch.prompt = prompt;
@@ -841,9 +848,11 @@ export function TriggerFormDialog({
           (trigger
             ? trigger.action_mode === "agent"
               ? "automatic"
-              : trigger.action_mode === "per_tool"
-                ? "custom"
-                : "existing"
+              : trigger.action_mode === "manual"
+                ? "manual"
+                : trigger.action_mode === "per_tool"
+                  ? "custom"
+                  : "existing"
             : "automatic")
         }
         onValueChange={(value) => {

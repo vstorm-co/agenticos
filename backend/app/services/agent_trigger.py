@@ -1338,14 +1338,12 @@ class AgentTriggerService:
         """
         trigger = await self._owned(ctx, agent_id, trigger_id, for_update=True)
         changes = writable(data, over=AgentTrigger)
-        if (
-            "action_mode" in changes
-            and changes["action_mode"] != trigger.action_mode
-            and not _acts_as_themselves(ctx, trigger.created_by_user_id)
-        ):
+        if "action_mode" in changes and not _acts_as_themselves(ctx, trigger.created_by_user_id):
             raise AuthorizationError(
                 message="Only the routine's creator may change its tool approval policy"
             )
+        if changes.get("action_mode") == "manual":
+            changes["action_consents"] = []
         if changes.get("is_active", trigger.is_active):
             await require_organization_agent(
                 self.db,

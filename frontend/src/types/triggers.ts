@@ -81,7 +81,7 @@ export interface Trigger {
   /** The Teams channel or group chat each fire's answer is also posted to (#1985). */
   teams_conversation_id?: string | null;
   /** Where each fire's answer is delivered to its person, beside the run log (#2575). */
-  action_mode?: "agent" | "per_tool" | null;
+  action_mode?: "agent" | "manual" | "per_tool" | null;
   result_mode?: "report" | "inbox";
   answer_to?: TriggerAnswerTo;
   delivery_conversation_id?: string | null;
@@ -175,7 +175,7 @@ export interface TriggerCreate {
   environment_id?: string | null;
   pinned_version_id?: string | null;
   teams_conversation_id?: string | null;
-  action_mode?: "agent" | "per_tool" | null;
+  action_mode?: "agent" | "manual" | "per_tool" | null;
   result_mode?: "report" | "inbox";
   answer_to?: TriggerAnswerTo;
   delivery_conversation_id?: string | null;
@@ -243,7 +243,7 @@ export interface TriggerUpdate {
   environment_id?: string | null;
   pinned_version_id?: string | null;
   teams_conversation_id?: string | null;
-  action_mode?: "agent" | "per_tool" | null;
+  action_mode?: "agent" | "manual" | "per_tool" | null;
   result_mode?: "report" | "inbox";
   answer_to?: TriggerAnswerTo;
   delivery_conversation_id?: string | null;

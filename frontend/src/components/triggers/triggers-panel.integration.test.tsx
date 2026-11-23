@@ -1053,3 +1053,28 @@ describe("TriggersPanel", () => {
     expect(apiClient.post).not.toHaveBeenCalled();
   });
 });
+
+it("switches an existing custom approval policy to the distinct manual mode", async () => {
+  serve([trigger({ created_by_user_id: "me", action_mode: "per_tool" })]);
+  await mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+  const dialog = within(await screen.findByRole("dialog"));
+  await userEvent.click(dialog.getByRole("combobox", { name: "Tool approvals" }));
+  await userEvent.click(screen.getByRole("option", { name: "Ask before actions" }));
+  await userEvent.click(dialog.getByRole("button", { name: "Save" }));
+  await waitFor(() =>
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
+      action_mode: "manual",
+    }),
+  );
+});
+
+it("reopens a saved manual policy without showing it as custom permissions", async () => {
+  serve([trigger({ created_by_user_id: "me", action_mode: "manual" })]);
+  await mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+  const dialog = within(await screen.findByRole("dialog"));
+  expect(dialog.getByRole("combobox", { name: "Tool approvals" })).toHaveTextContent(
+    "Ask before actions",
+  );
+});

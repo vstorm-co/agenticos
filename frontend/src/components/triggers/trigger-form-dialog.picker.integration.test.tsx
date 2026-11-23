@@ -395,7 +395,7 @@ it("creates a manual-approval routine from one form without changing its source 
     expect(apiClient.post).toHaveBeenCalledWith(
       "/agents/a1/triggers",
       expect.objectContaining({
-        action_mode: "per_tool",
+        action_mode: "manual",
         source_mode: "follow_agent",
         runs_as_creator: true,
       }),

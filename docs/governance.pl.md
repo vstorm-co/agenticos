@@ -1,5 +1,5 @@
 ---
-source_sha: "29e5b104ee3f"
+source_sha: "34cfa3c22163"
 ---
 
 # Governance { #governance }
@@ -829,7 +829,7 @@ się automatycznie. Obowiązkowe akceptacje, cofanie zgody i kontrola aktualnoś
 
 Nowe rutyny domyślnie działają jako ich twórca, z jego aktualnymi uprawnieniami. Harmonogram tworzy się w jednym formularzu: nazwa, instrukcje, agent, termin i zgody na narzędzia; źródła i limity są opcjami zaawansowanymi. Tożsamość i Approval są niezależne.
 
-**Uruchamiaj dozwolone narzędzia automatycznie** stosuje zasady agenta. **Pytaj przed działaniami** dodaje zgodę rutyny na efekty. **Wybierz zgody dla każdego narzędzia** pozwala raz zatwierdzić wybrane dozwolone działania tej rutyny. Wybór działa w obu trybach źródeł (`action_mode: agent` lub `per_tool`).
+**Uruchamiaj dozwolone narzędzia automatycznie** stosuje zasady agenta (`agent`). **Pytaj przed działaniami** dodaje zgodę rutyny na efekty (`manual`) i atomowo usuwa wcześniejsze stałe zgody. **Wybierz zgody dla każdego narzędzia** pozwala raz zatwierdzić wybrane dozwolone działania tej rutyny (`per_tool`). Wybór działa w obu trybach źródeł.
 
 Rutyny bez tego pola zachowują dotychczasową politykę. Nie można wyłączyć jawnych wymagań agenta, połączenia ani obowiązkowych zgód platformy i urządzenia. Code mode pozostaje wyłączony dla rutyn.
 
@@ -843,7 +843,7 @@ Przegląd pokazuje osobno capabilities, AgenticOS i każde konto MCP. Narzędzia
 
 Panel **Zatwierdzone źródła** nad nim pokazuje źródła rutyny według rodzaju - capabilities, skille, bazy wiedzy, tabele, konta - każdy rodzaj zwinięty do licznika, a każde źródło z nazwą. Źródło, którego już nie ma, jest oznaczone jako niedostępne; jego identyfikator widać po najechaniu.
 
-Gdy rutyna działa jako jej twórca, własne narzędzia serwera AgenticOS pojawiają się w tych samych grupach co w Builderze: tabele, zadania, workflowy, agenci i pozostałe. Widać tylko narzędzia, które coś zmieniają, bo odczyty nigdy nie pytają; wyszukiwanie narzędzi też nie pyta. Narzędzia, przed którym agent pyta, nie ma na liście. Dotyczy to każdej zmiany, której powiązanie nie ustawia na **Run freely**, oraz narzędzi, które zawsze pytają. Rutyna zachowuje więc zatwierdzenia agenta albo je zaostrza, ale nigdy żadnego nie zwalnia.
+Gdy rutyna działa jako jej twórca, działania AgenticOS są grupowane jak w Builderze: tabele, zadania, workflowy, agenci i pozostałe. Działania z obowiązkową zgodą są widoczne, ale zablokowane. Odczyty i wyszukiwanie narzędzi nie dostają dodatkowej zgody rutyny; jawna zgoda wymagana przez agenta nadal obowiązuje. Rutyna zachowuje lub zaostrza zgody agenta, nigdy nie usuwa obowiązkowej zgody.
 
 Wyjątek platformy wskazuje tylko narzędzie: przebiegi rutyny docierają do platformy wyłącznie jako jej twórca, jedyna osoba, która może go przejrzeć.
 

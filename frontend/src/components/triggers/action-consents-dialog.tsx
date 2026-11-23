@@ -85,7 +85,7 @@ export function ActionConsentsDialog({
           review_token: sourceReview.review_token,
           mode: sourceMode,
         });
-      if (data && (data.can_waive || onSaved)) {
+      if (data.can_waive || onSaved) {
         await replace.mutateAsync(
           data.can_waive
             ? data.items

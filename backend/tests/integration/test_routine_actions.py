@@ -20,7 +20,9 @@ from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
+from app.schemas.agent_trigger import TriggerUpdate
 from app.schemas.routine_actions import RoutineActionKey, RoutineActionOption, RoutineActions
+from app.services.agent_trigger import AgentTriggerService
 from app.services.routine_actions import RoutineActionService, action_review
 from app.services.routine_authority import RoutineAuthority
 from app.services.routine_sources import read_policy
@@ -119,6 +121,27 @@ async def capture(db: AsyncSession, world: World) -> RoutineAuthority:
 
 def tool(name: str = "execute", capability: str | None = "sandbox") -> ToolDefinition:
     return ToolDefinition(name=name, capability_id=capability)
+
+
+async def test_manual_mode_revokes_standing_consents_and_does_not_restore_them(
+    db: AsyncSession, world: World
+) -> None:
+    world.agent.draft_spec = world.spec.model_dump(mode="json")
+    await RoutineActionService(db).replace(world.ctx, world.trigger, _request(world, [WRITE]))
+    assert world.trigger.action_consents
+    await AgentTriggerService(db).update(
+        world.ctx, world.agent.id, world.trigger.id, TriggerUpdate(action_mode="manual")
+    )
+    await db.refresh(world.trigger)
+    assert world.trigger.action_mode == "manual"
+    assert world.trigger.action_consents == []
+    authority = await capture(db, world)
+    decision = await authority.action_policy(world.agent.id, world.spec, tool())
+    assert decision.required and decision.consented_by is None
+    await AgentTriggerService(db).update(
+        world.ctx, world.agent.id, world.trigger.id, TriggerUpdate(action_mode="per_tool")
+    )
+    assert world.trigger.action_consents == []
 
 
 async def test_native_writes_ask_but_reads_do_not(db: AsyncSession, world: World) -> None:

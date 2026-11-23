@@ -495,7 +495,7 @@ class TriggerCreate(BaseSchema):
             "Narrows the agent's and the organization's limits; never lifts them (#2575)"
         ),
     )
-    action_mode: Literal["agent", "per_tool"] | None = None
+    action_mode: Literal["agent", "manual", "per_tool"] | None = None
     result_mode: Literal["report", "inbox"] = Field(
         default="report",
         description="Legacy delivery compatibility: report permits answer_to delivery; inbox retains only the run log. In both modes, findings are published explicitly through publish_inbox_finding MCP, never parsed from the final answer.",
@@ -756,7 +756,7 @@ class TriggerUpdate(BaseSchema):
         gt=0,
         description="This routine's own monthly limit; null removes it",
     )
-    action_mode: Literal["agent", "per_tool"] | None = None
+    action_mode: Literal["agent", "manual", "per_tool"] | None = None
     result_mode: Literal["report", "inbox"] | None = None
     answer_to: Literal["run_log", "primary", "conversation"] | None = Field(
         default=None, description="Where each fire's answer goes; see `TriggerCreate.answer_to`"
@@ -883,7 +883,7 @@ class TriggerRead(BaseSchema, TimestampSchema):
         "A version and a named environment cannot both be selected.",
     )
     teams_conversation_id: UUID | None = None
-    action_mode: Literal["agent", "per_tool"] | None = None
+    action_mode: Literal["agent", "manual", "per_tool"] | None = None
     result_mode: Literal["report", "inbox"] = "report"
     answer_to: Literal["run_log", "primary", "conversation"] = "run_log"
     notification_channels: list[ExternalNotificationChannel] | None = Field(

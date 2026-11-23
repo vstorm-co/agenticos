@@ -28,6 +28,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Revoke standing routine consents when switching to manual approvals and keep
+  portal creation identity-free during administrator impersonation.
 - Recognize historical routine source fingerprints across chat starter visibility
   changes without accepting changed accounts or permissions.
 - Release a failed scheduled fire's lease after rollback instead of leaving the

@@ -1,5 +1,5 @@
 ---
-source_sha: "29e5b104ee3f"
+source_sha: "34cfa3c22163"
 ---
 
 # Governance { #governance }
@@ -844,7 +844,7 @@ aprobaciones obligatorias, la revocación y los controles de review obsoleto.
 
 Las rutinas nuevas actúan por defecto como su creador, con sus permisos actuales. Un formulario reúne nombre, instrucciones, agente, horario y aprobaciones; las fuentes y los límites son opciones avanzadas. Identidad y aprobación son independientes.
 
-**Ejecutar herramientas permitidas automáticamente** aplica las reglas del agente. **Preguntar antes de actuar** añade una aprobación de rutina para los efectos. **Elegir permisos por herramienta** permite autorizar una vez acciones elegibles para esta rutina. Funciona con ambos modos de fuentes (`action_mode: agent` o `per_tool`).
+**Ejecutar herramientas permitidas automáticamente** aplica las reglas del agente (`agent`). **Preguntar antes de actuar** añade una aprobación de rutina para los efectos (`manual`) y revoca atómicamente los consentimientos permanentes anteriores. **Elegir permisos por herramienta** permite autorizar una vez acciones elegibles para esta rutina (`per_tool`). Funciona con ambos modos de fuentes.
 
 Las rutinas existentes sin modo de acciones conservan su política anterior. Los requisitos explícitos del agente o la conexión y las aprobaciones obligatorias de plataforma o dispositivo siguen vigentes. El modo de código permanece desactivado para las rutinas.
 
@@ -858,7 +858,7 @@ La revisión muestra por separado las capabilities, AgenticOS y cada cuenta MCP.
 
 El panel **Fuentes revisadas** de arriba lista las fuentes de la rutina por tipo - capabilities, skills, bases de conocimiento, tablas, cuentas -, cada tipo plegado a un recuento y cada fuente con su nombre. Una fuente que ya no existe aparece como no disponible; su identificador se ve al pasar el cursor.
 
-Cuando una rutina actúa como su creador, las herramientas propias del servidor de AgenticOS aparecen en los grupos que muestra el Builder: tablas, tareas, workflows, agentes y el resto. Solo aparecen las que cambian algo, porque las lecturas nunca preguntan; la búsqueda de herramientas tampoco pregunta. Una herramienta ante la que el agente pregunta no aparece. Eso cubre cada cambio que su vinculación no marca como **Run freely** y las herramientas que siempre preguntan. Así, una rutina mantiene las aprobaciones del agente o las endurece, y nunca libera ninguna.
+Cuando una rutina actúa como su creador, las acciones de AgenticOS se agrupan como en Builder: tablas, tareas, workflows, agentes y otras. Las acciones con aprobación obligatoria aparecen bloqueadas. Las lecturas y la búsqueda de herramientas no reciben una aprobación adicional de rutina; sigue vigente cualquier aprobación explícita del agente. La rutina conserva o endurece las aprobaciones, nunca elimina una obligatoria.
 
 Una excepción de la plataforma nombra solo la herramienta: las ejecuciones de la rutina llegan a la plataforma solo como su creador, la única persona que puede revisarla.
 

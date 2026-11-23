@@ -468,7 +468,7 @@ class AgentTrigger(Base, TimestampMixin):
     # be absent from exactly the tests written to prove it rejects a row.
     __table_args__ = (
         CheckConstraint(
-            "action_mode IS NULL OR action_mode IN ('agent', 'per_tool')",
+            "action_mode IS NULL OR action_mode IN ('agent', 'manual', 'per_tool')",
             name="ck_trigger_action_mode",
         ),
         CheckConstraint("result_mode IN ('report', 'inbox')", name="ck_trigger_result_mode"),

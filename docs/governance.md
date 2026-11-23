@@ -778,7 +778,7 @@ selected automatically. Mandatory approvals, revocation and stale-review checks 
 
 New routines run as their creator by default, with that person's current permissions. Creating a schedule uses one form: name, instructions, agent, schedule and tool approvals; source review and execution limits are advanced options. Identity and approval are independent.
 
-**Run eligible tools automatically** uses the agent's rules. **Ask before actions** adds a routine gate to effects. **Choose permissions for each tool** lets the owner preapprove selected eligible actions once for this routine. These choices work with either source mode (`action_mode: agent` or `per_tool`).
+**Run eligible tools automatically** uses the agent's rules (`agent`). **Ask before actions** adds a routine gate to effects (`manual`) and atomically revokes existing standing consents. **Choose permissions for each tool** lets the owner preapprove selected eligible actions once for this routine (`per_tool`). These choices work with either source mode.
 
 Existing routines with no action mode keep their historical policy. Explicit agent/connection requirements and mandatory platform/native approvals cannot be waived. Code mode remains disabled for routine runs.
 
@@ -792,7 +792,7 @@ The review lists capabilities, AgenticOS and each MCP account separately. Tools 
 
 The **Reviewed sources** panel above it lists the routine's sources by kind - capabilities, skills, knowledge bases, tables, accounts - each kind folded to a count, and each source by its name. A source that no longer exists shows as no longer available; its id is on hover.
 
-When a routine acts as its creator, the AgenticOS server's own tools are listed in the groups the Builder shows: tables, tasks, workflows, agents and the rest. Only tools that change something appear, because reads never ask; tool search does not ask either. A tool the agent asks before is not listed. That covers every change its binding does not set to **Run freely**, and the tools that always ask. So a routine keeps the agent's approvals or adds to them, and never releases one.
+When a routine acts as its creator, AgenticOS effects are grouped as in the Builder: tables, tasks, workflows, agents and the rest. Effects with explicit required approvals are visible but locked. Reads and tool search do not gain an additional routine approval; an explicit agent gate still applies. A routine may retain or tighten agent approvals, never remove a mandatory gate.
 
 A platform exception names the tool alone: the routine's runs reach the platform only as its creator, the only person who can review it.
 

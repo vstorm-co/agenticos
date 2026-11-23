@@ -21,7 +21,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_trigger_action_mode",
         "agent_triggers",
-        "action_mode IS NULL OR action_mode IN ('agent', 'per_tool')",
+        "action_mode IS NULL OR action_mode IN ('agent', 'manual', 'per_tool')",
     )
 
 

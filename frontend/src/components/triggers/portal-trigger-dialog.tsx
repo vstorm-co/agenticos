@@ -35,6 +35,7 @@ import { TriggerTemplateSelector } from "@/components/triggers/trigger-template-
 import { usePortalTargets } from "@/hooks/use-portal-targets";
 import { useTriggers } from "@/hooks/use-triggers";
 import { useAgentSelectionStore } from "@/stores";
+import { useAuthStore } from "@/stores/auth-store";
 import { cn } from "@/lib/utils";
 import { FILTER_KEYS, eventFilterConfig } from "@/lib/trigger-format";
 import type { PortalCatalogEntry } from "@/types/portals";
@@ -122,6 +123,7 @@ export function PortalTriggerDialog({
 }: PortalTriggerDialogProps) {
   const t = useTranslations("portals");
   const tt = useTranslations("triggers");
+  const impersonating = useAuthStore((state) => Boolean(state.user?.impersonation));
 
   const { agents } = useAgents();
   const { can } = usePermissions();
@@ -185,6 +187,7 @@ export function PortalTriggerDialog({
       portal_key: portal.key,
       preset_key: preset.key,
       environment_id: environmentId === DEFAULT_ENV ? null : environmentId,
+      ...(impersonating ? { runs_as_creator: false } : {}),
       ...(connectionId ? { connection_id: connectionId } : {}),
       ...(needsTarget && target.trim() ? { target: target.trim() } : {}),
       ...(Object.keys(eventConfig).length ? { event_config: eventConfig } : {}),

@@ -129,7 +129,7 @@ class RoutineAuthority:
     root_agent_id: UUID
     role: str
     acts_as_creator: bool
-    action_mode: Literal["agent", "per_tool"] | None = None
+    action_mode: Literal["agent", "manual", "per_tool"] | None = None
     routine_kind: Literal["trigger", "watch"] = "trigger"
     result_mode: Literal["report", "inbox"] = "report"
     sources: WatchSources | None = None
@@ -222,7 +222,7 @@ class RoutineAuthority:
         local_target_hash: str | None = None
         reviewed_sources: RoutineSourcePolicy | None = None
         result_mode: Literal["report", "inbox"] = "report"
-        action_mode: Literal["agent", "per_tool"] | None = None
+        action_mode: Literal["agent", "manual", "per_tool"] | None = None
         acts_as_creator = (
             ctx.fired_as_creator is not None
             if run is None
@@ -246,11 +246,13 @@ class RoutineAuthority:
                 if run is None
                 else (run.routine_policy or {}).get("action_mode")
             )
-            if recorded_action not in (None, "agent", "per_tool"):
+            if recorded_action not in (None, "agent", "manual", "per_tool"):
                 raise _refused()
             action_mode = (
                 "agent"
                 if recorded_action == "agent"
+                else "manual"
+                if recorded_action == "manual"
                 else "per_tool"
                 if recorded_action == "per_tool"
                 else None
@@ -655,6 +657,7 @@ class RoutineAuthority:
     ) -> UUID | None:
         if (
             self.routine_kind != "trigger"
+            or self.action_mode == "manual"
             or agent_id != self.root_agent_id
             or not self.action_consents
             or self.root_version_id is None

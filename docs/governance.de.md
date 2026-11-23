@@ -1,5 +1,5 @@
 ---
-source_sha: "29e5b104ee3f"
+source_sha: "34cfa3c22163"
 ---
 
 # Governance { #governance }
@@ -885,7 +885,7 @@ Widerruf und die Prüfung auf veraltete Reviews gelten weiterhin.
 
 Neue Routinen handeln standardmäßig als ihre erstellende Person mit deren aktuellen Berechtigungen. Ein Formular enthält Name, Anweisungen, Agent, Zeitplan und Werkzeugfreigaben; Quellenprüfung und Limits stehen unter den erweiterten Optionen. Identität und Freigabe sind unabhängig.
 
-**Zulässige Werkzeuge automatisch ausführen** nutzt die Agentenregeln. **Vor Aktionen fragen** ergänzt eine Routinenfreigabe für Auswirkungen. **Freigaben je Werkzeug wählen** erlaubt einmalige dauerhafte Freigaben ausgewählter zulässiger Aktionen dieser Routine. Die Wahl gilt für beide Quellenmodi (`action_mode: agent` oder `per_tool`).
+**Zulässige Werkzeuge automatisch ausführen** nutzt die Agentenregeln (`agent`). **Vor Aktionen fragen** ergänzt eine Routinenfreigabe für Auswirkungen (`manual`) und widerruft bestehende Dauerfreigaben atomar. **Freigaben je Werkzeug wählen** erlaubt einmalige dauerhafte Freigaben ausgewählter zulässiger Aktionen dieser Routine (`per_tool`). Die Wahl gilt für beide Quellenmodi.
 
 Bestehende Routinen ohne Aktionsmodus behalten ihre bisherige Richtlinie. Explizite Agenten-/Verbindungsvorgaben und verbindliche Plattform-/Gerätefreigaben bleiben bestehen. Der Codemodus bleibt für Routinen ausgeschaltet.
 
@@ -899,7 +899,7 @@ Die Prüfung zeigt Capabilities, AgenticOS und jedes MCP-Konto getrennt. Werkzeu
 
 Das Feld **Geprüfte Quellen** darüber listet die Quellen der Routine nach Art - Capabilities, Skills, Wissensdatenbanken, Tabellen, Konten -, jede Art auf eine Anzahl eingeklappt und jede Quelle mit ihrem Namen. Eine Quelle, die es nicht mehr gibt, erscheint als nicht mehr verfügbar; ihre Kennung steht im Tooltip.
 
-Handelt eine Routine als ihre erstellende Person, erscheinen die eigenen Werkzeuge des AgenticOS-Servers in den Gruppen, die der Builder zeigt: Tabellen, Aufgaben, Workflows, Agenten und die übrigen. Nur Werkzeuge, die etwas ändern, werden gelistet, denn Lesezugriffe fragen nie; die Werkzeugsuche fragt ebenfalls nicht. Ein Werkzeug, vor dem der Agent fragt, steht nicht in der Liste. Das gilt für jede Änderung, die die Bindung nicht auf **Run freely** setzt, und für die Werkzeuge, die immer fragen. Eine Routine behält die Bestätigungen des Agenten also oder verschärft sie, gibt aber nie eine frei.
+Wenn eine Routine als ihr Ersteller handelt, werden AgenticOS-Aktionen wie im Builder gruppiert: Tabellen, Aufgaben, Workflows, Agenten und weitere. Aktionen mit verpflichtender Freigabe bleiben sichtbar, aber gesperrt. Lesezugriffe und Werkzeugsuche erhalten keine zusätzliche Routinenfreigabe; eine explizite Agentenfreigabe gilt weiterhin. Routinen dürfen Agentenfreigaben beibehalten oder verschärfen, niemals eine Pflichtfreigabe entfernen.
 
 Eine Plattform-Ausnahme nennt nur das Werkzeug: Die Läufe der Routine erreichen die Plattform nur als ihre erstellende Person, die einzige, die sie prüfen kann.
 
