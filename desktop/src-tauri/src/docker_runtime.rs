@@ -388,7 +388,8 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         // Existing executables avoid ETXTBSY when another test spawns a child
         // while this thread would otherwise be writing its executable fixture.
-        symlink("/bin/echo", dir.join("docker-credential-test")).unwrap();
+        // Ubuntu coreutils rejects renamed utility aliases; shells accept them.
+        symlink("/bin/sh", dir.join("docker-credential-test")).unwrap();
         let docker = dir.join("docker");
         symlink("/bin/sh", &docker).unwrap();
         let mut command = with_paths(&docker, Some(OsStr::new("/usr/bin:/bin")), None).unwrap();
@@ -400,13 +401,17 @@ mod tests {
             .unwrap()
             .to_owned();
         let output = command
-            .args(["-c", "docker-credential-test helper-found"])
+            .args(["-c", "docker-credential-test -c 'printf helper-found'"])
             .env_clear()
             .env("PATH", path)
             .output()
             .unwrap();
         std::fs::remove_dir_all(dir).unwrap();
-        assert!(output.status.success());
-        assert_eq!(output.stdout, b"helper-found\n");
+        assert!(
+            output.status.success(),
+            "helper failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(output.stdout, b"helper-found");
     }
 }
