@@ -9239,6 +9239,10 @@ class TestPerRunLocalServices:
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch.object(service.workspaces, "open", opened),
             patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch(
                 "app.services.agent_runner.agent_run_repo.create_run",
                 new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
             ),
