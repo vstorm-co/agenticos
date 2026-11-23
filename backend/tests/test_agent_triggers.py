@@ -5795,6 +5795,7 @@ async def test_failed_fire_releases_its_lease_after_rollback_in_an_independent_t
     )
 
 
+@pytest.mark.security
 def test_new_routines_default_to_the_creator_but_keep_per_tool_approval_independent():
     data = _interval()
     assert data.runs_as_creator is True

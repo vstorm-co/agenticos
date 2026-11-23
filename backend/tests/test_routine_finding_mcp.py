@@ -143,6 +143,33 @@ async def test_revoked_authority_cannot_publish() -> None:
     publish.assert_not_awaited()
 
 
+@pytest.mark.parametrize("missing", ["authority", "watch"])
+async def test_disappeared_routine_cannot_publish(missing: str) -> None:
+    ctx = caller()
+    run = AgentRun(
+        id=ctx.source_run_id,
+        user_id=ctx.user_id,
+        organization_id=ctx.organization_id,
+        agent_id=uuid4(),
+        status="running",
+        routine_origin_id=uuid4(),
+    )
+    authority = MagicMock(routine_kind="watch", routine_id=run.routine_origin_id)
+    service = RoutineFindingService(AsyncMock(spec=AsyncSession))
+    with (
+        patch("app.repositories.agent_run.get_run", new=AsyncMock(return_value=run)),
+        patch(
+            "app.services.routine_authority.RoutineAuthority.capture",
+            new=AsyncMock(return_value=None if missing == "authority" else authority),
+        ),
+        patch("app.repositories.watch.get_by_id", new=AsyncMock(return_value=None)),
+        patch.object(service, "publish", new=AsyncMock()) as publish,
+        pytest.raises(AuthorizationError),
+    ):
+        await service.publish_for_run(ctx, item())
+    publish.assert_not_awaited()
+
+
 def test_model_cannot_supply_recipient_and_source_links_cannot_leak_credentials() -> None:
     for extra in (
         {"user_id": str(uuid4())},
