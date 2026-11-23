@@ -88,6 +88,69 @@ Two things are versioned separately from this file and worth knowing about:
 - Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
 - Migration `backend/alembic/versions/0356_improvement_search.py` adds `improvement_runs.mode` (existing sessions read `steps`), the `searching` stage, the `no_variant` stop reason, `improvement_iterations.search` and the `improvement_search_variants` table. Its downgrade drops them, reads a searching session as `proposing` and `no_variant` as `no_proposal`.
 
+
+
+- Migration `0351_routine_chat_modes.py` maps primary/specific-chat delivery to
+  per-run chats and log-only/legacy Inbox delivery to shared history. Existing
+  transcripts, schedules, pauses, budgets and tool consents are retained. Shared
+  histories become read-only; fork an answer to continue in a private chat.
+
+- Drain workers and update API/workers together with migration
+  `0350_run_reporting_credential.py`. Routine and monitor Inbox publication now
+  uses MCP only; final answers are not parsed into cards. Existing `result_mode`
+  values remain readable. New routine instructions request MCP reporting; amend
+  custom reporting instructions if they require a particular card policy.
+- New routines default to acting as their creator. Existing identity settings and
+  explicit approval floors remain unchanged; legacy identity-free routines need
+  the owner's consent before using personal accounts or general platform tools.
+
+
+- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+
+
+
+- Apply `backend/alembic/versions/0356_improvement_search.py` to store Improve search settings, progress and scored variants. Existing sessions retain step-by-step mode.
+
+- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+- Migration `backend/alembic/versions/0354_case_key_drafts.py` adds `case_key_drafts` and the `extractor` agent kind. A draft nobody uses or dismisses is deleted after 7 days by the daily `expire-case-key-drafts` job. Its downgrade drops the table and turns extractor agents into ordinary ones.
+- Migration `backend/alembic/versions/0355_key_coverage_reports.py` adds `key_coverage_reports` and the `coverage` agent kind. Its downgrade drops the table and turns coverage agents into ordinary ones.
+
+
+
+- Apply `backend/alembic/versions/0356_improvement_search.py` to store Improve search settings, progress and scored variants. Existing sessions retain step-by-step mode.
+
+- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+- Migration `backend/alembic/versions/0356_improvement_search.py` adds `improvement_runs.mode` (existing sessions read `steps`), the `searching` stage, the `no_variant` stop reason, `improvement_iterations.search` and the `improvement_search_variants` table. Its downgrade drops them, reads a searching session as `proposing` and `no_variant` as `no_proposal`.
+
+
+
+- Apply `backend/alembic/versions/0356_improvement_search.py` to store Improve search settings, progress and scored variants. Existing sessions retain step-by-step mode.
+
+- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+- Migration `backend/alembic/versions/0354_case_key_drafts.py` adds `case_key_drafts` and the `extractor` agent kind. A draft nobody uses or dismisses is deleted after 7 days by the daily `expire-case-key-drafts` job. Its downgrade drops the table and turns extractor agents into ordinary ones.
+- Migration `backend/alembic/versions/0355_key_coverage_reports.py` adds `key_coverage_reports` and the `coverage` agent kind. Its downgrade drops the table and turns coverage agents into ordinary ones.
+
+
+- Apply `backend/alembic/versions/0356_improvement_search.py` to store Improve search settings, progress and scored variants. Existing sessions retain step-by-step mode.
+
+- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+- Migration `backend/alembic/versions/0356_improvement_search.py` adds `improvement_runs.mode` (existing sessions read `steps`), the `searching` stage, the `no_variant` stop reason, `improvement_iterations.search` and the `improvement_search_variants` table. Its downgrade drops them, reads a searching session as `proposing` and `no_variant` as `no_proposal`.
+
 ### Added
 
 - Introduce personal subscriptions, a first chat task, coding-client connections, everyday tools, projects and personal memory first in Discover AgenticOS, with direct links and permission-aware tips.
