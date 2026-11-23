@@ -411,6 +411,10 @@ class TestOrganizationService:
             ),
             patch("app.services.organization.organization_repo.delete", new=AsyncMock()),
             patch(
+                "app.services.subscription_accounts.member_repo.list_user_ids",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
                 "app.services.sandbox_workspace.SandboxWorkspaceService.purge_personal_coding",
                 new=AsyncMock(return_value=0),
             ) as purge_coding,
