@@ -432,6 +432,8 @@ def chunks(messages: Sequence[ContextTurn]) -> list[list[ContextTurn]]:
 
 def select_topics(digests: Sequence[ContextDigest], packet: ContextPacket) -> list[WorkTopic]:
     """Compact, deterministic retrieval: owned open work and cross-thread recurrence first."""
+    zone_name = packet.profile.get("time_zone")
+    zone = ZoneInfo(zone_name) if isinstance(zone_name, str) else None
     grouped: dict[str, list[WorkTopic]] = {}
     for digest in digests:
         for topic in digest.topics:
@@ -448,7 +450,7 @@ def select_topics(digests: Sequence[ContextDigest], packet: ContextPacket) -> li
         )
         last = rows[-1]
         dates = {
-            turn.occurred_at.date()
+            (turn.occurred_at.astimezone(zone) if zone is not None else turn.occurred_at).date()
             for turn in packet.messages
             if any(ref.source_id == f"message:{turn.id}" for row in rows for ref in row.evidence)
             and turn.role == "user"

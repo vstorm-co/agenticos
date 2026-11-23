@@ -1264,3 +1264,40 @@ async def test_extraction_keeps_structured_questions_and_message_chronology() ->
             tool_receipts=[receipt(thread_id="t", questions=questions)],
         ),
     )
+
+
+@pytest.mark.parametrize(
+    ("first", "last", "expected"),
+    [
+        ("2026-11-22T00:05:00+00:00", "2026-11-22T23:55:00+00:00", 1),
+        ("2026-11-21T23:55:00+00:00", "2026-11-22T00:05:00+00:00", 0),
+    ],
+)
+def test_topic_selection_groups_source_days_in_the_persons_timezone(
+    first: str, last: str, expected: int
+) -> None:
+    value = packet(profile={"time_zone": "Europe/Warsaw"})
+    value.messages = [
+        value.messages[0].model_copy(
+            update={"id": identifier, "occurred_at": datetime.fromisoformat(at)}
+        )
+        for identifier, at in [("first", first), ("last", last)]
+    ]
+    rows = [
+        ContextDigest(
+            topics=[
+                topic(
+                    state="completed",
+                    intent="one_off",
+                    evidence=[
+                        {
+                            "source_id": f"message:{identifier}",
+                            "quote": "team agenda every Thursday",
+                        }
+                    ],
+                )
+            ]
+        )
+        for identifier in ["first", "last"]
+    ]
+    assert len(select_topics(rows, value)) == expected
