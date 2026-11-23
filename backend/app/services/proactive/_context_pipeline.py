@@ -26,7 +26,7 @@ from app.schemas.personal_context import (
     WorkTopic,
 )
 
-EXTRACTOR_VERSION = "personal-work-v6"
+EXTRACTOR_VERSION = "personal-work-v7"
 CHUNK_CHARS = 16000
 MAX_SELECTED_TOPICS = 12
 
@@ -48,7 +48,17 @@ and later corrections. A partial segment cannot establish final completion. Retu
 no topics for noise. Set intent=explicit_automation for a human request for ongoing automation or a
 reusable agent; repeatable for meaningfully reusable work; one_off for a single
 execution; context for background only. Finishing one agenda does not finish the
-underlying weekly job. This is an index, not permission to perform any action."""
+underlying weekly job. This is an index, not permission to perform any action.
+Event context: occurred_at/submitted_at are source event timestamps, not scheduling
+preferences. local_datetime includes the subject's UTC offset; local_weekday and
+time_zone describe that same instant. Missing local time means the timezone is
+unknown. Use as_of to resolve relative expressions in their original temporal
+context. Interpret human wording semantically in any language; never require a
+particular spelling of a weekday or time. A short answer must be read with its
+linked tool receipt's questions, header and thread, not as a standalone sentence.
+Tool status reports execution, not human consent or the current existence of a
+resource. Do not treat question options or assistant suggestions as chosen answers.
+"""
 
 READ_INSTRUCTIONS = """Prepare a small useful personal Inbox in the person's language.
 Evaluate each grounded job before deciding that the Inbox should be empty:
@@ -118,7 +128,17 @@ only when it helps the work now. Never copy private context into a shared audien
 Write a concrete title and detail, then a first-person chat_prompt for the next real
 step, preserving known context and asking only for missing decisions. Never ask
 whether an opaque Inbox ID needs attention. No action is executed by this reading.
-The established approval policy still applies to runs, scheduling and publication."""
+The established approval policy still applies to runs, scheduling and publication.
+Event context: occurred_at/submitted_at are source event timestamps, not scheduling
+preferences. local_datetime includes the subject's UTC offset; local_weekday and
+time_zone describe that same instant. Missing local time means the timezone is
+unknown. Use as_of to resolve relative expressions in their original temporal
+context. Interpret human wording semantically in any language; never require a
+particular spelling of a weekday or time. A short answer must be read with its
+linked tool receipt's questions, header and thread, not as a standalone sentence.
+Tool status reports execution, not human consent or the current existence of a
+resource. Do not treat question options or assistant suggestions as chosen answers.
+"""
 
 VERIFY_INSTRUCTIONS = """Independently verify the supplied personal Inbox card or starters against
 original cited evidence and current state. Verify usefulness as well as accuracy:
@@ -167,11 +187,21 @@ against the same evidence and current state; return only its zero-based index wh
 safe. A starter must not repeat an unverified assistant claim about a live resource.
 Cite the human request for an automation or reusable agent, not just the assistant's
 response. A correction may use other supplied original quotes to repair the evidence
-of the same job; it may not invent a new identity or a different kind. The deterministic
-unconfirmed_local_hours list contains hours absent from cited human choices. Remove
-those hours throughout the card and proposed_schedule; ask for the missing hour in
-chat_prompt while preserving the grounded recurrence. Assistant-proposed hours do
-not become a human choice. Empty output is valid."""
+of the same job; it may not invent a new identity or a different kind. Interpret
+timing from the original human statements and linked questions/answers, including
+shorthand, relative dates and later corrections. Event timestamps establish when
+something was said, not a chosen execution hour. Reject or correct invented hours
+while preserving known choices and grounded recurrence. Empty output is valid.
+Event context: occurred_at/submitted_at are source event timestamps, not scheduling
+preferences. local_datetime includes the subject's UTC offset; local_weekday and
+time_zone describe that same instant. Missing local time means the timezone is
+unknown. Use as_of to resolve relative expressions in their original temporal
+context. Interpret human wording semantically in any language; never require a
+particular spelling of a weekday or time. A short answer must be read with its
+linked tool receipt's questions, header and thread, not as a standalone sentence.
+Tool status reports execution, not human consent or the current existence of a
+resource. Do not treat question options or assistant suggestions as chosen answers.
+"""
 
 
 class ContextModel(Protocol):
@@ -312,20 +342,61 @@ def supported(evidence: SourceEvidence, sources: Mapping[str, SourceFragments]) 
     return any(quote in " ".join(fragment.split()) for fragment in fragments)
 
 
-def clock_hours(text: str, *, short_answer: bool = False) -> set[str]:
-    """Normalize literal hours, including a native answer such as 'thu 18'."""
-    literal = re.findall(r"\b([01]?\d|2[0-3]):([0-5]\d)\b", text)
-    result = {f"{int(hour):02}:{minute}" for hour, minute in literal}
-    if short_answer:
-        selected = re.findall(
-            r"\b(?:mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday|s)?|thu(?:rs(?:day)?)?|"
-            r"fri(?:day)?|sat(?:urday)?|sun(?:day)?|pon(?:iedziałek)?|wt(?:orek)?|"
-            r"śr(?:oda)?|czw(?:artek)?|pią(?:tek)?|pt|sob(?:ota)?|niedz(?:iela)?|"
-            r"when|time|godzina)[:\s]+(?:at\s+|o\s+)?([01]?\d|2[0-3])(?::([0-5]\d))?(?!\d)",
-            text,
-            re.IGNORECASE,
-        )
-        result.update(f"{int(hour):02}:{minute or '00'}" for hour, minute in selected)
+def source_metadata(
+    packet: ContextPacket, *, answer_char_limit: int | None = None
+) -> dict[str, dict[str, object]]:
+    """Describe event times and provenance without interpreting the person's words."""
+    zone_name = packet.profile.get("time_zone")
+    zone = ZoneInfo(zone_name) if isinstance(zone_name, str) else None
+
+    def timing(at: datetime) -> dict[str, object]:
+        local = at.astimezone(zone) if zone is not None else None
+        return {
+            "occurred_at": at.isoformat(),
+            "time_zone": zone_name,
+            "local_datetime": local.isoformat() if local is not None else None,
+            "local_date": local.date().isoformat() if local is not None else None,
+            "local_weekday": local.strftime("%A") if local is not None else None,
+            "local_isoweekday": local.isoweekday() if local is not None else None,
+        }
+
+    result = {
+        f"message:{turn.id}": {
+            **timing(turn.occurred_at),
+            "thread_id": turn.thread_id,
+            "speaker_id": turn.speaker_id,
+            "role": turn.role,
+            **(
+                {
+                    "kind": "authenticated_answer",
+                    "receipt_source_id": f"receipt:{turn.id.removeprefix('answer:')}",
+                    "context_truncated": answer_char_limit is not None
+                    and len(turn.text) > answer_char_limit,
+                }
+                if turn.id.startswith("answer:")
+                else {"kind": "message"}
+            ),
+        }
+        for turn in packet.messages
+    }
+    for receipt in packet.tool_receipts:
+        identifier = receipt.get("id")
+        if not isinstance(identifier, str):
+            continue
+        metadata: dict[str, object] = {
+            "kind": "tool_receipt",
+            "thread_id": receipt.get("thread_id"),
+            "message_id": receipt.get("message_id"),
+            "action": receipt.get("action"),
+            "status": receipt.get("status"),
+        }
+        at = receipt.get("submitted_at", receipt.get("occurred_at"))
+        if at is not None:
+            try:
+                metadata.update(timing(TypeAdapter(AwareDatetime).validate_python(at)))
+            except ValidationError:
+                metadata["timestamp_invalid"] = True
+        result[f"receipt:{identifier}"] = metadata
     return result
 
 
@@ -425,10 +496,17 @@ async def extract_context(reader: ContextModel, packet: ContextPacket) -> Contex
             if isinstance(receipt.get("id"), str)
         }
     )
+    chronology = source_metadata(packet)
     material: dict[str, object] = {
+        "as_of": packet.as_of.isoformat(),
+        "time_zone": packet.profile.get("time_zone"),
         "subject_id": packet.subject_id,
         "messages": [
-            {**turn.model_dump(mode="json", exclude={"source_fragments"}), "id": f"s{index}"}
+            {
+                **turn.model_dump(mode="json", exclude={"source_fragments"}),
+                **chronology[f"message:{turn.id}"],
+                "id": f"s{index}",
+            }
             for index, turn in enumerate(packet.messages)
         ],
         "tool_receipts": [
@@ -437,7 +515,10 @@ async def extract_context(reader: ContextModel, packet: ContextPacket) -> Contex
                 "action": receipt.get("action"),
                 "status": receipt.get("status"),
                 "thread_id": receipt.get("thread_id"),
-                "question_context": json.dumps(receipt.get("questions"), ensure_ascii=False)[:2000],
+                "questions": receipt.get("questions"),
+                "answer_source_id": f"message:answer:{receipt['id']}",
+                "answered_by_user_id": receipt.get("answered_by_user_id"),
+                **chronology[f"receipt:{receipt['id']}"],
             }
             if receipt.get("action") == "ask_user_question"
             else {**receipt, "id": f"r{index}"}
@@ -551,26 +632,13 @@ async def propose_context(
     ]
     failed_receipts.sort(key=lambda receipt: str(receipt.get("occurred_at", "")), reverse=True)
     cited.update(f"receipt:{receipt['id']}" for receipt in failed_receipts[:8])
-    zone_name = packet.profile.get("time_zone")
-    zone = ZoneInfo(zone_name) if isinstance(zone_name, str) else None
-    chronology = {
-        f"message:{turn.id}": {
-            "occurred_at": turn.occurred_at.isoformat(),
-            "speaker_id": turn.speaker_id,
-            "role": turn.role,
-            **(
-                {"kind": "authenticated_answer", "context_truncated": len(turn.text) > 2000}
-                if turn.id.startswith("answer:")
-                else {}
-            ),
-            "local_date": turn.occurred_at.astimezone(zone).date().isoformat() if zone else None,
-            "local_isoweekday": turn.occurred_at.astimezone(zone).isoweekday() if zone else None,
-        }
-        for turn in packet.messages
-    }
+    chronology = source_metadata(packet, answer_char_limit=2000)
     # Supply original text for selected evidence, not the whole historical dump.
     material = {
         **packet.model_dump(mode="json", exclude={"messages", "tool_receipts"}),
+        "tool_receipts": [
+            receipt for receipt in packet.tool_receipts if f"receipt:{receipt.get('id')}" in cited
+        ],
         "topics": [topic.model_dump(mode="json") for topic in topics],
         "source_metadata": {key: value for key, value in chronology.items() if key in cited},
         "sources": {
@@ -625,37 +693,9 @@ async def propose_context(
         key for key in sources if key.startswith(("routine:", "agent:", "project:"))
     }
 
-    def unconfirmed_hours(card: PersonalAdvice) -> set[str]:
-        if card.kind != "routine":
-            return set()
-        cited = {ref.source_id for ref in card.evidence}
-        related = [
-            topic for topic in topics if cited.intersection(ref.source_id for ref in topic.evidence)
-        ]
-        references = cited | {ref.source_id for topic in related for ref in topic.evidence}
-        references.update(f"message:{turn.id}" for turn in related_answers(references))
-        human_ids = references & human
-        confirmed = {
-            hour
-            for identifier in human_ids
-            for fragment in (
-                sources.get(f"message:answer:{identifier.removeprefix('receipt:')}", ())
-                if identifier.startswith("receipt:")
-                else sources[identifier]
-            )
-            for hour in clock_hours(
-                fragment, short_answer=identifier.startswith(("message:answer:", "receipt:"))
-            )
-        }
-        proposed = " ".join(
-            [card.title, card.detail, card.chat_prompt, card.proposed_schedule or ""]
-        )
-        return clock_hours(proposed) - confirmed
-
     def eligible_card(card: PersonalAdvice) -> bool:
         return (
             all(supported(ref, sources) for ref in card.evidence)
-            and not unconfirmed_hours(card)
             and set(card.resource_ids) <= resource_ids
             and (
                 card.kind not in {"agent", "routine", "task"}
@@ -741,7 +781,6 @@ async def propose_context(
             material={
                 **common,
                 "mode": "one_card",
-                "unconfirmed_local_hours": sorted(unconfirmed_hours(card)),
                 "other_proposed_actions": [
                     {
                         "identity": peer.identity,
@@ -752,6 +791,11 @@ async def propose_context(
                     if peer.identity != card.identity
                 ],
                 "candidates": [card.model_dump(mode="json")],
+                "tool_receipts": [
+                    receipt
+                    for receipt in packet.tool_receipts
+                    if f"receipt:{receipt.get('id')}" in verifier_sources
+                ],
                 "original_sources": verifier_sources,
                 "source_metadata": {
                     key: value for key, value in chronology.items() if key in verifier_sources
@@ -788,6 +832,7 @@ async def propose_context(
                 "mode": "starters_only",
                 "candidates": [],
                 "starters": reading.starters,
+                "tool_receipts": material["tool_receipts"],
                 "original_sources": material["sources"],
                 "source_metadata": {
                     key: value for key, value in chronology.items() if key in cited

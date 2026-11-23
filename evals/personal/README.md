@@ -153,7 +153,7 @@ The judge grades only rows that passed deterministic checks. It evaluates an iso
 
 ## Richer context regression packets
 
-`datasets/context.jsonl` adds **48 synthetic cases**: 37 for proactive assistance
+`datasets/context.jsonl` adds **51 synthetic cases**: 40 for proactive assistance
 and 11 for memory. They cover weekly/monthly cycles, high activity, important text
 after the old clip, changed task state without a new chat, tool receipts, shared
 responsibility, feature availability and usage, memory corrections and erasure.
@@ -173,7 +173,7 @@ deleted routines, citations that do not support a claim, incomplete resource pag
 revoked cached evidence, expired questions and timezone-aware schedules.
 Thirty-two cases are marked `holdout`. Their labels remain useful for reporting, but cases inspected during implementation are no longer an unseen holdout. Report that exposure rather than claiming independent validation.
 
-These are desired-behavior fixtures, not another 48 successes for the older
+These are desired-behavior fixtures, not another 51 successes for the older
 `NightlyReading` schema. Their references and counter-examples need semantic
 review. The existing 222-case corpus and its scores remain separate. The packets
 use the platform's `DatasetCaseContent` JSONL format, so the normal Dataset import
@@ -228,3 +228,5 @@ information stops the replay. Preserve failed attempts when calculating total
 spend. A model judge is an aid to review, not a human usefulness rating. Report
 technical failures separately, and do not merge these scores with the original
 222-case corpus.
+
+Temporal-context regressions include Polish and German scheduling answers in words and a message timestamp with unselected time options. Extraction and verification receive original event timestamps, local UTC offsets and linked structured questions/answers. The model interprets scheduling intent; code validates source identities, exact citations and access rather than parsing natural-language weekdays or hours. Memory maintenance retains source timestamps and distinguishes native questions from submitted human answers.

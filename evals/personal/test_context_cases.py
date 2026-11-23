@@ -13,7 +13,7 @@ from app.services.dataset_files import parse
 class ContextCasesTests(unittest.TestCase):
     def test_corpus_survives_the_production_import_export_contract(self) -> None:
         cases = load_context_cases()
-        self.assertEqual(len(cases), 48)
+        self.assertEqual(len(cases), 51)
         exported = "".join(case.model_dump_json() + "\n" for case in cases)
         self.assertEqual(parse(exported.encode(), "jsonl"), cases)
         self.assertNotIn("dev@vstorm.co", exported)
@@ -87,7 +87,7 @@ class ContextCasesTests(unittest.TestCase):
             {
                 "When": ["mon 08"],
                 "Delivery": ["team channel"],
-                "Source": ["release notes"],
+                "Source": ["https://example.com/product/releases"],
             },
         )
 

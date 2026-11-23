@@ -21,13 +21,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- The personal work extractor moves to `personal-work-v6` to retain concrete unresolved work needs for feature discovery. Existing authorized history is refreshed lazily in bounded jobs under the configured proactivity budget; select the intended background model before resuming a paused rollout. Saved Inbox decisions are retained.
+- The personal work extractor moves to `personal-work-v7` to retain concrete work needs and supply source-attributed temporal context. Existing authorized history is refreshed lazily in bounded jobs under the configured proactivity budget; select the intended background model before resuming a paused rollout. Saved Inbox decisions are retained.
 
 ### Fixed
 
+- Personal Inbox readers receive structured questions, linked authenticated answers, original timestamps and timezone-aware local dates throughout extraction and verification. Schedule wording is interpreted by the model rather than a weekday/time regex. Memory maintenance retains source timestamps and question/answer provenance; clipped transcript tails are marked explicitly.
+
 - Background model reads now honor their selected model profile's generation parameters, including thinking effort and output limits.
 
-- Preserve grounded personal Inbox opportunities across proposal and verification: recognize recurring requests across conversations, propose new setup when only a historical assistant claim says a missing routine exists, and introduce unused features when they directly help the person's work. Keep deletion, dismissal, current-resource and authenticated-answer checks. Normalize short authenticated weekday/time answers across all English and Polish weekdays.
+- Preserve grounded personal Inbox opportunities across proposal and verification: recognize recurring requests across conversations, propose new setup when only a historical assistant claim says a missing routine exists, and introduce unused features when they directly help the person's work. Keep deletion, dismissal, current-resource and authenticated-answer checks. Interpret native scheduling answers from their linked questions and temporal context without language-specific weekday/time parsing.
 
 ## [1.90.1] - 2026-11-22
 
