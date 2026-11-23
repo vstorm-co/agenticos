@@ -97,6 +97,7 @@ def production() -> Handlers:
             Handler(jobs.RUN_AUTHORING, authoring_tasks.run_authoring),
             Handler(jobs.ADVANCE_IMPROVEMENT, improvement_tasks.advance_improvement),
             Handler(jobs.SWEEP_IMPROVEMENTS, _each_tick(improvement_tasks.sweep_improvements)),
+            Handler(jobs.SEARCH_IMPROVEMENT, improvement_tasks.search_improvement),
             Handler(jobs.ADVANCE_SKILL_IMPROVEMENT, improvement_tasks.advance_skill_improvement),
             Handler(
                 jobs.SWEEP_SKILL_IMPROVEMENTS,
