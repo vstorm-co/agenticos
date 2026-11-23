@@ -61,7 +61,12 @@ from app.db.models.run_manifest import RunManifest
 from app.db.models.skill_check import SkillCheck, SkillCheckAgent
 from app.db.models.skill_version import SkillVersion
 from app.db.models.user import User
-from app.repositories import authoring_repo, eval_run_repo, skill_check_repo
+from app.repositories import (
+    authoring_repo,
+    eval_run_repo,
+    skill_check_repo,
+    skill_improvement_repo,
+)
 from app.schemas.agent_environment import EnvironmentCreate
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCaseUpdate, DatasetCreate
@@ -88,6 +93,8 @@ from app.services.improvement_states import judge
 from app.services.model_profile import ModelProfileService
 from app.services.scorers import JUDGE_PROMPT_VERSION
 from app.services.scoring import ScoringService
+from app.services.skill_check import SkillCheckService
+from app.services.skill_improvement import SkillImprovementService
 from app.services.transcript import RecordedToolCall
 from tests.integration.test_skill_bindings import _skill as _a_skill
 
@@ -1696,6 +1703,45 @@ async def test_a_family_that_moved_on_the_held_out_cases_is_asked_again_there(db
     assert judge(result) is ImprovementVerdict.CRITERIA_BETTER
 
 
+async def test_a_measured_run_never_asks_its_training_cases_again(db) -> None:
+    """Its verdict reads the held-out cases alone, and the next attempt reads the
+    training cases' first answers: a family moving on two training cases decides
+    nothing anyone reads, so they are not asked again - and its ceiling holds only the
+    held-out cases."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _with_checks(db, ctx, cases=4)
+    cases = sorted(
+        (await DatasetService(db).list_cases(ctx, dataset.id)).items, key=lambda c: c.input
+    )
+    held_out = [case.case_id for case in cases[:2]]
+    service = EvalRunService(db)
+    request = EvalRunRequest(dataset_id=dataset.id, paired_baseline=True, reruns=1)
+    check = {
+        "candidate_spec": AgentSpec(name="Clerk", instructions="Attempt 1"),
+        "baseline_spec": AgentSpec(name="Clerk", instructions="Draft"),
+    }
+    record = ProposalCheckRecord(
+        kind="agent", base_version=7, suggestions=1, attempt_holdout=held_out
+    )
+
+    def answer(prompt: str, call: int) -> str:
+        candidate = model.calls[call]["candidate"]
+        return _PASS if candidate.spec.instructions.startswith("Attempt") else _FAIL
+
+    estimate = await service.estimate(ctx, agent.id, request, **check, proposal_check=record)
+    started = await service.start(ctx, agent.id, request, **check, proposal_check=record)
+    model = Model(db, answer=answer)
+    await _run_to_end(db, model, started.id, ctx)
+
+    per_case = sum(arm.cost_per_case_usd for arm in estimate.arms)
+    assert estimate.rerun_ceiling_usd == per_case * 2
+    # Four cases on two sides, then the two held-out ones once more on each.
+    assert len(model.calls) == 12
+    asked_again = {call["prompt"] for call in model.calls[8:]}
+    assert asked_again == {case.input for case in cases[:2]}
+
+
 async def test_a_criterion_that_moved_on_one_case_is_not_asked_again(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
@@ -1730,6 +1776,8 @@ async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
     # Judge spend belongs to the judge; the organization reserves both.
     assert estimate.agent_after_usd == Decimal("1.40")
     assert estimate.rerun_ceiling_usd == Decimal("0.80")
+    # With no earlier run to compare with, nothing is asked again.
+    assert estimate.expected_usd == estimate.total_usd
 
     # A draft with a looser cap against v7: v7 stops first, so its cap decides.
     agent.draft_spec = {**agent.draft_spec, "budget": {"monthly_usd": 5}}
@@ -1740,6 +1788,8 @@ async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
         EvalRunRequest(dataset_id=dataset.id, candidate="draft", paired_baseline=True),
     )
     assert paired.agent_remaining_usd == Decimal("2")
+    # A compared run usually asks about half of what its ceiling reserves.
+    assert paired.expected_usd == paired.total_usd + paired.rerun_ceiling_usd / 2
 
 
 async def test_an_older_version_without_a_cap_is_estimated_against_the_current_cap(db) -> None:
@@ -1792,6 +1842,27 @@ async def test_a_model_with_no_history_is_priced_at_its_own_price(db) -> None:
     # 2000 tokens in at $0.10/1M and 400 out at $0.40/1M.
     assert (arm.basis, arm.cost_per_case_usd) == ("fallback", Decimal("0.00036"))
     assert arm.cost_usd == Decimal("0.0036")
+
+
+async def test_with_no_history_an_answer_with_tools_is_priced_as_several_requests(db) -> None:
+    """Each tool call is answered in another request, so an agent that searches its
+    documents is priced at more than one."""
+    ctx = await _owner(db)
+    agent, versions = await _agent(db, ctx)
+    versions[7].spec = {"name": "Clerk", "capabilities": [{"id": "knowledge"}]}
+    dataset = await _dataset(db, ctx, cases=10)
+    await db.flush()
+    nano = await _profile(db, ctx, "gpt-4.1-nano")
+    priced = SimpleNamespace(label="nano", model="gpt-4.1-nano", provider="openai")
+
+    with patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=priced)):
+        estimate = await EvalRunService(db).estimate(
+            ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, model_profile_ids=[nano.id])
+        )
+
+    [arm] = estimate.arms
+    # Three requests: 6000 tokens in at $0.10/1M and 1200 out at $0.40/1M.
+    assert (arm.basis, arm.cost_per_case_usd) == ("fallback", Decimal("0.00108"))
 
 
 async def _assist(db: AsyncSession, ctx: AuthContext, *, on: bool) -> None:
@@ -2317,6 +2388,148 @@ async def _checked_run(
     return check, dataset, v7
 
 
+async def test_an_agent_an_older_rule_judged_is_judged_again_from_the_runs_it_kept(db) -> None:
+    """A row judged before families were kept, or before `too_few_questions` existed,
+    reads what its runs say once judged again - and a decided check keeps its status."""
+    ctx = await _owner(db)
+    check, _, v7 = await _checked_run(db, ctx)
+    check.status = "applied"
+    row = await db.scalar(select(SkillCheckAgent).where(SkillCheckAgent.check_id == check.id))
+    assert row is not None
+    row.state, row.unknown_reason, row.families = "unknown", "inconclusive", []
+    await db.flush()
+
+    found = await skill_check_repo.judged_before_families(db)
+
+    assert (ctx.organization_id, check.id, [v7.id]) in found
+    # A running check is judged when its runs finish, not by a sweep.
+    check.status = "running"
+    await db.flush()
+    assert await skill_check_repo.judged_before_families(db, check_ids=[check.id]) == []
+    check.status = "applied"
+    await db.flush()
+
+    await SkillCheckService(db).recompute_after_review(ctx.organization_id, [v7.id])
+
+    await db.refresh(row)
+    assert (row.state, row.unknown_reason) == ("worse", None)
+    assert row.families
+    assert check.status == "applied"
+    assert await skill_check_repo.judged_before_families(db, check_ids=[check.id]) == []
+
+
+async def test_a_skill_checks_cost_counts_the_judges_gradings_beside_the_answers(db) -> None:
+    """A skill session's spend and its budget read this, so a grading is part of what
+    the check cost."""
+    ctx = await _owner(db)
+    check, _, v7 = await _checked_run(db, ctx)
+    score = await db.scalar(select(CaseScore).where(CaseScore.eval_run_id == v7.id).limit(1))
+    assert score is not None
+    grading = AgentRun(
+        organization_id=ctx.organization_id,
+        agent_id=v7.agent_id,
+        surface=RunSurface.EVAL.value,
+        status="completed",
+        model_label="gpt-test",
+        cost_usd=Decimal("0.30"),
+        started_at=datetime.now(UTC),
+    )
+    db.add(grading)
+    await db.flush()
+    judged = {
+        "scorer": "judge",
+        "required": True,
+        "status": "pass",
+        "judge_run_id": str(grading.id),
+    }
+    # One grading of two criteria is one run, counted once.
+    score.results = [
+        *score.results,
+        {**judged, "name": "Tone"},
+        {**judged, "name": "Policy"},
+    ]
+    await db.flush()
+
+    cost = await skill_improvement_repo.check_cost(
+        db, check.id, organization_id=ctx.organization_id
+    )
+
+    answers = await db.scalar(
+        select(func.sum(EvalRunCase.cost_usd)).where(EvalRunCase.eval_run_id == v7.id)
+    )
+    assert cost == answers + Decimal("0.30")
+    assert cost == (await EvalRunService(db).get(ctx, v7.id)).cost_usd
+
+
+async def test_a_session_attempt_counted_without_the_judge_is_counted_again_once(db) -> None:
+    """A skill session's spend reads its attempts' costs, which counted only the answers
+    before the judge's gradings were counted too."""
+    ctx = await _owner(db)
+    check, _, v7 = await _checked_run(db, ctx)
+    grading = AgentRun(
+        organization_id=ctx.organization_id,
+        agent_id=v7.agent_id,
+        surface=RunSurface.EVAL.value,
+        status="completed",
+        model_label="gpt-test",
+        cost_usd=Decimal("0.30"),
+        started_at=datetime.now(UTC),
+    )
+    db.add(grading)
+    await db.flush()
+    score = await db.scalar(select(CaseScore).where(CaseScore.eval_run_id == v7.id).limit(1))
+    assert score is not None
+    score.results = [
+        *score.results,
+        {"scorer": "judge", "name": "Tone", "status": "pass", "judge_run_id": str(grading.id)},
+    ]
+    await db.flush()
+    session = await skill_improvement_repo.create_run(
+        db,
+        organization_id=ctx.organization_id,
+        skill_id=check.skill_id,
+        fork_id=None,
+        base_version_id=check.base_version_id,
+        created_by_user_id=ctx.user_id,
+        created_by_api_key_id=None,
+        window_days=30,
+        max_iterations=1,
+        estimate_usd=Decimal(0),
+        budget_usd=Decimal(15),
+        seed=None,
+    )
+    attempt = await skill_improvement_repo.create_iteration(
+        db, organization_id=ctx.organization_id, run_id=session.id, number=1, note=None
+    )
+    answers, gradings = await skill_improvement_repo.check_cost_parts(
+        db, check.id, organization_id=ctx.organization_id
+    )
+    attempt.skill_check_id, attempt.cost_usd = check.id, answers
+    await db.flush()
+    service = SkillImprovementService(db)
+
+    assert await service.recount_check_cost(ctx.organization_id, attempt.id)
+    assert gradings == Decimal("0.30")
+    assert attempt.cost_usd == answers + gradings
+    assert not await service.recount_check_cost(ctx.organization_id, attempt.id)
+    # One that also paid for a check a retry replaced cannot be told apart, and is left.
+    attempt.cost_usd = answers + Decimal("0.50")
+    await db.flush()
+    assert not await service.recount_check_cost(ctx.organization_id, attempt.id)
+    assert attempt.cost_usd == answers + Decimal("0.50")
+    assert await skill_improvement_repo.checked_iterations(db, check_ids=[check.id]) == [
+        (ctx.organization_id, attempt.id)
+    ]
+    # With no check named, the sweep lists every attempt that started a check, and only those.
+    unchecked = await skill_improvement_repo.create_iteration(
+        db, organization_id=ctx.organization_id, run_id=session.id, number=2, note=None
+    )
+    swept = await skill_improvement_repo.checked_iterations(db)
+    assert (ctx.organization_id, attempt.id) in swept
+    assert (ctx.organization_id, unchecked.id) not in swept
+    assert not await service.recount_check_cost(ctx.organization_id, uuid.uuid4())
+
+
 async def test_a_skill_checks_regression_its_re_asks_confirmed_outlasts_a_verdict_on_one_answer(
     db,
 ) -> None:
@@ -2738,8 +2951,9 @@ async def test_a_judge_with_no_history_is_priced_at_its_models_price(db) -> None
     with patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=priced)):
         estimate = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
 
-    # Ten cases, each 2000 tokens in at $0.10/1M and 400 out at $0.40/1M.
-    assert estimate.judge_usd == Decimal("0.0036")
+    # Ten cases, each 2000 tokens and the 400-token answer it grades in at $0.10/1M,
+    # and 400 out at $0.40/1M.
+    assert estimate.judge_usd == Decimal("0.0040")
     assert estimate.judge_model_profile_id == nano.id
 
 

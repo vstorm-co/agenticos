@@ -65,7 +65,9 @@ from app.db.models.eval_run import EvalRun, EvalRunCase
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.knowledge_gap import (
     DraftAuthor,
+    GapSignal,
     KnowledgeGapClassification,
+    KnowledgeGapEvalClassification,
     KnowledgeGapMember,
     KnowledgeGapTopic,
     KnowledgeSearch,
@@ -797,8 +799,9 @@ async def purge_case_copies(db: AsyncSession, revision_ids: list[UUID]) -> int:
     the question's details as arguments, so the answer and calls of every
     attempt go, and every score's copy of the answer with the parts of its
     results that can repeat it - and, through :func:`forget_runs`, what the
-    agent's and the judge's runs kept of the question. The outcome stays:
-    whether the case passed is the organization's.
+    agent's and the judge's runs kept of the question. A knowledge gap read from
+    an answer holds the question, and its verdict a model's words on the answer,
+    so both go too. The outcome stays: whether the case passed is the organization's.
 
     Returns:
         How many attempts and scores were cleared.
@@ -811,6 +814,18 @@ async def purge_case_copies(db: AsyncSession, revision_ids: list[UUID]) -> int:
         )
     )
     runs = {run_id for run_id in answered.scalars() if run_id is not None}
+    await db.execute(
+        sa_delete(KnowledgeSearch).where(
+            KnowledgeSearch.run_id.in_(runs),
+            KnowledgeSearch.message_id.is_(None),
+            KnowledgeSearch.signal != GapSignal.RETRIEVAL.value,
+        )
+    )
+    await db.execute(
+        sa_delete(KnowledgeGapEvalClassification).where(
+            KnowledgeGapEvalClassification.run_id.in_(runs)
+        )
+    )
     attempts = await db.execute(
         update(EvalRunCase)
         .where(EvalRunCase.case_revision_id.in_(revision_ids))

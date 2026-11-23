@@ -1,5 +1,5 @@
 ---
-source_sha: "c428b004a390"
+source_sha: "d4710a3108db"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -83,8 +83,8 @@ valora nadie. Un run cuya búsqueda ya falló también se lee, para que un recha
 justificado saque su fallo de las lagunas; si no, sigue contando una vez, como
 ese fallo.
 
-Los runs por la API HTTP no guardan respuesta, y los runs de eval, cuyas
-preguntas se reproducen o se generan, nunca se leen. Tampoco las pruebas de un borrador en el
+Los runs por la API HTTP no guardan respuesta, y ninguna revisión lee los runs
+de eval, cuyas preguntas se reproducen o se generan. Tampoco las pruebas de un borrador en el
 builder, los runs delegados ni los runs cuyo autor ya no tiene cuenta.
 
 Una revisión pertenece a una base de conocimiento: lo que encuentra es una
@@ -112,13 +112,23 @@ clasifica cada una según sus veredictos: falta conocimiento si a una base de
 conocimiento le faltaba contenido, nada que corregir si el agent se negó con
 razón, y fallo del agent en los demás casos.
 
-Las que les falta conocimiento salen de lo que lee el asistente de autoría, y
-sus fallos se agrupan en temas en el acto, antes de que la sesión se detenga en
+Una sesión que aprende de evals clasifica también las respuestas fallidas a sus
+preguntas de entrenamiento: la pregunta del caso y la respuesta que registró el
+eval. Sus veredictos se guardan por el run que respondió, porque una respuesta de
+eval no tiene mensaje. Una en la que el agent no lo sabía se convierte en una
+pregunta de los temas de la base de conocimiento como una respuesta de chat, así
+que un dato que ningún documento contiene se enumera para que una persona lo
+añada, en lugar de dejarlo a una instrucción que no puede aportarlo. Un caso
+reservado nunca se lee.
+
+Las respuestas de chat a las que les falta conocimiento salen de lo que lee el
+asistente de autoría. Una respuesta de entrenamiento se queda: se califica con
+varios criterios, y la falta de conocimiento puede explicar solo algunos. Los
+fallos se agrupan en temas en el acto, antes de que la sesión se detenga en
 **Understand** para que una persona los vea. La sesión no redacta ninguno: enumera
 los temas que faltan en la base de conocimiento, y una persona redacta los que
 quiera, como se explica [más abajo](#drafting-the-missing-content). Nada se
-redacta si una persona no lo pide, dentro o fuera de una sesión. Los runs de un
-eval nunca se leen, así que tampoco ningún caso reservado.
+redacta si una persona no lo pide, dentro o fuera de una sesión.
 
 ## Temas { #topics }
 
@@ -129,6 +139,11 @@ y coloca cada uno en el tema más cercano de esa base de conocimiento, o abre un
 nuevo. Una pasada procesa como mucho 500 fallos por base de conocimiento; el
 resto espera a la siguiente. Una base de conocimiento sin fallos nuevos no
 cuesta ninguna llamada de embeddings.
+
+Una pregunta leída de una respuesta se agrupa en cambio por lo que el
+clasificador nombró como ausente, en pocas palabras - "Lead times by product" -,
+así que las preguntas de distintas personas sobre un mismo asunto comparten tema,
+y el tema lleva el nombre del asunto en lugar de su primera pregunta.
 
 Un fallo entra en el tema más cercano solo si se le parece al menos tanto como
 `KNOWLEDGE_GAP_TOPIC_SIMILARITY`; si no, abre uno nuevo.
@@ -168,13 +183,17 @@ un departamento ve las lagunas de las bases de conocimiento compartidas con
 
 Un tema muestra cuántas veces se preguntó y cuántas personas lo preguntaron,
 cuándo fue la última vez, qué agents lo preguntaron y hasta tres de sus
-preguntas. Quienes preguntaron por un canal cuentan por su cuenta de chat;
+preguntas. Las preguntas de prueba que respondió un eval se cuentan aparte: nadie
+las hizo. Quienes preguntaron por un canal cuentan por su cuenta de chat;
 todos los que preguntaron de forma anónima, a través de un widget o sin una
 persona detrás del run, cuentan como una. Ábrelo para ver las preguntas más
 recientes: qué preguntó la persona, qué buscó el agent, lo cerca que estaba el
 fragmento más cercano y el comentario de quien valoró negativamente la
-respuesta. Una pregunta leída de una respuesta dice si el agent no lo sabía o si
-un lector escribió que faltaba información.
+respuesta.
+
+Una pregunta leída de una respuesta dice si el agent no lo sabía o si
+un lector escribió que faltaba información; una leída de la respuesta de un eval
+es la pregunta del caso del dataset, marcada como pregunta de prueba.
 
 ## Qué hacer con una laguna { #acting-on-a-gap }
 
@@ -328,7 +347,9 @@ lo añadió o una persona cuya pregunta le dio forma: alguien revisó y confirm�
 que dice.
 
 Una pregunta leída de una respuesta se guarda igual que una búsqueda: contiene
-la pregunta de la persona y se va con su run y su conversación. Revisar
+la pregunta de la persona y se va con su run y su conversación. Una leída de una
+respuesta de eval contiene la pregunta del caso y se va, con su veredicto, cuando
+se borran las copias del caso en los resultados de eval. Revisar
 respuestas envía preguntas, respuestas y comentarios de valoraciones negativas
 al proveedor del modelo del clasificador.
 

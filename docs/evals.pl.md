@@ -1,5 +1,5 @@
 ---
-source_sha: "5dd4c3bfb09e"
+source_sha: "ce67e57114b5"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -144,21 +144,32 @@ przypadek, gdy dataset wymaga oceniania modelem.
 
 Szacunek uwzględnia ocenianie modelem zawsze, gdy wymaga go dataset, według modelu wybranego w Ocenianiu. Nie wyłącza go przełącznik organizacji.
 
-Agent bez historii na danym modelu jest szacowany jako typowy przypadek -
-`EVAL_FALLBACK_INPUT_TOKENS` na wejściu, `EVAL_FALLBACK_OUTPUT_TOKENS` na
+Agent bez historii na danym modelu jest szacowany jako typowe żądania - każde
+`EVAL_FALLBACK_INPUT_TOKENS` na wejściu i `EVAL_FALLBACK_OUTPUT_TOKENS` na
 wyjściu - według ceny samego modelu, albo na `EVAL_FALLBACK_CASE_COST_USD` dla
 modelu, którego ceny nic nie zna, a szacunek mówi, że to zgrubne zgadywanie
-(`basis: "fallback"`). Sędzia bez historii jest wyceniany tak samo, na modelu,
-który wskazuje jego opublikowany spec; szacunek ostrzega, gdy to model, który
-jest testowany, a strona runa - gdy nim był. Koszt baseline'u wchodzi do sumy,
+(`basis: "fallback"`). Odpowiedź to jedno żądanie albo
+`1 + EVAL_FALLBACK_TOOL_ROUNDS`, gdy agent ma narzędzie: każde wywołanie
+narzędzia dostaje odpowiedź w kolejnym żądaniu.
+
+Sędzia bez historii jest wyceniany jako jedno żądanie, które czyta też ocenianą
+odpowiedź, na modelu, który wskazuje jego opublikowany spec; szacunek ostrzega,
+gdy to model, który jest testowany, a strona runa - gdy nim był. Koszt baseline'u wchodzi do sumy,
 chyba że użyty zostanie niedawny pasujący baseline - wtedy jego pierwsze
 odpowiedzi nic nie kosztują, a szacunek wskazuje run, z którego pochodzą.
 
 ### Budżet, który zostaje { #the-budget-it-leaves }
 
 Ewaluacja korzysta z istniejących miesięcznych budżetów agenta i organizacji.
-Szacunek pokazuje kwoty pozostające po pełnym przewidywanym wydatku jako
-`agent_after_usd` i `org_after_usd`. Start zwraca `402`, gdy pierwszy przebieg
+`total_usd` to pierwsze odpowiedzi i ich ocena, a `expected_usd` - ile run
+najpewniej kosztuje: tyle, plus połowa `rerun_ceiling_usd` dla runa
+porównywanego z baseline'em, bo taki run zwykle zadaje ponownie około połowy
+przypadków, które może. Run stabilności zadaje ponownie każdy przypadek, a run
+bez punktu odniesienia żadnego. Okno startu pokazuje `expected_usd`, a pod nim
+najwyższy możliwy koszt, a strona runa - ile wydał wobec obu kwot.
+
+Szacunek pokazuje kwoty pozostające w budżetach po pełnym przewidywanym wydatku
+jako `agent_after_usd` i `org_after_usd`. Start zwraca `402`, gdy pierwszy przebieg
 wraz z `rerun_ceiling_usd` przekracza którykolwiek budżet. Limit powtórek obejmuje
 zmianę wyniku każdego przypadku, wszystkie próby potwierdzające, sędziego i
 powtórzenia baseline'u, także użytego ponownie. Rzeczywisty koszt może się różnić.
@@ -484,9 +495,10 @@ rozstrzyga i nie wysyła niczego do ponownego zadania. Poza przypadkami, któryc
 wynik się odwrócił, tylko te przypadki są powtarzane.
 
 Run, który odkłada pytania dla sesji Improve, jest oceniany tylko na nich, więc
-jego odłożone przypadki rozstrzygają swoje rodziny osobno od reszty. Rodzina
-rozstrzygnięta w całym runie jest nadal powtarzana na odłożonych przypadkach,
-gdy one same jej nie rozstrzygają.
+powtarzane są tylko jego odłożone przypadki, a rodziny rozstrzygają się na nich.
+Jego przypadki treningowe nigdy nie są zadawane ponownie: następna próba czyta
+ich pierwsze odpowiedzi, a powtórek nic nie czyta. Jego limit powtórek liczy
+tylko odłożone przypadki.
 
 Werdykt poniżej dotyczy nadal całych
 przypadków; [sesja Improve](authoring.md#the-improve-wizard) i
@@ -724,8 +736,9 @@ włączył. Slack nie jest jeszcze kanałem powiadomień.
 | `EVAL_BASELINE_CACHE_HOURS` | `24` | Jak stary może być pasujący baseline, żeby nadal go użyć |
 | `EVAL_SIGNIFICANCE` | `0.05` | Poziom, poniżej którego potwierdzone odwrócenia są werdyktem |
 | `EVAL_EFFICIENCY_TOLERANCE` | `0.05` | Względna zmiana kosztu, tokenów lub latencji liczona jako brak zmiany |
-| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | Tokeny wejściowe, według których wyceniany jest przypadek na modelu bez historii |
-| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Tokeny wyjściowe, według których wyceniany jest przypadek na modelu bez historii |
+| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | Tokeny wejściowe, według których wyceniane jest żądanie na modelu bez historii |
+| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Tokeny wyjściowe, według których wyceniane jest żądanie na modelu bez historii |
+| `EVAL_FALLBACK_TOOL_ROUNDS` | `2` | Ile żądań ponad jedno zajmuje odpowiedź agenta z narzędziami na modelu bez historii |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | Szacunek na przypadek na modelu bez historii i bez znanej ceny |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Ile ostatnich runów uśrednia szacunek |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | Jak długo działający run może stać przy milczącym workerze, zanim sweep zakończy go błędem |

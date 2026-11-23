@@ -113,6 +113,8 @@ export interface EvalRunEstimate {
   judge_model_profile_id: string | null;
   total_usd: string;
   rerun_ceiling_usd: string;
+  /** What the run most likely costs: its first answers and the reruns a compared run usually asks. */
+  expected_usd: string;
   agent_remaining_usd: string | null;
   org_remaining_usd: string | null;
   agent_after_usd: string | null;
@@ -219,6 +221,8 @@ export interface EvalRun {
   estimate_usd: string;
   /** What confirming reruns may add on top of the estimate. */
   rerun_ceiling_usd: string;
+  /** What the run was expected to cost: the estimate and the reruns a compared run usually asks. */
+  expected_usd: string;
   cost_usd: string;
   cost_is_partial: boolean;
   attempts_done: number;

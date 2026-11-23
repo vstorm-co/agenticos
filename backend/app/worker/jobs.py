@@ -306,14 +306,16 @@ class ClassifyGaps(Payload):
     """Answers read for the knowledge gaps of these knowledge bases, as the person who asked.
 
     Without `message_ids`, a knowledge base's newest unread answers, as its
-    Knowledge gaps tab asks; with them, those answers alone, as an improvement
-    session sorts the answers it found bad.
+    Knowledge gaps tab asks; with them, and with `eval_run_ids`, those answers
+    alone, as an improvement session sorts the answers it found bad.
     """
 
     organization_id: UUID
     knowledge_base_ids: list[UUID] = Field(max_length=50)
     user_id: UUID
     message_ids: list[UUID] | None = Field(default=None, max_length=500)
+    eval_run_ids: list[UUID] | None = Field(default=None, max_length=500)
+    """A session's failed training answers from evals, by the run that gave each."""
     improvement_run_id: UUID | None = None
 
 

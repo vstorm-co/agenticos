@@ -206,10 +206,10 @@ export function VerdictHeader({
             : t("runMeta", {
                 date: formatDateTime(run.created_at, locale),
                 cost: usd(run.cost_usd, locale),
-                estimate: usd(run.estimate_usd, locale),
+                estimate: usd(run.expected_usd, locale),
                 ceiling:
                   compares && Number(run.rerun_ceiling_usd) > 0
-                    ? usd(run.rerun_ceiling_usd, locale)
+                    ? usd(String(Number(run.estimate_usd) + Number(run.rerun_ceiling_usd)), locale)
                     : "none",
               })}
         </p>
