@@ -23,6 +23,7 @@ const actions = vi.hoisted(() => ({
   deferTopic: { mutateAsync: vi.fn(), isPending: false },
   estimateAttribution: { mutateAsync: vi.fn(), isPending: false },
   attribute: { mutateAsync: vi.fn(), isPending: false },
+  chooseVariant: { mutateAsync: vi.fn(), isPending: false },
 }));
 const state = vi.hoisted(() => ({
   comparison: null as EvalComparison | null,
@@ -203,6 +204,64 @@ it("says an attempt that did not do better finished, and what under a cent cost"
   const line = screen.getByRole("region", { name: "Session" });
   expect(within(line).getByRole("status")).toHaveTextContent("Finished an attempt");
   expect(line).toHaveTextContent("$0.0037 of $0.85");
+});
+
+it("shows a running search's progress at Changes, and why an ended one found nothing", () => {
+  const search = {
+    budget_usd: "3",
+    cost_usd: "0.5",
+    grading_model_profile_id: null,
+    max_variants: 40,
+    per_generation: 4,
+    patience: 3,
+    questions: 12,
+    generation: 1,
+    tried: 3,
+    pending: 2,
+    seed_score: 0.5,
+    best_score: 0.5,
+    stop_reason: null,
+    chosen_variant_id: null,
+    top: [],
+  };
+  Object.assign(state.session!, {
+    status: "running",
+    stage: "searching",
+    mode: "search",
+    best_iteration_id: null,
+    iterations: [
+      {
+        ...state.session!.iterations[0],
+        batch_id: null,
+        eval_run_ids: [],
+        verdict: null,
+        variant_search: search,
+      },
+    ],
+  });
+  const { unmount } = render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByText(/Searching for better instructions/)).toBeInTheDocument();
+  expect(screen.getByText(/3 of up to 40 variants tried/)).toBeInTheDocument();
+  unmount();
+
+  Object.assign(state.session!, {
+    status: "stopped",
+    stop_reason: "no_variant",
+    iterations: [
+      { ...state.session!.iterations[0], variant_search: { ...search, stop_reason: "patience" } },
+    ],
+  });
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(
+    screen.getByText(
+      /The search found no variant that did better than the current instructions on the training questions\./,
+    ),
+  ).toBeInTheDocument();
+  // Changes is skipped without a candidate, so what the search tried stays on Result.
+  expect(
+    screen.getByText("The search stopped after rounds that found nothing better."),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/3 of up to 40 variants tried/)).toBeInTheDocument();
 });
 
 it("blocks finishing when a selected new skill requires missing access", async () => {
