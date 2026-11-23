@@ -73,8 +73,10 @@ async def blockers(
     else:
         try:
             policy = read_policy(trigger.approved_sources)
-            await RoutineSourceService(db).current(creator, trigger, expected_id=policy.id)
+            # A stale review still says how the routine is reviewed: re-reviewing a
+            # following routine does not make standing consent apply to it.
             following = policy.mode == "follow_agent"
+            await RoutineSourceService(db).current(creator, trigger, expected_id=policy.id)
         except PlatformRoutineIdentityRequired:
             found.append(RoutineBlocker(code="platform_identity", severity="blocked"))
         except AuthorizationError, NotFoundError, BadRequestError:

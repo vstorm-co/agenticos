@@ -256,6 +256,16 @@ async def test_a_following_review_leaves_consent_to_the_agents_own_gate(
     engine.actions.review.assert_not_awaited()
 
 
+async def test_a_stale_following_review_asks_for_the_review_and_counts_no_consent(
+    engine: MagicMock,
+) -> None:
+    """Publishing a new prompt makes a following review stale; its actions stay the agent's."""
+    engine.sources.current.side_effect = AuthorizationError(message="stale")
+    trigger = _trigger(approved_sources=_policy("follow_agent").model_dump(mode="json"))
+    assert await _codes(trigger) == ["sources_review"]
+    engine.actions.review.assert_not_awaited()
+
+
 def _service() -> AgentTriggerService:
     service = AgentTriggerService(MagicMock())
     service.agents = MagicMock(get=AsyncMock(return_value=MagicMock(id=uuid.uuid4())))
