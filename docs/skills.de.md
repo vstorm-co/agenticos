@@ -1,5 +1,5 @@
 ---
-source_sha: "54b551bbe389"
+source_sha: "cbdc4136f927"
 ---
 
 # Skills { #skills }
@@ -305,7 +305,11 @@ positiv bewertet haben. Aus jüngsten Antworten angelegt, wird jede Frage einmal
 gestellt: Eine Antwort, die jemand bewertet hat, gewinnt gegen eine, die nur
 fehlschlug, so verlangt eine Frage nie eine Antwort und verbietet sie zugleich.
 
-Dann die eigenen Fragen des Agents:
+Dann die eigenen Fragen des Agents, aus dem Dataset, auf dem seine neueste
+[Improve-Sitzung](authoring.md#the-improve-wizard) misst, wenn dieses Dataset ihn
+testet, und sonst aus dem ersten Dataset, das ihn testet. Ein Satz, der für eine
+abschließende Messung zurückgehalten wird, wird so nie von einer Skill-Prüfung
+gefragt, während sich der Agent auf einem anderen verbessert.
 
 - **Quick**, der Standard: vier Fragen aus dem Dataset des Agents - mehr, wenn die
   eigenen Held-out-Fragen des Skills für die fünf, die ein Ergebnis braucht, nicht
@@ -350,13 +354,19 @@ andere Fragen hinzuzufügen sind.
   Kriterien**; einer mit einem als schlechter bestätigten Kriterium ist
   **schlechter bei Kriterien**. Keines davon ändert die Regel oben, die ganze
   Fragen betrifft: Im Balken zählen sie zu den besseren und den schlechteren
-  Agents, und die Details des Agents nennen jedes Kriterium mit seinen Treffern
-  vorher und nachher.
+  Agents, und die Details des Agents nennen jede
+  [Familie](evals.md#a-flip-is-confirmed-before-it-counts) von Kriterien mit
+  ihren Treffern vorher und nachher - die Prüfung einer Sache in jedem Fall in
+  einer Zeile - oder jedes Kriterium, für einen Agent, der geprüft wurde, bevor
+  Familien gespeichert wurden.
 - Ein Agent, der nicht geprüft werden konnte - keine Fragen, Fragen, die nichts
   bewerten kann oder die alle aus den Unterhaltungen der Änderung selbst stammen,
   kein Zugriff, kein Budget mehr, keine veröffentlichte Version, ein
   fehlgeschlagener Run, eine angehaltene Prüfung - ist **unbekannt**, und eine
-  Person bestätigt das vor dem Anwenden.
+  Person bestätigt das vor dem Anwenden. Ebenso einer, dessen Runs jede Antwort
+  auf weniger zurückgelegten Fragen bewertet haben, als ein Ergebnis braucht:
+  Seine Zeile sagt, wie viele besser und schlechter ausfielen und dass es zu
+  wenige sind, um sicher zu sein.
 
 Eine Prüfung, in der kein Agent geprüft werden kann, startet trotzdem und endet
 sofort, mit jedem Agent unbekannt, damit eine Person das bestätigt. Der Dialog sagt das vor dem Start und bietet die Testfragen des Skills an oder die Bewertung, die seinen Fragen fehlt.
@@ -916,6 +926,13 @@ Linie - main oder den in den Chips gewählten Fork - in denselben fünf Schritte
 das [Verbessern eines Agents](authoring.md#the-improve-wizard): Verstehen, Änderungen, Prüfung,
 Ergebnis und Annehmen. Sie hält nach Verstehen, nach Änderungen und beim Ergebnis
 für Sie an und ändert nichts, bevor Sie annehmen.
+
+Eine Sitzung, die aus dem Improve eines Agents geöffnet wird, beginnt mit den
+Problemen, die diese Sitzung gemeldet hat. Nur ein Problem, das eine Zeile des
+Skills mit dem falschen Wert oder der falschen Regel zitiert, nimmt die
+Kriterien des Agents mit; schweigt der Skill nur, ist das Problem ein Rat, und
+der Agent bleibt an diese Kriterien gebunden - siehe [Wenn der Fehler in einem
+Skill liegt](authoring.md#when-the-fault-is-in-a-skill).
 
 Der Start sagt, wie viele negativ bewertete oder fehlgeschlagene Antworten sie liest
 und wie vielen Agents die Linie dient. Er nennt

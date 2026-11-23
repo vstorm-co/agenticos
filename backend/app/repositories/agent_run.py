@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import (
     BigInteger,
@@ -49,12 +49,18 @@ from app.db.models.agent_run import (
 )
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.case_generation import CaseGeneration
+from app.db.models.case_key_draft import CaseKeyDraft
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation, Message
 from app.db.models.group import Group, GroupMember
 from app.db.models.intercepted_tool_call import InterceptedToolCall
-from app.db.models.knowledge_gap import KnowledgeGapClassification, KnowledgeGapTopic
+from app.db.models.key_coverage_report import KeyCoverageReport
+from app.db.models.knowledge_gap import (
+    KnowledgeGapClassification,
+    KnowledgeGapEvalClassification,
+    KnowledgeGapTopic,
+)
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.system_agent_profile import DAILY_BRIEFING
@@ -95,8 +101,10 @@ async def create_run(
     routine_kind: str = "trigger",
     routine_policy: dict[str, object] | None = None,
     routine_activation_at: datetime | None = None,
+    run_id: UUID | None = None,
 ) -> AgentRun:
     run = AgentRun(
+        id=run_id or uuid4(),
         trigger_id=trigger_id,
         routine_origin_id=routine_origin_id or trigger_id,
         routine_kind=routine_kind,
@@ -352,10 +360,15 @@ async def record_delegated_run(
     return run
 
 
-async def get_run(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> AgentRun | None:
-    result = await db.execute(
-        select(AgentRun).where(AgentRun.id == run_id, AgentRun.organization_id == organization_id)
+async def get_run(
+    db: AsyncSession, run_id: UUID, *, organization_id: UUID, for_update: bool = False
+) -> AgentRun | None:
+    statement = select(AgentRun).where(
+        AgentRun.id == run_id, AgentRun.organization_id == organization_id
     )
+    if for_update:
+        statement = statement.with_for_update().execution_options(populate_existing=True)
+    result = await db.execute(statement)
     return result.scalar_one_or_none()
 
 
@@ -553,11 +566,9 @@ class RunFilters:
             queue this platform has - the answers real people said were wrong -
             and until `messages.run_id` existed there was no way to ask a run
             whether it earned one.
-        conversation_id: The thread the run ran inside. What lets a trigger's own
-            runs be listed: every fire of one trigger appends to a single run-log
-            conversation, so the conversation *is* the trigger's identity in the
-            run history - and reading them as runs rather than as a transcript is
-            what gives each fire a status and a link to its own detail.
+        conversation_id: The thread the run ran inside.
+        trigger_id: One scheduled/event routine, across independent execution
+            chats and legacy shared history, including its admission-time origin.
         model_label: The model as the run itself recorded it. Compared as the
             stored string rather than resolved through the catalog: the column
             is what a run answered with, a profile it came from may since have
@@ -585,6 +596,7 @@ class RunFilters:
     exclude_surface: str | None = None
     user_id: UUID | None = None
     conversation_id: UUID | None = None
+    trigger_id: UUID | None = None
     model_label: str | None = None
     started_from: datetime | None = None
     started_to: datetime | None = None
@@ -614,6 +626,16 @@ class RunFilters:
             clauses.append(AgentRun.user_id == self.user_id)
         if self.conversation_id is not None:
             clauses.append(AgentRun.conversation_id == self.conversation_id)
+        if self.trigger_id is not None:
+            clauses.append(
+                or_(
+                    AgentRun.trigger_id == self.trigger_id,
+                    and_(
+                        AgentRun.routine_kind == "trigger",
+                        AgentRun.routine_origin_id == self.trigger_id,
+                    ),
+                )
+            )
         if self.model_label is not None:
             clauses.append(AgentRun.model_label == self.model_label)
         if self.started_from is not None:
@@ -909,6 +931,19 @@ async def run_origins(
     )
     for run_id, knowledge_base_id in classified.all():
         found[run_id] = replace(found[run_id], knowledge_base_id=knowledge_base_id)
+    classified_evals = await db.execute(
+        select(
+            type_coerce(KnowledgeGapEvalClassification.classifier_run_id, run_id_of),
+            KnowledgeGapEvalClassification.knowledge_base_id,
+        )
+        .where(
+            KnowledgeGapEvalClassification.organization_id == organization_id,
+            KnowledgeGapEvalClassification.classifier_run_id.in_(ids),
+        )
+        .distinct()
+    )
+    for run_id, knowledge_base_id in classified_evals.all():
+        found[run_id] = replace(found[run_id], knowledge_base_id=knowledge_base_id)
     generations = await db.execute(
         select(type_coerce(CaseGeneration.run_id, run_id_of), CaseGeneration.dataset_id).where(
             CaseGeneration.organization_id == organization_id,
@@ -916,6 +951,24 @@ async def run_origins(
         )
     )
     for run_id, dataset_id in generations.all():
+        found[run_id] = replace(found[run_id], dataset_id=dataset_id)
+    drafts = await db.execute(
+        select(type_coerce(CaseKeyDraft.run_id, run_id_of), CaseKeyDraft.dataset_id).where(
+            CaseKeyDraft.organization_id == organization_id,
+            CaseKeyDraft.run_id.in_(ids),
+        )
+    )
+    for run_id, dataset_id in drafts.all():
+        found[run_id] = replace(found[run_id], dataset_id=dataset_id)
+    reports = await db.execute(
+        select(
+            type_coerce(KeyCoverageReport.run_id, run_id_of), KeyCoverageReport.dataset_id
+        ).where(
+            KeyCoverageReport.organization_id == organization_id,
+            KeyCoverageReport.run_id.in_(ids),
+        )
+    )
+    for run_id, dataset_id in reports.all():
         found[run_id] = replace(found[run_id], dataset_id=dataset_id)
     return found
 

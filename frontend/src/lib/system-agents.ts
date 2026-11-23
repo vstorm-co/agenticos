@@ -12,6 +12,8 @@ export const SYSTEM_AGENT_KINDS: readonly SystemAgentKind[] = [
   "generator",
   "classifier",
   "improver",
+  "extractor",
+  "coverage",
 ];
 
 /** Whether only the platform runs an agent of this kind; an unknown kind is an ordinary agent. */
@@ -98,17 +100,6 @@ export const SYSTEM_AGENT_SEARCH_STEPS = 3;
 
 /** The most `max_steps` a system agent's publish accepts: each is paid for on every answer it reads. */
 export const SYSTEM_AGENT_MAX_STEPS = 5;
-
-/**
- * The kinds whose answer is a verdict - a judge's grade, a classifier's label -
- * which the same input should get every time it is asked.
- */
-export type VerdictKind = Extract<SystemAgentKind, "judge" | "classifier">;
-
-/** The verdict an agent of this kind gives, or undefined for one that drafts rather than decides. */
-export function verdictKind(kind: AgentKind | undefined): VerdictKind | undefined {
-  return kind === "judge" || kind === "classifier" ? kind : undefined;
-}
 
 /**
  * `spec` without what saving a system agent's draft refuses.

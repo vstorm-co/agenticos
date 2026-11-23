@@ -32,8 +32,6 @@ export interface DatasetQuery {
   limit?: number;
   /** Only the datasets the caller may change, by role or by a grant. */
   editable?: boolean;
-  /** Only the datasets this judge grades. */
-  judge?: string;
   /** Only the datasets whose newest version has a case asking this run's question. */
   asksRun?: string;
   /** Only the datasets made to test this agent: its test set. */
@@ -62,7 +60,6 @@ export function useDatasets({
   skip = 0,
   limit = PAGE_SIZE,
   editable = false,
-  judge = "",
   asksRun = "",
   agent = "",
   enabled = true,
@@ -72,12 +69,11 @@ export function useDatasets({
   const queryClient = useQueryClient();
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: qk.datasets.list({ search, sort, skip, limit, editable, judge, asksRun, agent }),
+    queryKey: qk.datasets.list({ search, sort, skip, limit, editable, asksRun, agent }),
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
       if (editable) params.set("editable", "true");
-      if (judge) params.set("judge", judge);
       if (asksRun) params.set("asks_run", asksRun);
       if (agent) params.set("agent", agent);
       params.set("sort", sort);

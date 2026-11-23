@@ -31,6 +31,7 @@ import type {
 } from "@/types/providers";
 export interface NewModelProfile {
   custom_pricing?: TokenPricing | null;
+  params?: Record<string, unknown>;
   label: string;
   provider: string;
   model: string;
@@ -65,6 +66,7 @@ export interface NewModelProfile {
  */
 export interface ModelProfileChanges {
   custom_pricing?: TokenPricing | null;
+  params?: Record<string, unknown>;
   secret_id?: string | null;
   base_url?: string | null;
   api?: ModelApi | null;

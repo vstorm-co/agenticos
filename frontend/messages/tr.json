@@ -2648,7 +2648,9 @@
       "newWatch": "İzle ve bildir",
       "newRoutine": "Yeni rutin",
       "scheduledTask": "Zamanlamaya göre çalıştır",
-      "eventTask": "Bir olay geldiğinde çalıştır"
+      "eventTask": "Bir olay geldiğinde çalıştır",
+      "watchNeedsEnabling": "Organizasyon ayarlarından izlemeyi etkinleştirin.",
+      "watchNeedsConnection": "Önce Bağlantılar bölümünde bir MCP hesabı bağlayın."
     },
     "signIns": {
       "cancel": "İptal",
@@ -6199,6 +6201,11 @@
     }
   },
   "agents": {
+    "profileDefaults": "Model varsayılanları",
+    "profileDefaultsHint": "Bu ayarlar, kaydedilen modelin kullanıldığı her yerde geçerlidir. Tek tek ajanlar bunları değiştirebilir. Desteklenmeyen parametreleri sağlayıcının varsayılanlarında bırakın.",
+    "profileThinkingOn": "Açık · sağlayıcı seviyesi",
+    "profileThinkingOff": "Kapalı",
+    "profileCustomThinking": "Kaydedilmiş özel ayar",
     "buildSummary": {
       "variables": "{count, plural, =0 {Sistem değişkenleri} other {Sistem değişkenleri ve # özel değişken}}",
       "voice": "Aramalar {calls, select, on {açık} other {kapalı}} · Dikte {dictation, select, on {açık} other {kapalı}}",
@@ -10441,7 +10448,9 @@
     },
     "questions": {},
     "queuedPaused": "Kuyruk duraklatıldı",
-    "resumeQueue": "Kuyruğu sürdür"
+    "resumeQueue": "Kuyruğu sürdür",
+    "routineHistoryReadOnly": "Bu rutin geçmişi salt okunurdur. Yeni bir sohbette devam etmek için yanıtı dallandır.",
+    "routineContinueChat": "Yeni sohbette devam et"
   },
   "admin": {
     "actions": "Eylemler",
@@ -11017,7 +11026,6 @@
   },
   "triggers": {
     "setupReviewTitle": "Rutinin erişimini inceleyin",
-    "setupReviewDescription": "Rutin kaydedildi ve duraklatıldı. Kaynakları inceleyin ve sormadan çalışabilecek eylemleri seçin. Etkinleştirmek için kaydedin veya duraklatılmış bırakıp daha sonra tamamlayın.",
     "enableRoutine": "Rutini etkinleştir",
     "finishLater": "Daha sonra tamamla",
     "stopWaitingRun": "Bekleyen çalıştırmayı durdur",
@@ -11139,10 +11147,6 @@
     "weekdayFri": "Cum",
     "weekdaySat": "Cmt",
     "weekdaySun": "Paz",
-    "summaryDaily": "Her gün {time} ({zone}) saatinde çalışır.",
-    "summaryEveryNDays": "Kaydedildiği andan itibaren {count, plural, =1 {her gün} other {# günde bir}} çalışır.",
-    "summaryWeekly": "{days} günlerinde {time} ({zone}) saatinde çalışır.",
-    "summaryMonthly": "Her ayın {day}. günü {time} ({zone}) saatinde çalışır.",
     "eventSource": "Şu olayda çalışır",
     "sourceGithub": "Bir GitHub issue’su",
     "webhookUrlPreview": "İstek URL’si",
@@ -11276,7 +11280,6 @@
     "choiceWeekly": "Haftalık",
     "choiceCustom": "Özel",
     "moreOptions": "Daha fazla seçenek",
-    "summaryInterval": "Kaydedildiği andan itibaren {unit, select, minutes {{count, plural, =1 {dakikada bir} other {# dakikada bir}}} hours {{count, plural, =1 {saatte bir} other {# saatte bir}}} other {{count, plural, =1 {günde bir} other {# günde bir}}}} çalışır.",
     "templatesMore": "{count, plural, =1 {1 tane daha göster} other {# tane daha göster}}",
     "templatesFewer": "Daha az göster",
     "local": {
@@ -11289,11 +11292,6 @@
       "pick": "Bir klasör seçin…",
       "useSandbox": "Sandbox’ı kullan"
     },
-    "resultMode": "Sonuçlar ne zaman bildirilsin",
-    "resultReport": "Tamamlanan her çalışmadan sonra",
-    "resultInbox": "Yalnızca dikkat gerektiğinde",
-    "resultReportHint": "Her çalışmadan sonra seçilen sohbete bir rapor gönderin.",
-    "resultInboxHint": "Her kaynak öğesi için bir Inbox kaydı ve çalışma sohbeti oluşturun. İstenen taslakları buraya yazın; değişmeyen kontroller sessiz kalır. Göndermek yine yetki ve onay gerektirir.",
     "clearSearch": "Aramayı temizle",
     "noRoutineMatchesHint": "Agent adı, rutin başlığı veya mesajındaki sözcüklerle arayın.",
     "actionConsents": {
@@ -11324,7 +11322,8 @@
       "groupCount": "{selected} / {total}",
       "useAgent": "Agent ayarlarını kullan",
       "useAgentHint": "Bu agent'ın sohbette zaten sormadan çalıştırdığı eylemleri tam olarak seçer ve mevcut seçimin yerine koyar. Buradaki onay yalnızca agent ayarlarının izin verdiğini daraltabilir, asla genişletmez: agent'ın önce sorduğu bir eylem sunulmaz. Onayı kaydet seçilene kadar hiçbir şey kaydedilmez.",
-      "allowHeading": "Bu eylemlerin onay istemeden çalışmasına izin ver"
+      "allowHeading": "Bu eylemlerin onay istemeden çalışmasına izin ver",
+      "alwaysAsks": "Her zaman sorar: ajan veya platform gerektirir"
     },
     "sourceConsents": {
       "title": "Kaynaklar",
@@ -11344,11 +11343,28 @@
       "runsAsYou": "Sizin adınıza çalışır. İzinleriniz ve zorunlu onaylar geçerli kalır.",
       "agentIdentity": "Ajanın kendi erişimini kullanır. Kişisel hesap erişimi kapalıdır.",
       "requiredUnavailable": "Gerekli kaynaklar kullanılamıyor: {names}. Bu rutini kaydetmeden veya etkinleştirmeden önce erişimi geri yükleyin.",
-      "followApprovals": "Bu rutin için onaylanan erişim ve davranış sınırları içinde ajanın onay kurallarını kullanır. Sonraki genişletmeler veya davranış değişiklikleri oluşturan kişi tarafından incelenmelidir; zorunlu onaylar geçerli kalır. Rutine özel onaylar için İncelenen kaynaklar seçeneğini kullanın.",
       "kind": "{kind, select, capability {Capabilities} skill {Skill'ler} context {Bağlam dosyaları} knowledge {Bilgi tabanları} table {Tablolar} delegate {Delege agent'lar} remote_agent {Uzak agent'lar} platform {Platform} mcp_account {MCP hesapları} chat_connection {Sohbet bağlantıları} phone {Telefon} terminal_account {Terminal hesapları} terminal_credential {Terminal kimlik bilgileri} event_source {Olay kaynağı} other {Diğer}}",
       "kindCount": "{name} ({count})",
       "unnamed": "Artık kullanılamıyor"
-    }
+    },
+    "approvalMode": {
+      "label": "Araç onayları",
+      "hint": "Inbox bildirimi dahildir. Zorunlu ajan ve platform onayları geçerlidir.",
+      "automatic": "İzin verilen araçları otomatik çalıştır",
+      "manual": "İşlemlerden önce sor",
+      "custom": "Her araç için izinleri seç",
+      "existing": "Mevcut izinleri koru"
+    },
+    "chatModeLabel": "Sohbetler",
+    "chatMode": {
+      "per_run": "Her çalıştırma için yeni sohbet",
+      "shared": "Ortak geçmiş — salt okunur"
+    },
+    "chatModeHint": {
+      "per_run": "Her çalıştırmadan sonra sohbete devam et. Takip mesajları rutini değiştirmez.",
+      "shared": "Çalıştırmaları salt okunur ortak geçmişte tut. Yeni bir sohbette devam etmek için yanıtı dallandır."
+    },
+    "openExecutionChat": "Sohbeti aç"
   },
   "teams": {
     "acmeCom": "acme.com",
@@ -17035,7 +17051,35 @@
     "noLearningExamples": "Henüz öğrenilecek bir şey yok: son 30 günde okunabilir kaynak örneği bulunmuyor. Bir yanıtı değerlendirin veya test sorularını çalıştırıp inceleyin.",
     "sessionQuote": "{answers, plural, one {# seçili kaynak örneğini} other {# seçili kaynak örneğini}} sıralamak için en fazla {cost} (tahmini). Sonraki her deneme yaklaşık {minutes, plural, one {# dakika} other {# dakika}} sürer ve yaklaşık {perRound} tutar; başlamadan önce yeniden fiyatlandırılır. {limit} sınırı tüm oturum içindir.",
     "resultDecision": {
-      "criteriaBetter": "Deneme {number}, {agent} için bazı değerlendirme ölçütlerini iyileştirdi; hiçbir sorunun genel sonucu değişmedi."
+      "criteriaBetter": "Deneme {number}, {agent} için bazı değerlendirme ölçütlerini iyileştirdi; hiçbir sorunun genel sonucu değişmedi.",
+      "title": "Sonuç",
+      "better": "Güncellenen ajan {fixed} test sorusunu daha doğru yanıtladı.",
+      "published": "{version, select, unknown {Değişiklikler yayımlandı.} other {{version}. sürüm olarak yayımlandı.}}",
+      "acceptedDraft": "Ajanın taslağına kaydedildi."
+    },
+    "record": {
+      "result": "Sonuç",
+      "changes": "Değişiklikler",
+      "check": "Test soruları",
+      "attempts": "Denemeler",
+      "understand": "Analiz",
+      "accept": "Karar",
+      "back": "Kaynağa dön",
+      "spent": "Harcanan: {spent}",
+      "passRateScope": "Değerlendirmedeki tüm sorular",
+      "more": "Oturum ayrıntıları",
+      "answersPassed": "Geçen yanıtlar",
+      "answerCount": "{cases} yanıttan {passed}"
+    },
+    "newlyFixed": "İyileşen yanıtlar",
+    "newlyBroken": "Kötüleşen yanıtlar",
+    "workspace": {
+      "changes": "Neler değişti",
+      "evidence": "Yanıtlar iyileşti mi?",
+      "change": "Değişiklik {number}",
+      "exactChange": "Tam metni karşılaştır",
+      "invalid": "Test sürümleri güvenilir biçimde karşılaştıramadı. Sonuç çıkarmadan önce testi inceleyin.",
+      "noExamples": "Gösterilecek değişmiş yanıt yok. Tüm sorular için tam testi açın."
     }
   },
   "personalModelKeys": {
@@ -17122,5 +17166,105 @@
     "cache_write": "Önbellek yazma tokenları",
     "override": "Özel fiyatları kullan (milyon token başına USD)",
     "cacheDefault": "Girdi fiyatını kullanmak için boş bırakın."
+  },
+  "evals": {
+    "resultTabs": {
+      "questions": "Yanıtlar",
+      "criteria": "Kontrol edilenler",
+      "performance": "Ayrıntılar",
+      "methodology": "Nasıl ölçüldü"
+    },
+    "resultSummary": "{fixed} doğrulanmış düzeltme · {broken} doğrulanmış gerileme",
+    "resultSides": "{baseline} → {candidate}",
+    "resultReruns": "Doğrulama tekrarları ({count})",
+    "resultFailed": "Yanıtları incele ({count})",
+    "resultNoCriteria": "Bu çalışma için henüz ölçüt ailesi sonuçları yok.",
+    "plain": {
+      "label": "Test özeti",
+      "single": "{cases} yanıtın {passed} tanesi geçti",
+      "worse": "Bazı yanıtlar kötüleşti",
+      "incomplete": "Bazı yanıtlar değerlendirilemedi",
+      "improved": "Güncellenen ajan daha iyi yanıtlıyor",
+      "requirements": "Yanıtlar daha fazla gereksiniminizi karşılıyor",
+      "unchanged": "Belirgin iyileşme yok",
+      "invalid": "Sonuçlar henüz karşılaştırılamıyor",
+      "tooFew": "Sürümleri karşılaştırmak için daha fazla bağımsız test sorusu ekleyin.",
+      "cannotCompare": "Bu testler karşılaştırılamaz. Nelerin değişmesi gerektiğini test ayrıntılarında görebilirsiniz.",
+      "changes": "{fixed} yanıt iyileşti · {broken} kötüleşti",
+      "singleBody": "{failed, plural, =0 {Yanlış yanıt bulunmadı.} other {# yanıt incelenmeli.}}",
+      "undecided": "{count, plural, other {# yanıt değerlendirilemedi.}}",
+      "unstable": "Bazı yanıtlar testler arasında değişti. İyileşmeleri doğrulanmadı.",
+      "details": "Test ayrıntıları",
+      "actions": "Diğer işlemler",
+      "expectation": "Beklenen yanıt ve değerlendirme kuralları",
+      "notCompared": "Henüz karşılaştırma yok",
+      "before": "Önce",
+      "after": "Sonra",
+      "partial": "Hangi yanıtların değerlendirilebildiğini aşağıda inceleyin.",
+      "overallWorseBody": "Hiçbir yanıt tutarlı biçimde kötüleşmese de genel kalite düştü.",
+      "requirementsBody": "Daha fazla gereksinim karşılandı, ancak bütünüyle düzelen bir yanıt doğrulanmadı.",
+      "reviewChanges": "Değişiklikleri incele",
+      "passedCount": "{cases} yanıttan {passed} tanesi geçti"
+    },
+    "cases": {
+      "answerState": {
+        "passed": "Geçti",
+        "failed": "İncelenmeli",
+        "undecided": "Puanlanmadı",
+        "incomplete": "Tamamlanamadı",
+        "pending": "Bekliyor"
+      },
+      "title": "{count, plural, other {# soru}}",
+      "outcome": {
+        "all": "Tüm yanıtlar",
+        "failed": "İncelenmeli"
+      },
+      "flip": {
+        "fixed": "{confirmed, select, true {İyileşti} other {İyileşmiş olabilir}}",
+        "regression": "{confirmed, select, true {Kötüleşti} other {Kötüleşmiş olabilir}}"
+      }
+    },
+    "workspace": {
+      "details": "Test yöntemi · ölçütler, maliyet ve ayrıntılar",
+      "answers": "Yanıtları inceleyin",
+      "answersHint": "Yanıtı ve değerlendirmesini görmek için bir soru açın."
+    }
+  },
+  "knowledgeGaps": {
+    "workspace": {
+      "draft": "Önerilen belge",
+      "evidence": "Neden gerekli ({count})",
+      "unsaved": "Kaydedilmemiş değişiklikler. Yeni bir sürüm oluşturmadan önce taslağı kaydedin.",
+      "discardTitle": "Kaydedilmemiş değişiklikler silinsin mi?",
+      "discardBody": "Bu belgedeki değişiklikler kaydedilmedi.",
+      "discard": "Değişiklikleri sil",
+      "keepEditing": "Düzenlemeye devam et",
+      "add": "Bilgi tabanına ekle",
+      "target": "Hedef: {name}",
+      "read": "Belgeyi oku",
+      "edit": "Belgeyi düzenle",
+      "searchDetails": "Bu soru neden işaretlendi?"
+    },
+    "draftCreated": "Taslak oluşturuldu: {time}"
+  },
+  "skillImprovement": {
+    "agents": {
+      "state": {
+        "unknown": "Doğrulanmadı"
+      },
+      "unknown": {
+        "too_few_questions": "Değişikliği doğrulamak için yeterli test sorusu yok. Kontrol edilen soru sayısı: {heldOut}."
+      },
+      "summary": {
+        "unknown": "{count} doğrulanmadı",
+        "better": "{count} iyileşti"
+      }
+    },
+    "workspace": {
+      "title": "Bu değişiklik ajanlarınız için ne anlama geliyor?",
+      "hint": "Beceriler paylaşılır. Değişikliğin uygulanması her ajana yardımcı olduğu anlamına gelmez.",
+      "agents": "Ajanlar üzerindeki etki",
+      "skillText": "Bu oturumda test edilen beceri"
+    }
   }
 }

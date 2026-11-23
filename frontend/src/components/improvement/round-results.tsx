@@ -9,7 +9,7 @@ import { usd } from "@/components/evals/format";
 import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
 import { IncomparableResult } from "./incomparable-result";
 import { ChangedAnswers } from "./changed-answers";
-import { CriteriaTable, GAINS, criteriaOf, movedCriteria } from "./criteria";
+import { CriteriaTable, GAINS, movedCriteria, rowsOf } from "./criteria";
 import { BeforeAfter, Details, StateBadge } from "./widgets";
 import { useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { useImprovement } from "@/hooks/use-improvements";
@@ -49,7 +49,7 @@ export function RoundResults({
           noise={session.measurement_noise}
         />
       )}
-      <CriteriaTable criteria={criteriaOf(round)} />
+      <CriteriaTable criteria={rowsOf(round)} />
       <Details summary={t("showDetails")} onToggle={setDetailsOpen}>
         {latestCheck && <HowMeasured runId={latestCheck} />}
         {earlier.length > 0 && (
@@ -192,6 +192,7 @@ function MeasuredResult({
             runId={runId}
             agentId={run.agent_id}
             flips={comparison.cases.filter((c) => c.flip === "regression" || c.flip === "fixed")}
+            baselineRunId={comparison.baseline.run_id}
             baselineId={comparison.baseline.arm_id}
             candidateId={comparison.candidate.arm_id}
             attributions={attributions}
@@ -392,15 +393,18 @@ export function AttemptRow({
   session,
   round,
   extra,
+  initiallyOpen = false,
 }: {
+  initiallyOpen?: boolean;
   session: Improvement;
   round: ImprovementIteration;
   extra?: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   return (
     <NativeDisclosure
-      className="rounded-xl border"
+      className="bg-card rounded-xl border"
+      open={initiallyOpen}
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
       <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 p-3 text-sm sm:px-4">

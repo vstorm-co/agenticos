@@ -9,9 +9,11 @@ from pydantic import Field, model_validator
 
 from app.db.models.improvement import (
     DroppedHunk,
+    ImprovementMode,
     ImprovementStage,
     ImprovementStatus,
     ImprovementVerdict,
+    SearchVariantStatus,
     StopReason,
 )
 from app.schemas.authoring import EvidenceItemRead
@@ -21,6 +23,46 @@ from app.schemas.scoring import ScorerKind, ScorerStatus
 from app.schemas.skill_version import SkillBindingRead
 
 
+class SearchOptions(BaseSchema):
+    """How a search attempt tries variants of the agent's instructions.
+
+    Each variant is scored on the same training questions, never on the questions
+    the attempt is measured on; the best one then goes through Changes and the
+    usual check like any other attempt's candidate.
+    """
+
+    budget_usd: Decimal = Field(
+        gt=0,
+        max_digits=12,
+        decimal_places=6,
+        description="The most the search spends on proposing and scoring variants. A variant "
+        "starts only while its estimate fits what is left, so the search can go over by at most "
+        "the one variant it was scoring",
+    )
+    grading_model_profile_id: UUID | None = Field(
+        default=None,
+        description="The model that grades variants on training questions; null grades on the "
+        "dataset's judge model. The check after Changes always grades with the dataset's judge",
+    )
+    max_variants: int = Field(default=40, ge=2, le=100)
+    per_generation: int = Field(
+        default=4, ge=1, le=8, description="How many variants each round of proposals asks for"
+    )
+    minibatch: int = Field(
+        default=12,
+        ge=5,
+        le=50,
+        description="How many training questions every variant is scored on; all of them when "
+        "there are fewer",
+    )
+    patience: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Rounds of proposals in a row that find nothing better before the search ends",
+    )
+
+
 class ImprovementTarget(BaseSchema):
     improver_agent_id: UUID | None = None
 
@@ -28,11 +70,21 @@ class ImprovementTarget(BaseSchema):
     suite_id: UUID | None = None
     window_days: int = Field(default=30, ge=1, le=90)
     max_iterations: int = Field(default=3, ge=1, le=3)
+    mode: ImprovementMode = Field(
+        default=ImprovementMode.STEPS,
+        description="`steps` proposes one change per attempt; `search` tries many variants of "
+        "the instructions on training questions and brings the best to Changes",
+    )
+    search: SearchOptions | None = Field(
+        default=None, description="Required with the `search` mode, and refused without it"
+    )
 
     @model_validator(mode="after")
     def _one_target(self) -> ImprovementTarget:
         if (self.dataset_id is None) == (self.suite_id is None):
             raise ValueError("Choose one dataset or one suite")
+        if (self.mode == ImprovementMode.SEARCH) != (self.search is not None):
+            raise ValueError("Search options go with the search mode, and only with it")
         return self
 
 
@@ -60,6 +112,16 @@ class ImprovementEstimate(BaseSchema):
         "no copy of its evidence - counted as its analysis will count them",
     )
     evidence_runs: int
+    search_usd: Decimal = Field(
+        default=Decimal(0),
+        description="A search's own budget, counted in the total with the check of the variant "
+        "it finds",
+    )
+    train_questions: int | None = Field(
+        default=None,
+        description="How many training questions the first attempt learns from; a search needs "
+        "at least ten",
+    )
     estimated_minutes: int = Field(
         description="About how long the session takes if every round runs; an estimate only"
     )
@@ -88,6 +150,88 @@ class VerdictCriterion(BaseSchema):
     )
 
 
+class VerdictFamily(BaseSchema):
+    """One family of criteria on an attempt's held-out questions, counted case by case.
+
+    `fixed` and `broken` count the cases that hold: every flipped one when `settled`
+    by the family's own spread, else those the check confirmed by asking again.
+    """
+
+    family: str
+    criteria: int = Field(description="How many criteria are counted in it")
+    cases: int
+    before: int
+    after: int
+    fixed: int
+    broken: int
+    settled: bool
+    better: bool
+    worse: bool
+    skill_id: UUID | None = Field(
+        default=None,
+        description="Original source identity, checked even when the optional display label is absent",
+    )
+    skill: str | None = Field(
+        default=None, description="The skill the session's improver put this family down to"
+    )
+
+
+class SearchVariantRead(BaseSchema):
+    """One variant a search tried, and how it did on training questions."""
+
+    id: UUID
+    generation: int = Field(description="0 is the instructions the search started from")
+    parent_id: UUID | None
+    status: SearchVariantStatus
+    train_score: float | None = Field(
+        description="The share of required checks its answers passed on training questions - "
+        "not a verdict: only the check after Changes measures the held-out questions"
+    )
+    cases_scored: int
+    cases_passed: int
+    cost_usd: Decimal
+    rationale: str
+    instructions: str
+
+
+class VariantSearchRead(BaseSchema):
+    """Where an attempt's search is, what it spent and the best variants it found."""
+
+    budget_usd: Decimal
+    cost_usd: Decimal = Field(description="What the search itself has spent so far")
+    grading_model_profile_id: UUID | None
+    max_variants: int
+    per_generation: int
+    patience: int
+    questions: int = Field(description="The training questions every variant is scored on")
+    generation: int
+    tried: int = Field(description="Variants scored or given up on, the starting one included")
+    pending: int
+    seed_score: float | None = Field(description="The starting instructions' own score")
+    best_score: float | None
+    stop_reason: (
+        Literal["budget", "max_variants", "patience", "proposal", "questions", "no_variant"] | None
+    ) = Field(
+        description="Why the search ended: its budget, its variant limit, rounds that found "
+        "nothing better, a proposal that failed, training questions it could no longer answer, "
+        "or starting instructions that could not be graded"
+    )
+    chosen_variant_id: UUID | None = Field(
+        description="The variant whose changes the attempt brought to Changes"
+    )
+    top: list[SearchVariantRead] = Field(
+        default_factory=list,
+        description="The best variants that beat the starting instructions, best first; a "
+        "person may bring another of them to Changes",
+    )
+
+
+class SearchChoice(BaseSchema):
+    """Bring another of a search's best variants to Changes, in place of the winner."""
+
+    variant_id: UUID
+
+
 class ImprovementIterationRead(BaseSchema):
     id: UUID
     number: int
@@ -104,7 +248,9 @@ class ImprovementIterationRead(BaseSchema):
     dropped_hunk_ids: list[UUID]
     dropped: list[DroppedHunk] = Field(default_factory=list)
     verdict: ImprovementVerdict | None
-    verdict_detail: dict[str, int | float | str | list[VerdictCriterion] | None] | None
+    verdict_detail: (
+        dict[str, int | float | str | list[VerdictCriterion] | list[VerdictFamily] | None] | None
+    )
     held_out: int | None = Field(
         default=None,
         description="How many questions the attempt is measured on - kept aside, and no copy "
@@ -114,6 +260,9 @@ class ImprovementIterationRead(BaseSchema):
     cost_usd: Decimal
     started_at: datetime
     ended_at: datetime | None
+    variant_search: VariantSearchRead | None = Field(
+        default=None, description="A search attempt's progress and the variants it found"
+    )
 
 
 class ImprovementEvent(BaseSchema):
@@ -238,10 +387,11 @@ class ImprovementRead(BaseSchema):
         description="When the last two attempts changed nothing, or could not tell, another "
         "one is unlikely to help; only a hint, Try again stays available",
     )
-    next_step: Literal["propose", "check"] | None = Field(
+    next_step: Literal["propose", "search", "check"] | None = Field(
         default=None,
         description="What a person's next step starts while the session waits: a proposal "
-        "after Understand, or the check of the chosen changes after Changes",
+        "after Understand - or a search, in a search session - or the check of the chosen "
+        "changes after Changes",
     )
     next_step_blocked: NextStepBlocked | None = Field(
         default=None,
@@ -259,6 +409,7 @@ class ImprovementRead(BaseSchema):
     can_restart: bool = False
     can_discard: bool = False
     improver_agent_id: UUID | None = None
+    mode: ImprovementMode = ImprovementMode.STEPS
 
     id: UUID
     agent_id: UUID
@@ -376,6 +527,15 @@ class ImprovementFinish(BaseSchema):
     confirmed: Literal[True]
     publish: bool = False
     automatic_check: bool = False
+    round: int | None = Field(
+        default=None,
+        ge=1,
+        le=10,
+        description=(
+            "The checked attempt to accept, for a session that stopped without one waiting; "
+            "selected first, as selecting it on its own does"
+        ),
+    )
 
 
 class ImprovementFinished(BaseSchema):

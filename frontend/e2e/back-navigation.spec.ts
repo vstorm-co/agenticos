@@ -74,8 +74,6 @@ async function seed(page: Page) {
   };
 }
 
-const historyLength = (page: Page) => page.evaluate(() => window.history.length);
-
 let seeded: Awaited<ReturnType<typeof seed>>;
 test.beforeAll(async ({ browser }, testInfo) => {
   const context = await browser.newContext({
@@ -86,7 +84,7 @@ test.beforeAll(async ({ browser }, testInfo) => {
   await context.close();
 });
 
-test("a run opened from the agent's Evals tab returns there, by Back and by its arrow", async ({
+test("a run opened from the agent's Evals tab returns there, by Back and by its breadcrumb", async ({
   page,
 }) => {
   const { agent, run } = seeded;
@@ -100,15 +98,14 @@ test("a run opened from the agent's Evals tab returns there, by Back and by its 
 
   await page.goForward();
   await expect(page).toHaveURL(new RegExp(`/evals/${run}$`));
-  const length = await historyLength(page);
-  await page.getByRole("link", { name: "Back", exact: true }).click();
+  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link").first().click();
   await expect(page).toHaveURL(new RegExp(`/agents/${agent}\\?tab=evals$`));
   await expect(page.getByRole("tab", { name: "Evals" })).toHaveAttribute("aria-selected", "true");
-  // A step back, not a new entry: Forward still reaches the run.
-  expect(await historyLength(page)).toBe(length);
 });
 
-test("a run opened from the dataset's Evals tab returns to that tab", async ({ page }) => {
+test("a run opened from the dataset's Evals tab returns to that tab, and its breadcrumb to the dataset", async ({
+  page,
+}) => {
   const { dataset, run } = seeded;
   await page.goto(`/datasets/${dataset}`);
   await page.getByRole("tab", { name: "Results", exact: true }).click();
@@ -125,8 +122,11 @@ test("a run opened from the dataset's Evals tab returns to that tab", async ({ p
   );
 
   await page.goForward();
-  await page.getByRole("link", { name: "Back", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/datasets/${dataset}\\?tab=evals$`));
+  await page
+    .getByRole("navigation", { name: "Breadcrumb" })
+    .locator(`a[href$="/datasets/${dataset}"]`)
+    .click();
+  await expect(page).toHaveURL(new RegExp(`/datasets/${dataset}$`));
 });
 
 test("a case opened from its dataset is a step Back closes", async ({ page }) => {
@@ -153,10 +153,12 @@ test("Back closes Improve over the agent’s Evals tab", async ({ page }) => {
   await expect(page).toHaveURL(new RegExp(`/agents/${agent}\\?tab=evals$`));
 });
 
-test("a run opened from a link falls back to its agent's Evals tab", async ({ page }) => {
+test("a run opened from a link reaches its agent's Evals tab by its breadcrumb", async ({
+  page,
+}) => {
   const { agent, run } = seeded;
   await page.goto(`/agents/${agent}/evals/${run}`);
-  await page.getByRole("link", { name: "Back to the agent's evals" }).click();
+  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link").first().click();
   await expect(page).toHaveURL(new RegExp(`/agents/${agent}\\?tab=evals$`));
   await expect(page.getByRole("tab", { name: "Evals" })).toHaveAttribute("aria-selected", "true");
 });

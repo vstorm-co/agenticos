@@ -259,9 +259,7 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Do the thing");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     // The schedule step opens on "Daily"; any other interval is built under Custom.
     await user.click(within(dialog).getByRole("radio", { name: "Custom" }));
     await user.click(within(dialog).getByRole("tab", { name: "Every so often" }));
@@ -274,6 +272,8 @@ describe("TriggersPanel", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
+      action_mode: "agent",
+      chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Do the thing",
       name: null,
@@ -293,9 +293,7 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Do the thing");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.click(within(dialog).getByRole("radio", { name: "Custom" }));
     await user.click(within(dialog).getByRole("tab", { name: "Every so often" }));
     const count = within(dialog).getByLabelText<HTMLInputElement>("Run every");
@@ -317,6 +315,22 @@ describe("TriggersPanel", () => {
     await user.type(count, "30");
     expect(within(dialog).queryByRole("alert")).toBeNull();
     expect(within(dialog).getByRole("button", { name: "Create" })).toBeEnabled();
+  });
+
+  it("lets an existing routine switch to a shared read-only history", async () => {
+    const user = userEvent.setup();
+    const row = trigger({ chat_mode: "per_run" });
+    serve([row]);
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...row, chat_mode: "shared" });
+    await mount();
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("combobox", { name: "Conversations" }));
+    await user.click(screen.getByRole("option", { name: "Shared history — read-only" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
+      chat_mode: "shared",
+    });
   });
 
   it("edits an email trigger's filter in place, and only when it changed", async () => {
@@ -435,9 +449,7 @@ describe("TriggersPanel", () => {
       expect(within(dialog).getByRole("checkbox", { name: /Run as me/ })).toBeChecked(),
     );
     expect(within(dialog).getByText(/It can save notes for you/)).toBeInTheDocument();
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Read my inbox");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(
@@ -608,7 +620,6 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     // The message field is the same MarkdownEditor the agent's instructions use,
     // so it carries that field's source/preview toggle rather than a bare box.
     expect(within(dialog).queryByRole("button", { name: "Source" })).toBeNull();
@@ -671,9 +682,7 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Every couple of days");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.click(within(dialog).getByRole("radio", { name: "Custom" }));
     await user.click(within(dialog).getByRole("tab", { name: "At a set time" }));
     await user.click(within(dialog).getByRole("combobox", { name: "Repeat" }));
@@ -684,6 +693,8 @@ describe("TriggersPanel", () => {
     // continuously, which is what "every 2 days" promises. Two days, in seconds.
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
+      action_mode: "agent",
+      chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Every couple of days",
       name: null,
@@ -737,8 +748,8 @@ describe("TriggersPanel", () => {
     await user.type(screen.getByRole("combobox", { name: "Search city or time zone…" }), "Warsaw");
     await user.click(screen.getByRole("option", { name: "Europe/Warsaw" }));
     expect(
-      within(dialog).getByText("Runs every day at 09:00 (Europe/Warsaw)."),
-    ).toBeInTheDocument();
+      within(dialog).queryByText("Runs every day at 09:00 (Europe/Warsaw)."),
+    ).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
@@ -755,9 +766,7 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Daily digest");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     const zone = within(dialog).getByLabelText("Time zone");
     expect(zone).toHaveTextContent("Europe/Warsaw");
     await user.click(zone);
@@ -781,9 +790,7 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Nightly sync");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     expect(within(dialog).getByText(/waits for its next time/)).toBeInTheDocument();
     await user.click(within(dialog).getByLabelText("If the previous run is still going"));
     await user.click(await screen.findByRole("option", { name: "Run when it finishes" }));
@@ -821,21 +828,21 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Daily digest");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     // The step opens on Daily at 09:00, which composes to 0 9 * * * - and says so.
     expect(within(dialog).getByRole("radio", { name: "Daily" })).toHaveAttribute(
       "aria-checked",
       "true",
     );
     expect(
-      within(dialog).getByText("Runs every day at 09:00 (Europe/Warsaw)."),
-    ).toBeInTheDocument();
+      within(dialog).queryByText("Runs every day at 09:00 (Europe/Warsaw)."),
+    ).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
+      action_mode: "agent",
+      chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Daily digest",
       name: null,
@@ -856,9 +863,7 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Morning digest");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     const choice = within(dialog).getByRole("radio", { name: "Weekdays" });
     await user.click(choice);
     expect(choice).toHaveAttribute("aria-checked", "true");
@@ -869,6 +874,8 @@ describe("TriggersPanel", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
+      action_mode: "agent",
+      chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Morning digest",
       name: null,
@@ -889,9 +896,7 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Weekly review");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.click(within(dialog).getByRole("radio", { name: "Every 15 min" }));
     await user.click(within(dialog).getByRole("radio", { name: "Hourly" }));
     await user.click(within(dialog).getByRole("radio", { name: "Weekdays" }));
@@ -921,9 +926,7 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Sweep the queue");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.click(within(dialog).getByRole("radio", { name: "Every 6 hours" }));
     expect(within(dialog).queryByLabelText("Run every")).toBeNull();
     // Custom opens the builder on what the choice set, and stays picked while
@@ -938,12 +941,14 @@ describe("TriggersPanel", () => {
       "true",
     );
     expect(
-      within(dialog).getByText("Runs every 8 hours, from when it is saved."),
-    ).toBeInTheDocument();
+      within(dialog).queryByText("Runs every 8 hours, from when it is saved."),
+    ).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
+      action_mode: "agent",
+      chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Sweep the queue",
       name: null,
@@ -1019,9 +1024,7 @@ describe("TriggersPanel", () => {
     // The environment lives on the configure step, before the message.
     await user.click(within(dialog).getByRole("combobox", { name: "Environment" }));
     await user.click(await screen.findByRole("option", { name: /staging/ }));
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "x");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(
@@ -1038,14 +1041,11 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Do it");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
     // Stepping back shows the message untouched - the refusal cost nothing typed.
-    await user.click(within(dialog).getByRole("button", { name: "Back" }));
     expect(within(dialog).getByLabelText<HTMLInputElement>("Message").value).toBe("Do it");
   });
 
@@ -1056,10 +1056,9 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     // The message step will not even advance without a message, so nothing
     // downstream can create one.
-    expect(within(dialog).getByRole("button", { name: "Continue" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Create" })).toBeDisabled();
   });
 
   it("closes on cancel without creating anything", async () => {
@@ -1074,4 +1073,29 @@ describe("TriggersPanel", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(apiClient.post).not.toHaveBeenCalled();
   });
+});
+
+it("switches an existing custom approval policy to the distinct manual mode", async () => {
+  serve([trigger({ created_by_user_id: "me", action_mode: "per_tool" })]);
+  await mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+  const dialog = within(await screen.findByRole("dialog"));
+  await userEvent.click(dialog.getByRole("combobox", { name: "Tool approvals" }));
+  await userEvent.click(screen.getByRole("option", { name: "Ask before actions" }));
+  await userEvent.click(dialog.getByRole("button", { name: "Save" }));
+  await waitFor(() =>
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
+      action_mode: "manual",
+    }),
+  );
+});
+
+it("reopens a saved manual policy without showing it as custom permissions", async () => {
+  serve([trigger({ created_by_user_id: "me", action_mode: "manual" })]);
+  await mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+  const dialog = within(await screen.findByRole("dialog"));
+  expect(dialog.getByRole("combobox", { name: "Tool approvals" })).toHaveTextContent(
+    "Ask before actions",
+  );
 });

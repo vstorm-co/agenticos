@@ -29,6 +29,27 @@ function question(overrides: Partial<KnowledgeGapQuestion> = {}): KnowledgeGapQu
 }
 
 describe("KnowledgeGapQuestionItem", () => {
+  it("names a test question an eval answered, which never had a conversation", () => {
+    render(
+      <KnowledgeGapQuestionItem
+        question={question({
+          signal: "answer",
+          query: "How long does Kestrel's order take?",
+          question: "How long does Kestrel's order take?",
+          test_question: true,
+          conversation_id: null,
+          answer_message_id: null,
+          top_similarity: null,
+          result_count: 0,
+        })}
+      />,
+    );
+    expect(screen.getByText("Test question")).toBeInTheDocument();
+    expect(screen.getByText("How long does Kestrel's order take?")).toBeInTheDocument();
+    expect(screen.getByText("The agent said it did not know")).toBeInTheDocument();
+    expect(screen.queryByText(/No conversation is kept/)).toBeNull();
+  });
+
   it("shows what the person asked, what was searched, and how close the best match came", () => {
     render(<KnowledgeGapQuestionItem question={question()} />);
     expect(screen.getByText("How long can I take parental leave?")).toBeInTheDocument();

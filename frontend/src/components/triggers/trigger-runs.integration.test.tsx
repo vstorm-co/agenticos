@@ -240,21 +240,24 @@ describe("TriggerRow run list", () => {
     expect(within(await screen.findByRole("dialog")).getByText(/\$0\.0042/)).toBeVisible();
   });
 
-  it("links each fire to its own run detail", async () => {
+  it("links each fire to its own run detail and execution chat", async () => {
     // The point of listing runs rather than turns: the requests, the tools and
     // the cost per turn are on that page, and there was no way to reach it.
-    serveRuns([run({ id: "r-42" })]);
-    render(<TriggerRow trigger={trigger()} />, { wrapper });
+    serveRuns([run({ id: "r-42", conversation_id: "execution-chat" })]);
+    render(<TriggerRow trigger={trigger({ conversation_id: "execution-chat" })} />, { wrapper });
 
     await userEvent.click(screen.getByRole("button", OPEN));
 
     const link = within(await screen.findByRole("dialog")).getByRole("link", { name: /Open run/ });
     expect(link).toHaveAttribute("href", "/runs?run=r-42");
+    expect(screen.getByRole("link", { name: "Open chat" })).toHaveAttribute(
+      "href",
+      "/chat?id=execution-chat",
+    );
   });
 
   it("asks only for this trigger's own fires", async () => {
-    // Every fire of one trigger appends to a single run-log conversation, so the
-    // conversation is the trigger's identity in the run history.
+    // Routine identity spans independent execution chats and shared histories.
     serveRuns([run()]);
     render(<TriggerRow trigger={trigger({ conversation_id: "c-9" })} />, { wrapper });
 
@@ -263,7 +266,7 @@ describe("TriggerRow run list", () => {
 
     await waitFor(() =>
       expect(apiClient.get).toHaveBeenCalledWith("/runs", {
-        params: expect.objectContaining({ conversation_id: "c-9" }),
+        params: expect.objectContaining({ trigger_id: "t1" }),
       }),
     );
   });
@@ -741,7 +744,7 @@ it.each([false, true])("matches before-run attempts by identity (new: %s)", asyn
 
 it("does not settle a dispatch from cached rows older than its history snapshot", async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const runKey = qk.runs.list({ conversationId: "c1" });
+  const runKey = qk.runs.list({ triggerId: "t1" });
   const attemptKey = qk.triggers.attempts("a1", "t1", 0);
   client.setQueryData(runKey, {
     items: [run({ id: "older-run", routine_activation_id: "old-fire" })],
@@ -921,3 +924,40 @@ describe("GitHub filtered delivery diagnostics", () => {
     },
   );
 });
+
+it.each([
+  { reader: "creator", project: null, visible: true },
+  { reader: "operator", project: null, visible: false },
+  { reader: "operator", project: "project-1", visible: true },
+])(
+  "shows private execution chat only to its creator or project readers: $reader/$project",
+  async ({ reader, project, visible }) => {
+    const previous = useAuthStore.getState().user;
+    useAuthStore.setState({
+      user: {
+        id: reader,
+        email: "reader@example.com",
+        is_active: true,
+        created_at: "2026-11-23T00:00:00Z",
+      },
+    });
+    try {
+      serveRuns([run({ user_id: "creator", conversation_id: "private-execution" })]);
+      render(
+        <TriggerRunsView
+          trigger={trigger({
+            chat_mode: "per_run",
+            project_id: project,
+            created_by_user_id: "creator",
+          })}
+          activationId={null}
+        />,
+        { wrapper },
+      );
+      await screen.findByRole("link", { name: "Open run" });
+      expect(screen.queryByRole("link", { name: "Open chat" }) !== null).toBe(visible);
+    } finally {
+      useAuthStore.setState({ user: previous });
+    }
+  },
+);

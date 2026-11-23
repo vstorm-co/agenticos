@@ -2178,3 +2178,215 @@ async def test_disabled_mcp_binding_adds_no_behavior_authority(db):
     assert await service._behavior(ctx, [disabled], ["root"]) == await service._behavior(
         ctx, [absent], ["root"]
     )
+
+
+@pytest.mark.parametrize("visibility", [None, True, False])
+async def test_historical_starter_hash_is_canonicalized_without_regranting_sources(
+    db: AsyncSession, visibility: bool | None
+):
+    import hashlib
+    import json
+
+    from app.services.routine_sources import _NON_SOURCE_FIELDS
+
+    ctx, trigger, spec, _ = await world(db, mcp=True)
+    before = read_policy(trigger.approved_sources)
+    material = spec.model_dump(mode="json", exclude=set(_NON_SOURCE_FIELDS))
+    material.pop("table_bindings", None)
+    if visibility is not None:
+        material["show_starters"] = visibility
+    historical = hashlib.sha256(
+        json.dumps(material, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    trigger.approved_sources = before.model_copy(update={"spec_hash": historical}).model_dump(
+        mode="json"
+    )
+    await db.flush()
+    assert (await RoutineSourceService(db).options(ctx, trigger)).current
+    after = await RoutineSourceService(db).require_current(ctx, trigger, expected_id=before.id)
+    assert after.id == before.id and after.spec_hash == spec_fingerprint(spec)
+    assert read_policy(trigger.approved_sources) == after
+    authority = await RoutineAuthority.capture(
+        db,
+        replace(
+            ctx,
+            routine_id=trigger.id,
+            routine_source_policy_id=after.id,
+            fired_as_creator="schedule",
+        ),
+        agent_id=trigger.agent_id,
+        run=None,
+    )
+    assert authority is not None
+    authority.require_spec(spec)
+
+
+async def test_run_bound_mcp_publication_deduplicates_and_stops_after_pause(db: AsyncSession):
+    from app.repositories import agent_run_repo, outcome_repo
+    from app.schemas.routine_notifications import RoutineFindingPublish
+    from app.services.routine_delivery import RoutineFindingService
+
+    ctx, trigger, _, _ = await world(db)
+    run = await agent_run_repo.create_run(
+        db,
+        organization_id=ctx.organization_id,
+        agent_id=trigger.agent_id,
+        agent_version_id=trigger.pinned_version_id,
+        user_id=ctx.user_id,
+        conversation_id=None,
+        surface="schedule",
+        model_label="test",
+        started_at=datetime.now(UTC),
+        routine_origin_id=trigger.id,
+        routine_kind="trigger",
+        routine_policy={
+            "acts_as_creator": True,
+            "approved_sources": trigger.approved_sources,
+            "action_consents": [],
+            "action_mode": None,
+        },
+    )
+    run.status = "running"
+    await db.flush()
+    bound = replace(ctx, key_internal=True, source_run_id=run.id, key_scopes=frozenset())
+    data = RoutineFindingPublish(
+        key="source-thread",
+        revision="first-message",
+        title="Needs review",
+        content="Evidence and a complete draft.",
+    )
+    published = await RoutineFindingService(db).publish_for_run(bound, data)
+    assert published.status == "published" and published.conversation_id is not None
+    repeated = await RoutineFindingService(db).publish_for_run(bound, data)
+    assert repeated.status == "unchanged_or_muted"
+    assert (
+        await outcome_repo.count_run_findings(
+            db, organization_id=ctx.organization_id, user_id=ctx.subject_id, run_id=run.id
+        )
+        == 1
+    )
+    trigger.is_active = False
+    await db.flush()
+    with pytest.raises(AuthorizationError):
+        await RoutineFindingService(db).publish_for_run(
+            bound, data.model_copy(update={"revision": "second-message"})
+        )
+
+
+async def test_reporting_limit_preserves_idempotent_retries_and_existing_case_revisions(
+    db: AsyncSession,
+):
+    from app.repositories import agent_run_repo, outcome_repo
+    from app.schemas.routine_notifications import RoutineFindingPublish
+    from app.services.routine_delivery import RoutineFindingService
+
+    ctx, trigger, _, _ = await world(db)
+    run = await agent_run_repo.create_run(
+        db,
+        organization_id=ctx.organization_id,
+        agent_id=trigger.agent_id,
+        agent_version_id=trigger.pinned_version_id,
+        user_id=ctx.user_id,
+        conversation_id=None,
+        surface="schedule",
+        model_label="test",
+        started_at=datetime.now(UTC),
+        routine_origin_id=trigger.id,
+        routine_policy={
+            "acts_as_creator": True,
+            "approved_sources": trigger.approved_sources,
+            "action_mode": None,
+        },
+    )
+    run.status = "running"
+    await db.flush()
+    bound = replace(ctx, key_internal=True, source_run_id=run.id, key_scopes=frozenset())
+    data = RoutineFindingPublish(
+        key="item-0", revision="first", title="Review", content="Evidence and draft."
+    )
+    publisher = RoutineFindingService(db)
+    for index in range(8):
+        assert (
+            await publisher.publish_for_run(bound, data.model_copy(update={"key": f"item-{index}"}))
+        ).status == "published"
+    assert (await publisher.publish_for_run(bound, data)).status == "unchanged_or_muted"
+    assert (
+        await publisher.publish_for_run(bound, data.model_copy(update={"revision": "second"}))
+    ).status == "published"
+    with pytest.raises(ConflictError, match="eight findings"):
+        async with db.begin_nested():
+            await publisher.publish_for_run(bound, data.model_copy(update={"key": "ninth"}))
+    assert (
+        await outcome_repo.count_run_findings(
+            db, organization_id=ctx.organization_id, user_id=ctx.subject_id, run_id=run.id
+        )
+        == 8
+    )
+
+
+@pytest.mark.parametrize("legacy_visibility", [None, True, False])
+async def test_following_sources_ignore_only_starter_visibility_in_historical_behavior(
+    db: AsyncSession, legacy_visibility: bool | None
+):
+    import hashlib
+    import json
+
+    ctx, trigger, spec, _ = await world(db)
+    trigger.pinned_version_id = None
+    service = RoutineSourceService(db)
+    review = await service.options(ctx, trigger)
+    await service.replace(
+        ctx, trigger, RoutineSourceConsent(review_token=review.review_token, mode="follow_agent")
+    )
+    policy = read_policy(trigger.approved_sources)
+    material = spec.model_dump(
+        mode="json",
+        exclude={
+            "capabilities",
+            "mcp_servers",
+            "skill_ids",
+            "skill_bindings",
+            "context_ids",
+            "collection_ids",
+            "table_bindings",
+            "subagents",
+            "external_agents",
+            "spec_version",
+            "name",
+            "description",
+            "starters",
+            "model_profile_id",
+            "model_settings",
+            "show_starters",
+        },
+    )
+    if legacy_visibility is not None:
+        material["show_starters"] = legacy_visibility
+    legacy = hashlib.sha256(
+        json.dumps(material, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    behavior = {**(policy.behavior or {}), "root:instructions": legacy}
+    ceiling = policy.model_copy(update={"behavior": behavior, "approved_ceiling": None})
+    trigger.approved_sources = policy.model_copy(
+        update={"behavior": behavior, "approved_ceiling": ceiling}
+    ).model_dump(mode="json")
+    agent = await db.get(Agent, trigger.agent_id)
+    assert agent is not None
+    for number, instructions in ((2, spec.instructions), (3, "Changed actual work")):
+        changed = spec.model_copy(update={"show_starters": False, "instructions": instructions})
+        version = AgentVersion(
+            agent_id=agent.id,
+            organization_id=ctx.organization_id,
+            version=number,
+            spec=changed.model_dump(mode="json"),
+        )
+        db.add(version)
+        await db.flush()
+        agent.current_version_id = version.id
+        await db.flush()
+        if number == 2:
+            admitted = await service.require_current(ctx, trigger, expected_id=policy.id)
+            await service.require_behavior(ctx, trigger, admitted)
+        else:
+            with pytest.raises(RoutineSourcesRequired):
+                await service.require_current(ctx, trigger, expected_id=policy.id)

@@ -1,5 +1,5 @@
 ---
-source_sha: "cc979d116092"
+source_sha: "79536bb10996"
 ---
 
 # Sicherheit { #security }
@@ -69,12 +69,16 @@ fragen wird.
 ## Was wo verschlüsselt ist { #what-is-encrypted-where }
 
 Es gibt einen Verschlüsselungsmechanismus auf Anwendungsebene, und er ist
-bewusst der einzige: der Vault (`app/core/vault.py`). Jedes **Konnektor- und
+bewusst der einzige: der Vault (`app/core/vault.py`). Mit Ausnahme des unten beschriebenen nativen Abonnementspeichers gilt: Jedes **Konnektor- und
 API-Credential** im Ruhezustand ist in einem Umschlag pro Eigentümer versiegelt,
 dessen Wrapping-Key über HKDF aus der Organisation (oder dem Benutzer) abgeleitet
 wird, zu der es gehört — ein Chiffrat, das in die Zeile einer anderen
 Organisation kopiert wird, lässt sich also nicht entsiegeln. Der Master-Key ist
 rotierbar, ohne die Payloads neu zu verschlüsseln.
+
+CLIProxyAPI-Abonnementkonten sind eine vom Maintainer genehmigte Ausnahme von der Vault-Regel. Der native Speicher auf `subscription_accounts` enthält Provider-Token, Kontostatus, Refresh-Journale, `keys.json` und `config.yaml`. Die Binärdatei verwaltet Anmeldung, Refresh und Wiederherstellung; ein Vault-Schreibvorgang erst beim Herunterfahren könnte nach einem Absturz rotierte Token oder Refresh-Belege verlieren. Ein vollständiger Vault-Adapter muss alle dauerhaften Änderungen und das Journal abdecken, bevor er diesen Speicher ersetzt.
+
+Verzeichnisse verwenden `0700`, Konfigurations- und Schlüsseldateien `0600`; Prozesse sind nach Organisation, Person und Mitgliedschaftsgeneration isoliert und binden an Loopback. Dies verschlüsselt weder Volume noch Backups, bindet Dateien nicht kryptografisch an Eigentümer und nimmt nicht an der Vault-Schlüsselrotation teil. Schützen Sie das gesamte Volume wie Zugangsdaten und verschlüsseln Sie Storage und Backups nach Ihren Anforderungen. Andere Modellschlüssel und Konnektor-Zugangsdaten verwenden weiterhin Vault. [Vault](secrets.de.md#native-subscription-store).
 
 Nicht alles, was die Plattform speichert, ist ein Credential im Vault, und das
 steht hier klar, weil eine Prüfung es findet:

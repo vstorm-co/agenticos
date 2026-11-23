@@ -45,11 +45,12 @@ from app.db.models.skill_check import (
 from app.repositories import (
     dataset_repo,
     eval_run_repo,
+    improvement_repo,
     skill_check_repo,
     skill_proposal_repo,
     skill_usage_repo,
 )
-from app.schemas.eval_run import CriterionMoveRead
+from app.schemas.eval_run import CriterionMoveRead, FamilyMoveRead
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_check import (
     CandidateText,
@@ -84,6 +85,7 @@ class Outcome:
     unconfirmed_broken: int = 0
     incomplete: int = 0
     criteria: tuple[CriterionMoveRead, ...] = ()
+    families: tuple[FamilyMoveRead, ...] = ()
 
 
 def _flips(outcome: Outcome, held_out: int) -> list[SimpleNamespace]:
@@ -112,6 +114,7 @@ class FakeEvals:
     """The details a refused start carries."""
     refuse_estimate: dict[uuid.UUID, str] = field(default_factory=dict)
     """The reason pricing a dataset's questions is refused with, by the dataset's id."""
+    quoted_checks: list[object] = field(default_factory=list)
     asked: int | None = None
     """How many questions a priced stage asks, when fewer than it names."""
     held_out: int = 5
@@ -123,7 +126,8 @@ class FakeEvals:
     def install(self, monkeypatch: pytest.MonkeyPatch) -> None:
         fake = self
 
-        async def estimate(_self, _ctx, agent_id, request, **_):
+        async def estimate(_self, _ctx, agent_id, request, **kwargs):
+            fake.quoted_checks.append(kwargs.get("proposal_check"))
             if request.dataset_id in fake.refuse_estimate:
                 raise BadRequestError(
                     message="Refused",
@@ -138,6 +142,7 @@ class FakeEvals:
                 cases=cases if fake.asked is None else fake.asked,
                 total_usd=total,
                 rerun_ceiling_usd=total * 2,
+                expected_usd=total * 2,
                 agent_remaining_usd=fake.agent_left,
                 org_remaining_usd=fake.org_left,
             )
@@ -209,6 +214,7 @@ class FakeEvals:
                 gradable_holdout=held_out,
                 cases=_flips(outcome, held_out),
                 criteria=list(outcome.criteria),
+                families=list(outcome.families),
             )
 
         async def cancel(_self, _ctx, run_id):
@@ -415,6 +421,28 @@ class TestWhoIsChecked:
         [own] = [stage for stage in a.stages if stage.kind == "dataset"]
         assert own.dataset_name is not None and own.dataset_name.startswith("a-own")
 
+    async def test_the_dataset_the_agents_own_improve_measures_on_comes_first(
+        self, db, monkeypatch
+    ):
+        """An agent kept a final set aside and improves on another: a skill check asks the
+        one its Improve uses, never the one kept back, whichever was made for it."""
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        improving = await _run_against(db, lab, lab.a)
+
+        async def list_for_agent(_db, *, organization_id, agent_id, limit=20):
+            return [SimpleNamespace(dataset_id=improving.id)] if agent_id == lab.a.id else []
+
+        monkeypatch.setattr(improvement_repo, "list_for_agent", list_for_agent)
+
+        estimate = await SkillCheckService(db).estimate(
+            lab.ctx, lab.skill.id, _start(mode="thorough")
+        )
+
+        a = next(row for row in estimate.agents if row.agent.name == "A")
+        [own] = [stage for stage in a.stages if stage.kind == "dataset"]
+        assert own.dataset_id == improving.id
+
     async def test_a_dataset_the_starter_may_not_see_is_not_asked(self, db, monkeypatch):
         lab = await _lab(db)
         FakeEvals().install(monkeypatch)
@@ -503,7 +531,18 @@ class TestWhoIsChecked:
         assert {row.agent.name: row.state for row in read.agents} == states
         assert read.verdict is result
 
-    async def test_one_stage_too_small_on_its_own_leaves_the_agent_unknown(self, db, monkeypatch):
+    @pytest.mark.parametrize(
+        ("outcome", "reason"),
+        [
+            (Outcome(fixed=3), UnknownReason.TOO_FEW_QUESTIONS),
+            (Outcome(fixed=2, incomplete=1), UnknownReason.INCONCLUSIVE),
+        ],
+    )
+    async def test_one_stage_too_small_on_its_own_leaves_the_agent_unknown(
+        self, db, monkeypatch, outcome, reason
+    ):
+        """Three confirmed fixes on three questions are too few to call the agent better,
+        and say so; a run that also left an answer ungraded could not tell."""
         lab = await _lab(db)
         evals = FakeEvals(held_out=3)
         evals.install(monkeypatch)
@@ -511,12 +550,13 @@ class TestWhoIsChecked:
         check = await service.start(
             lab.ctx, lab.skill.id, _start(), source=CheckSource.SESSION, only=[lab.c.id]
         )
-        evals.outcomes = {lab.c.id: Outcome(fixed=1)}
+        evals.outcomes = {lab.c.id: outcome}
 
         read = await _run_to_end(service, evals, lab, check.id)
 
         [c] = read.agents
-        assert (c.state, c.unknown_reason) == (AgentState.UNKNOWN, UnknownReason.INCONCLUSIVE)
+        assert (c.state, c.unknown_reason) == (AgentState.UNKNOWN, reason)
+        assert (c.fixed, c.broken) == (outcome.fixed, 0)
 
     async def test_a_changed_description_is_always_checked_thoroughly(self, db, monkeypatch):
         lab = await _lab(db)
@@ -791,7 +831,22 @@ class TestAPersonsVerdict:
             fixed_unconfirmed=0,
             broken_unconfirmed=0,
         )
-        evals.outcomes = {lab.a.id: Outcome(criteria=(validity,))}
+        family = FamilyMoveRead(
+            family="validity",
+            criteria=["validity"],
+            cases=5,
+            baseline_passed=0,
+            candidate_passed=5,
+            fixed=5,
+            broken=0,
+            fixed_confirmed=5,
+            broken_confirmed=0,
+            p_value=0.0625,
+            settled=False,
+            better=False,
+            worse=False,
+        )
+        evals.outcomes = {lab.a.id: Outcome(criteria=(validity,), families=(family,))}
 
         read = await _run_to_end(service, evals, lab, check.id)
 
@@ -800,6 +855,11 @@ class TestAPersonsVerdict:
         assert [(item.name, item.before, item.after, item.fixed) for item in row.criteria] == [
             ("validity", 0, 5, 5)
         ]
+        assert [
+            (item.family, item.criteria, item.cases, item.before, item.after, item.fixed)
+            for item in row.families
+        ] == [("validity", 1, 5, 0, 5, 5)]
+        assert row.families[0].better
         assert read.verdict is CheckVerdict.NO_BETTER
 
     async def test_a_verdict_on_a_run_no_check_asked_changes_nothing(self, db, monkeypatch):
@@ -1717,3 +1777,19 @@ class TestASessionsCheckStops:
             assert run is not None
             await db.refresh(run)
             assert run.status == "cancelled"
+
+
+async def test_skill_check_preflight_uses_the_same_measurement_as_its_start(
+    db, monkeypatch
+) -> None:
+    from app.schemas.eval_run import ProposalCheckRecord
+
+    lab = await _lab(db)
+    evals = FakeEvals()
+    evals.install(monkeypatch)
+    await SkillCheckService(db).estimate(lab.ctx, lab.skill.id, _start())
+    assert evals.quoted_checks
+    assert all(
+        isinstance(record, ProposalCheckRecord) and record.kind == "skill"
+        for record in evals.quoted_checks
+    )

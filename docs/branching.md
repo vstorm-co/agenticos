@@ -357,6 +357,8 @@ protection; changing draft status does not waive them.
 
 ## Release cuts and release trains
 
+The release cadence is the [maintainer decision in discussion #3208](https://github.com/vstorm-co/agenticos/discussions/3208#discussioncomment-19796269). A release per merged PR is not required.
+
 Keep separate PRs and use one **manual daily release train** when there are
 Unreleased changes. There is no scheduled cut or automatic publication. The team
 workflow is:

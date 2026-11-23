@@ -97,8 +97,7 @@ describe("routine action consent", () => {
   });
   it("submits only explicitly selected action identities and preserves required gates", async () => {
     render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
-    // An action the agent asks before cannot be consented to, so it is not offered.
-    expect(screen.queryByRole("checkbox", { name: "publish" })).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "publish" })).toBeDisabled();
     await userEvent.click(screen.getByRole("checkbox", { name: "execute" }));
     await userEvent.click(screen.getByRole("button", { name: "Save consent" }));
     expect(state.save).toHaveBeenCalledWith([{ capability_id: "sandbox", tool_id: "execute" }]);
@@ -212,9 +211,7 @@ describe("routine action consent", () => {
     render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
     const platform = screen.getByRole("region", { name: "AgenticOS" });
     expect(within(platform).getByRole("group", { name: "Tables" })).toBeVisible();
-    expect(
-      screen.queryByRole("checkbox", { name: "delete_virtual_table_record" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "delete_virtual_table_record" })).toBeDisabled();
     expect(
       screen.getByRole("checkbox", {
         name: "add_virtual_table_record",
@@ -260,10 +257,8 @@ describe("routine action consent", () => {
     expect(
       screen.getByText("This version has no eligible actions to authorize here."),
     ).toBeVisible();
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Use the agent's settings" }),
-    ).not.toBeInTheDocument();
+    for (const checkbox of screen.getAllByRole("checkbox")) expect(checkbox).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Use the agent's settings" })).toBeEnabled();
   });
   it("distinguishes an empty review from a failed connection check", () => {
     state.data.items = [];
@@ -315,7 +310,7 @@ it("bulk selects a large inventory with individual exclusions and keeps mandator
   state.data.max_actions = 1000;
   render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
   await userEvent.click(screen.getByRole("button", { name: "Use the agent's settings" }));
-  expect(screen.queryByRole("checkbox", { name: "Action 100" })).not.toBeInTheDocument();
+  expect(screen.getByRole("checkbox", { name: "Action 100" })).toBeDisabled();
   await userEvent.click(screen.getByRole("checkbox", { name: "Action 4" }));
   expect(
     screen.getByRole("checkbox", { name: "Select eligible actions in Capabilities" }),
@@ -556,30 +551,27 @@ it("can change source inheritance without permission to preapprove actions", asy
   expect(close).toHaveBeenCalledOnce();
 });
 
-it("shows inherited approval rules without editable routine exceptions", () => {
+it("does not discard an action catalog failure in follow mode", () => {
   state.sourceMode = "follow_agent";
   state.sourceUnavailable = ["Optional mailbox"];
   state.error = new Error("Unused action catalog unavailable");
   render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
-  expect(screen.getByText(/Uses the agent’s approval rules/)).toBeVisible();
+  expect(screen.getByRole("alert")).toBeVisible();
   expect(screen.queryByRole("checkbox", { name: "execute" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Revoke all" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Revoke all" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Save access mode" })).toBeDisabled();
 });
 
-it("enables explicit follow mode without writing a routine action snapshot", async () => {
+it("blocks enabling follow mode when the action catalog is unavailable", async () => {
   state.sourceMode = "follow_agent";
   state.sourceCurrent = false;
   state.error = new Error("Unused action catalog unavailable");
   const enabled = vi.fn();
   render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} onSaved={enabled} />);
   await userEvent.click(screen.getByRole("button", { name: "Enable routine" }));
-  expect(state.sourcesSave).toHaveBeenCalledWith({
-    review_token: "source-review",
-    mode: "follow_agent",
-  });
+  expect(state.sourcesSave).not.toHaveBeenCalled();
   expect(state.save).not.toHaveBeenCalled();
-  expect(enabled).toHaveBeenCalledOnce();
+  expect(enabled).not.toHaveBeenCalled();
 });
 
 it.each(["required", "legacy-unclassified"])(
@@ -614,6 +606,6 @@ it("allows explicit optional gaps while enabling follow mode", async () => {
     review_token: "source-review",
     mode: "follow_agent",
   });
-  expect(state.save).not.toHaveBeenCalled();
+  expect(state.save).toHaveBeenCalledWith([]);
   expect(enabled).toHaveBeenCalledOnce();
 });

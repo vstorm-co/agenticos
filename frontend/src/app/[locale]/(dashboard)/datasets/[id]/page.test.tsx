@@ -26,6 +26,7 @@ const state = vi.hoisted(() => ({
   push: vi.fn(),
   remove: vi.fn(),
   runsView: true,
+  agentsRun: true,
   findTwin: vi.fn(),
 }));
 vi.mock("next/navigation", async (original) => ({
@@ -88,7 +89,9 @@ vi.mock("@/hooks/use-organizations", async (original) => ({
 }));
 vi.mock("@/components/sharing/sharing-panel", () => ({ SharingPanel: () => null }));
 vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: () => state.runsView }),
+  usePermissions: () => ({
+    can: (perm: string) => (perm === "agents:run" ? state.agentsRun : state.runsView),
+  }),
 }));
 vi.mock("@/components/evals/dataset-evals-panel", () => ({
   DatasetEvalsPanel: ({ datasetId }: { datasetId: string }) => <p>evals of {datasetId}</p>,
@@ -106,6 +109,12 @@ vi.mock("@/components/datasets/helper-settings", () => ({
   HelperSettings: () => <p>helper settings</p>,
 }));
 vi.mock("@/components/datasets/review-panel", () => ({ ReviewPanel: () => <p>review</p> }));
+vi.mock("@/components/datasets/key-coverage-panel", () => ({
+  KeyCoveragePanel: ({ datasetId }: { datasetId: string }) => <p>coverage of {datasetId}</p>,
+}));
+vi.mock("@/components/datasets/key-draft-panel", () => ({
+  KeyDraftPanel: ({ caseId }: { caseId: string }) => <p>keys of {caseId}</p>,
+}));
 vi.mock("@/components/datasets/generate-panel", () => ({ GeneratePanel: () => <p>generated</p> }));
 
 const CASE = {
@@ -152,6 +161,7 @@ describe("the dataset page", () => {
     state.metadataLoading = false;
     state.casesLoading = false;
     state.runsView = true;
+    state.agentsRun = true;
     state.total = 0;
     state.cases = [];
     state.skips = [];
@@ -354,8 +364,21 @@ describe("the dataset page", () => {
     expect(dialog).toHaveTextContent("How long is the return window?");
     await userEvent.click(within(dialog).getByRole("button", { name: "Edit" }));
     expect(screen.getByRole("button", { name: "Save case" })).toBeInTheDocument();
+    expect(screen.getByText("keys of c1")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("offers no key listing to an editor who may not run agents", async () => {
+    state.agentsRun = false;
+    state.linked = "c1";
+    state.linkedCase = CASE;
+    await mount();
+
+    const dialog = screen.getByRole("dialog", { name: "Case" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("button", { name: "Save case" })).toBeInTheDocument();
+    expect(screen.queryByText("keys of c1")).not.toBeInTheDocument();
   });
 
   it("explains a case deleted after opening and retries its live query", async () => {
@@ -440,6 +463,7 @@ it.each([
   ["grading", "Settings"],
   ["evals", "Results"],
   ["review", "Results"],
+  ["coverage", "Results"],
 ])("keeps the %s deep link inside %s", async (route, section) => {
   state.tab = route;
   await mount();
@@ -453,6 +477,22 @@ it("offers run history and answer review under one Results section", async () =>
   expect(screen.getByText("review")).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Test runs" }));
   expect(new URL(window.location.href).searchParams.get("tab")).toBe("evals");
+});
+
+it("offers key coverage under Results, to a reader who may not read runs too", async () => {
+  state.runsView = false;
+  state.tab = "review";
+  await mount();
+  expect(screen.queryByRole("button", { name: "Test runs" })).toBeNull();
+
+  await userEvent.click(screen.getByRole("button", { name: "Key coverage" }));
+
+  expect(new URL(window.location.href).searchParams.get("tab")).toBe("coverage");
+  expect(screen.getByText("coverage of d1")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Key coverage" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 });
 
 it.each([403, 404])("shows a no-access view for an unreadable dataset (%s)", async (status) => {

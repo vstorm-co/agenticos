@@ -42,6 +42,9 @@ class Conversation(Base, TimestampMixin):
         messages: List of messages in this conversation
     """
 
+    if TYPE_CHECKING:
+        can_fork_routine_log: bool
+
     __tablename__ = "conversations"
     __table_args__ = (
         Index(

@@ -772,9 +772,10 @@ export function ChatContainer({
     [messages, sendMessage],
   );
 
-  const forkableConversation = openConversation ?? access.conversation;
+  const forkableConversation = access.conversation ?? openConversation;
   const ownsOpenConversation =
-    forkableConversation?.user_id != null && forkableConversation.user_id === meId;
+    (forkableConversation?.user_id != null && forkableConversation.user_id === meId) ||
+    forkableConversation?.can_fork_routine_log === true;
   const openId = forkableConversation?.id;
   const forking = useRef(false);
   const [forkingMessageId, setForkingMessageId] = useState<string | null>(null);
@@ -877,7 +878,15 @@ export function ChatContainer({
         isArchived={isArchived}
         readOnly={readOnly}
         viewOnly={viewOnly}
-        accessState={access.failed ? "error" : !access.known ? "checking" : undefined}
+        accessState={
+          access.failed
+            ? "error"
+            : !access.known
+              ? "checking"
+              : (listed?.origin ?? access.conversation?.origin) === "routine"
+                ? "routine"
+                : undefined
+        }
         onRetryAccess={access.retry}
         sendMessage={send}
         steers={steers}
@@ -1012,7 +1021,7 @@ interface ChatUIProps {
   isArchived?: boolean;
   viewOnly?: boolean;
   readOnly: boolean;
-  accessState?: "checking" | "error";
+  accessState?: "checking" | "error" | "routine";
   onRetryAccess: () => void;
   sendMessage: (
     content: string,
@@ -1149,6 +1158,16 @@ function ChatUI({
 }: ChatUIProps) {
   const composerFocusRequest = useConversationStore((state) => state.composerFocusRequest);
   const t = useTranslations("chat");
+  const latestRoutineAnswer = messages.findLast(
+    (message) =>
+      message.role === "assistant" &&
+      !message.isTemporaryId &&
+      !message.isStreaming &&
+      !message.runWaitingFor &&
+      !message.runFailed &&
+      !message.wasStopped &&
+      message.content.trim().length > 0,
+  );
   const mainChat = useMainChat();
   const minimalComposer = useMinimalComposer();
   const tDictation = useTranslations("chat.dictation");
@@ -1636,10 +1655,12 @@ function ChatUI({
             <div data-chat-composer-region>
               {/* Findings and approval decisions sit beside the composer. */}
               {conversationId && !compact && (
-                <OutcomeCards
-                  conversationId={conversationId}
-                  className="pointer-events-auto mx-auto max-h-40 w-full max-w-5xl overflow-y-auto overscroll-contain px-2 pb-2 sm:px-4"
-                />
+                <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 sm:px-4">
+                  <OutcomeCards
+                    conversationId={conversationId}
+                    className="chat-composer-width max-h-40 overflow-y-auto overscroll-contain pb-2"
+                  />
+                </div>
               )}
               {personalGaps.length > 0 && (
                 <div className="chat-composer-suggestions pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
@@ -1728,7 +1749,16 @@ function ChatUI({
                 is 360px wide, and a viewport breakpoint showed a reading there
                 that had nowhere to go. */}
                 {(viewOnly || accessState) && !onCall ? (
-                  <ConversationAccessNotice state={accessState ?? "view"} onRetry={onRetryAccess} />
+                  <ConversationAccessNotice
+                    state={accessState ?? "view"}
+                    onRetry={onRetryAccess}
+                    continuing={forkingMessageId != null}
+                    onContinue={
+                      accessState === "routine" && onFork && latestRoutineAnswer
+                        ? () => void onFork(latestRoutineAnswer.id)
+                        : undefined
+                    }
+                  />
                 ) : (
                   <div className="@container">
                     {/* While a call is on, the composer does not change: the call is one

@@ -8,6 +8,7 @@ import { PortalTriggerDialog } from "./portal-trigger-dialog";
 import { apiClient } from "@/lib/api-client";
 import type { PortalCatalogEntry } from "@/types/portals";
 import { useAgentSelectionStore } from "@/stores";
+import { useAuthStore } from "@/stores/auth-store";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -471,4 +472,41 @@ it("blocks closing and stepping back while a portal write is pending", async () 
   await waitFor(() => expect(dialog.getByLabelText("Message")).toBeEnabled());
   expect(dialog.getByLabelText("Message")).toHaveValue("Triage it");
   expect(onOpenChange).not.toHaveBeenCalled();
+});
+
+it("does not borrow creator identity during administrator impersonation", async () => {
+  const previous = useAuthStore.getState().user;
+  useAuthStore.setState({
+    user: {
+      id: "person",
+      email: "person@example.com",
+      is_active: true,
+      created_at: "2026-11-23T00:00:00Z",
+      impersonation: {
+        session_id: "session",
+        impersonator: { id: "admin", email: "admin@example.com" },
+        expires_at: "2026-11-24T00:00:00Z",
+      },
+    },
+  });
+  try {
+    serve();
+    vi.mocked(apiClient.post).mockResolvedValue({});
+    render(<PortalTriggerDialog portal={GMAIL} connectionId={null} open onOpenChange={vi.fn()} />, {
+      wrapper,
+    });
+    const dialog = within(await screen.findByRole("dialog"));
+    await userEvent.click(dialog.getByRole("button", { name: /Any new message/ }));
+    await userEvent.click(dialog.getByRole("button", { name: "Continue" }));
+    await userEvent.type(dialog.getByLabelText("Message"), "Check incoming messages");
+    await userEvent.click(dialog.getByRole("button", { name: "Create" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/agents/a1/triggers",
+        expect.objectContaining({ runs_as_creator: false }),
+      ),
+    );
+  } finally {
+    useAuthStore.setState({ user: previous });
+  }
 });

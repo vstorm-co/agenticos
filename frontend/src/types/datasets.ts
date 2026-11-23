@@ -170,3 +170,53 @@ export interface DatasetVersionList {
   items: DatasetVersion[];
   total: number;
 }
+
+/** A fact a keys check expects: what it is, and the value the answer must carry. */
+export interface DocumentKey {
+  key: string;
+  value: string;
+}
+
+/** A source a key's verdict rests on. `id` and `name` are null for one the reader may not see. */
+export interface CoverageSource {
+  kind: "collection" | "skill" | "context" | "mcp";
+  id: string | null;
+  name: string | null;
+}
+
+/** Whether a source of the agent holds one key, by its label. */
+export interface CoverageItem {
+  key: string;
+  verdict: "covered" | "not_covered" | "unsure";
+  sources: CoverageSource[];
+  why: string | null;
+}
+
+/** Which of a dataset's keys an agent's published sources cover, or why that could not be judged. */
+export interface KeyCoverageReport {
+  id: string;
+  agent_id: string;
+  dataset_id: string;
+  dataset_version: number;
+  status: "running" | "ready" | "failed";
+  items: CoverageItem[];
+  unseen_sources: number;
+  /** False once the agent was published again or the dataset gained a version since. */
+  current: boolean;
+  /** A source the report read holds something else now. */
+  sources_changed: boolean;
+  error: string | null;
+  created_at: string;
+  finished_at: string | null;
+}
+
+/** The keys drafted from a case's reference answer, still being listed, or why they could not be. */
+export interface CaseKeyDraft {
+  id: string;
+  case_id: string;
+  status: "running" | "ready" | "failed";
+  keys: DocumentKey[];
+  error: string | null;
+  created_at: string;
+  finished_at: string | null;
+}

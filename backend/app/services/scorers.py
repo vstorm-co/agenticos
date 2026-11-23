@@ -9,6 +9,7 @@ judge and keeps what these return.
 import hashlib
 import json
 import re
+import unicodedata
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -29,6 +30,7 @@ from app.schemas.scoring import (
     DatasetScoring,
     JsonSchemaCheck,
     JudgeCheck,
+    KeysCheck,
     LengthCheck,
     ScorerKind,
     ScorerResult,
@@ -258,6 +260,115 @@ def _ceiling_check(check: CeilingCheck, answer: ScoredAnswer, *, required: bool)
     return _result(name, passed=passed, reason=f"Took {shown}", required=required)
 
 
+# A space before exactly three digits groups thousands. `,` and `.` stay as they are:
+# one locale groups thousands with them, another marks decimals.
+_THOUSANDS_GAP = re.compile(r"(?<=\d) (?=\d{3}(?!\d))")
+_DIGIT_RUN = re.compile(r"\d+")
+_SPACES = re.compile(r"\s+")
+_WORD = re.compile(r"\w")
+_DIGIT_GAP = re.compile(r"(?<=\d) (?=\d)")
+MAX_MISSING_NAMED = 20
+
+
+def _normalised(text: str) -> str:
+    return _SPACES.sub(" ", unicodedata.normalize("NFKC", text).casefold()).strip()
+
+
+@dataclass(frozen=True)
+class _Haystack:
+    """A normalised answer, and the same text with every space between two digits gone.
+
+    Whatever a key's pattern matches, compacted the same way, is a plain substring
+    of `compact`, so a value absent from it is refused without running a pattern.
+    """
+
+    text: str
+    compact: str
+
+    @classmethod
+    def of(cls, answer: str) -> _Haystack:
+        text = _normalised(answer)
+        return cls(text=text, compact=_DIGIT_GAP.sub("", text))
+
+
+def _grouped(digits: str) -> str:
+    """A run of digits as a pattern that also matches it grouped in thousands by spaces."""
+    head = len(digits) % 3 or 3
+    groups = [digits[:head]] + [digits[at : at + 3] for at in range(head, len(digits), 3)]
+    return " ?".join(groups)
+
+
+def _carries(haystack: _Haystack, value: str) -> bool:
+    """Whether `value` stands in `haystack` as a whole token: `12` is not in `120`.
+
+    The answer is only normalised; the value becomes the pattern, so `1234` and
+    `1 234` find each other without two numbers in the answer running together.
+    """
+    written = _normalised(value)
+    needle = _THOUSANDS_GAP.sub("", written)
+    if _DIGIT_GAP.sub("", needle) not in haystack.compact:
+        return False
+    pattern = ""
+    at = 0
+    for run in _DIGIT_RUN.finditer(needle):
+        pattern += re.escape(needle[at : run.start()]) + _grouped(run.group())
+        at = run.end()
+    pattern += re.escape(needle[at:])
+    before = r"(?<!\w)" if _WORD.match(needle[:1]) else ""
+    after = r"(?!\w)" if _WORD.match(needle[-1:]) else ""
+    # A number continues past a separator: `234` is part of `1 234`, `12` of `12,50`.
+    # Past a space only when the value's leading group, once grouped, has three digits.
+    first = _DIGIT_RUN.match(needle)
+    if first:
+        before += r"(?<!\d[.,])"
+        if len(first.group()) % 3 == 0:
+            before += r"(?<!\d )"
+    if needle[-1:].isdigit():
+        after += r"(?! \d{3}(?!\d))(?![.,]\d)"
+    return re.search(before + pattern + after, haystack.text) is not None
+
+
+def carries(text: str, value: str) -> bool:
+    """Whether `text` holds `value` as a `keys` check would find it."""
+    return _carries(_Haystack.of(text), value)
+
+
+def missing_keys(checks: Sequence[Mapping[str, Any]], answer: str) -> list[str]:
+    """The labels of the keys `answer` does not carry, across the readable `keys` checks."""
+    text = _Haystack.of(answer)
+    labels: list[str] = []
+    for raw in checks:
+        if raw.get("type") != "keys":
+            continue
+        try:
+            check = KeysCheck.model_validate(raw)
+        except PydanticValidationError:
+            continue
+        labels += [key.key for key in check.keys if not _carries(text, key.value)]
+    return labels
+
+
+def _keys_check(check: KeysCheck, answer: ScoredAnswer, *, required: bool) -> ScorerResult:
+    haystack = _Haystack.of(_text(answer, None))
+    missing = [entry.key for entry in check.keys if not _carries(haystack, entry.value)]
+    total = len(check.keys)
+    if not missing:
+        reason = f"Carries all {total} keys"
+    else:
+        named = ", ".join(missing[:MAX_MISSING_NAMED])
+        more = len(missing) - MAX_MISSING_NAMED
+        reason = f"Missing {len(missing)} of {total} keys: {named}" + (
+            f", and {more} more" if more > 0 else ""
+        )
+    return _result(
+        "keys",
+        passed=not missing,
+        reason=reason,
+        required=required,
+        score=(total - len(missing)) / total,
+    )
+
+
 def run_checks(
     checks: Sequence[Mapping[str, Any]], answer: ScoredAnswer, *, required: bool
 ) -> tuple[list[ScorerResult], list[JudgeCheck]]:
@@ -285,14 +396,18 @@ def run_checks(
             continue
         if isinstance(check, JudgeCheck):
             judged.append(check)
-        elif isinstance(check, TextCheck):
-            results.append(_text_check(check, answer, required=required))
+            continue
+        if isinstance(check, TextCheck):
+            result = _text_check(check, answer, required=required)
         elif isinstance(check, JsonSchemaCheck):
-            results.append(_schema_check(check, answer, required=required))
+            result = _schema_check(check, answer, required=required)
         elif isinstance(check, LengthCheck):
-            results.append(_length_check(check, answer, required=required))
+            result = _length_check(check, answer, required=required)
+        elif isinstance(check, KeysCheck):
+            result = _keys_check(check, answer, required=required)
         else:
-            results.append(_ceiling_check(check, answer, required=required))
+            result = _ceiling_check(check, answer, required=required)
+        results.append(result.model_copy(update={"family": check.family}))
     return results, judged
 
 
@@ -432,6 +547,7 @@ class JudgeCriterion:
     name: str
     description: str
     required: bool
+    family: str | None = None
 
 
 class JudgeGrade(BaseModel):
@@ -570,6 +686,7 @@ def judge_criteria(
             name=check.criterion[:80],
             description=check.criterion,
             required=scoring.checks.required,
+            family=check.family,
         )
         for index, check in enumerate(judged, start=1)
     )
@@ -863,7 +980,10 @@ def graded(
                 judge_run_id=run_id,
             )
         )
-    return results
+    return [
+        result.model_copy(update={"family": criterion.family})
+        for result, criterion in zip(results, criteria, strict=True)
+    ]
 
 
 def not_graded(
@@ -886,6 +1006,7 @@ def not_graded(
             reason_code=code,
             judge_said=said,
             judge_run_id=run_id,
+            family=criterion.family,
         )
         for criterion in criteria
     ]

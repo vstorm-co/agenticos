@@ -60,12 +60,9 @@ does not prove webhook delivery. Public webhook responses remain unchanged.
 
 ## Routine delivery
 
-A routine created from a private chat through the platform MCP answers in that
-chat unless you choose another destination. Its card in the conversation shows
-current state, the next activation and the existing edit, pause and remove controls.
-The run log remains available under Routines.
+New routines save every execution in one shared read-only history by default. Its creator can fork an answer into a private chat to continue. Choose a new private chat per execution if each run should have its own editable conversation. The routine card retains its edit, pause and remove controls, and Routines lists every execution with links to its chat and run details.
 
-Before posting a completed answer, the platform rechecks the creator’s active membership and current write access to the chosen conversation. A removed or inaccessible destination leaves the answer in the run log and shows **Last answer unavailable in chat** on the routine. A database failure during message delivery is isolated so it does not undo the completed fire or run the agent again.
+Runs admitted before the chat-mode upgrade retain their original delivery contract. Only those older runs copy a completed answer to a previously selected destination, after rechecking the creator’s active membership and current write access. A missing destination leaves the answer in the run log. Delivery failures do not undo the completed execution or run the agent again.
 
 Completion notifications link to the conversation only after successful delivery.
 
@@ -776,7 +773,11 @@ reviewed actions** is an explicit new choice over matching eligible identities; 
 nothing until you save the current review. New actions and changed accounts are not
 selected automatically. Mandatory approvals, revocation and stale-review checks still apply.
 
-Following routines use the agent's own action approval rules, without an additional routine-wide approval requirement. Restricted routines additionally ask before capability effects, local file changes and delegation, and before external MCP calls not marked read-only. Explicit agent or connection gates and mandatory approvals apply in both modes. Code mode stays disabled for routine runs so bundled scripts cannot bypass individual tool checks.
+New routines run as their creator by default, with that person's current permissions. Creating a schedule uses one form: name, instructions, agent, schedule and tool approvals; source review and execution limits are advanced options. Identity and approval are independent.
+
+**Run eligible tools automatically** uses the agent's rules (`agent`). **Ask before actions** adds a routine gate to effects (`manual`) and atomically revokes existing standing consents. **Choose permissions for each tool** lets the owner preapprove selected eligible actions once for this routine (`per_tool`). These choices work with either source mode.
+
+Existing routines with no action mode keep their historical policy. Explicit agent/connection requirements and mandatory platform/native approvals cannot be waived. Code mode remains disabled for routine runs.
 
 Writes to AgenticOS Virtual Tables run within their live table and operation grants without a routine exception. An explicit agent approval policy still applies to these internal writes.
 
@@ -784,11 +785,11 @@ The creator can open **Action consent** on their routine and select capability a
 
 An MCP exception names the concrete account, endpoint hash, authorization generation and original action name. Sending mail does not authorize deletion or another account's writes. Personal accounts are offered only when the routine acts as its creator. The picker uses the connection's recorded tool list; check the connection, or ask its administrator, when that list is unavailable. Revoking all consent remains available without a working tool list.
 
-The review lists the agent's capabilities, AgenticOS and each other MCP account as separate sections, each with its groups. Only actions the agent already runs without asking appear: one it asks before cannot be consented to, so it is left out. **Use the agent's settings** selects exactly those actions and replaces the current selection; nothing is saved until you choose **Save consent**.
+The review lists capabilities, AgenticOS and each MCP account separately. Tools that require approval are visible but locked, with an explanation. Bulk selection chooses only eligible actions. Saving a selection switches the routine to per-tool approval; leaving an eligible effect unselected means asking when it is used. Source inheritance does not hide or bypass these choices.
 
 The **Reviewed sources** panel above it lists the routine's sources by kind - capabilities, skills, knowledge bases, tables, accounts - each kind folded to a count, and each source by its name. A source that no longer exists shows as no longer available; its id is on hover.
 
-When a routine acts as its creator, the AgenticOS server's own tools are listed in the groups the Builder shows: tables, tasks, workflows, agents and the rest. Only tools that change something appear, because reads never ask; tool search does not ask either. A tool the agent asks before is not listed. That covers every change its binding does not set to **Run freely**, and the tools that always ask. So a routine keeps the agent's approvals or adds to them, and never releases one.
+When a routine acts as its creator, AgenticOS effects are grouped as in the Builder: tables, tasks, workflows, agents and the rest. Effects with explicit required approvals are visible but locked. Reads and tool search do not gain an additional routine approval; an explicit agent gate still applies. A routine may retain or tighten agent approvals, never remove a mandatory gate.
 
 A platform exception names the tool alone: the routine's runs reach the platform only as its creator, the only person who can review it.
 
@@ -2395,14 +2396,21 @@ presets together. A trigger decides _when_ a routine runs; a monitoring preset
 restricts _what_ it can do. Use one routine for a responsibility, rather than
 creating a watch and a scheduled agent for the same mailbox.
 
-Choose **After every completed run** (`result_mode: report`, the existing default)
-for regular reports, or **Only when something needs attention** (`result_mode:
-inbox`) for checks that should stay quiet. In Inbox mode, the agent returns relevant
-source items with stable item and revision identifiers, context and any requested
-full draft. An empty result creates no working conversation or completion notice.
-Each item gets one private working conversation and one Inbox case. Repeated source
-revisions are deduplicated durably, including after a case is resolved. A new revision
-updates the same conversation and reopens its case; a muted item stays muted.
+Inbox findings are published only through the AgenticOS MCP tool `publish_inbox_finding`. Every routine and monitor receives this reporting tool automatically, even without a platform binding. An implicit reporting credential has no general platform scopes: it is bound to one live run and can publish only to that routine's owner. It cannot choose another recipient, read personal Inbox data or administer the organization. Membership, source consent, pause and expiry are checked on every publication. Monitors must successfully read their source first; unresolved read failures prevent reporting. Urgency respects the monitor owner's setting.
+
+The agent supplies stable item and revision IDs, useful context and any requested complete draft. An unchanged revision stays quiet; a new revision updates the same working conversation and reopens the case, while muted items remain muted. A run can publish up to eight findings. Final answers are retained in the log or explicitly selected chat destination; they are never parsed into Inbox cards. The legacy `result_mode` field remains readable, but no longer selects automatic structured delivery. For no-change checks, publish nothing unless an every-check monitor was requested.
+
+Published findings are committed at the MCP call. A later run failure does not erase an already reported finding; the failed attempt remains visible and retries deduplicate source revisions.
+
+New routines default to **one shared read-only history** (`chat_mode=shared`). Choose **a new private chat for each run** (`chat_mode=per_run`) to retain each full execution transcript, including tool calls, in its own editable chat. Follow-up messages do not edit the routine or become the next execution’s transcript; configured memory still applies. The chat appears in your chat sidebar.
+
+Choose **shared history** (`chat_mode=shared`) to append executions to one read-only system conversation. The creator sees it in the sidebar with `runs:view` and current agent access; project logs remain governed by project access. The creator can fork an answer into a private chat to continue. New executions do not automatically replay previous log messages; configured memory and explicit source reads provide continuity.
+
+Migration `0351_routine_chat_modes.py` maps existing primary/specific-chat delivery to per-run chats, and log-only or legacy Inbox delivery to shared history. It preserves existing conversations, schedules, pause state, budgets and source/tool consents. Existing logs become read-only; runs already admitted without a chat-mode snapshot retain their old delivery contract. Deploy API and workers together. Legacy destination fields remain readable for compatibility and downgrade.
+
+Inbox findings still have their own working conversations, grouped by stable source item. Publishing a finding does not create a card for every execution.
+
+Unattended execution has no live `ask_user` channel. If essential input is missing, the agent is instructed to publish the question and blocked work as an Inbox finding, rather than assume an answer. This does not itself park a resumable question form.
 
 Open the conversation from Inbox to edit the draft or request the next action.
 Reading or editing a draft does not send it or complete the case. Normal tool
