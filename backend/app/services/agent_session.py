@@ -868,6 +868,7 @@ class AgentSession:
             "en": "Hi, I'm {name}. I'm ready to help you plan, work with documents and get things done. Before I can answer your request, finish connecting my AI model and publish me. Add a provider key if your chosen model needs one. Let's get that ready together.",
             "pl": "Cześć, jestem {name}. Pomogę Ci planować, pracować z dokumentami i realizować zadania. Zanim odpowiem na Twoją wiadomość, dokończ konfigurację mojego modelu AI i opublikuj agenta. Dodaj klucz dostawcy, jeśli wybrany model go wymaga. Zróbmy ten pierwszy krok razem.",
             "de": "Hallo, ich bin {name}. Ich helfe beim Planen, bei Dokumenten und Aufgaben. Bevor ich antworten kann, richte meinen KI-Zugang ein und veröffentliche mich. Füge bei Bedarf einen Anbieterschlüssel hinzu. Gehen wir diesen ersten Schritt gemeinsam.",
+            "fr": "Bonjour, je suis {name}. Je suis prêt à vous aider à planifier, travailler sur des documents et avancer sur vos tâches. Avant que je puisse répondre, terminez la connexion de mon modèle d'IA et publiez-moi. Ajoutez une clé de fournisseur si le modèle choisi en demande une. Préparons cela ensemble.",
             "tr": "Merhaba, ben {name}. Planlama, belgeler ve görevlerde yardımcı olurum. Yanıt verebilmem için AI modelimi yapılandır ve beni yayımla. Model gerektiriyorsa sağlayıcı anahtarı ekle. İlk adımı birlikte atalım.",
         }
         text = replies.get(self.user.locale or "en", replies["en"]).format(name=name)
