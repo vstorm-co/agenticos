@@ -39,6 +39,7 @@ The rules are the ones a gate can trust:
 """
 
 import enum
+import json
 import math
 import sqlite3
 from collections import Counter
@@ -556,8 +557,9 @@ MIN_FAMILY_CASES = 2
 
 
 def family_of(criterion: Criterion, named: Mapping[Criterion, str]) -> str:
-    """The family a criterion is counted in: the one its check named, else its own name."""
-    return named.get(criterion, criterion[1])
+    """A collision-free internal key for an explicit family or one whole criterion."""
+    family = named.get(criterion)
+    return json.dumps(["family", family] if family is not None else ["criterion", *criterion])
 
 
 def family_outcomes(graded: Grades, named: Mapping[Criterion, str]) -> dict[str, Outcome]:
@@ -733,9 +735,18 @@ def compare_criteria(
             "CREATE TABLE members (family TEXT, name TEXT, PRIMARY KEY (family, name)) "
             "WITHOUT ROWID"
         )
+        scratch.execute("CREATE TABLE labels (family TEXT PRIMARY KEY, label TEXT) WITHOUT ROWID")
         for case in cases:
             scratch.executemany(_MOVE_UPSERT, _criterion_contributions(case))
             scratch.executemany(_FAMILY_UPSERT, _family_contributions(case))
+            scratch.executemany(
+                "INSERT OR IGNORE INTO labels VALUES (?, ?)",
+                {
+                    (family_of(criterion, case.named), case.named.get(criterion, criterion[1]))
+                    for criterion in case.baseline
+                    if criterion in case.candidate
+                },
+            )
             scratch.executemany(
                 "INSERT OR IGNORE INTO members VALUES (?, ?)",
                 {
@@ -786,7 +797,14 @@ def compare_criteria(
             {"minimum": MIN_FAMILY_CASES, "limit": family_limit},
         ).fetchall()
         family_list = [
-            _family_move(row, criteria=_members(scratch, row[0]), alpha=alpha)
+            _family_move(
+                row,
+                label=scratch.execute(
+                    "SELECT label FROM labels WHERE family = ?", (row[0],)
+                ).fetchone()[0],
+                criteria=_members(scratch, row[0]),
+                alpha=alpha,
+            )
             for row in sorted(kept)
         ]
         undecided = frozenset(
@@ -880,7 +898,7 @@ def _members(scratch: sqlite3.Connection, family: str) -> tuple[str, ...]:
 
 
 def _family_move(
-    row: _FamilyContribution, *, criteria: tuple[str, ...], alpha: float
+    row: _FamilyContribution, *, label: str, criteria: tuple[str, ...], alpha: float
 ) -> FamilyMove:
     (
         family,
@@ -894,7 +912,7 @@ def _family_move(
     ) = row
     p = mcnemar_p(broken, fixed)
     return FamilyMove(
-        family=family,
+        family=label,
         criteria=criteria,
         cases=cases,
         baseline_passed=baseline_passed,

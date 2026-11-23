@@ -654,8 +654,14 @@ class EvidenceService:
         )
         if session is None:
             return []
+        iterations = await improvement_repo.list_iterations(
+            self.db, organization_id=ctx.organization_id, run_id=improvement_run_id
+        )
+        training = sorted(
+            {case for iteration in iterations for case in iteration.train_case_ids or []}
+        )
         try:
-            handed = await self.for_improvement(ctx, improvement_run_id)
+            handed = await self.for_improvement(ctx, improvement_run_id, train_case_ids=training)
         except AuthorizationError:
             return []
         failed = [

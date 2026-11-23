@@ -50,6 +50,7 @@ def service(monkeypatch: pytest.MonkeyPatch, mock_db_session) -> EvidenceService
     monkeypatch.setattr(
         improvement_repo, "get_run", AsyncMock(return_value=SimpleNamespace(agent_id=AGENT))
     )
+    monkeypatch.setattr(improvement_repo, "list_iterations", AsyncMock(return_value=[]))
     return EvidenceService(mock_db_session)
 
 
@@ -81,6 +82,26 @@ async def test_only_failed_training_answers_that_used_the_skill_are_handed_over(
     assert (handed[0].skill_use, handed[0].via_delegate, handed[0].number) == ("used", False, 0)
     asked = uses.await_args
     assert asked is not None and asked.kwargs["run_ids"] == [used.run_id, unused.run_id]
+
+
+async def test_handoff_uses_only_the_recorded_training_partition(service, monkeypatch) -> None:
+    first, second = uuid.uuid4(), uuid.uuid4()
+    monkeypatch.setattr(
+        improvement_repo,
+        "list_iterations",
+        AsyncMock(
+            return_value=[
+                SimpleNamespace(train_case_ids=[first]),
+                SimpleNamespace(train_case_ids=[first, second]),
+                SimpleNamespace(train_case_ids=None),
+            ]
+        ),
+    )
+    evidence = AsyncMock(return_value=EvidencePack(runs=[]))
+    monkeypatch.setattr(EvidenceService, "for_improvement", evidence)
+    monkeypatch.setattr(skill_usage_repo, "uses_in_runs", AsyncMock(return_value=[]))
+    await service.for_skill_handoff(_ctx(), SKILL, SESSION)
+    assert evidence.await_args.kwargs["train_case_ids"] == sorted([first, second])
 
 
 async def test_a_caller_who_may_not_read_the_session_s_dataset_reads_none(

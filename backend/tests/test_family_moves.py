@@ -99,8 +99,8 @@ class TestFamiliesFromScores:
         }
 
     def test_a_criterion_without_a_family_is_its_own(self) -> None:
-        assert family_of(_TERMS, _NAMED) == "Payment terms stated"
-        assert family_of(_vat("913.68"), _NAMED) == "total including VAT"
+        assert family_of(_TERMS, _NAMED) != family_of(("check", _TERMS[1]), _NAMED)
+        assert family_of(_vat("913.68"), _NAMED) == family_of(_vat("252.00"), _NAMED)
 
 
 class TestFamilyOutcome:
@@ -119,7 +119,7 @@ class TestFamilyOutcome:
         named = {("check", "a"): "f", ("check", "b"): "f"}
         graded = {("check", "a"): outcomes[0], ("check", "b"): outcomes[1]}
 
-        assert family_outcomes(graded, named) == {"f": expected}
+        assert family_outcomes(graded, named) == {family_of(("check", "a"), named): expected}
 
 
 class TestFamilyMoves:
@@ -231,9 +231,11 @@ class TestFamilyFlipped:
         before = {_PRICE: False, _vat("913.68"): True}
         after = {_PRICE: True, _vat("913.68"): False}
 
-        assert family_flipped(before, after, _NAMED, {"total including VAT"})
-        assert not family_flipped(before, after, _NAMED, {"Payment terms stated"})
-        assert not family_flipped(before, before, _NAMED, {"total including VAT", _PRICE[1]})
+        assert family_flipped(before, after, _NAMED, {family_of(_vat("913.68"), _NAMED)})
+        assert not family_flipped(before, after, _NAMED, {family_of(_TERMS, _NAMED)})
+        assert not family_flipped(
+            before, before, _NAMED, {family_of(_vat("913.68"), _NAMED), family_of(_PRICE, _NAMED)}
+        )
 
 
 class TestPartialCredit:
@@ -257,3 +259,12 @@ class TestPartialCredit:
     def test_only_decided_criteria_are_counted(self) -> None:
         assert criteria_count({_PRICE: True, _TERMS: None, _vat("1"): False}) == (1, 2)
         assert criteria_count({_TERMS: None}) is None
+
+
+def test_unnamed_criteria_do_not_merge_with_each_other_or_an_explicit_family():
+    checks = {("check", "same"): True, ("judge", "same"): False, ("check", "named"): True}
+    named = {("check", "named"): "same"}
+    assert len(family_outcomes(checks, named)) == 3
+    moves = _family_moves([_case(checks, checks)], named)
+    assert len(moves) == 3
+    assert sorted(move.baseline_passed for move in moves) == [0, 1, 1]

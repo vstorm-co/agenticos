@@ -1,8 +1,8 @@
 """`knowledge.search`: find passages in knowledge collections, as typed sources.
 
 The same retrieval an agent's knowledge tool runs - `RetrievalService`, scoped
-per collection by the store's own resolution so a search never reaches another
-tenant's rows - but handed back as `SourceRef`s a later node can bind to rather
+per collection by the knowledge base that was checked, so a search never reaches
+another tenant's rows or a same-named base of its own tenant - but handed back as `SourceRef`s a later node can bind to rather
 than a citation string a model reads. No results is an answer, not a failure:
 an empty `sources` flows on like any other.
 
@@ -30,10 +30,12 @@ from app.agents.capabilities.budget import (
 from app.agents.capabilities.knowledge._search import get_retrieval_service
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
+from app.db.models.knowledge_base import KnowledgeBase
 from app.db.session import get_worker_db_context
 from app.repositories import knowledge_base_repo
 from app.services.collection_access import readable_kb
 from app.services.rag.citation import cited_page
+from app.services.rag.filters import RetrievalScope, scope_for
 from app.services.rag.models import SearchResult
 from app.services.spend import assert_organization_within_budget
 from app.services.workflow_execution import budget, context
@@ -76,18 +78,18 @@ class KnowledgeSearchOutput(BaseModel):
 
 async def _readable(
     db: AsyncSession, auth: AuthContext, collection_ids: tuple[UUID, ...]
-) -> tuple[list[str], list[int]]:
-    """The vector collection names `auth` may read, and the indexes it may not."""
+) -> tuple[list[KnowledgeBase], list[int]]:
+    """The knowledge bases `auth` may read, and the indexes of those it may not."""
     found = await knowledge_base_repo.get_by_ids(db, collection_ids)
-    names: list[str] = []
+    bases: list[KnowledgeBase] = []
     refused: list[int] = []
     for index, collection_id in enumerate(collection_ids):
         kb = found.get(collection_id)
         if kb is None or not await readable_kb(db, auth, kb):
             refused.append(index)
         else:
-            names.append(kb.collection_name)
-    return names, refused
+            bases.append(kb)
+    return bases, refused
 
 
 async def check_resources(
@@ -96,7 +98,7 @@ async def check_resources(
     """Refuse a collection the graph's author cannot read."""
     if not isinstance(config, KnowledgeSearchConfig):
         return []
-    _names, refused = await _readable(db, ctx, config.collection_ids)
+    _bases, refused = await _readable(db, ctx, config.collection_ids)
     return [
         (f"collection_ids.{index}", "This collection does not exist or is not accessible")
         for index in refused
@@ -134,7 +136,13 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     current = context.current()
     try:
         async with get_worker_db_context() as db:
-            names, refused = await _readable(db, current.auth, config.collection_ids)
+            bases, refused = await _readable(db, current.auth, config.collection_ids)
+            names = [kb.collection_name for kb in bases]
+            # Each checked base's own scope: resolving its name again could pick a
+            # same-named base of the organization that the run's principal cannot read.
+            scopes: dict[str, RetrievalScope] = {
+                kb.collection_name: scope_for(kb.vector_scope) for kb in bases
+            }
             await assert_organization_within_budget(db, current.organization_id)
             limits = await budget.provider_limits(
                 db, organization_id=current.organization_id, remaining=current.budget_remaining
@@ -161,9 +169,6 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     ledger = SpendLedger()
     try:
         with metered_by(ledger), guarded_by(BudgetGuard(ledger=ledger, limits=limits)):
-            scopes = {
-                name: await service.resolve_scope(name, current.organization_id) for name in names
-            }
             if len(names) == 1:
                 results = await service.retrieve(
                     query=node_input.query,
