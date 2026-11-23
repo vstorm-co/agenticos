@@ -110,8 +110,8 @@ API.
 
 Datasets are not grouped by department. The Datasets list has no group filter
 and no department badges, and a dataset has no Add to an agent action or
-`used_by` list: an agent's test set is reached from the agent - its Evals tab,
-Improve, and the dataset's Settings. A dataset is still shared like any other
+`used_by` list: an agent's test set is reached from the agent - its Evals tab
+and Improve - or from the dataset's Settings. A dataset is still shared like any other
 resource, so a department reaches it through a grant on the dataset itself; see
 [Datasets](datasets.md#access). Its grader is the model and instructions set in
 the dataset's Settings, not an agent, so nothing there is picked by department.

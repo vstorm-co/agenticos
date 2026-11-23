@@ -1,5 +1,5 @@
 ---
-source_sha: "1bb5de69e36e"
+source_sha: "4d35d3389520"
 ---
 
 # Departamentos y grupos { #departments-and-groups }
@@ -119,7 +119,7 @@ para la misma restricción por la API.
 Los datasets no se agrupan por departamento. La lista de datasets no tiene filtro
 de grupo ni insignias de departamento, y un dataset no tiene la acción Add to an
 agent ni la lista `used_by`: al conjunto de pruebas de un agent se llega desde el
-agent - su pestaña **Evals**, **Improve** y los **Settings** del dataset. Aun
+agent - su pestaña **Evals** e **Improve** - o desde los **Settings** del dataset. Aun
 así, un dataset se comparte como cualquier otro recurso, de modo que un
 departamento llega a él mediante un grant sobre el propio dataset; consulte
 [Datasets](datasets.md#access). Su evaluador es el modelo y las instrucciones

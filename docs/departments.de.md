@@ -1,5 +1,5 @@
 ---
-source_sha: "1bb5de69e36e"
+source_sha: "4d35d3389520"
 ---
 
 # Abteilungen und Gruppen { #departments-and-groups }
@@ -121,8 +121,8 @@ Listen-Endpunkte nehmen `group_id` für dieselbe Einschränkung über die API.
 Datasets werden nicht nach Abteilung gruppiert. Die Datasets-Liste hat keinen
 Gruppenfilter und keine Abteilungsplaketten, und ein Dataset hat weder eine
 Aktion Add to an agent noch eine Liste `used_by`: Das Test-Set eines Agents
-erreicht man über den Agent - seinen Tab **Evals**, **Verbessern** und die
-**Einstellungen** des Datasets. Ein Dataset wird trotzdem wie jede andere
+erreicht man über den Agent - seinen Tab **Evals** und **Verbessern** - oder
+über die **Einstellungen** des Datasets. Ein Dataset wird trotzdem wie jede andere
 Ressource geteilt, sodass eine Abteilung es über einen Grant auf dem Dataset
 selbst erreicht; siehe [Datasets](datasets.md#access). Sein Bewerter ist das
 Modell mit den Anweisungen aus den **Einstellungen** des Datasets, kein Agent,
