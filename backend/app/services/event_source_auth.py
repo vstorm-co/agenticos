@@ -62,7 +62,7 @@ def verify_source(
         identifier = headers.get("webhook-id", "")
         if not identifier or len(stamp) > 16 or not stamp.isascii() or not stamp.isdigit():
             return False
-        if abs(moment - int(stamp)) > 300:
+        if abs(moment - int(stamp)) > trigger_events.TIMESTAMP_TOLERANCE_SECONDS:
             return False
         signed = identifier.encode() + b"." + stamp.encode() + b"." + body
         expected = base64.b64encode(hmac.new(standard_key(secret), signed, hashlib.sha256).digest())
@@ -79,7 +79,7 @@ def verify_source(
                 len(stamp) > 16
                 or not stamp.isascii()
                 or not stamp.isdigit()
-                or abs(moment - int(stamp)) > 300
+                or abs(moment - int(stamp)) > trigger_events.TIMESTAMP_TOLERANCE_SECONDS
             ):
                 return False
             signed = stamp.encode() + b"." + body

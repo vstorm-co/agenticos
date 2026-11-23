@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from app.api.deps import Auth, EventSourceSampleSvc, EventSourceSvc, limit_workflow_webhook, require
 from app.api.public_api import PUBLIC
@@ -42,7 +42,7 @@ async def list_sources(
 @router.post(
     "",
     response_model=EventSourceCreated,
-    status_code=201,
+    status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require(Perm.EVENT_SOURCES_EDIT))],
 )
 async def create_source(data: EventSourceCreate, ctx: Auth, service: EventSourceSvc) -> Any:
@@ -61,12 +61,14 @@ async def update_source(
     return await service.update(ctx, source_id, data)
 
 
-@router.delete("/{source_id}", response_model=None, status_code=204)
+@router.delete("/{source_id}", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
 async def delete_source(source_id: UUID, ctx: Auth, service: EventSourceSvc) -> Any:
     await service.delete(ctx, source_id)
 
 
-@router.post("/{source_id}/credentials", response_model=None, status_code=204)
+@router.post(
+    "/{source_id}/credentials", response_model=None, status_code=status.HTTP_204_NO_CONTENT
+)
 async def replace_credentials(
     source_id: UUID, data: SourceCredentials, ctx: Auth, service: EventSourceSvc
 ) -> Any:
@@ -94,8 +96,8 @@ async def caught(source_id: UUID, token: str, ctx: Auth, service: EventSourceSam
     "/sources/{source_id}",
     dependencies=[Depends(limit_workflow_webhook)],
     response_model=None,
-    status_code=202,
-    responses={200: {"description": "Linear delivery accepted"}},
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={status.HTTP_200_OK: {"description": "Linear delivery accepted"}},
 )
 async def receive(
     source_id: UUID, request: Request, service: EventSourceSvc, samples: EventSourceSampleSvc
@@ -111,4 +113,6 @@ async def receive(
         delivery_id=receipt.external_id or str(receipt.id),
         received_at=received_at,
     )
-    return Response(status_code=200 if source.provider == "linear" else 202)
+    return Response(
+        status_code=status.HTTP_200_OK if source.provider == "linear" else status.HTTP_202_ACCEPTED
+    )

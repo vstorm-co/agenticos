@@ -440,7 +440,7 @@ class EventSourceService:
         from app.services.agent_trigger import AgentTriggerService
         from app.worker.jobs import DISPATCH_SOURCE_EVENT, DispatchSourceEvent
 
-        source = await repo.get(self.db, source_id, lock=True)
+        source = await repo.get(self.db, source_id)
         if source is None:
             raise NotFoundError(message="Event source not found")
         credential = await repo.credential(
@@ -448,6 +448,7 @@ class EventSourceService:
         )
         if credential is None:
             raise NotFoundError(message="Source credential not found")
+        verified_envelope = credential.sealed_secret
         credentials = SourceCredentials.model_validate_json(
             unseal(
                 credential.sealed_secret,
@@ -474,6 +475,20 @@ class EventSourceService:
             jsonb_value_fits(payload)
         except (ValueError, UnicodeError, RecursionError, ValidationError) as exc:
             raise BadRequestError(message="A webhook body must be a JSON object") from exc
+        # Invalid requests never take the admission lock. A credential replacement
+        # edits the envelope in place under that lock, so re-read it as well.
+        source = await repo.get(self.db, source_id, lock=True)
+        if source is None:
+            raise NotFoundError(message="Event source not found")
+        current = await repo.credential(
+            self.db, source.secret_id, organization_id=source.organization_id
+        )
+        if (
+            current is None
+            or current.sealed_secret != verified_envelope
+            or SourceAuth.model_validate(source.auth) != auth
+        ):
+            raise AuthorizationError(message="Webhook authentication changed during delivery")
         if auth.method == "standard_webhooks":
             external_id = headers.get("webhook-id") or None
         elif source.delivery_id_header and not auth.reserves_header(

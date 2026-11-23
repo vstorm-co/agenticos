@@ -58,7 +58,7 @@ logger = logging.getLogger(__name__)
 
 # The generic webhook's optional signed time, and how far it may be from ours.
 _TIMESTAMP_HEADER = "x-signature-timestamp"
-_TIMESTAMP_TOLERANCE_SECONDS = 300
+TIMESTAMP_TOLERANCE_SECONDS = 300
 
 # How much of a free-text field - a webhook payload, or an issue, email or post
 # body - is forwarded to the agent. A model does not need forty kilobytes of
@@ -206,7 +206,7 @@ def verify_signature(
     if stamp:
         if not stamp.isdigit():
             return False
-        if abs(moment - int(stamp)) > _TIMESTAMP_TOLERANCE_SECONDS:
+        if abs(moment - int(stamp)) > TIMESTAMP_TOLERANCE_SECONDS:
             return False
         signed = stamp.encode() + b"." + body
     expected = "sha256=" + hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
@@ -240,7 +240,7 @@ def _hubspot_verified(
         stamp = headers.get("x-hubspot-request-timestamp", "").strip()
         if url is None or not stamp.isdigit():
             return False
-        if abs(now * 1000 - int(stamp)) > _TIMESTAMP_TOLERANCE_SECONDS * 1000:
+        if abs(now * 1000 - int(stamp)) > TIMESTAMP_TOLERANCE_SECONDS * 1000:
             return False
         return _same(_hmac_b64(secret, b"POST" + url.encode() + body + stamp.encode()), v3)
     if headers.get("x-hubspot-signature-version", "").strip().casefold() != "v1":
@@ -280,7 +280,7 @@ def _zendesk_verified(secret: str, *, body: bytes, headers: Mapping[str, str], n
         signed_at = datetime.fromisoformat(stamp)
     except ValueError:
         return False
-    if signed_at.tzinfo is None or abs(now - signed_at.timestamp()) > _TIMESTAMP_TOLERANCE_SECONDS:
+    if signed_at.tzinfo is None or abs(now - signed_at.timestamp()) > TIMESTAMP_TOLERANCE_SECONDS:
         return False
     signature = headers.get(SIGNATURE_HEADER["zendesk"], "").strip()
     return _same(_hmac_b64(secret, stamp.encode() + body), signature)

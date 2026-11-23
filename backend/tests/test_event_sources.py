@@ -132,6 +132,7 @@ async def test_receipt_retains_complete_json_and_no_auth_headers(db, source, rep
 async def test_bad_auth_never_persists_or_queues(db, source, repos):
     with pytest.raises(AuthorizationError):
         await EventSourceService(db).receive(source.id, body=b"{}", headers={})
+    module.repo.get.assert_awaited_once_with(db, source.id)
     module.repo.admit.assert_not_called()
     repos.assert_not_called()
 
@@ -153,6 +154,14 @@ async def test_bad_auth_never_persists_or_queues(db, source, repos):
 async def test_malformed_authenticated_request_has_no_receipt(db, source, repos, body):
     with pytest.raises(BadRequestError):
         await EventSourceService(db).receive(source.id, body=body, headers=signed(body))
+    module.repo.get.assert_awaited_once_with(db, source.id)
+    module.repo.admit.assert_not_called()
+
+
+async def test_source_deleted_during_verification_cannot_admit(db, source, repos):
+    module.repo.get.side_effect = [source, None]
+    with pytest.raises(NotFoundError):
+        await EventSourceService(db).receive(source.id, body=b"{}", headers=signed(b"{}"))
     module.repo.admit.assert_not_called()
 
 

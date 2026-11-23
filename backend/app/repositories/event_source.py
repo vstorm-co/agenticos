@@ -72,10 +72,12 @@ async def credential(
     db: AsyncSession, secret_id: UUID, *, organization_id: UUID
 ) -> EventSourceCredential | None:
     return await db.scalar(
-        select(EventSourceCredential).where(
+        select(EventSourceCredential)
+        .where(
             EventSourceCredential.id == secret_id,
             EventSourceCredential.organization_id == organization_id,
         )
+        .execution_options(populate_existing=True)
     )
 
 

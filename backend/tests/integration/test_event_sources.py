@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.clients.redis import RedisClient
 from app.core.config import settings
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Scope
 from app.db.locks import LockScope, hold_subject
 from app.db.models.background_job import BackgroundJob
@@ -33,6 +33,7 @@ from app.db.models.workflow_run import WorkflowRun
 from app.schemas.agent_trigger import TriggerCreate
 from app.schemas.event_source import (
     EventSourceCreate,
+    EventSourceUpdate,
     SourceAuth,
     SourceCredentials,
 )
@@ -103,6 +104,42 @@ async def _receive(db, source_id, event_id="event-1"):
 
 async def _count(db, model):
     return await db.scalar(select(func.count()).select_from(model))
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("change", ["credential", "header"])
+async def test_changed_auth_cannot_admit_a_previously_verified_delivery(
+    db: AsyncSession, engine: AsyncEngine, source_world, monkeypatch, change: str
+) -> None:
+    ctx, _, _, source = source_world
+    await db.commit()
+    get_source = module.repo.get
+
+    async def rotate_before_lock(session, source_id, **kwargs):
+        if session is db and kwargs.get("lock"):
+            async with async_sessionmaker(engine).begin() as editor:
+                await editor.execute(text("SET LOCAL lock_timeout = '2s'"))
+                sources = EventSourceService(editor)
+                if change == "credential":
+                    await sources.replace_credentials(
+                        ctx, source_id, SourceCredentials(secret=SecretStr("replacement-key"))
+                    )
+                else:
+                    await sources.update(
+                        ctx,
+                        source_id,
+                        EventSourceUpdate(
+                            auth=SourceAuth(
+                                method="api_key", header_name="x-new-key", signature_prefix=""
+                            )
+                        ),
+                    )
+        return await get_source(session, source_id, **kwargs)
+
+    monkeypatch.setattr(module.repo, "get", rotate_before_lock)
+    with pytest.raises(AuthorizationError, match="authentication changed"):
+        await _receive(db, source.id)
+    assert await _count(db, EventDelivery) == 0
 
 
 @pytest.mark.security
