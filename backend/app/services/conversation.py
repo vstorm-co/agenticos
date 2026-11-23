@@ -872,6 +872,10 @@ class ConversationService:
             await self._attach_favourites([conversation], user_id=user_id)
             await self._attach_fork_origins([conversation], user_id=user_id)
             await self._attach_share_permission(conversation, user_id=user_id)
+            if conversation.origin == "routine" and user_id is not None:
+                conversation.can_fork_routine_log = await self._owns_routine_log(
+                    conversation, user_id
+                )
         return conversation
 
     async def get_metadata(
@@ -988,9 +992,10 @@ class ConversationService:
         """
         if conversation.origin == "workflow":
             return False
-
         if getattr(conversation, "project_id", None) is not None:
             return await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_VIEW)
+        if conversation.origin == "routine":
+            return await self._may_read_trigger_log(conversation, ctx)
         owner = getattr(conversation, "user_id", None)
         if owner is not None and str(owner) == str(user_id):
             return True
@@ -1098,6 +1103,16 @@ class ConversationService:
             return False
         return await resolve_access(self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT)
 
+    async def _owns_routine_log(self, conversation: Conversation, user_id: UUID) -> bool:
+        if conversation.origin != "routine":
+            return False
+        trigger = await agent_trigger_repo.get_by_conversation_id(self.db, conversation.id)
+        return (
+            trigger is not None
+            and trigger.organization_id == conversation.organization_id
+            and trigger.created_by_user_id == user_id
+        )
+
     async def _may_write(
         self,
         conversation: Conversation,
@@ -1139,7 +1154,7 @@ class ConversationService:
         theirs to see. An ownerless automation log can instead be managed by
         someone who may edit the project.
         """
-        if conversation.origin == "workflow":
+        if conversation.origin in ("workflow", "routine"):
             return False
 
         owner = getattr(conversation, "user_id", None)
@@ -1399,6 +1414,21 @@ class ConversationService:
             if user_id is not None and project_scope != "exclude"
             else []
         )
+        routine_access = None
+        if user_id is not None and reader is not None and not for_model:
+            ctx = reader
+            if (
+                ctx.user_id == user_id
+                and ctx.organization_id == organization_id
+                and ctx.has(Perm.RUNS_VIEW)
+            ):
+                grants = await visible_resource_ids(
+                    self.db, ctx, resource_type=AGENT, perm=Perm.AGENTS_VIEW
+                )
+                routine_access = conversation_repo.RoutineLogAccess(
+                    scope=ctx.scope_for(Perm.AGENTS_VIEW),
+                    shared_agent_ids=frozenset(grants or ()),
+                )
         items = await conversation_repo.get_conversations_by_user(
             self.db,
             user_id=user_id,
@@ -1425,6 +1455,7 @@ class ConversationService:
             ),
             participant_conversation_ids=participant_ids,
             visible_project_ids=project_ids,
+            routine_access=routine_access,
             hide_api=hide_api,
             hide_channels=hide_channels,
             project_id=project_id,
@@ -1441,6 +1472,7 @@ class ConversationService:
             archived_only=archived_only,
             participant_conversation_ids=participant_ids,
             visible_project_ids=project_ids,
+            routine_access=routine_access,
             hide_api=hide_api,
             hide_channels=hide_channels,
             project_id=project_id,
@@ -1746,7 +1778,8 @@ class ConversationService:
     ) -> Conversation:
         """A new chat for the owner, holding this one's history up to one of its answers (#2762).
 
-        Forking is the owner's own tool: a reader holding a share, view or edit,
+        The owner may fork their own chat, and a routine creator may fork its
+        shared read-only history. A reader holding only a share, view or edit,
         cannot fork, and is told the conversation does not exist, as every other
         refusal here does. The fork stays in the source's project, so an owner
         who may no longer start chats there is refused rather than handed the
@@ -1771,7 +1804,7 @@ class ConversationService:
             include_favourite=False,
             ctx=ctx,
         )
-        if source.user_id != user_id:
+        if source.user_id != user_id and not await self._owns_routine_log(source, user_id):
             raise NotFoundError(
                 message="Conversation not found",
                 details={"conversation_id": conversation_id},
@@ -1880,6 +1913,7 @@ class ConversationService:
             self.db,
             source=source,
             through=answer,
+            owner_user_id=user_id,
             restored_summary=summary,
             copy_bytes=copy_bytes,
             copy_summary=copy_summary,

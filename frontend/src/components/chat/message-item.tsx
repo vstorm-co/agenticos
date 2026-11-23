@@ -551,11 +551,7 @@ export const MessageItem = memo(function MessageItem({
             )}
             {/* What was asked, kept: on a schedule, or as an agent of its own (#2301). */}
             {isUser && !pins && !message.isTemporaryId && message.content && (
-              <TurnShortcuts
-                request={message.content}
-                agentId={agent?.id ?? null}
-                conversationId={message.conversationId}
-              />
+              <TurnShortcuts request={message.content} agentId={agent?.id ?? null} />
             )}
             {/* Stored messages only: a reply names the row it answers, and a
                 message still on this tab's own id has none yet. */}

@@ -1677,7 +1677,9 @@
       "empty": "Wszystko na bieżąco. Nowe ustalenia i ważne tematy pojawią się tutaj.",
       "failed": "Nie udało się wczytać Inboxa.",
       "refreshFailed": "Nie udało się odświeżyć skrzynki. Wyświetlamy ostatnio pobrane elementy."
-    }
+    },
+    "routineHistoryReadOnly": "To historia rutyny tylko do odczytu. Zrób fork odpowiedzi, aby kontynuować w nowym chacie.",
+    "routineContinueChat": "Kontynuuj w nowym chacie"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
@@ -4575,7 +4577,9 @@
       "newWatch": "Monitoruj i informuj",
       "newRoutine": "Nowa rutyna",
       "scheduledTask": "Uruchamiaj według harmonogramu",
-      "eventTask": "Uruchamiaj po zdarzeniu"
+      "eventTask": "Uruchamiaj po zdarzeniu",
+      "watchNeedsEnabling": "Włącz monitoring w ustawieniach organizacji.",
+      "watchNeedsConnection": "Najpierw dodaj konto MCP w Połączeniach."
     },
     "signIns": {
       "cancel": "Anuluj",
@@ -8846,7 +8850,6 @@
   },
   "triggers": {
     "setupReviewTitle": "Sprawdź dostęp rutyny",
-    "setupReviewDescription": "Rutyna jest zapisana i wstrzymana. Sprawdź źródła i wybierz działania, które mogą wykonywać się bez pytania. Zapisz, aby ją włączyć, lub dokończ później.",
     "enableRoutine": "Włącz rutynę",
     "finishLater": "Dokończ później",
     "stopWaitingRun": "Zatrzymaj oczekujące uruchomienie",
@@ -8973,10 +8976,6 @@
     "weekdayFri": "Pt",
     "weekdaySat": "Sb",
     "weekdaySun": "Nd",
-    "summaryDaily": "Uruchomi się codziennie o {time} ({zone}).",
-    "summaryEveryNDays": "Uruchomi się co {count, plural, =1 {dzień} few {# dni} many {# dni} other {# dni}} o {time} UTC.",
-    "summaryWeekly": "Uruchomi się o {time} ({zone}) w: {days}.",
-    "summaryMonthly": "Uruchomi się {day}. dnia każdego miesiąca o {time} ({zone}).",
     "eventSource": "Uruchamia się przy",
     "sourceGithub": "Zgłoszeniu GitHub",
     "webhookUrlPreview": "Adres dostarczania",
@@ -9116,7 +9115,6 @@
     "choiceWeekly": "Co tydzień",
     "choiceCustom": "Własny",
     "moreOptions": "Więcej opcji",
-    "summaryInterval": "Uruchamia się co {unit, select, minutes {{count, plural, one {minutę} few {# minuty} many {# minut} other {# minuty}}} hours {{count, plural, one {godzinę} few {# godziny} many {# godzin} other {# godziny}}} other {{count, plural, one {dzień} other {# dni}}}}, licząc od zapisania.",
     "templatesMore": "{count, plural, one {Pokaż jeszcze 1} few {Pokaż jeszcze #} many {Pokaż jeszcze #} other {Pokaż jeszcze #}}",
     "templatesFewer": "Pokaż mniej",
     "local": {
@@ -9140,17 +9138,6 @@
       "noPermissions": "Żadna rutyna w tej organizacji nie ma dostępu do folderów.",
       "revoke": "Cofnij zgodę",
       "waitingDevice": "Oczekiwanie na komputer ({count})"
-    },
-    "answerToLabel": "Odpowiadaj też w",
-    "answerTo": {
-      "primary": "Moja rozmowa z tym agentem",
-      "run_log": "Tylko dziennik uruchomień",
-      "conversation": "Czat, w którym ją utworzono"
-    },
-    "answerToHint": {
-      "primary": "Każdy wynik trafia też do Twojej własnej rozmowy z tym agentem, więc wszystko, co Ci mówi, jest w jednym miejscu.",
-      "run_log": "Wyniki zostają w dzienniku uruchomień; nic nie trafia do Twoich czatów.",
-      "conversation": "Każdy wynik trafia na czat, dla którego utworzono tę rutynę."
     },
     "budgetLabel": "Miesięczny budżet (USD, opcjonalnie)",
     "budgetCreatorOnly": "Tylko osoba, która utworzyła tę rutynę, może podnieść albo zdjąć jej limit, dopóki rutyna działa jako ona.",
@@ -9201,7 +9188,8 @@
       "groupCount": "{selected} z {total}",
       "useAgent": "Użyj ustawień agenta",
       "useAgentHint": "Zaznacza dokładnie te działania, które agent już w czacie wykonuje bez pytania, i zastępuje obecne zaznaczenie. Zgoda tutaj może tylko zawęzić to, na co pozwalają ustawienia agenta, nigdy tego nie poszerza: działania, przed którym agent pyta, nie ma na liście. Nic się nie zapisuje, dopóki nie wybierzesz Zapisz zgody.",
-      "allowHeading": "Pozwól tym działaniom działać bez pytania o zgodę"
+      "allowHeading": "Pozwól tym działaniom działać bez pytania o zgodę",
+      "alwaysAsks": "Zawsze pyta: wymagane przez agenta lub platformę"
     },
     "sourceConsents": {
       "title": "Źródła",
@@ -9228,17 +9216,11 @@
       "reviewBeforeActivationHint": "Opcjonalnie: zapisz wstrzymaną rutynę, sprawdź zestaw źródeł agenta, a następnie włącz rutynę.",
       "runsAsYou": "Działa jako Ty. Nadal obowiązują Twoje uprawnienia i wymagane zgody.",
       "agentIdentity": "Korzysta z dostępu agenta. Dostęp do kont osobistych jest wyłączony.",
-      "requiredUnavailable": "Wymagane źródła są niedostępne: {names}. Przywróć dostęp przed zapisaniem lub włączeniem rutyny.",
-      "followApprovals": "Korzysta z reguł zatwierdzania agenta w granicach zatwierdzonego dostępu i zachowania rutyny. Twórca musi sprawdzić późniejsze rozszerzenia lub zmiany zachowania; wymagane zgody nadal obowiązują. Wybierz Sprawdzony zestaw, aby ustawić zgody dla tej rutyny."
+      "requiredUnavailable": "Wymagane źródła są niedostępne: {names}. Przywróć dostęp przed zapisaniem lub włączeniem rutyny."
     },
     "advancedOptions": "Opcje zaawansowane",
     "advancedOptionsHint": "Domyślnie: bieżąca opublikowana wersja, ochrona przed błędami i Twoje preferencje powiadomień.",
     "budgetInvalid": "Wpisz dodatnią kwotę albo zostaw puste pole, aby usunąć ten limit.",
-    "resultMode": "Kiedy przekazywać wyniki",
-    "resultReport": "Po każdym zakończonym wykonaniu",
-    "resultInbox": "Tylko gdy coś wymaga uwagi",
-    "resultReportHint": "Po każdym wykonaniu przekaż raport do wybranej rozmowy.",
-    "resultInboxHint": "Utwórz jedną sprawę w Inbox i rozmowę na element źródłowy. Umieść tam zamówioną wersję roboczą; sprawdzenia bez zmian pozostają ciche. Wysyłka nadal wymaga odpowiednich uprawnień i zgody.",
     "clearSearch": "Wyczyść wyszukiwanie",
     "noRoutineMatchesHint": "Spróbuj nazwy agenta, tytułu rutyny lub słów z jej wiadomości.",
     "setupRequired": "Wymaga konfiguracji",
@@ -9260,7 +9242,25 @@
       "mention": "Komentarz nie zawierał wymaganej wzmianki.",
       "conclusion": "Wynik workflow nie pasował.",
       "not_branch": "Push usuwał gałąź lub nie dotyczył gałęzi."
-    }
+    },
+    "approvalMode": {
+      "label": "Zatwierdzanie narzędzi",
+      "hint": "Publikowanie do Inboxu jest dostępne od razu. Obowiązkowe zgody agenta i platformy nadal obowiązują.",
+      "automatic": "Uruchamiaj dozwolone narzędzia automatycznie",
+      "manual": "Pytaj przed działaniami",
+      "custom": "Wybierz zgody dla każdego narzędzia",
+      "existing": "Zachowaj obecne zgody"
+    },
+    "chatModeLabel": "Rozmowy",
+    "chatMode": {
+      "per_run": "Nowy chat dla każdego uruchomienia",
+      "shared": "Wspólna historia — tylko do odczytu"
+    },
+    "chatModeHint": {
+      "per_run": "Po każdym uruchomieniu możesz kontynuować rozmowę. Wiadomości nie zmieniają rutyny.",
+      "shared": "Wyniki trafiają do wspólnej historii tylko do odczytu. Zrób fork odpowiedzi, aby kontynuować w nowym chacie."
+    },
+    "openExecutionChat": "Otwórz chat"
   },
   "portals": {
     "backToServices": "Wróć do usług",

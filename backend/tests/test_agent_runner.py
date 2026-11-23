@@ -9239,6 +9239,10 @@ class TestPerRunLocalServices:
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch.object(service.workspaces, "open", opened),
             patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch(
                 "app.services.agent_runner.agent_run_repo.create_run",
                 new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
             ),
@@ -9984,6 +9988,9 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
     )
     with (
         patch(
+            "app.services.agent_runner.mint_for_run", new=AsyncMock(return_value="run-test-key")
+        ) as credential,
+        patch(
             "app.services.agent_runner.build_toolsets_for_agent",
             new=AsyncMock(return_value=resolved),
         ),
@@ -10033,6 +10040,8 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
     assert create.await_args.kwargs["routine_policy"]["activation_id"] == (
         None if ctx.routine_dispatch_id is None else str(ctx.routine_dispatch_id)
     )
+    assert credential.await_args.kwargs["run_id"] == create.await_args.kwargs["run_id"]
+    assert credential.await_args.kwargs["reporting_only"] is True
     assert create.await_args.kwargs["trigger_id"] == ctx.routine_id
     assert create.await_args.kwargs["routine_policy"]["mcp_sources"] == {}
     assert (
@@ -10132,6 +10141,9 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
     )
     receipt = WatchReadReceipt(activation_at=datetime.now(UTC))
     with (
+        patch(
+            "app.services.agent_runner.mint_for_run", new=AsyncMock(return_value="watch-test-key")
+        ),
         patch.object(
             service.registry,
             "get_runnable_spec",

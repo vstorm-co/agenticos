@@ -36,6 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, defer, load_only, raiseload, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
+from app.core.permissions import Scope
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
@@ -47,6 +48,7 @@ from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.conversation_last_read import ConversationLastRead
 from app.db.models.conversation_share import ConversationShare
+from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.repositories._search import contains_ci
 from app.schemas.conversation import HistoryCheckpointFrontier
@@ -404,8 +406,44 @@ async def authors_of(db: AsyncSession, identity_ids: list[UUID]) -> dict[UUID, C
     return {identity.id: identity for identity in result.scalars().all()}
 
 
+class RoutineLogAccess(NamedTuple):
+    scope: Scope
+    shared_agent_ids: frozenset[UUID]
+
+
+def _own_routine_log(user_id: UUID, access: RoutineLogAccess) -> ColumnElement[bool]:
+    allowed: ColumnElement[bool] = Agent.id.in_(access.shared_agent_ids)
+    if access.scope is Scope.ALL:
+        allowed = literal(True)
+    elif access.scope is Scope.OWN:
+        allowed = or_(allowed, Agent.owner_user_id == user_id)
+    elif access.scope in (Scope.SHARED, Scope.TEAM):
+        visibility = [Visibility.ORG.value]
+        if access.scope is Scope.TEAM:
+            visibility.append(Visibility.TEAM.value)
+        allowed = or_(allowed, Agent.owner_user_id == user_id, Agent.visibility.in_(visibility))
+    return and_(
+        Conversation.user_id.is_(None),
+        Conversation.project_id.is_(None),
+        select(AgentTrigger.id)
+        .join(Agent, Agent.id == AgentTrigger.agent_id)
+        .where(
+            AgentTrigger.conversation_id == Conversation.id,
+            AgentTrigger.organization_id == Conversation.organization_id,
+            Agent.organization_id == Conversation.organization_id,
+            AgentTrigger.created_by_user_id == user_id,
+            allowed,
+        )
+        .correlate(Conversation)
+        .exists(),
+    )
+
+
 def _reachable_by(
-    user_id: UUID, participant_ids: Collection[UUID], project_ids: Collection[UUID]
+    user_id: UUID,
+    participant_ids: Collection[UUID],
+    project_ids: Collection[UUID],
+    routine_access: RoutineLogAccess | None = None,
 ) -> ColumnElement[bool]:
     """Whose conversation list a thread appears in.
 
@@ -433,6 +471,8 @@ def _reachable_by(
         ways_in.append(Conversation.id.in_(participant_ids))
     if project_ids:
         ways_in.append(Conversation.project_id.in_(project_ids))
+    if routine_access is not None:
+        ways_in.append(_own_routine_log(user_id, routine_access))
     return or_(*ways_in)
 
 
@@ -880,6 +920,7 @@ async def get_conversations_by_user(
     favourites_first_for: UUID | None = None,
     participant_conversation_ids: Collection[UUID] = frozenset(),
     visible_project_ids: Collection[UUID] = frozenset(),
+    routine_access: RoutineLogAccess | None = None,
     hide_api: bool = False,
     hide_channels: bool = False,
     project_id: UUID | None = None,
@@ -913,7 +954,9 @@ async def get_conversations_by_user(
     )
     if user_id:
         query = query.where(
-            _reachable_by(user_id, participant_conversation_ids, visible_project_ids)
+            _reachable_by(
+                user_id, participant_conversation_ids, visible_project_ids, routine_access
+            )
         )
     for condition in _list_filters(
         search=search,
@@ -1001,6 +1044,7 @@ async def count_conversations(
     archived_only: bool = False,
     participant_conversation_ids: Collection[UUID] = frozenset(),
     visible_project_ids: Collection[UUID] = frozenset(),
+    routine_access: RoutineLogAccess | None = None,
     hide_api: bool = False,
     hide_channels: bool = False,
     project_id: UUID | None = None,
@@ -1019,7 +1063,9 @@ async def count_conversations(
     )
     if user_id:
         query = query.where(
-            _reachable_by(user_id, participant_conversation_ids, visible_project_ids)
+            _reachable_by(
+                user_id, participant_conversation_ids, visible_project_ids, routine_access
+            )
         )
     for condition in _list_filters(
         search=search,
@@ -1478,13 +1524,14 @@ async def fork_conversation(
     source: Conversation,
     through: Message,
     copy_bytes: int,
+    owner_user_id: UUID | None = None,
     restored_summary: dict[str, JsonValue] | None = None,
     copy_summary: bool = True,
 ) -> Conversation:
     """A new conversation holding `source`'s messages up to and including `through`.
 
-    Owned by the source's owner, in its organization and project, with the same
-    title. Each message is copied with its tool calls, in the order it was
+    Owned by the source's owner unless the service supplies the authorized
+    routine creator, in the source organization and project, with the same title. Each message is copied with its tool calls, in the order it was
     written, and flushed one at a time: the ordinal comes from an identity, and
     one multi-row insert does not promise to hand it out in the order of the
     rows.
@@ -1507,7 +1554,7 @@ async def fork_conversation(
     reaches past the fork point covers turns the fork does not have, and is left behind.
     """
     fork = Conversation(
-        user_id=source.user_id,
+        user_id=owner_user_id if owner_user_id is not None else source.user_id,
         organization_id=source.organization_id,
         title=source.title,
         project_id=source.project_id,

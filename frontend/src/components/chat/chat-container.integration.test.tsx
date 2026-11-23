@@ -1922,6 +1922,28 @@ describe("the chat container - a conversation shared with the reader", () => {
     expect(screen.queryByText("Could not verify access to this conversation")).toBeNull();
   });
 
+  it("keeps a shared routine history read-only and lets its creator continue through a fork", async () => {
+    openShared({ user_id: null, origin: "routine", can_fork_routine_log: true });
+    vi.mocked(apiClient.post).mockResolvedValue({
+      id: "routine-fork",
+      user_id: SIGNED_IN.id,
+      title: "Routine follow-up",
+    });
+    mount();
+    const continueButton = await screen.findByRole(
+      "button",
+      { name: "Continue in a new chat" },
+      SETTLE,
+    );
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    await userEvent.click(continueButton);
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-theirs/fork", {
+        message_id: "m-1",
+      }),
+    );
+  });
+
   it("offers fork controls and lineage for an owned chat beyond the sidebar page", async () => {
     openShared({
       user_id: SIGNED_IN.id,
@@ -1931,10 +1953,10 @@ describe("the chat container - a conversation shared with the reader", () => {
     });
     mount();
 
-    expect(
-      await screen.findByRole("button", { name: "Fork into a new conversation" }, SETTLE),
-    ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Earlier plan" })).toBeVisible();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Fork into a new conversation" })).toBeVisible();
+      expect(screen.getByRole("button", { name: "Earlier plan" })).toBeVisible();
+    }, SETTLE);
   });
 });
 

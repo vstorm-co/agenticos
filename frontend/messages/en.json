@@ -2684,7 +2684,9 @@
       "empty": "You’re all caught up. New findings and important topics will appear here.",
       "failed": "Your inbox could not be loaded.",
       "refreshFailed": "Could not refresh your inbox. Showing the last loaded items."
-    }
+    },
+    "routineHistoryReadOnly": "This is a read-only routine history. Fork an answer to continue in a new chat.",
+    "routineContinueChat": "Continue in a new chat"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -8461,7 +8463,9 @@
       "newWatch": "Monitor and inform",
       "newRoutine": "New routine",
       "scheduledTask": "Run on a schedule",
-      "eventTask": "Run when an event arrives"
+      "eventTask": "Run when an event arrives",
+      "watchNeedsEnabling": "Enable monitoring in Organization settings.",
+      "watchNeedsConnection": "Connect an MCP account in Connections first."
     },
     "signIns": {
       "cancel": "Cancel",
@@ -10163,7 +10167,6 @@
   },
   "triggers": {
     "setupReviewTitle": "Review routine access",
-    "setupReviewDescription": "The routine is saved and paused. Review its sources and choose which actions may run without asking. Save once to enable it, or finish later to leave it paused.",
     "enableRoutine": "Enable routine",
     "finishLater": "Finish later",
     "stopWaitingRun": "Stop waiting run",
@@ -10288,10 +10291,6 @@
     "weekdayFri": "Fri",
     "weekdaySat": "Sat",
     "weekdaySun": "Sun",
-    "summaryDaily": "Runs every day at {time} ({zone}).",
-    "summaryEveryNDays": "Runs every {count, plural, =1 {day} other {# days}}, continuously from when it is saved.",
-    "summaryWeekly": "Runs at {time} ({zone}) on {days}.",
-    "summaryMonthly": "Runs on day {day} of every month at {time} ({zone}).",
     "eventSource": "Fires on",
     "sourceGithub": "A GitHub issue",
     "webhookUrlPreview": "Delivery URL",
@@ -10429,7 +10428,6 @@
     "choiceWeekly": "Weekly",
     "choiceCustom": "Custom",
     "moreOptions": "More options",
-    "summaryInterval": "Runs every {unit, select, minutes {{count, plural, =1 {minute} other {# minutes}}} hours {{count, plural, =1 {hour} other {# hours}}} other {{count, plural, =1 {day} other {# days}}}}, from when it is saved.",
     "templatesMore": "{count, plural, =1 {Show 1 more} other {Show # more}}",
     "templatesFewer": "Show fewer",
     "local": {
@@ -10453,17 +10451,6 @@
       "noPermissions": "No routine has folder access in this organization.",
       "revoke": "Revoke",
       "waitingDevice": "Waiting for computer ({count})"
-    },
-    "answerToLabel": "Also answer in",
-    "answerTo": {
-      "primary": "My conversation with this agent",
-      "run_log": "The run log only",
-      "conversation": "The chat it was made in"
-    },
-    "answerToHint": {
-      "primary": "Each result is also posted to your own conversation with this agent, so everything it tells you is in one place.",
-      "run_log": "Results stay in the run log; nothing is posted to your chats.",
-      "conversation": "Each result is posted to the chat this routine was made for."
     },
     "budgetLabel": "Monthly budget (USD, optional)",
     "budgetCreatorOnly": "Only the person who made this routine can raise or remove its limit while it runs as them.",
@@ -10514,7 +10501,8 @@
       "groupCount": "{selected} of {total}",
       "useAgent": "Use the agent's settings",
       "useAgentHint": "Selects exactly the actions this agent already runs without asking in a chat, replacing the current selection. Consent here can only narrow what the agent's settings grant, never widen it: an action the agent asks before is not offered. Nothing is saved until you choose Save consent.",
-      "allowHeading": "Allow these actions to run without asking for approval"
+      "allowHeading": "Allow these actions to run without asking for approval",
+      "alwaysAsks": "Always asks: required by the agent or platform"
     },
     "sourceConsents": {
       "title": "Sources",
@@ -10541,17 +10529,11 @@
       "reviewBeforeActivationHint": "Optional: save paused, inspect a snapshot of the agent’s sources, then enable the routine.",
       "runsAsYou": "Runs as you. Your permissions and required approvals still apply.",
       "agentIdentity": "Uses the agent’s own access. Personal account access is off.",
-      "requiredUnavailable": "Required sources unavailable: {names}. Restore access before saving or enabling this routine.",
-      "followApprovals": "Uses the agent’s approval rules within this routine’s approved access and behavior. The creator must review later expansions or behavior changes; required confirmations still apply. Choose Reviewed snapshot for routine-specific approvals."
+      "requiredUnavailable": "Required sources unavailable: {names}. Restore access before saving or enabling this routine."
     },
     "advancedOptions": "Advanced options",
     "advancedOptionsHint": "Defaults: current published version, standard failure protection and your notification preferences.",
     "budgetInvalid": "Enter a positive amount, or leave blank to remove this limit.",
-    "resultMode": "When to bring results",
-    "resultReport": "After every completed run",
-    "resultInbox": "Only when something needs attention",
-    "resultReportHint": "Deliver a report to the chosen conversation after each run.",
-    "resultInboxHint": "Create one Inbox case and working chat per source item. Include requested drafts there; unchanged checks stay quiet. Sending still requires the appropriate permission and approval.",
     "clearSearch": "Clear search",
     "noRoutineMatchesHint": "Try an agent name, routine title or words from its message.",
     "setupRequired": "Setup required",
@@ -10573,7 +10555,25 @@
       "mention": "The comment did not contain the required mention.",
       "conclusion": "The workflow conclusion did not match.",
       "not_branch": "The push deleted a branch or was not a branch push."
-    }
+    },
+    "approvalMode": {
+      "label": "Tool approvals",
+      "hint": "Inbox reporting is included. Required agent and platform approvals always apply.",
+      "automatic": "Run eligible tools automatically",
+      "manual": "Ask before actions",
+      "custom": "Choose permissions for each tool",
+      "existing": "Keep current permissions"
+    },
+    "chatModeLabel": "Conversations",
+    "chatMode": {
+      "per_run": "New chat for each run",
+      "shared": "Shared history — read-only"
+    },
+    "chatModeHint": {
+      "per_run": "Continue the conversation after each run. Follow-up messages do not change the routine.",
+      "shared": "Keep runs in one read-only history. Fork an answer to continue in a new chat."
+    },
+    "openExecutionChat": "Open chat"
   },
   "portals": {
     "backToServices": "Back to services",

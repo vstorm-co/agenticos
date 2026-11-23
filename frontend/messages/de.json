@@ -2684,7 +2684,9 @@
       "empty": "Alles erledigt. Neue Erkenntnisse und wichtige Themen erscheinen hier.",
       "failed": "Dein Posteingang konnte nicht geladen werden.",
       "refreshFailed": "Dein Posteingang konnte nicht aktualisiert werden. Die zuletzt geladenen Einträge werden angezeigt."
-    }
+    },
+    "routineHistoryReadOnly": "Dieser Routineverlauf ist schreibgeschützt. Verzweige eine Antwort, um in einem neuen Chat fortzufahren.",
+    "routineContinueChat": "In neuem Chat fortfahren"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -7733,7 +7735,9 @@
       "newWatch": "Überwachen und informieren",
       "newRoutine": "Neue Routine",
       "scheduledTask": "Nach Zeitplan ausführen",
-      "eventTask": "Bei einem Ereignis ausführen"
+      "eventTask": "Bei einem Ereignis ausführen",
+      "watchNeedsEnabling": "Monitoring in den Organisationseinstellungen aktivieren.",
+      "watchNeedsConnection": "Zuerst ein MCP-Konto unter Verbindungen hinzufügen."
     },
     "signIns": {
       "cancel": "Abbrechen",
@@ -10043,7 +10047,6 @@
   },
   "triggers": {
     "setupReviewTitle": "Zugriff der Routine prüfen",
-    "setupReviewDescription": "Die Routine ist gespeichert und pausiert. Prüfen Sie die Quellen und wählen Sie Aktionen, die ohne Rückfrage ausgeführt werden dürfen. Speichern aktiviert die Routine; später fortfahren lässt sie pausiert.",
     "enableRoutine": "Routine aktivieren",
     "finishLater": "Später fortfahren",
     "stopWaitingRun": "Wartende Ausführung stoppen",
@@ -10166,10 +10169,6 @@
     "weekdayFri": "Fr",
     "weekdaySat": "Sa",
     "weekdaySun": "So",
-    "summaryDaily": "Läuft jeden Tag um {time} ({zone}).",
-    "summaryEveryNDays": "Läuft {count, plural, =1 {täglich} other {alle # Tage}}, fortlaufend ab dem Speichern.",
-    "summaryWeekly": "Läuft um {time} ({zone}) an {days}.",
-    "summaryMonthly": "Läuft am {day}. jedes Monats um {time} ({zone}).",
     "eventSource": "Löst aus bei",
     "sourceGithub": "Einem GitHub-Issue",
     "webhookUrlPreview": "Zustell-URL",
@@ -10305,7 +10304,6 @@
     "choiceWeekly": "Wöchentlich",
     "choiceCustom": "Eigener",
     "moreOptions": "Weitere Optionen",
-    "summaryInterval": "Läuft {unit, select, minutes {{count, plural, =1 {jede Minute} other {alle # Minuten}}} hours {{count, plural, =1 {jede Stunde} other {alle # Stunden}}} other {{count, plural, =1 {jeden Tag} other {alle # Tage}}}}, ab dem Speichern.",
     "templatesMore": "{count, plural, =1 {1 weitere zeigen} other {# weitere zeigen}}",
     "templatesFewer": "Weniger zeigen",
     "local": {
@@ -10334,17 +10332,6 @@
     "noTimeZones": "Keine Zeitzonen gefunden. Versuche eine andere Stadt.",
     "templatesUnavailable": "Keine Vorlagen verfügbar. Du kannst eine eigene Nachricht schreiben.",
     "templatesLoadFailed": "Vorlagen konnten nicht geladen werden. Du kannst trotzdem eine eigene Nachricht schreiben.",
-    "answerToLabel": "Auch antworten in",
-    "answerTo": {
-      "primary": "Meine Unterhaltung mit diesem Agenten",
-      "run_log": "Nur das Ausführungsprotokoll",
-      "conversation": "Der Chat, in dem es erstellt wurde"
-    },
-    "answerToHint": {
-      "primary": "Jedes Ergebnis wird auch in Ihrer eigenen Unterhaltung mit diesem Agenten gepostet, sodass alles an einem Ort steht.",
-      "run_log": "Ergebnisse bleiben im Ausführungsprotokoll; in Ihren Chats wird nichts gepostet.",
-      "conversation": "Jedes Ergebnis wird in dem Chat gepostet, für den diese Routine erstellt wurde."
-    },
     "budgetLabel": "Monatsbudget (USD, optional)",
     "budgetCreatorOnly": "Nur die Person, die diese Routine angelegt hat, kann ihr Limit anheben oder entfernen, solange sie als diese Person läuft.",
     "budgetHint": "Was diese Routine pro Monat ausgeben darf. Ist es aufgebraucht, pausiert sie und startet am Ersten neu. Es verengt die Limits des Agenten und der Organisation, hebt sie nie an.",
@@ -10394,7 +10381,8 @@
       "groupCount": "{selected} von {total}",
       "useAgent": "Einstellungen des Agenten verwenden",
       "useAgentHint": "Wählt genau die Aktionen, die dieser Agent im Chat schon ohne Nachfrage ausführt, und ersetzt die aktuelle Auswahl. Eine Freigabe hier kann nur eingrenzen, was die Einstellungen des Agenten erlauben, nie erweitern: Eine Aktion, vor der der Agent fragt, wird nicht angeboten. Gespeichert wird erst mit Freigaben speichern.",
-      "allowHeading": "Diese Aktionen ohne Bestätigung ausführen lassen"
+      "allowHeading": "Diese Aktionen ohne Bestätigung ausführen lassen",
+      "alwaysAsks": "Fragt immer: vom Agenten oder der Plattform vorgeschrieben"
     },
     "sourceConsents": {
       "title": "Quellen",
@@ -10421,17 +10409,11 @@
       "reviewBeforeActivationHint": "Optional: pausiert speichern, den Quellenstand des Agents prüfen und die Routine anschließend aktivieren.",
       "runsAsYou": "Wird als Sie ausgeführt. Ihre Berechtigungen und Pflichtfreigaben gelten weiterhin.",
       "agentIdentity": "Nutzt den eigenen Zugriff des Agents. Persönliche Konten sind ausgeschlossen.",
-      "requiredUnavailable": "Erforderliche Quellen sind nicht verfügbar: {names}. Stellen Sie den Zugriff wieder her, bevor Sie diese Routine speichern oder aktivieren.",
-      "followApprovals": "Nutzt die Freigaberegeln des Agents innerhalb des genehmigten Zugriffs und Verhaltens dieser Routine. Spätere Erweiterungen oder Verhaltensänderungen muss die erstellende Person prüfen; Pflichtbestätigungen gelten weiterhin. Wählen Sie Geprüfter Stand für routinenspezifische Freigaben."
+      "requiredUnavailable": "Erforderliche Quellen sind nicht verfügbar: {names}. Stellen Sie den Zugriff wieder her, bevor Sie diese Routine speichern oder aktivieren."
     },
     "advancedOptions": "Erweiterte Optionen",
     "advancedOptionsHint": "Standard: aktuelle veröffentlichte Version, Fehlerschutz und deine Benachrichtigungseinstellungen.",
     "budgetInvalid": "Gib einen positiven Betrag ein oder lasse das Feld leer, um dieses Limit zu entfernen.",
-    "resultMode": "Wann Ergebnisse melden",
-    "resultReport": "Nach jeder abgeschlossenen Ausführung",
-    "resultInbox": "Nur wenn etwas Aufmerksamkeit braucht",
-    "resultReportHint": "Nach jeder Ausführung einen Bericht im gewählten Chat ablegen.",
-    "resultInboxHint": "Pro Quellelement einen Inbox-Vorgang und Arbeitschat erstellen. Angeforderte Entwürfe stehen dort; unveränderte Prüfungen bleiben still. Versand benötigt weiterhin Berechtigung und Freigabe.",
     "clearSearch": "Suche löschen",
     "noRoutineMatchesHint": "Suchen Sie nach dem Agentennamen, dem Routinentitel oder Wörtern aus ihrer Nachricht.",
     "setupRequired": "Einrichtung erforderlich",
@@ -10453,7 +10435,25 @@
       "mention": "Der Kommentar enthielt die erforderliche Erwähnung nicht.",
       "conclusion": "Das Workflow-Ergebnis passte nicht.",
       "not_branch": "Der Push löschte einen Branch oder war kein Branch-Push."
-    }
+    },
+    "approvalMode": {
+      "label": "Werkzeugfreigaben",
+      "hint": "Inbox-Meldungen sind enthalten. Vorgeschriebene Agenten- und Plattformfreigaben gelten weiterhin.",
+      "automatic": "Zulässige Werkzeuge automatisch ausführen",
+      "manual": "Vor Aktionen fragen",
+      "custom": "Freigaben je Werkzeug wählen",
+      "existing": "Aktuelle Freigaben beibehalten"
+    },
+    "chatModeLabel": "Unterhaltungen",
+    "chatMode": {
+      "per_run": "Neuer Chat pro Ausführung",
+      "shared": "Gemeinsamer Verlauf — schreibgeschützt"
+    },
+    "chatModeHint": {
+      "per_run": "Setze den Chat nach jeder Ausführung fort. Weitere Nachrichten ändern die Routine nicht.",
+      "shared": "Ausführungen teilen einen schreibgeschützten Verlauf. Verzweige eine Antwort, um in einem neuen Chat fortzufahren."
+    },
+    "openExecutionChat": "Chat öffnen"
   },
   "portals": {
     "backToServices": "Zurück zu den Diensten",
