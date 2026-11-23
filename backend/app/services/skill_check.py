@@ -478,7 +478,7 @@ class SkillCheckService:
                     skipped = skipped or reason
                     continue
                 asked.append(replace(stage, asked=quote.cases))
-                row.expected += rules.expected_cost(quote.total_usd, quote.rerun_ceiling_usd)
+                row.expected += quote.expected_usd
                 row.at_most += quote.total_usd + quote.rerun_ceiling_usd
                 remaining = quote.agent_remaining_usd
                 org_remaining = quote.org_remaining_usd

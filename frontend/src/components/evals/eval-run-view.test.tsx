@@ -184,9 +184,7 @@ describe("EvalRunView", () => {
     );
     expect(screen.getByText("4 cases · 4 answers")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        /spent \$0.04 of an estimated \$0.05, plus up to \$0.02 for confirming reruns/,
-      ),
+      screen.getByText(/spent \$0.04 of an expected \$0.06, at most \$0.07/),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back to the agent's evals" })).toHaveAttribute(
       "href",
@@ -502,7 +500,7 @@ describe("EvalRunView", () => {
     expect(screen.getByText(/1 case was left out: taken from the conversations/)).toBeVisible();
     expect(screen.getAllByText(/Proposed text/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Current v3/).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/of an estimated/)).toBeNull();
+    expect(screen.queryByText(/of an expected/)).toBeNull();
     expect(screen.queryByRole("link", { name: "Back to Build" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Back to the skill change" })).toBeNull();
   });
@@ -717,9 +715,12 @@ describe("EvalRunView", () => {
   });
 
   it("names no rerun allowance when a run had none", () => {
-    state.run = { ...state.run, run: evalRun({ rerun_ceiling_usd: "0" }) };
+    state.run = {
+      ...state.run,
+      run: evalRun({ rerun_ceiling_usd: "0", expected_usd: "0.050000" }),
+    };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
-    expect(screen.getByText(/of an estimated \$0.05$/)).toBeInTheDocument();
+    expect(screen.getByText(/of an expected \$0.05$/)).toBeInTheDocument();
   });
 
   it("sends what failed to review, for who may edit the dataset", async () => {

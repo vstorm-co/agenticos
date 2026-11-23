@@ -2,7 +2,7 @@
 
 from collections.abc import Awaitable, Callable
 from decimal import Decimal
-from typing import cast
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
@@ -26,6 +26,7 @@ from app.db.models.improvement import ImprovementRun
 from app.db.models.notification import Notification
 from app.db.models.organization import OrganizationMember
 from app.repositories import authoring_repo, dataset_repo, improvement_repo
+from app.schemas.eval_run import EvalRunEstimate
 from app.schemas.improvement import (
     ContinuationConsent,
     ImprovementContinue,
@@ -36,6 +37,7 @@ from app.schemas.improvement import (
 from app.services.agent_registry import UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.authoring_worker import AuthoringWorker
+from app.services.eval_run import EvalRunService
 from app.services.eval_run_worker import EvalRunWorker
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.knowledge_gaps import KnowledgeGapService
@@ -673,8 +675,22 @@ async def test_a_check_over_the_budget_is_refused_and_the_session_keeps_waiting(
         await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
     service = ImprovementPipelineService(db)
     tight = ImprovementContinue(budget_usd=Decimal("0.020001"))
-    quote = await service.estimate_continuation(ctx, agent.id, read.id, tight)
+    priced: list[EvalRunEstimate] = []
+    estimate = EvalRunService.estimate
+
+    async def kept(self: EvalRunService, *args: Any, **kwargs: Any) -> EvalRunEstimate:
+        priced.append(await estimate(self, *args, **kwargs))
+        return priced[-1]
+
+    with patch.object(EvalRunService, "estimate", kept):
+        quote = await service.estimate_continuation(ctx, agent.id, read.id, tight)
     assert quote.mode == "next_step" and not quote.affordable
+    # Most likely one check asking again about half of what it may; at most every
+    # held-out answer again, and the repeat an inconclusive result gets.
+    [check] = priced
+    assert quote.expected_usd == check.expected_usd
+    assert check.expected_usd == check.total_usd + check.rerun_ceiling_usd / 2
+    assert quote.total_usd == (check.total_usd + check.rerun_ceiling_usd) * 2
     with pytest.raises(PaymentRequiredError):
         await service.continue_run(
             ctx,

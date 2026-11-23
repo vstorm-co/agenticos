@@ -614,8 +614,8 @@ describe("EstimateSummary", () => {
         "Graded by expected tool calls, the reference answer, and Eval judge on Policy and Tone.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText("20 cases in total")).toBeInTheDocument();
-    expect(screen.getByText(/can add up to \$0.60/)).toBeInTheDocument();
+    expect(screen.getByText("20 cases, most likely")).toBeInTheDocument();
+    expect(screen.getByText(/would cost at most \$0.90/)).toBeInTheDocument();
     expect(screen.getByText("$9.80")).toBeInTheDocument();
     expect(screen.getByText("$99.70")).toBeInTheDocument();
     expect(screen.queryByText(/more than a budget has left/)).not.toBeInTheDocument();
