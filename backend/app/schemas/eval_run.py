@@ -188,8 +188,10 @@ class EvalRunEstimate(BaseSchema):
 
     `total_usd` is what the run costs if no case flips. `rerun_ceiling_usd` is
     the most the confirmation reruns can add on top, which only happens to the
-    cases that flip. The `*_after_usd` fields are what the agent's and the
-    organization's monthly budgets keep for live traffic once `total_usd` is
+    cases that flip. `expected_usd` is what the run most likely costs: the first
+    answers and the share of the reruns a compared run usually asks. The
+    `*_after_usd` fields are what the agent's and the organization's monthly
+    budgets keep for live traffic once the first answers and every rerun are
     spent; `None` where there is no cap.
     """
 
@@ -202,6 +204,10 @@ class EvalRunEstimate(BaseSchema):
     )
     total_usd: Decimal
     rerun_ceiling_usd: Decimal
+    expected_usd: Decimal = Field(
+        description="What the run most likely costs: its first answers, the judge, and the "
+        "confirming reruns a compared run usually asks - about half of its ceiling"
+    )
     agent_remaining_usd: Decimal | None
     org_remaining_usd: Decimal | None
     agent_after_usd: Decimal | None
@@ -428,6 +434,10 @@ class EvalRunRead(BaseSchema):
     estimate_usd: Decimal
     rerun_ceiling_usd: Decimal = Field(
         description="What confirming reruns may add on top of the estimate"
+    )
+    expected_usd: Decimal = Field(
+        description="What the run was expected to cost: the estimate and the share of the "
+        "confirming reruns a compared run usually asks"
     )
     cost_usd: Decimal
     cost_is_partial: bool

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -160,6 +160,20 @@ describe("SkillImprovementPage", () => {
     mount();
 
     expect(await screen.findByText(/This session is closed/)).toBeVisible();
+  });
+
+  it("names what accepting a skill's session did, not an agent's draft", async () => {
+    state.step = "accept";
+    state.session = skillSession({
+      status: "accepted",
+      outcome: "applied",
+      finished_at: "2026-11-02T11:00:00Z",
+    });
+    mount();
+
+    const line = await screen.findByRole("region", { name: "Session" });
+    expect(within(line).getByRole("status")).toHaveTextContent("Applied");
+    expect(screen.queryByText("Kept as draft")).toBeNull();
   });
 
   it("opens the start of a new session", async () => {

@@ -53,17 +53,6 @@ from app.services.improvement_states import CheckResult, judge
 SAMPLE_SIZE = 4
 """How many of an agent's own questions a quick check asks at least."""
 
-EXPECTED_RERUN_SHARE = Decimal("0.4")
-"""The share of its re-ask ceiling a check expects to spend. The ceiling re-asks every
-question; a check re-asks only the ones that flipped, which on the Skills lab cost
-0.5 to 0.8 of the first answers again against a ceiling of twice them."""
-
-
-def expected_cost(first_answers: Decimal, rerun_ceiling: Decimal) -> Decimal:
-    """What one stage most likely costs: its first answers and the re-asks it expects."""
-    return first_answers + rerun_ceiling * EXPECTED_RERUN_SHARE
-
-
 _WORD = re.compile(r"[a-z0-9]+(?:'[a-z]+)?")
 
 # Short on purpose: a stray domain word costs one point of overlap, a dropped rule

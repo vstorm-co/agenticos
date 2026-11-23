@@ -325,7 +325,9 @@ function SessionLine({ session, working }: { session: Improvement; working: bool
           ? t("status.running")
           : stop
             ? t(`waitingFor.${stop}`)
-            : t(`status.${finishedAttempt ? "attemptFinished" : session.status}`)}
+            : session.skill_id && session.status === "accepted"
+              ? t("status.skillAccepted", { outcome: session.outcome ?? "other" })
+              : t(`status.${finishedAttempt ? "attemptFinished" : session.status}`)}
       </span>
       <span aria-hidden>·</span>
       <span>

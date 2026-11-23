@@ -89,6 +89,7 @@ _RUN_ESTIMATE = EvalRunEstimate(
     judge_usd=Decimal(0),
     total_usd=Decimal("0.05"),
     rerun_ceiling_usd=Decimal("0.10"),
+    expected_usd=Decimal("0.10"),
     agent_remaining_usd=None,
     org_remaining_usd=None,
     agent_after_usd=None,

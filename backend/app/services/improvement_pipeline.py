@@ -637,6 +637,7 @@ class ImprovementPipelineService:
             evidence=pack,
         )
         draft = AgentSpec.model_validate(inputs.agent.draft_spec)
+        measured = await self._first_measurement(ctx, inputs, inputs.request, pack)
         # The check leaves out questions from the conversations the helper reads.
         check = await self.evals.estimate(
             ctx,
@@ -648,8 +649,8 @@ class ImprovementPipelineService:
             exclude_conversations=pack.conversation_ids,
             judge_version_id=inputs.judge_version_id,
             judge_pinned=True,
+            held_out=len(measured.holdout_case_ids),
         )
-        measured = await self._first_measurement(ctx, inputs, inputs.request, pack)
         full_eval = check.total_usd + check.rerun_ceiling_usd
         # Each round may need one repeat of an inconclusive comparison.
         per_round = proposal.estimate_usd + full_eval * (1 + rules.INCONCLUSIVE_RERUNS)
@@ -1832,8 +1833,8 @@ class ImprovementPipelineService:
 
         Only that step: every later paid step waits for a person again. A check may cost
         up to the one repeat an inconclusive result gets, as the check itself would start
-        it, and asking again every answer whose result changed; it most likely costs one
-        check without either.
+        it, and asking again every held-out answer; it most likely costs one check asking
+        again the share of them a check usually does.
         """
         if stage == Stage.PROPOSING:
             proposal = await self.authoring.estimate_agent(
@@ -1900,7 +1901,7 @@ class ImprovementPipelineService:
             repeats = max(0, rules.INCONCLUSIVE_RERUNS - completed)
             return (
                 (check.total_usd + check.rerun_ceiling_usd) * (1 + repeats),
-                check.total_usd,
+                check.expected_usd,
                 check.affordable,
             )
         if stage == Stage.CLASSIFYING:

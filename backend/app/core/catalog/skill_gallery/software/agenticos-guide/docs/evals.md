@@ -127,21 +127,32 @@ call per case when a judge scores the dataset .
 
 The estimate includes model-backed grading whenever the dataset requires it, priced on the model selected in Grading. No organization switch disables that scorer.
 
-An agent with no history on a model is estimated as a typical case -
-`EVAL_FALLBACK_INPUT_TOKENS` in, `EVAL_FALLBACK_OUTPUT_TOKENS` out - at the
+An agent with no history on a model is estimated as typical requests -
+`EVAL_FALLBACK_INPUT_TOKENS` in, `EVAL_FALLBACK_OUTPUT_TOKENS` out each - at the
 model's own price, or at `EVAL_FALLBACK_CASE_COST_USD` for a model nothing
-prices, and the estimate says it is a rough guess (`basis: "fallback"`). A judge
-with no history is priced the same way, on the model its published spec names;
-the estimate warns when that is the model being tested, and a run's page when
-it was. The baseline's cost is part of the total,
+prices, and the estimate says it is a rough guess (`basis: "fallback"`). An
+answer is one request, or `1 + EVAL_FALLBACK_TOOL_ROUNDS` when the agent has a
+tool: each tool call is answered in another request.
+
+A judge with no history is
+priced as one request that also reads the answer it grades, on the model its
+published spec names; the estimate warns when that is the model being tested,
+and a run's page when it was. The baseline's cost is part of the total,
 unless a recent matching baseline is reused, in which case its first answers
 cost nothing and the estimate names the run they come from.
 
 ### The budget it leaves { #the-budget-it-leaves }
 
-An eval spends from the agent's and organization's existing monthly budgets. The estimate
-reports their remaining amounts after the full exposure as `agent_after_usd` and
-`org_after_usd`. Starting refuses with `402` when the first pass plus
+An eval spends from the agent's and organization's existing monthly budgets.
+`total_usd` is the first answers and their grading, and `expected_usd` what the
+run most likely costs: that, and half of `rerun_ceiling_usd` for a run compared
+with a baseline, because a compared run usually asks about half of the cases it
+may ask again. A stability run asks every case again, and a run with nothing to
+compare with asks none. The start dialog shows `expected_usd`, with the most the
+run may cost beneath it, and a run's page what it spent against both.
+
+The estimate reports the budgets' remaining amounts after the full exposure as
+`agent_after_usd` and `org_after_usd`. Starting refuses with `402` when the first pass plus
 `rerun_ceiling_usd` exceeds either budget. The ceiling includes every case
 flipping, all confirming attempts, the judge and baseline reruns, including a
 reused baseline. Actual spending can differ from this estimate. Each model
@@ -451,9 +462,10 @@ nothing to be asked again. Beside the cases whose outcome flipped, these are the
 only cases rerun.
 
 A run that keeps questions aside for an Improve session is judged on them
-alone, so its held-out cases settle their families apart from the rest. A family
-settled across the whole run is still rerun on the held-out cases when they
-cannot settle it.
+alone, so only its held-out cases are rerun, and its families settle on those
+cases. Its training cases are never asked again: the next attempt reads their
+first answers, and nothing reads a rerun of them. Its rerun ceiling counts the
+held-out cases alone.
 
 The verdict below stays about whole cases; an
 [Improve session](authoring.md#the-improve-wizard) and a
@@ -672,8 +684,9 @@ channel yet.
 | `EVAL_BASELINE_CACHE_HOURS` | `24` | How old a matching baseline may be and still be reused |
 | `EVAL_SIGNIFICANCE` | `0.05` | The level below which confirmed flips are a verdict |
 | `EVAL_EFFICIENCY_TOLERANCE` | `0.05` | A relative change in cost, tokens or latency counted as none |
-| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | The input tokens a case is priced at on a model with no history |
-| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | The output tokens a case is priced at on a model with no history |
+| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | The input tokens a request is priced at on a model with no history |
+| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | The output tokens a request is priced at on a model with no history |
+| `EVAL_FALLBACK_TOOL_ROUNDS` | `2` | The requests an answer from an agent with tools takes beyond one, on a model with no history |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | The estimate per case on a model with no history and no known price |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | How many recent runs the estimate averages |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | How long a running run may stand still, its worker silent, before the sweep fails it |

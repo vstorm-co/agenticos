@@ -12,13 +12,11 @@ from app.db.models.skill_check import AgentState, CheckOutcome, CheckVerdict
 from app.services.eval_comparison import CriterionMove, FamilyMove, mcnemar_p
 from app.services.improvement_states import CheckResult
 from app.services.skill_check_rules import (
-    EXPECTED_RERUN_SHARE,
     SampleCandidate,
     StageComparison,
     StageResult,
     agent_state,
     changed_words,
-    expected_cost,
     noisy,
     outcomes,
     pooled,
@@ -259,14 +257,6 @@ class TestVerdict:
     def test_within_noise_is_a_warning_not_a_block(self) -> None:
         result = verdict([AgentState.BETTER, AgentState.WITHIN_NOISE])
         assert result is CheckVerdict.PASSED
-
-
-def test_a_stage_most_likely_costs_its_answers_and_some_of_its_re_asks() -> None:
-    """The re-ask ceiling asks every question again; a check pays for the flipped ones."""
-    expected = expected_cost(Decimal("1.00"), Decimal("2.00"))
-
-    assert Decimal("1.00") < expected < Decimal("3.00")
-    assert expected == Decimal("1.00") + Decimal("2.00") * EXPECTED_RERUN_SHARE
 
 
 @pytest.mark.parametrize(("skill_set", "size"), [(10, 4), (2, 4), (1, 4), (0, 5)])
