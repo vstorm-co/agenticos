@@ -432,6 +432,22 @@ and the duplicate checks apply exactly as they do to somebody clicking the butto
 migrations it needs. Run `doctor` first when something works locally and not on a
 fresh environment — it is faster than reading logs.
 
+### Measuring re-sent tool output
+
+```bash
+# How much of one organization's model input is tool output sent again, per agent.
+# Sizes, counts and estimates only - never a result's or a request's content.
+uv run agenticos cmd tool-output-report --org <org-id> --from 2026-11-01 --to 2026-11-22
+
+# The same figures as JSON, with eval and Builder test runs counted too.
+uv run agenticos cmd tool-output-report --org <org-id> --from 2026-11-01 --to 2026-11-22 \
+  --include-eval --include-tests --json
+```
+
+A tool result stays in a run's history, so every later model request sends it again. The report measures each result as the model received it, after `tool_output_limits`, and counts it once for every request after the one that called it, taken from the run's manifest. It splits the figures by agent and by how the agent binds `tool_output_limits` and `compaction`. It also projects what replacing results over 10,000 characters with a short placeholder after two full sends would save.
+
+The figures are an estimate, and the report says so. Tokens are characters divided by four, a run without a manifest is left out of the estimate, and where one tool ran several times in a run its results' positions are averaged. A delegate is a run of its own and never adds to its parent. The report cannot say how replacing results would change prompt caching, and it marks agents whose compaction clears tool results, because their figure is overstated.
+
 ### Getting a deployment up
 
 ```bash

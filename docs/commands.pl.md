@@ -1,5 +1,5 @@
 ---
-source_sha: "87d1c88b4414"
+source_sha: "f098d6edbef2"
 ---
 
 # Polecenia { #commands }
@@ -445,6 +445,22 @@ duplikatów obowiązują dokładnie tak samo jak przy kimś klikającym przycisk
 `make platform-bootstrap BOOTSTRAP_API_KEY=sk-...` opakowuje `bootstrap`
 migracjami, których ono potrzebuje. Uruchom najpierw `doctor`, kiedy coś działa
 lokalnie, a nie działa na świeżym środowisku — to szybsze niż czytanie logów.
+
+### Pomiar ponownie wysyłanych wyników narzędzi { #measuring-re-sent-tool-output }
+
+```bash
+# Jaka część wejścia modelu jednej organizacji to wyniki narzędzi wysłane ponownie, per agent.
+# Tylko rozmiary, liczby i szacunki - nigdy treść wyniku ani requestu.
+uv run agenticos cmd tool-output-report --org <org-id> --from 2026-11-01 --to 2026-11-22
+
+# Te same liczby jako JSON, łącznie z runami ewaluacyjnymi i testowymi z Buildera.
+uv run agenticos cmd tool-output-report --org <org-id> --from 2026-11-01 --to 2026-11-22 \
+  --include-eval --include-tests --json
+```
+
+Wynik narzędzia zostaje w historii runu, więc każdy kolejny request do modelu wysyła go ponownie. Raport mierzy każdy wynik w postaci, w jakiej dostał go model, czyli po `tool_output_limits`, i liczy go raz za każdy request po tym, który go wywołał, na podstawie manifestu runu. Dzieli liczby według agenta i tego, jak agent wiąże `tool_output_limits` i `compaction`. Prognozuje też oszczędność z zastąpienia wyników powyżej 10 000 znaków krótkim placeholderem po dwóch pełnych wysyłkach.
+
+Liczby są szacunkiem i raport to mówi. Tokeny to znaki podzielone przez cztery, run bez manifestu jest pominięty w szacunku, a gdy jedno narzędzie działało w runie kilka razy, pozycje jego wyników są uśredniane. Delegat jest osobnym runem i nigdy nie jest doliczany do rodzica. Raport nie pokazuje, jak zastąpienie wyników zmieniłoby cache promptu, i oznacza agentów, których compaction usuwa wyniki narzędzi, bo ich liczba jest zawyżona.
 
 ### Uruchomienie wdrożenia { #getting-a-deployment-up }
 
