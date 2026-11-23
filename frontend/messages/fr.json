@@ -15780,7 +15780,7 @@
       "singleTitleTag": "Métriques du run sur #{tag}"
     },
     "cases": {
-      "title": "{count, plural, =1 {1 cas} other {# cas}}",
+      "title": "{count, plural, one {# question} other {# questions}}",
       "outcomeFilter": "Résultat",
       "tagFilter": "Tag",
       "allTags": "Tous les tags",
@@ -16684,10 +16684,10 @@
     "resultDecision": {
       "title": "Ce à quoi cette session a abouti",
       "options": "Ce que vous pouvez faire",
-      "better": "La tentative {number} a amélioré {agent} : {fixed, plural, one {# question corrigée} other {# questions corrigées}} et aucune cassée.",
+      "better": "L’agent mis à jour a répondu correctement à {fixed} questions de test supplémentaires.",
       "chosen": "Vous avez choisi d’accepter la tentative {number}.",
-      "published": "{version, select, unknown {La tentative {number} a été publiée.} other {La tentative {number} a été publiée en tant que version {version}.}}",
-      "acceptedDraft": "La tentative {number} a été acceptée comme brouillon.",
+      "published": "{version, select, unknown {Modifications publiées.} other {Publiées en tant que version {version}.}}",
+      "acceptedDraft": "Enregistré dans le brouillon de l’agent.",
       "failed": "La session s’est arrêtée sur une erreur avant de se terminer.",
       "noneBetter": "{count, plural, =0 {Aucune tentative n’a été mesurée, rien ne montre donc si {agent} s’est amélioré.} one {La tentative n’a pas amélioré {agent}.} other {Aucune des # tentatives n’a amélioré {agent}.}}",
       "worse": "La tentative {number} l’a dégradé : {broken, plural, one {# question a cassé} other {# questions ont cassé}}.",
