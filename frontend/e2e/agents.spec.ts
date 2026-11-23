@@ -461,7 +461,9 @@ test.describe("Agents", () => {
   // shell-capable sandbox, so binding it here leaves the shared draft agent
   // unpublishable for every spec after this one. Its picker takes a sign-in as
   // well, under its own label, which `capability-settings` covers.
-  const NEEDS_MORE_THAN_A_SECRET = new Set(["coding_agent"]);
+  // External ACP also requires a native registration and exact Pi provider/model
+  // configuration. A generic key picker cannot prepare that runtime contract.
+  const NEEDS_MORE_THAN_A_SECRET = new Set(["coding_agent", "external_acp"]);
 
   test("a capability that needs a secret says so until it has one, and keeps the one it is given", async ({
     page,

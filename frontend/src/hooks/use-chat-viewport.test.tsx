@@ -41,7 +41,7 @@ function Harness({
     content = useRef<HTMLDivElement>(null),
     spacer = useRef<HTMLDivElement>(null),
     dock = useRef<HTMLDivElement>(null);
-  const { revealQuestion, bindScroller } = useChatViewport({
+  const { bindScroller } = useChatViewport({
     conversationId,
     messages,
     sentTurnId,
@@ -95,9 +95,18 @@ function Harness({
       <div ref={dock} data-testid="dock">
         <input aria-label="Composer" />
       </div>
-      <button onClick={revealQuestion}>Reveal</button>
     </>
   );
+}
+/** Put the question in view by a native scroll gesture, without a product Reveal command. */
+function readQuestion(view: ReturnType<typeof render>) {
+  const card = view.container.querySelector<HTMLElement>("[data-question-pending]");
+  if (!card) return;
+  const scrolling = view.getByTestId("scroll");
+  scrolling.scrollTop = questionTop - 24;
+  fireEvent.wheel(scrolling, { deltaY: -1 });
+  fireEvent.scroll(scrolling);
+  card.querySelector<HTMLElement>('[role="group"]')?.focus({ preventScroll: true });
 }
 beforeEach(() => {
   bodyHeight = 1200;
@@ -204,10 +213,10 @@ it("does not follow incoming content after the reader opens a historical disclos
   act(() => resized?.());
   expect(scrolling.scrollTop).toBe(200);
 });
-it("reveals a pending question only on explicit action and focuses without scrolling", () => {
+it("allows a reader to focus a question without native focus scrolling", () => {
   const focus = vi.spyOn(HTMLElement.prototype, "focus");
   const view = render(<Harness messages={[old, sent]} />);
-  fireEvent.click(view.getByText("Reveal"));
+  readQuestion(view);
   expect(view.getByTestId("scroll").scrollTop).toBe(1236);
   expect(focus).toHaveBeenCalledWith({ preventScroll: true });
 });
@@ -283,7 +292,7 @@ it("leaves a detached anchor alone and ignores a question that has already settl
   view.container.querySelector("[data-message-id]")?.remove();
   view.container.querySelector("[data-question-pending]")?.remove();
   act(() => resized?.());
-  fireEvent.click(view.getByText("Reveal"));
+  readQuestion(view);
   expect(scrolling.scrollTop).toBe(200);
 });
 it("releases an explicitly sent anchor whose message was removed", () => {
@@ -295,7 +304,7 @@ it("releases an explicitly sent anchor whose message was removed", () => {
 it("does not require attached DOM while a transcript is still loading", () => {
   function Loading() {
     const absent = useRef<HTMLDivElement>(null);
-    const { revealQuestion } = useChatViewport({
+    useChatViewport({
       conversationId: "loading",
       messages: [sent],
       sentTurnId: "sent",
@@ -305,10 +314,9 @@ it("does not require attached DOM while a transcript is still loading", () => {
       spacer: absent,
       dock: absent,
     });
-    return <button onClick={revealQuestion}>Reveal loading</button>;
+    return null;
   }
-  const view = render(<Loading />);
-  expect(() => fireEvent.click(view.getByText("Reveal loading"))).not.toThrow();
+  expect(() => render(<Loading />)).not.toThrow();
 });
 
 it("tracks the visible message rather than an offscreen question when content is inserted below the reader", () => {
@@ -332,6 +340,50 @@ it("restores the reading anchor when layout clamps scrolling before resize deliv
   fireEvent.scroll(scrolling);
   act(() => resized?.());
   expect(scrolling.scrollTop).toBe(200);
+});
+it("restores a locked reading anchor immediately when layout clamps the scrollbar", () => {
+  const view = render(<Harness />);
+  const scrolling = view.getByTestId("scroll");
+  scrolling.scrollTop = 200;
+  fireEvent.click(view.getByText("History control"));
+  bodyHeight -= 400;
+  scrolling.scrollTop = 150;
+  fireEvent.scroll(scrolling);
+  expect(scrolling.scrollTop).toBe(200);
+  // Browsers can acknowledge the restored position more than once.
+  fireEvent.scroll(scrolling);
+  fireEvent.scroll(scrolling);
+  bodyHeight += 100;
+  act(() => resized?.());
+  expect(scrolling.scrollTop).toBe(200);
+});
+it("allows Tab focus to scroll away from a locked reading anchor", () => {
+  const view = render(<Harness />);
+  const scrolling = view.getByTestId("scroll");
+  scrolling.scrollTop = 200;
+  fireEvent.click(view.getByText("History control"));
+  fireEvent.keyDown(view.getByText("History control"), { key: "Tab" });
+  scrolling.scrollTop = 250;
+  fireEvent.scroll(scrolling);
+  bodyHeight += 100;
+  act(() => resized?.());
+  expect(scrolling.scrollTop).toBe(250);
+});
+it("anchors the question being answered when preceding work also remains visible", () => {
+  questionTop = 400;
+  const view = render(<Harness />);
+  const scrolling = view.getByTestId("scroll");
+  const earlier = view.container.querySelector<HTMLElement>('[data-message-id="old"]')!;
+  Object.defineProperty(earlier, "getBoundingClientRect", {
+    value: () => new DOMRect(0, 100 - scrolling.scrollTop, 600, 60),
+  });
+  scrolling.scrollTop = 0;
+  fireEvent.wheel(scrolling, { deltaY: -1 });
+  fireEvent.click(view.getByText("Short"));
+  questionTop += 8;
+  bodyHeight += 8;
+  act(() => resized?.());
+  expect(scrolling.scrollTop).toBe(8);
 });
 
 it("treats a scrollbar move upward as reading and leaves unrelated pointer events alone", () => {
@@ -429,26 +481,6 @@ it.each(["wheel", "touch", "PageDown", "End", "scrollbar"])(
   },
 );
 
-it("anchors the revealed question before focus can trigger a resize", () => {
-  const view = render(<Harness messages={[old, sent]} />);
-  const original = HTMLElement.prototype.focus;
-  vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (
-    this: HTMLElement,
-    options,
-  ) {
-    original.call(this, options);
-    if (this.getAttribute("role") === "group") resized?.();
-  });
-  fireEvent.click(view.getByText("Reveal"));
-  expect(view.getByTestId("scroll").scrollTop).toBe(1236);
-});
-it("reveals below the phone toolbar's scroll inset", () => {
-  const view = render(<Harness messages={[old, sent]} />);
-  view.getByTestId("scroll").style.scrollPaddingTop = "80px";
-  fireEvent.click(view.getByText("Reveal"));
-  expect(view.getByTestId("scroll").scrollTop).toBe(1180);
-});
-
 it("attaches the viewport when a suspended transcript mounts after the conversation", () => {
   const view = render(<Harness mounted={false} />);
   expect(view.queryByTestId("scroll")).toBeNull();
@@ -456,39 +488,9 @@ it("attaches the viewport when a suspended transcript mounts after the conversat
   const scrolling = view.getByTestId("scroll");
   expect(scrolling.style.paddingBottom).toBe("144px");
   expect(scrolling.scrollTop).toBe(744);
-  fireEvent.click(view.getByText("Reveal"));
+  readQuestion(view);
   expect(scrolling.scrollTop).toBe(questionTop - 24);
   expect(view.getByRole("group")).toHaveFocus();
-});
-
-it("keeps native pre-click coordinates stable and restores the revealed anchor after activation", () => {
-  const chosen = vi.fn();
-  const view = render(<Harness onChoose={chosen} />);
-  const scrolling = view.getByTestId("scroll");
-  fireEvent.click(view.getByText("Reveal"));
-  const revealed = scrolling.scrollTop;
-  // Browser focus/scrollIntoView can reposition before pointer/click delivery.
-  scrolling.scrollTop = revealed - 262;
-  fireEvent.scroll(scrolling);
-  act(() => resized?.());
-  expect(scrolling.scrollTop).toBe(revealed - 262);
-  const choice = view.getByText("Short");
-  fireEvent.pointerDown(choice);
-  act(() => resized?.());
-  expect(scrolling.scrollTop).toBe(revealed - 262);
-  fireEvent.pointerUp(choice);
-  expect(scrolling.scrollTop).toBe(revealed - 262);
-  fireEvent.click(choice);
-  expect(chosen).toHaveBeenCalledOnce();
-  act(() => resized?.());
-  expect(scrolling.scrollTop).toBe(revealed);
-
-  // A deliberate reader gesture, unlike that synthetic movement, releases it.
-  fireEvent.wheel(scrolling, { deltaY: -100 });
-  scrolling.scrollTop = revealed - 100;
-  fireEvent.scroll(scrolling);
-  act(() => resized?.());
-  expect(scrolling.scrollTop).toBe(revealed - 100);
 });
 
 it("finishes a released pointer without a click and restores deferred dock measurements", () => {
@@ -512,14 +514,12 @@ it("finishes a released pointer without a click and restores deferred dock measu
 
 it("cancels a native pointer gesture without leaving the viewport frozen", () => {
   const view = render(<Harness />);
-  fireEvent.click(view.getByText("Reveal"));
   const scrolling = view.getByTestId("scroll");
-  const revealed = scrolling.scrollTop;
-  scrolling.scrollTop = revealed - 262;
+  scrolling.scrollTop = 200;
   fireEvent.scroll(scrolling);
   fireEvent.pointerDown(view.getByText("Short"));
   fireEvent.pointerCancel(window);
-  expect(scrolling.scrollTop).toBe(revealed);
+  expect(scrolling.scrollTop).toBe(200);
   dockSize = 180;
   act(() => resized?.());
   expect(scrolling.style.paddingBottom).toBe("180px");
@@ -548,46 +548,6 @@ it.each(["unmount", "conversation"])(
   },
 );
 
-it("restores an actual extent-changing layout clamp before pointer activation", () => {
-  const view = render(<Harness />);
-  fireEvent.click(view.getByText("Reveal"));
-  const scrolling = view.getByTestId("scroll");
-  const revealed = scrolling.scrollTop;
-  bodyHeight -= 100;
-  scrolling.scrollTop = revealed - 262;
-  fireEvent.scroll(scrolling);
-  expect(scrolling.scrollTop).toBe(revealed);
-});
-
-it("does not mistake repeated controller scroll notifications for a native control scroll", () => {
-  const view = render(<Harness />);
-  fireEvent.click(view.getByText("Reveal"));
-  const scrolling = view.getByTestId("scroll");
-  const revealed = scrolling.scrollTop;
-  fireEvent.scroll(scrolling);
-  fireEvent.scroll(scrolling);
-  questionTop += 100;
-  bodyHeight += 100;
-  act(() => resized?.());
-  expect(scrolling.scrollTop).toBe(revealed + 100);
-});
-
-it("releases a reveal lock when Tab moves focus out to the composer", () => {
-  const view = render(<Harness />);
-  fireEvent.click(view.getByText("Reveal"));
-  const scrolling = view.getByTestId("scroll");
-  const revealed = scrolling.scrollTop;
-  fireEvent.keyDown(view.getByText("Short"), { key: "Tab" });
-  view.getByRole("textbox", { name: "Composer" }).focus();
-  scrolling.scrollTop = revealed - 60;
-  fireEvent.scroll(scrolling);
-  dockSize = 184;
-  act(() => resized?.());
-  expect(view.getByRole("textbox", { name: "Composer" })).toHaveFocus();
-  expect(scrolling.style.paddingBottom).toBe("184px");
-  expect(scrolling.scrollTop).toBe(revealed - 60);
-});
-
 it("does not jump to the bottom when a live question card first appears", () => {
   questionTop = 1200;
   const view = render(<Harness pending={false} />);
@@ -605,7 +565,7 @@ it("does not jump to the bottom when a live question card first appears", () => 
   view.rerender(<Harness pending messages={[{ ...old, runWaitingFor: "answer" }]} />);
   act(() => resized?.());
   expect(scrolling.scrollTop).toBe(744);
-  fireEvent.click(view.getByText("Reveal"));
+  readQuestion(view);
   expect(scrolling.scrollTop).toBe(questionTop - 24);
   expect(view.getByRole("group", { name: "Question from the assistant" })).toHaveFocus();
 });

@@ -8,6 +8,7 @@ import { brandForUrl, hostOf } from "@/lib/link-brands";
 import { cn } from "@/lib/utils";
 
 import { SourceMark } from "./source-mark";
+import { CONTROL_FOCUS } from "@/components/ui/control-styles";
 
 /** Beyond this the stack is a smudge; the rest are counted instead. */
 const MAX_SHOWN = 4;
@@ -39,10 +40,12 @@ function variedFirst(documents: SourceDocument[]): SourceDocument[] {
 /** One compact entry point to an answer's sources in the chat's side panel. */
 export function MessageSources({
   sources,
-  onOpen,
+  expanded,
+  onToggle,
 }: {
   sources: SourceItem[];
-  onOpen: (index: number | null) => void;
+  expanded: boolean;
+  onToggle: () => void;
 }) {
   const t = useTranslations("chat");
   const documents = sourceDocuments(sources);
@@ -51,8 +54,12 @@ export function MessageSources({
   return (
     <button
       type="button"
-      onClick={() => onOpen(null)}
-      className="group/stack border-foreground/12 bg-background hover:border-foreground/25 hover:bg-foreground/[0.03] inline-flex items-center gap-2 rounded-full border py-1 pr-2.5 pl-1 transition-colors"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      className={cn(
+        CONTROL_FOCUS,
+        "group/stack border-foreground/12 bg-background hover:border-foreground/25 hover:bg-foreground/[0.03] inline-flex items-center gap-2 rounded-full border py-1 pr-2.5 pl-1 transition-colors",
+      )}
     >
       <span className="flex">
         {shown.map((doc, i) => (
@@ -71,7 +78,13 @@ export function MessageSources({
       <span className="text-foreground/70 text-xs font-medium">
         {t("sourceCount", { count: documents.length })}
       </span>
-      <ChevronRight aria-hidden className="text-muted-foreground h-3.5 w-3.5" />
+      <ChevronRight
+        aria-hidden
+        className={cn(
+          "text-muted-foreground h-3.5 w-3.5 transition-transform motion-reduce:transition-none",
+          expanded && "rotate-90",
+        )}
+      />
     </button>
   );
 }

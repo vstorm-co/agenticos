@@ -800,3 +800,11 @@ def discard_welcome_task(monkeypatch: pytest.MonkeyPatch) -> None:
             spawn_after_commit(session, coro, name=name)
 
     monkeypatch.setattr("app.services.user.spawn_after_commit", defer)
+
+
+@pytest.fixture(autouse=True)
+def no_subscription_memberships(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.services.subscription_accounts.member_repo.list_organization_ids",
+        AsyncMock(return_value=[]),
+    )

@@ -1,5 +1,5 @@
 ---
-source_sha: "f0b3009ed75d"
+source_sha: "8cfdb42a43a8"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -10,6 +10,14 @@ source_sha: "f0b3009ed75d"
     toda clave de API de terceros de esta plataforma pasa por
     `app/core/vault.py`. Añadir una segunda forma de guardar una credencial en
     reposo es el defecto que dos migraciones eliminaron.
+
+    La excepción explícita es el almacén nativo de suscripciones de CLIProxyAPI descrito a continuación.
+
+## Almacén nativo de suscripciones { #native-subscription-store }
+
+Las cuentas de suscripción de CLIProxyAPI son una excepción a la regla de Vault aprobada por el mantenedor. El almacén nativo en `subscription_accounts` conserva tokens del proveedor, estado de cuentas, diarios de renovación, `keys.json` y `config.yaml`. El binario gestiona inicio de sesión, renovación y recuperación; guardar en Vault solo al apagar podría perder tokens rotados o recibos de renovación tras un fallo. Un adaptador completo de Vault debe cubrir todas las mutaciones persistentes y el diario antes de sustituir este almacén.
+
+Los directorios usan `0700` y los archivos de configuración y claves `0600`; los procesos se aíslan por organización, persona y generación de membresía y escuchan en loopback. Esto no cifra el volumen ni sus copias de seguridad, no vincula criptográficamente los archivos a su propietario ni participa en la rotación de claves de Vault. Protege todo el volumen como credenciales y cifra almacenamiento y copias según tus requisitos. Las demás claves de modelos y credenciales de conectores siguen usando Vault.
 
 ## En la consola { #in-the-console }
 
@@ -409,3 +417,9 @@ de salir a producción con un valor por defecto generado.
 
 
 El consentimiento de fuentes A2A externas también vincula la generación de autorización de la credencial de bóveda referenciada. Sustituir el valor invalida la revisión aunque conserve su identificador. Cambiar el nombre y mantener las claves de cifrado conserva esa generación. Las revisiones A2A existentes requieren una nueva revisión tras actualizar.
+
+## Copilot OAuth { #copilot-oauth-storage }
+
+Los tokens OAuth personales Copilot usan el almacén existente cifrado para el usuario, sin claves de organización de respaldo. La autorización está vinculada a propietario, tenant y agente y caduca en Redis; los tokens no aparecen en respuestas API ni auditoría. Nuevos accesos, sustitución de clave y desconexión avanzan una generación en la misma transacción. Estos metadatos sobreviven al borrado de la clave para rechazar concesiones antiguas, se exportan sin el valor de generación y se eliminan con la membresía o el usuario. Desconectar elimina la credencial local; revoca la aplicación OAuth por separado en GitHub.
+
+Antes de cada solicitud al modelo, las credenciales personales de Copilot se comprueban frente a la versión guardada de la conexión. Desconectar o sustituir la conexión bloquea las siguientes solicitudes de una ejecución activa; una solicitud ya enviada no puede retirarse.

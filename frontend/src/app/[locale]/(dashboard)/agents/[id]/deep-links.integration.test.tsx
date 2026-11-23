@@ -448,6 +448,8 @@ describe("the dots on the tabs that hold what needs attention", () => {
     await mount();
 
     const evals = await screen.findByRole("tab", { name: "Evals" });
+    expect(screen.getByRole("tab", { name: "Build" })).toHaveAttribute("aria-selected", "true");
+    expect(evals).toHaveAttribute("aria-selected", "false");
     expect(evals).toHaveAccessibleDescription(
       "Needs attention: 2 answers rated down, 1 failing suite",
     );

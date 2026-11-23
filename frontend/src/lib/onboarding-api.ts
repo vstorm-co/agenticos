@@ -4,6 +4,11 @@ import { apiClient } from "@/lib/api-client";
 
 export const START_GOALS = ["meeting", "document", "compare"] as const;
 export type StartGoal = (typeof START_GOALS)[number];
+export type StartStep =
+  | `preferences.${"language" | "appearance"}`
+  | `admin.${"workspace" | "identity" | "profile" | "context" | "subscriptions" | "models" | "tools" | "team" | "deployment" | "organization" | "task"}`
+  | `member.${"welcome" | "profile" | "context" | "subscriptions" | "models" | "tools" | "task"}`;
+
 const agent = z.object({ id: z.uuid(), name: z.string() });
 const onboarding = z.object({
   server_time: z.iso.datetime({ offset: true }).optional(),
@@ -12,6 +17,9 @@ const onboarding = z.object({
   goal: z.enum(START_GOALS).nullable(),
   dismissed: z.boolean(),
   completed: z.boolean().default(false),
+  current_step: z.string().nullable().optional(),
+  updated_at: z.iso.datetime({ offset: true }).nullable().optional(),
+  completed_at: z.iso.datetime({ offset: true }).nullable().optional(),
   snoozed_until: z.iso.datetime({ offset: true }).nullable().default(null),
   can_prepare: z.boolean(),
   can_configure_model: z.boolean(),
@@ -25,7 +33,9 @@ const onboarding = z.object({
   has_activity: z.boolean().default(false),
 });
 export type Onboarding = z.infer<typeof onboarding>;
+export const parseOnboarding = (value: unknown): Onboarding => onboarding.parse(value);
 export interface StartUpdate {
+  current_step?: StartStep | null;
   goal?: StartGoal | null;
   dismissed?: boolean;
   completed?: true;

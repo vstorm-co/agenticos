@@ -34,7 +34,7 @@ const codingStep = z.object({
 /** Owned fields of backend CodingReport, including reports stored before kind existed. */
 const codingReport = z.object({
   kind: z.literal("coding_agent").default("coding_agent"),
-  harness: z.enum(["claude_code", "codex"]),
+  harness: z.enum(["claude_code", "codex", "custom"]),
   access: z.enum(["edit", "read_only"]),
   outcome: z.enum(["completed", "failed", "timed_out"]),
   answer: z.string(),
@@ -48,6 +48,7 @@ const codingReport = z.object({
   files_changed: z.array(z.string()).optional(),
   refused: z.array(z.string()).optional(),
   changes_id: optionalText,
+  runtime_name: optionalText,
   account_label: optionalText,
   base_revision: optionalText,
   result_archive: optionalText,
@@ -71,6 +72,8 @@ export const HARNESS_NAME: Record<CodingReport["harness"], string> = {
   claude_code: "Claude Code",
   // i18n-exempt: a product's own name
   codex: "Codex",
+  // i18n-exempt: protocol name
+  custom: "ACP",
 };
 
 export function parseCodingReport(text: string): CodingReport | null {
@@ -138,7 +141,11 @@ function Report({ report, fileSource }: { report: CodingReport; fileSource?: Tur
   return (
     <>
       <div className="flex items-center gap-2 text-xs">
-        <span className="text-foreground font-medium">{HARNESS_NAME[report.harness]}</span>
+        <span className="text-foreground font-medium">
+          {typeof report.runtime_name === "string"
+            ? report.runtime_name
+            : HARNESS_NAME[report.harness]}
+        </span>
         <span
           className={cn(
             "rounded-full px-2 py-0.5 font-medium",

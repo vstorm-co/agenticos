@@ -19,7 +19,230 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Upgrading
+
+- CLIProxyAPI subscription credentials retain their native token store and
+  refresh journal on `subscription_accounts`, outside Vault. This is an explicit
+  maintainer-approved exception; protect the volume and backups as credentials.
+  See the native subscription store section in `docs/secrets.md`.
+
+- Apply `0351_merge_personal_context_and_onboarding.py` to join the personal work index and provider/onboarding migration histories.
+
+- Apply `0350_member_onboarding_progress.py` before starting the new API. It adds nullable current-step and update-time columns to organization memberships, with no inferred backfill from profile data. Existing recorded completion remains unchanged.
+
+- Subscription accounts are on by default. The next `scripts/deploy.sh` run (or `make dev`) generates `SUBSCRIPTION_GATEWAY_TOKEN` into `backend/.env`, starts the `subscriptions` profile and points the API and worker at the gateway; the host updater keeps the profile running. To keep the gateway off on a server, add an empty `SUBSCRIPTION_GATEWAY_TOKEN=` line to `backend/.env` before deploying. `docker-compose.yml` started without a clone uses a fixed local token; set your own in `.env` there.
+
+- Apply `0346_personal_model_generations.py` before running this version. It adds credential-free connection revisions that prevent an older OAuth sign-in from recreating a deleted personal connection.
+
+- Apply `0347_chatgpt_registrations.py` for durable official ChatGPT application registrations. Official plan usage remains disabled until the operator verifies deployment eligibility and configures a stable host UUID.
+
+- Apply `0342_personal_coding_sessions.py` and update API/workers together before using retained personal coding sessions. Existing workspace rows are unchanged. Sessions remain subject to provider idle expiry; failed tasks without confirmed safe retention are discarded.
+
+
+
+- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+
+
+
+- Migration `0351_routine_chat_modes.py` maps primary/specific-chat delivery to
+  per-run chats and log-only/legacy Inbox delivery to shared history. Existing
+  transcripts, schedules, pauses, budgets and tool consents are retained. Shared
+  histories become read-only; fork an answer to continue in a private chat.
+
+- Drain workers and update API/workers together with migration
+  `0350_run_reporting_credential.py`. Routine and monitor Inbox publication now
+  uses MCP only; final answers are not parsed into cards. Existing `result_mode`
+  values remain readable. New routine instructions request MCP reporting; amend
+  custom reporting instructions if they require a particular card policy.
+- New routines default to acting as their creator. Existing identity settings and
+  explicit approval floors remain unchanged; legacy identity-free routines need
+  the owner's consent before using personal accounts or general platform tools.
+
+
+- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+
+
+
+- Apply `backend/alembic/versions/0356_improvement_search.py` to store Improve search settings, progress and scored variants. Existing sessions retain step-by-step mode.
+
+- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+- Migration `backend/alembic/versions/0354_case_key_drafts.py` adds `case_key_drafts` and the `extractor` agent kind. A draft nobody uses or dismisses is deleted after 7 days by the daily `expire-case-key-drafts` job. Its downgrade drops the table and turns extractor agents into ordinary ones.
+- Migration `backend/alembic/versions/0355_key_coverage_reports.py` adds `key_coverage_reports` and the `coverage` agent kind. Its downgrade drops the table and turns coverage agents into ordinary ones.
+
+
+
+- Apply `backend/alembic/versions/0356_improvement_search.py` to store Improve search settings, progress and scored variants. Existing sessions retain step-by-step mode.
+
+- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+- Migration `backend/alembic/versions/0356_improvement_search.py` adds `improvement_runs.mode` (existing sessions read `steps`), the `searching` stage, the `no_variant` stop reason, `improvement_iterations.search` and the `improvement_search_variants` table. Its downgrade drops them, reads a searching session as `proposing` and `no_variant` as `no_proposal`.
+
+
+
+- Migration `0351_routine_chat_modes.py` maps primary/specific-chat delivery to
+  per-run chats and log-only/legacy Inbox delivery to shared history. Existing
+  transcripts, schedules, pauses, budgets and tool consents are retained. Shared
+  histories become read-only; fork an answer to continue in a private chat.
+
+- Drain workers and update API/workers together with migration
+  `0350_run_reporting_credential.py`. Routine and monitor Inbox publication now
+  uses MCP only; final answers are not parsed into cards. Existing `result_mode`
+  values remain readable. New routine instructions request MCP reporting; amend
+  custom reporting instructions if they require a particular card policy.
+- New routines default to acting as their creator. Existing identity settings and
+  explicit approval floors remain unchanged; legacy identity-free routines need
+  the owner's consent before using personal accounts or general platform tools.
+
+
+- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+
+
+
+- Apply `backend/alembic/versions/0356_improvement_search.py` to store Improve search settings, progress and scored variants. Existing sessions retain step-by-step mode.
+
+- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+- Migration `backend/alembic/versions/0354_case_key_drafts.py` adds `case_key_drafts` and the `extractor` agent kind. A draft nobody uses or dismisses is deleted after 7 days by the daily `expire-case-key-drafts` job. Its downgrade drops the table and turns extractor agents into ordinary ones.
+- Migration `backend/alembic/versions/0355_key_coverage_reports.py` adds `key_coverage_reports` and the `coverage` agent kind. Its downgrade drops the table and turns coverage agents into ordinary ones.
+
+
+
+- Apply `backend/alembic/versions/0356_improvement_search.py` to store Improve search settings, progress and scored variants. Existing sessions retain step-by-step mode.
+
+- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+- Migration `backend/alembic/versions/0356_improvement_search.py` adds `improvement_runs.mode` (existing sessions read `steps`), the `searching` stage, the `no_variant` stop reason, `improvement_iterations.search` and the `improvement_search_variants` table. Its downgrade drops them, reads a searching session as `proposing` and `no_variant` as `no_proposal`.
+
+
+
+- Apply `backend/alembic/versions/0356_improvement_search.py` to store Improve search settings, progress and scored variants. Existing sessions retain step-by-step mode.
+
+- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+- Migration `backend/alembic/versions/0354_case_key_drafts.py` adds `case_key_drafts` and the `extractor` agent kind. A draft nobody uses or dismisses is deleted after 7 days by the daily `expire-case-key-drafts` job. Its downgrade drops the table and turns extractor agents into ordinary ones.
+- Migration `backend/alembic/versions/0355_key_coverage_reports.py` adds `key_coverage_reports` and the `coverage` agent kind. Its downgrade drops the table and turns coverage agents into ordinary ones.
+
+
+- Apply `backend/alembic/versions/0356_improvement_search.py` to store Improve search settings, progress and scored variants. Existing sessions retain step-by-step mode.
+
+- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+- Migration `backend/alembic/versions/0356_improvement_search.py` adds `improvement_runs.mode` (existing sessions read `steps`), the `searching` stage, the `no_variant` stop reason, `improvement_iterations.search` and the `improvement_search_variants` table. Its downgrade drops them, reads a searching session as `proposing` and `no_variant` as `no_proposal`.
+
 ### Added
+
+- Introduce personal subscriptions, a first chat task, coding-client connections, everyday tools, projects and personal memory first in Discover AgenticOS, with direct links and permission-aware tips.
+
+- Record guided-setup progress per organization membership and show completed, in-progress or unstarted status in organization member tables, with readable step labels.
+
+- Start new accounts on onboarding with account language and appearance, explicit invitation acceptance, provider-first model setup and suggested service connections. Pass the account’s preferred language to agents through the `language` built-in variable and person briefing.
+
+- Refine shared console headings and tables, expose run failure details, and keep model/account identity visible in chat.
+
+- A simpler Studio onboarding with one form column, model/Vault setup, MCP connections, a swipeable avatar-look chooser and direct entry to installed AgenticOS and Architect agents. Conversation and Launchpad remain available as preview variants.
+
+- Subscription onboarding uses directly connectable service tiles after personal context. Subscriptions settings lists individual accounts in a searchable, paginated table with usage windows.
+
+- A dedicated Subscriptions settings tab with per-account usage bars and reset times, live quota metadata for Codex and Antigravity, and separate Antigravity model-group windows.
+
+- Optional subscription selection and inline sign-in during onboarding, before the first chat.
+
+- Choose a specific personal subscription account for a model, with account-bound routing, restored selection and provider-reported Codex/Claude quota windows when available.
+
+- The model picker lists subscriptions by familiar provider names, connects accounts inline and reads each account’s own model catalog. Organization API keys and advanced custom endpoints stay separate. Capabilities follow task-based groups with enabled and recommended entries first; installed agents are grouped under delegation.
+
+- Add isolated Cursor and Grok CLI API-key templates, native account controls for Cursor, Grok, Kimi, Devin and Vibe, and process-only model selection for Vibe, Kimi, Qwen and Devin. Account changes stop affected runtimes before replacing credentials; launch models must be acknowledged before inference.
+
+- Sign in to your own Claude, ChatGPT, Antigravity, Grok, Kimi, Devin and Meta AI subscriptions under Settings → Profile, and run models on the new **Subscription accounts** provider with them. A bundled `subscription-gateway` service runs a separate CLIProxyAPI process for each person in each organization, only the person's own chats spend their accounts, and leaving an organization deletes the sign-ins.
+
+- Choose any registered Desktop ACP agent, including Antigravity, Cursor, Cline, Grok, OpenCode and Hermes, as the conversation runtime, with the models of its own sign-in read by Desktop and an `EXTERNAL_NATIVE_CONVERSATION_ENABLED` switch (on by default) to withhold it (#3177).
+
+- Codex and Claude Agent conversation runtimes are now available by default; each person answers for their own CLI account's terms, which the picker states. Operators can still withhold them with `CODEX_NATIVE_CONVERSATION_ENABLED=false` or `CLAUDE_NATIVE_CONVERSATION_ENABLED=false`.
+
+- Add an Antigravity Gemini API key template that uses a Gemini key chosen from the vault, or the Desktop-inherited `GEMINI_API_KEY`, and never falls back to the saved Google sign-in. Delegation selects the key through **Vault-key provider → Gemini**; the conversation runtime picker offers the vault keys you can view. Registering the personal sign-in template now requires accepting the risk that Google limits or suspends the account.
+
+- Run Hermes through an owned foreground ACP host with isolated private-conversation profiles, Nous Portal setup handoff, model discovery and optional scoped platform tools.
+
+- Use Claude Agent as a private Desktop conversation runtime, with an independent eligibility switch, native session recovery and scoped platform tools.
+
+- Choose Codex as the primary Desktop conversation runtime, with native streamed answers, scoped session receipts, platform-tool policy, explicit reset and no cloud credential fallback.
+
+- External Desktop runtimes can opt into run-scoped platform tools through a process-owned local MCP bridge, preserving validation, approvals, budgets and result screening. Pi uses an isolated app-owned extension; Muse uses its official SDK. Live approvals are committed before actions execute.
+
+- Connect official ChatGPT plan usage separately from Codex, with durable client registration, explicit plan consent, account-specific models and generation-checked vault refresh.
+
+- Run Inception, DeepSeek and OpenRouter through isolated Pi vault-key templates with independent member access checks, fixed credential precedence and scoped native sessions.
+
+- Manage Muse account status, native device sign-in and sign-out from Desktop settings, with account-change session revocation.
+
+- Show supported native runtime questions, complete Cursor plans and Pi editors in live chat with correlated answers and cancellation.
+
+- Add Muse native SDK delegation with pinned CLI compatibility, effective credential-source reporting and explicit API-key mode.
+
+- Add Pi native RPC delegation with scoped session resume, authoritative settlement, model discovery and owned process cancellation.
+
+- Add GitHub Copilot model profiles and personal device sign-in with account-specific Chat Completions catalogs, user-sealed credentials and AgenticOS integration identity.
+
+- Add Devin CLI desktop ACP delegation with negotiated browser login and fixed local launch permissions.
+
+- Add Qwen Code subscription ACP delegation with explicit CLI subscription mode and no API-key authentication fallback.
+
+- Add Kimi Code desktop ACP delegation with CLI-owned login and live human questions.
+
+- Add a Grok Build desktop ACP template with cached headless account auth, API-key isolation and live human questions.
+
+- Add Mistral Vibe ACP delegation with browser/key setup, delayed model discovery and sanitized credential-source reporting, without assuming subscription entitlement (#3108).
+
+- Add foreground Cline ACP account and inherited-key templates, with a fixed Cline provider, native missing-key refusal and no saved-account fallback in key mode (#3108).
+
+- Delegate native Cursor CLI account tasks through ACP, with explicit login negotiation, environment credential isolation and refusal of unanswered questions or plan approvals (#3108).
+
+- Add OpenCode and OpenCode Go Desktop ACP templates, delayed model discovery and a Go primary-model namespace restriction, without copying CLI credentials (#3108).
+
+- Add an Antigravity Desktop setup template with enforced Google personal ACP login, account-specific model discovery and explicit runtime model selection (#3109).
+
+- Register installed ACP agents in Desktop settings and delegate tasks through the External ACP agent capability, with native consent, isolated session identity and revocation (#3130).
+
+- Sign in to a Codex subscription with a short device code approved on ChatGPT, in the Vault, the model picker and Coding accounts; pasting the redirect address stays as a fallback.
+- Add Nous Portal, Inception, Cline, Chutes and Synthetic as OpenAI-compatible model providers with each key's own model catalog.
+- Use subscription accounts without a plan key (Antigravity, Grok Build, Devin, Muse Code and others) as model profiles through a CLIProxyAPI subscription gateway that holds their sign-ins, with the gateway's own model list.
+- Kimi Code, Alibaba Coding Plan, OpenCode Go and Ollama Cloud plan keys work as model profiles on their plans' OpenAI-compatible endpoints, with each key's own model catalog, regional endpoints and unpriced subscription usage.
+- MiniMax models accept vault API or M Plan keys through a separate OpenAI-compatible provider identity, with explicit regional endpoints and tool calling.
+- Z.AI model profiles accept explicit GLM Coding Plan endpoints, with authenticated model catalogs isolated from the ordinary API and other accounts.
+- Find unanswered web-chat questions in Inbox and return to their original question cards, including older conversations.
+
+
+
+- Count criteria by family. A dataset check takes an optional `family` - every case's `total including VAT` regex, every case's "names the account manager" criterion - and a comparison counts a family case by case: it passes in a case when every criterion of it does. Eval comparisons expose `families`, an Improve attempt keeps them in its verdict, and the result step and the eval run's comparison table them. An attempt with no whole question flipped is judged on its families; one the helper put down to a skill that got worse no longer makes the attempt worse, and the result says the skill is the one to fix. The result step adds **Criteria passed**, before and after, and **Still held back by a skill**, and an attempt that broke questions still names what it made better (#3178).
+- An eval run's sides show **Criteria passed** beside the pass rate: the mean share of each question's criteria its first answer passed, so six of seven counts 6/7 rather than a failure. Arm summaries expose `criteria_passed`, `criteria_graded` and `partial_credit`, compared cases each side's `[passed, decided]` criteria, and the case table shows them per question (#3178).
+- Finishing an Improve session takes an optional `round`, so a session that stopped on its attempt is selected and accepted in one call instead of `rounds/{n}/select` first (#3178).
+- A skill's improver writes an edit for every problem it is given, or says in its expected effect why the skill's text cannot fix one, and keeps every problem an agent's Improve handed over. The grades a helper reads name each criterion's family, so a whole family can be put down to a skill (#3178).
+- Agent Improve puts a criterion down to a skill only when it quotes the skill's own line stating the wrong value or rule, and that line is in the skill's text. Where the skill is only silent, or only forbids other sections, the criterion stays the agent's to fix: the helper proposes the agent change, a skill problem without a line is advice, and the verdict holds the agent to that family (#3178).
+- A skill's Improve started from an agent's Improve learns from the failed training answers that session read that used the skill, so it no longer refuses with "Nothing to learn from yet" when the agent's problems came from evals (#3178).
+
+
 
 - Default to one read-only shared routine history with creator-owned forks
   for follow-up work, or choose an editable private chat per execution.
@@ -53,6 +276,77 @@ Two things are versioned separately from this file and worth knowing about:
 - **Results → Key coverage** on a dataset: for a published agent, the Source coverage system agent judges in a job which of the dataset's key labels none of the agent's sources holds - knowledge bases, context files, skills and MCP servers. It reads labels and what the sources show, never a key's value, and the report keeps labels and source names only. A reader who may not see a source gets it unnamed, and the judge's reasons only when they may see every source it read. `POST` and `GET /datasets/{id}/key-coverage`. Improve reads a test answer that misses only such keys as missing knowledge, from a report on the agent's and the dataset's current versions (#2524).
 
 ### Fixed
+
+- Protect native Vault keys in forwarded tool calls and shared transcripts, price metered subscription fallbacks under the responding provider, and restrict official ChatGPT model catalogs to their grant owner.
+- Release gateway streams and startup processes on failure or cancellation, report credential deletion failures, and isolate rejoined memberships from delayed account cleanup. Cleanup remains recorded while the gateway is disabled.
+- Show sign-in polling failures with a retry action, refresh external-agent catalogs after registration changes, support legacy ACP model selection, and allow Antigravity model IDs without probing Desktop's environment key.
+
+- Toggle chat source and browser side panels closed from the same entry point; switching answers or browser sessions keeps the requested panel open.
+
+- Keep avatar colour selection and keyboard-focus rings fully visible inside expanded profile settings and other clipped panels.
+
+- Keep subscription account rows compact with a two-limit preview, expandable details and an account actions menu.
+
+- Restore the concrete subscription service, account and model in Builder model controls. Keep chat model search behind a magnifier beside the tabs, move refresh and the count into that row, and leave account details in Account to give models more space.
+
+- Seal the model catalog's sticky search against the scroll edge on desktop and mobile, and discard queued onboarding progress from a previous account or organization.
+
+- Keep the normal chat composer visible beside agent questions. Stop pauses queued follow-ups until explicit resume instead of sending them after cancellation.
+
+- Use one tab-to-content spacing across every dashboard view, align sidebar project rows with primary navigation and add model refresh controls to remaining catalogs and saved-profile selectors.
+
+- Keep pending agent questions clear of the chat composer, preserving its draft while answering or cancelling. Place Architect and assistant service cards before Chat home in organization settings, with consistent icons.
+
+- Keep the question being answered fixed while its receipt replaces the form, including on narrow screens where preceding work remains visible.
+
+- Open agent cards in Build while retaining evaluation-attention indicators, remove the Recent work strip above Builder, and tighten dashboard spacing with concrete, linked approval/question/Inbox counts and clearer directional tab transitions.
+
+- Keep Studio actions in a stationary footer, animate explicit step changes without losing form drafts, and replace the avatar strip with a draggable spring gallery. Keep setup reminders in the sidebar only and respect Full motion for tab indicators even when the operating system reduces motion.
+
+- Keep model-picker scrolling inside its lists, restore Studio/carousel motion using the resolved app preference, and animate dashboard panels only after an explicit tab change. Keep the avatar carousel available when a profile has a photo.
+
+- Read Claude subscription limits directly, including five-hour, weekly and model-family windows; add Kimi Code regional quota reads and Devin reported daily/weekly snapshots. Correct Kimi regional labels and device sign-ins without a separate user code. API-provider connection screens now share the branded subscription layout.
+
+- Claude subscription and custom-gateway models retain all agent tools without exceeding Anthropic’s limit of 20 strict tool schemas.
+
+- Chat model selection uses one list without a Saved models tab or success notification, with a button to restore the agent’s model and branded connection screens. Devin and Meta display their provider logos.
+
+- Hide subscription account routing from model catalog names in the chat composer.
+
+- Codex weekly usage remains visible when its secondary quota window is inactive.
+- Browser subscription sign-in explains the local return address and how to finish connecting.
+
+- Show the entire chat model catalog, its source and count; make OpenRouter's region explicit and keep regional profiles separate when changing it.
+
+- Keep compressed subscription model responses decodable instead of failing with a UTF-8 error in chat.
+- Open the model picker on the active subscription and model, emphasize connected accounts, show all connection groups immediately and recognize model-family icons in subscription catalogs.
+- Show the missing provider marks and gateway icons in model pickers and the vault.
+
+- Drafting a knowledge-gap passage and a workflow's knowledge search now search
+  exactly the knowledge base that was checked. Both looked the base up again by
+  its collection name, which several bases of one organization can share, so
+  they could read passages from a same-named base the person or the run's
+  principal had no access to.
+
+
+- **Needs attention** on the dashboard and the agent list's badge no longer name the platform's
+  own agents (judges, drafters, generators, classifiers and the improver), whose pages do not
+  open; the link led to an unavailable page.
+
+- Drafting a knowledge-gap passage and a workflow's knowledge search now search
+  exactly the knowledge base that was checked. Both looked the base up again by
+  its collection name, which several bases of one organization can share, so
+  they could read passages from a same-named base the person or the run's
+  principal had no access to.
+- Serialize eval-answer gap classification with case-copy erasure, remove classifier manifests with the erased copies, and keep competing classifications consistent with their recorded misses.
+- Price automatically reused baselines and held-out-only checks consistently before budget gates; show the same expected cost on the evaluation start button and summary.
+- Rejudge skill checks by a stored rule version, report inaccessible rows as skipped, and recount only finished attempts under the session lock. Preserve indexed UUID lookups for judge costs.
+- Hide Add to dataset for eval-only knowledge topics, and count authoring context in Unicode code points so emoji do not cause false truncation.
+- **Cost estimates now include the confirming reruns.** An eval run, an Improve check and a skill check showed as their likely cost only the first answers, while a compared run asks about half of its cases again: on the Fernhill run, checks cost 2 to 3.6 times their estimate. The estimate adds `expected_usd`, the first answers and half of the rerun ceiling for a compared run, and the start dialog, a run's page, the Improve check's quote and a skill check show it with the most the step may cost. An Improve check no longer asks its training cases again, since nothing reads those reruns, and its ceiling counts its held-out cases alone. With no history on a model, an answer from an agent with tools is priced as `1 + EVAL_FALLBACK_TOOL_ROUNDS` requests (new, default 2) and a grading as a request that also reads the answer. (#3188).
+- **A skill's Improve session names what accepting it did.** Its status line read "Kept as draft", an agent session's label, for a change applied to the skill. It now says Applied, Made a fork, Caught up with main or Moved to main. A new `skill-checks-rejudge` command judges again, from their stored runs and with no model call, the agents of finished skill checks that an older rule judged: one kept before families shows them, and one kept before `too_few_questions` existed no longer says its run could not grade every answer. It also counts the judge's gradings in a session attempt that counted only its check's answers, and a skill check's cost now counts them, so a session's spend and budget include its judge. A decided check keeps its decision, and the group of agents with too few questions says so once, without any agent's counts (#3189).
+- **Improve finds missing knowledge in eval answers.** A session that learned from evals sorted no answer for missing knowledge, so it listed no topic even when the agent said the documents were silent: the sort read chat answers alone. Its failed training answers now go to the Knowledge gap classifier too, kept by the run that answered, and one the agent did not know becomes a question in the knowledge base's topics, listed at **Understand** and on the result. Such an answer stays in what the improver reads. A case's erased copies take the questions and verdicts read from its answers with them. The classifier also names what a miss read from an answer lacks, in a few words, and its topic is grouped and named by that - "Lead times by product" rather than one customer's question (#3190).
+
+
 
 - Show the creator's routine run logs in the chat sidebar with current access,
   search, pagination and running/unread state.
@@ -123,69 +417,6 @@ Two things are versioned separately from this file and worth knowing about:
 - **Cost estimates now include the confirming reruns.** An eval run, an Improve check and a skill check showed as their likely cost only the first answers, while a compared run asks about half of its cases again: on the Fernhill run, checks cost 2 to 3.6 times their estimate. The estimate adds `expected_usd`, the first answers and half of the rerun ceiling for a compared run, and the start dialog, a run's page, the Improve check's quote and a skill check show it with the most the step may cost. An Improve check no longer asks its training cases again, since nothing reads those reruns, and its ceiling counts its held-out cases alone. With no history on a model, an answer from an agent with tools is priced as `1 + EVAL_FALLBACK_TOOL_ROUNDS` requests (new, default 2) and a grading as a request that also reads the answer. (#3188).
 - **A skill's Improve session names what accepting it did.** Its status line read "Kept as draft", an agent session's label, for a change applied to the skill. It now says Applied, Made a fork, Caught up with main or Moved to main. A new `skill-checks-rejudge` command judges again, from their stored runs and with no model call, the agents of finished skill checks that an older rule judged: one kept before families shows them, and one kept before `too_few_questions` existed no longer says its run could not grade every answer. It also counts the judge's gradings in a session attempt that counted only its check's answers, and a skill check's cost now counts them, so a session's spend and budget include its judge. A decided check keeps its decision, and the group of agents with too few questions says so once, without any agent's counts (#3189).
 - **Improve finds missing knowledge in eval answers.** A session that learned from evals sorted no answer for missing knowledge, so it listed no topic even when the agent said the documents were silent: the sort read chat answers alone. Its failed training answers now go to the Knowledge gap classifier too, kept by the run that answered, and one the agent did not know becomes a question in the knowledge base's topics, listed at **Understand** and on the result. Such an answer stays in what the improver reads. A case's erased copies take the questions and verdicts read from its answers with them. The classifier also names what a miss read from an answer lacks, in a few words, and its topic is grouped and named by that - "Lead times by product" rather than one customer's question (#3190).
-
-### Upgrading
-
-- Migration `0351_routine_chat_modes.py` maps primary/specific-chat delivery to
-  per-run chats and log-only/legacy Inbox delivery to shared history. Existing
-  transcripts, schedules, pauses, budgets and tool consents are retained. Shared
-  histories become read-only; fork an answer to continue in a private chat.
-
-- Drain workers and update API/workers together with migration
-  `0350_run_reporting_credential.py`. Routine and monitor Inbox publication now
-  uses MCP only; final answers are not parsed into cards. Existing `result_mode`
-  values remain readable. New routine instructions request MCP reporting; amend
-  custom reporting instructions if they require a particular card policy.
-- New routines default to acting as their creator. Existing identity settings and
-  explicit approval floors remain unchanged; legacy identity-free routines need
-  the owner's consent before using personal accounts or general platform tools.
-
-
-- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
-- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
-- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
-- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
-
-
-
-- Apply `backend/alembic/versions/0356_improvement_search.py` to store Improve search settings, progress and scored variants. Existing sessions retain step-by-step mode.
-
-- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
-- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
-- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
-- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
-- Migration `backend/alembic/versions/0354_case_key_drafts.py` adds `case_key_drafts` and the `extractor` agent kind. A draft nobody uses or dismisses is deleted after 7 days by the daily `expire-case-key-drafts` job. Its downgrade drops the table and turns extractor agents into ordinary ones.
-- Migration `backend/alembic/versions/0355_key_coverage_reports.py` adds `key_coverage_reports` and the `coverage` agent kind. Its downgrade drops the table and turns coverage agents into ordinary ones.
-
-
-
-- Apply `backend/alembic/versions/0356_improvement_search.py` to store Improve search settings, progress and scored variants. Existing sessions retain step-by-step mode.
-
-- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
-- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
-- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
-- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
-- Migration `backend/alembic/versions/0356_improvement_search.py` adds `improvement_runs.mode` (existing sessions read `steps`), the `searching` stage, the `no_variant` stop reason, `improvement_iterations.search` and the `improvement_search_variants` table. Its downgrade drops them, reads a searching session as `proposing` and `no_variant` as `no_proposal`.
-
-
-
-- Apply `backend/alembic/versions/0356_improvement_search.py` to store Improve search settings, progress and scored variants. Existing sessions retain step-by-step mode.
-
-- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
-- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
-- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
-- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
-- Migration `backend/alembic/versions/0354_case_key_drafts.py` adds `case_key_drafts` and the `extractor` agent kind. A draft nobody uses or dismisses is deleted after 7 days by the daily `expire-case-key-drafts` job. Its downgrade drops the table and turns extractor agents into ordinary ones.
-- Migration `backend/alembic/versions/0355_key_coverage_reports.py` adds `key_coverage_reports` and the `coverage` agent kind. Its downgrade drops the table and turns coverage agents into ordinary ones.
-
-
-- Apply `backend/alembic/versions/0356_improvement_search.py` to store Improve search settings, progress and scored variants. Existing sessions retain step-by-step mode.
-
-- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
-- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
-- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
-- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
-- Migration `backend/alembic/versions/0356_improvement_search.py` adds `improvement_runs.mode` (existing sessions read `steps`), the `searching` stage, the `no_variant` stop reason, `improvement_iterations.search` and the `improvement_search_variants` table. Its downgrade drops them, reads a searching session as `proposing` and `no_variant` as `no_proposal`.
 
 ### Changed
 

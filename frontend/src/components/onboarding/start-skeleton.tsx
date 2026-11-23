@@ -14,6 +14,9 @@ export type StartLoadingView =
   | "identity"
   | "profile"
   | "context"
+  | "subscriptions"
+  | "models"
+  | "tools"
   | "team"
   | "deployment"
   | "budget"
@@ -29,6 +32,9 @@ export function startLoadingView(step: string | null, question: string | null): 
   if (step === "admin.team") return "team";
   if (step === "admin.profile" || step === "member.profile") return "profile";
   if (step === "admin.context" || step === "member.context") return "context";
+  if (step === "admin.subscriptions" || step === "member.subscriptions") return "subscriptions";
+  if (step === "admin.models" || step === "member.models") return "models";
+  if (step === "admin.tools" || step === "member.tools") return "tools";
   if (step === "admin.task" || step === "member.task") return "tasks";
   if (step === "member.welcome") return "welcome";
   return "workspace";
@@ -39,7 +45,7 @@ export function StartSkeleton({
   fullPage = true,
   question,
   workspaceCount,
-  steps = 8,
+  steps = 9,
 }: {
   view?: StartLoadingView;
   fullPage?: boolean;

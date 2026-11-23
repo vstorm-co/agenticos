@@ -1,5 +1,5 @@
 ---
-source_sha: "8e2d3b157e74"
+source_sha: "7abf020febb5"
 ---
 
 # Spec agenta { #the-agent-spec }
@@ -20,6 +20,8 @@ systemową, którą zna platforma (data i godzina, zalogowana osoba i jej
 [grupy](../departments.md), organizacja, agent, kanał), albo jedną z własnych `variables` agenta. `time_zone` decyduje,
 który zegar czyta `{{current_time}}`. Publikacja odrzuca nazwę, która nie jest
 żadną z nich.
+
+`{{language}}` to zapisany język konta osoby, w imieniu której działa run, podany jako nazwa języka (English, Polish, German lub Turkish). Gdy run nie ma osoby albo obsługiwanej preferencji, wartością jest English; runy bez nadzoru nie przejmują języka autora publikacji. Agenci otrzymują tę preferencję także w briefingu osoby: krótkie lub niejednoznaczne powitania jej nie zmieniają, a jawna prośba o inny język ma pierwszeństwo.
 
 ::: app.agents.spec.PromptVariableSpec
 

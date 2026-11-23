@@ -82,6 +82,7 @@ async def issue_sign_in_code(
     *,
     exchange_service: OAuthExchangeService,
     session_service: SessionService,
+    is_new_user: bool = False,
 ) -> str:
     """Open a session for `user` and return the single-use code the frontend redeems.
 
@@ -98,7 +99,10 @@ async def issue_sign_in_code(
         request.query_params.get("client"), request.query_params.get("desktop_nonce")
     )
     code = await exchange_service.issue(
-        access_token=access_token, refresh_token=refresh_token, code_challenge=challenge
+        access_token=access_token,
+        refresh_token=refresh_token,
+        code_challenge=challenge,
+        is_new_user=is_new_user,
     )
     await session_service.create_session(
         user_id=user.id,

@@ -307,3 +307,10 @@ async def test_organization_purge_includes_its_personal_coding_sessions() -> Non
     org, db, mocks = _purge(snapshot=[], authoritative=[])
     await _run(org, db, mocks)
     mocks["coding_purge"].assert_awaited_once_with(organization_id=org.id)
+
+
+@pytest.fixture(autouse=True)
+def no_subscription_memberships(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.services.subscription_accounts.member_repo.list_user_ids", AsyncMock(return_value=[])
+    )

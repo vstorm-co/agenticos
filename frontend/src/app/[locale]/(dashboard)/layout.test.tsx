@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { isValidElement, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import DashboardLayout from "./layout";
-import { StartOffer } from "@/components/onboarding/start-offer";
+import { AccountNotices } from "@/components/layout/account-notices";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { MainViewport } from "@/components/layout/main-viewport";
 
@@ -53,7 +53,7 @@ describe("the dashboard's scroll container", () => {
 
 it("keeps account notices and their spacing outside the application layout", () => {
   const tree = DashboardLayout({ children: null });
-  expect(find(tree, (el) => el.type === StartOffer)).toBeNull();
+  expect(find(tree, (el) => el.type === AccountNotices)).toBeNull();
   expect(find(tree, (el) => el.type === AppSidebar)).not.toBeNull();
   expect(
     find(tree, (el) => el.props.className?.includes("data-invitation-entry") === true),

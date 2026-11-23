@@ -55,3 +55,6 @@ export const NATIVE_CHOICE = `${CONTROL_FOCUS} accent-foreground shrink-0 cursor
 
 /** Page links and in-page tabs share a visual language, not ARIA roles. */
 export const TAB_TRIGGER = `${CONTROL_FOCUS} touch:min-h-11 inline-flex min-h-9 shrink-0 touch-manipulation items-center justify-center gap-2 rounded-t-lg border-b-2 border-transparent px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors duration-[var(--duration-fast)] hover:bg-foreground/[0.04] hover:text-foreground`;
+
+/** Primary destinations and recent projects share one navigation rhythm and selection. */
+export const SIDEBAR_NAV_LINK = `${CONTROL_FOCUS} sidebar-nav-link touch:min-h-11 relative flex h-9 shrink-0 items-center rounded-lg text-sm font-normal text-foreground/80 transition-colors duration-[var(--duration-fast)] focus-visible:-outline-offset-2 hover:bg-foreground/5 hover:text-foreground aria-[current=page]:bg-accent aria-[current=page]:font-medium aria-[current=page]:text-foreground aria-[current=page]:hover:bg-accent`;

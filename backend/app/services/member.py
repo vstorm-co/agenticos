@@ -17,6 +17,7 @@ from app.repositories import (
     mcp_connection_repo,
     member_repo,
     oauth_repo,
+    onboarding_repo,
     organization_repo,
     resource_grant_repo,
     user_repo,
@@ -60,6 +61,9 @@ async def end_membership(db: AsyncSession, membership: OrganizationMember) -> No
         db, organization_id=organization_id, user_id=user_id
     )
     await telephony_repo.delete_member_contact(db, organization_id=organization_id, user_id=user_id)
+    from app.services.subscription_accounts import queue_wipe
+
+    await queue_wipe(db, organization_id, [user_id])
     await member_repo.delete(db, membership)
     # The editor keeps what they could always do on the leaver's pages; only the owner's
     # standing consent to their republishes goes with the owner.
@@ -82,7 +86,14 @@ class MemberService:
     ) -> tuple[
         list[
             tuple[
-                OrganizationMember, str, str | None, str | None, int | None, datetime | None, bool
+                OrganizationMember,
+                str,
+                str | None,
+                str | None,
+                int | None,
+                datetime | None,
+                datetime | None,
+                bool,
             ]
         ],
         int,
@@ -111,8 +122,19 @@ class MemberService:
         activity = await audit_log_repo.latest_member_actions(
             self.db, organization_id=organization_id, user_ids=[row[0].user_id for row in rows]
         )
+        account_completion = {
+            user.id: user.onboarding_completed_at
+            for user in await user_repo.get_by_ids(self.db, [row[0].user_id for row in rows])
+        }
         rows_with_flag = [
-            (*row, activity.get(row[0].user_id), may_manage and row[0].role in assignable)
+            (
+                *row,
+                onboarding_repo.effective_completed_at(
+                    row[0], account_completion.get(row[0].user_id)
+                ),
+                activity.get(row[0].user_id),
+                may_manage and row[0].role in assignable,
+            )
             for row in rows
         ]
         return rows_with_flag, total
@@ -123,7 +145,7 @@ class MemberService:
         target_user_id: UUID,
         new_role: str,
         requester_id: UUID,
-    ) -> tuple[OrganizationMember, str, str | None, str | None, int | None]:
+    ) -> tuple[OrganizationMember, str, str | None, str | None, int | None, datetime | None]:
         """Change a member's role.
 
         Rules:
@@ -202,7 +224,10 @@ class MemberService:
         full_name = user.full_name if user else None
         avatar_url = user.avatar_url if user else None
         avatar_color = user.avatar_color if user else None
-        return updated, email, full_name, avatar_url, avatar_color
+        completed_at = onboarding_repo.effective_completed_at(
+            updated, user.onboarding_completed_at if user else None
+        )
+        return updated, email, full_name, avatar_url, avatar_color, completed_at
 
     async def remove(
         self,

@@ -1,5 +1,5 @@
 ---
-source_sha: "cc979d116092"
+source_sha: "79536bb10996"
 ---
 
 # Seguridad { #security }
@@ -67,11 +67,15 @@ cada una es una frontera por la que preguntará la revisión de un cliente.
 ## Qué se cifra y dónde { #what-is-encrypted-where }
 
 Hay un mecanismo de cifrado a nivel de aplicación, y es deliberadamente el único:
-el vault (`app/core/vault.py`). Cada **credencial de conector y de API** en reposo
+el vault (`app/core/vault.py`). Salvo el almacén nativo de suscripciones descrito abajo, cada **credencial de conector y de API** en reposo
 está sellada en un sobre por propietario cuya clave de envoltura se deriva, por
 HKDF, de la organización (o el usuario) a la que pertenece — de modo que un texto
 cifrado copiado a la fila de otra organización no se puede desellar. La clave
 maestra es rotable sin volver a cifrar los payloads.
+
+Las cuentas de suscripción de CLIProxyAPI son una excepción a la regla de Vault aprobada por el mantenedor. El almacén nativo en `subscription_accounts` conserva tokens del proveedor, estado de cuentas, diarios de renovación, `keys.json` y `config.yaml`. El binario gestiona inicio de sesión, renovación y recuperación; guardar en Vault solo al apagar podría perder tokens rotados o recibos de renovación tras un fallo. Un adaptador completo de Vault debe cubrir todas las mutaciones persistentes y el diario antes de sustituir este almacén.
+
+Los directorios usan `0700` y los archivos de configuración y claves `0600`; los procesos se aíslan por organización, persona y generación de membresía y escuchan en loopback. Esto no cifra el volumen ni sus copias de seguridad, no vincula criptográficamente los archivos a su propietario ni participa en la rotación de claves de Vault. Protege todo el volumen como credenciales y cifra almacenamiento y copias según tus requisitos. Las demás claves de modelos y credenciales de conectores siguen usando Vault. [Vault](secrets.es.md#native-subscription-store).
 
 No todo lo que la plataforma almacena es una credencial del vault, y esto se dice
 sin rodeos porque una revisión lo va a encontrar:

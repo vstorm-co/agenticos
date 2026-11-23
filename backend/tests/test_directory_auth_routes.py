@@ -23,6 +23,7 @@ from app.main import app
 from app.services import rate_limit
 from app.services.directory.contract import DirectoryCredentialsRejected, TicketRejected
 from app.services.session import SessionService
+from app.services.user import OAuthAccount
 
 pytestmark = pytest.mark.anyio
 
@@ -71,16 +72,18 @@ def _reset_limiter():
 
 
 class TestLdapLogin:
+    @pytest.mark.parametrize("is_new_user", [False, True])
     async def test_the_right_credentials_get_a_token_pair_and_a_session(
-        self, client: AsyncClient, sign_in: MagicMock, sessions: AsyncMock
+        self, client: AsyncClient, sign_in: MagicMock, sessions: AsyncMock, is_new_user: bool
     ) -> None:
         user = _user()
-        sign_in.sign_in_with_password = AsyncMock(return_value=user)
+        sign_in.sign_in_with_password = AsyncMock(return_value=OAuthAccount(user, is_new_user))
 
         resp = await client.post(_LDAP, json={"username": "jane", "password": " pw "})
 
         assert resp.status_code == 200
         assert {"access_token", "refresh_token"} <= resp.json().keys()
+        assert resp.json()["is_new_user"] is is_new_user
         assert sign_in.sign_in_with_password.await_args.args == ("jane", " pw ")
         assert sign_in.sign_in_with_password.await_args.kwargs == {"invitation_token": None}
         assert sessions.await_args.kwargs["user_id"] == user.id
@@ -91,7 +94,7 @@ class TestLdapLogin:
         redis = _FakeRedis()
         await redis.set("invitation:stage:h-1", "invite-token")
         app.dependency_overrides[deps.get_redis] = lambda: redis
-        sign_in.sign_in_with_password = AsyncMock(return_value=_user())
+        sign_in.sign_in_with_password = AsyncMock(return_value=OAuthAccount(_user(), False))
 
         await client.post(
             _LDAP, json={"username": "jane", "password": "pw", "invitation_handle": "h-1"}
@@ -163,12 +166,16 @@ class TestKerberosLogin:
         assert resp.status_code == 404
         assert "www-authenticate" not in resp.headers
 
+    @pytest.mark.parametrize("is_new_user", [False, True])
     async def test_a_ticket_ends_at_the_frontend_with_a_code_and_mutual_auth(
-        self, client: AsyncClient, sign_in: MagicMock, sessions: AsyncMock
+        self, client: AsyncClient, sign_in: MagicMock, sessions: AsyncMock, is_new_user: bool
     ) -> None:
-        app.dependency_overrides[deps.get_redis] = _FakeRedis
+        redis = _FakeRedis()
+        app.dependency_overrides[deps.get_redis] = lambda: redis
         user = _user()
-        sign_in.sign_in_with_ticket = AsyncMock(return_value=(user, b"server-token"))
+        sign_in.sign_in_with_ticket = AsyncMock(
+            return_value=(OAuthAccount(user, is_new_user), b"server-token")
+        )
 
         resp = await client.get(
             _KERBEROS,
@@ -179,6 +186,12 @@ class TestKerberosLogin:
         location = urlparse(resp.headers["location"])
         assert location.path == "/auth/callback"
         assert "code" in parse_qs(location.query)
+        from app.services.oauth_exchange import OAuthExchangeService
+
+        code = parse_qs(location.query)["code"][0]
+        tokens = await OAuthExchangeService(redis).redeem(code)
+        assert tokens is not None
+        assert tokens.is_new_user is is_new_user
         assert resp.headers["www-authenticate"] == (
             f"Negotiate {base64.b64encode(b'server-token').decode()}"
         )
@@ -190,7 +203,7 @@ class TestKerberosLogin:
         self, client: AsyncClient, sign_in: MagicMock, sessions: AsyncMock
     ) -> None:
         app.dependency_overrides[deps.get_redis] = _FakeRedis
-        sign_in.sign_in_with_ticket = AsyncMock(return_value=(_user(), None))
+        sign_in.sign_in_with_ticket = AsyncMock(return_value=(OAuthAccount(_user(), False), None))
 
         resp = await client.get(
             f"{_KERBEROS}?client=desktop&desktop_nonce=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
@@ -235,7 +248,7 @@ class TestKerberosLogin:
         redis = _FakeRedis()
         await redis.set("invitation:stage:h-2", "invite-token")
         app.dependency_overrides[deps.get_redis] = lambda: redis
-        sign_in.sign_in_with_ticket = AsyncMock(return_value=(_user(), None))
+        sign_in.sign_in_with_ticket = AsyncMock(return_value=(OAuthAccount(_user(), False), None))
 
         await client.get(
             f"{_KERBEROS}?invitation_handle=h-2",

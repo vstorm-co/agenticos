@@ -208,6 +208,40 @@ it("does not render a result archive outside the private result directory", () =
   expect(screen.queryByText(/Archive /)).not.toBeInTheDocument();
 });
 
+it("names custom ACP reports without claiming a built-in provider", () => {
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({
+        kind: "coding_agent",
+        harness: "custom",
+        access: "edit",
+        outcome: "completed",
+        answer: "Investigated the module",
+      })}
+    />,
+  );
+  expect(screen.getByText("ACP")).toBeInTheDocument();
+  expect(screen.getByText("Investigated the module")).toBeInTheDocument();
+});
+
+it("shows the registered external runtime name in its result", () => {
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({
+        kind: "coding_agent",
+        harness: "custom",
+        runtime_name: "Antigravity",
+        access: "edit",
+        outcome: "completed",
+        answer: "Done",
+      })}
+    />,
+  );
+  expect(screen.getByText("Antigravity")).toBeInTheDocument();
+});
+
 it.each([
   { harness: "unknown" },
   { steps: [{ kind: "unknown", title: "read" }] },

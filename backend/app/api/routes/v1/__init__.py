@@ -75,6 +75,7 @@ from app.api.routes.v1 import memory as memory_files
 from app.api.routes.v1 import outcomes, primary_conversations, system_agents
 from app.api.routes.v1 import browser_sign_ins
 from app.api.routes.v1 import coding_accounts
+from app.api.routes.v1 import subscription_accounts
 from app.api.routes.v1 import permissions
 from app.api.routes.v1 import email_webhook, imessage_webhook, sms_webhook, telegram_webhook, phone
 from app.api.routes.v1 import slack_webhook
@@ -353,6 +354,9 @@ v1_router.include_router(phone.router, prefix="/phone", tags=["voice"])
 
 v1_router.include_router(
     coding_accounts.router, prefix="/coding-accounts", tags=["coding-accounts"]
+)
+v1_router.include_router(
+    subscription_accounts.router, prefix="/subscription-accounts", tags=["subscription-accounts"]
 )
 
 v1_router.include_router(me_onboarding.router, prefix="/me/onboarding", tags=["me:onboarding"])

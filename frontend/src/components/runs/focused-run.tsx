@@ -424,6 +424,17 @@ export function FocusedRun({
         data-run-scrollport
         className="min-h-0 flex-1 scrollbar-thin space-y-6 overflow-y-auto px-4 py-4"
       >
+        {run.error && (
+          <section
+            aria-label={t("recordedFailure")}
+            className="border-destructive/40 space-y-1 border-l-2 pl-3"
+          >
+            <h3 className="text-sm font-medium">{t("recordedFailure")}</h3>
+            <p className="text-muted-foreground text-sm break-words whitespace-pre-wrap">
+              {run.error}
+            </p>
+          </section>
+        )}
         <TabsContent value="timeline">
           {/* An eval case keeps no conversation: its answer and grade live on
               the eval run, so the timeline says where rather than that nothing

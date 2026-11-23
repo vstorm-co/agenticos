@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   invitationFlowFrom,
@@ -98,6 +98,23 @@ describe("the flow a staging is bound to", () => {
 
   it("is not read as a token, so the landing is never staged", () => {
     expect(invitationTokenFrom(pendingLandingFor(flow))).toBeNull();
+  });
+
+  it("rejects backslashes that the URL parser resolves to an external origin", () => {
+    expect(invitationFlowFrom(`/\\evil.example/invitations/pending?flow=${flow}`)).toBeNull();
+    expect(invitationFlowFrom("/\\[")).toBeNull();
+  });
+
+  it("propagates unexpected parser failures instead of treating them as invalid links", () => {
+    const failure = new Error("URL parser unavailable");
+    const parser = vi.spyOn(globalThis, "URL").mockImplementationOnce(function () {
+      throw failure;
+    });
+    try {
+      expect(() => invitationFlowFrom(pendingLandingFor(flow))).toThrow(failure);
+    } finally {
+      parser.mockRestore();
+    }
   });
 });
 

@@ -255,6 +255,94 @@ beforeEach(() => {
 });
 
 describe("McpServerList", () => {
+  it("starts onboarding with curated suggestions and opts into the full searchable catalog", async () => {
+    registryResults = [registryEntry()];
+    serve([], []);
+    render(
+      <McpServerList canManageOrganization presentation="onboarding" persistSelection={false} />,
+      { wrapper },
+    );
+    await screen.findByRole("group", { name: "GitHub" });
+    expect(screen.getByRole("group", { name: "Linear" })).toBeVisible();
+    expect(screen.queryByPlaceholderText("Search servers…")).not.toBeInTheDocument();
+    expect(listCalls()).toHaveLength(0);
+    expect(screen.queryByRole("group", { name: "Some Thing" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Browse all services" }));
+    await screen.findByRole("group", { name: "Some Thing" });
+    expect(listCalls().length).toBeGreaterThan(0);
+    expect(screen.getByRole("textbox")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Back to suggested services" }));
+    expect(screen.queryByRole("group", { name: "Some Thing" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("offers a connected onboarding service's accounts instead of another Connect", async () => {
+    serve([], [connection({ id: "personal", name: "my-github" })]);
+    render(<McpServerList canManageOrganization presentation="onboarding" />, { wrapper });
+    const row = within(await screen.findByRole("group", { name: "GitHub" }));
+    expect(row.queryByRole("button", { name: "Connect" })).not.toBeInTheDocument();
+    await userEvent.click(row.getByRole("button", { name: "Manage" }));
+    expect(within(await screen.findByRole("dialog")).getByText("my-github")).toBeVisible();
+  });
+
+  it("keeps custom onboarding MCP connections personal and the caller URL unchanged for members", async () => {
+    permissions = [Perm.agentsView];
+    window.history.replaceState({}, "", "/onboarding?variant=studio");
+    serve([], []);
+    render(
+      <McpServerList
+        canManageOrganization={false}
+        presentation="onboarding"
+        persistSelection={false}
+      />,
+      { wrapper },
+    );
+    await screen.findByRole("group", { name: "GitHub" });
+    await userEvent.click(screen.getByRole("button", { name: "Connect a custom MCP" }));
+    expect(await screen.findByRole("dialog")).toBeVisible();
+    expect(screen.queryByRole("radio", { name: /^Organization/ })).not.toBeInTheDocument();
+    expect(window.location.pathname + window.location.search).toBe("/onboarding?variant=studio");
+    expect(apiClient.get).not.toHaveBeenCalledWith("/mcp-connections");
+  });
+
+  it("reports onboarding catalog failures rather than an empty suggested list", async () => {
+    serve([], []);
+    const get = vi.mocked(apiClient.get).getMockImplementation();
+    if (!get) throw new Error("Expected the MCP API fixture");
+    let unavailable = true;
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/agents/mcp-catalog" && unavailable) throw new Error("Catalog unavailable");
+      return get(path);
+    });
+    render(<McpServerList canManageOrganization presentation="onboarding" />, { wrapper });
+    expect(await screen.findByRole("button", { name: "Retry" })).toBeVisible();
+    expect(screen.queryByRole("group", { name: "GitHub" })).not.toBeInTheDocument();
+    unavailable = false;
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("group", { name: "GitHub" })).toBeVisible();
+  });
+
+  it("waits for authorized shared accounts before offering an onboarding connection", async () => {
+    serve([connection({ name: "shared-github" })], []);
+    const get = vi.mocked(apiClient.get).getMockImplementation();
+    if (!get) throw new Error("Expected the MCP API fixture");
+    let release: () => void = () => {};
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/mcp-connections") await pending;
+      return get(path);
+    });
+    render(<McpServerList canManageOrganization presentation="onboarding" />, { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/mcp-connections"));
+    expect(screen.queryByRole("group", { name: "GitHub" })).not.toBeInTheDocument();
+    await act(async () => release());
+    const row = within(await screen.findByRole("group", { name: "GitHub" }));
+    expect(row.getByRole("button", { name: "Manage" })).toBeVisible();
+  });
+
   it("lets a member load the full page and replace only their personal token", async () => {
     permissions = [Perm.agentsView];
     const own = connection({ id: "p1", name: "my-github" });

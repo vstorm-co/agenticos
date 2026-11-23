@@ -16,6 +16,12 @@ class Token(BaseSchema):
     token_type: str = "bearer"
 
 
+class SignInToken(Token):
+    """Sign-in tokens with a trusted first-account setup signal."""
+
+    is_new_user: bool = False
+
+
 class MagicLinkToken(Token):
     """A token pair, and where the link that produced it was headed.
 

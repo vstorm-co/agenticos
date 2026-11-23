@@ -1,5 +1,5 @@
 ---
-source_sha: "8e2d3b157e74"
+source_sha: "7abf020febb5"
 ---
 
 # Der Agent-Spec { #the-agent-spec }
@@ -21,6 +21,8 @@ Person und ihre [Gruppen](../departments.md), die Organisation, der Agent, der
 Kanal), oder mit einer der eigenen
 `variables` des Agents. `time_zone` bestimmt, welche Uhr `{{current_time}}` liest.
 Die Veröffentlichung lehnt einen Namen ab, der keines von beiden ist.
+
+`{{language}}` ist die gespeicherte Kontosprache der Person, für die der Run ausgeführt wird, als Sprachname (English, Polish, German oder Turkish). Ohne Person oder unterstützte Präferenz gilt English; unbeaufsichtigte Runs übernehmen nicht die Sprache der veröffentlichenden Person. Agenten erhalten diese Präferenz auch im Personenbriefing: Kurze oder mehrdeutige Begrüßungen ändern sie nicht; eine ausdrückliche Bitte um eine andere Sprache hat Vorrang.
 
 ::: app.agents.spec.PromptVariableSpec
 

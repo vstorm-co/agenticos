@@ -1,5 +1,5 @@
 ---
-source_sha: "cc979d116092"
+source_sha: "79536bb10996"
 ---
 
 # Bezpieczeństwo { #security }
@@ -64,11 +64,15 @@ i każde jest granicą, o którą przegląd u klienta zapyta.
 ## Co jest gdzie szyfrowane { #what-is-encrypted-where }
 
 Jest jeden mechanizm szyfrowania na poziomie aplikacji i celowo jest jedyny:
-vault (`app/core/vault.py`). Każde **poświadczenie konektora i API** w spoczynku
+vault (`app/core/vault.py`). Poza opisanym niżej natywnym magazynem subskrypcji każde **poświadczenie konektora i API** w spoczynku
 jest zapieczętowane w kopercie per właściciel, której klucz opakowujący jest
 wyprowadzany przez HKDF z organizacji (albo użytkownika), do której należy — więc
 szyfrogram skopiowany do wiersza innej organizacji nie da się odpieczętować.
 Klucz główny jest rotowalny bez ponownego szyfrowania ładunków.
+
+Konta subskrypcji CLIProxyAPI są zatwierdzonym przez maintenera wyjątkiem od zasady Vault. Natywny magazyn na `subscription_accounts` przechowuje tokeny dostawców, stan kont, dzienniki odświeżeń, `keys.json` i `config.yaml`. Binarka obsługuje logowanie, odświeżanie i odzyskiwanie; zapis do Vault dopiero przy zamknięciu mógłby po awarii utracić obrócone tokeny lub potwierdzenia odświeżeń. Pełny adapter Vault musi objąć wszystkie trwałe zmiany i dziennik przed zastąpieniem tego magazynu.
+
+Katalogi mają `0700`, a konfiguracja i pliki kluczy `0600`; procesy są izolowane według organizacji, osoby i generacji członkostwa oraz nasłuchują na loopback. Te zabezpieczenia nie szyfrują wolumenu ani kopii zapasowych, nie wiążą kryptograficznie plików z właścicielem i nie podlegają rotacji klucza Vault. Chroń cały wolumen jak poświadczenia i szyfruj jego storage oraz backupy zgodnie z wymaganiami. Pozostałe klucze modeli i poświadczenia konektorów nadal używają Vault. [Vault](secrets.pl.md#native-subscription-store).
 
 Nie wszystko, co platforma przechowuje, jest poświadczeniem w vault, i mówimy to
 wprost, bo przegląd i tak to znajdzie:

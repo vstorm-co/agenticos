@@ -7,6 +7,7 @@ import { BrandIcon } from "@/components/icons/brand-icon";
 import { Badge, Button } from "@/components/ui";
 import { ErrorState } from "@/components/states";
 import { SectionCard } from "@/components/settings/settings-section";
+import { ExternalAgentSettings } from "@/components/desktop/external-agent-settings";
 import { LocalAgentSettings } from "@/components/desktop/local-agent-settings";
 import { useCodingAccounts } from "@/hooks/use-coding-accounts";
 import { useShell } from "@/hooks/use-shell";
@@ -36,7 +37,12 @@ export function CodingAccounts() {
       >
         <CodingAccountList harnesses={HARNESSES} />
       </SectionCard>
-      {isDesktopShell(shell) && <LocalAgentSettings />}
+      {isDesktopShell(shell) && (
+        <>
+          <LocalAgentSettings />
+          <ExternalAgentSettings />
+        </>
+      )}
     </>
   );
 }

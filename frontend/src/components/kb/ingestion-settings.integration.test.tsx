@@ -196,10 +196,10 @@ describe("the model that describes the images", () => {
     // was harmless while this panel was a list of radios. It is not now: the
     // key field writes an organization-wide vault secret, and a dialog mid-save
     // did not mean "except the vault".
-    show(null, true);
+    state.profiles = [profile({ secret_id: null, missing_key: true })];
+    show("p1", true);
 
-    await userEvent.click(await screen.findByLabelText("Provider"));
-    await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));
+    expect(await screen.findByLabelText("Provider")).toBeDisabled();
 
     expect(screen.getByRole("button", { name: "Add a key: OpenAI" })).toBeDisabled();
   });

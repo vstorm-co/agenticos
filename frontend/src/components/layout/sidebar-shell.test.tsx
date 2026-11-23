@@ -156,3 +156,19 @@ it.each([false, true])("shows the running console version with collapsed=%s", (c
   renderShell({ collapsed });
   expect(screen.getByLabelText(`Console version ${version}`)).toHaveTextContent(`v${version}`);
 });
+
+it.each([false, true])(
+  "keeps New chat reachable and dismisses the drawer (collapsed=%s)",
+  (collapsed) => {
+    const onNavigate = vi.fn();
+    renderShell({ collapsed, onNavigate });
+    const shortcut = screen.getByRole("link", { name: "New chat" });
+    expect(shortcut).toHaveAttribute("href", "/chat?new=workspace");
+    if (collapsed) {
+      expect(shortcut).toHaveAttribute("title", "New chat");
+      expect(shortcut.textContent).toBe("");
+    }
+    fireEvent.click(shortcut);
+    expect(onNavigate).toHaveBeenCalledOnce();
+  },
+);
