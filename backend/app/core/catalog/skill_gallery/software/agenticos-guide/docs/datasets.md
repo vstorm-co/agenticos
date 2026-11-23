@@ -389,6 +389,13 @@ A `judge` check is a criterion for one case only, graded in the same judge run
 as the dataset's rubric. Use it for what a rule cannot express, such as "refuses
 and does not reveal the customer's address".
 
+Every check takes an optional `family` (at most 80 characters): the thing it tests
+across the dataset, such as `total including VAT` on each case's regex for its own
+amount. A comparison counts the checks of one family together, case by case, so a
+change is judged on what moved across the dataset rather than on one case's
+pattern. A check without a family is a family of its own; one with a family
+scores, and fingerprints its scoring, exactly as before.
+
 ### Expected tool calls { #trajectory }
 
 The agent's calls are matched against the case's expected calls by tool name and

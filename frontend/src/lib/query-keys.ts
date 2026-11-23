@@ -594,7 +594,6 @@ export const qk = {
       skip: number;
       limit: number;
       editable: boolean;
-      judge: string;
       asksRun: string;
       agent: string;
     }) => ["datasets", "list", query] as const,
@@ -621,7 +620,6 @@ export const qk = {
       },
     ) => ["datasets", id, "scores", query] as const,
     allReviewQueue: () => ["datasets", "review-queue"] as const,
-    judgeAgreement: (judgeId: string) => ["datasets", "judge-agreement", judgeId] as const,
     judgeTemplate: (id: string) => ["datasets", id, "judge-template"] as const,
     reviewQueue: (query: { skip: number; limit: number }) =>
       ["datasets", "review-queue", query] as const,

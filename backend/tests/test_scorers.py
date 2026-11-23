@@ -216,6 +216,23 @@ class TestStoredChecks:
         assert results == []
         assert judged == [JudgeCheck(type="judge", criterion="Refuses politely")]
 
+    def test_a_check_s_family_rides_on_its_result_and_none_without_one(self) -> None:
+        results, judged = run_checks(
+            [
+                {"type": "regex", "value": "£913", "family": "total including VAT"},
+                {"type": "contains", "value": "days"},
+                {"type": "judge", "criterion": "Names Tom", "family": "account manager"},
+            ],
+            _answer("£913 in 14 days"),
+            required=True,
+        )
+
+        assert [(r.name, r.family) for r in results] == [
+            ("regex '£913'", "total including VAT"),
+            ("contains 'days'", None),
+        ]
+        assert judged[0].family == "account manager"
+
 
 SEARCH = {"tool": "search_kb", "args": {"query": "refunds"}}
 LOOKUP = {"tool": "lookup_order", "args": {}}
@@ -522,6 +539,26 @@ class TestGrades:
             ("tone", "fail", 0.4, "2/5: Curt"),
         ]
         assert {r.judge_run_id for r in results} == {run_id}
+
+    def test_a_case_criterion_s_family_rides_on_its_grade_and_on_an_ungraded_one(self) -> None:
+        criteria = judge_criteria(
+            _case(),
+            TestJudgeCriteria()._scoring(),
+            [JudgeCheck(type="judge", criterion="Names Tom", family="account manager")],
+        )
+        verdict = JudgeVerdict(
+            grades=[
+                JudgeGrade(id="r1", score=4, reason="Right date"),
+                JudgeGrade(id="r2", score=4, reason="Warm"),
+                JudgeGrade(id="c1", score=2, reason="No manager"),
+            ]
+        )
+
+        results = graded(criteria, verdict, answer="", scale_max=5, pass_at=4, run_id=None)
+        skipped = not_graded(criteria, skipped=True, code="judge_budget", reason="Cap")
+
+        assert [r.family for r in results] == [None, None, "account manager"]
+        assert [r.family for r in skipped] == [None, None, "account manager"]
 
     @pytest.mark.parametrize("grades", [[], [JudgeGrade(id="r1", score=9, reason="")]])
     def test_a_criterion_left_ungraded_or_off_the_scale_is_an_error(self, grades) -> None:
