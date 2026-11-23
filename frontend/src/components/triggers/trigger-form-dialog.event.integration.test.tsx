@@ -274,6 +274,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
       action_mode: "agent",
+      chat_mode: "shared",
       runs_as_creator: false,
       prompt: "Triage it",
       name: null,
@@ -345,6 +346,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
       action_mode: "agent",
+      chat_mode: "shared",
       runs_as_creator: false,
       prompt: "Handle it",
       name: null,

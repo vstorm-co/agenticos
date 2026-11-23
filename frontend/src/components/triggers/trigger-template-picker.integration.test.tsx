@@ -100,6 +100,7 @@ describe("New-schedule template picker", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers", {
       source_mode: "follow_agent",
       action_mode: "agent",
+      chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Summarise what happened overnight.",
       name: "Daily standup",
@@ -131,6 +132,7 @@ describe("New-schedule template picker", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers", {
       source_mode: "follow_agent",
       action_mode: "agent",
+      chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Write this week's report.",
       name: "Weekly report",

@@ -186,6 +186,7 @@ async def test_a_shared_project_history_needs_project_access_and_stays_read_only
     assert socket_history.id == identifier
 
 
+@pytest.mark.security
 async def test_routine_history_spans_chats_without_other_routines_or_tenants(
     db: AsyncSession,
 ) -> None:
