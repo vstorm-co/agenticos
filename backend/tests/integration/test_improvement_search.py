@@ -3,7 +3,7 @@
 import json
 import uuid
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
     AuthenticationError,
+    AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
     NotFoundError,
@@ -467,10 +468,12 @@ class TestAnswers:
         )
         seed = next(v for v in variants if v.generation == 0)
         best = next(v for v in variants if v.instructions == _WINDOW)
-        assert seed.cases_scored == best.cases_scored == 9
-        assert best.train_score == pytest.approx(7 / 9, abs=1e-5)
-        failed = sorted(f["failed"] == ["answer"] for f in best.failures)
-        assert failed == [False, True]
+        # Every question stays in the score: what was not answered or graded fails.
+        assert seed.cases_scored == best.cases_scored == 12
+        assert best.train_score == pytest.approx(7 / 12, abs=1e-5)
+        reasons = [f["failed"][0] for f in best.failures]
+        assert len(reasons) == 5
+        assert reasons.count("not answered") == 3 and reasons.count("not graded") == 1
 
 
 class TestRecovery:
@@ -523,12 +526,66 @@ class TestRecovery:
         async def stopped(prompt: str) -> None:
             run.status = "cancelled"
 
-        with _answering(Searcher(db, before=stopped)):
+        model = Searcher(db, before=stopped)
+        with (
+            _answering(model),
+            patch("app.services.improvement_search.CASE_PARALLELISM", 1),
+        ):
             await SearchWorker(read.id, ctx.organization_id, sessions=_sessions(db)).run()
             seed = await db.scalar(select(ImprovementSearchVariant))
             assert seed is not None and seed.status == "pending" and seed.attempts == 1
             await SearchWorker(read.id, ctx.organization_id, sessions=_sessions(db)).run()
         assert seed.attempts == 1
+        # The questions still waiting when the session stopped were never asked.
+        assert len(model.asked) == 1
+
+    async def test_a_unit_after_the_draft_changed_spends_nothing(self, db):
+        ctx, agent, _, read = await _start(db)
+        await _to_search(db, ctx, read.id)
+        agent.draft_spec = {**agent.draft_spec, "instructions": INSTRUCTIONS + "\nNew rule."}
+        await db.flush()
+        model = Searcher(db)
+
+        with _answering(model):
+            await SearchWorker(read.id, ctx.organization_id, sessions=_sessions(db)).run()
+
+        assert model.asked == [] and model.proposals == []
+        seed = await db.scalar(select(ImprovementSearchVariant))
+        assert seed is not None and seed.attempts == 0
+        advance = await db.scalar(
+            select(BackgroundJob).where(BackgroundJob.dedupe_key == f"{read.id}:search:1")
+        )
+        assert advance is not None
+        run = await _finish(db, ctx, read.id)
+        assert run.status == "stale"
+
+    async def test_a_search_that_makes_no_progress_fails_and_can_be_retried(self, db):
+        ctx, agent, _, read = await _start(db)
+        await _to_search(db, ctx, read.id)
+        run = await db.get(ImprovementRun, read.id)
+        assert run is not None
+        long_ago = datetime.now(UTC) - timedelta(hours=2)
+        run.heartbeat_at = run.stage_started_at = run.created_at = long_ago
+        await db.flush()
+
+        await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
+
+        assert (run.status, run.stage, run.stop_reason) == ("failed", "searching", "stalled")
+        await db.execute(BackgroundJob.__table__.delete())
+        retried = await ImprovementPipelineService(db).retry(ctx, agent.id, read.id)
+        assert (retried.status, retried.stage) == ("running", "searching")
+        await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
+        assert await db.scalar(
+            select(BackgroundJob).where(BackgroundJob.kind == "search-improvement")
+        )
+
+        # Stalled again, the next step the console offers resumes the same search.
+        run.heartbeat_at = run.stage_started_at = long_ago
+        await db.flush()
+        await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
+        assert run.stop_reason == "stalled"
+        resumed = await _next_step(db, ctx, read.id)
+        assert (resumed.status, resumed.stage) == ("running", "searching")
 
     async def test_a_proposal_that_returns_after_the_session_moved_on_records_nothing(self, db):
         ctx, _, _, read = await _start(db)
@@ -666,6 +723,47 @@ class TestChoice:
             await service.choose_variant(
                 stranger, agent.id, read.id, SearchChoice(variant_id=seed.id)
             )
+
+
+class TestVariantText:
+    async def test_a_viewer_reads_the_search_but_not_its_variants(self, db):
+        """A variant is written from training questions and reference answers, which
+        need runs:view; a Viewer sees the search's progress without them."""
+        ctx, agent, _, read = await _start(db)
+        await _to_search(db, ctx, read.id)
+        await _units(db, ctx, read.id, Searcher(db))
+        await _finish(db, ctx, read.id)
+        viewer = await _member(db, ctx, OrgRoleName.VIEWER)
+        agent.visibility = "org"
+        await db.flush()
+        service = ImprovementPipelineService(db)
+
+        owner = (await service.read(ctx, agent.id, read.id)).iterations[0].variant_search
+        seen = (await service.read(viewer, agent.id, read.id)).iterations[0].variant_search
+
+        assert owner is not None and owner.top
+        assert seen is not None and seen.top == []
+        assert seen.best_score == owner.best_score and seen.tried == owner.tried
+
+    async def test_without_running_the_dataset_the_variants_stay_hidden(self, db):
+        ctx, agent, _, read = await _start(db)
+        await _to_search(db, ctx, read.id)
+        await _units(db, ctx, read.id, Searcher(db))
+        await _finish(db, ctx, read.id)
+
+        with patch.object(
+            DatasetService, "get", new=AsyncMock(side_effect=AuthorizationError(message="No"))
+        ):
+            seen = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
+
+        search = seen.iterations[0].variant_search
+        assert search is not None and search.top == [] and search.best_score == 1.0
+
+    async def test_another_organization_cannot_read_the_search(self, db):
+        ctx, agent, _, read = await _start(db)
+        stranger = await _owner(db)
+        with pytest.raises(NotFoundError):
+            await ImprovementPipelineService(db).read(stranger, agent.id, read.id)
 
 
 class TestRefusals:
