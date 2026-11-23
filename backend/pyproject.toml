@@ -798,6 +798,7 @@ include = [
     "app/services/channels/notification_send.py",
 
     "app/services/channels/handback.py",
+    "app/services/channels/routine_answer.py",
     "app/services/channels/continuation.py",
     "app/services/parked_runs.py",
     "app/services/channels/slack_answer.py",
@@ -1706,6 +1707,7 @@ include = [
     "app/services/channels/notification_send.py",
 
     "app/services/channels/handback.py",
+    "app/services/channels/routine_answer.py",
     "app/services/channels/continuation.py",
     "app/services/parked_runs.py",
     "app/services/channels/slack_answer.py",

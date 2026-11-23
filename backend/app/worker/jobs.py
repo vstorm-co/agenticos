@@ -166,6 +166,17 @@ class ChannelHandback(Payload):
     attachments: list[ChannelHandbackFile] = Field(default_factory=list)
 
 
+class RoutineChatAnswer(Payload):
+    """Ids only: the answer text and the bot token are read when the job runs."""
+
+    organization_id: UUID
+    trigger_id: UUID
+    run_id: UUID
+    conversation_id: UUID
+    session_id: UUID
+    message_id: UUID
+
+
 class NoPayload(Payload):
     """For a job whose work is to look at the current state."""
 
@@ -934,6 +945,15 @@ DELIVER_CHANNEL_HANDBACK = Task(
     priority=Priority.INTERACTIVE,
 )
 
+ROUTINE_CHAT_ANSWER = Task(
+    kind="routine-chat-answer",
+    payload_type=RoutineChatAnswer,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+
 TASKS: dict[str, TaskKind] = {
     task.kind: task
     for task in (
@@ -943,6 +963,7 @@ TASKS: dict[str, TaskKind] = {
         PROCESS_EMAIL_DELIVERY,
         DELIVER_CHANNEL_REPLY,
         DELIVER_CHANNEL_HANDBACK,
+        ROUTINE_CHAT_ANSWER,
         MOVE_PROJECT_WORKSPACE,
         REVERT_CODING_TASK,
         INGEST_DOCUMENT,

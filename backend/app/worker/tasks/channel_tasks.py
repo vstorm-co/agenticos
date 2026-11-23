@@ -14,8 +14,20 @@ from app.services.channels.base import IncomingMessage, OutgoingAttachment
 from app.services.channels.continuation import ChatDelivery, deliver_in_chat
 from app.services.channels.discord_roles import sweep_discord_roles
 from app.services.channels.handback import ChatNotice, ensure_channel_adapters, send_notice
+from app.services.channels.routine_answer import (
+    send_routine_answer,
+)
+from app.services.channels.routine_answer import (
+    settle_lost_routine_answer as settle_unsent_answer,
+)
 from app.services.transcript import RecordedToolCall
-from app.worker.jobs import ChannelDelivery, ChannelHandback, ChannelMessage, EmailDelivery
+from app.worker.jobs import (
+    ChannelDelivery,
+    ChannelHandback,
+    ChannelMessage,
+    EmailDelivery,
+    RoutineChatAnswer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +77,15 @@ async def deliver_handback(job: ChannelHandback) -> bool:
         )
 
     return True
+
+
+async def deliver_routine_answer(job: RoutineChatAnswer) -> None:
+    ensure_channel_adapters()
+    await send_routine_answer(job)
+
+
+async def settle_lost_routine_answer(job: RoutineChatAnswer, why: str) -> None:
+    await settle_unsent_answer(job, why)
 
 
 async def sync_discord_roles() -> dict[str, int]:

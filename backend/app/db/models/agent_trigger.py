@@ -80,6 +80,7 @@ class TriggerDeliveryStatus(enum.StrEnum):
     RUN_LOG = "run_log"
     NO_ANSWER = "no_answer"
     NOT_COMPLETED = "not_completed"
+    PENDING = "pending"
 
 
 class TriggerType(enum.StrEnum):
@@ -478,7 +479,8 @@ class AgentTrigger(Base, TimestampMixin):
             ),
         ),
         CheckConstraint(
-            "last_delivery_status IN ('delivered', 'unavailable', 'run_log', 'no_answer', 'not_completed')",
+            "last_delivery_status IN ('delivered', 'unavailable', 'run_log', 'no_answer', "
+            "'not_completed', 'pending')",
             name="ck_trigger_delivery_status",
         ),
         CheckConstraint(

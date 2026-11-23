@@ -2366,8 +2366,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         `runs_as_me` fires as the person creating it, with their memory and their
         own connected accounts, as in their chat. Every run lands in the routine's
         own log, which the person reads under Routines (`/routines`). A routine
-        created from a private chat answers there unless `answer_to` explicitly
-        selects another target. `ends_at` is an ISO timestamp with its UTC offset;
+        created from a conversation answers in it unless `answer_to` explicitly
+        selects another target. When that conversation is a private chat in a
+        chat app (Telegram, Slack, Mattermost, Teams, Discord, Matrix), the bot
+        also posts the answer there while the person still has access; do not add
+        `notification_channels` to reach the same chat. In a group chat the answer
+        is only kept in the conversation. `ends_at` is an ISO timestamp with its UTC offset;
         set it for time-bounded requests. `monthly_budget_usd` is a decimal USD cap.
         `pinned_version_id` keeps one published version; omitted, future fires
         follow the published version. New routines follow the agent's current

@@ -293,6 +293,22 @@ class Admission:
 
 
 @dataclass(frozen=True)
+class ChatTurn:
+    """What `admission` reads of a turn that has no run: a routine's chat post.
+
+    Exactly the attributes of an `AgentRun` the standing checks consult.
+    """
+
+    organization_id: UUID
+    surface: str
+    conversation_id: UUID | None
+    channel_identity_id: UUID | None
+    agent_id: UUID
+    initiated_by_publisher_fallback: bool
+    user_id: UUID | None
+
+
+@dataclass(frozen=True)
 class _Passed:
     """What `ChannelMessageRouter._standing` returns for a sender nothing refuses."""
 
@@ -323,7 +339,7 @@ class ChannelMessageRouter:
         )
 
     async def admission(
-        self, db: AsyncSession, run: AgentRun, incoming: IncomingMessage
+        self, db: AsyncSession, run: AgentRun | ChatTurn, incoming: IncomingMessage
     ) -> Admission:
         """Whether the chat a run came from still admits the person it was asked of.
 
@@ -367,7 +383,7 @@ class ChannelMessageRouter:
         return Admission("admitted", "member")
 
     async def _standing(
-        self, db: AsyncSession, run: AgentRun, incoming: IncomingMessage, *, strict: bool
+        self, db: AsyncSession, run: AgentRun | ChatTurn, incoming: IncomingMessage, *, strict: bool
     ) -> str | _Passed:
         """The bot, the chat and the sender's standing, short of the platform's membership answer.
 

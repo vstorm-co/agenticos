@@ -539,3 +539,109 @@ async def test_routine_expiring_during_delivery_does_not_send_a_finished_notice(
     assert expire.await_count == 2
     notice.assert_not_awaited()
     assert len(await messages(db, world)) == 1
+
+
+async def _private_telegram_chat(db: AsyncSession, world: World, *, chat_type: str = "private"):
+    from app.db.models.channel_bot import ChannelBot
+    from app.db.models.channel_identity import ChannelIdentity
+    from app.db.models.channel_session import ChannelSession
+
+    bot = ChannelBot(
+        organization_id=world.org.id, platform="telegram", name="Bot", token_encrypted="sealed"
+    )
+    identity = ChannelIdentity(
+        platform="telegram", platform_user_id="777001", user_id=world.user.id
+    )
+    db.add_all([bot, identity])
+    await db.flush()
+    session = ChannelSession(
+        bot_id=bot.id,
+        identity_id=identity.id,
+        conversation_id=world.chat.id,
+        platform_chat_id="777001",
+        chat_type=chat_type,
+    )
+    db.add(session)
+    await db.flush()
+    return session
+
+
+async def test_the_delivery_status_check_accepts_pending_and_refuses_unknown_values(
+    db: AsyncSession, world: World
+) -> None:
+    from sqlalchemy.exc import IntegrityError
+
+    world.trigger.last_delivery_status = "pending"
+    await db.flush()
+    world.trigger.last_delivery_status = "in_the_post"
+    with pytest.raises(IntegrityError):
+        await db.flush()
+    await db.rollback()
+
+
+async def test_a_resumed_private_chat_answer_settles_its_receipt_and_leaves_the_routine_pending(
+    db: AsyncSession, world: World
+) -> None:
+    session = await _private_telegram_chat(db, world)
+    await RoutineDeliveryService(db).queue(world.run, answer="Final approved result")
+    with patch(
+        "app.services.outcome.OutcomeService.resolve_routine_failure", new=AsyncMock()
+    ) as resolve:
+        await AgentTriggerService(db).deliver_resumed_answer(world.org.id, world.run.id)
+
+    resolve.assert_not_awaited()
+    receipt = await delivery_repo.get(db, run_id=world.run.id, organization_id=world.org.id)
+    assert receipt is not None and receipt.status == "delivered"
+    assert world.trigger.last_delivery_status == "pending"
+    (message,) = await messages(db, world)
+    (job,) = list(
+        await db.scalars(select(BackgroundJob).where(BackgroundJob.kind == "routine-chat-answer"))
+    )
+    assert job.payload == {
+        "organization_id": str(world.org.id),
+        "trigger_id": str(world.trigger.id),
+        "run_id": str(world.run.id),
+        "conversation_id": str(world.chat.id),
+        "session_id": str(session.id),
+        "message_id": str(message.id),
+    }
+
+
+async def test_a_group_session_resumed_answer_reads_delivered_and_queues_nothing(
+    db: AsyncSession, world: World
+) -> None:
+    await _private_telegram_chat(db, world, chat_type="group")
+    await RoutineDeliveryService(db).queue(world.run, answer="Final approved result")
+    await AgentTriggerService(db).deliver_resumed_answer(world.org.id, world.run.id)
+
+    assert world.trigger.last_delivery_status == "delivered"
+    assert not list(
+        await db.scalars(select(BackgroundJob).where(BackgroundJob.kind == "routine-chat-answer"))
+    )
+
+
+async def test_a_send_queued_with_a_message_rolls_back_with_it(
+    db: AsyncSession, world: World
+) -> None:
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from app.services import agent_trigger
+
+    await _private_telegram_chat(db, world)
+    await RoutineDeliveryService(db).queue(world.run, answer="Final approved result")
+    real_enqueue = agent_trigger.enqueue
+
+    async def queue_then_fail(*args, **kwargs):
+        await real_enqueue(*args, **kwargs)
+        raise SQLAlchemyError("the delivery savepoint fails after queueing")
+
+    with (
+        patch("app.services.agent_trigger.enqueue", queue_then_fail),
+        pytest.raises(SQLAlchemyError),
+    ):
+        await AgentTriggerService(db).deliver_resumed_answer(world.org.id, world.run.id)
+
+    assert await messages(db, world) == []
+    assert not list(
+        await db.scalars(select(BackgroundJob).where(BackgroundJob.kind == "routine-chat-answer"))
+    )

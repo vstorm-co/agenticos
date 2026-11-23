@@ -2463,3 +2463,15 @@ async def test_console_experience_mcp_refuses_other_subjects_policy_fields_and_i
     with pytest.raises(MCPValidationError):
         await server.call_tool("set_my_console_experience", {"update": update})
     api.request.assert_not_awaited()
+
+
+def test_create_routine_says_a_private_chat_routine_is_posted_there() -> None:
+    tool = next(tool for tool in platform_tool_catalog() if tool.name == "create_routine")
+    text = " ".join((tool.function.__doc__ or "").split())
+
+    assert (
+        "private chat in a chat app (Telegram, Slack, Mattermost, Teams, Discord, Matrix)" in text
+    )
+    assert "the bot also posts the answer there" in text
+    assert "do not add `notification_channels` to reach the same chat" in text
+    assert "In a group chat the answer is only kept in the conversation" in text
