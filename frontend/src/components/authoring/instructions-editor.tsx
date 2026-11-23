@@ -89,7 +89,9 @@ export function InstructionsEditor({
               </button>
             ))}
           </div>
-          {tab === "current" ? currentPane : proposedPane}
+          <div key={tab} className="tab-panel" data-state="active">
+            {tab === "current" ? currentPane : proposedPane}
+          </div>
         </div>
       )}
       {outside && (

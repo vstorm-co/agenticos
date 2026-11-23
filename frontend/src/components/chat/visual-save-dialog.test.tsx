@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -184,4 +185,22 @@ describe("VisualSaveDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
+});
+
+it("keeps a pending save stable and prevents duplicate submissions", () => {
+  publication.pending = true;
+  const close = open();
+  expect(screen.getByLabelText("Name")).toBeDisabled();
+  expect(screen.getByLabelText("Title")).toBeDisabled();
+  fireEvent.submit(screen.getByLabelText("Name").closest("form")!);
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(mutateAsync).not.toHaveBeenCalled();
+  expect(close).not.toHaveBeenCalled();
+});
+
+it("closes an idle dialog through its standard Escape action", async () => {
+  publication.pending = false;
+  const close = open();
+  await userEvent.keyboard("{Escape}");
+  expect(close).toHaveBeenCalledWith(false);
 });

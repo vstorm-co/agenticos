@@ -108,7 +108,11 @@ async function readyComposer(page: Page) {
 
 /** Start recording from the microphone beside Send. */
 async function startDictating(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Voice input" }).click();
+  await page.getByRole("button", { name: "Add to message" }).click();
+  await page
+    .getByRole("dialog", { name: "Add to message" })
+    .getByRole("button", { name: "Voice input", exact: true })
+    .click();
 }
 
 /** Record for at least a second: anything shorter is refused before it is sent. */

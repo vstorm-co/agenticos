@@ -1,5 +1,5 @@
 ---
-source_sha: "3283f1fbb7ef"
+source_sha: "d451f503670c"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -720,7 +720,9 @@ scope aparte.
 
 ## Leer páginas web { #web-fetch }
 
-`web_fetch` — _Lee la página completa de una URL, como Markdown._
+`web_fetch` — *Lee el contenido de una URL como Markdown.*
+
+La lectura local de páginas largas acepta una posición de carácter `offset` y un límite `limit`. Empieza en cero y continúa en `next_offset`. Si la lectura alcanza el límite antes del final de la fuente, la respuesta incluye `reached_limit`.
 
 | Configuración | Valor por defecto | Valores |
 | --- | --- | --- |
@@ -1742,7 +1744,13 @@ segundo intento se cobraría de nuevo.
 
 **Cuentas personales en la nube.** En **Settings → Profile → Coding accounts**, conecta una clave de Anthropic/token de configuración de Claude, una clave de OpenAI o un nuevo inicio de sesión de ChatGPT y habilita su uso explícitamente en esta organización. Elige **Private cloud task with my account** en Coding agent. Solo las tareas autenticadas que inicies en el chat web/API pueden usarla; no horarios, canales, claves API ni suplantación. Otros miembros no pueden tomar prestada tu cuenta.
 
-Un contenedor independiente recibe una copia limitada del código (500 archivos, 1 MiB por archivo, 16 MiB en total; sin enlaces simbólicos ni carpetas de plataforma o caché). El informe final identifica cuenta y snapshot, con diff y ZIP en el chat. Los archivos de origen no cambian automáticamente. Revocar el acceso a la cuenta cancela el trabajo. También puedes revocar el permiso externo de ChatGPT en sus ajustes. Las credenciales organizativas existentes y los inicios de sesión CLI locales siguen separados. Actualiza API y workers juntos después de `0290_personal_coding_accounts.py`.
+Cada sesión personal con nombre conserva un contenedor privado del usuario, inicializado una vez con una copia limitada del código (500 archivos, 1 MiB por archivo, 16 MiB en total; sin enlaces simbólicos ni carpetas de plataforma o caché). El informe final identifica cuenta y snapshot, con diff y ZIP en el chat. Los archivos de origen no cambian automáticamente. Revocar el acceso a la cuenta cancela el trabajo. También puedes revocar el permiso externo de ChatGPT en sus ajustes. Las credenciales organizativas existentes y los inicios de sesión CLI locales siguen separados. Actualiza API y workers juntos después de `0290_personal_coding_accounts.py`.
+
+Las tareas privadas en la nube pueden elegir `harness=claude_code` o `harness=codex` en cada llamada a `run_coding_agent`; si se omite, se usa el agente de coding predeterminado. Ambos pueden trabajar simultáneamente mediante el mismo agente en contenedores de sesiones y cuentas separados. El modelo configurado corresponde al harness predeterminado; el otro usa su propio modelo por defecto. Cada cuenta conserva un bloqueo exclusivo de credenciales, por lo que las tareas de la misma cuenta esperan en una cola con tiempo limitado.
+
+Una cuenta ausente o deshabilitada no se sustituye por una clave de la organización ni por una cuenta ajena. Codex se rechaza para tareas de contenedor de solo lectura. El modo de sandbox de la organización sigue vinculado al harness y las credenciales configurados.
+
+Las sesiones privadas con nombre conservan historiales nativos de CLI y archivos separados dentro de la misma conversación y autorización de cuenta. Un nombre nuevo copia el código actual; el mismo nombre continúa sus archivos existentes. `fresh_session` reinicia el historial CLI y conserva los archivos. La caducidad del sandbox por inactividad puede terminar una sesión. Se descarta una tarea fallida cuya limpieza no se puede confirmar; elige explícitamente un nombre nuevo si se pierde el estado. Cambiar el consentimiento, desconectar la cuenta, retirar la membresía o eliminar el agente, conversación, usuario u organización encola la limpieza remota. Aplica `0342_personal_coding_sessions.py` y actualiza API y workers juntos.
 
 El modo personal en la nube solo acepta workspaces de origen privados. Rechaza proyectos, workspaces de agente/canal, chats grupales y conversaciones compartidas para editar antes de cargar credenciales o copiar archivos. Un contenedor privado de destino no convierte en fiable el código controlado por colaboradores. Usa el modo de programación configurado por la organización para proyectos compartidos. La redacción del resultado no protege credenciales frente al código ejecutable.
 
@@ -1780,7 +1788,7 @@ rechaza la combinación. Que una persona diga sí antes de cada tarea es la
 los existentes conservan su política. No hay pestaña de
 herramientas: la única herramienta es la capability.
 
-**Sesiones con nombre.** Cada tarea indica una `session` - `main` cuando no indica ninguna. El mismo nombre continúa el trabajo anterior de esa sesión en la conversación; un nombre nuevo abre otra, y las sesiones independientes se ejecutan en paralelo cuando el agente llama a la herramienta varias veces a la vez. `fresh_session` reinicia una sesión. En este ordenador una sesión también puede elegir su `harness` - Claude Code o Codex, con la sesión iniciada en ese ordenador - y una `folder` dentro de la carpeta del chat, de modo que dos proyectos, o ambos harnesses, trabajan a la vez. En una sandbox o en una tarea privada en la nube el harness del binding es el único, porque la clave o la cuenta le pertenecen.
+**Sesiones con nombre.** Cada tarea indica una `session` - `main` cuando no indica ninguna. El mismo nombre continúa el trabajo anterior de esa sesión en la conversación; un nombre nuevo abre otra, y las sesiones independientes se ejecutan en paralelo cuando el agente llama a la herramienta varias veces a la vez. `fresh_session` reinicia una sesión. En este ordenador una sesión también puede elegir su `harness` - Claude Code o Codex, con la sesión iniciada en ese ordenador - y una `folder` dentro de la carpeta del chat, de modo que dos proyectos, o ambos harnesses, trabajan a la vez. Las tareas en el sandbox de la organización conservan el harness configurado. Las sesiones privadas en la nube pueden elegir ambos agentes con la cuenta propia de la persona.
 
 **En este ordenador.** Configura `runs_on` como `this_computer` para usar el harness instalado mediante [Agent Client Protocol](https://agentclientprotocol.com). El escritorio inicia un adaptador con versión fijada mediante `npx`; el servidor habla ACP. Elige una carpeta con acceso completo en **Work on** y confirma cada inicio de forma nativa. La carpeta es un directorio de trabajo, no una sandbox del sistema. El harness usa su propia sesión; la clave de vault es opcional. Los permisos siguen `access`; la aprobación se aplica una vez por tarea. Claude read-only desactiva bypass y herramientas de escritura; Codex local selecciona su modo de lectura nativo.
 

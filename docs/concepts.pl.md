@@ -1,5 +1,5 @@
 ---
-source_sha: "419bd9ea9a93"
+source_sha: "0efa3a5b6024"
 ---
 
 # Koncepcje { #concepts }
@@ -35,6 +35,12 @@ inna karta lub operacja na serwerze, zapis zostaje wstrzymany, a lokalne wpisy
 pozostają na ekranie. Skopiuj to, co chcesz zachować, zanim wybierzesz
 **Wczytaj najnowszy draft**. Następnie nanieś te zmiany na aktualną wersję;
 zapis ze starej karty nie może jej nadpisać.
+
+Jeśli opublikowany agent ma zmiany w wersji roboczej, wybierz **Więcej →
+Odrzuć wersję roboczą**, aby przywrócić ostatnią opublikowaną wersję. Zmiany
+zostaną odrzucone bez tworzenia wersji i bez przestawiania środowisk. Jeśli przed
+potwierdzeniem ktoś zapisze zmianę albo opublikuje nową wersję, operacja zostanie
+odrzucona. Agent, którego nigdy nie opublikowano, nie ma wersji do przywrócenia.
 
 Spec trzyma się dwóch reguł i to właśnie one czynią go użytecznym.
 

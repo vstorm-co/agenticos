@@ -267,6 +267,14 @@ function subjectOf(
   t: Translate,
 ): string | null {
   const given = args ?? {};
+  if (name === "ask_user_question" && Array.isArray(given.questions)) {
+    for (const question of given.questions) {
+      if (typeof question === "object" && question !== null && "question" in question) {
+        const subject = text(question.question);
+        if (subject !== null) return subject;
+      }
+    }
+  }
   if (name === "execute") return text(given.command) ?? text(given.cmd);
   if (name === "grep" || name === "glob") {
     const pattern = text(given.pattern);

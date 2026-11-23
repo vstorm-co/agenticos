@@ -9,7 +9,7 @@ from pydantic import Field
 from app.db.models.outcome import OutcomeStatus
 from app.schemas.base import BaseSchema
 
-SuggestionKindName = Literal["routine", "agent", "profile", "role_pack", "finding"]
+SuggestionKindName = Literal["routine", "agent", "profile", "role_pack", "finding", "personal"]
 SuggestionStatusName = Literal["open", "accepted", "dismissed"]
 
 
@@ -24,7 +24,9 @@ class SuggestionRead(BaseSchema):
     payload: dict[str, Any] = Field(
         default_factory=dict,
         description=(
-            "What accepting it does: `prompt` and `cadence` for a routine, `request` for an "
+            "Generated proposals can include `chat_prompt`, a ready-to-send action draft, "
+            "and `evidence` with source requests and local timing. What accepting it does: "
+            "`prompt` and `cadence` for a routine, `request` for an "
             "agent, the profile fields for a profile, `pack` for a role pack. A finding "
             "carries `server` (its catalog key, or null), `account` and `url`, any of "
             "them null; accepting one only records it as dealt with."

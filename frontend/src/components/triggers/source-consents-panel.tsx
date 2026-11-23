@@ -1,22 +1,33 @@
 "use client";
 
 import Link from "next/link";
+import { useId, useState } from "react";
 import { ROUTES } from "@/lib/constants";
 import { useTranslations } from "next-intl";
 import { useRoutineSources } from "@/hooks/use-routine-sources";
-import { Button, Spinner } from "@/components/ui";
+import { Button, Spinner, ChoiceGroup } from "@/components/ui";
 import { ErrorState } from "@/components/states/error-state";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Trigger } from "@/types/triggers";
-import type { RoutineSourceItem } from "@/lib/routine-sources-api";
+import {
+  routineSourceBlockers,
+  type RoutineSourceItem,
+  type RoutineSourceMode,
+} from "@/lib/routine-sources-api";
 import { useBranding } from "@/components/branding/branding-provider";
 
 export function SourceConsentsPanel({
   trigger,
   showApprove = true,
+  mode: controlledMode,
+  onModeChange,
+  disabled = false,
 }: {
   trigger: Trigger;
   showApprove?: boolean;
+  mode?: RoutineSourceMode;
+  onModeChange?: (mode: RoutineSourceMode) => void;
+  disabled?: boolean;
 }) {
   const t = useTranslations("triggers.sourceConsents");
   const errors = useTranslations("errors");
@@ -24,6 +35,18 @@ export function SourceConsentsPanel({
     trigger.agent_id,
     trigger.id,
   );
+  const modeId = useId();
+  const [chosen, setChosen] = useState<{ token: string; mode: RoutineSourceMode } | null>(null);
+  const storedMode = data?.mode ?? "restricted";
+  const mode =
+    controlledMode ??
+    (chosen?.token === data?.review_token ? chosen?.mode : undefined) ??
+    storedMode;
+  const changed = mode !== storedMode;
+  const pending = disabled || replace.isPending;
+  const blockers = data ? routineSourceBlockers(data, mode) : [];
+  const optionalUnavailable =
+    data?.unavailable_sources.filter((name) => !blockers.includes(name)) ?? [];
   return (
     <section aria-label={t("title")} className="space-y-3 rounded-lg border p-3">
       <h3 className="text-sm font-medium">{t("title")}</h3>
@@ -46,7 +69,38 @@ export function SourceConsentsPanel({
       ) : (
         data && (
           <>
-            <p className="text-sm">{t(data.current ? "current" : "changed")}</p>
+            <div className="space-y-2">
+              <p id={modeId} className="text-sm font-medium">
+                {t("modeLabel")}
+              </p>
+              <ChoiceGroup
+                labelledBy={modeId}
+                value={mode}
+                options={[
+                  { value: "follow_agent", label: t("followAgent") },
+                  { value: "restricted", label: t("restricted") },
+                ]}
+                disabled={pending || (!showApprove && !onModeChange)}
+                onChange={(next) => {
+                  setChosen({ token: data.review_token, mode: next });
+                  onModeChange?.(next);
+                }}
+              />
+              <p className="text-muted-foreground text-sm">
+                {t(mode === "follow_agent" ? "followHint" : "restrictedHint")}
+              </p>
+            </div>
+            <p className="text-sm">
+              {t(
+                changed
+                  ? "selectionPending"
+                  : !data.current
+                    ? "changed"
+                    : mode === "follow_agent"
+                      ? "followCurrent"
+                      : "current",
+              )}
+            </p>
             {data.items ? (
               <SourceGroups items={data.items} />
             ) : (
@@ -58,9 +112,18 @@ export function SourceConsentsPanel({
             )}
             {data.unavailable_sources.length > 0 && (
               <div className="space-y-2">
-                <p role="status" className="text-sm">
-                  {t("unavailable", { names: data.unavailable_sources.join(", ") })}
-                </p>
+                {blockers.length > 0 && (
+                  <p role="alert" className="text-sm">
+                    {t(mode === "restricted" ? "unavailable" : "requiredUnavailable", {
+                      names: blockers.join(", "),
+                    })}
+                  </p>
+                )}
+                {optionalUnavailable.length > 0 && (
+                  <p role="status" className="text-sm">
+                    {t("followUnavailable", { names: optionalUnavailable.join(", ") })}
+                  </p>
+                )}
                 <Link
                   className="text-sm underline underline-offset-4"
                   href={`${ROUTES.AGENT_DETAIL(trigger.agent_id)}?highlight=agent-mcp`}
@@ -72,10 +135,10 @@ export function SourceConsentsPanel({
             {showApprove && (
               <Button
                 variant="outline"
-                disabled={replace.isPending || data.unavailable_sources.length > 0 || data.current}
-                onClick={() => replace.mutate(data.review_token)}
+                disabled={pending || blockers.length > 0 || (data.current && !changed)}
+                onClick={() => replace.mutate({ review_token: data.review_token, mode })}
               >
-                {t("accept")}
+                {t(mode === "follow_agent" ? "saveMode" : "accept")}
               </Button>
             )}
           </>

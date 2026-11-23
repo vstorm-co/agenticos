@@ -30,6 +30,71 @@ describe("serviceAction", () => {
 });
 
 describe("callSummary", () => {
+  it("summarizes structured CRM searches instead of exposing serialized requests", () => {
+    const request = { filterGroups: [{ filters: [{ propertyName: "name", value: "Oasis*" }] }] };
+    expect(callSummary({ query: JSON.stringify(request) })).toBe("Oasis*");
+    expect(callSummary(request)).toBe("Oasis*");
+    expect(callSummary({ request: JSON.stringify(request) })).toBe("Oasis*");
+  });
+
+  it("preserves bracketed subjects and shell conditions as readable text", () => {
+    for (const query of [
+      "[Action required] Contract",
+      "[Q4]",
+      "[2026] Annual report",
+      "{Draft} Contract",
+      "[ -f README.md ] && cat README.md",
+      '[ "$READY" = yes ] && deploy',
+      "{ curl https://example.com; }",
+      '{ printf "%s" ok; }',
+    ]) {
+      expect(callSummary({ query })).toBe(query);
+    }
+  });
+
+  it("does not decode or hide a literal command even when it resembles JSON or an ID", () => {
+    for (const command of ["[]", '{"query":"delete"}', "ed7b79b6-02bf-4303-a08c-9b95e37af56f"]) {
+      expect(callSummary({ command }, { omitOpaqueIds: true })).toBe(command);
+    }
+    expect(callSummary({ cmd: "[]" })).toBe("[]");
+  });
+
+  it("leaves opaque IDs and uninterpretable serialized requests to the details", () => {
+    const target = "ed7b79b6-02bf-4303-a08c-9b95e37af56f";
+    expect(callSummary({ record_id: target }, { omitOpaqueIds: true })).toBeNull();
+    expect(callSummary({ record_id: target })).toBe(target);
+    for (const query of ["[]", '{"token":"private"}', "{".repeat(8193)]) {
+      expect(callSummary({ query })).toBeNull();
+    }
+    expect(callSummary({ payload: { payload: { query: '{"query":"too deep"}' } } })).toBeNull();
+  });
+
+  it("keeps a bounded, distinct set of meaningful search terms", () => {
+    expect(
+      callSummary({
+        filterGroups: [
+          null,
+          {},
+          {
+            filters: [
+              null,
+              {},
+              { value: 4 },
+              { value: "" },
+              { value: "A" },
+              { value: "A" },
+              { value: "B" },
+              { value: "C" },
+              { value: "D" },
+            ],
+          },
+        ],
+      }),
+    ).toBe("A · B · C");
+    expect(callSummary({ filterGroups: [{}] })).toBeNull();
+    expect(callSummary({ query: "", title: "Readable title" })).toBe("Readable title");
+  });
+
   it("picks the argument that says what the call is about", () => {
     expect(callSummary({ page_url: "", query: "what's new", sort: "relevance" })).toBe(
       "what's new",

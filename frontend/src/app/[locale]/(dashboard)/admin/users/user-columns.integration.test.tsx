@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -48,6 +48,8 @@ const USERS: AdminUser[] = [
     is_active: true,
     is_app_admin: true,
     conversation_count: 12,
+    last_seen_at: "2026-11-19T11:35:00Z",
+    active_sessions: 3,
     created_at: "2026-07-01T00:00:00Z",
   },
   {
@@ -57,6 +59,7 @@ const USERS: AdminUser[] = [
     is_active: false,
     is_app_admin: false,
     conversation_count: 0,
+    last_seen_at: null,
     created_at: "2026-07-02T00:00:00Z",
   },
 ];
@@ -111,4 +114,13 @@ describe("the admin users table", () => {
 
     expect(screen.getByText("Deployment admin")).toBeInTheDocument();
   });
+});
+
+it("shows per-account last activity and active sessions in the list", async () => {
+  render(<AdminUsersPage />, { wrapper });
+  const account = await screen.findByRole("row", { name: /kacper@example.com/ });
+  expect(screen.getByRole("columnheader", { name: "Last seen" })).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", { name: "Active sessions" })).toBeInTheDocument();
+  expect(within(account).getByText("3")).toBeInTheDocument();
+  expect(screen.getByText("Never signed in")).toBeInTheDocument();
 });

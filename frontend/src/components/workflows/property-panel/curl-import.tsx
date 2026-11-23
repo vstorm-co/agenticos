@@ -124,7 +124,7 @@ export function CurlImport({
         {t("curlImport")}
       </Button>
       <Dialog open={open && !storing} onOpenChange={(next) => !next && close()}>
-        <DialogContent className={DIALOG_FORM}>
+        <DialogContent data-workflow-fields className={DIALOG_FORM}>
           <DialogHeader>
             <DialogTitle>{t("curlTitle")}</DialogTitle>
             <DialogDescription>

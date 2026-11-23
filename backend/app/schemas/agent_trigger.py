@@ -22,6 +22,7 @@ from app.db.models.agent_trigger import MIN_INTERVAL_SECONDS, EventSource, Trigg
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.local_target import LocalTarget
 from app.schemas.routine_notifications import ExternalNotificationChannel
+from app.schemas.routine_sources import RoutineSourceMode
 
 # The interval floor is a database CHECK (`ck_trigger_interval_floor`); this
 # ceiling is input-only, and its job is a 422 rather than a 500. `interval_seconds`
@@ -459,6 +460,10 @@ class TriggerCreate(BaseSchema):
 
     is_active: bool = Field(
         default=True, description="Create paused while configuring device consent."
+    )
+    source_mode: RoutineSourceMode = Field(
+        default="follow_agent",
+        description="Use the initial approved agent ceiling with current creator permissions; later source or behavior expansions require owner review. Restricted mode freezes all reviewed sources.",
     )
     review_before_activation: bool = Field(
         default=False,

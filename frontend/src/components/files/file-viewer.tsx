@@ -23,6 +23,7 @@ import {
 import { useFileActions } from "@/hooks";
 import type { FileAccess } from "@/lib/file-access";
 import { hasSourceView, resolveFileKind, suffixOf, type FileKind } from "@/lib/file-kinds";
+import { glideOrJump } from "@/lib/motion";
 import { cn, formatBytes, timeAgo } from "@/lib/utils";
 import { DIALOG_WINDOW } from "@/lib/dialog-sizes";
 
@@ -318,7 +319,16 @@ export function FileCarousel({ strip }: { strip: ViewerNavigation }) {
               title={name}
               onClick={(event) => {
                 strip.onSelect(index);
-                event.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
+                const button = event.currentTarget;
+                const list = button.closest("ul")!;
+                const box = button.getBoundingClientRect();
+                const viewport = list.getBoundingClientRect();
+                const delta =
+                  box.left < viewport.left
+                    ? box.left - viewport.left
+                    : Math.max(0, box.right - viewport.right);
+                if (delta !== 0)
+                  list.scrollTo({ left: list.scrollLeft + delta, behavior: glideOrJump() });
               }}
               className={cn(
                 "max-w-[12rem] truncate rounded-md px-2 py-1 text-xs transition-colors",

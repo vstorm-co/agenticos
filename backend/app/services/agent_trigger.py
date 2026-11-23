@@ -1069,7 +1069,7 @@ class AgentTriggerService:
             monthly_budget_usd=data.monthly_budget_usd,
         )
         try:
-            policy = await self.sources.initial(ctx, trigger)
+            policy = await self.sources.initial(ctx, trigger, mode=data.source_mode)
         except RoutineSourcesRequired as refusal:
             # Preserve the requested responsibility without granting incomplete
             # sources or queueing a fire. Source review is still required before
@@ -1079,6 +1079,7 @@ class AgentTriggerService:
             unavailable = details.get("unavailable_sources", [])
             trigger.approved_sources = {
                 "pending_review": True,
+                "mode": data.source_mode,
                 "unavailable_sources": [name for name in unavailable if isinstance(name, str)]
                 if isinstance(unavailable, list)
                 else [],
@@ -1087,7 +1088,11 @@ class AgentTriggerService:
         else:
             if data.review_before_activation:
                 trigger.is_active = False
-                trigger.approved_sources = {"pending_review": True, "unavailable_sources": []}
+                trigger.approved_sources = {
+                    "pending_review": True,
+                    "mode": data.source_mode,
+                    "unavailable_sources": [],
+                }
             else:
                 trigger.approved_sources = policy.model_dump(mode="json")
         await self.db.flush()
@@ -1594,6 +1599,32 @@ class AgentTriggerService:
             routine_id=trigger.id,
             routine_kind="trigger",
         )
+        if (
+            trigger.created_by_user_id is not None
+            and await member_repo.get_active(
+                self.db, organization_id=ctx.organization_id, user_id=trigger.created_by_user_id
+            )
+            is not None
+        ):
+            from app.repositories import personal_context as context_repo
+            from app.services.proactive import ProactiveService
+
+            await context_repo.save(
+                self.db,
+                organization_id=ctx.organization_id,
+                user_id=trigger.created_by_user_id,
+                key=f"removed-routine:{trigger.id}",
+                payload={
+                    "id": str(trigger.id),
+                    "name": trigger.name,
+                    "kind": "routine",
+                    "deleted_at": datetime.now(UTC).isoformat(),
+                    "requested_by_user_id": str(ctx.user_id),
+                },
+            )
+            await ProactiveService(self.db).queue_context_change(
+                ctx.organization_id, trigger.created_by_user_id
+            )
         await agent_trigger_repo.delete(self.db, trigger)
         await record_audit(
             self.db,

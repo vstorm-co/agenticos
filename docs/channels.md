@@ -2343,6 +2343,8 @@ The full room history remains available, including messages from other participa
 
 Channel messages store only the sender’s text. Author labels are resolved from channel identities immediately before model dispatch, outside system instructions. The console and copy, pin and shortcut actions receive the plain body. Persisted histories and paused runs keep opaque identity references, and manifests omit the injected channel reference parts. Deleting an account removes its channel identities, so future requests cannot resolve that person’s platform labels; shared message bodies remain.
 
+The console and messaging channels use the same conversation history. When history is shared, each assistant turn retains the recorded tool names and statuses in order. Arguments and results can depend on the original sender’s permissions. To answer a follow-up that needs those data, the agent can make a fresh, authorized read.
+
 Editable channel names, topics, purposes and author labels pass the configured input checks before reaching the model. Redacted values replace the originals; blocked reference values are withheld while an otherwise allowed question can continue. Fixed envelope syntax, platform identifiers and chat-type enums are not screened as question text.
 
 Author reference data is supplied separately from the current message, so input guardrails screen the actual question.
@@ -3046,7 +3048,9 @@ The checkboxes under **What this agent may do** grant real tools. Conversation t
 
 The service rechecks organization membership, agent access, the active binding and bot, then destination membership and thread ownership on each operation. It never joins channels or borrows another agent’s bot. Search and history are bounded pages; follow their cursors and treat empty matches as one scanned page. Provider failures are refusals, not empty results. Sending follows the approval policy; an unconfirmed submission must be checked at the destination before retrying. Other platforms retain their existing conversation tools; cross-channel actions are offered only where the adapter verifies membership.
 
-Before creating a recurring report, agree its time zone, cadence and destination, including whether to reuse a thread or start a new post. Put verified connection/channel/thread IDs and the complete task in its prompt, with `send_chat_message` as the final delivery, and select the run log for the console copy. Review its sources and any standing action consent under Routines. A missing source saves the requested routine paused with setup issues; it cannot run or be enabled until the sources are repaired and reviewed. Repair the existing routine rather than retrying creation with other agents.
+Before creating a recurring report, agree its time zone, cadence and destination, including whether to reuse a thread or start a new post. Put verified bot/channel/thread IDs and the complete task in its prompt, with `send_chat_message` as the final delivery, and select the run log for the console copy.
+
+New routines automatically admit the agent's initial available configuration within the creator's permissions. Later source or behavior expansions need the owner's access review, including changed instructions or effective skills. Missing optional MCP accounts do not block unrelated work. Sending still follows the agent's approvals and mandatory gates; do not promise unattended delivery if approval is required. A genuinely blocked setup is saved paused. Repair the existing routine rather than creating duplicates or changing shared agent bindings without agreement.
 
 Long work streams text and actual tool stages. While a tool runs, text-channel progress retains its current stage after an interim sentence; bounded liveness updates show elapsed time and completed steps, never an invented percentage. The final reply replaces that temporary status. Native streamed platforms keep their own timeline.
 

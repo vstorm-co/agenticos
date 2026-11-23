@@ -18,6 +18,7 @@ from sqlalchemy import delete as sa_delete
 from sqlalchemy import func, or_, select, true
 from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
 from app.core.memory_keys import PERSON_PREFIX
 from app.db.models.agent import Agent
@@ -70,6 +71,7 @@ async def list_for_owner(
     agent_id: UUID,
     owner_key: str,
     limit: int = 200,
+    include_content: bool = True,
 ) -> list[AgentMemoryFile]:
     """One store's notes, newest first - the listing behind `list_memory`.
 
@@ -79,7 +81,7 @@ async def list_for_owner(
     never null - deliberately not `updated_at`, which a person suppressing a note
     would move.
     """
-    result = await db.execute(
+    statement = (
         select(AgentMemoryFile)
         .where(
             AgentMemoryFile.organization_id == organization_id,
@@ -97,6 +99,9 @@ async def list_for_owner(
         )
         .limit(limit)
     )
+    if not include_content:
+        statement = statement.options(defer(AgentMemoryFile.content))
+    result = await db.execute(statement)
     return list(result.scalars().all())
 
 

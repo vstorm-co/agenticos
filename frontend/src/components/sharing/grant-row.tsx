@@ -95,7 +95,7 @@ export function GrantRow({
       >
         <SelectTrigger
           id={id}
-          className="text-muted-foreground hover:text-foreground h-8 w-auto gap-1.5 border-transparent bg-transparent px-2.5 shadow-none"
+          className="text-muted-foreground hover:text-foreground h-10 w-auto gap-1.5 border-transparent bg-transparent px-2.5 shadow-none pointer-coarse:h-11"
         >
           <SelectValue />
         </SelectTrigger>
@@ -122,7 +122,7 @@ export function GrantRow({
           aria-label={tc("removeNamed", { name })}
           disabled={revoking}
           onClick={() => onRevoke(subject)}
-          className="text-muted-foreground hover:text-destructive"
+          className="text-muted-foreground hover:text-destructive size-10 shrink-0 pointer-coarse:size-11"
         >
           <X />
         </IconButton>

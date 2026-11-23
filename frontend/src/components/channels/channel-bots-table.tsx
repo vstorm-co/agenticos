@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Pause, Pencil, Play, Trash2, Users, Stethoscope } from "lucide-react";
 
 import { ChannelDiagnosticsDialog } from "./channel-diagnostics-dialog";
@@ -31,6 +31,7 @@ interface ChannelBotsTableProps {
   bots: readonly ChannelBot[];
   busy: boolean;
   loading?: boolean;
+  empty?: ReactNode;
   onEdit: (bot: ChannelBot) => void;
   onToggleActive: (bot: ChannelBot) => void;
   onDelete: (bot: ChannelBot) => void;
@@ -93,6 +94,7 @@ export function ChannelBotsTable({
   bots,
   busy,
   loading = false,
+  empty,
   onEdit,
   onToggleActive,
   onDelete,
@@ -246,6 +248,9 @@ export function ChannelBotsTable({
         <ChannelDiagnosticsDialog bot={diagnosticBot} onClose={() => setDiagnosticBot(null)} />
       )}
       <DataTable
+        clientPagination
+        empty={empty}
+        fillHeight
         columns={columns}
         rows={rows}
         loading={loading}

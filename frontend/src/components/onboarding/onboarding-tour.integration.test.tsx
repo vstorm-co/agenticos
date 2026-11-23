@@ -850,6 +850,26 @@ describe("OnboardingTour's light", () => {
     const lit = made.filter((instance) => instance.focus.mock.calls.length > 0).at(-1);
     expect(lit?.dead).toBe(false);
   });
+  it("counts only available app viewer tips before the first caption and finishes on the last one", async () => {
+    const elements = ["artifact-strip", "artifact-actions"].map((target) => {
+      const element = document.createElement("div");
+      element.dataset.tour = target;
+      return element;
+    });
+    document.body.append(...elements);
+    serveElements(...elements);
+    servePermissions(OWNER);
+    nav.pathname = "/apps/app-one";
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(shownStep().popover?.progressText).toBe("Step 1 of 2"));
+    act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
+    await waitFor(() => expect(shownStep().popover?.progressText).toBe("Step 2 of 2"));
+    expect(shownStep().popover?.nextBtnText).toBe("Finish");
+    act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
+    expect(useOnboardingStore.getState().isOpen).toBe(false);
+    elements.forEach((element) => element.remove());
+  });
 });
 
 describe("RestartTourButton", () => {

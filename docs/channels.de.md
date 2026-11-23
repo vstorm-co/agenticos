@@ -1,5 +1,5 @@
 ---
-source_sha: "7c98112dc096"
+source_sha: "3b887e9777b8"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2588,6 +2588,8 @@ Der gesamte Raumverlauf bleibt verfügbar, einschließlich Nachrichten anderer T
 
 Kanalnachrichten speichern nur den Text des Absenders. Autorenbezeichnungen werden unmittelbar vor der Modellanfrage aus Kanalidentitäten aufgelöst, außerhalb der Systemanweisungen. Konsole, Kopieren, Anheften und Kurzbefehle erhalten den reinen Text. Gespeicherte Verläufe und pausierte Runs behalten opake Identitätsreferenzen; Manifeste lassen die eingefügten Kanalreferenzteile aus. Die Kontolöschung entfernt dessen Kanalidentitäten, sodass spätere Anfragen die Plattformbezeichnungen der Person nicht mehr auflösen können. Geteilte Nachrichtentexte bleiben erhalten.
 
+Konsole und Nachrichtenkanäle verwenden denselben Gesprächsverlauf. Im geteilten Verlauf bleiben die Namen und Status der Werkzeugaufrufe pro Agentenantwort in ihrer Reihenfolge erhalten. Argumente und Ergebnisse können von den Berechtigungen der ursprünglichen Person abhängen. Für Rückfragen kann der Agent die Daten mit den aktuellen Berechtigungen erneut lesen.
+
 Editierbare Kanalnamen, Themen, Beschreibungen und Autorenbezeichnungen durchlaufen vor dem Modell die konfigurierten Eingabeprüfungen. Bereinigte Werte ersetzen die Originale; blockierte Referenzwerte werden zurückgehalten, während eine erlaubte Frage fortgesetzt werden kann. Feste Metadatensyntax, Plattformkennungen und Chat-Typen werden nicht als Fragetext geprüft.
 
 Autorenreferenzen werden getrennt von der aktuellen Nachricht übergeben, damit Eingabe-Guardrails die eigentliche Frage prüfen.
@@ -3373,7 +3375,9 @@ Die Kontrollkästchen unter **Was dieser Agent tun darf** gewähren echte Werkze
 
 Jede Operation prüft erneut Organisationsmitgliedschaft, Agentenzugriff, aktive Bindung und Bot sowie anschließend Kanalmitgliedschaft und Thread-Zugehörigkeit. Sie tritt keinen Kanälen bei und verwendet keine Bots anderer Agenten. Suche und Verlauf liefern begrenzte Seiten mit Cursorn; eine leere Trefferseite ist nicht das Ende, solange ein Cursor besteht. Anbieterfehler sind Ablehnungen, keine leeren Ergebnisse. Senden folgt den Freigaberegeln; unbestätigte Sendungen müssen vor einem erneuten Versuch am Ziel geprüft werden. Andere Plattformen behalten ihre Gesprächswerkzeuge; kanalübergreifende Aktionen werden nur bei überprüfbarer Mitgliedschaft angeboten.
 
-Vor einem wiederkehrenden Bericht Zeitzone, Rhythmus und Ziel einschließlich bestehendem Thread oder neuem Beitrag klären. Verifizierte Bot-, Kanal- und Thread-IDs sowie die vollständige Aufgabe in den Routinen-Prompt schreiben und abschließend `send_chat_message` verwenden; die Konsolenkopie gehört ins Laufprotokoll. Quellen und gegebenenfalls dauerhafte Aktionsfreigabe unter Routinen prüfen. Fehlt eine Quelle, wird die Routine mit Einrichtungshinweisen pausiert gespeichert und bleibt bis zur Reparatur und Quellenprüfung gesperrt. Die bestehende Routine reparieren, statt weitere mit anderen Agenten anzulegen.
+Vor einem wiederkehrenden Bericht Zeitzone, Rhythmus und Ziel einschließlich bestehendem Thread oder neuem Beitrag vereinbaren. Verifizierte Bot-, Kanal- und Thread-IDs und die vollständige Aufgabe in den Routineprompt aufnehmen, mit `send_chat_message` als letzter Zustellung; die Konsolenkopie bleibt im Ausführungsprotokoll.
+
+Neue Routinen genehmigen automatisch die anfänglich verfügbare Agentenkonfiguration innerhalb der Erstellerberechtigungen. Spätere Quellen- oder Verhaltenserweiterungen einschließlich geänderter Anweisungen oder tatsächlich verwendeter Skills erfordern die Zugriffsprüfung des Eigentümers. Fehlende optionale MCP-Konten blockieren keine andere Arbeit. Senden unterliegt weiterhin Agentenfreigaben und verbindlichen Kontrollen; bei erforderlicher Freigabe keine unbeaufsichtigte Zustellung versprechen. Tatsächlich fehlende Pflichtkonfiguration speichert die Routine pausiert. Die bestehende Routine reparieren, statt Duplikate anzulegen oder gemeinsam genutzte Agentenbindungen ohne Absprache zu ändern.
 
 Lange Aufgaben streamen Text und tatsächliche Werkzeugschritte. Textkanäle zeigen die laufende Phase auch nach einem Zwischenstand; begrenzte Aktualisierungen nennen verstrichene Zeit und abgeschlossene Schritte, keinen erfundenen Prozentsatz. Die endgültige Antwort ersetzt den Zwischenstatus. Nativ streamende Plattformen behalten ihre eigene Zeitleiste.
 

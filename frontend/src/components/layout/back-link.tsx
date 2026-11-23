@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore, type MouseEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { ArrowLeft } from "lucide-react";
 import { useTranslations } from "next-intl";
 

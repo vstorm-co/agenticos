@@ -1,5 +1,5 @@
 ---
-source_sha: "7c98112dc096"
+source_sha: "3b887e9777b8"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2466,6 +2466,8 @@ Se conserva todo el historial de la sala, incluidos mensajes de otros participan
 
 Los mensajes de canal guardan solo el texto del remitente. Las etiquetas del autor se resuelven desde las identidades de canal justo antes de enviar la solicitud al modelo, fuera de las instrucciones del sistema. La consola y las acciones de copiar, fijar y crear atajos reciben el texto original. Los historiales guardados y las ejecuciones pausadas conservan referencias opacas; los manifiestos omiten las partes de referencia del canal añadidas. Al eliminar la cuenta se borran sus identidades, por lo que las solicitudes futuras no pueden resolver sus etiquetas; se conservan los mensajes compartidos.
 
+La consola y los canales de mensajería usan el mismo historial. En un historial compartido, cada respuesta del agente conserva los nombres y estados de las llamadas en orden. Los argumentos y resultados pueden depender de los permisos del remitente original. Para responder a una pregunta posterior, el agente puede volver a consultar los datos con los permisos actuales.
+
 Los nombres de canal, temas, descripciones y etiquetas de autor editables pasan las comprobaciones de entrada antes de llegar al modelo. Los valores redactados sustituyen a los originales; los valores de referencia bloqueados se ocultan y una pregunta permitida puede continuar. La sintaxis fija, los identificadores de plataforma y los tipos de chat no se examinan como texto de la pregunta.
 
 Las referencias del autor se pasan por separado del mensaje actual para que los guardrails de entrada examinen la pregunta real.
@@ -3203,7 +3205,9 @@ Las casillas de **Lo que este agente puede hacer** conceden herramientas reales.
 
 Cada operación vuelve a comprobar la pertenencia a la organización, acceso al agente, vinculación y bot activos, además de pertenencia al canal y correspondencia del hilo. No se une a canales ni utiliza bots de otros agentes. La búsqueda y el historial devuelven páginas limitadas con cursores; una página sin coincidencias no es el final si hay cursor. Los fallos del proveedor son rechazos, no resultados vacíos. Los envíos siguen la política de aprobación; una entrega no confirmada debe comprobarse antes de reintentarse. Las demás plataformas conservan sus herramientas de conversación; las acciones entre canales solo se ofrecen donde el adaptador verifica la pertenencia.
 
-Antes de crear un informe recurrente, acuerda zona horaria, frecuencia y destino, incluido usar el hilo actual o una publicación nueva. Escribe los identificadores verificados del bot, canal e hilo y la tarea completa en el prompt de la rutina, terminando con `send_chat_message`; la copia de la consola queda en el registro. Revisa fuentes y consentimiento permanente de acciones en Rutinas. Una fuente ausente guarda la rutina pausada con indicaciones de configuración; no podrá ejecutarse ni activarse hasta reparar y revisar las fuentes. Repara la rutina existente en lugar de crear más con otros agentes.
+Antes de crear un informe recurrente, acuerda zona horaria, frecuencia y destino, incluido usar el hilo actual o una publicación nueva. Escribe los identificadores verificados del bot, canal e hilo y la tarea completa en el prompt, terminando con `send_chat_message`; la copia de la consola queda en el registro.
+
+Las rutinas nuevas admiten automáticamente la configuración inicialmente disponible del agente dentro de los permisos del creador. Las ampliaciones posteriores de fuentes o comportamiento, incluidas instrucciones o skills efectivos modificados, requieren la revisión de acceso del propietario. Las cuentas MCP opcionales ausentes no bloquean otras tareas. El envío mantiene las aprobaciones del agente y los controles obligatorios; no prometas entrega desatendida si se necesita aprobación. Una configuración obligatoria ausente guarda la rutina en pausa. Repara la rutina existente en vez de duplicarla o cambiar vinculaciones compartidas sin acuerdo.
 
 Las tareas largas transmiten texto y etapas reales de herramientas. En canales de texto la etapa actual sigue visible tras una frase de avance; las actualizaciones limitadas muestran tiempo transcurrido y pasos terminados, sin porcentajes inventados. La respuesta final sustituye el estado temporal. Las plataformas con transmisión nativa conservan su propia cronología.
 

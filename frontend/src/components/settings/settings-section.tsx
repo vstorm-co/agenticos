@@ -3,6 +3,8 @@
 import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { useChanged } from "@/hooks/use-changed";
+import { DisclosureContent } from "@/components/ui/disclosure-content";
+import { DISCLOSURE_TRIGGER } from "@/components/ui/control-styles";
 import { ContextHelp } from "@/components/ui/context-help";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
@@ -143,18 +145,20 @@ export function SettingsSection({
           <div className="flex items-center gap-1">
             <h2
               className={cn(
-                "text-base font-semibold tracking-tight",
+                "text-sm font-semibold",
                 danger ? "text-destructive" : "text-foreground",
               )}
             >
               {collapsible ? (
                 <button
+                  id={`${panelId}-toggle`}
                   type="button"
                   data-tour={toggleTour}
                   aria-expanded={open}
                   aria-controls={panelId}
                   onClick={() => setOpen(!open)}
-                  className="focus-visible:ring-ring hover:text-foreground/70 touch:min-h-11 flex min-h-9 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2"
+                  data-press-feedback="quiet"
+                  className={DISCLOSURE_TRIGGER}
                 >
                   <ChevronDown
                     aria-hidden
@@ -180,9 +184,19 @@ export function SettingsSection({
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </header>
-      <div id={panelId} hidden={collapsible && !open}>
-        {children}
-      </div>
+      {collapsible ? (
+        <DisclosureContent
+          id={panelId}
+          open={open}
+          triggerId={`${panelId}-toggle`}
+          mountOnOpen={false}
+          onReveal={() => setOpen(true)}
+        >
+          {children}
+        </DisclosureContent>
+      ) : (
+        <div>{children}</div>
+      )}
     </section>
   );
 }

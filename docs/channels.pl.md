@@ -1,5 +1,5 @@
 ---
-source_sha: "7c98112dc096"
+source_sha: "3b887e9777b8"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2413,6 +2413,8 @@ Pełna historia pokoju pozostaje dostępna, także wiadomości innych uczestnik�
 
 Wiadomości kanałowe zapisują wyłącznie tekst nadawcy. Etykiety autora są odczytywane z tożsamości kanałowych tuż przed wysłaniem zapytania do modelu, poza instrukcjami systemowymi. Konsola oraz kopiowanie, przypinanie i skróty otrzymują samą treść. Zapisana historia i wstrzymane runy przechowują niejawne odwołania do tożsamości, a manifesty pomijają dopisane części kontekstu kanałowego. Usunięcie konta usuwa jego tożsamości, więc kolejne zapytania nie odczytają etykiet tej osoby; treść wspólnych wiadomości zostaje.
 
+Konsola i kanały komunikacji korzystają z tej samej historii rozmów. We współdzielonej historii każda odpowiedź agenta zachowuje nazwy i statusy wywołanych narzędzi w kolejności. Argumenty i wyniki mogą zależeć od uprawnień pierwotnego nadawcy. Gdy kolejna odpowiedź wymaga tych danych, agent może je odczytać ponownie z uprawnieniami osoby pytającej.
+
 Edytowalne nazwy kanałów, tematy, opisy i etykiety autora przechodzą skonfigurowane kontrole wejścia przed dotarciem do modelu. Wartości po redakcji zastępują oryginały; zablokowane wartości kontekstu są ukrywane, a dozwolone pytanie może być wykonane. Stała składnia metryki, identyfikatory platformy i typ rozmowy nie są sprawdzane jako treść pytania.
 
 Dane autora są przekazywane oddzielnie od bieżącej wiadomości, więc input guardrails sprawdzają właściwe pytanie.
@@ -3161,7 +3163,9 @@ Checkboxy w sekcji **Co agent może robić** przyznają prawdziwe narzędzia. Na
 
 Przy każdej operacji usługa ponownie sprawdza członkostwo w organizacji, dostęp do agenta, aktywne powiązanie i bota, a następnie członkostwo bota w kanale i przynależność wątku. Nie dołącza do kanałów ani nie pożycza botów innych agentów. Wyszukiwanie i historia zwracają ograniczone strony; puste dopasowanie nie kończy przeglądania, jeśli istnieje kursor. Błąd dostawcy jest odmową, nie pustym wynikiem. Wysyłanie podlega zasadom akceptacji; niepotwierdzoną wysyłkę trzeba sprawdzić przed ponowieniem. Pozostałe platformy zachowują dotychczasowe narzędzia rozmowy; akcje między kanałami są dostępne tylko tam, gdzie adapter weryfikuje członkostwo.
 
-Przed utworzeniem cyklicznego raportu ustal strefę czasową, harmonogram i miejsce dostarczenia, w tym użycie tego samego wątku lub nowego wpisu. Wpisz zweryfikowane identyfikatory bota, kanału i wątku oraz pełne zadanie do promptu rutyny, z końcowym dostarczeniem przez `send_chat_message`; kopia w konsoli trafia do dziennika rutyny. Sprawdź źródła i ewentualną stałą zgodę na akcję w Rutynach. Brak źródła zapisuje rutynę wstrzymaną z informacją o konfiguracji; nie można jej uruchomić ani włączyć przed naprawą i przeglądem źródeł. Napraw istniejącą rutynę, zamiast tworzyć kolejne pod innymi agentami.
+Przed utworzeniem cyklicznego raportu ustal strefę czasową, harmonogram i miejsce dostarczenia, w tym użycie tego samego wątku lub nowego wpisu. Wpisz zweryfikowane identyfikatory bota, kanału i wątku oraz pełne zadanie do promptu rutyny, z końcowym dostarczeniem przez `send_chat_message`; kopia w konsoli trafia do dziennika rutyny.
+
+Nowe rutyny automatycznie zatwierdzają początkową dostępną konfigurację agenta w granicach uprawnień twórcy. Późniejsze rozszerzenia źródeł lub zmiany zachowania, w tym instrukcji i faktycznie używanych skilli, wymagają przeglądu dostępu przez właściciela. Brak opcjonalnego konta MCP nie blokuje innej pracy. Wysyłanie nadal podlega zgodom agenta i obowiązkowym zabezpieczeniom; nie obiecuj działania bez nadzoru, jeśli potrzebna jest zgoda. Rzeczywista blokada konfiguracji zapisuje rutynę jako wstrzymaną. Napraw istniejącą rutynę zamiast tworzyć duplikaty lub bez uzgodnienia zmieniać współdzielone powiązania agenta.
 
 Długie zadania strumieniują tekst i rzeczywiste etapy narzędzi. W komunikatorach tekstowych bieżący etap pozostaje widoczny także po zdaniu postępu; ograniczone aktualizacje pokazują upływ czasu i zakończone kroki, bez wymyślonego procentu. Końcowa odpowiedź zastępuje stan tymczasowy. Platformy z natywnym strumieniem zachowują własną oś czasu.
 

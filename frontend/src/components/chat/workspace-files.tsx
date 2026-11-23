@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
-import { AlertTriangle, Download, FolderOpen, Info, Maximize2, Minimize2, X } from "lucide-react";
+import { Download, FolderOpen, Maximize2, Minimize2, X } from "lucide-react";
 import { toast } from "sonner";
+import { WorkspaceReadNotice } from "./workspace-read-notice";
+import { useChatPanelStore } from "@/stores/chat-panel-store";
 
 import { FileCard, FileIcon, PathTree } from "@/components/files";
 import { useConversationWorkspace } from "@/hooks";
@@ -31,6 +33,8 @@ import { useRequiredChatWorkspace } from "./chat-workspace-context";
 import { WorkspaceFilePreview } from "./workspace-file-preview";
 
 interface WorkspaceFilesProps {
+  beforeFirstMessage?: boolean;
+  overlay?: boolean;
   conversationId: string | null;
   /** Bumped when a turn ends, because a turn is what changes the files. */
   revision: number;
@@ -65,8 +69,11 @@ export function WorkspaceFiles({
   revision,
   attachments,
   buttonSlot,
+  beforeFirstMessage = false,
+  overlay = false,
 }: WorkspaceFilesProps) {
   const t = useTranslations("chat.files");
+  const controls = useTranslations("chat.controls");
   const tWorkspace = useTranslations("chat.workspace");
   const host = useRequiredChatWorkspace();
   // A chat working on this computer keeps its files in the folder there, which
@@ -75,9 +82,11 @@ export function WorkspaceFiles({
   const target = useWorkOnStore((state) => state.targetFor(conversationId));
   const localRoot =
     isDesktopShell(shell) && target !== null && !target.computer_grant ? target.folder : null;
-  const cloud = useConversationWorkspace(localRoot === null ? conversationId : null);
+  const cloud = useConversationWorkspace(
+    !beforeFirstMessage && localRoot === null ? conversationId : null,
+  );
   const local = useLocalWorkspace(
-    localRoot,
+    beforeFirstMessage ? null : localRoot,
     t("onThisComputer", { folder: localRoot?.split(/[\\/]/).filter(Boolean).at(-1) ?? "" }),
   );
   const { workspace, error, refresh } = localRoot === null ? cloud : local;
@@ -87,7 +96,12 @@ export function WorkspaceFiles({
   const availableAttachments = useFilePreviewStore((state) => state.available);
   const closeAttachment = useFilePreviewStore((state) => state.close);
   const selectAttachment = useFilePreviewStore((state) => state.select);
-  const visible = host.activePanel === "files";
+  const visible = host.activePanel === "files" && !beforeFirstMessage;
+  useEffect(() => {
+    if (overlay) return;
+    useChatPanelStore.getState().setFilesOpen(visible);
+    return () => useChatPanelStore.getState().setFilesOpen(false);
+  }, [visible, overlay]);
   const [opened, setOpened] = useState(visible);
   if (visible && !opened) setOpened(true);
   const panelId = `${host.id}-panel-files`;
@@ -203,6 +217,7 @@ export function WorkspaceFiles({
     return ![...stored].some((name) => name.startsWith(`${prefix}-`));
   });
   const count = files.length + unstored.length;
+  const readIssue = error ?? workspace?.unreadable_reason ?? null;
 
   // Only for the server's workspace: the archive route is the conversation's, and a
   // folder on this computer is already a folder on this computer. Wherever the tree
@@ -226,18 +241,27 @@ export function WorkspaceFiles({
             ref={toggle}
             type="button"
             data-tour="chat-workspace-open"
+            disabled={beforeFirstMessage}
             aria-label={
               visible ? t("title") : count === 0 ? t("show") : t("showWithCount", { count })
             }
             aria-controls={panelId}
             aria-expanded={visible}
-            title={visible ? t("close") : count === 0 ? t("show") : t("showWithCount", { count })}
+            title={
+              beforeFirstMessage
+                ? controls("afterFirstMessage")
+                : visible
+                  ? t("close")
+                  : count === 0
+                    ? t("show")
+                    : t("showWithCount", { count })
+            }
             onClick={() => {
               if (visible) host.close();
               else host.openPanel("files");
             }}
             className={cn(
-              "text-muted-foreground hover:text-foreground hover:bg-accent/60 relative inline-flex size-8 items-center justify-center rounded-lg transition-colors",
+              "text-muted-foreground hover:text-foreground hover:bg-accent/60 relative inline-flex size-8 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-35",
               visible && "bg-foreground/[0.06] text-foreground",
             )}
           >
@@ -333,21 +357,14 @@ export function WorkspaceFiles({
                     <p className="text-muted-foreground text-xs">{t("beforeStart")}</p>
                   )}
 
-                  {error !== null && (
-                    <div className="text-destructive flex items-start gap-2 text-xs">
-                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                      <p>{error}</p>
-                    </div>
-                  )}
-
-                  {/* Not red, and not beside "nothing yet". A host that keeps no files on disk
-          is a configuration somebody chose, with a one-line fix this message names
-          - and saying "no files" as well would be the second of two wrong answers. */}
-                  {workspace?.unreadable_reason != null && (
-                    <div className="text-muted-foreground flex items-start gap-2 text-xs">
-                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                      <p>{workspace.unreadable_reason}</p>
-                    </div>
+                  {readIssue !== null && (
+                    <WorkspaceReadNotice
+                      detail={readIssue}
+                      code={error === null ? workspace?.unreadable_code : undefined}
+                      onRetry={refresh}
+                      cloud={localRoot === null}
+                      failed={error !== null}
+                    />
                   )}
 
                   {/* Two different answers, and they were one. "Nothing yet" is right for a

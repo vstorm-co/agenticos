@@ -8,6 +8,8 @@ import { WorkspaceFiles } from "./workspace-files";
 import { ChatWorkspaceProvider } from "./chat-workspace-context";
 import { useFilePreviewStore } from "@/stores/file-preview-store";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
+
+import { useChatPanelStore } from "@/stores/chat-panel-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import { useWorkOnStore } from "@/stores/work-on-store";
 const localInvoke = vi.hoisted(() => vi.fn());
@@ -21,6 +23,8 @@ import { ApiError } from "@/lib/api-error";
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), raw: vi.fn() },
 }));
+
+vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => false }) }));
 
 vi.mock("@/components/chat/markdown-content", () => ({
   MarkdownContent: ({ content }: { content: string }) => (
@@ -70,6 +74,7 @@ beforeEach(() => {
 
 /**
  * The panel beside the transcript.
+ * Main-chat callers can disable it until their first message; embedded callers retain access.
  *
  * Two properties carry it. It is always reachable - one icon among the composer's controls,
  * because hiding it until a workspace row exists made it unreachable for the whole
@@ -84,8 +89,78 @@ beforeEach(() => {
  * has a copy of is one file rather than two.
  */
 describe("the workspace panel", () => {
+  it("docks in the shared workspace profile and releases temporary list pressure on close", async () => {
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        revision={0}
+        attachments={[]}
+      />,
+    );
+    await openPanel();
+    expect(screen.getByRole("tabpanel", { name: "Files" })).toHaveStyle({
+      "--browser-panel-width": "55%",
+    });
+    expect(useChatPanelStore.getState().filesOpen).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Close the file panel" }));
+    expect(useChatPanelStore.getState().filesOpen).toBe(false);
+  });
+
+  it("keeps an embedded overlay from folding the main conversation list", async () => {
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        revision={0}
+        attachments={[]}
+        overlay
+      />,
+    );
+    await openPanel();
+    expect(useChatPanelStore.getState().filesOpen).toBe(false);
+  });
+
+  it("does not open or fetch files before the first message", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(
+      <QueryClientProvider client={client}>
+        <ChatWorkspaceProvider shared>
+          <WorkspaceFiles
+            buttonSlot={document.body}
+            conversationId="c1"
+            attachments={[]}
+            revision={0}
+            beforeFirstMessage
+          />
+        </ChatWorkspaceProvider>
+      </QueryClientProvider>,
+    );
+    const button = screen.getByRole("button", { name: /^Show the files/ });
+    expect(button).toBeDisabled();
+    await userEvent.click(button);
+    expect(screen.queryByRole("tabpanel", { name: "Files" })).not.toBeInTheDocument();
+    expect(apiClient.get).not.toHaveBeenCalled();
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <ChatWorkspaceProvider shared>
+          <WorkspaceFiles
+            buttonSlot={document.body}
+            conversationId="c1"
+            attachments={[]}
+            revision={0}
+            beforeFirstMessage={false}
+          />
+        </ChatWorkspaceProvider>
+      </QueryClientProvider>,
+    );
+    expect(button).toBeEnabled();
+    await openPanel();
+    expect(await screen.findByText("report.csv")).toBeVisible();
+  });
+
   it("draws its button only once the composer has a place for it", () => {
-    draw(<WorkspaceFiles buttonSlot={null} conversationId="c1" attachments={[]} revision={0} />);
+    draw(<WorkspaceFiles buttonSlot={null} conversationId="c1" revision={0} attachments={[]} />);
 
     expect(screen.queryByRole("button", { name: /^Show the files/ })).toBeNull();
   });
@@ -302,9 +377,10 @@ describe("the workspace panel", () => {
     );
     await openPanel();
 
-    await waitFor(() =>
-      expect(screen.getByText("The sandbox service is unreachable")).toBeVisible(),
-    );
+    expect(await screen.findByText("Could not load these files")).toBeVisible();
+    expect(screen.getByText("The sandbox service is unreachable")).not.toBeVisible();
+    await userEvent.click(screen.getByText("Technical details"));
+    expect(screen.getByText("The sandbox service is unreachable")).toBeVisible();
   });
 
   it("re-reads when a turn ends", async () => {
@@ -660,7 +736,9 @@ describe("the workspace panel", () => {
     );
     await openPanel();
 
-    await waitFor(() => expect(screen.getByText(/No workspace root/)).toBeVisible());
+    expect(await screen.findByText("Files are not available right now")).toBeVisible();
+    await userEvent.click(screen.getByText("Technical details"));
+    expect(screen.getByText(/No workspace root/)).toBeVisible();
     expect(screen.queryByText(/Nothing yet/)).toBeNull();
   });
 
@@ -840,6 +918,35 @@ describe("the workspace panel", () => {
       mime_type: "application/pdf",
       file_type: "pdf",
       ...overrides,
+    });
+
+    it("keeps attachments available while explaining an archive that has not been retained", async () => {
+      vi.mocked(apiClient.get).mockResolvedValue(
+        workspace({
+          backend: "service",
+          items: [],
+          total: 0,
+          bytes_total: 0,
+          unreadable_reason: "This host's files could not be read. No workspace for session: c1",
+          unreadable_code: "workspace_not_retained",
+        }),
+      );
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[attachment()]}
+          revision={0}
+        />,
+      );
+      await openPanel();
+      expect(
+        await screen.findByText("Workspace has not been created yet or is no longer retained"),
+      ).toBeVisible();
+      expect(screen.getByText("Attached to the chat")).toBeVisible();
+      expect(screen.getByText("invoice.pdf")).toBeVisible();
+      expect(screen.queryByText(/Nothing yet/)).toBeNull();
+      expect(screen.queryByText("Files are not available right now")).toBeNull();
     });
 
     it("lists one the agent has no copy of", async () => {
@@ -1107,7 +1214,7 @@ it("groups duplicate file names under their actual folders and opens the full pa
       : workspace({ items: entries }),
   );
   draw(
-    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" attachments={[]} revision={0} />,
+    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" revision={0} attachments={[]} />,
   );
   await openPanel();
   const folder = await screen.findByRole("button", { name: "site" });
@@ -1126,7 +1233,7 @@ it("groups duplicate file names under their actual folders and opens the full pa
 
 it("switches between files and sources without keeping both panels open", async () => {
   draw(
-    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" attachments={[]} revision={0} />,
+    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" revision={0} attachments={[]} />,
   );
   await openPanel();
   act(() =>
@@ -1215,4 +1322,39 @@ it("ignores a stale attachment request and lets Escape close Files after nested 
   fireEvent.keyDown(window, { key: "Escape" });
   expect(screen.queryByRole("tabpanel", { name: "Files" })).toBeNull();
   expect(screen.getByRole("button", { name: /^Show the files/ })).toHaveFocus();
+});
+
+it("closes the old file selection when navigating to another conversation", async () => {
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+    path.includes("/file")
+      ? { path: "/report.csv", content: "month,total", truncated: false }
+      : workspace(),
+  );
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const content = (id: string) => (
+    <QueryClientProvider client={client}>
+      <ChatWorkspaceProvider shared conversationId={id}>
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId={id}
+          attachments={[]}
+          revision={0}
+        />
+      </ChatWorkspaceProvider>
+    </QueryClientProvider>
+  );
+  const view = render(content("c1"));
+  await openPanel();
+  await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
+  await waitFor(() =>
+    expect(vi.mocked(apiClient.get).mock.calls.map(([url]) => url)).toContain(
+      "/conversations/c1/workspace/file?path=%2Freport.csv",
+    ),
+  );
+  view.rerender(content("c2"));
+  expect(screen.queryByRole("tabpanel", { name: "Files" })).toBeNull();
+  await openPanel();
+  expect(vi.mocked(apiClient.get).mock.calls.map(([url]) => url)).not.toContain(
+    "/conversations/c2/workspace/file?path=%2Freport.csv",
+  );
 });

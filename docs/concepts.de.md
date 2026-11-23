@@ -1,5 +1,5 @@
 ---
-source_sha: "419bd9ea9a93"
+source_sha: "0efa3a5b6024"
 ---
 
 # Begriffe { #concepts }
@@ -36,6 +36,13 @@ ein anderer Tab oder eine Serveraktion ihn geändert, pausiert das Speichern;
 deine lokalen Eingaben bleiben sichtbar. Kopiere alles, was du behalten
 möchtest, bevor du **Neuesten Draft laden** wählst. Übertrage die Änderungen
 danach auf die aktuelle Version; ein veralteter Stand kann sie nicht überschreiben.
+
+Wähle bei einem veröffentlichten Agenten mit Entwurfsänderungen **Mehr →
+Entwurf verwerfen**, um den Entwurf auf die zuletzt veröffentlichte Version
+zurückzusetzen. Unveröffentlichte Änderungen gehen verloren, aber es entsteht
+keine neue Version und keine Umgebung wird umgestellt. Erfolgt vor der
+Bestätigung eine weitere Änderung oder Veröffentlichung, wird das Verwerfen
+abgelehnt. Ein noch nie veröffentlichter Agent hat keine Version zum Zurücksetzen.
 
 Der Spec hält zwei Regeln ein, und sie sind es, die ihn nützlich machen.
 

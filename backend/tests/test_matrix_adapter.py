@@ -664,8 +664,9 @@ class TestPrompts:
 
 
 class TestReactions:
+    @pytest.mark.parametrize("explicit_server", [False, True])
     async def test_a_question_is_acknowledged_with_the_emoji(
-        self, adapter: MatrixAdapter, server: _Homeserver
+        self, adapter: MatrixAdapter, server: _Homeserver, explicit_server: bool
     ):
         incoming = IncomingMessage(
             platform="matrix",
@@ -676,8 +677,11 @@ class TestReactions:
             text="hi",
             message_id="$question",
         )
-        with patch.object(MatrixAdapter, "_homeserver", AsyncMock(return_value=BASE)):
-            await adapter.acknowledge_message("tok", incoming, "eyes")
+        with patch.object(MatrixAdapter, "_homeserver", AsyncMock(return_value=BASE)) as resolve:
+            await adapter.acknowledge_message(
+                "tok", incoming, "eyes", api_base_url=BASE if explicit_server else None
+            )
+        assert resolve.await_count == (0 if explicit_server else 1)
         [(_, body)] = server.sent("m.reaction")
         assert body == {
             "m.relates_to": {"rel_type": "m.annotation", "event_id": "$question", "key": "👀"}

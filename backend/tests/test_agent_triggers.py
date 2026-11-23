@@ -5486,6 +5486,7 @@ async def test_unavailable_sources_save_a_paused_routine_without_losing_its_sche
     assert result is trigger and trigger.is_active is False
     assert trigger.approved_sources == {
         "pending_review": True,
+        "mode": "follow_agent",
         "unavailable_sources": ["notion"],
         "reason": refusal.code,
     }
@@ -5606,7 +5607,11 @@ async def test_explicit_setup_review_stays_pending_even_when_initial_sources_are
             _ctx(), agent.id, _interval().model_copy(update={"review_before_activation": True})
         )
     assert created.is_active is False
-    assert created.approved_sources == {"pending_review": True, "unavailable_sources": []}
+    assert created.approved_sources == {
+        "pending_review": True,
+        "mode": "follow_agent",
+        "unavailable_sources": [],
+    }
 
 
 class TestGithubFilteredEventDiagnostics:
@@ -5758,3 +5763,27 @@ async def test_github_filter_diagnostics_never_inspect_a_different_event_source(
         await service._record_filtered_event(trigger, {}, {})
     reason.assert_not_called()
     store.assert_not_awaited()
+
+
+async def test_deleting_a_departed_creators_routine_does_not_recreate_personal_context():
+    agent = _agent()
+    service = _service(agent)
+    trigger = _trigger(agent_id=agent.id)
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch(
+            "app.services.agent_trigger.member_repo.get_active", new=AsyncMock(return_value=None)
+        ),
+        patch("app.repositories.personal_context.save", new=AsyncMock()) as remember,
+        patch(
+            "app.services.proactive.ProactiveService.queue_context_change", new=AsyncMock()
+        ) as queue,
+        patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+    ):
+        repo.get = AsyncMock(return_value=trigger)
+        repo.get_by_id = AsyncMock(return_value=trigger)
+        repo.delete = AsyncMock()
+        await service.delete(_ctx(), agent.id, trigger.id)
+    repo.delete.assert_awaited_once_with(service.db, trigger)
+    remember.assert_not_awaited()
+    queue.assert_not_awaited()

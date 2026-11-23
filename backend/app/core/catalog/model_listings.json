@@ -190,5 +190,24 @@
     "name_field": "name",
     "context_field": "context_window",
     "modalities_path": "architecture.output_modalities"
+  },
+  "openai_compatible": {
+    "url": "",
+    "array_path": "data",
+    "id_field": "id",
+    "context_field": "max_model_len",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "anthropic_compatible": {
+    "url": "",
+    "array_path": "data",
+    "id_field": "id",
+    "name_field": "display_name",
+    "auth_header": "x-api-key",
+    "auth_template": "{key}",
+    "extra_headers": {
+      "anthropic-version": "2023-06-01"
+    }
   }
 }

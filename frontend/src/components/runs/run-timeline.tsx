@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { toolLookupName } from "@/lib/tool-identity";
 
 import { useEffect, useRef, useState } from "react";
@@ -347,14 +349,14 @@ function TimelineTurn({
             part.type === "tool" && part.toolCall !== undefined ? (
               <RawToolCall key={part.id} toolCall={part.toolCall} />
             ) : part.type === "thinking" ? (
-              <details key={part.id} className="text-muted-foreground text-sm">
+              <NativeDisclosure key={part.id} className="text-muted-foreground text-sm">
                 <summary className="cursor-pointer select-none">{t("reasoning")}</summary>
                 {/* The model's own reasoning is markdown too - it writes lists
                     and headings in here exactly as it does in an answer. */}
                 <div className="mt-1">
                   <MarkdownContent content={part.content ?? ""} inertImages />
                 </div>
-              </details>
+              </NativeDisclosure>
             ) : part.type === "ask_user" ? (
               <div
                 key={part.id}
@@ -510,7 +512,7 @@ function RawToolCall({ toolCall }: { toolCall: ToolCall }) {
       ? toolCall.result
       : JSON.stringify(toolCall.result, null, 2);
   return (
-    <details
+    <NativeDisclosure
       className="group/tool bg-muted/40 rounded-lg"
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
@@ -569,6 +571,6 @@ function RawToolCall({ toolCall }: { toolCall: ToolCall }) {
           </>
         )}
       </div>
-    </details>
+    </NativeDisclosure>
   );
 }
