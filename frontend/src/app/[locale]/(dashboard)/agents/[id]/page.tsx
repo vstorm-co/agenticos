@@ -18,12 +18,10 @@ import {
   Archive,
   ArchiveRestore,
   Copy,
-  Database,
   Download,
   Pencil,
   FlaskConical,
   History,
-  Lock,
   ImagePlus,
   MoreHorizontal,
   Network,
@@ -46,7 +44,6 @@ import { PinAgentButton } from "@/components/agents/pin-agent-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { StartImprovementDialog } from "@/components/improvement/start-improvement-dialog";
 import { ImprovementHistory } from "@/components/improvement/improvement-history";
-import { JudgeDatasetsCard } from "@/components/agents/judge-datasets-card";
 import {
   AgentMap,
   capabilityMark,
@@ -494,10 +491,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
     setSystemAgentPage(isSystem);
     return () => setSystemAgentPage(false);
   }, [isSystem, setSystemAgentPage]);
-  // Changing a system agent takes `org:settings`, so an editor of agents may still
-  // only read this one: the server answers `can_edit: false`, and this says why.
-  const systemReadOnly = isSystem && !canEdit && can(Perm.agentsEdit) && !can(Perm.orgSettings);
-  const isJudge = agent?.kind === "judge";
   const canViewRuns = can(Perm.runsView);
   const { runs: publishTests } = useDraftEvalRuns(canViewRuns && !isSystem ? id : null, {
     enabled: publishOpen,
@@ -509,17 +502,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
       !isSystem &&
       environments.some((environment) => environment.guard_suite_ids.length > 0),
   });
-  // The Builder's tabs, as `?tab=` names them, for this caller and this agent; a
-  // link naming one they lack - Evals without runs:view, a judge's MCP servers -
-  // opens the first.
+  // The Builder's tabs, as `?tab=` names them, for this caller; a link naming one
+  // they lack - Knowledge gaps without runs:view - opens the first.
   const tabs = [
     "build",
     "toolbox",
-    ...(isSystem ? [] : ["mcp", "availability"]),
+    "mcp",
+    "availability",
     "limits",
-    ...(isJudge ? ["datasets"] : []),
-    ...(!isSystem ? ["evals"] : []),
-    ...(canViewRuns && !isSystem ? ["gaps"] : []),
+    "evals",
+    ...(canViewRuns ? ["gaps"] : []),
     "history",
   ];
   const tab = tabParam !== null && tabs.includes(tabParam) ? tabParam : "build";
@@ -1520,13 +1512,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
           />
         )}
 
-        {systemReadOnly && (
-          <div className="border-border bg-muted/40 flex items-center gap-3 rounded-xl border px-4 py-3">
-            <Lock className="text-muted-foreground size-4 shrink-0" aria-hidden />
-            <p className="min-w-0 flex-1 text-sm">{t("systemAgentReadOnly")}</p>
-          </div>
-        )}
-
         <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
           <DialogContent
             className={cn(DIALOG_SCROLL, DIALOG_FORM)}
@@ -1898,12 +1883,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   {gapsReason && <AttentionDot testId="gaps-attention" />}
                 </span>
                 {tGaps("tab")}
-              </TabsTrigger>
-            )}
-            {isJudge && (
-              <TabsTrigger value="datasets">
-                <Database className="size-4 shrink-0" aria-hidden />
-                {t("judgeDatasets")}
               </TabsTrigger>
             )}
             <TabsTrigger value="history" data-tour="agent-tab-history">
@@ -2481,11 +2460,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
               )}
             </TabsContent>
           }
-          {isJudge && (
-            <TabsContent value="datasets" className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
-              <JudgeDatasetsCard judgeId={id} />
-            </TabsContent>
-          )}
           {canViewRuns && (
             <TabsContent value="gaps" className="mt-4 flex min-h-0 flex-1 flex-col">
               <div data-tour="agent-gaps" className="flex min-h-0 flex-1 flex-col gap-4">
