@@ -59,11 +59,15 @@ boundary a client's review will ask about.
 ## What is encrypted where
 
 There is one application-level encryption mechanism, and it is deliberately the
-only one: the vault (`app/core/vault.py`). Every **connector and API credential**
+only one: the vault (`app/core/vault.py`). Except for the native subscription store below, every **connector and API credential**
 at rest is sealed in a per-owner envelope whose wrapping key is derived, through
 HKDF, from the organization (or user) it belongs to — so a ciphertext copied into
 another organization's row fails to unwrap. The master key is rotatable without
 re-encrypting the payloads.
+
+CLIProxyAPI subscription accounts are a maintainer-approved exception to the Vault rule. The native store on `subscription_accounts` keeps provider tokens, account state, refresh journals, `keys.json` and `config.yaml`. The binary owns sign-in, refresh and recovery; saving to Vault only at shutdown could lose rotated tokens or refresh receipts after a crash. A full Vault adapter must cover all persistent mutations and the journal before replacing this store.
+
+Directories use `0700` and configuration/key files `0600`; processes are isolated per organization, person and membership generation and bind to loopback. These controls do not encrypt the volume or backups, cryptographically bind files to an owner, or participate in Vault key rotation. Protect the entire volume as credentials and encrypt its storage/backups where required. Other model keys and connector credentials continue using Vault. [Vault](secrets.md#native-subscription-store).
 
 Not everything the platform stores is a vaulted credential, and this is stated
 plainly because a review will find it:

@@ -29,6 +29,7 @@ import type {
   ProviderCatalog,
 } from "@/types/providers";
 export interface NewModelProfile {
+  params?: Record<string, unknown>;
   label: string;
   provider: string;
   model: string;
@@ -62,6 +63,7 @@ export interface NewModelProfile {
  * clears a key, an endpoint or an API choice where the server allows it.
  */
 export interface ModelProfileChanges {
+  params?: Record<string, unknown>;
   secret_id?: string | null;
   base_url?: string | null;
   api?: ModelApi | null;

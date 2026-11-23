@@ -6199,6 +6199,11 @@
     }
   },
   "agents": {
+    "profileDefaults": "Model varsayılanları",
+    "profileDefaultsHint": "Bu ayarlar, kaydedilen modelin kullanıldığı her yerde geçerlidir. Tek tek ajanlar bunları değiştirebilir. Desteklenmeyen parametreleri sağlayıcının varsayılanlarında bırakın.",
+    "profileThinkingOn": "Açık · sağlayıcı seviyesi",
+    "profileThinkingOff": "Kapalı",
+    "profileCustomThinking": "Kaydedilmiş özel ayar",
     "buildSummary": {
       "variables": "{count, plural, =0 {Sistem değişkenleri} other {Sistem değişkenleri ve # özel değişken}}",
       "voice": "Aramalar {calls, select, on {açık} other {kapalı}} · Dikte {dictation, select, on {açık} other {kapalı}}",

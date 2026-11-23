@@ -1,5 +1,5 @@
 ---
-source_sha: "700e1da74653"
+source_sha: "b4f01f7af48e"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -298,11 +298,14 @@ nichts bei einem, der selbst cacht, wie Google. Ein Profile schaltet es mit
 Tools. Ein anbieterspezifisches Flag, das ein Profile schon setzt, etwa
 `anthropic_cache_messages`, hat für dieses Profile weiter Vorrang.
 
-Der Reasoning-Aufwand steht **nicht** hier. Er ist die
-[`thinking`-Capability](reference/capabilities.md#thinking), denn "denk
-gründlicher" ist eine Entscheidung darüber, wofür der Agent *da ist*, und kein
-Regler an einer Verbindung — und weil ein Spec, der das als Model Setting setzt,
-über einen Modellwechsel hinweg aufhört, portabel zu sein.
+Tägliches Briefing, Vorschläge und Speicherpflege bieten diese Vorgaben zusammen
+mit dem Reasoning-Aufwand in der Modellauswahl der Organisation an. Änderungen
+werden ausdrücklich im gemeinsamen Modellprofil gespeichert und gelten für alle
+Verwendungen dieses Profils. Nicht gesetzte Felder senden keine Überschreibung;
+belassen Sie nicht unterstützte Parameter bei den Anbietervorgaben. Agents können
+den Aufwand über die [`thinking`-Capability](reference/capabilities.md#thinking)
+mit der anbieterneutralen Einstellung von Pydantic AI überschreiben. Hintergrundrollen
+haben keinen Agent-Spec und verwenden den `thinking`-Standard des Profils direkt.
 
 ### Responses oder Chat Completions { #responses-or-chat-completions }
 

@@ -259,11 +259,14 @@ profile turns it off with `cache: false`, or caches only the instructions and
 tools with `cache: {"messages": false}`. A provider-specific flag a profile
 already sets, such as `anthropic_cache_messages`, still wins for that profile.
 
-Reasoning effort is **not** here. It is the
-[`thinking` capability](reference/capabilities.md#thinking), because "reason
-harder" is a decision about what the agent is *for* rather than a knob on a
-connection — and because a spec that sets it as a model setting stops being
-portable across a model swap.
+Daily briefing, suggestions and memory maintenance expose these defaults in the
+organization's model picker, together with reasoning effort. Changes are saved
+explicitly to the shared model profile and affect every consumer of that profile.
+Unset controls send no override; leave unsupported parameters at provider defaults.
+Agents can override reasoning through the
+[`thinking` capability](reference/capabilities.md#thinking), which uses Pydantic AI's
+provider-neutral setting. Background roles have no agent spec and use the profile's
+`thinking` default directly.
 
 ### Responses or Chat Completions
 

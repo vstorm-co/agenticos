@@ -1077,6 +1077,7 @@ class KnowledgeGapService:
                 await search_knowledge_base(
                     query,
                     kb_collection_names=[kb.collection_name],
+                    kb_vector_scopes={kb.collection_name: kb.vector_scope},
                     organization_id=ctx.organization_id,
                 ),
             )

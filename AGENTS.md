@@ -79,6 +79,11 @@ template-inherited subsystems have different coverage gates, described below.
 - Store credentials through `app/core/vault.py`. Connector sources reference vault
   secret IDs; do not put credentials in a connector's `CONFIG_MODEL` or introduce
   deployment-wide Fernet keys, `CHANNEL_ENCRYPTION_KEY` or `app/core/crypto.py`.
+  Maintainer-approved exception (2026-11-23): CLIProxyAPI subscription accounts
+  retain their native token store, refresh journal and process keys on the
+  `subscription_accounts` volume. Preserve its atomic refresh/recovery contract;
+  do not describe it as Vault-encrypted or extend the exception to other keys.
+  See `docs/design/subscription-native-credentials.md` and `docs/secrets.md`.
 - Organization authority comes from membership and the permission catalog. Do not
   restore `UserRole`, `User.has_role()`, `RoleChecker`, `CurrentAdmin`,
   `CurrentSuperuser` or the old `users.role` column.

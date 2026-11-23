@@ -1,5 +1,5 @@
 ---
-source_sha: "24f7a7b1655a"
+source_sha: "8cfdb42a43a8"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -11,6 +11,14 @@ source_sha: "24f7a7b1655a"
     `app/core/vault.py`. Einen zweiten Weg hinzuzufügen, Zugangsdaten im
     Ruhezustand zu halten, ist genau der Defekt, den zwei Migrationen entfernt
     haben.
+
+    Die ausdrückliche Ausnahme ist der unten beschriebene native CLIProxyAPI-Abonnementspeicher.
+
+## Nativer Abonnementspeicher { #native-subscription-store }
+
+CLIProxyAPI-Abonnementkonten sind eine vom Maintainer genehmigte Ausnahme von der Vault-Regel. Der native Speicher auf `subscription_accounts` enthält Provider-Token, Kontostatus, Refresh-Journale, `keys.json` und `config.yaml`. Die Binärdatei verwaltet Anmeldung, Refresh und Wiederherstellung; ein Vault-Schreibvorgang erst beim Herunterfahren könnte nach einem Absturz rotierte Token oder Refresh-Belege verlieren. Ein vollständiger Vault-Adapter muss alle dauerhaften Änderungen und das Journal abdecken, bevor er diesen Speicher ersetzt.
+
+Verzeichnisse verwenden `0700`, Konfigurations- und Schlüsseldateien `0600`; Prozesse sind nach Organisation, Person und Mitgliedschaftsgeneration isoliert und binden an Loopback. Dies verschlüsselt weder Volume noch Backups, bindet Dateien nicht kryptografisch an Eigentümer und nimmt nicht an der Vault-Schlüsselrotation teil. Schützen Sie das gesamte Volume wie Zugangsdaten und verschlüsseln Sie Storage und Backups nach Ihren Anforderungen. Andere Modellschlüssel und Konnektor-Zugangsdaten verwenden weiterhin Vault.
 
 ## In der Konsole { #in-the-console }
 

@@ -26,6 +26,8 @@ import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
 interface ModelProfilePickerProps {
+  /** Edit saved defaults for background roles that have no agent spec overrides. */
+  generationSettings?: boolean;
   profiles: ModelProfile[];
   /** A single selector for setup dialogs; model management keeps its full editor. */
   compact?: boolean;
@@ -121,6 +123,7 @@ export function ModelProfilePicker({
   value,
   onChange,
   onCreationPendingChange,
+  generationSettings = false,
   compact = false,
   purpose = "chat",
   requireOrganizationKey = true,
@@ -361,6 +364,7 @@ export function ModelProfilePicker({
         key={`${selected?.id ?? "none"}:${selectionVersion}`}
         selected={selected}
         collapseConnection
+        generationSettings={generationSettings}
         purpose={purpose}
         disabled={disabled}
         onCreationPendingChange={onCreationPendingChange}

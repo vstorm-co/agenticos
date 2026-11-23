@@ -1,5 +1,5 @@
 ---
-source_sha: "700e1da74653"
+source_sha: "b4f01f7af48e"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -279,11 +279,14 @@ cachea solo instrucciones y herramientas con `cache: {"messages": false}`. Un
 indicador propio de un proveedor que el perfil ya fija, como
 `anthropic_cache_messages`, sigue mandando para ese perfil.
 
-El esfuerzo de razonamiento **no** está aquí. Es
-[la capability `thinking`](reference/capabilities.md#thinking), porque «razona
-más» es una decisión sobre para qué *sirve* el agent y no un mando de una
-conexión — y porque un spec que lo fija como ajuste del modelo deja de ser
-portable al cambiar de modelo.
+El resumen diario, las sugerencias y el mantenimiento de memoria muestran estos
+valores y el esfuerzo de razonamiento en el selector de modelo de la organización.
+Los cambios se guardan explícitamente en el perfil compartido y afectan a todos
+sus consumidores. Los controles sin configurar no envían una modificación; deja
+los parámetros no admitidos con los valores del proveedor. Los agents pueden
+modificar el esfuerzo mediante [la capability `thinking`](reference/capabilities.md#thinking),
+que utiliza el ajuste independiente del proveedor de Pydantic AI. Los roles en
+segundo plano no tienen spec de agent y usan directamente el `thinking` del perfil.
 
 ### Responses o Chat Completions { #responses-or-chat-completions }
 

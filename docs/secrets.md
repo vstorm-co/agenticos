@@ -6,6 +6,14 @@
     in this platform passes through `app/core/vault.py`. Adding a second way to
     hold a credential at rest is the defect two migrations removed.
 
+    The native CLIProxyAPI subscription store is the explicit exception described below.
+
+## Native subscription store
+
+CLIProxyAPI subscription accounts are a maintainer-approved exception to the Vault rule. The native store on `subscription_accounts` keeps provider tokens, account state, refresh journals, `keys.json` and `config.yaml`. The binary owns sign-in, refresh and recovery; saving to Vault only at shutdown could lose rotated tokens or refresh receipts after a crash. A full Vault adapter must cover all persistent mutations and the journal before replacing this store.
+
+Directories use `0700` and configuration/key files `0600`; processes are isolated per organization, person and membership generation and bind to loopback. These controls do not encrypt the volume or backups, cryptographically bind files to an owner, or participate in Vault key rotation. Protect the entire volume as credentials and encrypt its storage/backups where required. Other model keys and connector credentials continue using Vault.
+
 ## In the console
 
 Vault lists keys, your connected accounts and organization accounts in one table. **Add key** stores a credential; **Connect account** lets you choose your own account or, with permission, an organization account. Each row keeps its own access and actions: key sharing/rotation, or account reconnection/disconnection. OAuth tokens stay hidden, and disconnecting an account asks for confirmation.

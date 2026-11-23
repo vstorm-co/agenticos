@@ -260,7 +260,7 @@ class _StavProvider(OpenAIProvider):
         self,
         *,
         base_url: str | None,
-        api_key: str | None,
+        api_key: str | Callable[[], Awaitable[str]] | None,
         http_client: httpx2.AsyncClient | httpx.AsyncClient | None,
         default_headers: Mapping[str, str] | None = None,
     ) -> AsyncOpenAI:
