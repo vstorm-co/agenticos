@@ -370,7 +370,7 @@ test("test questions, review and improvement publish keep a guarded environment 
   expect(attempt?.included_hunk_ids).toHaveLength(1);
   await page.reload();
   await expect(
-    page.getByText(/^Attempt \d+ made .+ better: \d+ questions? fixed and none broke\./),
+    page.getByText(/^The updated agent answered \d+ more test questions correctly\./),
   ).toBeVisible();
   await capture(page, info, "improvement-result");
 

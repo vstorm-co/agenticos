@@ -98,9 +98,7 @@ test("choose an agent from a dataset, estimate and complete its eval", async ({ 
         return typeof body === "object" && body !== null && "status" in body ? body.status : null;
       })
       .toBe("completed");
-    // The pass rate sits under the result's collapsed details.
-    await page.getByText("Test details", { exact: true }).click();
-    await expect(page.getByText("100%", { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "1 of 1 answers passed" })).toBeVisible();
   } finally {
     for (const path of [
       `/datasets/${dataset}`,
