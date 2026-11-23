@@ -502,6 +502,9 @@ class TestTrainingFeedback:
             reviewed_by_user_id=None,
         )
         report = SimpleNamespace(
+            id=uuid.uuid4(),
+            judged_sources=[],
+            source_marks={},
             dataset_id=evaluated,
             items=[{"key": label.title(), "verdict": "not_covered"} for label in uncovered]
             + [{"key": "Invoice number", "verdict": "covered"}],
