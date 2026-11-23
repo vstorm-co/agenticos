@@ -3322,7 +3322,9 @@
           "grader": "Oceniający",
           "improve": "Poprawianie",
           "knowledge_gaps": "Luki w wiedzy",
-          "test_questions": "Pytania testowe"
+          "test_questions": "Pytania testowe",
+          "key_drafts": "Szkice kluczy",
+          "key_coverage": "Pokrycie kluczy"
         },
         "open": {
           "openEvalRun": "Otwórz ewaluację",
@@ -7240,6 +7242,10 @@
         "title": "Przegląd",
         "body": "Tutaj są wszystkie ocenione odpowiedzi, również już przejrzane. Filtruj według rezultatu, agenta lub tagu, a potem otwórz odpowiedź, sprawdź dowody i zapisz decyzję."
       },
+      "dataset-key-coverage": {
+        "title": "Pokrycie kluczy",
+        "body": "Zobacz, których faktów wymaganych przez sprawdzenia kluczy nie zawiera żadne źródło agenta. Brakujący fakt trzeba dać agentowi jako wiedzę; żadna zmiana instrukcji go nie dostarczy."
+      },
       "agents-system": {
         "title": "Agenci systemowi",
         "body": "Agenci, których platforma uruchamia sama, pogrupowani według zadań: sędziowie oceniający odpowiedzi w ewaluacjach, generator przypadków, autor i klasyfikator luk oraz asystent autorski. Otwórz jednego, żeby zmienić instrukcje, model lub budżet; dataset wybiera sędziego na karcie Grading, a New agent dodaje kolejnego sędziego."
@@ -10278,7 +10284,9 @@
       "drafter": "Autor szkiców luk",
       "generator": "Generator przypadków",
       "classifier": "Klasyfikator luk",
-      "improver": "Asystent tworzenia"
+      "improver": "Asystent tworzenia",
+      "extractor": "Ekstraktor kluczy",
+      "coverage": "Pokrycie źródeł"
     },
     "productionOn": "produkcja na v{version}",
     "productionWaiting": "produkcja na v{version} (czeka na ewaluacje)",
@@ -10306,7 +10314,11 @@
       "classifier": "Domyślny klasyfikator luk",
       "classifierHint": "Czyta odpowiedzi dla luk każdej bazy wiedzy.",
       "improver": "Domyślny asystent tworzenia",
-      "improverHint": "Proponuje ulepszenia oferowane każdemu agentowi."
+      "improverHint": "Proponuje ulepszenia oferowane każdemu agentowi.",
+      "extractor": "Domyślny ekstraktor kluczy",
+      "extractorHint": "Wypisuje fakty z odpowiedzi referencyjnych każdego datasetu do ich sprawdzeń kluczy.",
+      "coverage": "Domyślne pokrycie źródeł",
+      "coverageHint": "Wskazuje, których kluczy datasetu nie zawiera żadne źródło agenta."
     },
     "guardsSaved": "Strażnicy zapisani",
     "failedGuards": "Nie udało się zapisać strażników",
@@ -10328,7 +10340,7 @@
       "cancel": "Anuluj"
     },
     "publishedSpec": "Opublikowany spec",
-    "systemAgentBadge": "{kind, select, judge {Agent systemowy · Sędzia} drafter {Agent systemowy · Autor szkiców luk} generator {Agent systemowy · Generator przypadków} classifier {Agent systemowy · Klasyfikator luk} improver {Agent systemowy · Asystent tworzenia} other {Agent systemowy}}",
+    "systemAgentBadge": "{kind, select, judge {Agent systemowy · Sędzia} drafter {Agent systemowy · Autor szkiców luk} generator {Agent systemowy · Generator przypadków} classifier {Agent systemowy · Klasyfikator luk} improver {Agent systemowy · Asystent tworzenia} extractor {Agent systemowy · Ekstraktor kluczy} coverage {Agent systemowy · Pokrycie źródeł} other {Agent systemowy}}",
     "systemAgentBadgeHint": "Uruchamia go platforma dla całej organizacji; nikt z nim nie rozmawia.",
     "systemAgentSharedOnly": "Do wyboru jest tylko to, co udostępniono całej organizacji: platforma uruchamia tego agenta dla wszystkich.",
     "systemAgentSkillsUnused": "Klasyfikator nie korzysta ze skilli, więc nie można tu dodać żadnego. Odznacz te, które jeszcze ma, albo użyj jego przełącznika, żeby zdjąć wszystkie naraz.",
@@ -15226,7 +15238,8 @@
       "max_cost_usd": "Kosztuje najwyżej (USD)",
       "max_latency_ms": "Odpowiada w (ms)",
       "judge": "Kryterium sędziego",
-      "length": "Ma długość"
+      "length": "Ma długość",
+      "keys": "Pokryte klucze"
     },
     "checkPlaceholder": {
       "contains": "30 dni",
@@ -15288,6 +15301,58 @@
       "maxPlaceholder": "Najwyżej",
       "path": "Sprawdzenie {number}: gdzie w odpowiedzi JSON",
       "pathPlaceholder": "Gdzie w odpowiedzi JSON (opcjonalnie)"
+    },
+    "keysCheck": {
+      "key": "Klucz {row} w checku {number}",
+      "value": "Wartość klucza {row} w checku {number}",
+      "remove": "Usuń klucz {row} z checku {number}",
+      "add": "Dodaj klucz",
+      "keyPlaceholder": "Numer faktury",
+      "valuePlaceholder": "FV-2024-0042"
+    },
+    "keyDraft": {
+      "start": "Wypisz klucze z odpowiedzi referencyjnej",
+      "retry": "Spróbuj ponownie",
+      "running": "Wypisuję fakty z odpowiedzi referencyjnej…",
+      "none": "Odpowiedź referencyjna nie podaje faktów do sprawdzenia.",
+      "found": "Znaleziono {count, plural, one {1 klucz} few {# klucze} many {# kluczy} other {# klucza}}: {names}{more, plural, =0 {} one { i jeszcze 1} other { i jeszcze #}}.",
+      "use": "Użyj tych kluczy",
+      "dismiss": "Odrzuć",
+      "failed": "Nie udało się wypisać kluczy: {error}",
+      "noReference": "Zapisz odpowiedź referencyjną, aby wypisać jej klucze.",
+      "saveFirst": "Najpierw zapisz odpowiedź referencyjną: klucze są wypisywane z zapisanej.",
+      "failedToStart": "Nie udało się poprosić o klucze",
+      "failedToDismiss": "Nie udało się odrzucić wypisanych kluczy",
+      "loading": "Sprawdzanie szkicu kluczy…",
+      "unreadable": "Nie udało się odczytać szkicu kluczy."
+    },
+    "keyCoverage": {
+      "title": "Pokrycie kluczy",
+      "hint": "Których kluczy ze sprawdzeń kluczy tego datasetu nie zawiera żadne źródło agenta - bazy wiedzy, pliki kontekstu, skille i serwery MCP. Agent pokrycia źródeł czyta tylko etykiety kluczy, nigdy ich wartości.",
+      "agent": "Agent",
+      "chooseAgent": "Wybierz opublikowanego agenta",
+      "agentsFailed": "Nie udało się wczytać agentów",
+      "noAgents": "Brak opublikowanego agenta do sprawdzenia",
+      "noAgentsHint": "Najpierw opublikuj agenta: raport czyta wersję, którą agent uruchamia.",
+      "check": "Sprawdź pokrycie",
+      "recheck": "Sprawdź ponownie",
+      "none": "Ten agent nie był jeszcze sprawdzany.",
+      "noneReadOnly": "Ten agent nie był jeszcze sprawdzany. Może to zrobić osoba, która może go edytować.",
+      "running": "Sprawdzanie, które źródła zawierają każdy klucz…",
+      "failed": "Nie udało się ocenić pokrycia: {error}",
+      "summary": "{count, plural, one {# klucz} few {# klucze} many {# kluczy} other {# klucza}} w wersji {version}: ze źródłem {covered, plural, other {#}}, bez źródła {uncovered, plural, other {#}}, niepewne {unsure, plural, other {#}}.",
+      "outOfDate": "Raport dotyczy wcześniejszej wersji agenta albo datasetu, więc Improve już go nie czyta. Sprawdź ponownie, żeby go odświeżyć.",
+      "sourcesChanged": "Źródła zmieniły się od tego sprawdzenia, więc Improve już go nie czyta. Sprawdź ponownie, żeby go odświeżyć.",
+      "unseen": "{count, plural, one {# źródło tego agenta nie zostało przeczytane} few {# źródła tego agenta nie zostały przeczytane} many {# źródeł tego agenta nie zostało przeczytanych} other {# źródła tego agenta nie zostało przeczytane}} - takie, których zlecający nie widzi, albo serwery MCP działające przez konto każdej osoby - więc Improve nie korzysta z tego raportu.",
+      "from": "Źródła: {sources}",
+      "hiddenSource": "źródło, którego nie widzisz",
+      "verdict": {
+        "covered": "Pokryty",
+        "not_covered": "Brak źródła",
+        "unsure": "Niepewne"
+      },
+      "failedToStart": "Nie udało się rozpocząć sprawdzania pokrycia",
+      "unreadable": "Nie udało się odczytać raportu pokrycia."
     },
     "visibility": {
       "private": "Prywatna",
@@ -15384,6 +15449,7 @@
       "backToCases": "Wróć do przypadków",
       "testRuns": "Testy agentów",
       "reviewAnswers": "Przegląd odpowiedzi",
+      "keyCoverage": "Pokrycie kluczy",
       "helpers": "Generowanie i ulepszanie",
       "helpersHint": "Wybierz modele i instrukcje do tworzenia przypadków oraz proponowania ulepszeń."
     },
@@ -15751,7 +15817,8 @@
           "judge": "Kryterium sędziego: {criterion}",
           "lengthAtMost": "{unit, select, words {Najwyżej {count, plural, one {# słowo} few {# słowa} many {# słów} other {# słowa}}} other {Najwyżej {count, plural, one {# znak} few {# znaki} many {# znaków} other {# znaku}}}}",
           "lengthAtLeast": "{unit, select, words {Co najmniej {count, plural, one {# słowo} few {# słowa} many {# słów} other {# słowa}}} other {Co najmniej {count, plural, one {# znak} few {# znaki} many {# znaków} other {# znaku}}}}",
-          "lengthBetween": "{unit, select, words {Od {min} do {max} słów} other {Od {min} do {max} znaków}}"
+          "lengthBetween": "{unit, select, words {Od {min} do {max} słów} other {Od {min} do {max} znaków}}",
+          "keys": "Zawiera {count, plural, one {swój 1 klucz} few {wszystkie # klucze} many {wszystkie # kluczy} other {wszystkie # klucza}}"
         }
       },
       "notGraded": "bez oceny: {reason}",

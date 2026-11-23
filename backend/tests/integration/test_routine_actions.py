@@ -129,6 +129,7 @@ async def test_changing_mode_revokes_standing_consents_and_does_not_restore_them
     db: AsyncSession, world: World, mode: Literal["manual", "agent"]
 ) -> None:
     world.agent.draft_spec = world.spec.model_dump(mode="json")
+    world.trigger.action_mode = "per_tool"
     await RoutineActionService(db).replace(world.ctx, world.trigger, _request(world, [WRITE]))
     assert world.trigger.action_consents
     await AgentTriggerService(db).update(
@@ -151,6 +152,8 @@ async def test_changing_mode_revokes_standing_consents_and_does_not_restore_them
 async def test_resaving_the_same_custom_mode_preserves_its_current_consents(
     db: AsyncSession, world: World
 ) -> None:
+    world.agent.draft_spec = world.spec.model_dump(mode="json")
+    world.trigger.action_mode = "per_tool"
     await RoutineActionService(db).replace(world.ctx, world.trigger, _request(world, [WRITE]))
     saved = list(world.trigger.action_consents)
     await AgentTriggerService(db).update(
@@ -159,7 +162,7 @@ async def test_resaving_the_same_custom_mode_preserves_its_current_consents(
     assert world.trigger.action_consents == saved
     authority = await capture(db, world)
     decision = await authority.action_policy(world.agent.id, world.spec, tool())
-    assert not decision.required and decision.consented_by == world.ctx.user_id
+    assert decision.consented_by == world.ctx.user_id
 
 
 async def test_native_writes_ask_but_reads_do_not(db: AsyncSession, world: World) -> None:

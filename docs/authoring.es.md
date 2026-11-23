@@ -1,5 +1,5 @@
 ---
-source_sha: "dcf5445d27d2"
+source_sha: "2bb144672ed8"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -473,6 +473,8 @@ Un paso de propuestas o eval fallido se reintenta explícitamente con `/{run_id}
 Una sesión guardada como borrador está terminada: el borrador se publica con el **Publish** del propio agente y, cuando esa versión es la que midió la sesión, queda registrada en ella. Terminar puede crear una suite que se ejecute al publicar, sin regresiones permitidas. Se mantienen los permisos y validaciones habituales, y los entornos protegidos esperan a sus comprobaciones. Los cambios editados después de su prueba deben probarse de nuevo.
 
 La estimación incluye clasificar respuestas de chat incorrectas y respuestas de entrenamiento fallidas con las bases de conocimiento editables del agente y agrupar sus carencias en [temas](knowledge-gaps.md#topics). No incluye borradores: un borrador solo se escribe cuando una persona lo pide, y se paga como su propio run. Cada paso comprueba de nuevo su estimación completa antes de iniciarse. Solo los chats fuente fijados y no borrados y las respuestas de entrenamiento de las que aprende la sesión llegan a clasificación o agrupación; una respuesta de entrenamiento sin el conocimiento necesario sigue también como evidencia del agente, sin textos de control para estos asistentes.
+
+Una respuesta de entrenamiento fallida a la que solo le faltan claves que ninguna fuente del agent contiene, según su informe de [cobertura de claves](datasets.md#key-coverage) para ese dataset, cuenta como conocimiento que falta y no como fallo del agent. El asistente lee qué claves son, por etiqueta, y que debe aportarlas el usuario: ningún cambio en las instrucciones puede hacerlo.
 
 Un fallo del clasificador se muestra, conserva las conversaciones fuente y la sesión igualmente se detiene en **Understand**. Una sesión solo de conocimiento se detiene y enumera los temas que faltan en la base de conocimiento, para redactar los que quiera, sin una versión vacía. Un borrador queda desactualizado cuando se añade un documento a la base de conocimiento después de escribirlo, y **Redraft** lo escribe de nuevo (consulte [Redactar el contenido que falta](knowledge-gaps.md#drafting-the-missing-content)). Probar un borrador exige su propia estimación y confirmación; añadir contenido sigue siendo una decisión humana.
 

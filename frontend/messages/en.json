@@ -1022,7 +1022,9 @@
       "drafter": "Gap drafter",
       "generator": "Case generator",
       "classifier": "Gap classifier",
-      "improver": "Authoring assistant"
+      "improver": "Authoring assistant",
+      "extractor": "Key extractor",
+      "coverage": "Source coverage"
     },
     "productionOn": "production on v{version}",
     "productionWaiting": "production on v{version} (waiting for evals)",
@@ -1050,7 +1052,11 @@
       "classifier": "Default gap classifier",
       "classifierHint": "Reads the answers for every knowledge base's gaps.",
       "improver": "Default authoring assistant",
-      "improverHint": "Proposes the improvements every agent is offered."
+      "improverHint": "Proposes the improvements every agent is offered.",
+      "extractor": "Default key extractor",
+      "extractorHint": "Lists the facts of every dataset's reference answers for their keys checks.",
+      "coverage": "Default source coverage",
+      "coverageHint": "Says which of a dataset's keys none of an agent's sources holds."
     },
     "guardsSaved": "Guards saved",
     "failedGuards": "Failed to save the guards",
@@ -1072,7 +1078,7 @@
       "cancel": "Cancel"
     },
     "publishedSpec": "Published specification",
-    "systemAgentBadge": "{kind, select, judge {System agent · Judge} drafter {System agent · Gap drafter} generator {System agent · Case generator} classifier {System agent · Gap classifier} improver {System agent · Authoring assistant} other {System agent}}",
+    "systemAgentBadge": "{kind, select, judge {System agent · Judge} drafter {System agent · Gap drafter} generator {System agent · Case generator} classifier {System agent · Gap classifier} improver {System agent · Authoring assistant} extractor {System agent · Key extractor} coverage {System agent · Source coverage} other {System agent}}",
     "systemAgentBadgeHint": "The platform runs it for the whole organization; nobody chats with it.",
     "systemAgentSharedOnly": "Only what is shared with the whole organization is offered: the platform runs this agent for everyone.",
     "systemAgentSkillsUnused": "A classifier reads no skills, so none can be added here. Unpick the ones it still holds, or use its switch to take them all off.",
@@ -5594,6 +5600,10 @@
         "title": "Review",
         "body": "All graded answers appear here, including those already reviewed. Filter by outcome, agent or tag, then open an answer to inspect its evidence and record a decision."
       },
+      "dataset-key-coverage": {
+        "title": "Key coverage",
+        "body": "See which facts your keys checks ask for that none of an agent's sources holds. A missing fact has to be given to the agent as knowledge; no change to its instructions can supply it."
+      },
       "agents-system": {
         "title": "System agents",
         "body": "The agents the platform runs itself, grouped by what they do: the judges that grade eval answers, the case generator, the gap drafter and classifier, and the authoring assistant. Open one to change its instructions, model or budget; a dataset picks its judge on its Grading tab, and New agent adds another judge."
@@ -8050,7 +8060,9 @@
           "grader": "Grader",
           "improve": "Improve",
           "knowledge_gaps": "Knowledge gaps",
-          "test_questions": "Test questions"
+          "test_questions": "Test questions",
+          "key_drafts": "Key drafts",
+          "key_coverage": "Key coverage"
         },
         "open": {
           "openEvalRun": "Open the eval run",
@@ -15453,7 +15465,8 @@
       "max_cost_usd": "Costs at most (USD)",
       "max_latency_ms": "Answers within (ms)",
       "judge": "Judge criterion",
-      "length": "Has a length"
+      "length": "Has a length",
+      "keys": "Keys covered"
     },
     "checkPlaceholder": {
       "contains": "30 days",
@@ -15515,6 +15528,58 @@
       "maxPlaceholder": "At most",
       "path": "Check {number}: where in a JSON answer",
       "pathPlaceholder": "Where in a JSON answer (optional)"
+    },
+    "keysCheck": {
+      "key": "Key {row} of check {number}",
+      "value": "Value of key {row} of check {number}",
+      "remove": "Remove key {row} of check {number}",
+      "add": "Add key",
+      "keyPlaceholder": "Invoice number",
+      "valuePlaceholder": "INV-2024-0042"
+    },
+    "keyDraft": {
+      "start": "List keys from the reference answer",
+      "retry": "Try again",
+      "running": "Listing the facts of the reference answer…",
+      "none": "The reference answer states no facts to check.",
+      "found": "Found {count, plural, =1 {1 key} other {# keys}}: {names}{more, plural, =0 {} other { and # more}}.",
+      "use": "Use these keys",
+      "dismiss": "Dismiss",
+      "failed": "The keys could not be listed: {error}",
+      "noReference": "Save a reference answer to list its keys.",
+      "saveFirst": "Save the reference answer first: keys are listed from the saved one.",
+      "failedToStart": "The keys could not be asked for",
+      "failedToDismiss": "The drafted keys could not be dismissed",
+      "loading": "Checking for drafted keys…",
+      "unreadable": "The drafted keys could not be read."
+    },
+    "keyCoverage": {
+      "title": "Key coverage",
+      "hint": "Which keys of this dataset's keys checks none of an agent's sources - knowledge bases, context files, skills and MCP servers - holds. The source coverage agent reads key labels only, never their values.",
+      "agent": "Agent",
+      "chooseAgent": "Choose a published agent",
+      "agentsFailed": "The agents could not be loaded",
+      "noAgents": "No published agent to check",
+      "noAgentsHint": "Publish an agent first: a report reads the version it runs.",
+      "check": "Check coverage",
+      "recheck": "Check again",
+      "none": "Not checked yet for this agent.",
+      "noneReadOnly": "Not checked yet for this agent. Someone who may edit it can check.",
+      "running": "Judging which sources hold each key…",
+      "failed": "The coverage could not be judged: {error}",
+      "summary": "{count, plural, =1 {1 key} other {# keys}} in version {version}: {covered, plural, other {#}} with a source, {uncovered, plural, other {#}} with none, {unsure, plural, other {#}} unsure.",
+      "outOfDate": "Made for an earlier version of the agent or the dataset, so Improve no longer reads it. Check again to bring it up to date.",
+      "sourcesChanged": "Sources changed since this check, so Improve no longer reads it. Check again to bring it up to date.",
+      "unseen": "{count, plural, =1 {1 source of this agent was} other {# sources of this agent were}} not read - ones the person who asked may not see, or MCP servers reached through each person's own account - so Improve does not use this report.",
+      "from": "From: {sources}",
+      "hiddenSource": "a source you cannot see",
+      "verdict": {
+        "covered": "Covered",
+        "not_covered": "No source",
+        "unsure": "Unsure"
+      },
+      "failedToStart": "The coverage check could not be started",
+      "unreadable": "The coverage report could not be read."
     },
     "visibility": {
       "private": "Private",
@@ -15611,6 +15676,7 @@
       "backToCases": "Back to cases",
       "testRuns": "Test runs",
       "reviewAnswers": "Review answers",
+      "keyCoverage": "Key coverage",
       "helpers": "Generation & improvement",
       "helpersHint": "Choose the models and instructions used to draft cases and suggest improvements."
     },
@@ -15978,7 +16044,8 @@
           "judge": "Judged on: {criterion}",
           "lengthAtMost": "{unit, select, words {At most {count, plural, one {# word} other {# words}}} other {At most {count, plural, one {# character} other {# characters}}}}",
           "lengthAtLeast": "{unit, select, words {At least {count, plural, one {# word} other {# words}}} other {At least {count, plural, one {# character} other {# characters}}}}",
-          "lengthBetween": "{unit, select, words {Between {min} and {max} words} other {Between {min} and {max} characters}}"
+          "lengthBetween": "{unit, select, words {Between {min} and {max} words} other {Between {min} and {max} characters}}",
+          "keys": "Carries {count, plural, =1 {its 1 key} other {all # keys}}"
         }
       },
       "notGraded": "not graded: {reason}",

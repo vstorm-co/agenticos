@@ -53,6 +53,15 @@ describe("CheckSummary", () => {
     expect(said({ type: "judge", criterion: "Names the policy" }).text).toBe(
       "Judged on: Names the policy",
     );
+    expect(
+      said({
+        type: "keys",
+        keys: [
+          { key: "Invoice", value: "INV-7" },
+          { key: "Total", value: "913.68" },
+        ],
+      }).text,
+    ).toBe("Carries all 2 keys");
   });
 
   it("says a length check's bounds in its unit, and where in a JSON answer", () => {

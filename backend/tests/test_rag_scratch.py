@@ -241,6 +241,9 @@ class TestTheSweep:
     async def test_the_worker_sweeps_hourly_on_a_session_of_its_own(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        # Loading the handler table imports every task module, and each binds the
+        # session factory it finds then: load it before that factory is replaced.
+        assert jobs.SWEEP_RAG_SCRATCH.kind in production()
         session = MagicMock()
 
         @asynccontextmanager
@@ -257,7 +260,6 @@ class TestTheSweep:
         assert sweep.await_args.args == (session,)
         [schedule] = [s for s in SCHEDULES if s.task is jobs.SWEEP_RAG_SCRATCH]
         assert schedule.every == timedelta(hours=1)
-        assert jobs.SWEEP_RAG_SCRATCH.kind in production()
 
 
 class TestTheIngestJob:

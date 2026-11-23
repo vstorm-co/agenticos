@@ -49,11 +49,13 @@ from app.db.models.agent_run import (
 )
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.case_generation import CaseGeneration
+from app.db.models.case_key_draft import CaseKeyDraft
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation, Message
 from app.db.models.group import Group, GroupMember
 from app.db.models.intercepted_tool_call import InterceptedToolCall
+from app.db.models.key_coverage_report import KeyCoverageReport
 from app.db.models.knowledge_gap import (
     KnowledgeGapClassification,
     KnowledgeGapEvalClassification,
@@ -949,6 +951,24 @@ async def run_origins(
         )
     )
     for run_id, dataset_id in generations.all():
+        found[run_id] = replace(found[run_id], dataset_id=dataset_id)
+    drafts = await db.execute(
+        select(type_coerce(CaseKeyDraft.run_id, run_id_of), CaseKeyDraft.dataset_id).where(
+            CaseKeyDraft.organization_id == organization_id,
+            CaseKeyDraft.run_id.in_(ids),
+        )
+    )
+    for run_id, dataset_id in drafts.all():
+        found[run_id] = replace(found[run_id], dataset_id=dataset_id)
+    reports = await db.execute(
+        select(
+            type_coerce(KeyCoverageReport.run_id, run_id_of), KeyCoverageReport.dataset_id
+        ).where(
+            KeyCoverageReport.organization_id == organization_id,
+            KeyCoverageReport.run_id.in_(ids),
+        )
+    )
+    for run_id, dataset_id in reports.all():
         found[run_id] = replace(found[run_id], dataset_id=dataset_id)
     return found
 

@@ -1022,7 +1022,9 @@
       "drafter": "Lücken-Entwerfer",
       "generator": "Fallgenerator",
       "classifier": "Lücken-Klassifizierer",
-      "improver": "Authoring-Assistent"
+      "improver": "Authoring-Assistent",
+      "extractor": "Schlüssel-Extraktor",
+      "coverage": "Quellenabdeckung"
     },
     "productionOn": "Produktion auf v{version}",
     "productionWaiting": "Produktion auf v{version} (wartet auf Evals)",
@@ -1050,7 +1052,11 @@
       "classifier": "Standard-Lücken-Klassifizierer",
       "classifierHint": "Liest die Antworten für die Lücken jeder Wissensdatenbank.",
       "improver": "Standard-Authoring-Assistent",
-      "improverHint": "Schlägt die Verbesserungen vor, die jedem Agent angeboten werden."
+      "improverHint": "Schlägt die Verbesserungen vor, die jedem Agent angeboten werden.",
+      "extractor": "Standard-Schlüssel-Extraktor",
+      "extractorHint": "Listet die Fakten der Referenzantworten jedes Datasets für ihre Schlüssel-Prüfungen auf.",
+      "coverage": "Standard-Quellenabdeckung",
+      "coverageHint": "Zeigt, welche Schlüssel eines Datasets keine Quelle eines Agenten enthält."
     },
     "guardsSaved": "Wächter gespeichert",
     "failedGuards": "Die Wächter konnten nicht gespeichert werden",
@@ -1072,7 +1078,7 @@
       "cancel": "Abbrechen"
     },
     "publishedSpec": "Veröffentlichte Spec",
-    "systemAgentBadge": "{kind, select, judge {Systemagent · Bewerter} drafter {Systemagent · Lücken-Entwerfer} generator {Systemagent · Fallgenerator} classifier {Systemagent · Lücken-Klassifizierer} improver {Systemagent · Authoring-Assistent} other {Systemagent}}",
+    "systemAgentBadge": "{kind, select, judge {Systemagent · Bewerter} drafter {Systemagent · Lücken-Entwerfer} generator {Systemagent · Fallgenerator} classifier {Systemagent · Lücken-Klassifizierer} improver {Systemagent · Authoring-Assistent} extractor {Systemagent · Schlüssel-Extraktor} coverage {Systemagent · Quellenabdeckung} other {Systemagent}}",
     "systemAgentBadgeHint": "Die Plattform führt ihn für die ganze Organisation aus; niemand chattet mit ihm.",
     "systemAgentSharedOnly": "Angeboten wird nur, was mit der ganzen Organisation geteilt ist: Die Plattform führt diesen Agent für alle aus.",
     "systemAgentSkillsUnused": "Ein Klassifizierer liest keine Skills, daher lässt sich hier keiner hinzufügen. Wählen Sie die ab, die er noch hat, oder nehmen Sie mit seinem Schalter alle auf einmal weg.",
@@ -5473,6 +5479,10 @@
         "title": "Prüfung",
         "body": "Hier erscheinen alle bewerteten Antworten, auch bereits geprüfte. Filtere nach Ergebnis, Agent oder Tag und öffne eine Antwort, um Evidenz zu prüfen und eine Entscheidung zu speichern."
       },
+      "dataset-key-coverage": {
+        "title": "Schlüsselabdeckung",
+        "body": "Sehen Sie, welche Fakten Ihre Schlüssel-Prüfungen verlangen, die keine Quelle eines Agenten enthält. Ein fehlender Fakt muss dem Agenten als Wissen gegeben werden; keine Änderung seiner Anweisungen kann ihn liefern."
+      },
       "agents-system": {
         "title": "System-Agents",
         "body": "Die Agents, die die Plattform selbst ausführt, nach Aufgabe gruppiert: die Bewerter für Eval-Antworten, der Fallgenerator, Lückenentwurf und Lückenklassifizierer sowie der Autorenassistent. Öffnen Sie einen, um Anweisungen, Modell oder Budget zu ändern; ein Dataset wählt seinen Bewerter auf dem Grading-Tab, und New agent fügt einen weiteren Bewerter hinzu."
@@ -7322,7 +7332,9 @@
           "grader": "Bewerter",
           "improve": "Improve",
           "knowledge_gaps": "Wissenslücken",
-          "test_questions": "Testfragen"
+          "test_questions": "Testfragen",
+          "key_drafts": "Schlüsselentwürfe",
+          "key_coverage": "Schlüsselabdeckung"
         },
         "open": {
           "openEvalRun": "Eval-Run öffnen",
@@ -15139,7 +15151,8 @@
       "max_cost_usd": "Kostet höchstens (USD)",
       "max_latency_ms": "Antwortet innerhalb (ms)",
       "judge": "Bewerter-Kriterium",
-      "length": "Hat eine Länge"
+      "length": "Hat eine Länge",
+      "keys": "Abgedeckte Schlüssel"
     },
     "checkPlaceholder": {
       "contains": "30 Tage",
@@ -15201,6 +15214,58 @@
       "maxPlaceholder": "Höchstens",
       "path": "Prüfung {number}: wo in einer JSON-Antwort",
       "pathPlaceholder": "Wo in einer JSON-Antwort (optional)"
+    },
+    "keysCheck": {
+      "key": "Schlüssel {row} von Check {number}",
+      "value": "Wert von Schlüssel {row} von Check {number}",
+      "remove": "Schlüssel {row} aus Check {number} entfernen",
+      "add": "Schlüssel hinzufügen",
+      "keyPlaceholder": "Rechnungsnummer",
+      "valuePlaceholder": "RE-2024-0042"
+    },
+    "keyDraft": {
+      "start": "Schlüssel aus der Referenzantwort auflisten",
+      "retry": "Erneut versuchen",
+      "running": "Die Fakten der Referenzantwort werden aufgelistet…",
+      "none": "Die Referenzantwort nennt keine Fakten, die sich prüfen lassen.",
+      "found": "{count, plural, =1 {1 Schlüssel} other {# Schlüssel}} gefunden: {names}{more, plural, =0 {} other { und # weitere}}.",
+      "use": "Diese Schlüssel verwenden",
+      "dismiss": "Verwerfen",
+      "failed": "Die Schlüssel konnten nicht aufgelistet werden: {error}",
+      "noReference": "Speichern Sie eine Referenzantwort, um ihre Schlüssel aufzulisten.",
+      "saveFirst": "Speichern Sie zuerst die Referenzantwort: Die Schlüssel werden aus der gespeicherten aufgelistet.",
+      "failedToStart": "Die Schlüssel konnten nicht angefordert werden",
+      "failedToDismiss": "Die aufgelisteten Schlüssel konnten nicht verworfen werden",
+      "loading": "Entworfene Schlüssel werden geprüft…",
+      "unreadable": "Die entworfenen Schlüssel konnten nicht gelesen werden."
+    },
+    "keyCoverage": {
+      "title": "Schlüsselabdeckung",
+      "hint": "Welche Schlüssel aus den Schlüssel-Prüfungen dieses Datasets keine Quelle eines Agenten enthält - Wissensdatenbanken, Kontextdateien, Skills und MCP-Server. Der Agent für Quellenabdeckung liest nur die Bezeichnungen der Schlüssel, nie ihre Werte.",
+      "agent": "Agent",
+      "chooseAgent": "Veröffentlichten Agenten wählen",
+      "agentsFailed": "Die Agenten konnten nicht geladen werden",
+      "noAgents": "Kein veröffentlichter Agent zum Prüfen",
+      "noAgentsHint": "Veröffentlichen Sie zuerst einen Agenten: Ein Bericht liest die Version, die er ausführt.",
+      "check": "Abdeckung prüfen",
+      "recheck": "Erneut prüfen",
+      "none": "Für diesen Agenten noch nicht geprüft.",
+      "noneReadOnly": "Für diesen Agenten noch nicht geprüft. Wer ihn bearbeiten darf, kann prüfen.",
+      "running": "Es wird beurteilt, welche Quellen jeden Schlüssel enthalten…",
+      "failed": "Die Abdeckung konnte nicht beurteilt werden: {error}",
+      "summary": "{count, plural, one {# Schlüssel} other {# Schlüssel}} in Version {version}: {covered, plural, other {#}} mit Quelle, {uncovered, plural, other {#}} ohne, {unsure, plural, other {#}} unsicher.",
+      "outOfDate": "Für eine frühere Version des Agenten oder des Datasets erstellt, daher liest Improve ihn nicht mehr. Prüfen Sie erneut, um ihn zu aktualisieren.",
+      "sourcesChanged": "Die Quellen haben sich seit dieser Prüfung geändert, daher liest Improve den Bericht nicht mehr. Prüfen Sie erneut, um ihn zu aktualisieren.",
+      "unseen": "{count, plural, one {# Quelle dieses Agenten wurde} other {# Quellen dieses Agenten wurden}} nicht gelesen - solche, die die fragende Person nicht sehen darf, oder MCP-Server, die über das Konto jeder Person laufen -, daher nutzt Improve diesen Bericht nicht.",
+      "from": "Aus: {sources}",
+      "hiddenSource": "eine Quelle, die Sie nicht sehen dürfen",
+      "verdict": {
+        "covered": "Abgedeckt",
+        "not_covered": "Keine Quelle",
+        "unsure": "Unsicher"
+      },
+      "failedToStart": "Die Abdeckungsprüfung konnte nicht gestartet werden",
+      "unreadable": "Der Abdeckungsbericht konnte nicht gelesen werden."
     },
     "visibility": {
       "private": "Privat",
@@ -15297,6 +15362,7 @@
       "backToCases": "Zurück zu den Fällen",
       "testRuns": "Testläufe",
       "reviewAnswers": "Antworten prüfen",
+      "keyCoverage": "Schlüsselabdeckung",
       "helpers": "Generierung und Verbesserung",
       "helpersHint": "Wähle Modelle und Anweisungen zum Entwerfen von Fällen und Vorschlagen von Verbesserungen."
     },
@@ -15664,7 +15730,8 @@
           "judge": "Bewerter-Kriterium: {criterion}",
           "lengthAtMost": "{unit, select, words {Höchstens {count, plural, one {# Wort} other {# Wörter}}} other {Höchstens {count, plural, one {# Zeichen} other {# Zeichen}}}}",
           "lengthAtLeast": "{unit, select, words {Mindestens {count, plural, one {# Wort} other {# Wörter}}} other {Mindestens {count, plural, one {# Zeichen} other {# Zeichen}}}}",
-          "lengthBetween": "{unit, select, words {Zwischen {min} und {max} Wörtern} other {Zwischen {min} und {max} Zeichen}}"
+          "lengthBetween": "{unit, select, words {Zwischen {min} und {max} Wörtern} other {Zwischen {min} und {max} Zeichen}}",
+          "keys": "Enthält {count, plural, =1 {seinen 1 Schlüssel} other {alle # Schlüssel}}"
         }
       },
       "notGraded": "nicht bewertet: {reason}",
