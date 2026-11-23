@@ -378,6 +378,8 @@ def _legacy_conversation(
 
 def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs() -> None:
     """0322_coding_task_revert.py and 0323_coding_revert_admission.py preserve legacy diffs."""
+    from app.db.models.organization import Organization
+
     result = _alembic("upgrade", "head")
     assert result.returncode == 0, result.stderr
     result = _alembic("downgrade", "0321_resource_icons")
@@ -396,22 +398,15 @@ def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs()
     files = [{"path": "old.py", "status": "modified", "patch": "-before\n+after\n"}]
     try:
         with DatabaseSession(engine) as db:
-            owner_id = uuid4()
-            db.execute(
-                _HISTORICAL_USER_INSERT,
-                {"id": owner_id, "email": f"{owner_id}@example.com"},
+            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            db.add(owner)
+            db.flush()
+            organization = Organization(
+                name="Legacy diff", slug=f"legacy-{uuid4()}", created_by_user_id=owner.id
             )
-            organization_id = uuid4()
-            db.execute(
-                _HISTORICAL_ORGANIZATION_INSERT,
-                {
-                    "id": organization_id,
-                    "name": "Legacy diff",
-                    "slug": f"legacy-{uuid4()}",
-                    "owner": owner_id,
-                },
-            )
-            conversation_id = _legacy_conversation(db, organization_id, owner_id, "Old task")
+            db.add(organization)
+            db.flush()
+            conversation_id = _legacy_conversation(db, organization.id, owner.id, "Old task")
             db.execute(
                 text(
                     "INSERT INTO coding_task_changes (id, organization_id, conversation_id, harness, files, omitted, truncated) "
@@ -419,7 +414,7 @@ def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs()
                 ),
                 {
                     "id": change_id,
-                    "organization": organization_id,
+                    "organization": organization.id,
                     "conversation": conversation_id,
                     "files": json.dumps(files),
                 },
@@ -482,14 +477,10 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
     engine = create_engine(_url(MIGRATION_DATABASE))
     try:
         with DatabaseSession(engine, expire_on_commit=False) as db:
-            creator_id, owner_id = uuid4(), uuid4()
-            db.execute(
-                _HISTORICAL_USER_INSERT,
-                [
-                    {"id": identity, "email": f"{identity}@example.com"}
-                    for identity in (creator_id, owner_id)
-                ],
-            )
+            creator = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            db.add_all([creator, owner])
+            db.flush()
             # This is the 0304 schema, before columns added by later migrations.
             org_id = uuid4()
             db.execute(
@@ -497,12 +488,12 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
                     "INSERT INTO organizations (id, name, slug, is_personal, created_by_user_id) "
                     "VALUES (:id, 'Crosslinks', :slug, false, :creator)"
                 ),
-                {"id": org_id, "slug": f"crosslinks-{org_id}", "creator": creator_id},
+                {"id": org_id, "slug": f"crosslinks-{org_id}", "creator": creator.id},
             )
             agent = Agent(organization_id=org_id, name="Reporter", slug=f"reporter-{uuid4()}")
             db.add(agent)
             db.flush()
-            chat_id = _legacy_conversation(db, org_id, creator_id, "Private")
+            chat_id = _legacy_conversation(db, org_id, owner.id, "Private")
             version = AgentVersion(organization_id=org_id, agent_id=agent.id, version=1, spec={})
             db.add(version)
             db.flush()
@@ -521,7 +512,7 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
             routine = AgentTrigger(
                 organization_id=org_id,
                 agent_id=agent.id,
-                created_by_user_id=owner_id,
+                created_by_user_id=owner.id,
                 prompt="Report",
                 interval_seconds=300,
                 next_fire_at=datetime.now(UTC),
@@ -530,7 +521,7 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
             )
             db.add_all([page, routine])
             db.commit()
-            agent_id = agent.id
+            owner_id, agent_id = owner.id, agent.id
             page_id, routine_id = page.id, routine.id
             environment_id = environment.id
 
@@ -713,26 +704,22 @@ def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None
     engine = create_engine(_url(MIGRATION_DATABASE))
     try:
         with DatabaseSession(engine, expire_on_commit=False) as db:
-            creator_id, owner_id = uuid4(), uuid4()
-            db.execute(
-                _HISTORICAL_USER_INSERT,
-                [
-                    {"id": identity, "email": f"{identity}@example.com"}
-                    for identity in (creator_id, owner_id)
-                ],
-            )
+            creator = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            db.add_all([creator, owner])
+            db.flush()
             org_id = uuid4()
             db.execute(
                 text(
                     "INSERT INTO organizations (id, name, slug, is_personal, created_by_user_id) "
                     "VALUES (:id, 'Erasure', :slug, false, :creator)"
                 ),
-                {"id": org_id, "slug": f"erasure-{org_id}", "creator": creator_id},
+                {"id": org_id, "slug": f"erasure-{org_id}", "creator": creator.id},
             )
             agent = Agent(organization_id=org_id, name="Helper", slug=f"helper-{uuid4()}")
             db.add(agent)
             db.flush()
-            chat_id = _legacy_conversation(db, org_id, creator_id, "Private")
+            chat_id = _legacy_conversation(db, org_id, owner.id, "Private")
             # A Core insert names only these columns: the model is at head and the
             # schema here is not.
             run_id = uuid4()
@@ -742,12 +729,13 @@ def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None
                     organization_id=org_id,
                     agent_id=agent.id,
                     started_at=datetime.now(UTC),
-                    user_id=creator_id,
+                    user_id=owner.id,
                     conversation_id=chat_id,
                     routine_policy={"approved_sources": []},
                 )
             )
             db.commit()
+            owner_id = owner.id
 
         # Re-creating a constraint gives its RI triggers a newer OID, so its action
         # fires after the other one. Each statement forces one of the two orders.
@@ -2410,11 +2398,12 @@ class TestRoomThreadMigration:
             assert refused.returncode != 0
             assert "Cannot remove room thread scopes" in refused.stderr
             with engine.begin() as connection:
-                # `0348_approval_expired_notice` downgrades inside an autocommit block, which
-                # commits the merge, column and room revisions above it before the refusal.
-                assert sorted(
-                    connection.scalars(text("SELECT version_num FROM alembic_version")).all()
-                ) == ["0348_approval_expired_notice", "0348_architect_generated_avatar"]
+                # `0348_approval_expired_notice` validates in an autocommit block, which
+                # commits the room revisions already unwound above it, so the refused
+                # step leaves the database there rather than at head.
+                assert connection.scalars(
+                    text("SELECT version_num FROM alembic_version")
+                ).all() == ["0348_approval_expired_notice"]
                 assert (
                     connection.scalar(
                         text("SELECT thread_root_message_id FROM messages WHERE id=:id"),
@@ -2427,10 +2416,10 @@ class TestRoomThreadMigration:
             assert down.returncode == 0, down.stderr
             with engine.connect() as connection:
                 # Removing empty thread storage preserves its published upstream/pool parent;
-                # the upstream branch, joined by `0353_merge_t3_v1891`, keeps its own head.
+                # the v1.85.0 branch joined by `0346_merge_t3_v1850` keeps its own head.
                 assert sorted(
                     connection.scalars(text("SELECT version_num FROM alembic_version")).all()
-                ) == ["0332_merge_t3_pools_v1761", "0348_architect_generated_avatar"]
+                ) == ["0332_merge_t3_pools_v1761", "0342_criterion_verdicts"]
                 assert (
                     connection.scalar(
                         text("SELECT reply_to_message_id FROM messages WHERE id=:id"),
@@ -3567,7 +3556,7 @@ def test_account_appearance_migration_keeps_one_appearance_document() -> None:
         assert not columns & {"theme", "look"}
         result = _alembic("check")
         assert result.returncode == 0, result.stderr + result.stdout
-        result = _alembic("downgrade", "0353_merge_t3_v1891")
+        result = _alembic("downgrade", "0348_architect_generated_avatar")
         assert result.returncode == 0, result.stderr
         columns = {column["name"] for column in inspect(engine).get_columns("users")}
         assert {"appearance", "theme", "look"} <= columns

@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0354_drop_user_theme_look"
-down_revision: str = "0353_merge_t3_v1891"
+down_revision: str = "0348_architect_generated_avatar"
 branch_labels: None = None
 depends_on: None = None
 
