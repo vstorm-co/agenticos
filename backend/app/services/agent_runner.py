@@ -3762,7 +3762,10 @@ class AgentRunnerService:
         if not bound and not routine:
             return None
         owner = await self._run_owner_context(ctx, existing_run)
-        if owner is not None and routine and not bound:
+        reporting_only = routine and (
+            not bound or (owner is not None and owner.subject_is_publisher_fallback)
+        )
+        if owner is not None and reporting_only:
             # This token has no platform scopes. Only the run-bound reporting
             # endpoint accepts it; it cannot lend personal or admin authority.
             owner = replace(owner, subject_is_publisher_fallback=False)
@@ -3774,7 +3777,7 @@ class AgentRunnerService:
                 agent_id=existing_run.agent_id if existing_run is not None else agent_id,
                 conversation_id=conversation_id,
                 run_id=existing_run.id if existing_run is not None else run_id,
-                reporting_only=routine and not bound,
+                reporting_only=reporting_only,
             )
         )
 

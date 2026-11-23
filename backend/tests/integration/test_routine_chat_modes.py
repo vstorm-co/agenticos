@@ -1,5 +1,6 @@
 """Private per-run chats and read-only shared histories preserve their boundaries."""
 
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -8,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import NotFoundError
 from app.db.models.conversation import Conversation
 from app.repositories import conversation_repo
-from app.schemas.agent_trigger import TriggerCreate
+from app.schemas.agent_trigger import TriggerCreate, TriggerUpdate
 from app.services.agent_trigger import AgentTriggerService
 from app.services.conversation import ConversationService
 from tests.integration.test_routine_sources import world
@@ -251,3 +252,43 @@ async def test_routine_history_spans_chats_without_other_routines_or_tenants(
         limit=1,
     )
     assert count == 2 and len(page) == 1
+
+
+@pytest.mark.parametrize("name", ["Renamed report", None])
+async def test_renaming_shared_routine_updates_its_sidebar_history(
+    db: AsyncSession, name: str | None
+) -> None:
+    ctx, trigger, spec, _ = await world(db)
+    trigger.name = "Original report"
+    trigger.chat_mode = "shared"
+    service = AgentTriggerService(db)
+    identifier = await service._run_log(trigger, agent_name=spec.name)
+    await service.update(ctx, trigger.agent_id, trigger.id, TriggerUpdate(name=name))
+    history = await conversation_repo.get_conversation_by_id(db, identifier, fresh=True)
+    assert history is not None
+    assert history.title == (name or f"{spec.name} - scheduled")
+
+
+@pytest.mark.parametrize("invalid", ["missing", "organization", "origin", "project"])
+async def test_routine_rename_cannot_relabel_an_unrelated_conversation(
+    db: AsyncSession, invalid: str
+) -> None:
+    ctx, trigger, spec, _ = await world(db)
+    trigger.name = "Original report"
+    trigger.chat_mode = "shared"
+    service = AgentTriggerService(db)
+    identifier = await service._run_log(trigger, agent_name=spec.name)
+    candidate = Conversation(
+        id=identifier,
+        organization_id=uuid4() if invalid == "organization" else ctx.organization_id,
+        origin=None if invalid == "origin" else "routine",
+        project_id=uuid4() if invalid == "project" else None,
+        title="Unrelated history",
+    )
+    with patch(
+        "app.repositories.conversation.get_conversation_by_id",
+        new=AsyncMock(return_value=None if invalid == "missing" else candidate),
+    ):
+        await service.update(ctx, trigger.agent_id, trigger.id, TriggerUpdate(name="Renamed"))
+    history = await conversation_repo.get_conversation_by_id(db, identifier, fresh=True)
+    assert history is not None and history.title == "Original report"

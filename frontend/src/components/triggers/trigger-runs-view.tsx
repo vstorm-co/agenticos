@@ -21,6 +21,7 @@ import { useTriggerActivation, useTriggerAttempts } from "@/hooks/use-triggers";
 import { useStopParkedRun } from "@/hooks/use-stop-parked-run";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/stores";
 import type { AgentRun } from "@/types/runs";
 import type { Trigger, TriggerAttemptList } from "@/types/triggers";
 
@@ -214,7 +215,7 @@ function RunHistory({
           </li>
         )}
         {runs.map((run) => (
-          <FireRow key={run.id} run={run} />
+          <FireRow key={run.id} run={run} trigger={trigger} />
         ))}
       </ul>
       <div className="border-border border-t px-5 py-3">
@@ -239,7 +240,12 @@ const STOPPED = new Set<AgentRun["status"]>([
 ]);
 
 /** One fire: when it ran, how it went, what it cost, and a way into it. */
-function FireRow({ run }: { run: AgentRun }) {
+function FireRow({ run, trigger }: { run: AgentRun; trigger: Trigger }) {
+  const me = useAuthStore((state) => state.user?.id ?? null);
+  const canOpenChat =
+    Boolean(trigger.project_id) ||
+    run.conversation_id === trigger.conversation_id ||
+    (me !== null && run.user_id === me);
   const t = useTranslations("triggers");
   const { canStop, stop } = useStopParkedRun(
     run.id,
@@ -287,7 +293,7 @@ function FireRow({ run }: { run: AgentRun }) {
       )}
       {/* Into the run itself, which is where "why did this fail" is answered -
           the requests, the tools and what each turn cost. */}
-      {run.conversation_id && (
+      {run.conversation_id && canOpenChat && (
         <Button variant="outline" size="sm" asChild>
           <Link href={`${ROUTES.CHAT}?id=${run.conversation_id}`}>{t("openExecutionChat")}</Link>
         </Button>

@@ -235,3 +235,40 @@ async def test_implicit_reporting_key_has_no_general_platform_scopes() -> None:
     assert mint.await_args.kwargs["scopes"] == []
     assert mint.await_args.kwargs["internal"] is True
     assert update.await_args.kwargs["update_data"] == {"source_run_id": ctx.source_run_id}
+
+
+@pytest.mark.parametrize("bound", [False, True])
+@pytest.mark.parametrize("fallback", [False, True])
+@pytest.mark.parametrize("owner_present", [False, True])
+async def test_identity_free_routines_receive_only_reporting_authority(
+    bound: bool, fallback: bool, owner_present: bool
+) -> None:
+    from app.agents.spec import AgentSpec, PlatformMcpServerRef
+    from app.services.agent_runner import AgentRunnerService
+
+    ctx = replace(caller(), routine_id=uuid4(), subject_is_publisher_fallback=fallback)
+    spec = AgentSpec(
+        name="Worker",
+        mcp_servers=[PlatformMcpServerRef(account="platform")] if bound else [],
+    )
+    service = AgentRunnerService(AsyncMock(spec=AsyncSession))
+    with (
+        patch.object(
+            service,
+            "_run_owner_context",
+            new=AsyncMock(return_value=ctx if owner_present else None),
+        ),
+        patch(
+            "app.services.agent_runner.mint_for_run", new=AsyncMock(return_value="report-key")
+        ) as mint,
+    ):
+        result = await service._platform_credential(spec, ctx, run_id=ctx.source_run_id)
+    if not owner_present:
+        assert result is None
+        mint.assert_not_awaited()
+        return
+    assert result == "report-key"
+    assert mint.await_args.kwargs["reporting_only"] is (not bound or fallback)
+    owner = mint.await_args.args[0]
+    assert not owner.subject_is_publisher_fallback
+    assert owner.key_scopes == frozenset()

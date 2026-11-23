@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from typing import Literal
 from uuid import uuid4
 
 import pytest
@@ -123,21 +124,24 @@ def tool(name: str = "execute", capability: str | None = "sandbox") -> ToolDefin
     return ToolDefinition(name=name, capability_id=capability)
 
 
-async def test_manual_mode_revokes_standing_consents_and_does_not_restore_them(
-    db: AsyncSession, world: World
+@pytest.mark.parametrize("mode", ["manual", "agent"])
+async def test_changing_mode_revokes_standing_consents_and_does_not_restore_them(
+    db: AsyncSession, world: World, mode: Literal["manual", "agent"]
 ) -> None:
     world.agent.draft_spec = world.spec.model_dump(mode="json")
     await RoutineActionService(db).replace(world.ctx, world.trigger, _request(world, [WRITE]))
     assert world.trigger.action_consents
     await AgentTriggerService(db).update(
-        world.ctx, world.agent.id, world.trigger.id, TriggerUpdate(action_mode="manual")
+        world.ctx, world.agent.id, world.trigger.id, TriggerUpdate(action_mode=mode)
     )
     await db.refresh(world.trigger)
-    assert world.trigger.action_mode == "manual"
+    assert world.trigger.action_mode == mode
     assert world.trigger.action_consents == []
     authority = await capture(db, world)
     decision = await authority.action_policy(world.agent.id, world.spec, tool())
-    assert decision.required and decision.consented_by is None
+    assert decision.consented_by is None
+    if mode == "manual":
+        assert decision.required
     await AgentTriggerService(db).update(
         world.ctx, world.agent.id, world.trigger.id, TriggerUpdate(action_mode="per_tool")
     )

@@ -244,7 +244,7 @@ describe("TriggerRow run list", () => {
     // The point of listing runs rather than turns: the requests, the tools and
     // the cost per turn are on that page, and there was no way to reach it.
     serveRuns([run({ id: "r-42", conversation_id: "execution-chat" })]);
-    render(<TriggerRow trigger={trigger()} />, { wrapper });
+    render(<TriggerRow trigger={trigger({ conversation_id: "execution-chat" })} />, { wrapper });
 
     await userEvent.click(screen.getByRole("button", OPEN));
 
@@ -924,3 +924,40 @@ describe("GitHub filtered delivery diagnostics", () => {
     },
   );
 });
+
+it.each([
+  { reader: "creator", project: null, visible: true },
+  { reader: "operator", project: null, visible: false },
+  { reader: "operator", project: "project-1", visible: true },
+])(
+  "shows private execution chat only to its creator or project readers: $reader/$project",
+  async ({ reader, project, visible }) => {
+    const previous = useAuthStore.getState().user;
+    useAuthStore.setState({
+      user: {
+        id: reader,
+        email: "reader@example.com",
+        is_active: true,
+        created_at: "2026-11-23T00:00:00Z",
+      },
+    });
+    try {
+      serveRuns([run({ user_id: "creator", conversation_id: "private-execution" })]);
+      render(
+        <TriggerRunsView
+          trigger={trigger({
+            chat_mode: "per_run",
+            project_id: project,
+            created_by_user_id: "creator",
+          })}
+          activationId={null}
+        />,
+        { wrapper },
+      );
+      await screen.findByRole("link", { name: "Open run" });
+      expect(screen.queryByRole("link", { name: "Open chat" }) !== null).toBe(visible);
+    } finally {
+      useAuthStore.setState({ user: previous });
+    }
+  },
+);

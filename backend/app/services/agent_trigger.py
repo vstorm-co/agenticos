@@ -1349,7 +1349,9 @@ class AgentTriggerService:
             raise AuthorizationError(
                 message="Only the routine's creator may change its tool approval policy"
             )
-        if changes.get("action_mode") == "manual":
+        if "action_mode" in changes and (
+            changes["action_mode"] == "manual" or changes["action_mode"] != trigger.action_mode
+        ):
             changes["action_consents"] = []
         if changes.get("is_active", trigger.is_active):
             await require_organization_agent(
@@ -1450,6 +1452,29 @@ class AgentTriggerService:
                 },
             )
         updated = await agent_trigger_repo.update(self.db, trigger=trigger, update_data=changes)
+        if (
+            "name" in changes
+            and updated.chat_mode == "shared"
+            and updated.conversation_id is not None
+        ):
+            history = await conversation_repo.get_conversation_by_id(
+                self.db, updated.conversation_id, fresh=True
+            )
+            if (
+                history is not None
+                and history.organization_id == updated.organization_id
+                and history.origin == "routine"
+                and history.project_id == updated.project_id
+            ):
+                agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+                suffix = (
+                    "triggered" if updated.trigger_type == TriggerType.EVENT.value else "scheduled"
+                )
+                await conversation_repo.update_conversation(
+                    self.db,
+                    db_conversation=history,
+                    update_data={"title": updated.name or f"{agent.name} - {suffix}"},
+                )
         if changes.get("is_active") is True:
             await self.sources.require_current(
                 ctx, updated, expected_id=read_policy(updated.approved_sources).id
