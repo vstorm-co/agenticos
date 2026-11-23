@@ -1,5 +1,5 @@
 ---
-source_sha: "67c601793c20"
+source_sha: "efcf8f8ad81e"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -488,6 +488,8 @@ Ein fehlgeschlagener Vorschlags- oder Eval-Schritt lässt sich ausdrücklich mit
 Eine als Entwurf behaltene Sitzung ist abgeschlossen: Den Entwurf veröffentlicht das übliche **Veröffentlichen** des Agents, und wenn diese Version die von der Sitzung gemessene ist, wird sie in der Sitzung eingetragen. Der Abschluss kann eine Suite bei Veröffentlichung mit null erlaubten Regressionen anlegen. Übliche Berechtigungen und Veröffentlichungsprüfungen gelten weiter, und geschützte Umgebungen warten auf ihre Prüfungen. Nach ihrem Test bearbeitete Änderungen müssen erneut getestet werden.
 
 Die Sitzungsschätzung umfasst die Einordnung schlechter Chatantworten und fehlgeschlagener Trainingsantworten anhand bearbeitbarer Wissensbasen des Agenten und die Gruppierung ihrer Lücken zu [Themen](knowledge-gaps.md#topics). Entwürfe enthält sie nicht: Ein Entwurf entsteht nur, wenn ein Mensch ihn anfordert, und wird als eigener Run bezahlt. Jeder Schritt prüft vor dem Start erneut seine vollständige Schätzung. Nur festgelegte, nicht gelöschte Quellchats und die Trainingsantworten, aus denen die Sitzung lernt, erreichen Klassifizierung oder Gruppierung; eine Trainingsantwort mit fehlendem Wissen bleibt auch Agentenbeleg, Kontrolltexte erreichen diese Helfer nie.
+
+Eine fehlgeschlagene Trainingsantwort, der nur Schlüssel fehlen, die laut dem Bericht zur [Schlüsselabdeckung](datasets.md#key-coverage) des Agenten für dieses Dataset keine seiner Quellen enthält, zählt als fehlendes Wissen statt als Fehler des Agenten. Der Helfer liest, welche Schlüssel das sind, nach Bezeichnung, und dass der Nutzer sie liefern muss: Keine Änderung der Anweisungen kann es.
 
 Ein Klassifizierungsfehler wird angezeigt, Quellgespräche bleiben verfügbar, und die Sitzung hält trotzdem bei **Verstehen** an. Eine reine Wissenssitzung hält an und listet die Themen auf, die in der Wissensdatenbank fehlen, damit Sie die gewünschten entwerfen, ohne leere Agentenversion. Ein Entwurf veraltet, sobald nach ihm ein Dokument zur Wissensdatenbank hinzugefügt wird, und **Neu entwerfen** schreibt ihn erneut (siehe [Den fehlenden Inhalt entwerfen](knowledge-gaps.md#drafting-the-missing-content)). Eine Entwurfsprüfung erfordert weiterhin eine eigene Schätzung und Bestätigung; das Hinzufügen bleibt eine gesonderte menschliche Entscheidung.
 

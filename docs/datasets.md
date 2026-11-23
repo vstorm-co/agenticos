@@ -423,6 +423,39 @@ change is judged on what moved across the dataset rather than on one case's
 pattern. A check without a family is a family of its own; one with a family
 scores, and fingerprints its scoring, exactly as before.
 
+### Keys no source covers { #key-coverage }
+
+A keys check says which facts a written document must carry; it cannot say
+whether the agent could have known them. **Results → Key coverage** answers that
+for a published agent you choose. The source coverage agent, a system agent,
+reads the labels of the keys in the newest version's keys checks - the first 200
+distinct ones - beside what the agent's published version can reach, and says
+for each label that a source holds it, that none does, or that it cannot tell.
+For each source it reads:
+
+- a knowledge base: a search for every label;
+- a context file or a skill: the passages that name a label, a skill at the
+  version or fork the agent's binding names;
+- an organization MCP server that is switched on: its tools, by what each says
+  it does.
+
+It is shown key labels and never their values. It runs in a job, as the person
+who asked, who must be able to edit the agent, metered and in Activity. Each
+agent and dataset keeps one report, which the next one replaces. A source the person who asked may not see is not read, nor is an MCP server
+reached through each person's own account or the platform's, and the report
+says how many were left out; a reader who may not see a source the report names sees it unnamed,
+and one who may not see every source the judge read gets verdicts without
+reasons.
+
+A key no source holds has to reach the agent as knowledge - a document, a
+context file, a tool - since no change to its instructions can supply it.
+[Improve](authoring.md#background-improvement-sessions) reads it that way,
+but only from a complete report - every source read - made for the version the
+agent runs now. Once the agent is published again, the dataset gains a version, or a source it
+read changes - a document added to or removed from a knowledge base, a context
+file or skill edited, a server's tools changed - the report shows as out of date
+until you check again.
+
 ### Expected tool calls { #trajectory }
 
 The agent's calls are matched against the case's expected calls by tool name and

@@ -998,6 +998,16 @@ def get_case_key_draft_service(db: DBSession) -> CaseKeyDraftService:
 
 CaseKeyDraftSvc = Annotated[CaseKeyDraftService, Depends(get_case_key_draft_service)]
 
+from app.services.key_coverage import KeyCoverageService
+
+
+def get_key_coverage_service(db: DBSession) -> KeyCoverageService:
+    """Create KeyCoverageService instance with database session."""
+    return KeyCoverageService(db)
+
+
+KeyCoverageSvc = Annotated[KeyCoverageService, Depends(get_key_coverage_service)]
+
 from app.services.knowledge_gaps import KnowledgeGapService
 
 

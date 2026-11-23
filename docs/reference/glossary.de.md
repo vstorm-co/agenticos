@@ -1,5 +1,5 @@
 ---
-source_sha: "9c6ab12370a2"
+source_sha: "81ca00765031"
 ---
 
 # Glossar { #glossary }
@@ -92,6 +92,7 @@ nicht bricht.
 | Prüfung | Scores, die darauf warten, dass ein Mensch sie bestätigt oder ändert | `review_state` |
 | Fallgenerator | Der System-Agent, der Fälle aus einem Agent, seinem Wissen, echten Chats und Red Teaming entwirft | `kind: generator` |
 | Schlüssel-Extraktor | Der System-Agent, der die Fakten der Referenzantwort eines Falls für seine Schlüssel-Prüfung auflistet | `kind: extractor` |
+| Quellenabdeckung | Der System-Agent, der sagt, welche Schlüssel eines Datasets keine Quelle eines Agenten enthält | `kind: coverage` |
 | Vorgeschlagener Fall | Ein entworfener Fall, der unter **Generiert** wartet, bis ein Mensch ihn annimmt oder verwirft | `case_proposal` |
 | Red Teaming | Fälle, die prüfen, ob ein Agent ablehnt, was er ablehnen muss | Tag `red-team` |
 

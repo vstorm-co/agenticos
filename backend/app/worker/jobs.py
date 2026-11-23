@@ -302,6 +302,13 @@ class ExtractCaseKeys(Payload):
     organization_id: UUID
 
 
+class ReportKeyCoverage(Payload):
+    """Which of a dataset's keys an agent's sources cover, judged by the source coverage agent."""
+
+    report_id: UUID
+    organization_id: UUID
+
+
 class RunAuthoring(Payload):
     """One Improve or Verify the authoring assistant was asked for."""
 
@@ -692,6 +699,15 @@ EXTRACT_CASE_KEYS = Task(
     priority=Priority.INTERACTIVE,
     cancellable=False,
 )
+REPORT_KEY_COVERAGE = Task(
+    kind="report-key-coverage",
+    payload_type=ReportKeyCoverage,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=20),
+    priority=Priority.INTERACTIVE,
+    cancellable=False,
+)
 # One attempt, like `RUN_AGENT`: `dispatch_outbox`, not the job, holds a node's
 # position, and a second attempt of the same job could only find its claim held.
 # Re-running a node is the workflow reconciler's call, made from `node_attempts`.
@@ -1003,6 +1019,7 @@ TASKS: dict[str, TaskKind] = {
         DRAFT_TOPIC,
         GENERATE_CASES,
         EXTRACT_CASE_KEYS,
+        REPORT_KEY_COVERAGE,
         RUN_CONVERSATION_TASK,
         RETURN_CONVERSATION_TASK,
         RECONCILE_CONVERSATION_TASKS,

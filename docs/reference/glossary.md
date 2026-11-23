@@ -88,6 +88,7 @@ rename.
 | Review | Scores waiting for a person to confirm or overrule them | `review_state` |
 | Case generator | The system agent that drafts cases from an agent, its knowledge, real chats and red teaming | `kind: generator` |
 | Key extractor | The system agent that lists the facts of a case's reference answer for its keys check | `kind: extractor` |
+| Source coverage | The system agent that says which of a dataset's keys none of an agent's sources holds | `kind: coverage` |
 | Proposed case | A drafted case waiting under **Generated** until a person accepts or dismisses it | `case_proposal` |
 | Red teaming | Cases checking that an agent refuses what it must | `red-team` tag |
 

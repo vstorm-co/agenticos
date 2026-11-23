@@ -61,6 +61,7 @@ def production() -> Handlers:
         generated_media_tasks,
         improvement_tasks,
         invitation_tasks,
+        key_coverage_tasks,
         knowledge_gap_tasks,
         mcp_tasks,
         memory_tasks,
@@ -108,6 +109,7 @@ def production() -> Handlers:
             Handler(jobs.DRAFT_TOPIC, knowledge_gap_tasks.draft_knowledge_gap),
             Handler(jobs.GENERATE_CASES, case_generation_tasks.generate_cases),
             Handler(jobs.EXTRACT_CASE_KEYS, case_key_tasks.extract_case_keys),
+            Handler(jobs.REPORT_KEY_COVERAGE, key_coverage_tasks.report_key_coverage),
             Handler(jobs.EXPIRE_CASE_KEY_DRAFTS, _each_tick(case_key_tasks.expire_case_key_drafts)),
             Handler(jobs.RUN_CONVERSATION_TASK, conversation_tasks.run_task),
             Handler(jobs.RETURN_CONVERSATION_TASK, conversation_tasks.return_task),
@@ -201,6 +203,7 @@ def _settlers() -> dict[str, Settler]:
         case_key_tasks,
         conversation_tasks,
         eval_tasks,
+        key_coverage_tasks,
         project_tasks,
         rag_tasks,
     )
@@ -217,6 +220,9 @@ def _settlers() -> dict[str, Settler]:
         ),
         jobs.EXTRACT_CASE_KEYS.kind: _settler(
             jobs.EXTRACT_CASE_KEYS, case_key_tasks.settle_lost_draft
+        ),
+        jobs.REPORT_KEY_COVERAGE.kind: _settler(
+            jobs.REPORT_KEY_COVERAGE, key_coverage_tasks.settle_lost_report
         ),
         jobs.MOVE_PROJECT_WORKSPACE.kind: _settler(
             jobs.MOVE_PROJECT_WORKSPACE, project_tasks.settle_project_copies

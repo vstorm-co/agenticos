@@ -1,5 +1,5 @@
 ---
-source_sha: "9c6ab12370a2"
+source_sha: "81ca00765031"
 ---
 
 # Glosario { #glossary }
@@ -93,6 +93,7 @@ tal como se ven en pantalla.
 | Review | Puntuaciones que esperan a que una persona las confirme o las cambie | `review_state` |
 | Case generator | El agent de sistema que redacta casos a partir de un agent, su conocimiento, chats reales y red teaming | `kind: generator` |
 | Key extractor | El agent de sistema que enumera los datos de la respuesta de referencia de un caso para su comprobación de claves | `kind: extractor` |
+| Source coverage | El agent de sistema que dice qué claves de un dataset no contiene ninguna fuente de un agent | `kind: coverage` |
 | Proposed case | Un caso redactado que espera en **Generated** hasta que una persona lo acepta o lo descarta | `case_proposal` |
 | Red teaming | Casos que comprueban que un agent rechaza lo que debe rechazar | etiqueta `red-team` |
 

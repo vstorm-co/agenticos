@@ -1265,6 +1265,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "datasets-results-tab",
     permission: Perm.datasetsView,
   },
+  {
+    id: "dataset-key-coverage",
+    page: DATASET_DETAIL,
+    target: "datasets-coverage-tab",
+    activate: "datasets-results-tab",
+    permission: Perm.datasetsView,
+  },
 
   {
     id: "tables-catalog",
