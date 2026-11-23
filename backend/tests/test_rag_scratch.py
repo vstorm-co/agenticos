@@ -14,6 +14,8 @@ whatever a lost job or a deployment from before the fix left behind.
 import asyncio
 import logging
 import os
+import subprocess
+import sys
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -44,6 +46,33 @@ from app.worker.tasks import rag_tasks, teardown_tasks
 pytestmark = pytest.mark.anyio
 
 NOW = datetime(2026, 11, 4, 12, 0, tzinfo=UTC)
+
+
+def test_the_sweep_test_preserves_sessions_in_lazily_imported_workers() -> None:
+    """Cold imports must not retain the sweep test's temporary session factory."""
+    probe = """
+import asyncio
+import pytest
+from app.db.session import get_worker_db_context
+from tests.test_rag_scratch import TestTheSweep
+
+with pytest.MonkeyPatch.context() as overrides:
+    asyncio.run(TestTheSweep().test_the_worker_sweeps_hourly_on_a_session_of_its_own(overrides))
+
+from app.worker.tasks import authoring_tasks, workflow_tasks
+
+assert authoring_tasks.get_worker_db_context is get_worker_db_context
+assert workflow_tasks.get_worker_db_context is get_worker_db_context
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @pytest.fixture
@@ -248,10 +277,11 @@ class TestTheSweep:
             yield session
 
         sweep = AsyncMock(return_value=rag_scratch.ScratchSweep(removed=3, kept=1))
-        monkeypatch.setattr("app.db.session.get_worker_db_context", worker_db)
-        monkeypatch.setattr(rag_scratch, "sweep_stale", sweep)
-
-        counts = await teardown_tasks.sweep_rag_scratch()
+        # Registry loading below imports tasks that retain the session factory.
+        with monkeypatch.context() as overrides:
+            overrides.setattr("app.db.session.get_worker_db_context", worker_db)
+            overrides.setattr(rag_scratch, "sweep_stale", sweep)
+            counts = await teardown_tasks.sweep_rag_scratch()
 
         assert counts == {"removed": 3, "kept": 1}
         assert sweep.await_args.args == (session,)
