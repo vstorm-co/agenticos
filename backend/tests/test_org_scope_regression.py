@@ -115,6 +115,7 @@ TENANT_REQUIRED = [
     (dataset_repo, "for_agent"),
     (dataset_repo, "create"),
     (dataset_repo, "get_version"),
+    (dataset_repo, "get_case_revision"),
     (dataset_repo, "list_versions"),
     (dataset_repo, "create_version"),
     (dataset_repo, "list_cases"),

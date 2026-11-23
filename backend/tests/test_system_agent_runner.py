@@ -474,12 +474,14 @@ async def test_protocol_and_tool_failures_keep_their_original_cause(
 ) -> None:
     runner, execute = _runner(monkeypatch)
     cause = UnexpectedModelBehavior(message)
-    failure = RunFailedError(message="Run failed", details={"run_id": str(uuid.uuid4())})
+    run_id = uuid.uuid4()
+    failure = RunFailedError(message="Run failed", details={"run_id": str(run_id)})
     failure.__cause__ = cause
     execute.side_effect = failure
     with pytest.raises(UnexpectedModelBehavior) as raised:
         await runner.run(_ctx(), key=JUDGE.key, prompt="Grade it", output_type=Verdict)
     assert raised.value is cause
+    assert runner.failed_run_id == run_id
     system_agent_runner.agent_run_repo.set_error.assert_not_awaited()
 
 

@@ -19,9 +19,9 @@ from app.core.audit import record_audit
 from app.core.exceptions import AppException, AuthenticationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.case_key_draft import CaseKeyDraft, KeyDraftStatus
-from app.db.models.dataset import Dataset
+from app.db.models.dataset import Dataset, DatasetCase
 from app.db.session import get_worker_db_context
-from app.repositories import case_key_draft_repo
+from app.repositories import case_key_draft_repo, dataset_repo
 from app.schemas.case_key_draft import CaseKeyDraftRead, ExtractedKeys
 from app.schemas.dataset_helpers import DatasetHelpers
 from app.schemas.scoring import MAX_KEYS, DocumentKey
@@ -38,6 +38,7 @@ NO_REFERENCE = "This case has no reference answer to list keys from"
 REQUESTER_GONE = "Whoever asked for these keys is no longer a member."
 STOPPED = "Listing the keys stopped before it finished. Ask again."
 FAILED = "Listing the keys failed. Ask again."
+REFERENCE_CHANGED = "The reference answer changed since the keys were asked for. Ask again."
 
 
 def _read(draft: CaseKeyDraft) -> CaseKeyDraftRead:
@@ -129,11 +130,26 @@ class CaseKeyDraftService:
         draft = await case_key_draft_repo.get_for_case(
             self.db, organization_id=ctx.organization_id, dataset_id=dataset.id, case_id=case_id
         )
-        if draft is None:
+        if draft is None or not await self._reads_current(draft, case):
             raise NotFoundError(
                 message="This case has no drafted keys", details={"case_id": case.case_id}
             )
         return _read(draft)
+
+    async def _reads_current(self, draft: CaseKeyDraft, case: DatasetCase) -> bool:
+        """Whether the draft was listed from the reference answer the case holds now.
+
+        Any edit makes a new revision; only one that changed the reference answer
+        leaves the draft's keys describing another document.
+        """
+        if draft.revision_id == case.id:
+            return True
+        listed = await dataset_repo.get_case_revision(
+            self.db, draft.revision_id, organization_id=draft.organization_id
+        )
+        # A draft is deleted with the revision it read (`ON DELETE CASCADE`).
+        assert listed is not None
+        return (listed.reference_answer or "").strip() == (case.reference_answer or "").strip()
 
     async def dismiss(self, ctx: AuthContext, dataset_id: UUID, case_id: UUID) -> None:
         """Delete the case's draft, used or not. Deleting none is not an error.
@@ -180,8 +196,12 @@ class CaseKeyDraftService:
         if not document:
             await self._fail(draft_id, organization_id, NO_REFERENCE)
             return
+        if not await self._reads_current(draft, case):
+            await self._fail(draft_id, organization_id, REFERENCE_CHANGED)
+            return
+        runner = SystemAgentRunner(self.db)
         try:
-            result = await SystemAgentRunner(self.db).run(
+            result = await runner.run(
                 ctx,
                 key=KEY_EXTRACTOR.key,
                 model_profile_id=_model_of(dataset),
@@ -196,7 +216,7 @@ class CaseKeyDraftService:
         except Exception:
             logger.exception("case_key_draft_failed", extra={"draft_id": str(draft_id)})
             await self.db.rollback()
-            await self._fail(draft_id, organization_id, FAILED)
+            await self._fail(draft_id, organization_id, FAILED, run_id=runner.failed_run_id)
             return
         await case_key_draft_repo.finish(
             self.db,

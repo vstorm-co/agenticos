@@ -330,7 +330,7 @@ def _carries(haystack: _Haystack, value: str) -> bool:
 
 def carries(text: str, value: str) -> bool:
     """Whether `text` holds `value` as a `keys` check would find it."""
-    return _carries(_normalised(text), value)
+    return _carries(_Haystack.of(text), value)
 
 
 def _keys_check(check: KeysCheck, answer: ScoredAnswer, *, required: bool) -> ScorerResult:

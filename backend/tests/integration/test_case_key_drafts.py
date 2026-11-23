@@ -20,7 +20,7 @@ from app.core.exceptions import (
     SystemAgentUnavailableError,
 )
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentKind
 from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.background_job import BackgroundJob
@@ -40,6 +40,7 @@ from app.schemas.dataset import (
 )
 from app.schemas.scoring import MAX_KEYS, DocumentKey
 from app.services import case_key_draft as drafts_module
+from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import KEY_GONE
 from app.services.case_key_draft import (
     NO_REFERENCE,
@@ -144,10 +145,11 @@ async def _remembered(db, ctx: AuthContext) -> AgentRun:
     return run
 
 
-async def _forgotten(db, run: AgentRun) -> bool:
+async def _forgotten(db, run: AgentRun | uuid.UUID) -> bool:
+    run_id = run if isinstance(run, uuid.UUID) else run.id
     manifest = await db.scalar(
         select(RunManifest)
-        .where(RunManifest.run_id == run.id)
+        .where(RunManifest.run_id == run_id)
         .execution_options(populate_existing=True)
     )
     assert manifest is not None
@@ -178,6 +180,21 @@ async def _gone(db, how: str, ctx: AuthContext, dataset, case) -> None:
 
 
 _WAYS = ["replaced", "dismissed", "expired", "anonymised", "dataset deleted"]
+
+
+def _failed_after_starting(monkeypatch, run: AgentRun, *, gone=None) -> None:
+    """The extractor's run is recorded, then fails with a provider's own exception."""
+
+    run_id = run.id
+
+    async def failing(runner: SystemAgentRunner, ctx, **_: object) -> SystemAgentResult:
+        if gone is not None:
+            await _gone(runner.db, "dismissed", *gone)
+            await runner.db.commit()
+        runner.failed_run_id = run_id
+        raise RuntimeError("socket closed at 10.0.0.3")
+
+    monkeypatch.setattr(SystemAgentRunner, "run", failing)
 
 
 async def _started(db, ctx: AuthContext):
@@ -340,15 +357,33 @@ class TestTheJob:
     ) -> None:
         owner = await _owner(db)
         _, _, draft = await _started(db, owner)
+        run = await _remembered(db, owner)
+        run_id = run.id
         # The request committed the draft; the job's rollback must not take it with it.
         await db.commit()
-        _answer(monkeypatch, RuntimeError("socket closed at 10.0.0.3"))
+        _failed_after_starting(monkeypatch, run)
 
         await CaseKeyDraftService(db).extract(draft.id, owner.organization_id)
 
-        row = await db.get(CaseKeyDraft, draft.id)
+        row = await db.get(CaseKeyDraft, draft.id, populate_existing=True)
         assert row is not None
-        assert (row.status, row.error) == ("failed", drafts_module.FAILED)
+        assert (row.status, row.error, row.run_id) == ("failed", drafts_module.FAILED, run_id)
+        assert not await _forgotten(db, run_id)
+
+    async def test_an_unexpected_failure_of_a_draft_gone_meanwhile_forgets_its_run(
+        self, db, monkeypatch
+    ) -> None:
+        owner = await _owner(db)
+        dataset, case, draft = await _started(db, owner)
+        run = await _remembered(db, owner)
+        run_id = run.id
+        await db.commit()
+        _failed_after_starting(monkeypatch, run, gone=(owner, dataset, case))
+
+        await CaseKeyDraftService(db).extract(draft.id, owner.organization_id)
+
+        assert await db.get(CaseKeyDraft, draft.id, populate_existing=True) is None
+        assert await _forgotten(db, run_id)
 
     async def test_a_requester_who_left_fails_the_draft_without_a_run(
         self, db, monkeypatch
@@ -471,6 +506,78 @@ class TestExpiry:
 
         left = await db.execute(select(CaseKeyDraft.id).execution_options(populate_existing=True))
         assert left.scalars().all() == [drafts[2]]
+
+
+class TestRevisions:
+    async def test_a_draft_from_an_earlier_reference_answer_is_not_offered(self, db) -> None:
+        owner = await _owner(db)
+        dataset, case, _ = await _started(db, owner)
+        service, datasets = CaseKeyDraftService(db), DatasetService(db)
+
+        await datasets.update_case(owner, dataset.id, case.case_id, DatasetCaseUpdate(tags=["vat"]))
+        assert (await service.get(owner, dataset.id, case.case_id)).status == "running"
+
+        await datasets.update_case(
+            owner, dataset.id, case.case_id, DatasetCaseUpdate(reference_answer="Invoice INV-9")
+        )
+        with pytest.raises(NotFoundError):
+            await service.get(owner, dataset.id, case.case_id)
+
+    async def test_a_job_whose_reference_answer_changed_meanwhile_lists_nothing(
+        self, db, monkeypatch
+    ) -> None:
+        owner = await _owner(db)
+        dataset, case, draft = await _started(db, owner)
+        await DatasetService(db).update_case(
+            owner, dataset.id, case.case_id, DatasetCaseUpdate(reference_answer="Invoice INV-9")
+        )
+        calls = _answer(monkeypatch, RuntimeError("must not run"))
+
+        await CaseKeyDraftService(db).extract(draft.id, owner.organization_id)
+
+        row = await db.get(CaseKeyDraft, draft.id, populate_existing=True)
+        assert row is not None
+        assert (row.status, row.error, row.keys) == ("failed", drafts_module.REFERENCE_CHANGED, [])
+        calls.assert_not_awaited()
+
+
+class TestActivity:
+    async def test_an_extractor_run_reads_as_a_key_draft_of_its_dataset(self, db) -> None:
+        owner = await _owner(db)
+        dataset, _, draft = await _started(db, owner)
+        extractor = Agent(
+            organization_id=owner.organization_id,
+            slug=f"key-extractor-{uuid.uuid4().hex[:8]}",
+            name="Key extractor",
+            kind=AgentKind.EXTRACTOR.value,
+        )
+        db.add(extractor)
+        await db.flush()
+        run = AgentRun(
+            organization_id=owner.organization_id,
+            agent_id=extractor.id,
+            user_id=owner.user_id,
+            status="completed",
+            started_at=datetime.now(UTC),
+        )
+        db.add(run)
+        await db.flush()
+        await case_key_draft_repo.finish(
+            db,
+            draft.id,
+            organization_id=owner.organization_id,
+            status=KeyDraftStatus.READY,
+            finished_at=datetime.now(UTC),
+            run_id=run.id,
+        )
+
+        origins = await AgentRunnerService(db).origins(owner, [run.id])
+
+        assert origins[run.id].model_dump(exclude_none=True) == {
+            "kind": "key_drafts",
+            "agent_name": "Key extractor",
+            "dataset_id": dataset.id,
+        }
 
 
 class TestForgetting:
