@@ -19,7 +19,10 @@ export function useRoutineActions(agentId: string, triggerId: string, { enabled 
   const replace = useMutation({
     mutationFn: (actions: RoutineActionKey[]) =>
       routineActionsApi.replace(agentId, triggerId, actions, query.data?.review_token),
-    onSuccess: (data) => client.setQueryData(key, data),
+    onSuccess: (data) => {
+      client.setQueryData(key, data);
+      void client.invalidateQueries({ queryKey: qk.triggers.readiness(agentId, triggerId) });
+    },
     onError: (error) => {
       toast.error(getErrorMessage(error, t));
       void client.invalidateQueries({ queryKey: key });

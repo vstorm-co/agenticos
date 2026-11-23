@@ -114,6 +114,7 @@ from app.schemas.local_target import LocalTarget
 from app.schemas.portal import PortalPresetRead, PortalRead
 from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
 from app.schemas.routine_notifications import ROUTINE_RESULT_INSTRUCTIONS, RoutineReading
+from app.schemas.routine_readiness import TriggerReadiness
 from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceReview
 from app.services import (
     change_feed,
@@ -121,6 +122,7 @@ from app.services import (
     portal_catalog,
     portals,
     rate_limit,
+    routine_readiness,
     trigger_dedupe,
     trigger_events,
 )
@@ -615,6 +617,38 @@ class AgentTriggerService:
         )
         return TriggerAttemptList(
             items=[TriggerAttemptRead.model_validate(row) for row in rows], total=total
+        )
+
+    async def readiness(
+        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID
+    ) -> TriggerReadiness:
+        """What would stop this routine's next activation, for anyone who can see it.
+
+        Evaluated as the creator, because a fire runs as them: a viewer learns
+        that the routine is blocked and why, never the creator's sources or
+        accounts. Paused routines are evaluated too, so the console can say
+        whether resuming would work.
+        """
+        agent = await self.agents.get(ctx, agent_id)
+        trigger = await agent_trigger_repo.get(
+            self.db, trigger_id, organization_id=ctx.organization_id
+        )
+        if (
+            trigger is None
+            or trigger.agent_id != agent.id
+            or (trigger.one_shot is True and trigger.created_by_user_id != ctx.subject_id)
+        ):
+            raise NotFoundError(message="Trigger not found")
+        read = TriggerRead.model_validate(trigger)
+        await self._mark_spend([(read, trigger)])
+        return TriggerReadiness(
+            trigger_id=trigger.id,
+            blockers=await routine_readiness.blockers(
+                self.db,
+                trigger,
+                creator=await self._creator_context(trigger),
+                paused_for_budget=read.paused_for_budget,
+            ),
         )
 
     async def _record_attempt(

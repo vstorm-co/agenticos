@@ -285,6 +285,15 @@ class RoutineActionService:
 
     async def options(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineActionOptions:
         self._human(ctx, trigger)
+        return await self.review(ctx, trigger)
+
+    async def review(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineActionOptions:
+        """The routine's actions and which of them its owner's consent still covers.
+
+        `ctx` is the owner's, but not necessarily a console session: the readiness
+        check evaluates as the creator a fire would run as. Only `options`, which
+        hands the review to a person who may then consent, demands the console.
+        """
         spec, version = await self._spec(ctx, trigger)
         mcp, unavailable = await self._mcp_options(ctx, trigger, spec)
         instructions = await instruction_fingerprint(

@@ -478,8 +478,9 @@ it("shows paused setup status without granting non-owners a source-review contro
     />,
     { wrapper },
   );
-  expect(screen.getByText("Setup required")).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Setup required" })).not.toBeInTheDocument();
+  expect(screen.getByText("Its sources have not been reviewed yet.")).toBeVisible();
+  expect(screen.getByText("Only its creator can fix this.")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Review access" })).not.toBeInTheDocument();
 });
 
 it.each([true, false])(

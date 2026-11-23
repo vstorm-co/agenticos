@@ -44,6 +44,7 @@ from app.schemas.portal import (
     PortalTargetRead,
 )
 from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
+from app.schemas.routine_readiness import TriggerReadiness
 from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceReview
 from app.schemas.trigger_template import TriggerTemplateList, TriggerTemplateRead
 from app.services import trigger_templates
@@ -300,6 +301,23 @@ async def replace_routine_sources(
 ) -> Any:
     """Accept a freshly reviewed source ceiling. Only the console owner may consent."""
     return await service.set_source_consents(ctx, agent_id, trigger_id, data)
+
+
+@router.get(
+    "/{agent_id}/triggers/{trigger_id}/readiness",
+    response_model=TriggerReadiness,
+    dependencies=[PUBLIC],
+)
+async def trigger_readiness(
+    agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
+) -> Any:
+    """What would stop this routine's next activation, as bounded reason codes.
+
+    Evaluated as the routine's creator with the checks a fire makes, for a paused
+    routine as well. Readable by anyone who can see the agent; it names no source,
+    account or credential.
+    """
+    return await service.readiness(ctx, agent_id, trigger_id)
 
 
 @router.get(

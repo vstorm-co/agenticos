@@ -1467,3 +1467,45 @@ async def test_tool_search_runs_in_a_routine_without_asking(db: AsyncSession, wo
     assert not (
         await authority.action_policy(world.agent.id, world.spec, tool("search_tools", None))
     ).required
+
+
+async def test_readiness_follows_the_consent_and_source_checks_a_fire_makes(
+    db: AsyncSession, world: World
+) -> None:
+    from app.services import routine_readiness
+
+    async def codes() -> list[tuple[str, int | None]]:
+        found = await routine_readiness.blockers(
+            db, world.trigger, creator=world.ctx, paused_for_budget=False
+        )
+        return [(blocker.code, blocker.count) for blocker in found]
+
+    review = await RoutineActionService(db).review(world.ctx, world.trigger)
+    waivable = [item for item in review.items if item.waivable]
+    assert waivable
+    assert await codes() == [("actions_need_approval", len(waivable))]
+
+    await RoutineActionService(db).replace(
+        world.ctx,
+        world.trigger,
+        RoutineActions(
+            actions=[
+                RoutineActionKey(capability_id="sandbox", tool_id=i.tool_id) for i in waivable
+            ],
+            review_token=action_review(world.trigger, world.version.id),
+        ),
+    )
+    assert await codes() == []
+
+    widened = AgentSpec(name="Worker", capabilities=[{"id": "sandbox"}, {"id": "web_search"}])
+    newer = AgentVersion(
+        agent_id=world.agent.id,
+        organization_id=world.org.id,
+        version=2,
+        spec=widened.model_dump(mode="json"),
+    )
+    db.add(newer)
+    await db.flush()
+    world.agent.current_version_id = newer.id
+    await db.flush()
+    assert ("sources_review", None) in await codes()

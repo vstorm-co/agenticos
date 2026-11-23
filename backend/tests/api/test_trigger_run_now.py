@@ -143,6 +143,29 @@ async def test_attempt_history_is_typed_bounded_and_delegates_resource_access():
     assert service.attempts.await_args.kwargs == {"skip": 10, "limit": 10}
 
 
+async def test_readiness_is_typed_and_delegates_resource_access() -> None:
+    from app.schemas.routine_readiness import RoutineBlocker, TriggerReadiness
+
+    trigger_id, run_id = uuid4(), uuid4()
+    service = MagicMock(
+        readiness=AsyncMock(
+            return_value=TriggerReadiness(
+                trigger_id=trigger_id,
+                blockers=[
+                    RoutineBlocker(code="awaiting_approval", severity="blocked", run_id=run_id)
+                ],
+            )
+        )
+    )
+    async with _client(service) as client:
+        response = await client.get(f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}/readiness")
+    assert response.status_code == 200
+    assert response.json()["blockers"] == [
+        {"code": "awaiting_approval", "severity": "blocked", "run_id": str(run_id), "count": None}
+    ]
+    assert service.readiness.await_args.args[1:] == (_AGENT_ID, trigger_id)
+
+
 async def test_activation_status_delegates_the_exact_receipt() -> None:
     from app.schemas.agent_trigger import TriggerActivationRead
 

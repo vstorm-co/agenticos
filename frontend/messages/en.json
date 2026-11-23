@@ -10468,7 +10468,6 @@
     "budgetCreatorOnly": "Only the person who made this routine can raise or remove its limit while it runs as them.",
     "budgetHint": "What this routine may spend a month. Once spent it pauses and starts again on the first. It narrows the agent's and the organization's limits, never lifts them.",
     "budgetPlaceholder": "No limit of its own",
-    "pausedBudget": "Paused - budget",
     "loadingRoutine": "Loading routine…",
     "routineLoadError": "The routine could not be loaded.",
     "retryRoutine": "Try again",
@@ -10553,9 +10552,6 @@
     "resultInboxHint": "Create one Inbox case and working chat per source item. Include requested drafts there; unchanged checks stay quiet. Sending still requires the appropriate permission and approval.",
     "clearSearch": "Clear search",
     "noRoutineMatchesHint": "Try an agent name, routine title or words from its message.",
-    "setupRequired": "Setup required",
-    "setupRequiredHint": "Saved and paused. Repair the sources, review access, then enable this routine.",
-    "setupOwnerRequired": "Saved and paused. Its creator must repair and review the sources.",
     "filteredEventTitle": "Latest filtered GitHub event",
     "filteredEventHint": "The latest retained sample of verified filter rejections is shown, updated at most once a minute. It did not start a run. Payload content is not stored.",
     "filteredEventEmpty": "No filtered event has been recorded yet. This does not confirm that a webhook has arrived.",
@@ -10572,6 +10568,24 @@
       "mention": "The comment did not contain the required mention.",
       "conclusion": "The workflow conclusion did not match.",
       "not_branch": "The push deleted a branch or was not a branch push."
+    },
+    "blockers": {
+      "label": "Why this routine will not run",
+      "resumeBlocked": "Resuming will not help until this is fixed:",
+      "review": "Review access",
+      "openRuns": "Open runs",
+      "ownerOnly": "Only its creator can fix this.",
+      "creator_inactive": "Its creator is no longer an active member, so it cannot run.",
+      "creator_cannot_run": "Its creator can no longer run this agent.",
+      "agent_unavailable": "The agent has no published version this routine can run.",
+      "ended": "Its end date has passed.",
+      "sources_setup": "Its sources have not been reviewed yet.",
+      "sources_review": "The agent or its sources changed since the last review. Review them again.",
+      "platform_identity": "The platform MCP server needs this routine to act as its creator.",
+      "awaiting_approval": "{held, select, yes {A previous run is waiting for approval. No new run starts until it is decided.} other {A previous run is waiting for approval.}}",
+      "awaiting_answer": "{held, select, yes {A previous run is waiting for an answer. No new run starts until it gets one.} other {A previous run is waiting for an answer.}}",
+      "budget_exhausted": "This month's budget is spent. It runs again on the first of the month.",
+      "actions_need_approval": "{count, plural, =1 {1 action has no standing consent, so each run stops for approval.} other {# actions have no standing consent, so each run stops for approval.}}"
     }
   },
   "portals": {

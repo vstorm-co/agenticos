@@ -10348,7 +10348,6 @@
     "budgetCreatorOnly": "Nur die Person, die diese Routine angelegt hat, kann ihr Limit anheben oder entfernen, solange sie als diese Person läuft.",
     "budgetHint": "Was diese Routine pro Monat ausgeben darf. Ist es aufgebraucht, pausiert sie und startet am Ersten neu. Es verengt die Limits des Agenten und der Organisation, hebt sie nie an.",
     "budgetPlaceholder": "Kein eigenes Limit",
-    "pausedBudget": "Pausiert - Budget",
     "loadingRoutine": "Routine wird geladen…",
     "routineLoadError": "Die Routine konnte nicht geladen werden.",
     "retryRoutine": "Erneut versuchen",
@@ -10433,9 +10432,6 @@
     "resultInboxHint": "Pro Quellelement einen Inbox-Vorgang und Arbeitschat erstellen. Angeforderte Entwürfe stehen dort; unveränderte Prüfungen bleiben still. Versand benötigt weiterhin Berechtigung und Freigabe.",
     "clearSearch": "Suche löschen",
     "noRoutineMatchesHint": "Suchen Sie nach dem Agentennamen, dem Routinentitel oder Wörtern aus ihrer Nachricht.",
-    "setupRequired": "Einrichtung erforderlich",
-    "setupRequiredHint": "Gespeichert und pausiert. Quellen reparieren, Zugriff prüfen und die Routine anschließend aktivieren.",
-    "setupOwnerRequired": "Gespeichert und pausiert. Der Ersteller muss die Quellen reparieren und prüfen.",
     "filteredEventTitle": "Zuletzt gefiltertes GitHub-Ereignis",
     "filteredEventHint": "Angezeigt wird die zuletzt gespeicherte Stichprobe verifizierter Filterablehnungen, höchstens einmal pro Minute aktualisiert. Sie hat keinen Run gestartet. Payload-Inhalte werden nicht gespeichert.",
     "filteredEventEmpty": "Noch kein gefiltertes Ereignis erfasst. Dies bestätigt keinen Webhook-Eingang.",
@@ -10452,6 +10448,24 @@
       "mention": "Der Kommentar enthielt die erforderliche Erwähnung nicht.",
       "conclusion": "Das Workflow-Ergebnis passte nicht.",
       "not_branch": "Der Push löschte einen Branch oder war kein Branch-Push."
+    },
+    "blockers": {
+      "label": "Warum diese Routine nicht läuft",
+      "resumeBlocked": "Fortsetzen hilft erst, wenn das behoben ist:",
+      "review": "Zugriff prüfen",
+      "openRuns": "Runs öffnen",
+      "ownerOnly": "Nur der Ersteller kann das beheben.",
+      "creator_inactive": "Der Ersteller ist kein aktives Mitglied mehr, daher kann sie nicht laufen.",
+      "creator_cannot_run": "Der Ersteller darf diesen Agent nicht mehr ausführen.",
+      "agent_unavailable": "Der Agent hat keine veröffentlichte Version, die diese Routine ausführen kann.",
+      "ended": "Ihr Enddatum ist überschritten.",
+      "sources_setup": "Ihre Quellen wurden noch nicht geprüft.",
+      "sources_review": "Der Agent oder seine Quellen haben sich seit der letzten Prüfung geändert. Prüfen Sie sie erneut.",
+      "platform_identity": "Der MCP-Server der Plattform verlangt, dass die Routine als ihr Ersteller handelt.",
+      "awaiting_approval": "{held, select, yes {Ein vorheriger Run wartet auf Freigabe. Bis zur Entscheidung startet kein neuer Run.} other {Ein vorheriger Run wartet auf Freigabe.}}",
+      "awaiting_answer": "{held, select, yes {Ein vorheriger Run wartet auf eine Antwort. Bis dahin startet kein neuer Run.} other {Ein vorheriger Run wartet auf eine Antwort.}}",
+      "budget_exhausted": "Das Budget dieses Monats ist aufgebraucht. Sie läuft am Monatsersten wieder.",
+      "actions_need_approval": "{count, plural, =1 {1 Aktion hat keine dauerhafte Zustimmung, daher hält jeder Run zur Freigabe an.} other {# Aktionen haben keine dauerhafte Zustimmung, daher hält jeder Run zur Freigabe an.}}"
     }
   },
   "portals": {

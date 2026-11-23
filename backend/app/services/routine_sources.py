@@ -1070,6 +1070,24 @@ class RoutineSourceService:
         self, ctx: AuthContext, trigger: AgentTrigger, *, expected_id: UUID | None
     ) -> RoutineSourcePolicy:
         """Check metadata before opening a provider, preserving the admitted review."""
+        policy, refreshed = await self.current(ctx, trigger, expected_id=expected_id)
+        if refreshed:
+            trigger.approved_sources = policy.model_dump(mode="json")
+            await self.db.flush()
+        return policy
+
+    async def current(
+        self, ctx: AuthContext, trigger: AgentTrigger, *, expected_id: UUID | None
+    ) -> tuple[RoutineSourcePolicy, bool]:
+        """The admitted review as a fire would use it, and whether it was refreshed.
+
+        Writes nothing, so a read can ask whether the next fire would be admitted.
+        A following review whose accounts were reconnected or rotated within its
+        approved ceiling comes back refreshed; `require_current` stores that.
+
+        Raises:
+            RoutineSourcesRequired: The review is missing, stale or exceeded.
+        """
         policy = read_policy(trigger.approved_sources)
         if (
             policy.id != expected_id
@@ -1093,14 +1111,11 @@ class RoutineSourceService:
             # snapshot, so reconnecting or rotating an account cannot retarget it.
             excluded = {"id", "reviewed_at", "version_id", "approved_ceiling"}
             if policy.model_dump(exclude=excluded) == review.policy.model_dump(exclude=excluded):
-                return policy
-            current = review.policy.model_copy(
+                return policy, False
+            return review.policy.model_copy(
                 update={"id": policy.id, "approved_ceiling": policy.approved_ceiling}
-            )
-            trigger.approved_sources = current.model_dump(mode="json")
-            await self.db.flush()
-            return current
+            ), True
         excluded = {"id", "reviewed_at", "version_id"}
         if policy.model_dump(exclude=excluded) != review.policy.model_dump(exclude=excluded):
             raise RoutineSourcesRequired()
-        return policy
+        return policy, False
