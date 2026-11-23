@@ -3251,6 +3251,20 @@
           "cancelled": "cancelled",
           "awaiting_approval": "awaiting approval"
         },
+        "reason": {
+          "creator_inactive": "creator gone",
+          "creator_cannot_run": "creator lacks access",
+          "agent_unavailable": "no runnable version",
+          "ended": "ended",
+          "sources_setup": "needs review",
+          "sources_review": "review again",
+          "routine_changed": "review again",
+          "platform_identity": "needs the creator",
+          "awaiting_approval": "held for approval",
+          "awaiting_answer": "held for an answer",
+          "budget_exhausted": "budget spent",
+          "actions_need_approval": "stops for approval"
+        },
         "empty": {
           "title": "Nothing runs on its own yet",
           "description": "A schedule runs an agent on the clock; a trigger runs one when something arrives."
@@ -10501,6 +10515,7 @@
       "selectGroup": "Select eligible actions in {name}",
       "noMatches": "No actions match your search.",
       "reselectPrevious": "Reselect previously reviewed actions",
+      "alwaysAsk": "{count, plural, =1 {1 action always asks for approval, as its agent or connection requires. Runs that use it stop for a person whatever you choose here.} other {# actions always ask for approval, as their agent or connection requires. Runs that use them stop for a person whatever you choose here.}}",
       "tooMany": "{count} actions selected; the limit is {limit}. Deselect actions before saving.",
       "changed": {
         "version": "The published agent version changed. Review its actions again.",

@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from pydantic_ai.tools import ToolDefinition
@@ -1509,3 +1509,42 @@ async def test_readiness_follows_the_consent_and_source_checks_a_fire_makes(
     world.agent.current_version_id = newer.id
     await db.flush()
     assert ("sources_review", None) in await codes()
+
+
+async def test_bulk_readiness_reads_only_the_routines_the_caller_may_see(
+    db: AsyncSession, world: World
+) -> None:
+    from app.repositories import agent_trigger_repo
+
+    async def visible(user_id: UUID, *, shared: list[UUID]) -> set[UUID]:
+        rows = await agent_trigger_repo.list_visible_by_ids(
+            db,
+            organization_id=world.org.id,
+            user_id=user_id,
+            see_all=False,
+            shared_ids=shared,
+            trigger_ids=[world.trigger.id, uuid4()],
+        )
+        return {row.id for row in rows}
+
+    stranger = uuid4()
+    assert await visible(world.ctx.user_id, shared=[]) == {world.trigger.id}
+    # A private agent's routine is hidden until the agent is shared.
+    assert await visible(stranger, shared=[]) == set()
+    assert await visible(stranger, shared=[world.agent.id]) == {world.trigger.id}
+    # A one-shot routine stays its creator's even on a shared agent.
+    world.trigger.one_shot = True
+    await db.flush()
+    assert await visible(stranger, shared=[world.agent.id]) == set()
+    assert await visible(world.ctx.user_id, shared=[]) == {world.trigger.id}
+    assert (
+        await agent_trigger_repo.list_visible_by_ids(
+            db,
+            organization_id=world.org.id,
+            user_id=stranger,
+            see_all=True,
+            shared_ids=[],
+            trigger_ids=[],
+        )
+        == []
+    )

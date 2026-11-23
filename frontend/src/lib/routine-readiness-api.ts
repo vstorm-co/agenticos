@@ -33,11 +33,29 @@ export interface TriggerReadiness {
   blockers: RoutineBlocker[];
 }
 
+/**
+ * A previous run waiting on a person. It holds a schedule's own activations
+ * (`claim_due`), never a manual run: Run now deliberately fires past it.
+ */
+export const PARKED_CODES: ReadonlySet<RoutineBlockerCode> = new Set([
+  "awaiting_approval",
+  "awaiting_answer",
+]);
+
+/** Whether a manual run would be refused too, not only the routine's own activations. */
+export function stopsRunNow(blocker: RoutineBlocker): boolean {
+  return blocker.severity === "blocked" && !PARKED_CODES.has(blocker.code);
+}
+
+/** The server reads at most this many routines per request. */
+export const READINESS_BATCH = 100;
+
 export const routineReadinessApi = {
-  get: (agentId: string, triggerId: string) =>
-    apiClient.get<TriggerReadiness>(
-      `/agents/${encodeURIComponent(agentId)}/triggers/${encodeURIComponent(triggerId)}/readiness`,
-    ),
+  /** One answer per routine the caller can see; the rest are left out, not refused. */
+  list: (triggerIds: string[]) =>
+    apiClient.post<{ items: TriggerReadiness[] }>("/triggers/readiness", {
+      trigger_ids: triggerIds,
+    }),
 };
 
 /** The blockers a listing already proves, shown until the readiness check answers. */

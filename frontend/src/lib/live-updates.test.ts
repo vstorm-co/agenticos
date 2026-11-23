@@ -40,6 +40,7 @@ describe("staleQueries", () => {
       qk.outcomes.all(),
       qk.projects.all(),
       qk.stats.attentionAll(),
+      qk.triggers.readinessAll(),
     ]);
     expect(staleQueries(change("eval_suite"))).toEqual([
       qk.evalSuites.all(),
@@ -70,6 +71,7 @@ describe("staleQueries", () => {
       qk.sharing.all(),
       qk.environments.all(),
       qk.runs.assistantSignals(ORG),
+      qk.triggers.readinessAll(),
     ]);
     expect(staleQueries(change("skill"))).toEqual([qk.skills.all(), qk.sharing.all()]);
     expect(staleQueries(change("context"))).toEqual([qk.context.all(), qk.sharing.all()]);
@@ -110,9 +112,21 @@ describe("staleQueries", () => {
       qk.organizations.members(ORG),
       qk.organizations.groups(ORG),
       qk.organizations.permissions(ORG),
+      qk.triggers.readinessAll(),
     ]);
     expect(staleQueries(change("invitation"))).toEqual([qk.invitations.list(ORG)]);
-    expect(staleQueries(change("group"))).toEqual([qk.organizations.groups(ORG), qk.sharing.all()]);
+    expect(staleQueries(change("group"))).toEqual([
+      qk.organizations.groups(ORG),
+      qk.sharing.all(),
+      qk.triggers.readinessAll(),
+    ]);
+  });
+
+  it("refreshes routine readiness without refetching the routine listings", () => {
+    // Under `triggers`, so a trigger write reaches it; its own prefix keeps a run
+    // event from refetching every listing beside it.
+    expect(qk.triggers.readinessAll().slice(0, 1)).toEqual(qk.triggers.all());
+    expect(qk.triggers.readiness(["t1"]).slice(0, 2)).toEqual(qk.triggers.readinessAll());
   });
 });
 

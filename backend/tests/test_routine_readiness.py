@@ -8,6 +8,7 @@ import pytest
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.schemas.routine_readiness import RoutineBlocker
 from app.schemas.routine_sources import RoutineSourcePolicy
 from app.services import routine_readiness
 from app.services.agent_trigger import AgentTriggerService
@@ -276,62 +277,68 @@ async def test_a_stale_following_review_asks_for_the_review_and_counts_no_consen
     engine.actions.review.assert_not_awaited()
 
 
-def _service() -> AgentTriggerService:
-    service = AgentTriggerService(MagicMock())
-    service.agents = MagicMock(get=AsyncMock(return_value=MagicMock(id=uuid.uuid4())))
-    return service
+def _row(**overrides: object) -> MagicMock:
+    return MagicMock(**{"id": uuid.uuid4(), "created_by_user_id": _CREATOR, **overrides})
 
 
-async def test_the_service_evaluates_as_the_creator_with_this_months_spend(
+async def test_the_service_evaluates_each_visible_routine_as_its_creator(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.services import agent_trigger
 
-    service = _service()
-    agent_id = service.agents.get.return_value.id
-    trigger = MagicMock(
-        id=uuid.uuid4(), agent_id=agent_id, one_shot=False, created_by_user_id=_CREATOR
-    )
-    repo = MagicMock(get=AsyncMock(return_value=trigger))
+    service = AgentTriggerService(MagicMock())
+    first, second = _row(), _row()
+    other = _row(created_by_user_id=uuid.uuid4())
+    shared = uuid.uuid4()
+    repo = MagicMock(list_visible_by_ids=AsyncMock(return_value=[first, second, other]))
     monkeypatch.setattr(agent_trigger, "agent_trigger_repo", repo)
+    monkeypatch.setattr(agent_trigger, "visible_resource_ids", AsyncMock(return_value=[shared]))
     monkeypatch.setattr(agent_trigger.TriggerRead, "model_validate", lambda row: MagicMock())
 
     async def spent(reads: list[tuple[MagicMock, MagicMock]]) -> None:
-        reads[0][0].paused_for_budget = True
+        for read, row in reads:
+            read.paused_for_budget = row is second
 
     monkeypatch.setattr(service, "_mark_spend", spent)
-    monkeypatch.setattr(service, "_creator_context", AsyncMock(return_value=_CREATOR_CTX))
-    evaluate = AsyncMock(return_value=[])
+    creator = AsyncMock(side_effect=[_CREATOR_CTX, None])
+    monkeypatch.setattr(service, "_creator_context", creator)
+    evaluate = AsyncMock(side_effect=[[], [RoutineBlocker(code="ended", severity="blocked")], []])
     monkeypatch.setattr(agent_trigger.routine_readiness, "blockers", evaluate)
     caller = AuthContext(user_id=uuid.uuid4(), organization_id=_ORG, role=OrgRoleName.VIEWER)
+    asked = [first.id, second.id, other.id, uuid.uuid4()]
 
-    result = await service.readiness(caller, agent_id, trigger.id)
+    result = await service.readiness(caller, asked)
 
-    assert result.trigger_id == trigger.id
-    assert result.blockers == []
-    service.agents.get.assert_awaited_once_with(caller, agent_id)
-    assert evaluate.await_args.kwargs == {"creator": _CREATOR_CTX, "paused_for_budget": True}
+    assert [item.trigger_id for item in result] == [first.id, second.id, other.id]
+    assert [len(item.blockers) for item in result] == [0, 1, 0]
+    assert repo.list_visible_by_ids.await_args.kwargs == {
+        "organization_id": _ORG,
+        "user_id": caller.user_id,
+        "see_all": False,
+        "shared_ids": [shared],
+        "trigger_ids": asked,
+    }
+    # One membership read per creator, not per routine.
+    assert creator.await_count == 2
+    assert [call.kwargs for call in evaluate.await_args_list] == [
+        {"creator": _CREATOR_CTX, "paused_for_budget": False},
+        {"creator": _CREATOR_CTX, "paused_for_budget": True},
+        {"creator": None, "paused_for_budget": False},
+    ]
 
 
-@pytest.mark.parametrize(
-    "found",
-    [
-        None,
-        {"agent_id": uuid.uuid4(), "one_shot": False},
-        {"one_shot": True, "created_by_user_id": uuid.uuid4()},
-    ],
-)
-async def test_a_routine_the_caller_cannot_see_is_not_found(
-    monkeypatch: pytest.MonkeyPatch, found: dict[str, object] | None
+async def test_a_role_that_sees_every_agent_reads_without_a_grant_list(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.services import agent_trigger
 
-    service = _service()
-    agent_id = service.agents.get.return_value.id
-    row = None if found is None else MagicMock(**{"agent_id": agent_id, **found})
-    monkeypatch.setattr(
-        agent_trigger, "agent_trigger_repo", MagicMock(get=AsyncMock(return_value=row))
-    )
-    caller = AuthContext(user_id=uuid.uuid4(), organization_id=_ORG, role=OrgRoleName.VIEWER)
-    with pytest.raises(NotFoundError):
-        await service.readiness(caller, agent_id, uuid.uuid4())
+    service = AgentTriggerService(MagicMock())
+    repo = MagicMock(list_visible_by_ids=AsyncMock(return_value=[]))
+    monkeypatch.setattr(agent_trigger, "agent_trigger_repo", repo)
+    monkeypatch.setattr(agent_trigger, "visible_resource_ids", AsyncMock(return_value=None))
+    monkeypatch.setattr(service, "_mark_spend", AsyncMock())
+    caller = AuthContext(user_id=uuid.uuid4(), organization_id=_ORG, role=OrgRoleName.OWNER)
+
+    assert await service.readiness(caller, [uuid.uuid4()]) == []
+    assert repo.list_visible_by_ids.await_args.kwargs["see_all"] is True
+    assert repo.list_visible_by_ids.await_args.kwargs["shared_ids"] == []

@@ -21,6 +21,8 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
     qk.sharing.all(),
     qk.environments.all(),
     qk.runs.assistantSignals(orgId),
+    // A new version can stale a routine's source review or its consents.
+    qk.triggers.readinessAll(),
   ],
   skill: () => [qk.skills.all(), qk.sharing.all()],
   context: () => [qk.context.all(), qk.sharing.all()],
@@ -33,10 +35,12 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
     qk.organizations.groups(orgId),
     // A role changed may be the reader's own.
     qk.organizations.permissions(orgId),
+    // Or a routine creator's, who may no longer run its agent.
+    qk.triggers.readinessAll(),
   ],
   invitation: (orgId) => [qk.invitations.list(orgId)],
   // A group's members and shares are who reaches what it was shared.
-  group: (orgId) => [qk.organizations.groups(orgId), qk.sharing.all()],
+  group: (orgId) => [qk.organizations.groups(orgId), qk.sharing.all(), qk.triggers.readinessAll()],
   // The organization's settings, the AI Architect's among them.
   organization: (orgId) => [qk.organizations.all(), qk.assistant(orgId)],
   trigger: () => [qk.triggers.all()],
@@ -62,6 +66,8 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
     qk.outcomes.all(),
     qk.projects.all(),
     qk.stats.attentionAll(),
+    // A parked run decided, or a month's spend moved.
+    qk.triggers.readinessAll(),
   ],
   conversation: () => [qk.conversations.all(), qk.projects.all()],
   // A suite's result names the eval run behind it, so the runs move with it.

@@ -1,5 +1,5 @@
 ---
-source_sha: "9c8256f7ca69"
+source_sha: "a0e84fc549d8"
 ---
 
 # Governance { #governance }
@@ -111,7 +111,9 @@ Der Routinenverlauf zeigt auch blockierte oder fehlgeschlagene Versuche vor dem 
 
 Die Routinenliste zeigt außerdem schon vor der nächsten Aktivierung, ob sie laufen würde. Jede Routine stellt die Prüfungen, die ein Auslösen macht, im Namen ihres Erstellers und ohne Nebenwirkungen: die aktive Mitgliedschaft des Erstellers und seine Ausführungsberechtigung für den Agent, eine ausführbare Version, die Quellenprüfung, das Enddatum, das Monatsbudget, einen vorherigen Run, der auf Freigabe oder eine Antwort wartet, und Aktionen ohne dauerhafte Zustimmung.
 
-Eine Routine, die keinen Run starten würde, ist rot umrandet; eine, deren Runs zur Freigabe anhalten würden, ist bernsteinfarben; eine pausierte Routine ist ausgegraut und zeigt weiterhin, woran das Fortsetzen scheitern würde. Jede Zeile nennt den Grund, und der Ersteller erhält die Schaltfläche, die ihn behebt. `GET /agents/{agent_id}/triggers/{trigger_id}/readiness` liefert dieselben Gründe als begrenzte Codes an alle, die den Agent sehen dürfen, ohne Quellen, Konten oder Zugangsdaten zu nennen. Prüfungen, die erst ein Anbieter zur Laufzeit beantworten kann, werden nicht vorhergesagt; ihre Ablehnungen bleiben im oben beschriebenen Verlauf.
+Eine Routine, die keinen Run starten würde, ist rot umrandet; eine, deren Runs zur Freigabe anhalten würden, ist bernsteinfarben; eine pausierte Routine ist ausgegraut und zeigt weiterhin, woran das Fortsetzen scheitern würde. Jede Zeile nennt den Grund, und der Ersteller erhält die Schaltfläche, die ihn behebt.
+
+Die Dashboard-Karte Routines stellt eine Routine, die nicht laufen würde, an den Anfang und nennt den Grund in ihrem Status. `POST /triggers/readiness` liefert dieselben Gründe als begrenzte Codes für bis zu 100 Routinen auf einmal, lässt Routinen aus, die der Aufrufer nicht sehen darf, und nennt keine Quellen, Konten oder Zugangsdaten. Prüfungen, die erst ein Anbieter zur Laufzeit beantworten kann, werden nicht vorhergesagt; ihre Ablehnungen bleiben im oben beschriebenen Verlauf.
 
 ## Budgets { #budgets }
 

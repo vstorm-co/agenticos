@@ -3251,6 +3251,20 @@
           "cancelled": "abgebrochen",
           "awaiting_approval": "wartet auf Freigabe"
         },
+        "reason": {
+          "creator_inactive": "Ersteller fehlt",
+          "creator_cannot_run": "Ersteller ohne Zugriff",
+          "agent_unavailable": "keine ausführbare Version",
+          "ended": "beendet",
+          "sources_setup": "Prüfung nötig",
+          "sources_review": "erneut prüfen",
+          "routine_changed": "erneut prüfen",
+          "platform_identity": "braucht den Ersteller",
+          "awaiting_approval": "wartet auf Freigabe",
+          "awaiting_answer": "wartet auf Antwort",
+          "budget_exhausted": "Budget aufgebraucht",
+          "actions_need_approval": "hält zur Freigabe an"
+        },
         "empty": {
           "title": "Noch läuft nichts von allein",
           "description": "Ein Zeitplan führt einen Agent nach der Uhr aus; ein Trigger führt einen aus, wenn etwas eintrifft."
@@ -10381,6 +10395,7 @@
       "selectGroup": "Zulässige Aktionen in {name} auswählen",
       "noMatches": "Keine Aktionen entsprechen der Suche.",
       "reselectPrevious": "Zuvor geprüfte Aktionen erneut auswählen",
+      "alwaysAsk": "{count, plural, =1 {1 Aktion fragt immer nach Freigabe, weil ihr Agent oder ihre Verbindung es verlangt. Runs, die sie nutzen, halten für eine Person an, egal was Sie hier wählen.} other {# Aktionen fragen immer nach Freigabe, weil ihr Agent oder ihre Verbindung es verlangt. Runs, die sie nutzen, halten für eine Person an, egal was Sie hier wählen.}}",
       "tooMany": "{count} Aktionen ausgewählt; die Grenze ist {limit}. Wähle vor dem Speichern Aktionen ab.",
       "changed": {
         "version": "Die veröffentlichte Agent-Version hat sich geändert. Prüfe ihre Aktionen erneut.",

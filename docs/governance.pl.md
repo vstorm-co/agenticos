@@ -1,5 +1,5 @@
 ---
-source_sha: "9c8256f7ca69"
+source_sha: "a0e84fc549d8"
 ---
 
 # Governance { #governance }
@@ -106,7 +106,9 @@ Historia procedury pokazuje też zablokowane i nieudane próby zakończone przed
 
 Lista procedur mówi też, jeszcze przed kolejnym uruchomieniem, czy procedura się uruchomi. Każda procedura pyta te same mechanizmy sprawdzające co uruchomienie, ocenione w imieniu jej twórcy i bez skutków ubocznych: aktywne członkostwo twórcy i jego uprawnienie do uruchamiania agenta, wersję możliwą do uruchomienia, przegląd źródeł, datę zakończenia, miesięczny budżet, poprzedni run czekający na zatwierdzenie lub odpowiedź oraz akcje bez stałej zgody.
 
-Procedura, która nie uruchomi runu, ma czerwoną ramkę; taka, której runy zatrzymają się na zatwierdzeniu, jest oznaczona na bursztynowo; wstrzymana procedura jest wyszarzona i nadal mówi, na co trafiłoby wznowienie. Każda linia podaje powód, a twórca dostaje przycisk, który go naprawia. `GET /agents/{agent_id}/triggers/{trigger_id}/readiness` zwraca te same powody jako ograniczone kody każdemu, kto widzi agenta, bez nazw źródeł, kont i poświadczeń. Mechanizmy, na które odpowiada dopiero dostawca w czasie runu, nie są przewidywane; ich odmowy zostają w historii opisanej wyżej.
+Procedura, która nie uruchomi runu, ma czerwoną ramkę; taka, której runy zatrzymają się na zatwierdzeniu, jest oznaczona na bursztynowo; wstrzymana procedura jest wyszarzona i nadal mówi, na co trafiłoby wznowienie. Każda linia podaje powód, a twórca dostaje przycisk, który go naprawia.
+
+Karta Routines na pulpicie pokazuje procedurę, która się nie uruchomi, na samej górze i podaje powód w jej etykiecie. `POST /triggers/readiness` zwraca te same powody jako ograniczone kody dla maksymalnie 100 procedur naraz, pomija te, których wywołujący nie widzi, i nie podaje nazw źródeł, kont ani poświadczeń. Mechanizmy, na które odpowiada dopiero dostawca w czasie runu, nie są przewidywane; ich odmowy zostają w historii opisanej wyżej.
 
 ## Budżety { #budgets }
 

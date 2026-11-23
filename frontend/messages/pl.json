@@ -5305,6 +5305,20 @@
           "cancelled": "anulowana",
           "awaiting_approval": "czeka na zatwierdzenie"
         },
+        "reason": {
+          "creator_inactive": "brak twórcy",
+          "creator_cannot_run": "twórca bez dostępu",
+          "agent_unavailable": "brak wersji do uruchomienia",
+          "ended": "zakończona",
+          "sources_setup": "do przeglądu",
+          "sources_review": "do ponownego przeglądu",
+          "routine_changed": "do ponownego przeglądu",
+          "platform_identity": "wymaga twórcy",
+          "awaiting_approval": "czeka na akceptację",
+          "awaiting_answer": "czeka na odpowiedź",
+          "budget_exhausted": "budżet wyczerpany",
+          "actions_need_approval": "zatrzyma się na akceptacji"
+        },
         "empty": {
           "title": "Nic jeszcze nie działa samo",
           "description": "Harmonogram uruchamia agenta według zegara; wyzwalacz - gdy coś nadejdzie."
@@ -9181,6 +9195,7 @@
       "selectGroup": "Zaznacz dozwolone akcje w {name}",
       "noMatches": "Brak akcji pasujących do wyszukiwania.",
       "reselectPrevious": "Zaznacz ponownie wcześniej sprawdzone akcje",
+      "alwaysAsk": "{count, plural, one {1 akcja zawsze wymaga akceptacji, bo tak ustawiono w agencie lub połączeniu. Runy, które jej użyją, zatrzymają się na człowieku niezależnie od wyboru tutaj.} few {# akcje zawsze wymagają akceptacji, bo tak ustawiono w agencie lub połączeniu. Runy, które ich użyją, zatrzymają się na człowieku niezależnie od wyboru tutaj.} other {# akcji zawsze wymaga akceptacji, bo tak ustawiono w agencie lub połączeniu. Runy, które ich użyją, zatrzymają się na człowieku niezależnie od wyboru tutaj.}}",
       "tooMany": "Zaznaczono {count} akcji; limit to {limit}. Odznacz akcje przed zapisaniem.",
       "changed": {
         "version": "Zmieniła się opublikowana wersja agenta. Sprawdź ponownie jej akcje.",

@@ -143,27 +143,47 @@ async def test_attempt_history_is_typed_bounded_and_delegates_resource_access():
     assert service.attempts.await_args.kwargs == {"skip": 10, "limit": 10}
 
 
-async def test_readiness_is_typed_and_delegates_resource_access() -> None:
+async def test_readiness_reads_every_routine_of_a_screen_at_once() -> None:
     from app.schemas.routine_readiness import RoutineBlocker, TriggerReadiness
 
     trigger_id, run_id = uuid4(), uuid4()
     service = MagicMock(
         readiness=AsyncMock(
-            return_value=TriggerReadiness(
-                trigger_id=trigger_id,
-                blockers=[
-                    RoutineBlocker(code="awaiting_approval", severity="blocked", run_id=run_id)
-                ],
-            )
+            return_value=[
+                TriggerReadiness(
+                    trigger_id=trigger_id,
+                    blockers=[
+                        RoutineBlocker(code="awaiting_approval", severity="blocked", run_id=run_id)
+                    ],
+                )
+            ]
         )
     )
     async with _client(service) as client:
-        response = await client.get(f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}/readiness")
+        response = await client.post(
+            "/api/v1/triggers/readiness", json={"trigger_ids": [str(trigger_id)]}
+        )
+        empty = await client.post("/api/v1/triggers/readiness", json={"trigger_ids": []})
+        too_many = await client.post(
+            "/api/v1/triggers/readiness", json={"trigger_ids": [str(uuid4()) for _ in range(101)]}
+        )
     assert response.status_code == 200
-    assert response.json()["blockers"] == [
-        {"code": "awaiting_approval", "severity": "blocked", "run_id": str(run_id), "count": None}
+    assert response.json()["items"] == [
+        {
+            "trigger_id": str(trigger_id),
+            "blockers": [
+                {
+                    "code": "awaiting_approval",
+                    "severity": "blocked",
+                    "run_id": str(run_id),
+                    "count": None,
+                }
+            ],
+        }
     ]
-    assert service.readiness.await_args.args[1:] == (_AGENT_ID, trigger_id)
+    assert service.readiness.await_args.args[1] == [trigger_id]
+    assert (empty.status_code, too_many.status_code) == (422, 422)
+    service.readiness.assert_awaited_once()
 
 
 async def test_activation_status_delegates_the_exact_receipt() -> None:

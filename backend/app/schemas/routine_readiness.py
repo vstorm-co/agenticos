@@ -47,3 +47,17 @@ class TriggerReadiness(BaseSchema):
 
     trigger_id: UUID
     blockers: list[RoutineBlocker] = Field(default_factory=list)
+
+
+class TriggerReadinessRequest(BaseSchema):
+    trigger_ids: list[UUID] = Field(
+        min_length=1,
+        max_length=100,
+        description="The routines a screen shows, at most 100 per request.",
+    )
+
+
+class TriggerReadinessList(BaseSchema):
+    """One answer per requested routine the caller can see; the rest are left out."""
+
+    items: list[TriggerReadiness]

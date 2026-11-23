@@ -7,6 +7,7 @@ import messages from "../../../../messages/en.json";
 import { TooltipProvider } from "@/components/ui";
 import { RoutinesWidget } from "./routines";
 import type { Period } from "@/lib/dashboard/period";
+import type { RoutineBlocker } from "@/lib/routine-readiness-api";
 import type { AgentRun } from "@/types/runs";
 import type { Trigger } from "@/types/triggers";
 
@@ -21,9 +22,17 @@ import type { Trigger } from "@/types/triggers";
 const useOrgTriggersMock = vi.fn();
 const useRunsMock = vi.fn();
 const canMock = vi.fn();
+const readinessMock = vi.fn();
+let blockersById: Record<string, RoutineBlocker[]> = {};
 
 vi.mock("@/hooks/use-org-triggers", () => ({
   useOrgTriggers: () => useOrgTriggersMock(),
+}));
+vi.mock("@/hooks/use-routine-readiness", () => ({
+  useRoutinesReadiness: (triggers: Trigger[]) => {
+    readinessMock(triggers.map((trigger) => trigger.id));
+    return (trigger: Trigger) => blockersById[trigger.id] ?? [];
+  },
 }));
 vi.mock("@/hooks", () => ({
   useRuns: (...args: unknown[]) => useRunsMock(...args),
@@ -106,6 +115,47 @@ beforeEach(() => {
   useRunsMock.mockReset();
   canMock.mockReset();
   canMock.mockReturnValue(true);
+  readinessMock.mockReset();
+  blockersById = {};
+});
+
+function reason(code: RoutineBlocker["code"], severity: RoutineBlocker["severity"]) {
+  return { code, severity, run_id: null, count: null };
+}
+
+describe("whether the next activation would run", () => {
+  it("puts a routine that will not run first and says why", () => {
+    blockersById = { "t-2": [reason("sources_review", "blocked")] };
+    renderWidget([
+      trigger({ id: "t-1", name: "Soonest", next_fire_at: "2026-08-21T09:00:00Z" }),
+      trigger({ id: "t-2", name: "Stale", next_fire_at: "2026-08-22T09:00:00Z" }),
+    ]);
+
+    const labels = screen.getAllByText(/Soonest|Stale/).map((node) => node.textContent);
+    expect(labels).toEqual(["Stale", "Soonest"]);
+    expect(screen.getByText("review again")).toBeVisible();
+  });
+
+  it("says a run will stop for approval only when the last one went fine", () => {
+    blockersById = {
+      "t-1": [reason("actions_need_approval", "attention")],
+      "t-2": [reason("actions_need_approval", "attention")],
+    };
+    renderWidget(
+      [trigger({ id: "t-1", last_run_id: "r-1" }), trigger({ id: "t-2", last_run_id: "r-2" })],
+      [run({ id: "r-1" }), run({ id: "r-2", status: "failed" })],
+    );
+
+    expect(screen.getByText("stops for approval")).toBeVisible();
+    expect(screen.getByText("failed")).toBeVisible();
+  });
+
+  it("reads only the live routines: a paused one already says it will not run", () => {
+    renderWidget([trigger({ id: "t-1" }), trigger({ id: "t-2", is_active: false })]);
+
+    expect(readinessMock).toHaveBeenLastCalledWith(["t-1"]);
+    expect(screen.getByText("paused")).toBeVisible();
+  });
 });
 
 describe("the routines widget", () => {

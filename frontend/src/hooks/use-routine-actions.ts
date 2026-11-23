@@ -21,7 +21,7 @@ export function useRoutineActions(agentId: string, triggerId: string, { enabled 
       routineActionsApi.replace(agentId, triggerId, actions, query.data?.review_token),
     onSuccess: (data) => {
       client.setQueryData(key, data);
-      void client.invalidateQueries({ queryKey: qk.triggers.readiness(agentId, triggerId) });
+      void client.invalidateQueries({ queryKey: qk.triggers.readinessAll() });
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, t));

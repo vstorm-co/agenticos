@@ -163,6 +163,12 @@ export function ActionConsentsDialog({
                 {!data.items.some((item) => item.waivable) && (
                   <p className="text-muted-foreground text-sm">{t("empty")}</p>
                 )}
+                {/* Listed nowhere below: nothing chosen here changes them. */}
+                {data.items.some((item) => !item.waivable) && (
+                  <p className="text-muted-foreground text-sm">
+                    {t("alwaysAsk", { count: data.items.filter((item) => !item.waivable).length })}
+                  </p>
+                )}
                 {data.review_changes?.map((change) => (
                   <p key={change} role="status" className="text-sm">
                     {t(`changed.${change}`)}

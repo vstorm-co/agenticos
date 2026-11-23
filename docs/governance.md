@@ -99,7 +99,9 @@ Routine history also lists blocked or failed attempts that ended before an agent
 
 The routine list also says, before the next activation, whether it would run. Each routine asks the checks a fire makes, evaluated as its creator and without side effects: the creator's active membership and run grant on the agent, a runnable version, the source review, the end date, the monthly budget, a previous run parked on an approval or an answer, and the actions that lack standing consent.
 
-A routine that would not start a run is outlined red; one whose runs would stop for approval is amber; a paused routine is greyed out and still says what resuming would meet. Each line names the reason, and its creator gets the control that fixes it. `GET /agents/{agent_id}/triggers/{trigger_id}/readiness` returns the same reasons as bounded codes to anyone who can see the agent, without naming a source, account or credential. Checks that only a provider can answer at run time are not predicted; their refusals stay in the history above.
+A routine that would not start a run is outlined red; one whose runs would stop for approval is amber; a paused routine is greyed out and still says what resuming would meet. Each line names the reason, and its creator gets the control that fixes it.
+
+The Routines dashboard card puts a routine that would not run first and names the reason in its pill. `POST /triggers/readiness` returns the same reasons as bounded codes for up to 100 routines at once, leaving out any the caller cannot see, without naming a source, account or credential. Checks that only a provider can answer at run time are not predicted; their refusals stay in the history above.
 
 ## Budgets
 

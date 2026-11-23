@@ -1,5 +1,5 @@
 ---
-source_sha: "9c8256f7ca69"
+source_sha: "a0e84fc549d8"
 ---
 
 # Governance { #governance }
@@ -109,7 +109,9 @@ El historial de la rutina también muestra intentos bloqueados o fallidos anteri
 
 La lista de rutinas indica además, antes de la siguiente activación, si se ejecutaría. Cada rutina consulta las mismas comprobaciones que hace un disparo, evaluadas como su creador y sin efectos secundarios: la membresía activa del creador y su permiso para ejecutar el agent, una versión ejecutable, la revisión de fuentes, la fecha de fin, el budget mensual, un run anterior en espera de aprobación o de respuesta, y las acciones sin consentimiento permanente.
 
-Una rutina que no iniciaría un run aparece con borde rojo; una cuyos runs se detendrían para aprobación, en ámbar; una rutina en pausa aparece atenuada y sigue indicando qué encontraría al reanudarla. Cada línea nombra el motivo, y su creador recibe el control que lo soluciona. `GET /agents/{agent_id}/triggers/{trigger_id}/readiness` devuelve los mismos motivos como códigos acotados a cualquiera que pueda ver el agent, sin nombrar fuentes, cuentas ni credenciales. Las comprobaciones que solo un proveedor puede responder durante el run no se predicen; sus rechazos quedan en el historial descrito arriba.
+Una rutina que no iniciaría un run aparece con borde rojo; una cuyos runs se detendrían para aprobación, en ámbar; una rutina en pausa aparece atenuada y sigue indicando qué encontraría al reanudarla. Cada línea nombra el motivo, y su creador recibe el control que lo soluciona.
+
+La tarjeta Routines del panel coloca primero una rutina que no se ejecutaría y nombra el motivo en su estado. `POST /triggers/readiness` devuelve los mismos motivos como códigos acotados para hasta 100 rutinas a la vez, omite las que quien llama no puede ver y no nombra fuentes, cuentas ni credenciales. Las comprobaciones que solo un proveedor puede responder durante el run no se predicen; sus rechazos quedan en el historial descrito arriba.
 
 ## Budgets { #budgets }
 

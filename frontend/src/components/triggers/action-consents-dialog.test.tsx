@@ -265,6 +265,15 @@ describe("routine action consent", () => {
       screen.queryByRole("button", { name: "Use the agent's settings" }),
     ).not.toBeInTheDocument();
   });
+  it("says which actions always ask, since nothing chosen here changes them", () => {
+    render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+    expect(
+      screen.getByText(
+        "1 action always asks for approval, as its agent or connection requires. Runs that use it stop for a person whatever you choose here.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByRole("checkbox", { name: "publish" })).not.toBeInTheDocument();
+  });
   it("distinguishes an empty review from a failed connection check", () => {
     state.data.items = [];
     render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);

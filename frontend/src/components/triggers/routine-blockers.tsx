@@ -4,7 +4,11 @@ import { AlertTriangle, Hourglass } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
-import type { RoutineBlocker, RoutineBlockerCode } from "@/lib/routine-readiness-api";
+import {
+  PARKED_CODES,
+  type RoutineBlocker,
+  type RoutineBlockerCode,
+} from "@/lib/routine-readiness-api";
 import { cn } from "@/lib/utils";
 
 /** Fixed in the routine's own access review, which only its creator may open. */
@@ -15,7 +19,6 @@ const REVIEWED = new Set<RoutineBlockerCode>([
   "platform_identity",
   "actions_need_approval",
 ]);
-const PARKED = new Set<RoutineBlockerCode>(["awaiting_approval", "awaiting_answer"]);
 
 /**
  * Why the next activation will not run, or will stop on a person - one line each,
@@ -68,7 +71,7 @@ export function RoutineBlockers({
               ) : (
                 <span className="text-muted-foreground">{t("ownerOnly")}</span>
               ))}
-            {PARKED.has(blocker.code) && (
+            {PARKED_CODES.has(blocker.code) && (
               <Button variant="outline" size="sm" className="h-7" onClick={onOpenRuns}>
                 {t("openRuns")}
               </Button>

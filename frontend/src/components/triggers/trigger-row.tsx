@@ -16,8 +16,8 @@ import { Badge, Button, ConfirmDialog, TooltipProvider } from "@/components/ui";
 import { ActionConsentsDialog } from "@/components/triggers/action-consents-dialog";
 import { RoutineBlockers } from "@/components/triggers/routine-blockers";
 import { useAuthStore } from "@/stores";
-import { useRoutineReadiness } from "@/hooks/use-routine-readiness";
 import { useTriggers } from "@/hooks/use-triggers";
+import { listedBlockers, stopsRunNow, type RoutineBlocker } from "@/lib/routine-readiness-api";
 import { cn } from "@/lib/utils";
 import type { Trigger } from "@/types/triggers";
 
@@ -49,6 +49,11 @@ interface TriggerRowProps {
    * panel does not, because the agent is the page.
    */
   showAgent?: boolean;
+  /**
+   * Why its next activation would not run, from the list's one readiness read
+   * (`useRoutinesReadiness`). Without it, only what the listing itself proves.
+   */
+  blockers?: RoutineBlocker[];
 }
 
 /**
@@ -63,7 +68,7 @@ interface TriggerRowProps {
  * server, so a Viewer holding an explicit run grant on one agent manages that
  * agent's triggers here without a role-level check hiding them first.
  */
-export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
+export function TriggerRow({ trigger, showAgent = false, blockers: read }: TriggerRowProps) {
   const t = useTranslations("triggers");
   const me = useAuthStore((state) => state.user?.id);
   const [consenting, setConsenting] = useState(false);
@@ -76,11 +81,15 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [viewing, setViewing] = useState(false);
-  const blockers = useRoutineReadiness(trigger);
+  const blockers = read ?? listedBlockers(trigger);
   const blocked = blockers.some((blocker) => blocker.severity === "blocked");
   const isOwner = me != null && me === trigger.created_by_user_id && !impersonating;
+  // A parked previous run holds the schedule, not a manual run, so Run now stays.
   const runDisabled =
-    !trigger.is_active || blocked || runNow.isPending || (trigger.waiting_device_count ?? 0) > 0;
+    !trigger.is_active ||
+    blockers.some(stopsRunNow) ||
+    runNow.isPending ||
+    (trigger.waiting_device_count ?? 0) > 0;
   // Compare history identities rather than clocks from the browser and worker.
   const [activationId, setActivationId] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);

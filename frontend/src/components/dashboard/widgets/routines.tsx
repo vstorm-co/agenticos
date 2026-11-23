@@ -11,6 +11,8 @@ import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-stat
 import type { DashboardWidgetProps } from "./types";
 import { usePermissions, useRuns } from "@/hooks";
 import { useOrgTriggers } from "@/hooks/use-org-triggers";
+import { useRoutinesReadiness } from "@/hooks/use-routine-readiness";
+import type { RoutineBlocker } from "@/lib/routine-readiness-api";
 import { cadenceText } from "@/lib/trigger-format";
 import { Perm } from "@/types/permissions";
 import type { Translate } from "@/lib/agent-step-captions";
@@ -40,6 +42,11 @@ const SHOWN = 6;
  * 403s on a permission it never needed - and the widget's own gate is the
  * permission its *primary* data demands.
  *
+ * Whether the next activation would run at all is a third read, the routine list's
+ * own readiness check, for the live routines only - a paused one already says so.
+ * A routine that will not run sorts first and says why in its pill, because it is
+ * the row a glance at this card is for.
+ *
  * A schedule and an event trigger are told apart by `trigger_type`, never by the
  * run's surface: an event-fired run is stamped `SCHEDULE` too, so a
  * surface-based split would put both families in one bucket.
@@ -55,6 +62,8 @@ export function RoutinesWidget({ title, hint, seeAll, options }: DashboardWidget
   const mayReadRuns = can(Perm.runsView);
   const { triggers, isLoading, isError, refetch } = useOrgTriggers();
   const { runs } = useRuns(undefined, { surface: "schedule", enabled: mayReadRuns });
+  const readiness = useRoutinesReadiness(triggers.filter((trigger) => trigger.is_active));
+  const reasons = (trigger: Trigger) => (trigger.is_active ? readiness(trigger) : []);
   useNextFireTick(triggers);
 
   if (isLoading) {
@@ -66,14 +75,20 @@ export function RoutinesWidget({ title, hint, seeAll, options }: DashboardWidget
   }
 
   const lastRun = new Map(runs.map((run) => [run.id, run]));
-  // Paused last, then the ones that fire soonest: a card of six rows should hold
-  // what is about to happen, and a paused routine is not about to happen. An
-  // event trigger has no next fire at all, so it sorts after the schedules and
-  // before the paused - it is live, it is simply not on a clock.
+  // Blocked first, paused last, between them the ones that fire soonest: a card of
+  // six rows should hold what needs a person and what is about to happen, and a
+  // paused routine is neither. An event trigger has no next fire at all, so it
+  // sorts after the schedules and before the paused - it is live, it is simply
+  // not on a clock.
   const rows = [...triggers]
-    .sort((left, right) => rank(left) - rank(right) || due(left) - due(right))
+    .sort(
+      (left, right) =>
+        rank(left, reasons(left)) - rank(right, reasons(right)) || due(left) - due(right),
+    )
     .slice(0, SHOWN)
-    .map((trigger) => row(trigger, lastRun.get(trigger.last_run_id ?? ""), t, tt, locale));
+    .map((trigger) =>
+      row(trigger, reasons(trigger), lastRun.get(trigger.last_run_id ?? ""), t, tt, locale),
+    );
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
@@ -92,9 +107,10 @@ export function RoutinesWidget({ title, hint, seeAll, options }: DashboardWidget
   );
 }
 
-/** Paused after live, and an event trigger between the two - see the sort above. */
-function rank(trigger: Trigger): number {
+/** Blocked, live, an event trigger, then paused - see the sort above. */
+function rank(trigger: Trigger, reasons: RoutineBlocker[]): number {
   if (!trigger.is_active) return 2;
+  if (reasons.some((reason) => reason.severity === "blocked")) return -1;
   return trigger.next_fire_at === null ? 1 : 0;
 }
 
@@ -113,12 +129,13 @@ function due(trigger: Trigger): number {
  */
 function row(
   trigger: Trigger,
+  reasons: RoutineBlocker[],
   run: AgentRun | undefined,
   t: Translate,
   tt: Translate,
   locale: string,
 ): StatusRow {
-  const [pill, tone] = outcome(trigger, run, t, tt);
+  const [pill, tone] = verdict(trigger, reasons, run, t, tt);
   return {
     id: trigger.id,
     label: trigger.name ?? trigger.agent_name ?? t("unnamed"),
@@ -196,6 +213,26 @@ function useNextFireTick(triggers: Trigger[]): void {
     const timer = setTimeout(() => setTick((tick) => tick + 1), delay);
     return () => clearTimeout(timer);
   }, [soonest]);
+}
+
+/**
+ * Why it will not run outranks how it last went; a run that will stop for a person
+ * is said only when the last outcome is no worse news.
+ */
+function verdict(
+  trigger: Trigger,
+  reasons: RoutineBlocker[],
+  run: AgentRun | undefined,
+  t: Translate,
+  tt: Translate,
+): [string, StatusTone] {
+  const blocked = reasons.find((reason) => reason.severity === "blocked");
+  if (blocked) return [t(`reason.${blocked.code}`), "err"];
+  const [pill, tone] = outcome(trigger, run, t, tt);
+  const attention = reasons.find((reason) => reason.severity === "attention");
+  if (attention && (tone === "ok" || tone === "neutral"))
+    return [t(`reason.${attention.code}`), "warn"];
+  return [pill, tone];
 }
 
 function outcome(

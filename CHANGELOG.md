@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- The routine list says which routines would not run, and why, before their next activation. Each routine is evaluated as its creator with the checks a fire makes: membership and run grant, a runnable version, the source review, the end date, the monthly budget, a previous run waiting for approval or an answer, and actions without standing consent. A routine that would not run is outlined red, one whose runs would stop for approval amber, and a paused routine is greyed out while still saying what resuming would meet. Each reason comes with its fix for the creator. `GET /agents/{agent_id}/triggers/{trigger_id}/readiness` returns the same reasons as codes.
+- The routine list says which routines would not run, and why, before their next activation. Each routine is evaluated as its creator with the checks a fire makes: membership and run grant, a runnable version, the source review, the end date, the monthly budget, a previous run waiting for approval or an answer, and actions without standing consent. A routine that would not run is outlined red, one whose runs would stop for approval amber, and a paused routine is greyed out while still saying what resuming would meet. Each reason comes with its fix for the creator. The Routines dashboard card puts such a routine first with its reason. `POST /triggers/readiness` returns the same reasons as codes for up to 100 routines per request. The access review now also says how many actions always ask for approval, which no routine consent changes.
 
 ## [1.91.0] - 2026-11-23
 

@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import DateTime, and_, cast, false, func, literal, or_, select, true
+from sqlalchemy import ColumnElement, DateTime, and_, cast, false, func, literal, or_, select, true
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -259,6 +259,21 @@ async def routine_prompts_for_screening(
     return [RoutinePrompt(row.prompt, row.spec) for row in rows.all()]
 
 
+def _visible_agent(
+    *, user_id: UUID | None, see_all: bool, shared_ids: list[UUID]
+) -> list[ColumnElement[bool]]:
+    """The agent listing's own visibility predicate, applied to a trigger's agent."""
+    if see_all:
+        return []
+    return [
+        or_(
+            Agent.owner_user_id == user_id,
+            Agent.visibility == Visibility.ORG.value,
+            AgentTrigger.agent_id.in_(shared_ids) if shared_ids else false(),
+        )
+    ]
+
+
 async def list_for_organization(
     db: AsyncSession,
     *,
@@ -281,15 +296,11 @@ async def list_for_organization(
     surfaces must not disagree with it. The join onto `agents` also supplies the
     name each surface shows beside a row displayed away from its agent's page.
     """
-    where = [AgentTrigger.organization_id == organization_id, AgentTrigger.one_shot.is_(False)]
-    if not see_all:
-        where.append(
-            or_(
-                Agent.owner_user_id == user_id,
-                Agent.visibility == Visibility.ORG.value,
-                AgentTrigger.agent_id.in_(shared_ids) if shared_ids else false(),
-            )
-        )
+    where = [
+        AgentTrigger.organization_id == organization_id,
+        AgentTrigger.one_shot.is_(False),
+        *_visible_agent(user_id=user_id, see_all=see_all, shared_ids=shared_ids),
+    ]
     total = (
         await db.execute(
             select(func.count())
@@ -307,6 +318,35 @@ async def list_for_organization(
         .limit(limit)
     )
     return [(trigger, agent) for trigger, agent in result.all()], total
+
+
+async def list_visible_by_ids(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID | None,
+    see_all: bool,
+    shared_ids: list[UUID],
+    trigger_ids: list[UUID],
+) -> list[AgentTrigger]:
+    """The named triggers the caller may see, by the org listing's visibility.
+
+    A one-shot trigger is its creator's alone, as on the agent's own page; ids the
+    caller cannot see, or that name nothing, are left out rather than refused.
+    """
+    if not trigger_ids:
+        return []
+    result = await db.execute(
+        select(AgentTrigger)
+        .join(Agent, Agent.id == AgentTrigger.agent_id)
+        .where(
+            AgentTrigger.organization_id == organization_id,
+            AgentTrigger.id.in_(trigger_ids),
+            or_(AgentTrigger.one_shot.is_(False), AgentTrigger.created_by_user_id == user_id),
+            *_visible_agent(user_id=user_id, see_all=see_all, shared_ids=shared_ids),
+        )
+    )
+    return list(result.scalars().all())
 
 
 async def create(
