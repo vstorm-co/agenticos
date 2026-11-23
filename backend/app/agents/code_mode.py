@@ -234,9 +234,6 @@ def _code_failure(
     if not isinstance(cause, MontyRuntimeError | MontySyntaxError | MontyTypingError):
         return None
     inner = cause.exception()
-    nested = next((content for content in reversed(errors) if inner.args == (content,)), None)
-    if nested is not None:
-        return nested_tool_error(nested, tool=CODE_TOOL, calls_started=calls_started, error=exc)
     exception_type = type(inner).__name__
     if calls_started:
         return tool_error(
