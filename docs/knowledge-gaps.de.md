@@ -1,5 +1,5 @@
 ---
-source_sha: "c428b004a390"
+source_sha: "d4710a3108db"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -83,8 +83,8 @@ gebundenen Agent-Version lief, bewertet oder nicht: Eine Antwort, in der der
 Agent es nicht wusste, bewertet oft niemand. Ein Run, dessen Suche schon ein Fehltreffer war,
 wird ebenfalls gelesen, damit eine berechtigte Ablehnung seinen Fehltreffer aus
 den Lücken nimmt; sonst zählt er weiterhin einmal, als dieser Fehltreffer. Runs über die HTTP-API behalten keine
-Antwort, und Eval-Runs, deren Fragen wiederholt oder erzeugt sind, werden nie
-gelesen. Tests eines Entwurfs im Builder, delegierte Runs und Runs, deren
+Antwort, und Eval-Runs, deren Fragen wiederholt oder erzeugt sind, liest keine
+Prüfung. Tests eines Entwurfs im Builder, delegierte Runs und Runs, deren
 Starter kein Konto mehr hat, ebenso wenig.
 
 Eine Prüfung gehört zu einer Wissensbasis: Was sie findet, ist eine Lücke nur
@@ -113,14 +113,24 @@ ordnet jede nach ihren Urteilen ein: fehlendes Wissen, wo einer Wissensbasis
 Inhalt fehlte, nichts zu beheben, wo der Agent zu Recht abgelehnt hat, und sonst
 ein Fehler des Agents.
 
-Die Antworten mit fehlendem Wissen fallen aus dem heraus, was der
-Authoring-Assistent liest, und ihre Fehlschläge werden sofort zu Themen
-gruppiert, bevor die Sitzung bei **Verstehen** anhält, damit ein Mensch sie
-ansieht. Die Sitzung entwirft keines davon: Sie listet die Themen auf, die in
-der Wissensbasis fehlen, und ein Mensch entwirft die, die er braucht, wie
-[unten](#drafting-the-missing-content) beschrieben. Nichts wird entworfen, ohne
-dass ein Mensch darum bittet, ob in einer Sitzung oder außerhalb. Die Runs eines
-Evals werden nie gelesen, also auch kein zurückgehaltener Fall.
+Eine Sitzung, die aus Evals lernt, ordnet auch die fehlgeschlagenen Antworten auf
+ihre Trainingsfragen ein: die Frage des Falls und die Antwort, die das Eval
+aufgezeichnet hat. Ihre Urteile werden nach dem Run aufbewahrt, der geantwortet
+hat, denn eine Eval-Antwort hat keine Nachricht. Eine, in der der Agent es nicht
+wusste, wird wie eine Chatantwort zu einer Frage in den Themen der Wissensbasis,
+sodass eine Tatsache, die kein Dokument enthält, zum Ergänzen durch einen
+Menschen aufgelistet wird statt einer Anweisung überlassen zu werden, die sie
+nicht liefern kann. Ein zurückgehaltener Fall wird nie gelesen.
+
+Die Chatantworten mit fehlendem Wissen fallen aus dem heraus, was der
+Authoring-Assistent liest. Eine Trainingsantwort bleibt darin: Sie wird nach
+mehreren Kriterien bewertet, und fehlendes Wissen erklärt vielleicht nur einige
+davon. Die Fehlschläge werden sofort zu Themen gruppiert, bevor die Sitzung bei
+**Verstehen** anhält, damit ein Mensch sie ansieht. Die Sitzung entwirft keines
+davon: Sie listet die Themen auf, die in der Wissensbasis fehlen, und ein Mensch
+entwirft die, die er braucht, wie [unten](#drafting-the-missing-content)
+beschrieben. Nichts wird entworfen, ohne dass ein Mensch darum bittet, ob in
+einer Sitzung oder außerhalb.
 
 ## Themen { #topics }
 
@@ -131,6 +141,11 @@ in das nächste Thema dieser Wissensbasis oder beginnt ein neues. Ein Lauf bette
 höchstens 500 Fehltreffer pro Wissensbasis ein; der Rest wartet auf den
 nächsten. Eine Wissensbasis ohne neue Fehltreffer kostet keinen
 Embedding-Aufruf.
+
+Eine aus einer Antwort gelesene Frage wird stattdessen nach dem gruppiert, was
+der Klassifizierer in wenigen Worten als fehlend benannt hat - "Lead times by
+product" -, sodass Fragen verschiedener Personen zu einer Sache ein Thema teilen
+und das Thema nach der Sache heißt statt nach seiner ersten Frage.
 
 Ein Fehltreffer kommt nur dann in das nächste Thema, wenn er ihm mindestens so
 ähnlich ist wie `KNOWLEDGE_GAP_TOPIC_SIMILARITY`; sonst beginnt er ein neues.
@@ -167,14 +182,18 @@ nicht: Eine Abteilung sieht die Lücken der Wissensdatenbanken, die mit ihr
 geteilt sind.
 
 Ein Thema zeigt, wie oft und von wie vielen Personen es gestellt wurde, wann
-zuletzt, welche Agents es gestellt haben, und bis zu drei seiner Fragen. Wer
+zuletzt, welche Agents es gestellt haben, und bis zu drei seiner Fragen.
+Testfragen, die ein Eval beantwortet hat, zählen getrennt: Niemand hat sie gestellt. Wer
 über einen Channel gefragt hat, zählt nach seinem Chat-Konto; alle, die anonym
 gefragt haben, über ein Widget oder ohne Person hinter dem Run, zählen als eine
 Person. Öffne es, um die neuesten Fragen
 zu sehen: was die Person gefragt hat, wonach der Agent gesucht hat, wie nah die
 nächste Passage war und den Kommentar aller, die die Antwort negativ bewertet
-haben. Eine aus einer Antwort gelesene Frage sagt, ob der Agent es nicht wusste
-oder ein Leser schrieb, dass Informationen fehlten.
+haben.
+
+Eine aus einer Antwort gelesene Frage sagt, ob der Agent es nicht wusste
+oder ein Leser schrieb, dass Informationen fehlten; eine aus einer Eval-Antwort
+gelesene ist die Frage des Dataset-Falls, als Testfrage markiert.
 
 ## Was mit einer Lücke zu tun ist { #acting-on-a-gap }
 
@@ -336,7 +355,9 @@ Person, die es hinzugefügt hat, oder eine Person, deren Frage es geprägt hat,
 gelöscht wird: Jemand hat geprüft und bestätigt, was es sagt.
 
 Eine aus einer Antwort gelesene Frage wird wie eine Suche aufbewahrt: Sie hält
-die Frage der Person und geht mit ihrem Run und ihrer Conversation. Das Prüfen
+die Frage der Person und geht mit ihrem Run und ihrer Conversation. Eine aus einer
+Eval-Antwort gelesene hält die Frage des Falls und geht mit ihrem Urteil, wenn die
+Kopien des Falls in Eval-Ergebnissen gelöscht werden. Das Prüfen
 von Antworten schickt Fragen, Antworten und Kommentare zu negativen Bewertungen
 an den Modellanbieter des Klassifizierers.
 

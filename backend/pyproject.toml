@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.90.0"
+version = "1.90.1"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -652,6 +652,7 @@ include = [
     "app/commands/invite_members.py",
     "app/commands/data_protection.py",
     "app/commands/mcp_audit.py",
+    "app/commands/skill_checks.py",
     "app/core/permissions.py",
     "app/core/platform_tool_policy.py",
     "app/core/resource_icons.py",
@@ -1558,6 +1559,7 @@ include = [
     "app/commands/invite_members.py",
     "app/commands/data_protection.py",
     "app/commands/mcp_audit.py",
+    "app/commands/skill_checks.py",
     "app/core/permissions.py",
     "app/core/platform_tool_policy.py",
     "app/core/resource_icons.py",

@@ -7,8 +7,10 @@ import {
   diffStat,
   diffWords,
   foldUnchanged,
+  leadingContext,
   locatePassage,
   MAX_DIFF_LINES,
+  trailingContext,
 } from "./diff";
 
 const text = (...lines: string[]) => lines.join("\n");
@@ -191,5 +193,30 @@ describe("locatePassage", () => {
     expect(locatePassage("Intro. Rules.", passage("", "Intro. ", "Rules."))).toBe(7);
     expect(locatePassage("Rules.", passage("", "", "Rules."))).toBe(0);
     expect(locatePassage("A.x A.x", passage("", "A.", "x"))).toBeNull();
+  });
+});
+
+describe("the context a passage is shown with", () => {
+  const cut = "nhill Print & Packaging. Help the person you are talking to.";
+
+  it("starts a context cut mid-word at its next word, after an ellipsis", () => {
+    expect(cut.length).toBe(60);
+    expect(leadingContext(cut)).toBe("…Print & Packaging. Help the person you are talking to.");
+    expect(leadingContext("x".repeat(60))).toBe(`…${"x".repeat(60)}`);
+  });
+
+  it("leaves a context that begins the text, or starts at a boundary, as it is", () => {
+    expect(leadingContext("You quote prices.")).toBe("You quote prices.");
+    expect(leadingContext(`\n${"y".repeat(60)}`)).toBe(`\n${"y".repeat(60)}`);
+  });
+
+  it("ends a trailing context cut mid-word at its last whole word", () => {
+    const after = "Always state the lead time and the delivery zone for an ord";
+    expect(trailingContext(`${after}e`)).toBe(
+      "Always state the lead time and the delivery zone for an…",
+    );
+    expect(trailingContext("z".repeat(60))).toBe(`${"z".repeat(60)}…`);
+    expect(trailingContext("Then stop.\n")).toBe("Then stop.\n");
+    expect(trailingContext(`${"w".repeat(59)} `)).toBe(`${"w".repeat(59)} `);
   });
 });

@@ -140,6 +140,7 @@ class FakeEvals:
                 cases=cases if fake.asked is None else fake.asked,
                 total_usd=total,
                 rerun_ceiling_usd=total * 2,
+                expected_usd=total * 2,
                 agent_remaining_usd=fake.agent_left,
                 org_remaining_usd=fake.org_left,
             )

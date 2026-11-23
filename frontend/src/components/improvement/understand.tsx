@@ -11,6 +11,7 @@ import { subjectOf } from "@/lib/improvement-subject";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { Improvement, ImprovementEvidenceItem, KnowledgeAdded } from "@/types/improvement";
+import { criteriaTotals } from "./criteria";
 import { Grades, WhyCause } from "./evidence-grades";
 import { StepError } from "./step-error";
 import { Details, Proportion } from "./widgets";
@@ -72,6 +73,7 @@ function problems(items: ImprovementEvidenceItem[]) {
 
 export function Understand({ session }: { session: Improvement }) {
   const t = useTranslations("improvement");
+  const locale = useLocale();
   const sources = useImprovementEvidence(subjectOf(session), {
     sessionId: session.id,
     live: session.status === "running" || session.status === "queued",
@@ -127,6 +129,7 @@ export function Understand({ session }: { session: Improvement }) {
           ]}
         />
       </figure>
+      <HeldBySkills session={session} locale={locale} />
       {session.timeline.some((event) => event.action === "improvement.classification_failed") && (
         <p role="status" className="rounded-lg border p-3 text-sm">
           {t("classificationFailed")}
@@ -323,5 +326,25 @@ function KnowledgeAddedNote({ added }: { added: KnowledgeAdded }) {
         })}
       </span>
     </span>
+  );
+}
+
+/**
+ * What the agent's column holds that its skills fix: an answer can fail criteria of
+ * both, so the sort before an attempt keeps them together, and the latest checked
+ * attempt names the still-failing criteria the helper put down to a skill.
+ */
+function HeldBySkills({ session, locale }: { session: Improvement; locale: string }) {
+  const t = useTranslations("improvement");
+  const checked = [...session.iterations].reverse().find((round) => round.verdict !== null);
+  const totals = criteriaTotals(checked);
+  if (!totals || totals.held === 0) return null;
+  return (
+    <p className="text-muted-foreground text-sm">
+      {t("heldBySkillNote", {
+        count: totals.held,
+        skills: new Intl.ListFormat(locale, { type: "conjunction" }).format(totals.skills),
+      })}
+    </p>
   );
 }
