@@ -16901,7 +16901,7 @@
         "incomplete": "Tamamlanamadı",
         "pending": "Bekliyor"
       },
-      "title": "{count} soru",
+      "title": "{count, plural, other {# soru}}",
       "outcome": {
         "all": "Tüm yanıtlar",
         "failed": "İncelenmeli"
