@@ -2599,7 +2599,6 @@ def test_batch_receipts_keep_their_keys_when_legacy_results_are_erased() -> None
 def test_github_filter_diagnostic_preserves_existing_routine_policy() -> None:
     """0337_github_filter_diagnostic.py adds a nullable snapshot without widening authors."""
     from app.db.models.agent import Agent
-    from app.db.models.agent_trigger import AgentTrigger
 
     result = _alembic("upgrade", "head")
     assert result.returncode == 0, result.stderr
@@ -2630,18 +2629,15 @@ def test_github_filter_diagnostic_preserves_existing_routine_policy() -> None:
             db.add(agent)
             db.flush()
             db.execute(
-                AgentTrigger.__table__.insert().values(
-                    id=trigger_id,
-                    organization_id=org_id,
-                    agent_id=agent.id,
-                    created_by_user_id=owner_id,
-                    trigger_type="event",
-                    event_source="github",
-                    event_config={"actions": ["opened"]},
-                    event_secret_encrypted="sealed",
-                    secret_key_version=1,
-                    prompt="Triage issues",
-                )
+                text(
+                    "INSERT INTO agent_triggers "
+                    "(id, organization_id, agent_id, created_by_user_id, trigger_type, "
+                    "event_source, event_config, event_secret_encrypted, secret_key_version, prompt, "
+                    "is_active, schedule_kind) "
+                    "VALUES (:id, :organization, :agent, :creator, 'event', 'github', "
+                    "'{\"actions\": [\"opened\"]}', 'sealed', 1, 'Triage issues', true, 'interval')"
+                ),
+                {"id": trigger_id, "organization": org_id, "agent": agent.id, "creator": owner_id},
             )
             db.commit()
         for action, revision in [
