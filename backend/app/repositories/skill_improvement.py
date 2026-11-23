@@ -6,7 +6,8 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import JsonValue
-from sqlalchemy import String, cast, column, func, or_, select, true
+from sqlalchemy import UUID as SQLUUID
+from sqlalchemy import cast, column, func, or_, select, true
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -331,7 +332,7 @@ async def check_cost_parts(
     )
     graded_by = result.c.value["judge_run_id"].astext
     gradings = (
-        select(graded_by)
+        select(cast(graded_by, SQLUUID))
         .select_from(CaseScore)
         .join(result, true())
         .where(
@@ -343,7 +344,7 @@ async def check_cost_parts(
     judged = await db.scalar(
         select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
             AgentRun.organization_id == organization_id,
-            cast(AgentRun.id, String).in_(gradings),
+            AgentRun.id.in_(gradings),
         )
     )
     return Decimal(total or 0), Decimal(judged or 0)
@@ -357,10 +358,11 @@ async def checked_iterations(
     statement = select(
         SkillImprovementIteration.organization_id, SkillImprovementIteration.id
     ).where(
+        SkillImprovementIteration.ended_at.is_not(None),
         or_(
             SkillImprovementIteration.skill_check_id.is_not(None),
             SkillImprovementIteration.main_alone_check_id.is_not(None),
-        )
+        ),
     )
     if check_ids:
         statement = statement.where(
@@ -377,10 +379,12 @@ async def get_iteration_by_id(
     db: AsyncSession, iteration_id: UUID, *, organization_id: UUID
 ) -> SkillImprovementIteration | None:
     result = await db.execute(
-        select(SkillImprovementIteration).where(
+        select(SkillImprovementIteration)
+        .where(
             SkillImprovementIteration.organization_id == organization_id,
             SkillImprovementIteration.id == iteration_id,
         )
+        .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
 

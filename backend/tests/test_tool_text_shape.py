@@ -141,7 +141,10 @@ class TestEveryToolSaysWhatItReturns:
             "<returns>" in (tool.tool_def.description or "") for tool in toolset.tools.values()
         )
 
-    async def test_a_toolset_it_cannot_rewrite_is_refused_rather_than_left_alone(self) -> None:
+    @pytest.mark.parametrize("per_run", [False, True])
+    async def test_a_toolset_it_cannot_rewrite_is_refused_rather_than_left_alone(
+        self, per_run: bool
+    ) -> None:
         """Left alone, the model reads one text and the Builder shows another."""
         from dataclasses import dataclass
         from typing import Any
@@ -155,7 +158,7 @@ class TestEveryToolSaysWhatItReturns:
         @dataclass
         class _PerRun(AbstractCapability[Any]):
             def get_toolset(self) -> Any:
-                return lambda ctx: FunctionToolset()
+                return (lambda ctx: FunctionToolset()) if per_run else FunctionToolset()
 
         wrapped = MeteredToolOutputLimits(wrapped=_PerRun(id="per_run"))
 

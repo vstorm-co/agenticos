@@ -22,6 +22,13 @@ from app.schemas.improvement import VerdictCriterion, VerdictFamily
 from app.schemas.skill_version import SkillForkRead, SkillVersionRead, VersionRef
 
 
+class RejudgedChecks(BaseSchema):
+    """Agent rows actually judged again, and rows their original authority could not read."""
+
+    judged: int = 0
+    skipped: int = 0
+
+
 class CandidateText(BaseSchema):
     """The text a change would leave the skill with."""
 
