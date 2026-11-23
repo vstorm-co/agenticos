@@ -13,6 +13,7 @@ from app.db.models.conversation import Message
 from app.repositories import conversation as conversation_repo
 from app.repositories import conversation_message_pin as pin_repo
 from app.repositories import message_rating as message_rating_repo
+from app.repositories import room_thread as room_thread_repo
 from app.services.conversation import ConversationService
 from app.services.conversation_message_pin import ConversationMessagePinService
 from app.services.message_history import REFUSED_TURN
@@ -253,7 +254,15 @@ def _mock_transcript_reads(
     monkeypatch.setattr(
         service,
         "get_conversation",
-        AsyncMock(return_value=SimpleNamespace(id=CONVERSATION_ID)),
+        AsyncMock(
+            return_value=SimpleNamespace(
+                id=CONVERSATION_ID,
+                organization_id=ORG_ID,
+                project_id=None,
+                room_visibility=None,
+                is_archived=False,
+            )
+        ),
     )
     monkeypatch.setattr(
         conversation_repo, "get_messages_by_conversation", AsyncMock(return_value=messages)
@@ -268,6 +277,7 @@ def _mock_transcript_reads(
     monkeypatch.setattr(
         message_rating_repo, "get_rating_counts_for_messages", AsyncMock(return_value={})
     )
+    monkeypatch.setattr(room_thread_repo, "summaries_for_roots", AsyncMock(return_value={}))
     monkeypatch.setattr(service, "_attach_senders", AsyncMock())
     monkeypatch.setattr(service, "_attach_replies", AsyncMock())
     monkeypatch.setattr(service, "_cost", AsyncMock(return_value=None))

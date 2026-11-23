@@ -20,7 +20,7 @@ interface AttachmentCardProps {
   file: FileUploadResponse;
   /** A long paste, turned into a file. */
   pasted?: boolean;
-  onRemove: () => void;
+  onRemove?: () => void;
 }
 
 export function AttachmentCard({ file, pasted, onRemove }: AttachmentCardProps) {

@@ -16,24 +16,24 @@ function person(id: string, name: string): ChatPerson {
 const ME = person("me", "Kacper");
 
 describe("ChatRoomBar", () => {
-  it("draws nothing for a chat the reader has to themselves", () => {
-    const { container } = render(
-      <ChatRoomBar conversationId="c-1" present={[ME]} meId="me" canShare />,
-    );
-    expect(container).toBeEmptyDOMElement();
+  it("keeps participant and sharing controls available when the reader is alone", () => {
+    render(<ChatRoomBar conversationId="c-1" present={[ME]} meId="me" canShare />);
+    expect(screen.getByRole("button", { name: "Participants" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Share" })).toBeEnabled();
+    expect(screen.queryByText(/is here too/)).toBeNull();
   });
 
-  it("names the one other person here, and lets the owner invite more", async () => {
+  it("names the one other person here and opens the owner's sharing controls", async () => {
     render(
       <ChatRoomBar conversationId="c-1" present={[ME, person("a", "Anna")]} meId="me" canShare />,
     );
     expect(screen.getByText("Anna is here too")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Invite" }));
+    await userEvent.click(screen.getByRole("button", { name: "Share" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  it("counts a crowd past its faces, and offers no invite to a guest", () => {
+  it("counts a crowd past its faces without offering sharing to a guest", () => {
     const crowd = ["Anna", "Ola", "Piotr", "Ewa", "Jan"].map((name) => person(name, name));
     render(
       <ChatRoomBar conversationId="c-1" present={[ME, ...crowd]} meId="me" canShare={false} />,
@@ -41,6 +41,7 @@ describe("ChatRoomBar", () => {
 
     expect(screen.getByText("5 people are here with you")).toBeInTheDocument();
     expect(screen.getByText("+1")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Invite" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Participants" })).toBeEnabled();
   });
 });

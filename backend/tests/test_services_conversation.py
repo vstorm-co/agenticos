@@ -54,6 +54,15 @@ def private_history_has_no_edit_share(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+@pytest.fixture(autouse=True)
+def room_participant_conversations(monkeypatch):
+    mocked = AsyncMock(return_value=set())
+    monkeypatch.setattr(
+        "app.services.conversation.room_participant_repo.user_conversation_ids", mocked
+    )
+    return mocked
+
+
 class MockConversation:
     """Mock conversation for testing."""
 
@@ -72,6 +81,7 @@ class MockConversation:
         self.is_archived = is_archived
         self.origin = None
         self.project_id = None
+        self.room_visibility = None
         self.forked_from_conversation_id = None
         self.forked_from_message_id = None
         # A row always has these; a stand-in without them passes tests that the
@@ -123,6 +133,7 @@ class MockMessage:
         self.channel_identity_id = None
         self.reply_to_message_id = None
         self.reply_to_excerpt = None
+        self.thread_root_message_id = None
         # Enough of a row for `MessageRead.model_validate`, which the listing runs
         # when it has a reader to attach ratings for.
         self.created_at = datetime(2026, 8, 16, tzinfo=UTC)
@@ -1077,16 +1088,20 @@ class TestConversationServiceListConversations:
     async def test_a_users_page_carries_the_vetted_participation_set(
         self, service: ConversationService
     ):
-        """The membership-confirmed threads reach the page *and* the count - a
-        total counted without them contradicts the rows under it - and the repo
-        never sees an unvetted claim (#641)."""
+        """Vetted channel participation and explicit room membership reach both
+        the page and count; the repo never sees an unvetted channel claim (#641)."""
         reader = uuid4()
         vetted = {uuid4()}
+        room_ids = {uuid4()}
 
         with (
             patch("app.services.conversation.conversation_repo") as mock_repo,
             patch("app.services.conversation.channel_membership") as mock_membership,
             patch.object(service, "visible_project_ids", AsyncMock(return_value=[])),
+            patch(
+                "app.services.conversation.room_participant_repo.user_conversation_ids",
+                new=AsyncMock(return_value=room_ids),
+            ) as room_participants,
         ):
             mock_repo.get_conversations_by_user = AsyncMock(return_value=[])
             mock_repo.count_conversations = AsyncMock(return_value=0)
@@ -1100,10 +1115,13 @@ class TestConversationServiceListConversations:
 
             page = mock_repo.get_conversations_by_user.call_args[1]
             count = mock_repo.count_conversations.call_args[1]
-            assert page["participant_conversation_ids"] == vetted
-            assert count["participant_conversation_ids"] == vetted
+            assert page["participant_conversation_ids"] == vetted | room_ids
+            assert count["participant_conversation_ids"] == vetted | room_ids
             mock_membership.confirmed_participant_threads.assert_awaited_once_with(
                 service.db, user_id=reader, organization_id=TEST_ORG_ID
+            )
+            room_participants.assert_awaited_once_with(
+                service.db, organization_id=TEST_ORG_ID, user_id=reader
             )
 
     @pytest.mark.anyio
@@ -1620,6 +1638,7 @@ class TestConversationServiceListMessages:
             mock_repo.run_outcomes = AsyncMock(return_value={})
             mock_repo.count_messages = AsyncMock(return_value=2)
             mock_repo.conversation_cost = AsyncMock(return_value=None)
+            mock_repo.thread_summaries = AsyncMock(return_value={})
 
             items, total, cost = await service.transcript(conv_id, organization_id=TEST_ORG_ID)
 
@@ -2384,6 +2403,18 @@ class TestSayingATurnWasStopped:
             patch(
                 "app.services.conversation.conversation_share_repo.get_share",
                 AsyncMock(return_value=SimpleNamespace(permission="view")),
+            ),
+            patch(
+                "app.services.conversation.conversation_repo.thread_summaries",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                "app.services.conversation.room_message_reaction_repo.list_aggregates",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                "app.services.room_thread.RoomThreadService.summaries_for_messages",
+                new=AsyncMock(return_value={}),
             ),
         ):
             ratings.get_user_ratings_for_messages = AsyncMock(return_value={})
@@ -3777,9 +3808,13 @@ class TestConversationAgentFaces:
 class TestContinuingOverTheApi:
     """A key that may run agents continues only conversations opened over the API (Codex review of #2062)."""
 
-    def _service(self, origin: str | None) -> tuple[ConversationService, AsyncMock]:
+    def _service(
+        self, origin: str | None, *, room_visibility: str | None = None
+    ) -> tuple[ConversationService, AsyncMock]:
         service = ConversationService(AsyncMock())
-        service.get_conversation = AsyncMock(return_value=MagicMock(origin=origin))  # type: ignore[method-assign]
+        service.get_conversation = AsyncMock(
+            return_value=MagicMock(origin=origin, room_visibility=room_visibility)
+        )  # type: ignore[method-assign]
         history = AsyncMock(return_value=["earlier"])
         service.model_history = history  # type: ignore[method-assign]
         return service, history
@@ -3805,6 +3840,19 @@ class TestContinuingOverTheApi:
             await service.for_api_run(_api_ctx(), uuid4(), prompt="repeat the chat")
 
         assert refused.value.details["fields"][0]["field"] == "conversation_id"
+        history.assert_not_awaited()
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize("visibility", ["private", "public"])
+    async def test_an_explicit_room_is_not_continued_through_the_api(self, visibility: str) -> None:
+        service, history = self._service("api", room_visibility=visibility)
+
+        with pytest.raises(BadRequestError) as refused:
+            await service.for_api_run(_api_ctx(), uuid4(), prompt="answer in the room")
+
+        assert refused.value.details["fields"][0]["field"] == "conversation_id"
+        assert "room composer and @mentions" in refused.value.message
         history.assert_not_awaited()
 
 

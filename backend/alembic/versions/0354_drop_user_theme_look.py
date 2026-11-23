@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0350_drop_user_theme_look"
-down_revision: str = "0349_merge_t3_v1891"
+revision: str = "0354_drop_user_theme_look"
+down_revision: str = "0353_merge_t3_v1891"
 branch_labels: None = None
 depends_on: None = None
 

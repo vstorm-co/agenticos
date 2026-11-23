@@ -36,16 +36,47 @@ class RoomSubmission(Base, TimestampMixin):
             ondelete="CASCADE",
             name="fk_room_submission_conversation",
         ),
-        UniqueConstraint(
+        Index(
+            "uq_room_submission_client",
             "organization_id",
             "conversation_id",
             "requester_id",
             "client_message_id",
-            name="uq_room_submission_client",
+            unique=True,
+            postgresql_where=text("parent_submission_id IS NULL"),
+        ),
+        Index(
+            "uq_room_submission_message",
+            "message_id",
+            unique=True,
+            postgresql_where=text("parent_submission_id IS NULL"),
+        ),
+        Index(
+            "uq_room_submission_post_agent",
+            text("COALESCE(parent_submission_id, id)"),
+            "agent_id",
+            unique=True,
+            postgresql_where=text("agent_id IS NOT NULL"),
         ),
         UniqueConstraint(
             "organization_id", "conversation_id", "id", name="uq_room_submission_scope"
         ),
+        ForeignKeyConstraint(
+            ["organization_id", "conversation_id", "parent_submission_id"],
+            [
+                "room_submissions.organization_id",
+                "room_submissions.conversation_id",
+                "room_submissions.id",
+            ],
+            ondelete="CASCADE",
+            name="fk_room_submission_parent",
+        ),
+        CheckConstraint(
+            "parent_submission_id IS NULL OR "
+            "(parent_submission_id <> id AND intent = 'message' AND agent_id IS NOT NULL)",
+            name="child_request",
+        ),
+        CheckConstraint("dispatch IN ('explicit', 'mention', 'automatic')", name="dispatch"),
         CheckConstraint(
             "(intent = 'message' AND lead_policy_revision IS NULL) OR "
             "(intent = 'ask_lead' AND lead_policy_revision IS NOT NULL "
@@ -84,7 +115,15 @@ class RoomSubmission(Base, TimestampMixin):
         UUID(as_uuid=True),
         ForeignKey("messages.id", ondelete="CASCADE"),
         nullable=False,
-        unique=True,
+    )
+    parent_submission_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    """Extra bot replies share the first submission's post and idempotency key.
+
+    Only roots are looked up by client_message_id. Children keep their own queue
+    position, pinned version and run, without inventing another human message.
+    """
+    dispatch: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="explicit", server_default="explicit"
     )
     # Read from the durable post in the same SQL query: the queue never guesses
     # its scope from whichever transcript page a client happens to have loaded.

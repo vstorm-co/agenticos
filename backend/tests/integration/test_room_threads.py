@@ -737,7 +737,7 @@ async def test_detached_thread_stays_readable_by_starter_but_not_its_former_proj
     assert not kept.can_post
     with pytest.raises(NotFoundError):
         await service.thread(peer_ctx, room.conversation.id, root.id)
-    with pytest.raises(BadRequestError, match="project chat"):
+    with pytest.raises(BadRequestError, match="make this conversation a room"):
         await service.post(
             room.ctx,
             room.conversation.id,

@@ -222,6 +222,10 @@ export function wordedSummary(params: Record<string, string>, t: Translate): str
         titled: named(v("conversation_title")),
         title: v("conversation_title"),
       });
+    case "room_mention":
+      return t("roomMention", { sender: v("sender"), title: v("title") });
+    case "room_thread_reply":
+      return t("roomThreadReply", { sender: v("sender"), title: v("title") });
     case "mcp_server_down":
       return t("kind.mcpServerDown", { server: v("server_name") });
     case "mcp_server_recovered":

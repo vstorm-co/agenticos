@@ -34,6 +34,7 @@ def _conversation(
         user_id=user_id,
         organization_id=ORG_ID,
         project_id=project_id,
+        room_visibility=None,
         title="Source",
         plan_items=None,
         forked_from_conversation_id=forked_from,
@@ -66,6 +67,10 @@ def service(monkeypatch: pytest.MonkeyPatch) -> ConversationService:
         conversation_repo, "has_shared_channel_history", AsyncMock(return_value=False)
     )
     monkeypatch.setattr(conversation_repo, "has_non_owner_author", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        "app.repositories.room_participant.user_ids_in_conversations",
+        AsyncMock(return_value=set()),
+    )
     monkeypatch.setattr(conversation_repo, "owned_titles", AsyncMock(return_value={}))
     monkeypatch.setattr(conversation_repo, "run_ids_through", AsyncMock(return_value=set()))
     monkeypatch.setattr(conversation_repo, "run_outcomes", AsyncMock(return_value={}))

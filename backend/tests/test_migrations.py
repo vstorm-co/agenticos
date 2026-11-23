@@ -36,13 +36,13 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from queue import Queue
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, delete, insert, inspect, select, text, update
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as DatabaseSession
@@ -357,10 +357,27 @@ def test_provider_account_migration_preserves_existing_grant_and_refuses_lossy_d
         engine.dispose()
 
 
+def _legacy_conversation(
+    db: DatabaseSession, organization_id: UUID, user_id: UUID, title: str
+) -> UUID:
+    """Insert a conversation with only the columns every old revision has.
+
+    The ORM model is at head, so `Conversation(...)` names columns, such as
+    `room_visibility`, that an older schema does not have yet.
+    """
+    conversation_id = uuid4()
+    db.execute(
+        text(
+            "INSERT INTO conversations (id, organization_id, user_id, title, is_archived) "
+            "VALUES (:id, :organization, :user, :title, false)"
+        ),
+        {"id": conversation_id, "organization": organization_id, "user": user_id, "title": title},
+    )
+    return conversation_id
+
+
 def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs() -> None:
     """0322_coding_task_revert.py and 0323_coding_revert_admission.py preserve legacy diffs."""
-    from app.db.models.conversation import Conversation
-
     result = _alembic("upgrade", "head")
     assert result.returncode == 0, result.stderr
     result = _alembic("downgrade", "0321_resource_icons")
@@ -394,11 +411,7 @@ def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs()
                     "owner": owner_id,
                 },
             )
-            conversation = Conversation(
-                organization_id=organization_id, user_id=owner_id, title="Old task"
-            )
-            db.add(conversation)
-            db.flush()
+            conversation_id = _legacy_conversation(db, organization_id, owner_id, "Old task")
             db.execute(
                 text(
                     "INSERT INTO coding_task_changes (id, organization_id, conversation_id, harness, files, omitted, truncated) "
@@ -407,7 +420,7 @@ def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs()
                 {
                     "id": change_id,
                     "organization": organization_id,
-                    "conversation": conversation.id,
+                    "conversation": conversation_id,
                     "files": json.dumps(files),
                 },
             )
@@ -458,7 +471,6 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
     from app.db.models.agent_environment import AgentEnvironment
     from app.db.models.agent_trigger import AgentTrigger
     from app.db.models.artifact import Artifact
-    from app.db.models.conversation import Conversation
 
     for action, revision in (
         ("upgrade", "head"),
@@ -488,9 +500,9 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
                 {"id": org_id, "slug": f"crosslinks-{org_id}", "creator": creator_id},
             )
             agent = Agent(organization_id=org_id, name="Reporter", slug=f"reporter-{uuid4()}")
-            chat = Conversation(organization_id=org_id, user_id=owner_id, title="Private")
-            db.add_all([agent, chat])
+            db.add(agent)
             db.flush()
+            chat_id = _legacy_conversation(db, org_id, creator_id, "Private")
             version = AgentVersion(organization_id=org_id, agent_id=agent.id, version=1, spec={})
             db.add(version)
             db.flush()
@@ -514,13 +526,13 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
                 interval_seconds=300,
                 next_fire_at=datetime.now(UTC),
                 answer_to="conversation",
-                delivery_conversation_id=chat.id,
+                delivery_conversation_id=chat_id,
             )
             db.add_all([page, routine])
             db.commit()
             agent_id = agent.id
             page_id, routine_id = page.id, routine.id
-            environment_id, chat_id = environment.id, chat.id
+            environment_id = environment.id
 
         constraints = (
             "agent_triggers_delivery_conversation_id_fkey",
@@ -689,7 +701,6 @@ def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None
     """Deleting an account succeeds in either trigger order once its runs were written."""
     from app.db.models.agent import Agent
     from app.db.models.agent_run import AgentRun
-    from app.db.models.conversation import Conversation
 
     constraint = "agent_runs_conversation_id_fkey"
     for action, revision in (
@@ -719,9 +730,9 @@ def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None
                 {"id": org_id, "slug": f"erasure-{org_id}", "creator": creator_id},
             )
             agent = Agent(organization_id=org_id, name="Helper", slug=f"helper-{uuid4()}")
-            chat = Conversation(organization_id=org_id, user_id=owner_id, title="Private")
-            db.add_all([agent, chat])
+            db.add(agent)
             db.flush()
+            chat_id = _legacy_conversation(db, org_id, creator_id, "Private")
             # A Core insert names only these columns: the model is at head and the
             # schema here is not.
             run_id = uuid4()
@@ -731,8 +742,8 @@ def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None
                     organization_id=org_id,
                     agent_id=agent.id,
                     started_at=datetime.now(UTC),
-                    user_id=owner_id,
-                    conversation_id=chat.id,
+                    user_id=creator_id,
+                    conversation_id=chat_id,
                     routine_policy={"approved_sources": []},
                 )
             )
@@ -2223,7 +2234,7 @@ def test_published_thread_chain_preserves_saved_profiles_and_matches_models(prev
         assert upgraded.returncode == 0, upgraded.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0350_drop_user_theme_look"
+                "0354_drop_user_theme_look"
             ]
             row = connection.execute(
                 text(
@@ -2303,7 +2314,7 @@ class TestRoomThreadMigration:
         continuation = script.get_revision("0345_credential_continuations")
         assert continuation is not None
         assert continuation.down_revision == "0344_browser_procedure_teaching"
-        assert script.get_heads() == ["0350_drop_user_theme_look"]
+        assert script.get_heads() == ["0354_drop_user_theme_look"]
 
     def test_existing_quotes_survive_roundtrip_and_models_match_head(self) -> None:
         reset = _alembic("downgrade", "base")
@@ -2331,7 +2342,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0350_drop_user_theme_look"]
+                ).all() == ["0354_drop_user_theme_look"]
                 rows = connection.execute(
                     text(
                         "SELECT id,reply_to_message_id,thread_root_message_id FROM messages "
@@ -2400,7 +2411,7 @@ class TestRoomThreadMigration:
             assert "Cannot remove room thread scopes" in refused.stderr
             with engine.begin() as connection:
                 # `0348_approval_expired_notice` downgrades inside an autocommit block, which
-                # commits the no-schema merge and column revisions above it before the refusal.
+                # commits the merge, column and room revisions above it before the refusal.
                 assert sorted(
                     connection.scalars(text("SELECT version_num FROM alembic_version")).all()
                 ) == ["0348_approval_expired_notice", "0348_architect_generated_avatar"]
@@ -2416,7 +2427,7 @@ class TestRoomThreadMigration:
             assert down.returncode == 0, down.stderr
             with engine.connect() as connection:
                 # Removing empty thread storage preserves its published upstream/pool parent;
-                # the upstream branch, joined by `0349_merge_t3_v1891`, keeps its own head.
+                # the upstream branch, joined by `0353_merge_t3_v1891`, keeps its own head.
                 assert sorted(
                     connection.scalars(text("SELECT version_num FROM alembic_version")).all()
                 ) == ["0332_merge_t3_pools_v1761", "0348_architect_generated_avatar"]
@@ -2432,7 +2443,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0350_drop_user_theme_look"]
+                ).all() == ["0354_drop_user_theme_look"]
             check = _alembic("check")
             assert check.returncode == 0, check.stderr
         finally:
@@ -2635,7 +2646,7 @@ class TestRoomThreadMigration:
         assert resumed.returncode == 0, resumed.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0350_drop_user_theme_look"
+                "0354_drop_user_theme_look"
             ]
             assert connection.execute(
                 text("SELECT content, thread_root_message_id FROM messages WHERE id = :id"),
@@ -3556,7 +3567,7 @@ def test_account_appearance_migration_keeps_one_appearance_document() -> None:
         assert not columns & {"theme", "look"}
         result = _alembic("check")
         assert result.returncode == 0, result.stderr + result.stdout
-        result = _alembic("downgrade", "0349_merge_t3_v1891")
+        result = _alembic("downgrade", "0353_merge_t3_v1891")
         assert result.returncode == 0, result.stderr
         columns = {column["name"] for column in inspect(engine).get_columns("users")}
         assert {"appearance", "theme", "look"} <= columns
@@ -3734,5 +3745,311 @@ def test_matrix_surface_migration_preserves_existing_exposures() -> None:
             assert db.get(AgentExposure, matrix_id) is None
         result = _alembic("upgrade", "head")
         assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()
+
+
+def test_room_message_reactions_migration_rehearses_upgrade_and_guarded_rollback() -> None:
+    """The reaction table upgrades cleanly and refuses a lossy rollback."""
+    prior = _alembic("upgrade", "0350_room_mention_requests")
+    assert prior.returncode == 0, prior.stderr
+    upgraded = _alembic("upgrade", "0351_room_message_reactions")
+    assert upgraded.returncode == 0, upgraded.stderr
+
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    row_id = uuid4()
+    try:
+        with engine.connect() as connection:
+            columns = {
+                row[0]
+                for row in connection.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_schema = 'public' AND table_name = 'room_message_reactions'"
+                    )
+                )
+            }
+            assert columns >= {
+                "id",
+                "organization_id",
+                "conversation_id",
+                "message_id",
+                "user_id",
+                "emoji",
+                "created_at",
+            }
+            assert (
+                connection.execute(
+                    text("SELECT to_regclass('public.ix_room_message_reactions_message')")
+                ).scalar_one()
+                is not None
+            )
+
+        with engine.begin() as connection:
+            # This migration test only needs a durable row to exercise the
+            # rollback guard; replica mode avoids seeding the unrelated parent rows.
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(
+                text(
+                    "INSERT INTO room_message_reactions "
+                    "(id, organization_id, conversation_id, message_id, user_id, emoji) "
+                    "VALUES (:id, :org, :conversation, :message, :user, '👍')"
+                ),
+                {
+                    "id": row_id,
+                    "org": uuid4(),
+                    "conversation": uuid4(),
+                    "message": uuid4(),
+                    "user": uuid4(),
+                },
+            )
+
+        refused = _alembic("downgrade", "0350_room_mention_requests")
+        assert refused.returncode != 0
+        assert "reaction evidence exists" in refused.stderr
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT to_regclass('public.room_message_reactions')")
+                ).scalar_one()
+                is not None
+            )
+
+        with engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM room_message_reactions WHERE id = :id"), {"id": row_id}
+            )
+        downgraded = _alembic("downgrade", "0350_room_mention_requests")
+        assert downgraded.returncode == 0, downgraded.stderr
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT to_regclass('public.room_message_reactions')")
+                ).scalar_one()
+                is None
+            )
+
+        restored = _alembic("upgrade", "head")
+        assert restored.returncode == 0, restored.stderr
+        drift = _alembic("check")
+        assert drift.returncode == 0, drift.stderr
+    finally:
+        engine.dispose()
+
+
+def _constraint_states(connection: Connection, table: str) -> dict[str, bool]:
+    """Constraint name to whether Postgres has proven it against every row."""
+    return {
+        row[0]: row[1]
+        for row in connection.execute(
+            text(
+                "SELECT conname, convalidated FROM pg_constraint "
+                "WHERE conrelid = CAST(:table AS regclass)"
+            ),
+            {"table": table},
+        )
+    }
+
+
+def _event_vocabulary(connection: Connection, table: str) -> str:
+    """The event-type CHECK definitions of `table`, as Postgres stores them."""
+    return " ".join(
+        connection.execute(
+            text(
+                "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                "WHERE conrelid = CAST(:table AS regclass) AND contype = 'c' "
+                "AND pg_get_constraintdef(oid) LIKE '%event_type%'"
+            ),
+            {"table": table},
+        ).scalars()
+    )
+
+
+def _index_states(connection: Connection, table: str) -> dict[str, bool]:
+    """Index name to whether it is valid, that is built and enforced."""
+    return {
+        row[0]: row[1]
+        for row in connection.execute(
+            text(
+                "SELECT c.relname, i.indisvalid FROM pg_index i "
+                "JOIN pg_class c ON c.oid = i.indexrelid "
+                "WHERE i.indrelid = CAST(:table AS regclass)"
+            ),
+            {"table": table},
+        )
+    }
+
+
+def test_room_migrations_are_lock_safe_on_populated_tables_and_retry() -> None:
+    """0349 and 0350 add checks NOT VALID, then prove them and build indexes outside the lock.
+
+    The tables already hold rows, so a validated ADD would scan them under ACCESS
+    EXCLUSIVE and an ordinary index build would block writes. The proof here is
+    that the rows survive, every constraint ends up validated, every index ends
+    up valid, uniqueness is enforced afterwards, and an interrupted run can be
+    repeated.
+    """
+    upgraded = _alembic("upgrade", "head")
+    assert upgraded.returncode == 0, upgraded.stderr
+    base = _alembic("downgrade", "0348_approval_expired_notice")
+    assert base.returncode == 0, base.stderr
+
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    organization, user, conversation, message = uuid4(), uuid4(), uuid4(), uuid4()
+    submission = uuid4()
+    insert_submission = text(
+        "INSERT INTO room_submissions (id, organization_id, conversation_id, "
+        "requester_id, message_id, client_message_id, fingerprint, status) "
+        "VALUES (:id, :organization, :conversation, :user, :message, "
+        ":client, 'fingerprint', 'posted')"
+    )
+    try:
+        with engine.begin() as connection:
+            # Replica mode skips the unrelated parent rows; only the populated
+            # tables matter to the lock behaviour.
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(
+                text(
+                    "INSERT INTO conversations (id, organization_id, user_id, title, is_archived) "
+                    "VALUES (:id, :organization, :user, 'Saved before rooms', false)"
+                ),
+                {"id": conversation, "organization": organization, "user": user},
+            )
+        step = _alembic("upgrade", "0349_room_participants")
+        assert step.returncode == 0, step.stderr
+        with engine.connect() as connection:
+            states = _constraint_states(connection, "conversations")
+            assert states["conversations_ck_conversation_room_visibility_check"] is True
+            assert states["conversations_ck_conversation_room_project_scope_check"] is True
+            assert (
+                connection.execute(
+                    text("SELECT room_visibility FROM conversations WHERE id = :id"),
+                    {"id": conversation},
+                ).scalar_one()
+                is None
+            )
+
+        with engine.begin() as connection:
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(
+                text(
+                    "INSERT INTO messages (id, conversation_id, role, content) "
+                    "VALUES (:id, :conversation, 'user', 'before mentions')"
+                ),
+                {"id": message, "conversation": conversation},
+            )
+            connection.execute(
+                insert_submission,
+                {
+                    "id": submission,
+                    "organization": organization,
+                    "conversation": conversation,
+                    "user": user,
+                    "message": message,
+                    "client": "client-1",
+                },
+            )
+        step = _alembic("upgrade", "0350_room_mention_requests")
+        assert step.returncode == 0, step.stderr
+
+        def check_end_state() -> None:
+            with engine.connect() as connection:
+                constraints = _constraint_states(connection, "room_submissions")
+                for name in (
+                    "fk_room_submission_parent",
+                    "room_submissions_child_request_check",
+                    "room_submissions_dispatch_check",
+                ):
+                    assert constraints[name] is True
+                assert "room_submissions_message_id_key" not in constraints
+                assert "uq_room_submission_client_legacy" not in constraints
+                for table, name in (
+                    ("notifications", "notifications_ck_notifications_event_type_check"),
+                    (
+                        "notification_preferences",
+                        "notification_preferences_ck_notification_preferences_ev_cd4d",
+                    ),
+                ):
+                    states = _constraint_states(connection, table)
+                    assert states[name] is True
+                    # The old check is replaced, not left beside the new one.
+                    admitting = connection.execute(
+                        text(
+                            "SELECT count(*) FROM pg_constraint "
+                            "WHERE conrelid = CAST(:table AS regclass) "
+                            "AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%event_type%' "
+                            "AND pg_get_constraintdef(oid) NOT LIKE '%room_mention%'"
+                        ),
+                        {"table": table},
+                    ).scalar_one()
+                    assert admitting == 0
+                    # The earlier revision's `approval_expired` is kept.
+                    assert "approval_expired" in _event_vocabulary(connection, table)
+                indexes = _index_states(connection, "room_submissions")
+                for name in (
+                    "uq_room_submission_client",
+                    "uq_room_submission_message",
+                    "uq_room_submission_post_agent",
+                ):
+                    assert indexes[name] is True
+                assert "uq_room_submission_client_legacy" not in indexes
+                row = connection.execute(
+                    text("SELECT dispatch, parent_submission_id FROM room_submissions")
+                ).one()
+                assert tuple(row) == ("explicit", None)
+                assert (
+                    connection.execute(
+                        text("SELECT room_mentions FROM messages WHERE id = :id"),
+                        {"id": message},
+                    ).scalar_one()
+                    == []
+                )
+
+        check_end_state()
+        with engine.connect() as connection, pytest.raises(IntegrityError):
+            connection.execute(
+                insert_submission,
+                {
+                    "id": uuid4(),
+                    "organization": organization,
+                    "conversation": conversation,
+                    "user": user,
+                    "message": message,
+                    "client": "client-2",
+                },
+            )
+
+        # An interrupted run leaves an INVALID index behind and the revision
+        # unstamped. Repeating it must rebuild that index, not skip it.
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE pg_index SET indisvalid = false "
+                    "WHERE indexrelid = 'uq_room_submission_message'::regclass"
+                )
+            )
+            connection.execute(
+                text("UPDATE alembic_version SET version_num = '0349_room_participants'")
+            )
+        retried = _alembic("upgrade", "0350_room_mention_requests")
+        assert retried.returncode == 0, retried.stderr
+        check_end_state()
+
+        rolled_back = _alembic("downgrade", "0349_room_participants")
+        assert rolled_back.returncode == 0, rolled_back.stderr
+        with engine.connect() as connection:
+            constraints = _constraint_states(connection, "room_submissions")
+            assert "uq_room_submission_client" in constraints
+            assert "room_submissions_message_id_key" in constraints
+            assert "uq_room_submission_message" not in _index_states(connection, "room_submissions")
+            for table in ("notifications", "notification_preferences"):
+                vocabulary = _event_vocabulary(connection, table)
+                assert "approval_expired" in vocabulary
+                assert "room_mention" not in vocabulary
+
+        restored = _alembic("upgrade", "head")
+        assert restored.returncode == 0, restored.stderr
+        drift = _alembic("check")
+        assert drift.returncode == 0, drift.stderr
     finally:
         engine.dispose()

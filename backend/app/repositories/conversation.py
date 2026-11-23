@@ -577,6 +577,7 @@ LISTED_COLUMNS = (
     Conversation.user_id,
     Conversation.organization_id,
     Conversation.title,
+    Conversation.room_visibility,
     Conversation.is_archived,
     Conversation.project_id,
     Conversation.origin,
@@ -810,6 +811,23 @@ async def messages_by_id(db: AsyncSession, message_ids: Collection[UUID]) -> dic
         return {}
     result = await db.execute(select(Message).where(Message.id.in_(set(message_ids))))
     return {message.id: message for message in result.scalars().all()}
+
+
+async def is_explicit_room(
+    db: AsyncSession, conversation_id: UUID, *, organization_id: UUID
+) -> bool:
+    """Room audience is a property of the tenant-scoped chat, even with one member."""
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    Conversation.id == conversation_id,
+                    Conversation.organization_id == organization_id,
+                    Conversation.room_visibility.is_not(None),
+                )
+            )
+        )
+    )
 
 
 async def release_project_chats(db: AsyncSession, *, user_id: UUID) -> None:
@@ -2336,6 +2354,7 @@ async def get_room_history_messages(
     *,
     request_message_id: UUID,
     limit: int,
+    request_id: UUID | None = None,
 ) -> list[Message] | None:
     """A queued request's bounded context, isolated from other subthreads.
 
@@ -2361,6 +2380,9 @@ async def get_room_history_messages(
                 Message.id == request_message_id,
                 Message.conversation_id == conversation_id,
                 RoomSubmission.conversation_id == conversation_id,
+                RoomSubmission.id == request_id
+                if request_id is not None
+                else RoomSubmission.parent_submission_id.is_(None),
             )
         )
     ).one_or_none()
@@ -3297,7 +3319,17 @@ async def _mark_refused(db: AsyncSession, predicate: ColumnElement[bool]) -> Non
 
 async def mark_run_messages_refused(db: AsyncSession, *, run_id: UUID) -> None:
     """Mark the run's rows and fence summaries built before its verdict."""
-    await _mark_refused(db, Message.run_id == run_id)
+    # Several room responders share one human source. A later responder's
+    # refusal must also fence that source, whose primary run link stays stable.
+    await _mark_refused(
+        db,
+        or_(
+            Message.run_id == run_id,
+            Message.id.in_(
+                select(RoomSubmission.message_id).where(RoomSubmission.run_id == run_id)
+            ),
+        ),
+    )
 
 
 async def message_refusal(
@@ -3394,7 +3426,15 @@ async def question_of_run(db: AsyncSession, *, run_id: UUID, organization_id: UU
         select(Message.content)
         .join(Conversation, Conversation.id == Message.conversation_id)
         .where(
-            Message.run_id == run_id,
+            or_(
+                Message.run_id == run_id,
+                Message.id.in_(
+                    select(RoomSubmission.message_id).where(
+                        RoomSubmission.run_id == run_id,
+                        RoomSubmission.organization_id == organization_id,
+                    )
+                ),
+            ),
             Message.role == "user",
             Conversation.organization_id == organization_id,
         )
@@ -3505,7 +3545,16 @@ async def prompt_for_answer(db: AsyncSession, message: Message) -> str:
     result = await db.execute(
         select(Message.content)
         .where(
-            Message.run_id == message.run_id,
+            or_(
+                Message.run_id == message.run_id,
+                Message.id.in_(
+                    select(RoomSubmission.message_id).where(
+                        RoomSubmission.run_id == message.run_id,
+                        RoomSubmission.conversation_id == message.conversation_id,
+                        RoomSubmission.run_id.is_not(None),
+                    )
+                ),
+            ),
             Message.conversation_id == message.conversation_id,
             Message.role == "user",
             Message.ordinal < message.ordinal,
@@ -3667,3 +3716,53 @@ async def known_channel_posts(
         )
     )
     return set(result.scalars())
+
+
+async def prepare_saved_room_prompt(
+    db: AsyncSession,
+    *,
+    message_id: UUID,
+    conversation_id: UUID,
+    organization_id: UUID,
+    requester_id: UUID,
+    run_id: UUID,
+    model_content: str | None,
+    attachment_context: str | None,
+) -> bool:
+    """Reuse a queued room post without creating or claiming another human turn.
+
+    Only the primary responder keeps the shared history projection. A second
+    agent routes the same files for its own workspace, but must not replace the
+    first agent's screened projection with a less restrictive one.
+    """
+    result = await db.execute(
+        select(RoomSubmission.parent_submission_id)
+        .join(Message, Message.id == RoomSubmission.message_id)
+        .where(
+            RoomSubmission.run_id == run_id,
+            RoomSubmission.organization_id == organization_id,
+            RoomSubmission.conversation_id == conversation_id,
+            RoomSubmission.requester_id == requester_id,
+            RoomSubmission.message_id == message_id,
+            RoomSubmission.status == "running",
+            Message.conversation_id == conversation_id,
+            Message.author_user_id == requester_id,
+            Message.role == "user",
+        )
+    )
+    row = result.one_or_none()
+    if row is None:
+        return False
+    if row.parent_submission_id is None:
+        await db.execute(
+            sql_update(Message)
+            .where(
+                Message.id == message_id,
+                Message.conversation_id == conversation_id,
+                Message.run_id == run_id,
+                Message.guardrail_refused.is_(False),
+            )
+            .values(model_content=model_content, attachment_context=attachment_context)
+        )
+        await db.flush()
+    return True

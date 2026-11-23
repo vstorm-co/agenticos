@@ -1547,7 +1547,7 @@ active personal membership; they accept no user or organization selector.
 changes only the supplied tokens and `reset_my_appearance` clears them. They act
 only for the caller, follow the configured write approval, and open consoles
 refresh their appearance after the result. Existing accounts keep the device
-defaults until a choice is saved; migration `0350_drop_user_theme_look.py`
+defaults until a choice is saved; migration `0354_drop_user_theme_look.py`
 keeps the single `users.appearance` document.
 
 A deliberate choice is saved even when the screen already uses that value; select it again to retry a failed save.

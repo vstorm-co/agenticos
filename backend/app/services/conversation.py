@@ -67,6 +67,12 @@ from app.repositories import (
 from app.repositories import (
     conversation_message_pin as conversation_message_pin_repo,
 )
+from app.repositories import (
+    room_message_reaction as room_message_reaction_repo,
+)
+from app.repositories import (
+    room_participant as room_participant_repo,
+)
 from app.schemas.conversation import (
     ChatPerson,
     ChatReader,
@@ -401,6 +407,7 @@ class ConversationService:
         public_transcript_only: bool = False,
         before_message_id: UUID | None = None,
         room_request_message_id: UUID | None = None,
+        room_request_id: UUID | None = None,
         thread_root_message_id: UUID | None = None,
         snapshot: bool = False,
     ) -> ModelHistory:
@@ -436,6 +443,8 @@ class ConversationService:
         It is for idle maintenance only: the caller can fence every model request
         and the eventual summary write against any later transcript change.
         """
+        if room_request_id is not None and room_request_message_id is None:
+            raise BadRequestError(message="A room request needs its original message boundary")
         if (
             sum(
                 value is not None
@@ -463,6 +472,7 @@ class ConversationService:
                     conversation_id,
                     request_message_id=room_request_message_id,
                     limit=limit,
+                    **({"request_id": room_request_id} if room_request_id is not None else {}),
                 )
             else:
                 assert thread_root_message_id is not None, "one explicit thread was selected"
@@ -738,13 +748,17 @@ class ConversationService:
     ) -> dict[UUID, str]:
         """How each person's turn reads to the model, where that is more than its text.
 
-        In a project's chat several people talk to the agent at once, so each
+        In a shared room several people talk to the agent at once, so each
         turn says who said it; and a turn that replies to an earlier message
         quotes it, so "yes, do that" reaches the model with what it says yes to.
         One query for the quoted messages outside the window, one for the names.
         """
         owner = conversation.user_id if conversation is not None else None
-        label_authors = getattr(conversation, "project_id", None) is not None or any(
+        in_shared_room = conversation is not None and (
+            getattr(conversation, "project_id", None) is not None
+            or getattr(conversation, "room_visibility", None) is not None
+        )
+        label_authors = in_shared_room or any(
             row.role == "user" and row.author_user_id is not None and row.author_user_id != owner
             for row in rows
         )
@@ -1122,6 +1136,18 @@ class ConversationService:
                 visible.add(row.id)
             else:
                 remaining.append(row)
+        room_ids = await room_participant_repo.user_ids_in_conversations(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            conversation_ids=[row.id for row in remaining],
+        )
+        active_org_member = (
+            await member_repo.get_active(
+                self.db, organization_id=ctx.organization_id, user_id=ctx.user_id
+            )
+            is not None
+        )
         channels = (
             await conversation_repo.channel_thread_ids(self.db, [row.id for row in remaining])
             if remaining
@@ -1132,6 +1158,14 @@ class ConversationService:
             await conversation_repo.trigger_log_ids(self.db, ownerless) if ownerless else set()
         )
         for row in remaining:
+            if row.room_visibility == "private":
+                if row.id in room_ids:
+                    visible.add(row.id)
+                continue
+            if row.room_visibility == "public":
+                if active_org_member:
+                    visible.add(row.id)
+                continue
             if (
                 row.id in channels
                 and await channel_membership.confirms_participation(
@@ -1199,6 +1233,22 @@ class ConversationService:
             return True
         if await conversation_share_repo.get_share(self.db, conversation.id, user_id):
             return True
+        if conversation.room_visibility == "public":
+            return (
+                await member_repo.get_active(
+                    self.db,
+                    organization_id=conversation.organization_id,
+                    user_id=user_id,
+                )
+                is not None
+            )
+        if conversation.room_visibility == "private":
+            return await room_participant_repo.has_member(
+                self.db,
+                organization_id=conversation.organization_id,
+                conversation_id=conversation.id,
+                user_id=user_id,
+            )
         if await channel_membership.confirms_participation(
             self.db, conversation_id=conversation.id, user_id=user_id
         ):
@@ -1354,6 +1404,19 @@ class ConversationService:
             return str(owner) == str(user_id) and await self._project_allows(
                 conversation, user_id, ctx, Perm.PROJECTS_VIEW
             )
+        if turn and conversation.room_visibility is not None:
+            is_member = await room_participant_repo.has_member(
+                self.db,
+                organization_id=conversation.organization_id,
+                conversation_id=conversation.id,
+                user_id=user_id,
+            )
+            if conversation.room_visibility == "public":
+                return is_member
+            if is_member:
+                return True
+            share = await conversation_share_repo.get_share(self.db, conversation.id, user_id)
+            return share is not None and share.permission == "edit"
         if owner is not None and str(owner) == str(user_id):
             return True
         share = await conversation_share_repo.get_share(self.db, conversation.id, user_id)
@@ -1387,21 +1450,23 @@ class ConversationService:
     ) -> None:
         """Put the person on each turn somebody signed in typed.
 
-        A project's chat is continued by whoever works in it, so its user turns
+        A shared room is continued by whoever works in it, so its user turns
         are several people's; one query for the page, none when nobody is named.
 
-        A project chat's console turn naming nobody is one whose writer's
+        A shared chat's console turn naming nobody is one whose writer's
         account has since gone - every earlier one was given its owner by
         `0141_message_author_user.py` - and says so, rather than reading as the reader's own
         "You" or as whoever started the thread.
         """
-        in_project = getattr(conversation, "project_id", None) is not None
+        in_shared_room = (
+            conversation.project_id is not None or conversation.room_visibility is not None
+        )
         authored = []
         for msg in messages:
             author_id = getattr(msg, "author_user_id", None)
             if author_id is not None:
                 authored.append((msg, author_id))
-            elif in_project and _a_persons_turn(msg):
+            elif in_shared_room and _a_persons_turn(msg):
                 msg.sender_gone = True  # ty: ignore[missing-attribute]
         if not authored:
             return
@@ -1603,6 +1668,12 @@ class ConversationService:
             if user_id is not None and not hide_channels
             else set()
         )
+        if user_id is not None:
+            participant_ids.update(
+                await room_participant_repo.user_conversation_ids(
+                    self.db, organization_id=organization_id, user_id=user_id
+                )
+            )
         project_ids = (
             await self.visible_project_ids(user_id, organization_id, reader=reader)
             if user_id is not None and project_scope != "exclude"
@@ -1942,6 +2013,11 @@ class ConversationService:
             for_write=True,
             include_favourite=False,
         )
+        if conversation.room_visibility is not None:
+            raise refused_field(
+                "conversation_id",
+                "Use the room composer and @mentions to message in a shared room",
+            )
         if conversation.origin != "api":
             raise refused_field(
                 "conversation_id",
@@ -2520,17 +2596,31 @@ class ConversationService:
             if user_id is not None and items and not for_model
             else set()
         )
-        if top_level_only or thread_root_message_id is not None:
-            summaries = await conversation_repo.thread_summaries(
+        thread_activity = {}
+        if items and not for_model:
+            thread_activity = await conversation_repo.thread_summaries(
                 self.db,
                 conversation_id=conversation_id,
                 root_ids={item.id for item in items if item.thread_root_message_id is None},
             )
             for item in items:
-                summary = summaries.get(item.id)
-                # Transient read enrichment, like sender and reply_to below.
-                item.thread_reply_count = summary.reply_count if summary else 0  # ty: ignore[missing-attribute]
-                item.thread_last_activity_at = summary.last_activity_at if summary else None  # ty: ignore[missing-attribute]
+                if item.thread_root_message_id is None:
+                    summary = thread_activity.get(item.id)
+                    # Transient read enrichment, like sender and reply_to below.
+                    item.thread_reply_count = summary.reply_count if summary else 0  # ty: ignore[missing-attribute]
+                    item.thread_last_activity_at = summary.last_activity_at if summary else None  # ty: ignore[missing-attribute]
+        thread_reader_summaries = {}
+        if user_id is not None and items and not for_model:
+            from app.services.room_thread import RoomThreadService
+
+            thread_reader_summaries = await RoomThreadService(self.db).summaries_for_messages(
+                conversation,
+                items,
+                user_id=user_id,
+                ctx=ctx,
+                existing_thread_ids=set(thread_activity),
+                include_all_roots=thread_root_message_id is not None,
+            )
         await self._attach_senders(items, conversation)
         if for_model:
             return (
@@ -2548,6 +2638,13 @@ class ConversationService:
         cost = await self._cost(conversation_id)
         if user_id is not None and items:
             message_ids = [msg.id for msg in items]
+            reaction_summaries = await room_message_reaction_repo.list_aggregates(
+                self.db,
+                organization_id=organization_id,
+                conversation_id=conversation_id,
+                message_ids=message_ids,
+                user_id=user_id,
+            )
             user_ratings = await message_rating_repo.get_user_ratings_for_messages(
                 self.db, message_ids=message_ids, user_id=user_id
             )
@@ -2560,6 +2657,8 @@ class ConversationService:
                 msg_schema = MessageRead.model_validate(msg)
                 msg_schema.user_rating = user_ratings.get(msg.id)
                 msg_schema.rating_count = rating_counts.get(msg.id)
+                msg_schema.reactions = reaction_summaries.get(msg.id, [])
+                msg_schema.thread_summary = thread_reader_summaries.get(msg.id)
                 if user_id is not None:
                     msg_schema.is_pinned = msg.id in pinned_message_ids
                 # So a turn a run was stopped mid-way through can say so. Without
@@ -2644,12 +2743,15 @@ class ConversationService:
                 message="Conversation is archived",
                 details={"conversation_id": str(conversation_id)},
             )
-        if user_id is not None and data.role != "user" and conversation.project_id is not None:
-            # A project's chat is read by the whole project, and the model reads
-            # it back as its own words: an agent's turn written by a person would
-            # be a fabricated answer everybody else trusts. The runs write those,
-            # with no person behind the call.
-            raise refused_field("role", "In a project's chat, write your own turns only")
+        if (
+            user_id is not None
+            and data.role != "user"
+            and (conversation.project_id is not None or conversation.room_visibility is not None)
+        ):
+            # A room is read by its whole audience, and the model reads it back
+            # as its own words: a turn written by a person with role=assistant
+            # would be a fabricated answer everybody else trusts.
+            raise refused_field("role", "In a room, write your own turns only")
         if (
             run_id is None
             and data.parts
@@ -2663,12 +2765,12 @@ class ConversationService:
                     conversation_id=conversation_id,
                     root_message_id=thread_root_message_id,
                 )
-                if conversation.project_id is not None
+                if conversation.project_id is not None or conversation.room_visibility is not None
                 else None
             )
             if root is None:
                 raise refused_field(
-                    "thread_root_message_id", "Choose a top-level message in this project room"
+                    "thread_root_message_id", "Choose a top-level message in this room"
                 )
         reply_to_excerpt: str | None = None
         if data.reply_to_message_id is not None:

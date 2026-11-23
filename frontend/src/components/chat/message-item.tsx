@@ -12,6 +12,7 @@ import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { cn } from "@/lib/utils";
 import type { ChatMessage, ChatMessageFile, MessageReply, TurnUsage } from "@/types";
 import { RoomThreadButton } from "./room-thread-button";
+import { RoomMessageReactions } from "./room-message-reactions";
 import type { Agent } from "@/types/agents";
 import { buildAssistantParts } from "@/lib/conversation-to-chat";
 import { groupWorkParts } from "@/lib/turn-timeline";
@@ -142,6 +143,10 @@ interface MessageItemProps {
   asked?: AskedBefore;
   /** What the person asked for, on the answer that ends the turn: a skill can be made of it. */
   request?: string;
+  /** The message belongs to a first-class or project room. */
+  roomReactionsEnabled?: boolean;
+  /** The current reader may write to the room. */
+  canReactToRoomMessages?: boolean;
 }
 
 export const MessageItem = memo(function MessageItem({
@@ -167,6 +172,8 @@ export const MessageItem = memo(function MessageItem({
   agents = [],
   asked,
   request,
+  roomReactionsEnabled = false,
+  canReactToRoomMessages = false,
 }: MessageItemProps) {
   const t = useTranslations("chat");
   const tInput = useTranslations("chat.input");
@@ -446,6 +453,22 @@ export const MessageItem = memo(function MessageItem({
           onCiteClick={onCiteClick}
         />
 
+        {roomReactionsEnabled &&
+          !threadRootPreview &&
+          !message.isStreaming &&
+          !message.isTemporaryId &&
+          savedMessageId !== null &&
+          message.conversationId &&
+          message.role !== "system" && (
+            <RoomMessageReactions
+              conversationId={message.conversationId}
+              messageId={savedMessageId}
+              initialReactions={message.reactions}
+              canReact={canReactToRoomMessages}
+              align={isUser ? "end" : "start"}
+            />
+          )}
+
         {!isUser && message.runFailed && endsTurn && (
           <div
             role="alert"
@@ -629,17 +652,15 @@ export const MessageItem = memo(function MessageItem({
               <button
                 type="button"
                 onPointerDown={() => {
-                  replySelectionRef.current =
-                    typeof window === "undefined"
-                      ? null
-                      : selectedMessageQuote(window.getSelection(), messageElementRef.current);
+                  replySelectionRef.current = selectedMessageQuote(
+                    window.getSelection(),
+                    messageElementRef.current,
+                  );
                 }}
                 onClick={() => {
                   const selectedQuote =
                     replySelectionRef.current ??
-                    (typeof window === "undefined"
-                      ? null
-                      : selectedMessageQuote(window.getSelection(), messageElementRef.current));
+                    selectedMessageQuote(window.getSelection(), messageElementRef.current);
                   replySelectionRef.current = null;
                   // A selection from an unsaved coalesced segment has no stable
                   // reply target yet. Keep it separate from the ordinary reply
@@ -854,6 +875,7 @@ function MessageBody({
               isUser={isUser}
               onCiteClick={onCiteClick}
               mentions={isUser ? message.mentions : undefined}
+              roomMentions={isUser ? message.roomMentions : undefined}
               quoteable={!message.isStreaming && !message.guardrailRefused}
             />
           )}

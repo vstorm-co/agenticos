@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import Select, func, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased, load_only
 
 from app.db.models.agent_run import AgentRun, ApprovalDecidedVia, RunStatus, ToolApproval
 from app.db.models.chat_file import ChatFile
@@ -58,6 +58,46 @@ async def get_many(db: AsyncSession, file_ids: Iterable[UUID], *, user_id: UUID)
     result = await db.execute(
         select(ChatFile).where(ChatFile.id.in_(ids), ChatFile.user_id == user_id)
     )
+    return list(result.scalars().all())
+
+
+async def for_message(
+    db: AsyncSession,
+    *,
+    message_id: UUID,
+    conversation_id: UUID,
+    user_id: UUID,
+    include_content: bool = False,
+) -> list[ChatFile]:
+    """The author's files linked to this exact room post, never unclaimed uploads.
+
+    Reads and permission rechecks need only metadata. Load the extracted contents
+    and storage path only when the worker is about to route the actual files.
+    """
+    statement = (
+        select(ChatFile)
+        .join(Message, Message.id == ChatFile.message_id)
+        .where(
+            ChatFile.message_id == message_id,
+            ChatFile.user_id == user_id,
+            Message.conversation_id == conversation_id,
+        )
+        .order_by(ChatFile.created_at, ChatFile.id)
+    )
+    if not include_content:
+        statement = statement.options(
+            load_only(
+                ChatFile.id,
+                ChatFile.user_id,
+                ChatFile.message_id,
+                ChatFile.filename,
+                ChatFile.mime_type,
+                ChatFile.file_type,
+                ChatFile.created_at,
+                raiseload=True,
+            )
+        )
+    result = await db.execute(statement)
     return list(result.scalars().all())
 
 

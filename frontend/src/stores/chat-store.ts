@@ -17,7 +17,10 @@ import type { RoomDecisionAttempt } from "@/types/room-routing";
 
 export const EMPTY_ROOM_DRAFT: RoomDraft = {
   content: "",
-  agentId: null,
+  roomMentions: [],
+  attachments: [],
+  pendingUploads: [],
+  uploadError: null,
   intent: "message",
   reply: null,
   attempt: null,
@@ -106,6 +109,7 @@ function plainTextAnswer(message: ChatMessage): boolean {
     message.files?.length ||
     message.fileIds?.length ||
     message.mentions?.length ||
+    message.roomMentions?.length ||
     message.replyTo
   )
     return false;

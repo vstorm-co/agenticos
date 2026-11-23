@@ -191,6 +191,26 @@ function openedFile() {
   return state.available.find((one) => one.id === state.openId);
 }
 
+describe("a room message with mentions", () => {
+  it("marks each mentioned person and agent and leaves the rest as plain text", () => {
+    const { container } = item({
+      role: "user",
+      content: "Hi @Ann and @Writer please look",
+      roomMentions: [
+        { kind: "user", id: "ann", name: "Ann" },
+        { kind: "agent", id: "writer", name: "Writer" },
+      ],
+    });
+
+    expect(container.querySelector('[data-room-mention="user:ann"]')).toHaveTextContent("@Ann");
+    expect(container.querySelector('[data-room-mention="agent:writer"]')).toHaveTextContent(
+      "@Writer",
+    );
+    expect(screen.getByText("Hi")).toBeVisible();
+    expect(screen.getByText("please look")).toBeVisible();
+  });
+});
+
 describe("a turn in the transcript", () => {
   it("marks an answer whose run was stopped part-way through", () => {
     // A cancelled run leaves whatever had been written when the socket closed,
@@ -763,6 +783,15 @@ describe("an app the turn published", () => {
 
     const card = screen.getByRole("link", { name: /Revenue dashboard/ });
     expect(card).toHaveAttribute("href", "/apps/app-1?version=v-2");
+  });
+
+  it("returns to the saved conversation from the app it opened", () => {
+    item({ ...publishing, conversationId: "123e4567-e89b-42d3-a456-426614174000" });
+
+    expect(screen.getByRole("link", { name: /Revenue dashboard/ })).toHaveAttribute(
+      "href",
+      expect.stringContaining("returnTo=%2Fchat%3Fid%3D123e4567-e89b-42d3-a456-426614174000"),
+    );
   });
 
   it("shows an already published app while the parent continues", () => {

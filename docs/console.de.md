@@ -1,5 +1,5 @@
 ---
-source_sha: "6be491cc93ad"
+source_sha: "7e61615defb6"
 ---
 
 # Die Konsole { #the-console }
@@ -809,8 +809,20 @@ entsprechende gehostete Capability und dürfen Sie ihn ausführen, bittet eine
 ausdrückliche Startaktion ihn, den Browser zu öffnen oder ein Desktop-Bild
 aufzunehmen. Andernfalls erklärt das Panel, was nicht verfügbar ist. Die
 veröffentlichten Einstellungen und Zugriffskontrollen des Agents gelten weiterhin.
-Wählen Sie in Teamräumen im Nachrichtenfeld einen Agenten aus und bitten Sie ihn,
-den Browser oder Computer zu öffnen. Die Panels bleiben zum Ansehen verfügbar.
+Geben Sie in Teamräumen `@` im Nachrichtenfeld ein, wählen Sie einen Agenten aus
+und bitten Sie ihn, den Browser oder Computer zu öffnen. Die Panels bleiben zum
+Ansehen verfügbar.
+
+**Gemeinsamer Chat.** Über die Teilnehmerliste können Sie Personen zu einem
+Agent-Chat oder Agents zu einem Raum für Menschen hinzufügen. Der bestehende
+Verlauf bleibt erhalten und wird ausdrücklich geteilt. Mit dem Raumbrowser in der
+Seitenleiste können Sie private oder organisationsweit sichtbare Räume erstellen
+und öffentlichen Räumen beitreten, bevor Sie dort schreiben. Erwähnen Sie eine
+Person mit `@`, um sie zu benachrichtigen, oder einen Agenten, um seine Antwort
+anzufordern. Raum-Anhänge, Emoji-Reaktionen, Thread-Beobachtung und
+Ungelesen-Markierungen nutzen denselben gespeicherten Verlauf. Mehr zu
+Mitgliedschaft, Antwortverhalten und Threads steht unter
+[Teamräume](projects.md#team-rooms).
 
 Browser- und Computer-Ansichten bleiben getrennt. Panels sind zunächst geschlossen;
 ein geschlossenes Panel bleibt auch bei neuen Werkzeugergebnissen geschlossen. Auf

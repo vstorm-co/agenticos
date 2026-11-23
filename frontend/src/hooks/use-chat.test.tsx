@@ -160,7 +160,7 @@ function frame(nth = 0): Record<string, unknown> {
 }
 
 describe("room persistence events", () => {
-  it("announces only the selected room's message and request changes", () => {
+  it("announces only the selected room's message, request, reaction and thread changes", () => {
     useConversationStore.getState().setCurrentConversationId("c-1");
     renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
     const changed = vi.fn();
@@ -169,13 +169,38 @@ describe("room persistence events", () => {
     expect(changed).not.toHaveBeenCalled();
     receive("room_message", { conversation_id: "c-1", message_id: "saved-human" });
     receive("room_request", { conversation_id: "c-1", request_id: "request" });
-    expect(changed).toHaveBeenCalledTimes(2);
+    receive("room_reaction", { conversation_id: "c-1", message_id: "saved-human" });
+    receive("room_thread", { conversation_id: "c-1", thread_root_message_id: "root-1" });
+    expect(changed).toHaveBeenCalledTimes(4);
     expect(changed).toHaveBeenLastCalledWith({
       conversationId: "c-1",
       accountId: undefined,
       organizationId: null,
     });
     unsubscribe();
+  });
+
+  it("refreshes the selected room's participants and conversation list on a membership change", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(qk.organizations.list(), []);
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    renderHook(() => useChat({ conversationId: "c-1" }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    invalidate.mockClear();
+
+    receive("room_participants", { conversation_id: "c-other" });
+    expect(invalidate).not.toHaveBeenCalled();
+
+    receive("room_participants", { conversation_id: "c-1" });
+    const keys = invalidate.mock.calls.map(([filters]) => filters?.queryKey);
+    expect(keys).toContainEqual(qk.conversations.all());
+    expect(
+      keys.some((key) => key?.[0] === "room-participants" && key[3] === "c-1" && key.length === 4),
+    ).toBe(true);
   });
 
   it("reconciles a saved room prompt and streamed answer into one final answer", () => {

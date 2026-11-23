@@ -278,7 +278,7 @@ def _chat(
             )
         )
     )
-    conversations.get_conversation = AsyncMock()
+    conversations.get_conversation = AsyncMock(return_value=MagicMock(room_visibility=None))
     conversations.keep_summary = AsyncMock()
     conversations.keep_overhead = AsyncMock()
     conversations.keep_plan = AsyncMock()
@@ -409,6 +409,64 @@ class TestFramesWithoutAnAgent:
 
         events = _sent_events(session)
         assert events == [("error", {"message": "Empty message"})]
+
+
+class TestLegacySocketRoomAdmission:
+    @pytest.mark.parametrize("visibility", ["private", "public"])
+    async def test_a_legacy_socket_turn_is_refused_in_an_explicit_room(
+        self, visibility: str
+    ) -> None:
+        session = _session()
+
+        with _chat(AsyncMock()) as chat:
+            chat.conversations.get_conversation.return_value = SimpleNamespace(
+                room_visibility=visibility
+            )
+            await session.process_message(_message(conversation_id=_CONVERSATION))
+
+        assert _sent_events(session) == [
+            (
+                "error",
+                {"message": "Use the room composer and @mentions to message in a shared room."},
+            )
+        ]
+        chat.prompt.assert_not_awaited()
+        chat.runner.refuse_system_agent.assert_not_awaited()
+
+    async def test_a_project_conversation_keeps_the_legacy_socket_turn(self) -> None:
+        session = _session()
+
+        with _chat(AsyncMock(return_value=_finished_turn())) as chat:
+            chat.conversations.get_conversation.return_value = SimpleNamespace(
+                room_visibility=None, project_id=uuid4()
+            )
+            await session.process_message(_message(conversation_id=_CONVERSATION))
+
+        chat.prompt.assert_awaited_once()
+        assert "error" not in _frame_types(session)
+
+    async def test_a_malformed_conversation_id_keeps_the_persistence_refusal(self) -> None:
+        session = _session()
+        refusal = BadRequestError(message="Invalid conversation id")
+
+        with _chat(AsyncMock()) as chat:
+            chat.prompt.side_effect = refusal
+            await session.process_message(_message(conversation_id="not-a-uuid"))
+
+        assert _sent_events(session) == [("error", {"message": refusal.message})]
+        chat.conversations.get_conversation.assert_not_awaited()
+
+    async def test_a_conversation_lookup_refusal_stops_before_persistence(self) -> None:
+        session = _session()
+        refusal = AuthorizationError(message="Conversation is unavailable")
+
+        with _chat(AsyncMock()) as chat:
+            chat.conversations.get_conversation.side_effect = refusal
+            await session.process_message(_message(conversation_id=_CONVERSATION))
+
+        assert _sent_events(session) == [("error", {"message": refusal.message})]
+        chat.prompt.assert_not_awaited()
+        chat.runner.refuse_system_agent.assert_not_awaited()
 
 
 class TestPageContextForEachTurn:
@@ -1377,15 +1435,22 @@ class TestATurnThatDidNotFinish:
         """The socket authenticated against one organization; resuming a thread
         from another would read one org's history while billing a second."""
         session = _session()
+        session.organization_id = uuid4()
         refusal = AuthorizationError(
             message="Conversation belongs to a different organization",
             details={"conversation_id": _CONVERSATION},
         )
+        current_membership = AsyncMock(return_value=SimpleNamespace(role="member"))
+        conversation_lookup = AsyncMock(side_effect=refusal)
+        persist = AsyncMock()
 
         with (
+            patch("app.services.agent_session.member_repo.get", new=current_membership),
             patch(
-                "app.services.agent_session.persist_user_turn", new=AsyncMock(side_effect=refusal)
+                "app.services.agent_session.ConversationService.get_conversation",
+                new=conversation_lookup,
             ),
+            patch("app.services.agent_session.persist_user_turn", new=persist),
             patch("app.services.agent_session.get_db_context") as db_context,
             patch("app.services.agent_session.ChatAgentRunner") as runner_cls,
         ):
@@ -1394,6 +1459,9 @@ class TestATurnThatDidNotFinish:
             runner_cls.return_value.refuse_system_agent = AsyncMock()
             await session.process_message(_message(conversation_id=_CONVERSATION))
 
+        current_membership.assert_awaited_once()
+        conversation_lookup.assert_awaited_once()
+        persist.assert_not_awaited()
         assert _sent_events(session) == [
             ("error", {"message": "Conversation belongs to a different organization"})
         ]
