@@ -198,6 +198,8 @@ async def test_what_agents_are_told_is_saved_and_nothing_else(
     ("method", "path"),
     [
         ("PUT", "/users/me/locale"),
+        ("GET", "/users/me/console-experience"),
+        ("PATCH", "/users/me/console-experience"),
         ("PATCH", "/users/me/agent-context"),
         ("GET", "/me/mcp-connections"),
     ],
@@ -537,3 +539,37 @@ async def test_an_admin_password_change_is_audited_by_field_not_by_value(
     entry = mock_db_session.add.call_args.args[0]
     assert entry.action == "admin.user.update"
     assert entry.details == {"fields": ["full_name", "password"]}
+
+
+@pytest.mark.anyio
+async def test_only_app_admin_can_issue_user_password_reset(
+    auth_client: AsyncClient, mock_user: MockUser, mock_user_service: MagicMock
+) -> None:
+    response = await auth_client.post(
+        f"{settings.API_V1_STR}/admin/users/{mock_user.id}/password-reset",
+        json={"delivery": "link"},
+    )
+
+    assert response.status_code == 403
+    mock_user_service.admin_password_reset.assert_not_called()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("delivery", ["email", "link"])
+async def test_app_admin_password_reset_response_is_not_cacheable(
+    superuser_client: AsyncClient,
+    mock_user: MockUser,
+    mock_user_service: MagicMock,
+    delivery: str,
+) -> None:
+    url = "https://console.example.test/reset-password?token=test" if delivery == "link" else None
+    mock_user_service.admin_password_reset = AsyncMock(return_value=url)
+    response = await superuser_client.post(
+        f"{settings.API_V1_STR}/admin/users/{mock_user.id}/password-reset",
+        json={"delivery": delivery},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert response.json() == {"reset_url": url}
+    assert mock_user_service.admin_password_reset.await_args.kwargs["delivery"] == delivery

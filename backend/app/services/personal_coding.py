@@ -1,11 +1,11 @@
-"""Run a person's coding grant only in a disposable container owned by their task."""
+"""Run a person's coding grant in an owned, named private cloud workspace."""
 
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Literal
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import anyio
 from pydantic_ai.tools import RunContext
@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.coding_agent._harness import Harness
 from app.agents.capabilities.coding_agent._personal import PersonalCodingTask
+from app.agents.capabilities.coding_agent._task import MAIN_SESSION, SESSION_NAME
 from app.agents.capabilities.sandbox import SandboxConfig
 from app.agents.capabilities.sandbox._identity import WorkspaceIdentity
 from app.agents.deps import AgentDeps
@@ -23,8 +24,10 @@ from app.core.exceptions import AuthorizationError, BadRequestError, ConflictErr
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret, OpenAICodexSecret, SecretKind, unseal_secret
 from app.core.vault import VaultScope
+from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.coding_account import CodingAccount
 from app.db.session import get_db_context
+from app.repositories import agent_workspace as workspace_repo
 from app.repositories import coding_account as account_repo
 from app.repositories import conversation_share_repo, member_repo
 from app.services.coding_account_lease import account_lease
@@ -36,6 +39,7 @@ from app.services.sandbox_workspace import SandboxWorkspaceService
 
 logger = logging.getLogger(__name__)
 MAX_POOL_SELECTION_ATTEMPTS = 3
+MAX_RETAINED_SESSIONS_PER_ACCOUNT = 10
 
 
 @dataclass(frozen=True)
@@ -130,8 +134,15 @@ class PersonalCodingSessionFactory:
 
     @asynccontextmanager
     async def session(
-        self, ctx: RunContext[AgentDeps], *, harness: Harness, timeout_seconds: int
+        self,
+        ctx: RunContext[AgentDeps],
+        *,
+        harness: Harness,
+        timeout_seconds: int,
+        session: str = MAIN_SESSION,
     ) -> AsyncGenerator[PersonalCodingTask]:
+        if not SESSION_NAME.fullmatch(session):
+            raise BadRequestError(message="Choose a valid coding session name")
         owner = account_owner(self.ctx)
         if ctx.deps.user_id != str(owner) or ctx.deps.organization_id != self.ctx.organization_id:
             raise AuthorizationError(
@@ -158,15 +169,20 @@ class PersonalCodingSessionFactory:
                 message="Personal coding accounts cannot use a conversation collaborators can edit"
             )
         candidates = await self._accounts(harness)
+        # One eligible account has nobody to fall back to, so wait for its lease;
+        # a pool moves on to the next account instead of queueing behind a busy one.
+        wait_seconds = timeout_seconds if len(candidates) == 1 else 0
         for account in candidates:
             lease_key = f"personal-coding:{self.ctx.organization_id}:{owner}:{account.id}"
             acquired = False
             try:
-                async with account_lease(lease_key, timeout_seconds, redis=self.redis):
+                async with account_lease(
+                    lease_key, timeout_seconds, redis=self.redis, wait_seconds=wait_seconds
+                ):
                     acquired = True
                     reason = "opt_in_pool" if account.pool_member else "manual_default"
                     async with self._isolated(
-                        ctx, account, harness, selection_reason=reason
+                        ctx, account, harness, session, selection_reason=reason
                     ) as task:
                         yield task
             except ConflictError:
@@ -182,6 +198,7 @@ class PersonalCodingSessionFactory:
         ctx: RunContext[AgentDeps],
         account: CodingAccount,
         harness: Harness,
+        session: str = MAIN_SESSION,
         *,
         selection_reason: Literal["manual_default", "opt_in_pool"] = "manual_default",
     ) -> AsyncGenerator[PersonalCodingTask]:
@@ -198,15 +215,36 @@ class PersonalCodingSessionFactory:
             raise TypeError("A personal coding account has an unsupported credential")
         if isinstance(value, OpenAICodexSecret) and harness != "codex":
             raise BadRequestError(message="A ChatGPT account can only run Codex")
-        source = await snapshot(ctx.workspace)
         task_id = uuid4()
+        namespace = uuid5(
+            NAMESPACE_URL,
+            f"agenticos:personal-coding:{self.ctx.organization_id}:{owner}:{self.agent_id}:"
+            f"{ctx.deps.conversation_id}:{account.id}:{account.generation}:{session}",
+        )
         bindings = [binding for binding in self.spec.capabilities if binding.id != "sandbox"]
-        private_config = self.config.model_copy(update={"session_scope": "run"})
+        private_config = self.config.model_copy(update={"session_scope": "user"})
         bindings.append(
             CapabilityBindingSpec(id="sandbox", config=private_config.model_dump(mode="json"))
         )
         private_spec = self.spec.model_copy(update={"capabilities": bindings})
         async with get_db_context() as db:
+            # Serialize capacity checks and binding with account changes. Opening
+            # the workspace below resolves its key, but its remote backend is lazy.
+            locked_account = await account_repo.get(
+                db,
+                organization_id=self.ctx.organization_id,
+                user_id=owner,
+                account_id=account.id,
+                locked=True,
+            )
+            if (
+                locked_account is None
+                or not locked_account.enabled
+                or locked_account.generation != account.generation
+            ):
+                raise AuthorizationError(
+                    message="Permission to use this coding account was revoked"
+                )
             workspaces = SandboxWorkspaceService(db)
             opened = await workspaces.open(
                 private_spec,
@@ -217,13 +255,67 @@ class PersonalCodingSessionFactory:
                     agent_id=self.agent_id,
                     run_id=task_id,
                     conversation_id=ctx.deps.conversation_id,
+                    namespace=namespace,
                 ),
-                scope_override="run",
+                scope_override="user",
             )
             if opened is None:
                 raise RuntimeError("A personal coding task did not obtain its isolated workspace")
             succeeded = False
+            admitted = False
+            row: AgentWorkspace | None = None
             try:
+                if opened.row_id is None or ctx.deps.conversation_id is None:
+                    raise RuntimeError(
+                        "A named personal coding workspace requires its ownership row"
+                    )
+                row = await workspace_repo.get(
+                    db,
+                    opened.row_id,
+                    organization_id=self.ctx.organization_id,
+                )
+                if row is None or row.scope != "user" or row.owner_ref != str(owner):
+                    raise RuntimeError("The personal coding workspace has inconsistent ownership")
+                if row.coding_account_id not in (None, account.id):
+                    raise RuntimeError("The personal coding workspace belongs to another account")
+                if row.coding_account_id is None:
+                    retained = await workspace_repo.count_personal_coding(
+                        db, organization_id=self.ctx.organization_id, account_id=account.id
+                    )
+                    if retained >= MAX_RETAINED_SESSIONS_PER_ACCOUNT:
+                        raise BadRequestError(
+                            message="This coding account has reached its saved session limit. "
+                            "Reuse a named session or delete an obsolete session's conversation.",
+                            details={"limit": MAX_RETAINED_SESSIONS_PER_ACCOUNT},
+                        )
+                await workspace_repo.bind_personal_coding(
+                    db,
+                    workspace=row,
+                    account_id=account.id,
+                    conversation_id=ctx.deps.conversation_id,
+                )
+                await db.commit()
+                admitted = True
+                resumed = row.coding_source_revision is not None
+                if row.coding_source_revision is not None and row.session_id is None:
+                    raise BadRequestError(
+                        message="The private coding session expired. Start a new named session."
+                    )
+                base_revision = row.coding_source_revision
+                if base_revision is None:
+                    if row.session_id is not None:
+                        raise BadRequestError(
+                            message="The coding session source was not initialized. Start a new named session."
+                        )
+                    source = await snapshot(ctx.workspace)
+                    await populate(opened.workspace, source)
+                    await workspace_repo.initialize_personal_coding(
+                        db,
+                        workspace=row,
+                        source_revision=source.revision,
+                    )
+                    await db.commit()
+                    base_revision = source.revision
                 await record_audit(
                     db,
                     actor_user_id=owner,
@@ -236,13 +328,13 @@ class PersonalCodingSessionFactory:
                         "conversation_id": str(ctx.deps.conversation_id),
                         "task_id": str(task_id),
                         "harness": harness,
-                        "base_revision": source.revision,
+                        "base_revision": base_revision,
+                        "session": session,
                         "execution": "isolated_task",
                         "connection_id": str(opened.connection_id),
                     },
                 )
                 await db.commit()
-                await populate(opened.workspace, source)
                 codex = PersonalCodexCredentials(
                     self.ctx.organization_id, owner, account.id, account.generation
                 )
@@ -250,9 +342,10 @@ class PersonalCodingSessionFactory:
                     workspace=opened.workspace,
                     account_id=account.id,
                     label=account.label,
-                    base_revision=source.revision,
+                    base_revision=base_revision,
                     result_archive=f"coding-results/{task_id}.zip",
                     selection_reason=selection_reason,
+                    resumed=resumed,
                     redactions=(value.api_key,)
                     if isinstance(value, ApiKeySecret)
                     else (value.access_token, value.refresh_token),
@@ -328,6 +421,12 @@ class PersonalCodingSessionFactory:
             finally:
                 with anyio.CancelScope(shield=True):
                     failure = await workspaces.close(opened)
+                    if admitted and row is not None and (not succeeded or failure is not None):
+                        await workspaces.discard_personal_coding(self.ctx, row)
+                    # Retention and failed-task teardown must survive the error
+                    # propagating through the context manager's outer rollback.
+                    if admitted:
+                        await db.commit()
                     if failure is not None:
                         if succeeded:
                             raise failure.error

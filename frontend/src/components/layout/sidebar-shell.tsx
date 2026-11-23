@@ -8,6 +8,7 @@ import { SquarePen } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
+import { OnboardingReminder } from "@/components/onboarding/onboarding-reminder";
 import { DesktopInstallPrompt } from "@/components/layout/desktop-install-prompt";
 import { ConsoleVersion } from "@/components/layout/console-version";
 
@@ -52,6 +53,7 @@ export function SidebarShell({
         {children}
       </div>
 
+      <OnboardingReminder collapsed={collapsed} onNavigate={onNavigate} />
       {!collapsed && <DesktopInstallPrompt />}
       <div
         className={cn(

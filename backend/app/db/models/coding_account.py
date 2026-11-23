@@ -10,6 +10,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -21,6 +22,7 @@ from app.db.base import Base, TimestampMixin
 class CodingAccount(Base, TimestampMixin):
     __tablename__ = "coding_accounts"
     __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_coding_account_org_id"),
         CheckConstraint("harness IN ('claude_code', 'codex')", name="ck_coding_account_harness"),
         CheckConstraint(
             "secret_kind IN ('api_key', 'openai_codex')", name="ck_coding_account_kind"

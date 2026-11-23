@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { rememberStartQuestion } from "./start-position";
 import {
   useDeploymentSettings,
@@ -89,6 +90,7 @@ export function StartDeployment({
   };
   return (
     <StartQuestion
+      stage="deployment"
       index={index}
       total={QUESTIONS.length}
       title={t(`${question}Title`)}
@@ -132,7 +134,9 @@ export function StartDeployment({
           onChange={set}
         />
       )}
-      {question === "extras" && <DeploymentExtras maintenance={settings.maintenance_mode} />}
+      {question === "extras" && (
+        <DeploymentExtras maintenance={settings.maintenance_mode} orgId={org.id} />
+      )}
       {failed && (
         <p role="alert" className="text-destructive-ink mt-4 text-sm">
           {t("saveFailed")}

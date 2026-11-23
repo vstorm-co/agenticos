@@ -20,7 +20,7 @@ from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
-from app.schemas.routine_actions import RoutineActionKey, RoutineActions
+from app.schemas.routine_actions import RoutineActionKey, RoutineActionOption, RoutineActions
 from app.services.routine_actions import RoutineActionService, action_review
 from app.services.routine_authority import RoutineAuthority
 from app.services.routine_sources import read_policy
@@ -141,7 +141,9 @@ async def test_only_a_current_snapshotted_consent_waives_its_action(
     service = RoutineActionService(db)
     before = await capture(db, world)
     options = await service.replace(world.ctx, world.trigger, _request(world, [WRITE]))
-    assert next(item for item in options.items if item.tool_id == WRITE.tool_id).consented
+    execute = next(item for item in options.items if item.tool_id == WRITE.tool_id)
+    assert isinstance(execute, RoutineActionOption)
+    assert execute.consented and execute.capability_name == "Sandbox"
     assert (await before.action_policy(world.agent.id, world.spec, tool())).consented_by is None
     authority = await capture(db, world)
     assert (
@@ -1322,3 +1324,146 @@ async def test_the_real_console_tool_obeys_routine_consent_and_explicit_agent_ga
     allowed = consented and not explicit
     assert executed == (["read skill"] if allowed else [])
     assert bool(channel.parked) is not allowed
+
+
+@pytest.fixture
+async def platform_agent(db: AsyncSession, world: World) -> World:
+    """The routine's agent bound to this platform's own server, run as its creator."""
+    from app.agents.spec import PlatformMcpServerRef
+
+    world.spec = world.spec.model_copy(
+        update={
+            "mcp_servers": [
+                PlatformMcpServerRef(
+                    account="platform",
+                    approval="writes",
+                    allowed_tools=[
+                        "list_virtual_tables",
+                        "add_virtual_table_record",
+                        "delete_virtual_table_record",
+                        "invite_member",
+                        "set_my_language",
+                    ],
+                    # A stored `never` on a tool that always asks, as publishing refuses it.
+                    tool_approval={"add_virtual_table_record": "never", "invite_member": "never"},
+                )
+            ]
+        }
+    )
+    world.version.spec = world.spec.model_dump(mode="json")
+    world.trigger.runs_as_creator = True
+    await db.flush()
+    reviewed_sources(world.trigger, spec=world.spec, version_id=world.version.id)
+    await db.flush()
+    return world
+
+
+def platform_call(name: str, *, writes: bool = True, marked: bool = True) -> ToolDefinition:
+    from app.agents.mcp import PLATFORM_TOOL
+
+    metadata: dict[str, object] = {"annotations": {"readOnlyHint": not writes}}
+    if marked:
+        metadata[PLATFORM_TOOL] = True
+    return ToolDefinition(name=f"agenticos_{name}", metadata=metadata)
+
+
+async def test_platform_changes_are_offered_in_the_builders_groups_and_only_released_ones_waive(
+    db: AsyncSession, platform_agent: World
+) -> None:
+    """Reads, the person's own language and tools the binding leaves out are not
+    listed; a change the agent asks before is listed and cannot be chosen."""
+    from app.schemas.routine_actions import RoutinePlatformActionKey, RoutinePlatformActionOption
+
+    world = platform_agent
+    service = RoutineActionService(db)
+    offered = await service.options(world.ctx, world.trigger)
+    platform = {
+        item.tool_id: item
+        for item in offered.items
+        if isinstance(item, RoutinePlatformActionOption)
+    }
+    assert {name: item.waivable for name, item in platform.items()} == {
+        "add_virtual_table_record": True,
+        "delete_virtual_table_record": False,
+        "invite_member": False,
+    }
+    assert platform["add_virtual_table_record"].group == "tables"
+    # The Builder's order: tables before the account's tools.
+    assert list(platform)[-1] == "invite_member"
+    for refused in ("delete_virtual_table_record", "invite_member", "list_virtual_tables"):
+        with pytest.raises(BadRequestError):
+            await service.replace(
+                world.ctx,
+                world.trigger,
+                RoutineActions(
+                    actions=[RoutinePlatformActionKey(kind="platform", tool_id=refused)],
+                    review_token=offered.review_token,
+                ),
+            )
+    saved = await service.replace(
+        world.ctx,
+        world.trigger,
+        RoutineActions(
+            actions=[RoutinePlatformActionKey(kind="platform", tool_id="add_virtual_table_record")],
+            review_token=offered.review_token,
+        ),
+    )
+    assert [item.tool_id for item in saved.items if item.consented] == ["add_virtual_table_record"]
+
+    authority = await capture(db, world)
+    add = await authority.action_policy(
+        world.agent.id, world.spec, platform_call("add_virtual_table_record")
+    )
+    assert add.required and add.consented_by == world.ctx.user_id
+    delete = await authority.action_policy(
+        world.agent.id, world.spec, platform_call("delete_virtual_table_record")
+    )
+    assert delete.required and delete.consented_by is None
+    read = await authority.action_policy(
+        world.agent.id, world.spec, platform_call("list_virtual_tables", writes=False)
+    )
+    assert not read.required
+
+
+async def test_a_tool_only_named_like_the_platforms_takes_none_of_its_consent(
+    db: AsyncSession, platform_agent: World
+) -> None:
+    """The mark is the run's toolset's, never the server's, so another server's
+    `agenticos_*` tool - or a platform name no tool has - asks like any external call."""
+    from app.schemas.routine_actions import RoutinePlatformActionKey
+
+    world = platform_agent
+    service = RoutineActionService(db)
+    await service.replace(
+        world.ctx,
+        world.trigger,
+        RoutineActions(
+            actions=[RoutinePlatformActionKey(kind="platform", tool_id="add_virtual_table_record")],
+            review_token=(await service.options(world.ctx, world.trigger)).review_token,
+        ),
+    )
+    authority = await capture(db, world)
+    for call in (
+        platform_call("add_virtual_table_record", marked=False),
+        platform_call("no_such_tool"),
+    ):
+        decision = await authority.action_policy(world.agent.id, world.spec, call)
+        assert decision.required and decision.consented_by is None
+
+
+async def test_a_routine_not_acting_as_its_creator_is_offered_no_platform_tool(
+    db: AsyncSession, platform_agent: World
+) -> None:
+    from app.schemas.routine_actions import RoutinePlatformActionOption
+
+    platform_agent.trigger.runs_as_creator = False
+    await db.flush()
+    offered = await RoutineActionService(db).options(platform_agent.ctx, platform_agent.trigger)
+    assert not any(isinstance(item, RoutinePlatformActionOption) for item in offered.items)
+
+
+async def test_tool_search_runs_in_a_routine_without_asking(db: AsyncSession, world: World) -> None:
+    authority = await capture(db, world)
+    assert not (
+        await authority.action_policy(world.agent.id, world.spec, tool("search_tools", None))
+    ).required

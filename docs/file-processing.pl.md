@@ -1,5 +1,5 @@
 ---
-source_sha: "1f9d4ae97fcd"
+source_sha: "8e0da94ccb26"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -129,6 +129,8 @@ plik zamiast tekstu:
 | obraz | `BinaryContent` | `BinaryContent` **oraz** zapis; referencja podaje ścieżkę |
 | tiff | strona(-y) PNG jako `BinaryContent`, z odnotowanym limitem stron | zapisany oryginał `.tiff`; pokazane strony PNG, z odnotowanym limitem stron |
 | archiwum (`.zip`, `.tar.gz`) | odrzucone: model dowiaduje się, że agent nie ma workspace'u, do którego mógłby je rozpakować, i nic z niego nie trafia do promptu | rozpakowane do `uploads/<id>-<nazwa>/`; odwołanie podaje folder i początek drzewa |
+
+Jeśli przy dodawaniu obrazu środowisko robocze jest niedostępne, model nadal dostaje obraz bezpośrednio w ramach limitu bajtów na obraz i turę. Prompt informuje, że środowisko jest niedostępne.
 
 ### Archiwa { #archives }
 

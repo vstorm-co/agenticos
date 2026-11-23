@@ -1,5 +1,5 @@
 ---
-source_sha: "d0d1887fb0cb"
+source_sha: "6a33855a6a23"
 ---
 
 # Arquitectura { #architecture }
@@ -1062,3 +1062,6 @@ Los efectos telefónicos también requieren una frontera duradera: `telephony.ru
 
 
 La admisión del canal también confirma su transacción antes de preparar el run: `ChannelMessageRouter._route_inner` guarda la identidad, la sesión y la conversación después de comprobar el acceso y los límites. La credencial MCP de la plataforma se crea en una transacción independiente y referencia esa conversación; un flush no la hace visible allí. Si falla el commit, la preparación no comienza.
+
+
+Las sesiones personales de coding también cruzan límites de efectos externos: `PersonalCodingSessionFactory` confirma la propiedad del espacio privado antes de usar credenciales, y después el código inicial y la auditoría antes de la tarea nativa. La limpieza final protegida de cancelación confirma la conservación o la limpieza remota en cola incluso si la tarea falla o se cancela. Cambiar el consentimiento o eliminar al propietario encola la limpieza en su propia transacción antes del borrado en cascada de cuenta y espacio. Un rollback conserva los metadatos y la obligación de limpieza.

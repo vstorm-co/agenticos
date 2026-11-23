@@ -233,6 +233,7 @@ export function NodeEditorDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && close()}>
       <DialogContent
+        data-workflow-fields
         onEscapeKeyDown={(event) => {
           // Radix dismisses in capture, before the inline field can cancel its rename.
           if (event.target instanceof HTMLElement && event.target.closest("[data-step-name]")) {

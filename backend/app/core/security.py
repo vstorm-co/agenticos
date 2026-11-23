@@ -193,6 +193,8 @@ def create_mfa_token(
 def create_password_reset_token(
     subject: str | Any,
     expires_delta: timedelta | None = None,
+    *,
+    credential_version: int = 0,
 ) -> str:
     """Single-use JWT for password reset.
 
@@ -201,7 +203,13 @@ def create_password_reset_token(
     access token.
     """
     expire = datetime.now(UTC) + (expires_delta or timedelta(hours=1))
-    to_encode = {"exp": expire, "sub": str(subject), "type": "password_reset"}
+    to_encode = {
+        "exp": expire,
+        "sub": str(subject),
+        "type": "password_reset",
+        "cv": credential_version,
+        "jti": str(uuid4()),
+    }
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 

@@ -36,7 +36,11 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 const LIVE_POLL_MS = 2000;
 
 /** A workflow's runs and admission; a visible input form owns field refusals. */
-export function useWorkflowRuns(workflowId: string, inputErrorsInForm = false) {
+export function useWorkflowRuns(
+  workflowId: string,
+  inputErrorsInForm = false,
+  options: { startFeedback?: "toast" | "inline" } = {},
+) {
   const t = useTranslations("pages.workflows");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
@@ -51,7 +55,7 @@ export function useWorkflowRuns(workflowId: string, inputErrorsInForm = false) {
     mutationFn: startWorkflowRun,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: qk.workflows.runs(workflowId) });
-      toastDone(t("runStarted"));
+      if (options.startFeedback !== "inline") toastDone(t("runStarted"));
     },
     onError: (error) => {
       const all = fieldProblems(error);
@@ -197,6 +201,8 @@ export function useWorkflowRun(runId: string) {
   return {
     run: run.data ?? null,
     isLoading: run.isLoading,
+    error: run.error ?? nodes.error ?? files.error ?? graph.error,
+    refetch: () => Promise.all([run.refetch(), nodes.refetch(), files.refetch(), graph.refetch()]),
     nodes: nodes.data?.items ?? [],
     files: files.data?.items ?? [],
     logs: logs.data?.items ?? [],

@@ -132,6 +132,7 @@ class RunSurface(enum.StrEnum):
     IMESSAGE = "imessage"
 
     DISCORD = "discord"
+    MATRIX = "matrix"
     # A run nobody typed into: the agent-triggers heartbeat fired it on a
     # schedule. The one member here assigned by a machine rather than a surface a
     # person reached the agent through (agenticos#44).
@@ -158,6 +159,7 @@ CHANNEL_SURFACES = frozenset(
         RunSurface.MATTERMOST,
         RunSurface.TEAMS,
         RunSurface.DISCORD,
+        RunSurface.MATRIX,
         RunSurface.SMS,
         RunSurface.EMAIL,
         RunSurface.IMESSAGE,

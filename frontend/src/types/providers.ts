@@ -295,6 +295,8 @@ export interface GalleryInstallResult {
 export interface AgentTemplate {
   key: string;
   name: string;
+  slug?: string;
+  avatar_url?: string | null;
   description: string;
   capabilities: string[];
   skills: string[];

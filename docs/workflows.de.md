@@ -1,5 +1,5 @@
 ---
-source_sha: "05c6c8dd7ace"
+source_sha: "29083d2aceb5"
 ---
 
 # Workflows { #workflows }
@@ -21,6 +21,8 @@ abspielt; der Editor selbst hat keine Führung.
 ## Einen Workflow erstellen und duplizieren { #creating-and-duplicating-a-workflow }
 
 **New workflow** fragt nach einem Namen und dem Zugriff, mit derselben Auswahl wie bei Agenten: alle, nur Sie oder ausgewählte Personen und Abteilungen. Wählen Sie den Startauslöser, ergänzen Sie optional Beschreibung und Tags und klicken Sie auf **Create**. Die Auswahl eines Auslösers erstellt noch keinen Workflow. **Workflow templates** öffnet eine separate Kategoriengalerie; eine Vorlage füllt Name und Beschreibung im Erstellungsformular aus.
+
+Um den Zugriff auf einen bestehenden Workflow zu ändern, öffnen Sie ihn und wählen Sie **More → Settings → Access**. Wählen Sie unter **General access** entweder **Only people with access** oder **Everyone in the organization**. Wenn Sie den Workflow bearbeiten dürfen, können Sie hier auch Personen und Gruppen Zugriff gewähren oder entziehen. Beim Wechsel zu privat bleiben explizite Freigaben erhalten. Rollen, die nur geteilte Workflows erreichen, können den Zugriff verlieren; Rollen mit Zugriff auf alle Workflows behalten ihn. Die Freigabe gilt auch für bisherige Runs; sie pausiert keine Zeitpläne und deaktiviert keine Webhooks.
 
 Der Katalog zeigt Karten und Suche in einem gemeinsamen Panel. **Filters** öffnet Status, Tags und Sortierung und zählt aktive Filter. Bei Ladefehlern erscheint **Retry** statt eines leeren Katalogs. Der Import beginnt mit der Dateiauswahl; **Or paste the file's JSON here** öffnet ein beschriftetes Textfeld.
 

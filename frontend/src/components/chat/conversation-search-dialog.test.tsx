@@ -29,7 +29,7 @@ vi.mock("@/hooks/use-conversation-message-search", () => ({
   }),
 }));
 vi.mock("@/hooks/use-conversations", () => ({
-  useConversationSearch: (term: string) => {
+  useConversationTitleSearch: (term: string) => {
     state.titleTerm = term;
     return {
       data: state.titleHasData

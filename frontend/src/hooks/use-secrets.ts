@@ -156,6 +156,7 @@ export function useSecrets() {
      */
     listError: secrets.error,
     refetchSecrets: invalidate,
+    refetch: secrets.refetch,
     create,
     rotate,
     remove,

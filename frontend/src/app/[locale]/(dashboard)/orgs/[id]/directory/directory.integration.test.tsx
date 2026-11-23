@@ -351,12 +351,20 @@ describe("the directory mappings page", () => {
   });
 
   it("says the list failed rather than that there are no mappings", async () => {
+    let unavailable = true;
     serve("admin", {
-      "/orgs/org-1/directory-mappings": () => Promise.reject(new ApiError(502, "Bad gateway")),
+      "/orgs/org-1/directory-mappings": () =>
+        unavailable
+          ? Promise.reject(new ApiError(502, "Bad gateway"))
+          : Promise.resolve({ items: mappings, total: mappings.length }),
     });
     await mount();
 
     expect(await screen.findByText("Bad gateway")).toBeInTheDocument();
     expect(screen.queryByText("No mappings yet")).toBeNull();
+    unavailable = false;
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText(DN)).toBeVisible();
+    expect(screen.queryByText("Bad gateway")).not.toBeInTheDocument();
   });
 });

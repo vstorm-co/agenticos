@@ -58,7 +58,9 @@ def readable_by(
 
     A project's chat is read through its project alone - `project_ids`, the ones
     this person may see - and never by having started it or been shared it: a
-    person who lost the project must not find its later turns here.
+    person who lost the project must not find its later turns here. Internal
+    workflow threads remain excluded even inside a readable project, matching
+    `ConversationService._may_read`.
     """
     outside_projects = Conversation.project_id.is_(None)
     ways_in: list[ColumnElement[bool]] = [
@@ -77,7 +79,7 @@ def readable_by(
         ways_in.append(Conversation.id.in_(participant_ids))
     if project_ids:
         ways_in.append(Conversation.project_id.in_(project_ids))
-    return or_(*ways_in)
+    return and_(Conversation.origin.is_distinct_from("workflow"), or_(*ways_in))
 
 
 _LENGTH_NORMALISATION = 1

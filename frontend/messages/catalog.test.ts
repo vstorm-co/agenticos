@@ -284,3 +284,19 @@ it("names every selectable private notification platform", () => {
     expect(messages.get(`notificationRoutes.${channel}`), channel).toBeTruthy();
   }
 });
+
+it.each([en])(
+  "translates the new composer and builder summaries without fallback",
+  (catalog) => {
+    const messages = new Map(entries(catalog));
+    for (const key of [
+      "chat.hints.shortcuts",
+      "chat.homeInbox.openInbox",
+      "agents.buildSummary.variables",
+      "agents.buildSummary.voice",
+      "agents.buildSummary.starters",
+    ]) {
+      expect(messages.get(key), key).toBeTruthy();
+    }
+  },
+);

@@ -5,6 +5,7 @@ import json
 import unicodedata
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import Any, Literal
 from uuid import UUID
 
@@ -322,10 +323,10 @@ class AgentRead(BaseSchema):
     personal_coding_harness: Literal["claude_code", "codex"] | None = Field(
         default=None,
         description=(
-            "The coding agent this agent's published version runs as a private cloud task "
-            "on the initiating person's own account, or null when it runs none that way. "
-            "Filled by the listing, so the chat can offer to connect that account where "
-            "the agent needs it."
+            "The default coding harness for this agent's personal cloud tasks, or null "
+            "when it does not use personal cloud coding. Each task may choose Claude Code "
+            "or Codex with the initiating person's own enabled account. Filled by the "
+            "listing so the chat can offer both personal connection doors."
         ),
     )
     local_workspace: bool = Field(
@@ -357,6 +358,9 @@ class AgentRead(BaseSchema):
             "with none. Filled by the listing, same bargain as shared_user_count."
         ),
     )
+    show_starters: bool = Field(
+        default=True, description="Whether the published agent offers chat openers."
+    )
     starter_titles: StarterTitles = Field(
         default_factory=dict,
         description="Published opener card titles keyed by starter text; the message is their description.",
@@ -386,12 +390,31 @@ class AgentDetail(AgentRead):
     """
 
     draft_spec: AgentSpec
+    can_review_shipped_update: bool = False
 
     @computed_field
     @property
     def draft_revision(self) -> str:
         """Opaque revision to send as expected_revision when saving this draft."""
         return agent_draft_revision(self.draft_spec)
+
+
+class ShippedAgentChange(BaseSchema):
+    """One field replaced in the saved draft or the version serving live traffic."""
+
+    version: Literal["draft", "published"]
+    field: str
+    before: str
+    after: str
+
+
+class ShippedAgentUpdate(BaseSchema):
+    revision: str
+    changes: list[ShippedAgentChange]
+
+
+class ApplyShippedAgentUpdate(BaseSchema):
+    expected_revision: str = Field(min_length=64, max_length=64)
 
 
 class AgentCeiling(BaseSchema):
@@ -488,6 +511,18 @@ class AgentDraftUpdate(BaseSchema):
     expected_revision: str = Field(
         pattern=r"^[0-9a-f]{64}$",
         description="draft_revision from the draft this edit is based on; stale edits return 409",
+    )
+
+
+class AgentDraftDiscard(BaseSchema):
+    """Discard against both the draft and publication the editor confirmed."""
+
+    expected_revision: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="Revision of the draft being discarded; a stale revision returns 409.",
+    )
+    expected_version_id: UUID = Field(
+        description="Latest published version shown at confirmation; a newer publication returns 409."
     )
 
 
@@ -888,17 +923,57 @@ class McpCatalog(BaseSchema):
     )
 
 
+class PlatformToolGroup(StrEnum):
+    """What a platform tool works on, as the Builder groups the tools.
+
+    Declared order is the order the Builder shows the groups in.
+    """
+
+    TABLES = "tables"
+    TASKS = "tasks"
+    WORKFLOWS = "workflows"
+    AGENTS = "agents"
+    KNOWLEDGE = "knowledge"
+    SKILLS = "skills"
+    PROJECTS = "projects"
+    AUTOMATIONS = "automations"
+    APPS = "apps"
+    RUNS = "runs"
+    CONNECTIONS = "connections"
+    ACCOUNT = "account"
+    ADMINISTRATION = "administration"
+
+
 class PlatformMcpTool(BaseSchema):
     name: str = Field(description="The tool's name on the platform's MCP server")
     description: str = Field(description="The first line of what the model reads")
+    group: PlatformToolGroup = Field(description="What the tool works on")
     writes: bool = Field(
-        description="Whether it changes something - held for approval under `approval: writes`"
+        description="Whether it changes persisted state; approval defaults are declared separately"
     )
     ungated: bool = Field(
         default=False,
         description=(
             "Whether it runs without approval under every policy - a write that changes "
             "only the caller's own preference, such as the console's language"
+        ),
+    )
+    default_approval_free: bool = Field(
+        default=False,
+        description=(
+            "Whether an authorized write runs under the default writes policy without confirmation; "
+            "an explicit per-tool required or binding all policy still asks"
+        ),
+    )
+    conditional_approval: bool = Field(
+        default=False,
+        description="Whether a task write still asks when it may start or reschedule agent work",
+    )
+    always_asks: bool = Field(
+        default=False,
+        description=(
+            "Whether every binding asks before it, whatever the binding or the tool's own "
+            "approval says; every call requires a fresh human confirmation"
         ),
     )
     held: bool = Field(
@@ -1255,6 +1330,10 @@ class AgentTemplateRead(BaseSchema):
 
     key: str = Field(description="`<industry>/<folder>`, how an install request names it")
     name: str
+    slug: str
+    avatar_url: str | None = Field(
+        default=None, description="Bundled PNG as a data URL, if present"
+    )
     description: str
     capabilities: list[str] = Field(description="Capability ids it switches on")
     skills: list[str] = Field(description="Gallery keys installed with it, if missing")

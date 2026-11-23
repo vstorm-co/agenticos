@@ -60,7 +60,7 @@ export function ChatPanel({
 }) {
   const t = useTranslations("workflows");
   const watchRun = useWorkflowEditorStore((state) => state.watchRun);
-  const { start } = useWorkflowRuns(workflowId);
+  const { start } = useWorkflowRuns(workflowId, false, { startFeedback: "inline" });
   const [conversation, setConversation] = useState(() => crypto.randomUUID());
   const [turns, setTurns] = useState<Turn[]>([]);
   const [prompt, setPrompt] = useState("");

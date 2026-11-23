@@ -5,14 +5,14 @@ import { Button } from "@/components/ui";
 import { useToolConsents } from "@/hooks/use-tool-consents";
 import { toolLabel } from "@/lib/tool-catalog";
 
-export function RememberedApprovals() {
+export function RememberedApprovals({ showTitle = true }: { showTitle?: boolean }) {
   const t = useTranslations("chat");
   const tTools = useTranslations("chat.tools");
   const { query, revoke } = useToolConsents();
   if (query.isPending) return null;
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium">{t("approvalRememberedTitle")}</p>
+      {showTitle && <p className="text-sm font-medium">{t("approvalRememberedTitle")}</p>}
       {query.isError ? (
         <Button size="sm" variant="secondary" onClick={() => void query.refetch()}>
           {t("approvalRememberRetry")}

@@ -1,5 +1,5 @@
 ---
-source_sha: "05c6c8dd7ace"
+source_sha: "29083d2aceb5"
 ---
 
 # Workflows { #workflows }
@@ -21,6 +21,8 @@ sí no tiene recorrido.
 ## Crear y duplicar un workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** solicita un nombre y quién puede usarlo, con el mismo selector que al crear un agente: todos, solo tú o personas y departamentos elegidos. Elige el disparador, añade opcionalmente descripción y etiquetas y pulsa **Create**. Elegir un disparador no crea el flujo. **Workflow templates** abre una galería de categorías separada; elegir una plantilla abre el formulario con su nombre y descripción completos.
+
+Para cambiar el acceso a un workflow existente, ábrelo y elige **More → Settings → Access**. En **General access**, selecciona **Only people with access** o **Everyone in the organization**. Si puedes editar el workflow, también puedes conceder o revocar el acceso a personas y grupos desde aquí. Al cambiarlo a privado, se mantienen los permisos explícitos. Los roles limitados a workflows compartidos pueden perder el acceso; los que abarcan todos los workflows lo conservan. El acceso también se aplica a los runs anteriores; no pausa las programaciones ni desactiva los webhooks.
 
 El catálogo reúne las tarjetas y la búsqueda en un panel. **Filters** muestra estado, etiquetas y orden, junto al número de filtros activos. Un fallo de carga ofrece **Retry** en lugar de un catálogo vacío. La importación empieza eligiendo un archivo; **Or paste the file's JSON here** abre un campo de texto con etiqueta.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "3f414ebcdc35"
+source_sha: "8580321f0fe0"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -244,6 +244,14 @@ Null en cualquiera de los dos lados significa que desde ahí no se estrecha nada
 así que una vinculación que no nombra nada obtiene lo que la conexión permita, que
 es lo que hacía toda vinculación antes de que esto existiera.
 
+Así que el null de una vinculación también toma cada herramienta que el servidor
+gane después. En el Builder, **Añadir las herramientas que el servidor gane
+después** dice cuál de las dos es: encendido, es null; apagado, lista las
+herramientas de hoy y una añadida después queda fuera. Volver a marcar todas las
+herramientas tras acotar da la lista de hoy, nunca null, y el interruptor solo se
+enciende con todas marcadas - una vinculación no puede decir «estas, y lo que
+venga».
+
 El Builder lista las herramientas de un servidor a partir de su **último sondeo
 con éxito**, registrado en la conexión. Sondear marca hacia un tercero y está
 protegido por `connections:manage`; el autor de un agent tiene `agents:edit` y
@@ -278,46 +286,50 @@ proveedor; menos esquemas de herramientas por sí solos no demuestran un menor c
 
 ### Qué llamadas esperan a una persona { #which-calls-wait-for-a-person }
 
-Cada vinculación tiene una política `approval` para las herramientas de su
-servidor. La predeterminada, `none`, deja pasar todas las llamadas, igual que las
-herramientas de una capability se ejecutan hasta que alguien las pone tras una
-puerta. `writes` retiene toda herramienta que el servidor no marque como de solo
-lectura (el `readOnlyHint` de MCP) hasta que una persona apruebe la llamada: la
-tarjeta muestra los argumentos exactos y se ejecutan los aprobados. `all` retiene
-todas las llamadas. La marca de solo lectura la declara el propio servidor, así que
-`writes` es tan estricta como honesto sea el servidor: elige `all` para un servidor
-que no controlas.
+Para un servidor externo, `approval: none` deja pasar llamadas, `writes` pregunta
+por herramientas sin `readOnlyHint: true` y `all` también por lecturas. El propio
+servidor proporciona esa marca; usa `all` si no confías en su clasificación. Un
+cliente MCP externo, como Claude Code, aplica sus propios ajustes de confirmación.
 
-La plantilla del Architect usa `writes` para el servidor de la plataforma. Los
-vínculos con este servidor imponen al menos `writes`, incluso con `none`, porque
-las herramientas actúan con los permisos de quien llama. Las lecturas, incluidas
-`get_project` y `read_conversation`, se ejecutan automáticamente con `writes`.
-Crear, actualizar, eliminar y otras operaciones que cambian el estado requieren
-aprobación. Usa `all` para exigir aprobación también en las lecturas.
+La vinculación de la plataforma impone al menos `writes`. Sus valores de confianza
+permiten lecturas autorizadas, preparación de borradores, cambios normales de tareas
+y registros y creación de bases de conocimiento vacías, proyectos, conversaciones,
+Skills, archivos Context y casos de datasets sin confirmación. Las escrituras
+siguen declarando `readOnlyHint: false`: cambia la aprobación, no los permisos ni
+los efectos. `prepare_solution` prepara un plan; `install_solution` sigue requiriendo
+confirmación.
 
-En el Builder, los ajustes de un servidor lo dicen por
-grupos: sus **lecturas** y las herramientas que **cambian cosas** se ejecutan sin
-preguntar o preguntan primero.
+Los cambios de tareas siguen preguntando si pueden iniciar o reprogramar trabajo
+del agent: una tarea activa con agent asignado y siguiente paso Agent. Las tareas
+humanas, completadas, canceladas, bloqueadas o en espera no adquieren ese requisito.
+Las actualizaciones genéricas de registros del tablero aplican la misma comprobación;
+la mutación sigue exigiendo la revisión leída. Un upsert pregunta salvo que sus
+valores seleccionen expresamente Person o un estado final/de espera, porque puede
+recrear un registro eliminado simultáneamente. Una escritura normal de tabla no
+vuelve a preguntar solo porque la observe una automatización ya aprobada.
 
-Cada herramienta también puede ejecutarse sin preguntar o preguntar primero por sí
-sola, digan lo que digan su grupo y su marca de solo lectura: pulsa el escudo que
-tiene al lado. Un servidor que no marca ninguna herramienta como de solo lectura
-las muestra todas en un solo grupo, que `writes` retiene por completo; si dejas
-que sus lecturas se ejecuten sin preguntar, se ejecutan mientras sus escrituras
-preguntan. El mismo control deja que una sola escritura se ejecute sin
-preguntar, sin que `none` libere todas las demás.
+Cada cambio de esquema, eliminación, publicación, cambio de versión activa,
+promoción, enlace público de App, resolución de Inbox, ejecución u operación de
+pago exige una respuesta nueva. Incluye pruebas, evaluaciones y pasos de mejora,
+ingestión/sync, pruebas de conexión, definiciones de automatización y ejecuciones
+inmediatas de rutinas, entornos de agents, cambios de perfil/modelos/embeddings,
+invitaciones y ajustes administrativos/de proactividad. Aprobar todo, decisiones
+recordadas y consentimiento permanente de rutinas no eliminan estos requisitos.
+El idioma propio y las preferencias de interfaz siguen sin necesitar aprobación.
 
-El spec guarda estos ajustes en el `tool_approval` de la vinculación, por el
-nombre de la herramienta en el servidor. Un grupo cuyas herramientas difieren
-muestra **Per tool**, y elegir para el grupo vuelve a ajustar todas sus
-herramientas. Una herramienta que el servidor añada más tarde sigue a su grupo.
+En el Builder, usa el escudo de una herramienta o el control del grupo para exigir
+confirmación a una operación libre por defecto. `tool_approval`, con el nombre
+original del servidor, guarda la elección: `required` pregunta y `never` omite la
+puerta ordinaria de la vinculación. `all` pregunta por toda operación con ajuste
+predeterminado, incluidas lecturas; los requisitos obligatorios y condicionales de
+ejecución prevalecen sobre `never`. Un grupo mixto muestra **Per tool**. Las nuevas
+herramientas siguen la política de la vinculación; las escrituras de plataforma
+sin clasificación preguntan de forma conservadora.
 
-Las ejecuciones en canales siguen los ajustes de aprobación del vínculo y de cada
-herramienta para todo remitente admitido, tenga o no su identidad de chat vinculada.
-El canal no añade otra aprobación. Las cuentas personales siguen requiriendo la
-identidad vinculada del remitente y su conexión autorizada; las conexiones de
-plataforma mantienen al menos `writes`. Una vigilancia no lee una herramienta
-que requiera aprobación, porque no hay nadie para responder.
+Las reglas también se aplican a canales y acciones de rutinas. No otorgan identidad
+vinculada, conexión, acceso a recursos ni ámbitos OAuth adicionales. Solo el catálogo
+interno de confianza de la plataforma proporciona excepciones; un servidor remoto
+no puede obtenerlas anunciando los mismos metadatos.
 
 ### A través de qué cuenta habla una vinculación { #whose-account-a-binding-speaks-through }
 
@@ -410,7 +422,9 @@ persona con lo que conecta; la vinculación no lo limita.
 Las cuentas de la organización se vinculan una junto a otra del mismo modo: cada
 una de sus conexiones a un servidor es su propia vinculación, con su propio
 nombre y sus propias herramientas. En el Builder, los ajustes de un servidor
-listan sus cuentas vinculadas con **Add another account**. Cuando un run alcanza
+listan sus cuentas vinculadas con **Add another account**. En **Herramientas**,
+elige la cuenta cuyas herramientas y aprobaciones quieres editar. Las demás
+cuentas no cambian. Cuando un run alcanza
 un servicio a través de más de una cuenta, una línea de sus instrucciones nombra
 cada cuenta junto a su prefijo y le pide al modelo que pregunte cuando no esté
 claro a cuál se refiere la persona.
@@ -1336,7 +1350,7 @@ permiso que faltaba.
 
 Aprobar rutinas y watches personales requiere el scope explícito `personal:consent`, seleccionado en **Custom** al emitir una clave o autorizar un cliente MCP. Se excluye de todos los preajustes, incluido **Full access**. La confirmación permite a la credencial aprobar rutinas y watches persistentes que usan tus conexiones y datos personales; los scopes habituales `agents:run` y `runs:view` no lo permiten. Las claves y autorizaciones MCP existentes no obtienen consentimiento personal automáticamente.
 
-Las comprobaciones de conexión actualizan las herramientas descubiertas y el estado. Por eso `test_my_connection` espera aprobación tanto con `writes` como con `all`.
+Las comprobaciones de conexión actualizan las herramientas descubiertas y el estado. Por eso `test_my_connection` exige una confirmación nueva en cada llamada.
 
 | Herramienta | Necesita |
 | --- | --- |
@@ -1455,16 +1469,33 @@ con los propios registros de la plataforma. En el Builder es la primera tarjeta 
   lee lo que el Viewer puede leer y no crea nada. No se concede nada nuevo, y donde
   nadie está detrás del run - un widget público, una programación que no actúa por
   nadie - el enlace no está.
-- **Los cambios siguen la política de aprobación del vínculo.** `writes`, por
-  defecto, detiene publicar, invitar, eliminar, ejecutar ahora y crear o editar
-  rutinas y vigilancias personales; `all` también las lecturas. Solo
-  `set_my_language` evita esta aprobación. La identidad humana en un chat privado,
-  la propiedad y los permisos siguen siendo necesarios, pero no sustituyen la
-  confirmación de una automatización persistente. `set_my_profile` también espera
-  porque su contenido llega a futuras ejecuciones de agentes.
+- **Los cambios usan valores de confianza de la plataforma.** Los borradores y
+  registros normales no requieren confirmación; las acciones de consecuencias
+  importantes y el posible nuevo trabajo del agent preguntan. `set_my_language`
+  y `set_my_preferences` no requieren aprobación. El autor puede exigirla para
+  operaciones libres por defecto. Consulta [las reglas](#which-calls-wait-for-a-person).
 
-- **Las herramientas se pueden acotar** en los ajustes de la tarjeta, que listan
-  cada herramienta y marcan las que cambian algo.
+- **Las herramientas se pueden acotar** en los ajustes de la tarjeta, que las
+  agrupan según sobre qué trabajan - tablas, tareas, workflows, agents, bases de
+  conocimiento, skills, proyectos, automatizaciones, apps, runs, conexiones y la
+  cuenta - y marcan cada herramienta que cambia algo con un icono que lo dice al
+  pasar el cursor.
+- **Cada herramienta se ejecuta libremente o pregunta antes.** El control de un
+  grupo fija todas sus herramientas, y el escudo junto a una herramienta fija solo
+  esa. La spec guarda el ajuste propio de una herramienta en el `tool_approval`
+  del vínculo, con el nombre de la herramienta; publicar rechaza un nombre que la
+  plataforma no ofrece. Dejar que un cambio se ejecute sin preguntar es una
+  decisión sobre esa herramienta sola: el valor por defecto del vínculo sigue
+  siendo `writes`, o `all` en cuanto todas las lecturas preguntan, de modo que
+  una lectura que la plataforma añada después también pregunta.
+- **Algunas herramientas siempre preguntan.** `invite_member` y
+  `update_proactivity_settings` cambian quién tiene autoridad en la organización,
+  y se ejecutan con la autoridad de la persona para la que trabaja el agent, no
+  de su autor - así que un agent publicado por un Builder no puede invitar a un
+  Admin sin preguntar en el run de un Owner. Su escudo no se puede desactivar, y
+  publicar rechaza `never` en cualquiera de las dos. Cada llamada espera su
+  propia respuesta: ni **Aprobar todo** ni una decisión recordada la dejan
+  ejecutarse.
 
 La plantilla **AgenticOS** lo enlaza así, igual que cada agent creado desde cero,
 de modo que un agent consulta la plataforma desde el principio - y configura una
@@ -1530,11 +1561,13 @@ por HTTP para sus propias vías de admisión.
 codificado, incluidas todas las entradas devueltas. Nunca devuelve un contrato
 parcial. Consulta contratos mayores por HTTP fuera del contexto del modelo.
 
-Para registros operativos usa `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` y `update_virtual_table_record`. Las modificaciones de esquemas y registros conservan la comprobación de revisiones. Todas las herramientas utilizan la organización, permisos y concesiones del solicitante; las escrituras conservan la aprobación MCP de la plataforma. Los skills de Architect workflow-builder y virtual-tables explican la selección de triggers, cómo envolver una API HTTP documentada cuando falta la integración en la galería MCP y cómo ofrecer un workflow publicado e invocable como herramienta de un agente. Las credenciales se configuran en la bóveda, nunca en grafos o respuestas al modelo.
+Para registros operativos usa `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` y `update_virtual_table_record`. Las modificaciones de esquemas y registros conservan la comprobación de revisiones. Todas las herramientas utilizan la organización, permisos y concesiones del solicitante; los cambios normales de borradores y registros siguen los valores de confianza; los cambios de esquema, ejecución y publicación siempre preguntan. Los skills de Architect workflow-builder y virtual-tables explican la selección de triggers, cómo envolver una API HTTP documentada cuando falta la integración en la galería MCP y cómo ofrecer un workflow publicado e invocable como herramienta de un agente. Las credenciales se configuran en la bóveda, nunca en grafos o respuestas al modelo.
 
-Workflows y Tables usan el servidor AgenticOS MCP como interfaz común de herramientas. Permite al agente solo las herramientas necesarias. `run_workflow` inicia un workflow publicado y devuelve la ejecución admitida; consulta el resultado con `get_workflow_execution`. Las tablas ofrecen `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` y `list_virtual_table_views`. Actualizaciones y eliminaciones usan la revisión leída, y las escrituras siguen requiriendo aprobación. Las vistas guardadas usan la misma API pública autenticada y los controles de acceso a tablas. Los bindings de Workflows existentes siguen siendo editables. Se elimina la capacidad Tables: los permisos de aplicaciones pasan a `table_bindings`, y operar con tablas requiere una conexión MCP explícita de la plataforma.
+Workflows y Tables usan el servidor AgenticOS MCP como interfaz común de herramientas. Permite al agente solo las herramientas necesarias. `run_workflow` inicia un workflow publicado y devuelve la ejecución admitida; consulta el resultado con `get_workflow_execution`. Las tablas ofrecen `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` y `list_virtual_table_views`. Actualizaciones y eliminaciones usan la revisión leída, y los registros normales se escriben libremente por defecto; eliminar siempre pregunta y el trabajo del agent conserva su requisito condicional.
 
-Los rechazos esperados de la API devuelven un objeto `error` explícito con estado HTTP, código, mensaje y detalles seguros de los campos. Es una operación rechazada, nunca una escritura exitosa. El objeto queda visible en el historial; los errores inesperados del servidor siguen enmascarados. `prepare_workflow_draft` agrupa tabla y grafo en una aprobación; `check_workflow_draft` los comprueba sin acciones. Actualizar un Architect sin modificaciones también instala y vincula los skills workflow-builder y virtual-tables, conserva los vínculos existentes y no sobrescribe cambios pendientes del borrador.
+Las vistas guardadas usan la misma API pública autenticada y los controles de acceso a tablas. Los bindings de Workflows existentes siguen siendo editables. Se elimina la capacidad Tables: los permisos de aplicaciones pasan a `table_bindings`, y operar con tablas requiere una conexión MCP explícita de la plataforma.
+
+Los rechazos esperados de la API devuelven un objeto `error` explícito con estado HTTP, código, mensaje y detalles seguros de los campos. Es una operación rechazada, nunca una escritura exitosa. El objeto queda visible en el historial; los errores inesperados del servidor siguen enmascarados. `prepare_workflow_draft` agrupa tabla y grafo en una transacción; `check_workflow_draft` los comprueba sin acciones. Actualizar un Architect sin modificaciones también instala y vincula los skills workflow-builder y virtual-tables, conserva los vínculos existentes y no sobrescribe cambios pendientes del borrador.
 
 Para un Architect existente con cambios propios, ejecuta `uv run agenticos cmd refresh-assistant --org <organization-id> --workflow-support`.
 
@@ -1575,3 +1608,103 @@ Los índices corresponden a esa transcripción filtrada. Devuelve ventanas acota
 La búsqueda por nombre para Improve revisa todas las páginas antes de elegir una coincidencia o indicar ambigüedad; los primeros 100 agentes no se consideran el catálogo completo.
 
 `read_conversation` usa las mismas ventanas acotadas de mensajes y metadatos que la inspección de ejecuciones, con 10 mensajes por defecto. `read_conversation_tool_call` lee una carga registrada concreta, también de mensajes antiguos sin identificador de ejecución, mediante la API de conversaciones propias sin ampliar permisos. Los clientes MCP deben seguir las continuaciones de las ventanas en vez de esperar todos los resultados de herramientas dentro de la transcripción.
+
+## Plugin del cliente de IA y ciclo de gestión { #ai-client-plugin-and-lifecycle-tools }
+
+La [guía del cliente de IA](howto/operate-with-ai.md) explica cómo instalar el
+plugin, configurar dependencias, publicar agentes con evals y entornos e instalar
+paquetes revisados. El contrato 1 distingue funciones del servidor y scopes.
+Las referencias del vault muestran IDs y metadatos, sin valores ni fragmentos;
+los secretos se introducen en la consola. Las nuevas operaciones del asistente requieren OAuth.
+
+## Resultados acotados y preferencias personales { #bounded-results-and-personal-preferences }
+
+El contrato MCP 2 reduce el contexto: buscar primero, usar páginas de 10 elementos
+por defecto y seguir `next_skip`. Las listas devuelven metadatos; herramientas de
+detalle leen un caso de dataset, contenido Context, archivo de skill, modelo,
+proveedor, entorno, nodo de workflow o paso ejecutado. `get_authoring_schema`
+expone contratos amplios bajo demanda; la API sigue validando entradas completas.
+Antes de sustituir un grafo, leerlo completo y conservar sus bindings.
+
+Los resultados correctos se limitan a 16 KiB. Las lecturas grandes emiten una
+`continuation` de cinco minutos para `read_platform_details`, vinculada a la
+credencial y a la lectura ya autorizada con sus argumentos originales. Cada parte
+vuelve a comprobar el acceso en la API. Inspeccionar punteros JSON, leer ventanas
+de contenido y pasar `value_hash` como `expected_hash`. Unir los fragmentos JSON
+antes de analizarlos. Los cambios o la caducidad exigen una nueva lectura
+autorizada. Las escrituras grandes devuelven identidad y estado: leer el recurso
+con su permiso de lectura en vez de repetir la escritura. El recibo no demuestra
+que un trabajo en segundo plano haya terminado.
+
+`prepare_solution` conserva una revisión durante 24 horas para esa persona y
+organización. `install_solution` acepta `plan_id`, clave de instalación y hash
+revisado. Los recibos permanentes sobreviven a la caducidad de la revisión.
+
+`get_my_console_experience` lee la presentación del inicio del chat y los
+recordatorios de configuración de la membresía activa: disponibilidad, valores
+predeterminados de la organización, preferencias personales y valores efectivos.
+`set_my_console_experience(update)` cambia solo esas preferencias personales.
+Las opciones del chat son `inbox`, `starters`, `greeting` y `feature_hints`;
+los recordatorios usan `enabled` y `snooze_days` (1, 3 o 7).
+
+Los campos omitidos no cambian. Un `null` anidado restaura la herencia de esa opción;
+`preferences: null` o `reminders: null` restablece todo el grupo. Como otras
+preferencias reversibles de interfaz, el cambio no necesita aprobación. No modifica
+límites de instalación, valores de organización, iniciativa del agent, permisos
+ni aprobaciones; tampoco cambia tema, estilo o idioma de la cuenta. Ambas
+herramientas exigen una membresía personal activa y no admiten selectores de
+usuario u organización.
+
+`get_my_preferences` lee tema, estilo e idioma de quien llama.
+`set_my_preferences` cambia solo los campos enviados: tema `light`, `dark`,
+`system`; estilo `standard`, `glass`, `graphite`, `midnight`, `paper`; idioma del
+enum de la herramienta. En el chat se aplica de inmediato; otras consolas visibles
+sincronizan las preferencias aproximadamente cada diez segundos. Ajustes escribe las
+mismas preferencias de cuenta. La migración `0344_user_appearance.py` añade columnas
+opcionales; las cuentas existentes conservan los valores del dispositivo hasta
+guardar una elección.
+
+Una elección explícita se guarda aunque la pantalla ya use ese valor; vuelve a seleccionarlo para reintentar un guardado fallido.
+
+Las respuestas grandes de ejecuciones conservan `parked`, con los identificadores
+de aprobaciones pendientes. Si las llamadas no caben, la respuesta conserva hasta
+diez identificadores, `parked_total` y una `approval_review_url` a la consola.
+`approval_details_omitted` indica argumentos incompletos: inspecciona allí las
+llamadas completas antes de decidir; nunca apruebes desde la respuesta abreviada.
+
+## Administración mediante MCP {#administration-through-mcp}
+
+Busca tareas o campos con `list_administration_actions` y consulta el contrato de
+ruta y datos con `get_administration_schema`. El catálogo incluye configuración de
+la instalación, actualizaciones, diagnóstico y estado de push, además de ajustes
+de organización, retención, AI Architect, agentes del sistema, miembros, grupos e
+invitaciones. Las listas contienen metadatos; `read_administration` lee la
+configuración seleccionada mediante ventanas de detalles limitadas.
+
+Las acciones de organización requieren sus permisos existentes y se limitan a la
+organización conectada. `change_organization` no concede administración de la
+instalación. Leer la configuración de AI Architect o de los agentes del sistema
+no crea recursos. Instalar o actualizar los asistentes incluidos es una escritura
+explícita y puede publicar configuraciones predeterminadas preparadas.
+
+Las acciones de instalación requieren tanto el indicador vigente de administrador
+de aplicación como una concesión OAuth explícita de `deployment:admin`. Solo estos
+administradores ven una casilla separada, inicialmente desmarcada, en el
+consentimiento. Vuelve a autorizar una conexión existente para añadir este alcance.
+No pertenece a los permisos ni a las configuraciones predefinidas de organización.
+Los agentes internos, las rutinas y las claves API ordinarias nunca lo heredan;
+`change_deployment` se excluye de las herramientas de los agentes internos.
+
+Usa `change_deployment` para escribir y vuelve a leer el resultado. Preparar,
+aplicar y cancelar una actualización son acciones distintas: aceptar una petición
+no significa terminarla. La autenticación MCP permanece disponible durante el
+mantenimiento para que un cliente autorizado pueda desactivarlo; las operaciones
+API ordinarias siguen bloqueadas. Retirar el indicador de administrador bloquea
+la siguiente petición de instalación, aunque el token siga indicando el alcance
+concedido originalmente.
+
+La clave privada APNs y las imágenes binarias del logo o favicon se introducen en
+formularios seguros de la consola. Los secretos y bytes de imágenes quedan fuera
+del contexto del modelo. Los ajustes gestionados por el entorno siguen siendo de
+solo lectura. La caché del frontend puede tardar hasta cinco minutos en reflejar
+un cambio de identidad visual realizado directamente mediante MCP.

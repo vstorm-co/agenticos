@@ -286,6 +286,8 @@ export function VaultTable({
   ];
   return (
     <DataTable
+      clientPagination
+      fillHeight
       columns={columns}
       rows={rows}
       loading={loading}

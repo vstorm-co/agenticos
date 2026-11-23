@@ -9,7 +9,6 @@ import type { IncomingFiles } from "@/components/chat/chat-input";
 import type { AssistantPageContext } from "@/lib/assistant-page-context";
 import { useAuthStore, useOrgStore } from "@/stores";
 import { useArchitectAskStore } from "@/stores/architect-ask-store";
-import { useArchitectMarkStore } from "@/stores/architect-mark-store";
 import type { AssistantState } from "@/types/assistant";
 
 import { BUBBLE_VISIBLE_MS } from "./assistant-bubble";
@@ -185,7 +184,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => useArchitectMarkStore.setState({ agentId: null }));
   delete window.__AGENTICOS_SHELL__;
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -195,7 +193,6 @@ afterEach(() => {
 
 describe("the Architect widget", () => {
   it.each([null, 4])("matches the agent avatar after clearing its picture (colour %s)", (color) => {
-    act(() => useArchitectMarkStore.setState({ agentId: "a1" }));
     const cleared = assistant({ avatar_color: color });
     const { container } = render(
       <>
@@ -356,6 +353,17 @@ describe("the Architect widget", () => {
       expect(chat()).toHaveAttribute("data-prompt", "");
     },
   );
+
+  it("opens from agent creation without sending or replacing an existing draft", () => {
+    useArchitectAskStore.setState({ request: null });
+    render(<AssistantWidget />);
+    act(() => useArchitectAskStore.getState().ask("Keep this draft", { draft: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Close", expanded: true }));
+    act(() => useArchitectAskStore.getState().open());
+    expect(screen.getByRole("dialog", { name: "Architect" })).not.toHaveClass("hidden");
+    expect(chat()).toHaveAttribute("data-draft", "Keep this draft");
+    expect(chat()).toHaveAttribute("data-prompt", "");
+  });
 
   it("writes a draft ask into the message box for the reader to send, sending nothing", () => {
     useArchitectAskStore.setState({ request: null });

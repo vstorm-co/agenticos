@@ -108,3 +108,12 @@ it("ignores duplicate confirmation and a redemption completed after leaving the 
   expect(env.adopt).not.toHaveBeenCalled();
   expect(env.replace).not.toHaveBeenCalled();
 });
+
+it("offers a way back to sign-in when the scanned link cannot be used", async () => {
+  env.code = null;
+  render(<PairDevice />);
+  await userEvent.click(screen.getByRole("button", { name: "Back to sign in" }));
+  expect(env.replace).toHaveBeenCalledWith("/login");
+  expect(env.redeem).not.toHaveBeenCalled();
+  expect(env.adopt).not.toHaveBeenCalled();
+});

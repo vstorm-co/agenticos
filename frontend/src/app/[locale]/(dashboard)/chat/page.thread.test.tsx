@@ -13,6 +13,9 @@ const runExample = vi.fn();
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(queryString),
 }));
+vi.mock("@/hooks/use-suggestions", () => ({
+  useSuggestions: () => ({ suggestions: [], isLoading: false, error: null }),
+}));
 vi.mock("@/lib/locale-navigation", () => ({
   usePathname: () => "/chat",
   useRouter: () => ({ push }),

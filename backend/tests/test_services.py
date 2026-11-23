@@ -188,7 +188,7 @@ class TestUserServicePostgresql:
     @pytest.mark.anyio
     async def test_authenticate_invalid_password(
         self, user_service: UserService, mock_user: MockUser
-    ):
+    ) -> None:
         """Test authentication with wrong password."""
         with (
             patch("app.services.user.user_repo") as mock_repo,
@@ -196,20 +196,23 @@ class TestUserServicePostgresql:
         ):
             mock_repo.get_by_email = AsyncMock(return_value=mock_user)
 
-            with pytest.raises(AuthenticationError):
+            with pytest.raises(AuthenticationError) as refusal:
                 await user_service.authenticate("test@example.com", "wrongpassword")
+            assert refusal.value.code == "AUTHENTICATION_ERROR"
+            assert refusal.value.details == {"reason": "invalid_credentials"}
 
     @pytest.mark.anyio
-    async def test_authenticate_user_not_found(self, user_service: UserService):
+    async def test_authenticate_user_not_found(self, user_service: UserService) -> None:
         """Test authentication with non-existent user."""
         with patch("app.services.user.user_repo") as mock_repo:
             mock_repo.get_by_email = AsyncMock(return_value=None)
 
-            with pytest.raises(AuthenticationError):
+            with pytest.raises(AuthenticationError) as refusal:
                 await user_service.authenticate("unknown@example.com", "password")
+            assert refusal.value.details == {"reason": "invalid_credentials"}
 
     @pytest.mark.anyio
-    async def test_authenticate_inactive_user(self, user_service: UserService):
+    async def test_authenticate_inactive_user(self, user_service: UserService) -> None:
         """Test authentication with inactive user."""
         inactive_user = MockUser(is_active=False)
         with (
@@ -218,8 +221,9 @@ class TestUserServicePostgresql:
         ):
             mock_repo.get_by_email = AsyncMock(return_value=inactive_user)
 
-            with pytest.raises(AuthenticationError):
+            with pytest.raises(AuthenticationError) as refusal:
                 await user_service.authenticate("test@example.com", "password")
+            assert refusal.value.details is None
 
     @pytest.mark.anyio
     async def test_authenticate_runs_bcrypt_off_the_event_loop(

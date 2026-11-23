@@ -40,7 +40,7 @@ vi.mock("@/stores", () => ({
     pick({ currentConversationId: "c1" }),
 }));
 
-/** The page's query string - `?agent=` hands over one agent (#2301). */
+/** The page's query string - `?answerer=` hands over one agent. */
 let search = "";
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(search) }));
 
@@ -347,7 +347,7 @@ describe("a link asking for one agent", () => {
   });
 
   it("selects the agent a link names by its handle, over the default", async () => {
-    search = "agent=sales";
+    search = "answerer=sales";
     listed.mockReturnValue(PUBLISHED);
     selectedId.mockReturnValue(null);
     render(<AgentPicker />);
@@ -356,7 +356,7 @@ describe("a link asking for one agent", () => {
   });
 
   it("accepts an id, and ignores an agent nobody may run here", async () => {
-    search = "agent=a1";
+    search = "answerer=a1";
     listed.mockReturnValue(PUBLISHED);
     selectedId.mockReturnValue("a2");
     const { unmount } = render(<AgentPicker />);
@@ -364,7 +364,15 @@ describe("a link asking for one agent", () => {
     unmount();
 
     select.mockClear();
-    search = "agent=ghost";
+    search = "answerer=ghost";
+    render(<AgentPicker />);
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it("leaves the answering agent alone when history is filtered by another agent", () => {
+    search = "agent=a1";
+    listed.mockReturnValue(PUBLISHED);
+    selectedId.mockReturnValue("a2");
     render(<AgentPicker />);
     expect(select).not.toHaveBeenCalled();
   });

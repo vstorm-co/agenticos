@@ -27,7 +27,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import DEPLOYMENT_ADMIN_SCOPE, AuthContext, Perm
 from app.db.models.api_key import ApiKey
 from app.db.models.organization import Organization
 from app.db.models.user import User
@@ -136,6 +136,7 @@ class KeyCaller:
     """Which kind of client holds the key - what a change it makes is attributed to."""
 
     name: str = ""
+    deployment_admin_granted: bool = False
 
 
 class ApiKeyService:
@@ -506,6 +507,11 @@ class ApiKeyService:
         organization = await organization_repo.get_by_id(self.db, key.organization_id)
         if membership is None or issuer is None or not issuer.is_active or organization is None:
             raise AuthenticationError(message=_REFUSED, details={"prefix": key.prefix})
+        deployment_admin_granted = bool(
+            key.oauth_grant_id is not None
+            and not key.internal
+            and DEPLOYMENT_ADMIN_SCOPE in key.scopes
+        )
         return KeyCaller(
             user=issuer,
             organization=organization,
@@ -513,10 +519,12 @@ class ApiKeyService:
             prefix=key.prefix,
             name=key.name,
             surface="mcp" if key.oauth_grant_id else "assistant" if key.internal else "api_key",
+            deployment_admin_granted=deployment_admin_granted,
             context=AuthContext(
                 user_id=key.user_id,
                 organization_id=key.organization_id,
                 role=membership.role,
+                is_app_admin=bool(issuer.is_app_admin and deployment_admin_granted),
                 api_key_id=key.id,
                 key_scopes=frozenset(Perm(scope) for scope in key.scopes if scope in Perm),
                 key_internal=key.internal,

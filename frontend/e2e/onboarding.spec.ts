@@ -4,8 +4,8 @@ import { AUTH_STATE, OWNER_EMAIL, pageHeading } from "./helpers";
 
 /**
  * Tours are requested help, independent of first-task activation. This spec
- * opens one from the shared start and verifies that closing it persists the
- * historical walkthrough preference on the server. Other journeys remain free
+ * opens page help from the header and verifies that dismissal does not
+ * complete the separate guided setup. Other journeys remain free
  * of automatic overlays, including accounts whose preference is still null.
  *
  * The popover uses driver.js classes because the library renders a div rather

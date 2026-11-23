@@ -55,6 +55,7 @@ from app.services.channels.base import (
     read_press,
 )
 from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
+from app.services.channels.identity_scope import identity_scope
 from app.services.channels.live_reply import with_preview_links
 from app.services.channels.mentions import drawn_picture
 from app.services.channels.next_steps import offer_after_resume
@@ -99,7 +100,9 @@ async def linked_member(
     db: AsyncSession, bot: ChannelBot, platform: str, platform_user_id: str
 ) -> AuthContext | None:
     """A chat user, as a member acting with their own role, or `None` if unlinked."""
-    identity = await channel_identity_repo.get_by_platform_user(db, platform, platform_user_id)
+    identity = await channel_identity_repo.get_by_platform_user(
+        db, platform, platform_user_id, **identity_scope(bot)
+    )
     if identity is None or identity.user_id is None:
         return None
     membership = await member_repo.get_active(

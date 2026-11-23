@@ -403,6 +403,7 @@ nav:
       - Extending the platform:
           - howto/add-capability.md
           - howto/add-mcp-server.md
+          - howto/operate-with-ai.md
           - howto/add-api-endpoint.md
           - howto/add-background-task.md
           - howto/add-sync-connector.md

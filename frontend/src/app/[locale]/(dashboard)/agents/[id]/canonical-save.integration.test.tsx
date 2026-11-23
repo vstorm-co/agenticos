@@ -1,12 +1,17 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Suspense, useSyncExternalStore } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AgentBuilderPage from "./page";
 import { ApiError } from "@/lib/api-error";
-import type { AgentSpec, AgentDraftUpdate } from "@/types/agents";
+import type {
+  AgentSpec,
+  AgentDraftDiscard,
+  AgentDraftUpdate,
+  CapabilityBindingSpec,
+} from "@/types/agents";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
@@ -33,6 +38,11 @@ const refetchAgent = vi.hoisted(() => vi.fn());
 const refetchProfiles = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const saveDraft = vi.hoisted(() =>
   vi.fn<(update: AgentDraftUpdate) => Promise<{ draft_spec: AgentSpec; draft_revision: string }>>(),
+);
+const discardDraft = vi.hoisted(() =>
+  vi.fn<
+    (request: AgentDraftDiscard) => Promise<{ draft_spec: AgentSpec; draft_revision: string }>
+  >(),
 );
 
 /** The stored draft the page reads, replaced by what the server answers after each save. */
@@ -61,6 +71,7 @@ const state = {
   profilesStatus: "loaded" as ProfilesStatus,
   permissionsLoaded: true,
   saving: false,
+  base: undefined as { id: string; version: number; spec: AgentSpec } | undefined,
   versions: [] as { version: number }[],
   nextPublished: 1,
   // This caller's access to this agent, which the page reads rather than the role.
@@ -78,7 +89,7 @@ vi.mock("@/hooks", async () => {
         id: "a-1",
         slug: "support",
         name: "Support (copy)",
-        status: "draft",
+        status: state.base || state.versions.length > 0 ? "published" : "draft",
         has_avatar: false,
         ...state.access,
         draft_revision: "base",
@@ -87,6 +98,7 @@ vi.mock("@/hooks", async () => {
       isLoading: false,
       refetch: refetchAgent,
       saveDraft: { mutateAsync: saveDraft, isPending: state.saving },
+      discardDraft: { mutateAsync: discardDraft, isPending: false },
       validate: async () => ({ problems: [], fields: [], fixes: [] }),
       publish: {
         mutateAsync: vi.fn().mockResolvedValue({ version: state.nextPublished }),
@@ -108,7 +120,7 @@ vi.mock("@/hooks", async () => {
     useAgentVersion: () => ({ version: undefined, isLoading: false }),
     useAgentVersions: () => ({ versions: state.versions }),
     useAllAgentVersions: () => ({ versions: [] }),
-    useDraftBase: () => ({ base: undefined }),
+    useDraftBase: () => ({ base: state.base }),
     useCapabilityCatalog: () => ({ capabilities: [] }),
     usePromptVariables: () => ({ variables: [] }),
     useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
@@ -139,6 +151,29 @@ vi.mock("@/hooks", async () => {
   };
 });
 
+// Exercise the page's draft canonicalization independently of the capability form.
+vi.mock("@/components/agents/capability-workbench", () => ({
+  CapabilityWorkbench: ({
+    selected,
+    onChange,
+  }: {
+    selected: CapabilityBindingSpec[];
+    onChange: (binding: CapabilityBindingSpec) => void;
+  }) => {
+    const binding = selected.find((item) => item.id === "tool_search");
+    return binding ? (
+      <>
+        <button onClick={() => onChange({ ...binding, config: { strategy: "keywords" } })}>
+          Use keywords
+        </button>
+        <button onClick={() => onChange({ ...binding, config: { strategy: "auto" } })}>
+          Use auto
+        </button>
+      </>
+    ) : null;
+  },
+}));
+
 // The page's eval parts read their own queries; this test is not about them.
 vi.mock("@/hooks/use-eval-runs", () => ({
   useDraftEvalRuns: () => ({ runs: [] }),
@@ -168,6 +203,7 @@ vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }))
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
 vi.mock("@/components/agents/voice-card", () => ({ VoiceCard: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
+vi.mock("@/components/agents/alerts-panel", () => ({ AlertsPanel: () => null }));
 vi.mock("@/components/ui/markdown-editor", () => ({
   MarkdownEditor: () => null,
   MarkdownModeToggle: () => null,
@@ -229,6 +265,7 @@ const INITIAL: AgentSpec = {
 };
 
 async function chooseStructuredAnswers() {
+  await userEvent.click(await screen.findByRole("button", { name: "Model settings" }));
   await userEvent.click(await screen.findByRole("combobox", { name: "It answers" }));
   await userEvent.click(await screen.findByRole("option", { name: "With structured data" }));
 }
@@ -236,9 +273,12 @@ async function chooseStructuredAnswers() {
 beforeEach(() => {
   vi.clearAllMocks();
   refetchAgent.mockReset();
+  discardDraft.mockReset();
   state.permissions = [Perm.agentsEdit];
   state.access = { can_edit: true, can_publish: false };
   state.saving = false;
+  state.base = undefined;
+  state.versions = [];
   state.profiles = [MODEL_PROFILE];
   state.profilesStatus = "loaded";
   state.permissionsLoaded = true;
@@ -260,7 +300,186 @@ function serverDraft(spec: AgentSpec): AgentSpec {
   };
 }
 
+describe("discarding an agent draft", () => {
+  it("asks for confirmation and adopts the reset without republishing", async () => {
+    const draft = { ...INITIAL, description: "Unpublished edits" };
+    state.base = { id: "latest", version: 7, spec: INITIAL };
+    store.set(draft);
+    discardDraft.mockImplementation(async () => {
+      store.set(INITIAL);
+      return { draft_spec: INITIAL, draft_revision: "restored" };
+    });
+    const user = userEvent.setup();
+    await mount();
+    expect(screen.getByText("Draft differs from agent v7")).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Limits" }));
+    const monthly = screen.getByRole("spinbutton", { name: "Monthly (USD)" });
+    fireEvent.change(monthly, { target: { value: "42" } });
+
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    await user.click(screen.getByRole("menuitem", { name: /Discard draft/ }));
+    const confirm = await screen.findByRole("dialog", { name: "Discard unpublished changes?" });
+    expect(confirm).toHaveTextContent("version 7");
+    expect(discardDraft).not.toHaveBeenCalled();
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 1300)));
+    expect(saveDraft).not.toHaveBeenCalled();
+    await user.click(within(confirm).getByRole("button", { name: "Discard draft" }));
+
+    expect(discardDraft).toHaveBeenCalledWith({
+      expected_revision: "base",
+      expected_version_id: "latest",
+    });
+    expect(await screen.findByText("Up to date with agent v7")).toBeInTheDocument();
+    expect(monthly).toHaveValue(null);
+    expect(screen.queryByRole("dialog", { name: "Discard unpublished changes?" })).toBeNull();
+    expect(saveDraft).not.toHaveBeenCalled();
+  });
+
+  it("resets the opening budget representation after discard when the base becomes unavailable", async () => {
+    state.base = { id: "latest", version: 7, spec: INITIAL };
+    store.set({ ...INITIAL, budget: { monthly_usd: null } });
+    discardDraft.mockImplementation(async () => {
+      store.set(INITIAL);
+      return { draft_spec: INITIAL, draft_revision: "restored" };
+    });
+    saveDraft.mockImplementation(async ({ spec }) => {
+      store.set(spec);
+      return { draft_spec: spec, draft_revision: "saved" };
+    });
+    const user = userEvent.setup();
+    await mount();
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    await user.click(screen.getByRole("menuitem", { name: /Discard draft/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Discard unpublished changes?" });
+    await user.click(within(dialog).getByRole("button", { name: "Discard draft" }));
+    await screen.findByText("Up to date with agent v7");
+    await act(async () => {
+      state.base = undefined;
+      store.set({ ...INITIAL });
+    });
+    await user.click(screen.getByRole("tab", { name: "Limits" }));
+    const monthly = screen.getByRole("spinbutton", { name: "Monthly (USD)" });
+    fireEvent.change(monthly, { target: { value: "25" } });
+    await waitFor(() => expect(store.get()?.budget).toEqual({ monthly_usd: 25 }));
+    fireEvent.change(monthly, { target: { value: "" } });
+    await waitFor(() => expect(store.get()?.budget).toBeNull());
+  });
+
+  it("does not offer discard to a viewer without edit access", async () => {
+    state.base = { id: "latest", version: 7, spec: INITIAL };
+    store.set({ ...INITIAL, description: "Unpublished edits" });
+    state.access.can_edit = false;
+    const user = userEvent.setup();
+    await mount();
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.queryByRole("menuitem", { name: /Discard draft/ })).toBeNull();
+  });
+
+  it("keeps edits visible when the draft changed elsewhere before confirmation", async () => {
+    state.base = { id: "latest", version: 7, spec: INITIAL };
+    store.set({ ...INITIAL, description: "Unpublished edits", budget: { monthly_usd: 25 } });
+    discardDraft.mockRejectedValue(
+      new ApiError(409, "Stale draft", {
+        error: { code: "CONFLICT", message: "Stale draft", details: { reason: "draft_changed" } },
+      }),
+    );
+    const user = userEvent.setup();
+    await mount();
+    await user.click(screen.getByRole("tab", { name: "Limits" }));
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    await user.click(screen.getByRole("menuitem", { name: /Discard draft/ }));
+    const confirm = await screen.findByRole("dialog", { name: "Discard unpublished changes?" });
+    await user.click(within(confirm).getByRole("button", { name: "Discard draft" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("saving is paused");
+    expect(screen.getByRole("spinbutton", { name: "Monthly (USD)" })).toHaveValue(25);
+    expect(store.get()?.description).toBe("Unpublished edits");
+    expect(screen.queryByRole("dialog", { name: "Discard unpublished changes?" })).toBeNull();
+    expect(saveDraft).not.toHaveBeenCalled();
+  });
+});
+
 describe("canonical draft acknowledgements", () => {
+  it.each([false, true])(
+    "keeps implicit Tool search Auto through an unavailable base (arrives later: %s)",
+    async (arrives) => {
+      const published: AgentSpec = {
+        ...INITIAL,
+        capabilities: [
+          {
+            id: "tool_search",
+            config: {},
+            approval: "default",
+            tool_approval: {},
+            tool_overrides: {},
+            secret_id: null,
+            enabled: true,
+          },
+        ],
+      };
+      const base = { id: "v1", version: 1, spec: published };
+      state.versions = [base];
+      store.set(published);
+      saveDraft.mockImplementation(async ({ spec }) => {
+        store.set(spec);
+        return { draft_spec: spec, draft_revision: "saved" };
+      });
+      await mount();
+      await userEvent.click(screen.getByRole("tab", { name: "Toolbox" }));
+      await userEvent.click(screen.getByRole("button", { name: "Use keywords" }));
+      await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(1));
+      await userEvent.click(screen.getByRole("button", { name: "Use auto" }));
+      await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(2));
+      expect(store.get()?.capabilities[0]?.config).toEqual({});
+      if (arrives)
+        await act(async () => {
+          state.base = base;
+          store.set({ ...published });
+        });
+      expect(store.get()?.capabilities).toEqual(published.capabilities);
+      expect(screen.queryByText("Unsaved")).toBeNull();
+    },
+  );
+
+  it.each([
+    { budget: null, delayed: false },
+    { budget: { monthly_usd: null }, delayed: false },
+    { budget: { monthly_usd: null }, delayed: true },
+  ])(
+    "restores the published budget representation ($budget) with a delayed version read: $delayed",
+    async ({ budget, delayed }) => {
+      const published = { ...INITIAL, budget };
+      const base = { id: "v1", version: 1, spec: published };
+      state.versions = [base];
+      if (!delayed) state.base = base;
+      store.set(published);
+      saveDraft.mockImplementation(async ({ spec }) => {
+        store.set(spec);
+        return { draft_spec: spec, draft_revision: "saved" };
+      });
+      await mount();
+      await userEvent.click(screen.getByRole("tab", { name: "Limits" }));
+      const monthly = screen.getByRole("spinbutton", { name: "Monthly (USD)" });
+
+      fireEvent.change(monthly, { target: { value: "25" } });
+      await waitFor(() => expect(store.get()?.budget).toEqual({ monthly_usd: 25 }));
+      fireEvent.change(monthly, { target: { value: "" } });
+
+      await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(2));
+      const stored = store.get();
+      expect(stored?.budget).toEqual(budget);
+      if (delayed && stored) {
+        await act(async () => {
+          state.base = base;
+          store.set({ ...stored });
+        });
+      }
+      await screen.findByText("Up to date with agent v1");
+      expect(screen.queryByText("Unsaved")).toBeNull();
+      expect(store.get()?.budget).toEqual(budget);
+    },
+  );
+
   it("saves a reordered schema once and releases the draft test panel", async () => {
     saveDraft.mockImplementation(async ({ spec }) => {
       const stored = serverDraft(spec);
@@ -317,9 +536,9 @@ describe("canonical draft acknowledgements", () => {
     await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(1), { timeout: 6000 });
     const sent = saveDraft.mock.calls[0]?.[0];
     if (!sent || !acknowledge) throw new Error("No pending save");
-    const title = await screen.findByText("Name and description");
-    const section = title.closest("[data-tour='agent-identity']");
-    if (!(section instanceof HTMLElement)) throw new Error("Missing identity section");
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Details" }));
+    const section = screen.getByRole("dialog", { name: "Details" });
     const input = within(section).getByRole("textbox", { name: "Name" });
     await userEvent.clear(input);
     await userEvent.type(input, "Newer name");
@@ -360,9 +579,9 @@ it("keeps its base revision after an unannounced refetch and holds edits until r
   });
   await mount();
   await act(async () => store.set(newer));
-  const title = await screen.findByText("Name and description");
-  const section = title.closest("[data-tour='agent-identity']");
-  if (!(section instanceof HTMLElement)) throw new Error("Missing identity section");
+  await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Details" }));
+  const section = screen.getByRole("dialog", { name: "Details" });
   const name = within(section).getByRole("textbox", { name: "Name" });
   await userEvent.clear(name);
   await userEvent.type(name, "My local edit");
@@ -371,15 +590,15 @@ it("keeps its base revision after an unannounced refetch and holds edits until r
     spec: expect.objectContaining({ name: "My local edit", description: null }),
     expected_revision: "base",
   });
-  expect(await screen.findByRole("alert")).toHaveTextContent("saving is paused");
+  expect(await screen.findByRole("alert", {}, { timeout: 6000 })).toHaveTextContent(
+    "saving is paused",
+  );
   expect(name).toHaveValue("My local edit");
   await userEvent.type(name, " still here");
   await act(async () => new Promise((resolve) => setTimeout(resolve, 1500)));
   expect(saveDraft).toHaveBeenCalledTimes(1);
   expect(name).toHaveValue("My local edit still here");
-  expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
-  await userEvent.click(screen.getByRole("button", { name: "Publish" }));
-  expect(saveDraft).toHaveBeenCalledTimes(1);
+  expect(screen.getByText("Publish").closest("button")).toBeDisabled();
   await userEvent.click(screen.getByRole("button", { name: "Reload latest draft" }));
   await waitFor(() => expect(refetchAgent).toHaveBeenCalledTimes(1));
   expect(name).toHaveValue("My local edit still here");
@@ -414,5 +633,18 @@ it("disables Publish while an autosave is pending", async () => {
   state.saving = true;
   await mount();
   expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
+  expect(saveDraft).not.toHaveBeenCalled();
+});
+
+it("keeps credential details folded while showing the effective access choice", async () => {
+  await mount();
+  const access = screen.getByRole("button", { name: /Model access.*Use the organization/ });
+  expect(access).toHaveAttribute("aria-expanded", "false");
+  expect(screen.queryByRole("radio", { name: "Each user connects their own key" })).toBeNull();
+  await userEvent.click(access);
+  expect(screen.getByRole("radio", { name: "Use the organization’s key" })).toBeChecked();
+  expect(screen.getByRole("radio", { name: "Each user connects their own key" })).toBeEnabled();
+  await userEvent.click(access);
+  expect(access).toHaveAttribute("aria-expanded", "false");
   expect(saveDraft).not.toHaveBeenCalled();
 });

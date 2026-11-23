@@ -9,7 +9,7 @@ import { LiveBadge } from "@/components/artifacts/live-badge";
 import { groupsLabel } from "@/components/sharing/audience-chip";
 import {
   Badge,
-  Card,
+  ResourceCard,
   DocPeek,
   DropdownMenu,
   DropdownMenuContent,
@@ -68,9 +68,9 @@ export function ArtifactCard({
   const version = artifact.current_version?.number ?? 0;
   const archived = artifact.archived_at !== null;
   return (
-    <Card
+    <ResourceCard
       className={cn(
-        "peek-card group hover:border-foreground/20 relative flex h-full flex-col overflow-hidden",
+        "peek-card group overflow-hidden p-0",
         busy && "pointer-events-none opacity-50",
       )}
     >
@@ -93,12 +93,14 @@ export function ArtifactCard({
           />
         )}
       </DocPeek>
-      <div className="pointer-events-none relative flex flex-1 flex-col gap-1.5 p-4 pt-3.5">
-        <span className="text-foreground truncate text-sm font-medium">{artifact.title}</span>
+      <div className="pointer-events-none relative flex flex-1 flex-col gap-1.5 p-5">
+        <span className="text-foreground line-clamp-2 text-base font-semibold break-words">
+          {artifact.title}
+        </span>
         <span className="text-muted-foreground block truncate font-mono text-xs">
           {artifact.name}
         </span>
-        <span className="flex flex-wrap items-center gap-1.5">
+        <span className="mt-auto flex flex-wrap items-center gap-1.5 border-t pt-4">
           {archived && (
             <Badge variant="outline" className="gap-1">
               <Archive className="h-3 w-3" />
@@ -127,7 +129,7 @@ export function ArtifactCard({
             </Badge>
           )}
         </span>
-        <div className="mt-auto flex items-center justify-between gap-2 pt-1">
+        <div className="mt-2 flex items-center justify-between gap-2 pt-1">
           <span className="text-muted-foreground min-w-0 truncate text-xs">
             {t("publishedVersion", {
               version,
@@ -195,6 +197,6 @@ export function ArtifactCard({
           </span>
         </div>
       </div>
-    </Card>
+    </ResourceCard>
   );
 }

@@ -318,7 +318,7 @@ async def test_workflow_calls_with_use_and_refuses_revocation_before_reading_cre
             return await calls(name, arguments)
 
     @asynccontextmanager
-    async def remote_session(_url, _headers):
+    async def remote_session(_url, _headers, timeout=None):
         yield Client()
 
     headers = AsyncMock(return_value={})

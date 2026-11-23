@@ -60,16 +60,13 @@ export function DesktopInstallPrompt() {
   if (mobile) return null;
 
   return (
-    <aside
-      className="border-border mx-3 mb-2 hidden shrink-0 items-center gap-1 rounded-lg border p-1 md:flex"
-      aria-label={t("title")}
-    >
+    <aside className="mx-3 mb-2 hidden shrink-0 items-center gap-1 md:flex" aria-label={t("title")}>
       <a
         href="https://github.com/vstorm-co/agenticos/releases/latest"
         target="_blank"
         rel="noopener noreferrer"
         title={t("description")}
-        className="hover:bg-accent focus-visible:outline-foreground flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-xs font-medium focus-visible:outline-2"
+        className="border-border hover:bg-accent focus-visible:outline-foreground flex min-w-0 flex-1 items-center gap-2 rounded-md border px-2 py-2 text-xs font-medium focus-visible:outline-2"
       >
         <MonitorDown className="size-4 shrink-0" aria-hidden />
         <span className="truncate">{t("download")}</span>

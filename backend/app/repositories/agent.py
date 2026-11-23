@@ -471,6 +471,19 @@ async def published_starters(
 _STARTER_ICONS = TypeAdapter(StarterIcons)
 
 
+async def published_hidden_starters(db: AsyncSession, *, version_ids: Sequence[UUID]) -> set[UUID]:
+    """Published opt-outs only. Older specs continue to offer chat openers."""
+    if not version_ids:
+        return set()
+    result = await db.execute(
+        select(AgentVersion.id).where(
+            AgentVersion.id.in_(list(version_ids)),
+            AgentVersion.spec["show_starters"].astext == "false",
+        )
+    )
+    return set(result.scalars().all())
+
+
 async def published_starter_icons(
     db: AsyncSession, *, version_ids: Sequence[UUID]
 ) -> dict[UUID, dict[str, StarterIcon]]:

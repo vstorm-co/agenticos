@@ -807,10 +807,18 @@ async def list_node_runs_of(
 
 
 async def list_node_runs_page(
-    db: AsyncSession, *, workflow_run_id: UUID, organization_id: UUID, skip: int, limit: int
+    db: AsyncSession,
+    *,
+    workflow_run_id: UUID,
+    organization_id: UUID,
+    skip: int,
+    limit: int,
+    node_run_id: UUID | None = None,
 ) -> tuple[list[NodeRun], int]:
     """A page of a run's node runs, in the order they were created, and how many there are."""
     where = [NodeRun.workflow_run_id == workflow_run_id, NodeRun.organization_id == organization_id]
+    if node_run_id is not None:
+        where.append(NodeRun.id == node_run_id)
     total = await db.scalar(select(func.count()).select_from(NodeRun).where(*where)) or 0
     result = await db.execute(
         select(NodeRun)

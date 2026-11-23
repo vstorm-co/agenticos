@@ -60,6 +60,7 @@ from app.schemas.agent import (
     AgentClone,
     AgentCreate,
     AgentDetail,
+    AgentDraftDiscard,
     AgentDraftRevision,
     AgentDraftUpdate,
     AgentKnowledgeReach,
@@ -75,6 +76,7 @@ from app.schemas.agent import (
     AgentVersionDetail,
     AgentVersionList,
     AgentVersionRead,
+    ApplyShippedAgentUpdate,
     CapabilityCatalog,
     CapabilityCatalogEntry,
     CapabilityEnabled,
@@ -88,6 +90,7 @@ from app.schemas.agent import (
     PromptVariableCatalog,
     PromptVariableRead,
     RunRequestRead,
+    ShippedAgentUpdate,
     SpecialistPromote,
     SystemAgentCreate,
     TemplateInstallRequest,
@@ -100,6 +103,7 @@ from app.services import agent_templates, mcp_listing, transcription
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
 from app.services.platform_mcp import platform_tool_catalog
+from app.services.shipped_agents import ShippedAgentService
 
 router = APIRouter(dependencies=[PUBLIC])
 
@@ -254,8 +258,12 @@ async def list_platform_mcp_tools() -> Any:
         PlatformMcpTool(
             name=tool.name,
             description=tool.summary,
+            group=tool.group,
             writes=tool.writes,
             ungated=tool.ungated,
+            always_asks=tool.always_asks,
+            default_approval_free=tool.default_approval_free,
+            conditional_approval=tool.conditional_approval,
         )
         for tool in platform_tool_catalog()
     ]
@@ -467,15 +475,23 @@ async def list_mentionables(
 async def get_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any:
     """One agent with the spec currently being edited."""
     agent = await service.get(ctx, agent_id)
-    can_edit, can_publish = await service.configuration_access(ctx, agent)
-    # Access hints are caller-specific and never stored on the agent row.
-    return AgentDetail.model_validate(agent).model_copy(
-        update={
-            "can_run": await service.may_run(ctx, agent),
-            "can_edit": can_edit,
-            "can_publish": can_publish,
-        }
-    )
+    return await service.detail_for(ctx, agent)
+
+
+@router.get("/{agent_id}/shipped-update", response_model=ShippedAgentUpdate, openapi_extra=INTERNAL)
+async def review_shipped_update(agent_id: UUID, db: DBSession, ctx: Auth) -> Any:
+    """Preview which fields the built-in defaults replace."""
+    return await ShippedAgentService(db).review_update(ctx, agent_id)
+
+
+@router.post(
+    "/{agent_id}/shipped-update", status_code=204, response_model=None, openapi_extra=INTERNAL
+)
+async def apply_shipped_update(
+    agent_id: UUID, data: ApplyShippedAgentUpdate, db: DBSession, ctx: Auth
+) -> Any:
+    """Apply the exact revision the caller reviewed."""
+    await ShippedAgentService(db).apply_update(ctx, agent_id, data.expected_revision)
 
 
 @router.get("/{agent_id}/draft-revision", response_model=AgentDraftRevision)
@@ -504,6 +520,28 @@ async def save_draft(
     return await service.save_draft(
         ctx, agent_id, data.spec, expected_revision=data.expected_revision
     )
+
+
+@router.post(
+    "/{agent_id}/draft/discard",
+    response_model=AgentDetail,
+)
+async def discard_draft(
+    agent_id: UUID, data: AgentDraftDiscard, service: AgentRegistrySvc, ctx: Auth
+) -> Any:
+    """Reset the draft to the latest published spec without creating a version.
+
+    Requires edit and view access. Returns 409 without writing if the draft revision or
+    the latest published version changed since confirmation. Returns the restored draft
+    with the caller's effective permissions, like the agent detail endpoint.
+    """
+    agent = await service.discard_draft(
+        ctx,
+        agent_id,
+        expected_revision=data.expected_revision,
+        expected_version_id=data.expected_version_id,
+    )
+    return await service.detail_for(ctx, agent)
 
 
 @router.post(

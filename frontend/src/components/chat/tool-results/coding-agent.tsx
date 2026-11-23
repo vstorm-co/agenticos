@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { z } from "zod";
 
 import type { TurnFileSource } from "@/types/chat";
 import { WorkspaceFileCard } from "./workspace";
@@ -20,33 +21,40 @@ import { CollapsibleBlock } from "../collapsible-block";
 import { MarkdownContent } from "../markdown-content";
 import { TaskChanges } from "./coding-changes";
 
-type StepKind = "read" | "search" | "edit" | "command" | "web" | "other";
+const optionalText = z
+  .string()
+  .nullish()
+  .transform((value) => value ?? undefined);
+const codingStep = z.object({
+  kind: z.enum(["read", "search", "edit", "command", "web", "other"]),
+  title: z.string(),
+  failed: z.boolean().optional(),
+});
 
-interface CodingStep {
-  kind: StepKind;
-  title: string;
-  failed?: boolean;
-}
+/** Owned fields of backend CodingReport, including reports stored before kind existed. */
+const codingReport = z.object({
+  kind: z.enum(["coding_agent", "harness"]).default("coding_agent"),
+  harness: z.enum(["claude_code", "codex", "opencode", "gemini", "pi"]),
+  access: z.enum(["edit", "read_only"]),
+  outcome: z.enum(["completed", "failed", "timed_out"]),
+  answer: z.string(),
+  session_id: optionalText,
+  session_name: optionalText,
+  session_resumed: z
+    .boolean()
+    .nullish()
+    .transform((value) => value ?? undefined),
+  steps: z.array(codingStep).optional(),
+  files_changed: z.array(z.string()).optional(),
+  refused: z.array(z.string()).optional(),
+  changes_id: optionalText,
+  account_label: optionalText,
+  base_revision: optionalText,
+  result_archive: optionalText,
+});
 
-/** What `run_coding_agent` returns - `CodingReport` in the backend - and what a
- * harness prompt returns: `HarnessReport`, the same shape with its `kind`
- * renamed and no change set. */
-interface CodingReport {
-  kind: "coding_agent" | "harness";
-  harness: "claude_code" | "codex" | "opencode" | "gemini" | "pi";
-  access: "edit" | "read_only";
-  outcome: "completed" | "failed" | "timed_out";
-  answer: string;
-  session_id?: string;
-  steps?: CodingStep[];
-  files_changed?: string[];
-  refused?: string[];
-  /** The change set the task left in the sandbox, read by `TaskChanges` (#2480). */
-  changes_id?: string;
-  account_label?: string;
-  base_revision?: string;
-  result_archive?: string;
-}
+type CodingReport = z.infer<typeof codingReport>;
+type StepKind = z.infer<typeof codingStep>["kind"];
 
 const STEP_ICON: Record<StepKind, LucideIcon> = {
   read: FileText,
@@ -74,16 +82,8 @@ export const HARNESS_NAME: Record<CodingReport["harness"], string> = {
 export function parseCodingReport(text: string): CodingReport | null {
   try {
     const parsed: unknown = JSON.parse(text);
-    if (typeof parsed !== "object" || parsed === null) return null;
-    if ("kind" in parsed)
-      return parsed.kind === "coding_agent" || parsed.kind === "harness"
-        ? (parsed as CodingReport)
-        : null;
-    // Reports stored before `kind` reached the wire carry no kind at all: they
-    // are told apart by the two fields every report has.
-    if ("harness" in parsed && "outcome" in parsed) {
-      return { ...(parsed as Omit<CodingReport, "kind">), kind: "coding_agent" };
-    }
+    const report = codingReport.safeParse(parsed);
+    return report.success ? report.data : null;
   } catch {
     // Text stored before failures became reports - a refusal from an older run -
     // is a sentence, not a report, and still reads as one.
@@ -160,6 +160,19 @@ function Report({ report, fileSource }: { report: CodingReport; fileSource?: Tur
       <div className="text-sm">
         <MarkdownContent content={report.answer} />
       </div>
+      {typeof report.session_name === "string" &&
+        /^[a-z0-9][a-z0-9_-]{0,39}$/.test(report.session_name) && (
+          <p className="text-muted-foreground text-xs">
+            {personal(
+              typeof report.session_resumed === "boolean"
+                ? report.session_resumed
+                  ? "continuedSession"
+                  : "newSession"
+                : "sessionName",
+              { name: report.session_name },
+            )}
+          </p>
+        )}
       {typeof report.account_label === "string" && (
         <p className="text-muted-foreground text-xs">
           {personal("personalAccount", { label: report.account_label })}

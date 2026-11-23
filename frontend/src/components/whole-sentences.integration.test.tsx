@@ -16,7 +16,8 @@ import { TermsBodyEn } from "@/components/legal/terms-content";
  * These are the surfaces #425 found split across a key and a text node - the
  * heading whose emphasised half was translated while its opening words were
  * English JSX, and the contact line whose tail was a key beginning with a full
- * stop. Each is now one ICU message with a tag in it, read with `t.rich`.
+ * stop. Each is now one complete ICU message. Quiet authentication headings use
+ * plain messages; emphasis, where retained, is resolved with `t.rich`.
  *
  * Rendering is the only thing that checks that arrangement. `vitest.setup.ts`
  * mocks `next-intl` with a *real* translator over the real `en.json`, so a tag
@@ -47,7 +48,7 @@ vi.mock("@/lib/api-client", () => ({
 
 describe("a heading is one message", () => {
   it.each([
-    [LoginForm, "Sign in to your workspace."],
+    [LoginForm, "Sign in"],
     [RegisterForm, "Create your workspace."],
     [ForgotPasswordForm, "Happens to the best of us."],
   ])("renders it whole, emphasis included", (Form, sentence) => {
@@ -58,7 +59,8 @@ describe("a heading is one message", () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(sentence);
+    const heading = screen.getByRole("heading", { level: 1, name: sentence });
+    expect(heading.textContent).toBe(sentence);
   });
 });
 

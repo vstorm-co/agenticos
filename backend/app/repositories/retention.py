@@ -294,6 +294,33 @@ async def sum_purged_cost_since(
     return Decimal(total or 0)
 
 
+async def lock_expiring_coding_workspaces(
+    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
+) -> list[AgentWorkspace]:
+    active_run = (
+        select(AgentRun.id)
+        .where(
+            AgentRun.conversation_id == AgentWorkspace.conversation_id,
+            AgentRun.organization_id == organization_id,
+            AgentRun.status.not_in(_RETIRABLE),
+        )
+        .exists()
+    )
+    rows = await db.scalars(
+        select(AgentWorkspace)
+        .where(
+            AgentWorkspace.organization_id == organization_id,
+            AgentWorkspace.coding_account_id.is_not(None),
+            AgentWorkspace.last_used_at < cutoff,
+            ~active_run,
+        )
+        .order_by(AgentWorkspace.last_used_at, AgentWorkspace.id)
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+    )
+    return list(rows.all())
+
+
 async def delete_workspaces(
     db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
 ) -> int:
@@ -303,8 +330,8 @@ async def delete_workspaces(
     A workspace on a sandbox backend keeps its files in the sandbox, whose own
     TTL reaps them; what leaves here is the platform's record of it.
 
-    Never a project's: its files are the project's, kept as long as the project
-    is, however long nobody has run an agent in them - and deleted with it.
+    Projects are deleted with their owner. Retained coding workspaces are swept
+    separately so their remote cleanup is recorded before the rows are lost.
     """
     expiring = (
         select(AgentWorkspace.id)
@@ -312,6 +339,7 @@ async def delete_workspaces(
             AgentWorkspace.organization_id == organization_id,
             AgentWorkspace.last_used_at < cutoff,
             AgentWorkspace.project_id.is_(None),
+            AgentWorkspace.coding_account_id.is_(None),
         )
         .order_by(AgentWorkspace.last_used_at)
         .limit(limit)

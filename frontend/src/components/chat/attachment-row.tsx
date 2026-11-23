@@ -8,29 +8,13 @@ import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 
-/**
- * One row of what is attached to the message being written.
- *
- * **One row, whatever the count.** It was a wrapping grid of 224 px tiles: one
- * file looked wedged between the usage strip and the input, six were two rows,
- * and twenty were seven rows and about 850 px of composer with the message box
- * somewhere below the fold (#927). There is no cap on how many can be attached,
- * so the render has to hold - and a row that scrolls holds at any number.
- *
- * **Its own band.** The attachments used to sit in the same stack as the usage
- * strip, so `Context 5.7% · $0.0471` and three file cards read as one confused
- * header. A rule above the input, and the row belongs to the input it is about.
- *
- * The arrows appear only when there is something to scroll to, which is measured
- * rather than guessed from the count: a card is a fixed width but the composer's
- * is not, so "more than three" is right at one window size and wrong at the next.
- */
+/** A bounded, horizontally scrollable tray inside the composer. */
 export function AttachmentRow({
   children,
   count,
 }: {
   children: React.ReactNode;
-  /** How many are attached, pending ones included. Shown so the row need not be scrolled to be counted. */
+  /** How many are attached, pending ones included. Announced without adding another visual control. */
   count: number;
 }) {
   const t = useTranslations("chat.input");
@@ -61,11 +45,11 @@ export function AttachmentRow({
   }
 
   return (
-    // Its own container above the composer, not a band inside it. Wedged between
-    // the usage strip and the textarea, `Context 5.7% · $0.0471` and three file
-    // cards read as one confused header; what is attached is a thing of its own,
-    // and it sits above the box it will be sent from.
-    <div className="chat-input-attachments mb-2 flex max-w-full min-w-0 items-center gap-2 px-1 py-1">
+    <div
+      role="group"
+      aria-label={t("attachedCount", { count })}
+      className="chat-input-attachments border-foreground/8 mx-3 flex items-center gap-2 border-b py-3"
+    >
       {overflowing && (
         <Arrow direction="left" label={t("scrollAttachmentsLeft")} onClick={() => scrollBy(-1)} />
       )}
@@ -84,7 +68,7 @@ export function AttachmentRow({
         <Arrow direction="right" label={t("scrollAttachmentsRight")} onClick={() => scrollBy(1)} />
       )}
 
-      <span className="text-muted-foreground shrink-0 pl-1 text-xs whitespace-nowrap">
+      <span className="sr-only" role="status">
         {t("attachedCount", { count })}
       </span>
     </div>

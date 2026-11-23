@@ -10,8 +10,10 @@ member's request reaches.
 import asyncio
 import json
 import logging
+import re
 from collections.abc import Awaitable, Callable, Iterable, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from itertools import groupby
 from typing import Any, Literal
 from uuid import UUID
 
@@ -36,6 +38,7 @@ from app.agents.failures import stored_failure_summary
 from app.agents.model_context import ModelContextCheck
 from app.agents.steering import STEER_PREFIX
 from app.core.background import spawn_after_commit
+from app.core.config import settings
 from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
@@ -88,10 +91,12 @@ from app.schemas.conversation import (
     MessageReplyRef,
     ToolCallComplete,
     ToolCallCreate,
+    WaitingChatQuestion,
+    WaitingChatQuestionList,
 )
 from app.schemas.conversation_share import AdminConversationList, AdminConversationRead
 from app.services import chat_room
-from app.services.access import AGENT, PROJECT, resolve_access, visible_resource_ids
+from app.services.access import AGENT, PROJECT, accessible_ids, resolve_access, visible_resource_ids
 from app.services.channels import membership as channel_membership
 from app.services.file_storage import delete_files_best_effort, delete_prefix_best_effort
 from app.services.generated_media import GeneratedMediaService
@@ -203,6 +208,55 @@ def _anchor_replayed_answer(ordered: list[HistoryMessage], used: int | None) -> 
         anchor["context_used_tokens"] = used
 
 
+_HISTORY_TOOL_NAME = re.compile(r"[A-Za-z0-9_.:-]{1,100}")
+_HISTORY_TOOL_STATUSES = frozenset(
+    {
+        "pending",
+        "running",
+        "completed",
+        "failed",
+        "cancelled",
+        "awaiting_approval",
+        "awaiting_answer",
+    }
+)
+
+
+def _tool_history_note(row: Message) -> str:
+    """Record the visible call timeline without replaying any caller's data."""
+    if row.role != "assistant" or row.guardrail_refused or not row.tool_calls:
+        return ""
+    parts = row.parts or []
+    positions = {
+        call_id: position
+        for position, part in enumerate(parts)
+        if part.get("type") == "tool" and isinstance(call_id := part.get("tool_call_id"), str)
+    }
+    ordered = sorted(
+        row.tool_calls,
+        key=lambda call: (
+            positions.get(call.tool_call_id, len(parts)),
+            call.started_at,
+            call.tool_call_id,
+        ),
+    )
+    calls = (
+        (call.tool_name, call.status if call.status in _HISTORY_TOOL_STATUSES else "unknown")
+        for call in ordered
+        if _HISTORY_TOOL_NAME.fullmatch(call.tool_name)
+    )
+    runs = []
+    for (name, status), group in groupby(calls):
+        count = sum(1 for _ in group)
+        runs.append(f"{name} ({count} calls, {status})" if count > 1 else f"{name} ({status})")
+    if not runs:
+        return ""
+    listing = ", ".join(runs)
+    return (
+        f"[Recorded tool calls: {listing}. Arguments and results are not included in this history.]"
+    )
+
+
 def _as_history(
     rows: Sequence[Message],
     exclude_message_id: UUID | None,
@@ -249,8 +303,11 @@ def _as_history(
                         {"role": "user", "content": f"Question: {question}\nAnswer: {answer}"}
                     )
         ordered = _preserve_blank_text(ordered)
+        evidence = _tool_history_note(row)
         if _replays_content(texts, row.content):
             _anchor_replayed_answer(ordered, row.context_used_tokens)
+            if evidence:
+                ordered.append({"role": "assistant", "content": evidence})
             history.extend(ordered)
             continue
         ordered.append(
@@ -276,6 +333,8 @@ def _as_history(
             }
         )
         _anchor_replayed_answer(ordered, row.context_used_tokens)
+        if evidence:
+            ordered.append({"role": "assistant", "content": evidence})
         history.extend(ordered)
     return history
 
@@ -694,15 +753,20 @@ class ConversationService:
         quotes it, so "yes, do that" reaches the model with what it says yes to.
         One query for the quoted messages outside the window, one for the names.
         """
+        owner = conversation.user_id if conversation is not None else None
         in_shared_room = conversation is not None and (
             getattr(conversation, "project_id", None) is not None
             or getattr(conversation, "room_visibility", None) is not None
+        )
+        label_authors = in_shared_room or any(
+            row.role == "user" and row.author_user_id is not None and row.author_user_id != owner
+            for row in rows
         )
         turns = [
             row
             for row in rows
             if row.role == "user"
-            and (row.reply_to_message_id is not None or (in_shared_room and row.author_user_id))
+            and (row.reply_to_message_id is not None or (label_authors and row.author_user_id))
         ]
         if not turns:
             return {}
@@ -731,7 +795,7 @@ class ConversationService:
         )
         spoken: dict[UUID, str] = {}
         for row in turns:
-            text = row.content
+            text = _said(row)
             answered = (
                 quoted.get(row.reply_to_message_id) if row.reply_to_message_id is not None else None
             )
@@ -743,7 +807,7 @@ class ConversationService:
                 )
                 text = f'(In reply to {_whose(answered, people)}: "{excerpt}")\n\n{text}'
             author = (
-                people.get(row.author_user_id) if in_shared_room and row.author_user_id else None
+                people.get(row.author_user_id) if label_authors and row.author_user_id else None
             )
             if author is not None:
                 text = f"{ChatPerson.of(author).name}: {text}"
@@ -1523,6 +1587,46 @@ class ConversationService:
                 for user, read_at in readers.get(conversation.id, [])
             ]
 
+    async def list_waiting_questions(
+        self, ctx: AuthContext, *, skip: int, limit: int
+    ) -> WaitingChatQuestionList:
+        """Read only what waits on this member, with no run-history or approval grant."""
+        user_id = ctx.subject_id
+        readable = await self.visible_project_ids(user_id, ctx.organization_id, reader=ctx)
+        projects = await project_repo.get_many(
+            self.db, readable, organization_id=ctx.organization_id
+        )
+        usable = await accessible_ids(
+            self.db, ctx, projects, Perm.PROJECTS_USE, resource_type=PROJECT
+        )
+        participant_ids = await channel_membership.confirmed_participant_threads(
+            self.db, user_id=user_id, organization_id=ctx.organization_id
+        )
+        expiry = timedelta(hours=settings.QUESTION_EXPIRY_HOURS)
+        rows, total = await conversation_repo.waiting_chat_questions(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=user_id,
+            usable_project_ids=usable,
+            participant_ids=participant_ids,
+            asked_since=datetime.now(UTC) - expiry,
+            skip=skip,
+            limit=limit,
+        )
+        return WaitingChatQuestionList(
+            items=[
+                WaitingChatQuestion(
+                    run_id=run_id,
+                    conversation_id=conversation_id,
+                    conversation_title=title,
+                    agent_name=agent,
+                    expires_at=asked_at + expiry,
+                )
+                for run_id, conversation_id, title, agent, asked_at in rows
+            ],
+            total=total,
+        )
+
     async def list_conversations(
         self,
         user_id: UUID | None = None,
@@ -1541,6 +1645,7 @@ class ConversationService:
         project_id: UUID | None = None,
         reader: AuthContext | None = None,
         for_model: bool = False,
+        project_scope: Literal["include", "only", "exclude"] = "include",
     ) -> tuple[list[Conversation], int]:
         """One page of the organization's conversations, each naming who answered.
 
@@ -1571,7 +1676,7 @@ class ConversationService:
             )
         project_ids = (
             await self.visible_project_ids(user_id, organization_id, reader=reader)
-            if user_id is not None
+            if user_id is not None and project_scope != "exclude"
             else []
         )
         items = await conversation_repo.get_conversations_by_user(
@@ -1604,6 +1709,7 @@ class ConversationService:
             hide_channels=hide_channels,
             project_id=project_id,
             for_model=for_model,
+            project_scope=project_scope,
         )
         total = await conversation_repo.count_conversations(
             self.db,
@@ -1619,6 +1725,7 @@ class ConversationService:
             hide_channels=hide_channels,
             project_id=project_id,
             for_model=for_model,
+            project_scope=project_scope,
         )
         await self.attach_agents(items)
         await self._attach_favourites(items, user_id=user_id)
