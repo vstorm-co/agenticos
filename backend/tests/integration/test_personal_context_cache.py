@@ -121,6 +121,51 @@ async def test_incremental_read_reuses_committed_index_without_model_calls(
     assert calls == []
 
 
+async def test_extractor_upgrade_refreshes_conversation_and_segment_checkpoints(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pydantic import BaseModel
+
+    from app.schemas.personal_context import ContextDigest, PersonalReading
+    from app.services.proactive import _personal as personal
+    from app.services.proactive._thinker import ProactiveThinker
+
+    user, org, agent, version, model, _ = await _world(db)
+    agent.slug = "agenticos"
+    org.proactive_enabled = True
+    org.proactive_model_profile_id = model.id
+    run, conversation = await _chat_run(db, org, agent, version, user, input_tokens=10)
+    await _transcript(db, conversation, run, [("user", "I keep losing project follow-ups.")])
+    await db.commit()
+    calls: list[type[BaseModel]] = []
+
+    async def think(self: ProactiveThinker, ctx: object, **kwargs: object) -> BaseModel:
+        output = kwargs["output_type"]
+        assert isinstance(output, type) and issubclass(output, BaseModel)
+        calls.append(output)
+        return output()
+
+    monkeypatch.setattr(ProactiveThinker, "think", think)
+    current_version = personal.EXTRACTOR_VERSION
+    monkeypatch.setattr(personal, "EXTRACTOR_VERSION", "previous-extractor")
+    assert await personal.PersonalLook(db).look(org.id, user.id) == 0
+    await db.commit()
+    before = await cache.load(db, organization_id=org.id, user_id=user.id)
+    calls.clear()
+
+    monkeypatch.setattr(personal, "EXTRACTOR_VERSION", current_version)
+    assert await personal.PersonalLook(db).look(org.id, user.id) == 0
+    await db.commit()
+    after = await cache.load(db, organization_id=org.id, user_id=user.id)
+    assert calls == [ContextDigest, PersonalReading]
+    key = f"conversation:{conversation.id}"
+    assert before[key]["revision"] != after[key]["revision"]
+    assert before[key]["part_keys"] != after[key]["part_keys"]
+    calls.clear()
+    assert await personal.PersonalLook(db).look(org.id, user.id) == 0
+    assert calls == []
+
+
 @pytest.mark.security
 @pytest.mark.parametrize("change", ["opt_out", "membership", "source_edit", "disabled"])
 async def test_source_changes_while_extracting_cannot_write_a_checkpoint(

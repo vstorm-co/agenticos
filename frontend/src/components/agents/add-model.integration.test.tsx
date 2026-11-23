@@ -1385,6 +1385,152 @@ describe("the model the agent is already on", () => {
     } as Parameters<typeof AddModel>[0]["selected"];
   }
 
+  it.each(["create", "update"])(
+    "refuses invalid generation limits before %s",
+    async (operation) => {
+      state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
+      state.models = [{ id: "openai/gpt-5.5", name: "Current model" }];
+      render(
+        <AddModel
+          selected={operation === "update" ? inUse({ params: { max_tokens: 6144 } }) : undefined}
+          generationSettings
+          onCreated={vi.fn()}
+        />,
+      );
+      if (operation === "create") {
+        await userEvent.click(screen.getByLabelText("Model"));
+        await userEvent.click(screen.getByRole("option", { name: /Current model/ }));
+      }
+      const tokens = screen.getByLabelText("Max tokens");
+      await userEvent.clear(tokens);
+      await userEvent.type(tokens, "0");
+      await userEvent.click(
+        screen.getByRole("button", { name: operation === "update" ? "Update model" : "Add model" }),
+      );
+      expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+      expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
+    },
+  );
+
+  it("resets defaults for another model and restores the saved defaults when returning", async () => {
+    state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
+    state.models = [
+      { id: "openai/gpt-5.5", name: "Current model" },
+      { id: "openai/gpt-5", name: "Alternate model" },
+    ];
+    const created = vi.fn();
+    const { rerender } = render(
+      <AddModel
+        selected={inUse({ params: { thinking: "low" } })}
+        generationSettings
+        onCreated={created}
+      />,
+    );
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /Current model/ }));
+    expect(screen.getByLabelText("Reasoning effort")).toHaveTextContent("low");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /Alternate model/ }));
+    expect(screen.getByLabelText("Reasoning effort")).toHaveTextContent("Provider default");
+    rerender(
+      <AddModel
+        selected={inUse({ params: { thinking: "high" } })}
+        generationSettings
+        onCreated={created}
+      />,
+    );
+    expect(screen.getByLabelText("Reasoning effort")).toHaveTextContent("Provider default");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /Current model/ }));
+    expect(screen.getByLabelText("Reasoning effort")).toHaveTextContent("high");
+  });
+
+  it("does not treat reordered JSONB model defaults as unsaved changes", () => {
+    state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
+    const created = vi.fn();
+    const { rerender } = render(
+      <AddModel
+        selected={inUse({ params: { thinking: "low", max_tokens: 6144 } })}
+        generationSettings
+        onCreated={created}
+      />,
+    );
+    rerender(
+      <AddModel
+        selected={inUse({ params: { max_tokens: 6144, thinking: "low" } })}
+        generationSettings
+        onCreated={created}
+      />,
+    );
+    expect(screen.getByText("In use")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Update model" })).not.toBeInTheDocument();
+  });
+
+  it.each([false, true])(
+    "refreshes saved defaults while preserving a dirty form (%s)",
+    async (dirty) => {
+      state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
+      const created = vi.fn();
+      const { rerender } = render(
+        <AddModel
+          selected={inUse({ params: { thinking: "low" } })}
+          generationSettings
+          onCreated={created}
+        />,
+      );
+      if (dirty) {
+        await userEvent.click(screen.getByLabelText("Reasoning effort"));
+        await userEvent.click(screen.getByRole("option", { name: "medium" }));
+      }
+      rerender(
+        <AddModel
+          selected={inUse({ params: { thinking: "high" } })}
+          generationSettings
+          onCreated={created}
+        />,
+      );
+      expect(screen.getByLabelText("Reasoning effort")).toHaveTextContent(
+        dirty ? "medium" : "high",
+      );
+      expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+    },
+  );
+
+  it("edits and reloads background generation defaults only after saving the model", async () => {
+    state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
+    const selected = inUse({
+      params: { thinking: "low", max_tokens: 6144, vendor_option: "keep" },
+    });
+    const { unmount } = render(
+      <AddModel selected={selected} generationSettings onCreated={vi.fn()} />,
+    );
+    expect(screen.getByLabelText("Reasoning effort")).toHaveTextContent("low");
+    await userEvent.click(screen.getByLabelText("Reasoning effort"));
+    await userEvent.click(screen.getByRole("option", { name: "high" }));
+    expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Update model" }));
+    expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "p-1",
+        changes: expect.objectContaining({
+          params: { thinking: "high", max_tokens: 6144, vendor_option: "keep" },
+        }),
+      }),
+    );
+    expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
+    unmount();
+    render(
+      <AddModel
+        selected={inUse({ params: { thinking: "high", max_tokens: 6144, vendor_option: "keep" } })}
+        generationSettings
+        onCreated={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Reasoning effort")).toHaveTextContent("high");
+    expect(screen.getByLabelText("Max tokens")).toHaveValue(6144);
+    expect(screen.getByText("In use")).toBeVisible();
+  });
+
   it("keeps the active model visible while folding connection details and retaining endpoint edits", async () => {
     state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
     state.catalog = [capabilities("openrouter", "OpenRouter", { supports_base_url: true })];
