@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- A workflow's knowledge search now reads every collection it names when two of
+  them share a collection name, as an agent bound to both already did; one of
+  them was silently left out. Two that share a name but belong to different
+  scopes - an app-wide collection and an organization's - are refused with
+  `COLLECTIONS_SHARE_STORAGE`, when publishing and at run time, rather than
+  searched as one.
+
 ## [1.92.0] - 2026-11-23
 
 ### Added
@@ -139,13 +148,6 @@ Two things are versioned separately from this file and worth knowing about:
 - **Results → Key coverage** on a dataset: for a published agent, the Source coverage system agent judges in a job which of the dataset's key labels none of the agent's sources holds - knowledge bases, context files, skills and MCP servers. It reads labels and what the sources show, never a key's value, and the report keeps labels and source names only. A reader who may not see a source gets it unnamed, and the judge's reasons only when they may see every source it read. `POST` and `GET /datasets/{id}/key-coverage`. Improve reads a test answer that misses only such keys as missing knowledge, from a report on the agent's and the dataset's current versions (#2524).
 
 ### Fixed
-
-- A workflow's knowledge search now reads every collection it names when two of
-  them share a collection name, as an agent bound to both already did; one of
-  them was silently left out. Two that share a name but belong to different
-  scopes - an app-wide collection and an organization's - are refused with
-  `COLLECTIONS_SHARE_STORAGE`, when publishing and at run time, rather than
-  searched as one.
 
 - Drafting a knowledge-gap passage and a workflow's knowledge search now search
   exactly the knowledge base that was checked. Both looked the base up again by
