@@ -323,6 +323,8 @@ retranslated is how a stale translation stops being visible.
 
 ## Releases
 
+Release cadence follows the [maintainer decision in discussion #3208](https://github.com/vstorm-co/agenticos/discussions/3208#discussioncomment-19796269): merge reviewed, green PRs independently and prepare one manual combined cut per day. Do not restore a one-release-per-PR requirement. Urgent hotfixes may ship separately through the same checks and production approval.
+
 Versions follow [Semantic Versioning](https://semver.org) from 1.0.0 onwards, except
 that the major stays 1 (below); every release before 1.0.0 was `0.0.N`. CHANGELOG.md
 and `docs/release-notes.md` state that exception to operators. A release is numbered by the largest change it ships,
