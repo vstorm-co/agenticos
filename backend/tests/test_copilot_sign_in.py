@@ -23,6 +23,7 @@ pytestmark = pytest.mark.anyio
 
 class MemoryRedis(RedisClient):
     def __init__(self) -> None:
+        super().__init__()
         self.values: dict[str, str] = {}
 
     async def get(self, key: str) -> str | None:
