@@ -694,13 +694,12 @@ export function AddModel({
   };
 
   const subscription = subscriptionFromChoice(providerId);
-  const saveSubscriptionPricing = async () => {
-    if (selected === undefined) return;
+  const saveSubscriptionPricing = async (profileId: string) => {
     onCreationPendingChange?.(true);
     setFailure(NO_FAILURE);
     try {
       const profile = await updateProfile.mutateAsync({
-        id: selected.id,
+        id: profileId,
         changes: { custom_pricing: customPricing },
       });
       onCreated(profile);
@@ -757,7 +756,7 @@ export function AddModel({
             type="button"
             size="sm"
             disabled={disabled || !validTokenPricing(customPricing) || updateProfile.isPending}
-            onClick={() => void saveSubscriptionPricing()}
+            onClick={() => void saveSubscriptionPricing(selected.id)}
           >
             <Save className="h-4 w-4" />
             {t("updateModel")}
