@@ -125,7 +125,7 @@ def test_dated_short_turns_include_provenance_and_json_overhead_in_the_budget() 
     assert all(turn["occurred_at"] == at.isoformat() for turn in turns)
 
 
-@pytest.mark.parametrize("limit", [2, 30, 54, 55, 56, 80])
+@pytest.mark.parametrize("limit", [2, 30, 49, 50, 51, 80])
 def test_json_escaping_and_excerpt_metadata_never_exceed_the_available_budget(
     monkeypatch: pytest.MonkeyPatch, limit: int
 ) -> None:
