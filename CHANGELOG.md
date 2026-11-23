@@ -46,8 +46,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Register a public OAuth client automatically when an MCP server such as
-  Odoo advertises `none` and does not support `client_secret_post`.
+- Register a public OAuth client automatically when an MCP authorization server
+  advertises `none` and does not support `client_secret_post`.
 - Drafting a knowledge-gap passage and a workflow's knowledge search now search
   exactly the knowledge base that was checked. Both looked the base up again by
   its collection name, which several bases of one organization can share, so
