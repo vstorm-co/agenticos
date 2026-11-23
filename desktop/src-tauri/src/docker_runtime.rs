@@ -383,15 +383,15 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn subprocess_resolves_a_sibling_helper_with_a_minimal_gui_path() {
-        use std::os::unix::fs::PermissionsExt;
+        use std::os::unix::fs::symlink;
         let dir = std::env::temp_dir().join(format!("agenticos-helper-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let helper = dir.join("docker-credential-test");
-        std::fs::write(&helper, "#!/bin/sh\nprintf helper-found").unwrap();
-        std::fs::set_permissions(&helper, std::fs::Permissions::from_mode(0o700)).unwrap();
+        // Existing executables avoid ETXTBSY when another test spawns a child
+        // while this thread would otherwise be writing its executable fixture.
+        // Ubuntu coreutils rejects renamed utility aliases; shells accept them.
+        symlink("/bin/sh", dir.join("docker-credential-test")).unwrap();
         let docker = dir.join("docker");
-        std::fs::write(&docker, "#!/bin/sh\ndocker-credential-test").unwrap();
-        std::fs::set_permissions(&docker, std::fs::Permissions::from_mode(0o700)).unwrap();
+        symlink("/bin/sh", &docker).unwrap();
         let mut command = with_paths(&docker, Some(OsStr::new("/usr/bin:/bin")), None).unwrap();
         let path: std::ffi::OsString = command
             .get_envs()
@@ -400,9 +400,18 @@ mod tests {
             .1
             .unwrap()
             .to_owned();
-        let output = command.env_clear().env("PATH", path).output().unwrap();
+        let output = command
+            .args(["-c", "docker-credential-test -c 'printf helper-found'"])
+            .env_clear()
+            .env("PATH", path)
+            .output()
+            .unwrap();
         std::fs::remove_dir_all(dir).unwrap();
-        assert!(output.status.success());
+        assert!(
+            output.status.success(),
+            "helper failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         assert_eq!(output.stdout, b"helper-found");
     }
 }
