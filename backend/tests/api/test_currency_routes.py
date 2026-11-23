@@ -12,7 +12,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.currency import CurrencyContext
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 async def test_a_member_can_read_the_currency_for_the_organization_in_the_path(

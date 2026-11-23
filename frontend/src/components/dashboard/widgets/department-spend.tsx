@@ -1,5 +1,7 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -7,7 +9,7 @@ import { GroupIcon } from "@/components/groups/group-icon";
 import { useGroupSpend } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { useOrgStore } from "@/stores";
-import { formatUsd } from "../format";
+
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import { HeadroomBar } from "./budget-headroom";
@@ -25,6 +27,7 @@ const SHOWN = 5;
 export function DepartmentSpendWidget({ title, hint, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.department-spend");
   const locale = useLocale();
+  const { format: formatMoney } = useMoney();
   const orgId = useOrgStore((state) => state.activeOrgId);
   const { spend, isLoading, error, refetch } = useGroupSpend(orgId);
   const rows = (spend?.items ?? []).slice(0, SHOWN);
@@ -54,8 +57,11 @@ export function DepartmentSpendWidget({ title, hint, options }: DashboardWidgetP
                   </Link>
                   <span className="text-foreground shrink-0 tabular-nums">
                     {cap === null
-                      ? formatUsd(used, locale)
-                      : t("ofCap", { spent: formatUsd(used, locale), cap: formatUsd(cap, locale) })}
+                      ? formatMoney(used, locale)
+                      : t("ofCap", {
+                          spent: formatMoney(used, locale),
+                          cap: formatMoney(cap, locale),
+                        })}
                   </span>
                 </div>
                 {cap !== null && <HeadroomBar used={used} cap={cap} className="mt-1" />}

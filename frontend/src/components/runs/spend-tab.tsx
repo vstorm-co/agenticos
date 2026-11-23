@@ -1,11 +1,12 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import type { ReactNode } from "react";
 
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { formatUsd } from "@/components/dashboard/format";
 import { Activity, KeyRound } from "lucide-react";
 
 import { getErrorMessage } from "@/lib/api-error";
@@ -72,9 +73,10 @@ function windowLabel(
 /** A right-aligned money cell; `partial` marks a floor the way the run table does. */
 function CostCell({ cost, partial, title }: { cost: string; partial?: boolean; title: string }) {
   const locale = useLocale();
+  const { format: formatMoney } = useMoney();
   return (
     <span className="font-mono text-xs tabular-nums">
-      {formatUsd(cost, locale, 4)}
+      {formatMoney(cost, locale, 4)}
       {partial && (
         <span className="text-muted-foreground" title={title}>
           {" +"}
@@ -159,6 +161,7 @@ export function SpendTab({
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
   const locale = useLocale();
+  const { format: formatMoney } = useMoney();
   const { can } = usePermissions();
   // `GET /spend` carries `runs:view` like the run list, so a caller without it
   // is not asked for - the 403 would be drawn as a failure on a tab that never
@@ -216,8 +219,8 @@ export function SpendTab({
             {row.monthly_cap_usd !== null && (
               <span className="text-muted-foreground block text-xs">
                 {t("monthAgainstCap", {
-                  spent: formatUsd(row.month_to_date_usd, locale),
-                  cap: formatUsd(row.monthly_cap_usd, locale),
+                  spent: formatMoney(row.month_to_date_usd, locale),
+                  cap: formatMoney(row.monthly_cap_usd, locale),
                 })}
               </span>
             )}
@@ -331,22 +334,22 @@ export function SpendTab({
         <FigureCard
           label={t("spendWindow")}
           caption={t("overTheWindowAbove")}
-          value={formatUsd(windowTotal, locale)}
+          value={formatMoney(windowTotal, locale)}
         />
         <FigureCard
           label={t("monthToDate")}
           caption={t("calendarAligned")}
-          value={formatUsd(spend.month_to_date_usd, locale)}
+          value={formatMoney(spend.month_to_date_usd, locale)}
         />
         <FigureCard
           label={t("perRun")}
           caption={t("overRunsInWindow", { count: runCount })}
-          value={runCount === 0 ? "\u2014" : formatUsd(windowTotal / runCount, locale, 4)}
+          value={runCount === 0 ? "\u2014" : formatMoney(windowTotal / runCount, locale, 4)}
         />
         <FigureCard
           label={t("dearestAgent")}
           caption={
-            dearest === undefined ? t("noAgentHasSpent") : formatUsd(dearest.cost_usd, locale)
+            dearest === undefined ? t("noAgentHasSpent") : formatMoney(dearest.cost_usd, locale)
           }
           value={dearest?.agent_name ?? "\u2014"}
         />

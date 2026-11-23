@@ -1,5 +1,5 @@
 ---
-source_sha: "8a34e67d491b"
+source_sha: "d0350faac0f9"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -21,7 +21,7 @@ bez ponownego wdrożenia, bez zmiennej środowiskowej, bez przebudowy.
 
 Konsola dzieli ustawienia na Wygląd i nazwę, Dostęp i konta, Ogłoszenia i tryb konserwacji, Usługi i koszty oraz Aktualizacje i diagnostykę. Każda sekcja ma własny adres z parametrem `?section=`. Przejście do innej sekcji zachowuje niezapisane zmiany. Zapis obejmuje edytowane pola ze wszystkich sekcji; Odrzuć zmiany przywraca ich zapisane wartości. Wysyłanie obrazów i dane uwierzytelniające powiadomień mobilnych nadal zapisują się niezależnie.
 
-Sekcja Usługi i koszty zawiera też ręczne kursy walut i domyślną preferencję waluty organizacji. Kursy oznaczają jednostki waluty za USD; USD musi wynosić dokładnie 1. Wyczyszczenie nadpisania przywraca `DEFAULT_ORG_CURRENCY` i `CURRENCY_RATES`. Ustawienia nie zmieniają znaczenia zapisanych cen ani istniejących limitów USD. Nadpisanie organizacji jest zapisywane w sekcji Nadzór; prezentacja raportów i budżetów w tych walutach pozostaje do wdrożenia.
+Sekcja Usługi i koszty zawiera też ręczne kursy walut i domyślną preferencję waluty organizacji. Kursy oznaczają jednostki waluty za USD; USD musi wynosić dokładnie 1. Wyczyszczenie nadpisania przywraca `DEFAULT_ORG_CURRENCY` i `CURRENCY_RATES`. Ustawienia nie zmieniają znaczenia zapisanych cen ani istniejących limitów USD. Nadpisanie organizacji jest zapisywane w sekcji Nadzór; koszty pulpitu, uruchomień i rozmów używają tej preferencji. Pola budżetów i pozostałe widoki szacunków nadal używają USD.
 
 ## Tożsamość { #identity }
 

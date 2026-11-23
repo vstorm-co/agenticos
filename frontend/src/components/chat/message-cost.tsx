@@ -1,4 +1,5 @@
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { useMoney } from "@/components/providers/currency-provider";
 
 import type { TurnUsage } from "@/types";
 
@@ -28,7 +29,8 @@ interface MessageCostProps {
  */
 export function MessageCost({ usage }: MessageCostProps) {
   const t = useTranslations("chat");
-  const cost = `$${Number(usage.cost_usd).toFixed(4)}`;
+  const money = useMoney();
+  const cost = money.format(usage.cost_usd, useLocale(), 4);
   const tokens = { input: usage.input_tokens, output: usage.output_tokens };
   const detail = usage.cost_is_partial
     ? t("tokensDetailPartial", tokens)
@@ -66,16 +68,20 @@ const CENT = 0.01;
  */
 export function RoundedCost({ usage }: MessageCostProps) {
   const t = useTranslations("chat");
-  const exact = Number(usage.cost_usd);
-  const rounded = exact > 0 && exact < CENT ? `< $${CENT.toFixed(2)}` : `$${exact.toFixed(2)}`;
+  const money = useMoney();
+  const locale = useLocale();
+  const exact = money.amount(usage.cost_usd);
+  const precise = money.format(usage.cost_usd, locale, 4);
+  const rounded =
+    exact !== null && exact > 0 && exact < CENT
+      ? `< ${money.formatAmount(CENT, locale, 2)}`
+      : money.format(usage.cost_usd, locale, 2);
   return (
     <span
       className="text-muted-foreground text-xs tabular-nums"
       title={withCache(
         t,
-        usage.cost_is_partial
-          ? t("exactCostPartial", { cost: `$${exact.toFixed(4)}` })
-          : `$${exact.toFixed(4)}`,
+        usage.cost_is_partial ? t("exactCostPartial", { cost: precise }) : precise,
         usage,
       )}
     >

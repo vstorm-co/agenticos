@@ -1,5 +1,5 @@
 ---
-source_sha: "a75a28347d24"
+source_sha: "028bb959d3cf"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -900,9 +900,14 @@ y del idioma. Los administradores mantienen tipos manuales en **Monedas y tipos 
 cambio**. Son unidades de moneda por USD: con EUR a `0.9`, `9 EUR` se registran como
 `10 USD`. El uso conserva importe, moneda y tipo aplicados; los cambios posteriores
 no sobrescriben ese coste en USD. Una conversión ausente queda sin tarifar y las
-peticiones con límite se rechazan antes de la inferencia. La preferencia monetaria
-de la organización se guarda por separado; informes y presupuestos integrados
-siguen en USD mientras se completa el resto de #3221.
+peticiones con límite se rechazan antes de la inferencia.
+
+El gasto del panel, el historial de ejecuciones, los costes de conversación y el
+presupuesto restante se muestran en la moneda efectiva de la organización. Estas
+vistas usan el tipo manual actual: cambiarlo modifica el equivalente mostrado,
+pero el coste registrado en USD permanece fijo. Sin tipo de presentación, el
+importe queda desconocido. Las entradas de presupuesto y las demás vistas de
+estimaciones siguen en USD mientras se completa el resto de #3221.
 
 ### Una delegación resuelve su propio perfil { #a-delegation-resolves-its-own-profile }
 

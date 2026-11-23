@@ -22,7 +22,7 @@ from app.services.organization import OrganizationService
 from tests.integration.test_profile_pricing import tenant
 from tests.test_profile_pricing import answer
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 async def test_profile_currency_is_independent_of_organization_and_retains_its_conversion_snapshot(

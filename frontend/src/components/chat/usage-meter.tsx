@@ -1,7 +1,9 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { Gauge } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
 import { AnimatedAmount, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
@@ -314,10 +316,12 @@ function Reading({
  */
 function SpendReading({ total }: { total: ConversationCost }) {
   const t = useTranslations("chat.usage");
+  const money = useMoney();
+  const locale = useLocale();
   const partial = total.cost_is_partial === true;
-  const cost = Number(total.cost_usd);
+  const cost = money.amount(total.cost_usd) ?? 0;
   const decimals = cost === 0 || Math.abs(cost) >= 0.01 ? 2 : 4;
-  const values = { cost: cost.toFixed(decimals) };
+  const values = { cost: money.format(total.cost_usd, locale, decimals) };
   const detail = { input: total.input_tokens, output: total.output_tokens };
 
   return (

@@ -26,7 +26,7 @@ from app.schemas.token_pricing import TokenPricing
 from app.services.currency import CurrencyService
 from tests.test_profile_pricing import answer
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 RATES = {"USD": Decimal(1), "EUR": Decimal("0.9"), "PLN": Decimal("4"), "NOK": Decimal("10.5")}
 
 

@@ -29,6 +29,7 @@ import { PageTransition } from "@/components/layout/page-transition";
 import { UnsavedChangesGuard } from "@/components/layout/unsaved-changes-guard";
 import { OnboardingFlows } from "@/components/onboarding/onboarding-flows";
 import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
+import { CurrencyProvider } from "@/components/providers/currency-provider";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -60,26 +61,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Which custom brand marks the deployment ships - fetched once here so
           every icon down the tree reads it from context instead of querying. */}
       <CustomIconsProvider>
-        <ConsoleExperienceProvider>
-          <OnScreenKeyboard />
-          {/* As tall as what can be seen, keyboard and address bar included -
+        <CurrencyProvider>
+          <ConsoleExperienceProvider>
+            <OnScreenKeyboard />
+            {/* As tall as what can be seen, keyboard and address bar included -
             see `useOnScreenKeyboard`; `100dvh` until it has measured. */}
-          {/* Less the phone app's status bar, which `body` leaves room for
+            {/* Less the phone app's status bar, which `body` leaves room for
             (`desktop.css`); zero everywhere else. */}
-          <div className="relative flex h-[calc(var(--app-height,100dvh)-var(--shell-inset-top,0px))] flex-col">
-            {/* Nothing above `md`: the brand, the organization, search, settings
+            <div className="relative flex h-[calc(var(--app-height,100dvh)-var(--shell-inset-top,0px))] flex-col">
+              {/* Nothing above `md`: the brand, the organization, search, settings
             and the account are all in the column now, and this renders only
             where the column is a slide-over that needs opening. */}
-            <MobileHeader />
-            <ImpersonationBanner />
-            <OfflineBanner />
-            <InstallPrompt />
-            {/* The column and the content scroll independently, which is the point
+              <MobileHeader />
+              <ImpersonationBanner />
+              <OfflineBanner />
+              <InstallPrompt />
+              {/* The column and the content scroll independently, which is the point
             of a persistent sidebar: navigation stays put while a long run list
             moves under it. */}
-            <div className="bg-sidebar flex min-h-0 flex-1">
-              <AppSidebar />
-              {/* `relative` is load-bearing, and not for anything it positions.
+              <div className="bg-sidebar flex min-h-0 flex-1">
+                <AppSidebar />
+                {/* `relative` is load-bearing, and not for anything it positions.
                 An absolutely positioned descendant with no positioned ancestor
                 resolves against the initial containing block, and its layout
                 overflow then inflates the *document's* scrollable rect: measured
@@ -103,28 +105,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 Measured at 0px below the last card, at every width, in Chromium
                 151 and WebKit 26.5. The room under a page is declared once, on
                 `PageTransition`'s unconstrained branch, where it paints (#933). */}
-              <MainViewport>
-                {/* Inside `main` rather than around the whole shell: a
+                <MainViewport>
+                  {/* Inside `main` rather than around the whole shell: a
                     maintenance window still leaves the navigation and the account
                     menu, because the administrator who has to end it reaches the
                     settings page through them. */}
-                <DeploymentGate>
-                  <PageTransition>{children}</PageTransition>
-                </DeploymentGate>
-              </MainViewport>
-            </div>
-            {/* The one navigation on a phone too: the drawer holds every section,
+                  <DeploymentGate>
+                    <PageTransition>{children}</PageTransition>
+                  </DeploymentGate>
+                </MainViewport>
+              </div>
+              {/* The one navigation on a phone too: the drawer holds every section,
               where a bottom bar repeated five of them and took a strip of the
               screen from every page. */}
-            <Sidebar />
-            <CommandPalette />
-            <AddToAgentPrompt />
-            <OnboardingTour />
-            <OnboardingFlows />
-            {/* The AI Architect, in the corner of every page (#2063). */}
-            <AssistantWidget />
-          </div>
-        </ConsoleExperienceProvider>
+              <Sidebar />
+              <CommandPalette />
+              <AddToAgentPrompt />
+              <OnboardingTour />
+              <OnboardingFlows />
+              {/* The AI Architect, in the corner of every page (#2063). */}
+              <AssistantWidget />
+            </div>
+          </ConsoleExperienceProvider>
+        </CurrencyProvider>
       </CustomIconsProvider>
     </AuthGuard>
   );

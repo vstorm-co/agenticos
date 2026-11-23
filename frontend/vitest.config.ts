@@ -277,6 +277,7 @@ export default defineConfig({
         "src/components/chat/markdown-content.impl.tsx",
         "src/components/chat/markdown-content.tsx",
         "src/components/chat/message-cost.tsx",
+        "src/components/providers/currency-provider.tsx",
         "src/components/chat/turn-action.ts",
         "src/components/chat/turn-parts.tsx",
         "src/components/chat/shared-visuals.tsx",

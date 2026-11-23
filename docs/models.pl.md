@@ -1,5 +1,5 @@
 ---
-source_sha: "a75a28347d24"
+source_sha: "028bb959d3cf"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -876,8 +876,12 @@ ustawień administracyjnych. Kurs oznacza jednostki waluty za USD: przy EUR rów
 `0.9` koszt `9 EUR` zapisuje się jako `10 USD`. Zużycie zachowuje pierwotną kwotę,
 walutę i zastosowany kurs; późniejsze zmiany nie nadpisują kosztu w USD. Brak kursu
 pozostawia koszt nieznany, a wywołania z limitem są odrzucane przed inferencją.
-Preferencja waluty organizacji jest zapisywana oddzielnie; wbudowane raporty i
-budżety nadal używają USD do czasu ukończenia pozostałej części #3221.
+
+Wydatki na pulpicie, historia uruchomień, koszty rozmów i pozostały budżet są
+wyświetlane w efektywnej walucie organizacji. Widoki używają bieżącego ręcznego
+kursu: zmiana kursu zmienia wyświetlany odpowiednik, ale zapisany koszt USD
+pozostaje stały. Brak kursu raportowego oznacza nieznaną kwotę. Pola budżetów i
+pozostałe widoki szacunków nadal używają USD do czasu ukończenia reszty #3221.
 
 ### Delegacja rozwiązuje własny profil { #a-delegation-resolves-its-own-profile }
 

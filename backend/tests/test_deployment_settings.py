@@ -945,14 +945,17 @@ def test_notice_deadlines_require_an_offset_and_are_normalized_to_utc() -> None:
         assert cleared.model_dump(exclude_unset=True) == {field: None}
 
 
+@pytest.mark.security
 async def test_currency_settings_are_written_as_json_and_audited_without_rewriting_budgets(
-    repo, mock_db_session
+    repo, mock_db_session, monkeypatch
 ):
     from app.core.currency import CurrencySettings
 
     currencies = CurrencySettings(
         default_currency="PLN", rates={"USD": "1", "PLN": "4", "EUR": "0.9"}
     )
+    recorded = AsyncMock()
+    monkeypatch.setattr(module, "record_audit", recorded)
     service = DeploymentSettingsService(mock_db_session)
     await service.update(
         actor_user_id=uuid4(), data=DeploymentSettingsUpdate(currency_settings=currencies)
@@ -960,3 +963,5 @@ async def test_currency_settings_are_written_as_json_and_audited_without_rewriti
     saved = repo.upsert.await_args.kwargs["update_data"]["currency_settings"]
     assert saved == {"default_currency": "PLN", "rates": {"USD": "1", "PLN": "4", "EUR": "0.9"}}
     assert "monthly_budget_usd" not in repo.upsert.await_args.kwargs["update_data"]
+    assert recorded.await_args.kwargs["action"] == "deployment.settings_updated"
+    assert recorded.await_args.kwargs["details"] == {"fields": ["currency_settings"]}

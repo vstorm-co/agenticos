@@ -1,5 +1,5 @@
 ---
-source_sha: "a75a28347d24"
+source_sha: "028bb959d3cf"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -929,8 +929,14 @@ Wechselkurse**. Ein Kurs bedeutet Währungseinheiten pro USD: Bei EUR `0.9` werd
 `9 EUR` als `10 USD` erfasst. Die Nutzung behält ursprünglichen Betrag, Währung und
 angewendeten Kurs; spätere Änderungen überschreiben diese USD-Kosten nicht.
 Fehlende Umrechnung bleibt unbepreist; begrenzte Anfragen werden vor der Inferenz
-abgelehnt. Die Währungspräferenz der Organisation wird getrennt gespeichert;
-eingebaute Berichte und Budgets bleiben bis zum Abschluss von #3221 in USD.
+abgelehnt.
+
+Dashboard-Ausgaben, Run-Verlauf, Unterhaltungskosten und verbleibende Budgets
+werden in der effektiven Organisationswährung angezeigt. Die Ansicht verwendet
+den aktuellen manuellen Kurs: Eine Kursänderung ändert den angezeigten Gegenwert,
+während die gespeicherten USD-Kosten gleich bleiben. Fehlende Berichtskurse
+ergeben unbekannte Beträge. Budgeteingaben und übrige Schätzungsansichten bleiben
+bis zum Abschluss des restlichen #3221 in USD.
 
 ### Eine Delegation löst ihr eigenes Profile auf { #a-delegation-resolves-its-own-profile }
 

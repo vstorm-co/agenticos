@@ -851,8 +851,13 @@ exchange rates** under administration settings. Rates are currency units per USD
 with EUR at `0.9`, a `9 EUR` cost records `10 USD`. Usage retains the original
 amount, currency and applied rate; later changes do not rewrite that USD cost.
 A missing conversion remains unpriced, and capped model calls are refused before
-inference. Organization currency preferences are stored separately; the built-in
-reporting and budget views still use USD while the remaining #3221 work is developed.
+inference.
+
+Dashboard spending, run history, conversation costs and budget headroom display the
+organization's effective currency. These views use the current manual rate; a rate
+change changes the displayed equivalent, while the recorded USD cost stays fixed.
+Missing reporting rates show an unknown amount. Budget inputs and the remaining
+estimate displays still use USD while the rest of #3221 is developed.
 
 ### A delegation resolves its own profile
 

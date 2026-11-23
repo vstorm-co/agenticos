@@ -1,5 +1,5 @@
 ---
-source_sha: "8a34e67d491b"
+source_sha: "d0350faac0f9"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -21,7 +21,7 @@ redespliegue, sin variable de entorno, sin reconstrucción.
 
 La consola agrupa los ajustes en Identidad, Acceso y cuentas, Anuncios y modo de mantenimiento, Servicios y costes, y Actualizaciones y diagnóstico. Cada sección tiene una URL que puedes compartir con `?section=`. Abrir otro enlace de sección conserva los cambios sin guardar. Guardar aplica los campos editados de todas las secciones; Descartar cambios restaura sus valores guardados. Las imágenes y las credenciales de notificaciones móviles mantienen su guardado independiente.
 
-Servicios y costes también contiene tipos manuales y la preferencia monetaria predeterminada de la organización. Los tipos son unidades de moneda por USD; USD debe ser exactamente 1. Borrar la sustitución restaura `DEFAULT_ORG_CURRENCY` y `CURRENCY_RATES`. No se reinterpretan precios guardados ni límites USD existentes. Las preferencias de organización se guardan en Gobernanza; la presentación de informes y presupuestos en esas monedas sigue pendiente.
+Servicios y costes también contiene tipos manuales y la preferencia monetaria predeterminada de la organización. Los tipos son unidades de moneda por USD; USD debe ser exactamente 1. Borrar la sustitución restaura `DEFAULT_ORG_CURRENCY` y `CURRENCY_RATES`. No se reinterpretan precios guardados ni límites USD existentes. Las preferencias de organización se guardan en Gobernanza; los costes del panel, las ejecuciones y el chat usan esa preferencia. Las entradas de presupuesto y las demás vistas de estimaciones siguen en USD.
 
 ## Identidad { #identity }
 

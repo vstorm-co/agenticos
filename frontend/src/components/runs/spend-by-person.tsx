@@ -1,8 +1,9 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useLocale, useTranslations } from "next-intl";
 
-import { formatUsd } from "@/components/dashboard/format";
 import { LoadingState } from "@/components/states";
 import { Button, DataTable, EntityAvatar, type Column } from "@/components/ui";
 import { usePeopleUsage, usePermissions, useUsageStats } from "@/hooks";
@@ -30,6 +31,7 @@ const ROWS = 10;
 export function SpendByPerson({ from, to }: { from: string; to: string }) {
   const t = useTranslations("pages.runs");
   const locale = useLocale();
+  const { format: formatMoney } = useMoney();
   const { can } = usePermissions();
   const maySee = can(Perm.runsView);
   const { byUser, isLoading, error, refetch } = usePeopleUsage(
@@ -87,7 +89,7 @@ export function SpendByPerson({ from, to }: { from: string; to: string }) {
       className: "pr-5",
       cell: (person) => (
         <span className="font-mono text-xs tabular-nums">
-          {formatUsd(person.cost_usd, locale, 4)}
+          {formatMoney(person.cost_usd, locale, 4)}
         </span>
       ),
     },

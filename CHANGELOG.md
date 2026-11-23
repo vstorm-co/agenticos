@@ -39,6 +39,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Display dashboard spending, run history and conversation costs in the organization currency, independently of language. Show unknown amounts when a reporting rate is unavailable; preserve stored USD accounting and existing cap values.
+
 - Select a currency for custom model token prices and convert usage to accounting USD with a recorded rate snapshot. Configure manual rates in administration or `CURRENCY_RATES`; retain `STAV_NOK_PER_USD` as a legacy fallback. Organization currency preferences are exposed separately; report and budget presentation in those currencies remains pending.
 
 - Set flat USD token prices per model profile in the console and API, including cache rates and explicit free usage. Fallbacks and delegates use their own profile prices; keyless usage reaches budgets and reports. Existing recorded costs remain unchanged.

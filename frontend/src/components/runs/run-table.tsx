@@ -1,9 +1,11 @@
 "use client";
+
+import { useMoney } from "@/components/providers/currency-provider";
 import { cn } from "@/lib/utils";
 
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { formatUsd } from "@/components/dashboard/format";
+
 import { ThumbsDown } from "lucide-react";
 import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 
@@ -86,6 +88,7 @@ export function RunTable({
   const t = useTranslations("pages.runs");
   const tTime = useTranslations("time");
   const locale = useLocale();
+  const { format: formatMoney } = useMoney();
   // Grouped digits: `245037` beside `2550` in one column is a length to compare,
   // `245,037` beside `2,550` is a number to read.
   const tokenCount = new Intl.NumberFormat(locale);
@@ -332,7 +335,7 @@ export function RunTable({
       // A call is one row (#54): its reconnects' runs are summed into it.
       cell: (run) => (
         <span className="font-mono text-xs whitespace-nowrap">
-          {formatUsd(run.voice_chain?.cost_usd ?? run.cost_usd, locale, 4)}
+          {formatMoney(run.voice_chain?.cost_usd ?? run.cost_usd, locale, 4)}
           {run.cost_is_partial && (
             <span className="text-muted-foreground" title={t("modelRunHadNo")}>
               {" +"}

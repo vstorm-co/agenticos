@@ -1,8 +1,10 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useLocale, useTranslations } from "next-intl";
 
-import { formatMs, formatUsd } from "@/components/dashboard/format";
+import { formatMs } from "@/components/dashboard/format";
 import { ErrorState } from "@/components/states";
 import {
   Badge,
@@ -83,9 +85,10 @@ export function VersionStrip({ agentId, period }: { agentId: string; period: Per
 function VersionCard({ row, isCurrent }: { row: VersionUsageRow; isCurrent: boolean }) {
   const t = useTranslations("pages.runs");
   const locale = useLocale();
+  const { format: formatMoney } = useMoney();
   const label = row.version !== null ? `v${row.version}` : t("deletedVersion");
   const share = formatCompletedShare(completedShare(versionTally(row)));
-  const costPerRun = row.avg_cost_usd !== null ? formatUsd(row.avg_cost_usd, locale) : "—";
+  const costPerRun = row.avg_cost_usd !== null ? formatMoney(row.avg_cost_usd, locale) : "—";
 
   return (
     <div className="border-border space-y-2 rounded-lg border p-3">
