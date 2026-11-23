@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- **French console**: choose Français as your language. The whole console catalog is translated, and welcome messages, watch briefings, voice previews and the model-setup reply follow it. Product nouns (agent, skill, run, workspace…) stay in English, as in the other languages.
+- **French console**: choose Français as your language. Welcome messages, watch briefings, voice previews and the model-setup reply follow it; newly added messages without a French translation use the existing English fallback. Product nouns (agent, skill, run, workspace…) stay in English, as in the other languages.
 
 - Count criteria by family. A dataset check takes an optional `family` - every case's `total including VAT` regex, every case's "names the account manager" criterion - and a comparison counts a family case by case: it passes in a case when every criterion of it does. Eval comparisons expose `families`, an Improve attempt keeps them in its verdict, and the result step and the eval run's comparison table them. An attempt with no whole question flipped is judged on its families; one the helper put down to a skill that got worse no longer makes the attempt worse, and the result says the skill is the one to fix. The result step adds **Criteria passed**, before and after, and **Still held back by a skill**, and an attempt that broke questions still names what it made better (#3178).
 
