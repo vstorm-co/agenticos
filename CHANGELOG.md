@@ -136,6 +136,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **Results → Key coverage** on a dataset: for a published agent, the Source coverage system agent judges in a job which of the dataset's key labels none of the agent's sources holds - knowledge bases, context files, skills and MCP servers. It reads labels and what the sources show, never a key's value, and the report keeps labels and source names only. A reader who may not see a source gets it unnamed, and the judge's reasons only when they may see every source it read. `POST` and `GET /datasets/{id}/key-coverage`. Improve reads a test answer that misses only such keys as missing knowledge, from a report on the agent's and the dataset's current versions (#2524).
 
+- `agenticos cmd tool-output-report --org <id> --from <day> --to <day>` estimates how much of
+  one organization's model input is tool output sent again: result sizes per agent,
+  capability and tool, turns, tool calls and model requests per run, the re-sent share of each
+  agent's own input with cache reads and writes, and the saving from replacing results over
+  10,000 characters after two full sends. Read-only; sizes and counts, never content. Eval and
+  Builder test runs are left out unless asked for (`--include-eval`, `--include-tests`), and
+  `--json` prints the same figures.
+
 ### Fixed
 
 - Drafting a knowledge-gap passage and a workflow's knowledge search now search
