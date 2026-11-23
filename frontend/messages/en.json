@@ -8461,7 +8461,7 @@
       "newRoutine": "New routine",
       "scheduledTask": "Run on a schedule",
       "eventTask": "Run when an event arrives",
-      "watchNeedsEnabling": "Enable monitoring in Organization settings → Proactive work.",
+      "watchNeedsEnabling": "Enable monitoring in Organization settings.",
       "watchNeedsConnection": "Connect an MCP account in Connections first."
     },
     "signIns": {

@@ -7733,7 +7733,7 @@
       "newRoutine": "Neue Routine",
       "scheduledTask": "Nach Zeitplan ausführen",
       "eventTask": "Bei einem Ereignis ausführen",
-      "watchNeedsEnabling": "Monitoring unter Organisationseinstellungen → Proaktive Arbeit aktivieren.",
+      "watchNeedsEnabling": "Monitoring in den Organisationseinstellungen aktivieren.",
       "watchNeedsConnection": "Zuerst ein MCP-Konto unter Verbindungen hinzufügen."
     },
     "signIns": {

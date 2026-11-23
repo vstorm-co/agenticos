@@ -2644,7 +2644,7 @@
       "newRoutine": "Yeni rutin",
       "scheduledTask": "Zamanlamaya göre çalıştır",
       "eventTask": "Bir olay geldiğinde çalıştır",
-      "watchNeedsEnabling": "Organizasyon ayarları → Proaktif çalışma bölümünden izlemeyi etkinleştirin.",
+      "watchNeedsEnabling": "Organizasyon ayarlarından izlemeyi etkinleştirin.",
       "watchNeedsConnection": "Önce Bağlantılar bölümünde bir MCP hesabı bağlayın."
     },
     "signIns": {

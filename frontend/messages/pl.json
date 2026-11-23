@@ -4576,7 +4576,7 @@
       "newRoutine": "Nowa rutyna",
       "scheduledTask": "Uruchamiaj według harmonogramu",
       "eventTask": "Uruchamiaj po zdarzeniu",
-      "watchNeedsEnabling": "Włącz monitoring w ustawieniach organizacji → Praca proaktywna.",
+      "watchNeedsEnabling": "Włącz monitoring w ustawieniach organizacji.",
       "watchNeedsConnection": "Najpierw dodaj konto MCP w Połączeniach."
     },
     "signIns": {

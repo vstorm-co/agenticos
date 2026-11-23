@@ -92,9 +92,7 @@ it("explains that organization monitoring must be enabled", async () => {
   state.enabled = false;
   render(<RoutinesPage />);
   await userEvent.click(screen.getByRole("button", { name: "New routine" }));
-  expect(
-    screen.getByText("Enable monitoring in Organization settings → Proactive work."),
-  ).toBeVisible();
+  expect(screen.getByText("Enable monitoring in Organization settings.")).toBeVisible();
   await userEvent.click(screen.getByRole("menuitem", { name: /Monitor and inform/ }));
   expect(screen.queryByRole("dialog", { name: "monitor" })).toBeNull();
 });
