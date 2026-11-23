@@ -1,5 +1,5 @@
 ---
-source_sha: "3b887e9777b8"
+source_sha: "fd5c7644afd6"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2059,6 +2059,14 @@ idempotente pueden mostrar un duplicado si aceptaron el mensaje pero se perdió
 la confirmación. Los intentos agotados aparecen en **Admin → Background jobs**
 (`deliver-channel-handback`).
 
+### Respuestas de rutinas en un chat privado { #routine-answers-in-a-private-chat }
+
+Una rutina creada en un chat privado de Telegram, Slack, Mattermost, Teams, Discord o Matrix responde en ese chat. Cuando la respuesta queda guardada en la conversación, el bot también la publica allí, para que la persona la lea donde la pidió.
+
+Antes de publicar, la plataforma vuelve a comprobar la cuenta vinculada de quien la creó, su membresía, el agente vinculado y la conversación. Mientras la publicación espera, la rutina muestra **Enviando la última respuesta al chat**. Cuando el chat acepta la respuesta, el estado es `delivered`. Cuando el chat no puede aceptarla, la rutina muestra **Última respuesta no disponible en el chat** y su propietario recibe un aviso. La respuesta queda en el registro de ejecuciones.
+
+Los chats de grupo, SMS, iMessage y el correo solo guardan la respuesta. Tras `/new`, la conversación anterior deja de ser la del chat, así que las respuestas posteriores quedan en la consola. No dirija además las notificaciones de la rutina al mismo chat: la respuesta llegaría dos veces.
+
 ### Pasos siguientes como botones { #next-steps-as-buttons }
 
 A la respuesta de un agent con [Follow-ups](reference/capabilities.md#follow-ups)
@@ -3069,7 +3077,9 @@ añade el prompt de esa vinculación.
 Las nuevas vinculaciones activan todas las herramientas compatibles con su plataforma. Las existentes conservan su selección; desactive las herramientas que el agente no deba usar. Lo que una plataforma no puede responder no se ofrece:
 Telegram no le da a un bot ningún directorio de chats que buscar ni forma de leer
 mensajes que no se le enviaron, y `getChatAdministrators` es todo lo que puede listar
-— así que una lista de miembros de Telegram es una lista de administradores y lo dice.
+— así que una lista de miembros de Telegram es una lista de administradores y lo dice. Un chat
+privado no tiene lista de miembros: `{channel_members}` muestra allí `(unavailable)` y la
+herramienta de miembros explica por qué, sin llamar a Telegram.
 
 Tres cosas que merece la pena saber antes de concederlas:
 

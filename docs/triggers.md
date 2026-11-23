@@ -65,6 +65,10 @@ to the person who made it (#2575): `primary`, the default, is their own conversa
 everything it tells them is in one place; `conversation` is one of their other chats
 (`delivery_conversation_id`), for a routine made in that chat; `run_log` posts nowhere else.
 
+When that chat is a private chat on a chat app, the bot also posts the answer there (see
+[Routine answers in a private chat](channels.md#routine-answers-in-a-private-chat)); the status reads
+`pending` until it is sent.
+
 Only a
 completed fire with an answer is delivered, and a delivery that cannot land - the chat was deleted -
 leaves the fire in the log instead of failing it. A chat that is not the caller's own is a 404, and

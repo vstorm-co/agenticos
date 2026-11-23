@@ -1,5 +1,5 @@
 ---
-source_sha: "4a5506769583"
+source_sha: "d110998b8093"
 ---
 
 # Governance { #governance }
@@ -75,6 +75,8 @@ Przed zapisaniem gotowej odpowiedzi platforma ponownie sprawdza aktywne członko
 Powiadomienie o zakończeniu wskazuje rozmowę dopiero po udanym dostarczeniu.
 
 `last_delivery_status` rozróżnia dostarczenie, sam log, brak odpowiedzi i niezakończony przebieg; stare wpisy pozostają nieznane do kolejnego wykonania. Migracja `0265_trigger_delivery_status.py` dodaje ten stan bez zgadywania wcześniejszych sukcesów.
+
+Dla rutyny, której rozmowa jest czatem prywatnym w komunikatorze, status to `pending`, dopóki bot nie opublikuje odpowiedzi, a potem `delivered` albo `unavailable` z powiadomieniem właściciela. Migracja `0350_trigger_delivery_pending.py` dodaje `pending`; jej cofnięcie odczytuje `pending` jako `delivered`. Zobacz [Odpowiedzi rutyn w czacie prywatnym](channels.md#routine-answers-in-a-private-chat).
 
 Ustaw `ends_at` z przesunięciem UTC dla pracy ograniczonej w czasie oraz
 `monthly_budget_usd` dla niższego limitu miesięcznego. Narzędzie aktualizacji

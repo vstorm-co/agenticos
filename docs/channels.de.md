@@ -1,5 +1,5 @@
 ---
-source_sha: "3b887e9777b8"
+source_sha: "fd5c7644afd6"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2159,6 +2159,14 @@ idempotentes Senden können ein Duplikat anzeigen, wenn die Nachricht ankam, abe
 ihre Bestätigung verloren ging. Ausgeschöpfte Versuche stehen unter
 **Admin → Background jobs** (`deliver-channel-handback`).
 
+### Routine-Antworten in einem privaten Chat { #routine-answers-in-a-private-chat }
+
+Eine Routine, die in einem privaten Chat auf Telegram, Slack, Mattermost, Teams, Discord oder Matrix angelegt wurde, antwortet in diesem Chat. Sobald die Antwort in der Unterhaltung gespeichert ist, postet der Bot sie auch dort, damit die Person sie dort liest, wo sie danach gefragt hat.
+
+Vor dem Posten prüft die Plattform erneut das verknüpfte Konto der erstellenden Person, ihre Mitgliedschaft, den gebundenen Agenten und die Unterhaltung. Solange der Beitrag wartet, zeigt die Routine **Letzte Antwort wird an den Chat gesendet**. Nimmt der Chat die Antwort an, lautet der Status `delivered`. Kann der Chat sie nicht aufnehmen, zeigt die Routine **Letzte Antwort im Chat nicht verfügbar** und die besitzende Person erhält eine Benachrichtigung. Die Antwort bleibt im Laufprotokoll.
+
+Gruppenchats, SMS, iMessage und E-Mail speichern die Antwort nur. Nach `/new` gehört die alte Unterhaltung nicht mehr zum Chat, spätere Antworten bleiben daher in der Konsole. Leiten Sie die Benachrichtigungen der Routine nicht zusätzlich in denselben Chat: Die Antwort käme doppelt an.
+
 ### Nächste Schritte als Schaltflächen { #next-steps-as-buttons }
 
 Auf die Antwort eines Agents mit [Nächsten Schritten](reference/capabilities.md#follow-ups),
@@ -3238,7 +3246,9 @@ Neue Bindungen aktivieren alle von der Plattform unterstützten Tools. Bestehend
 nicht angeboten: Telegram gibt einem Bot kein Verzeichnis von Chats zum Durchsuchen
 und keine Möglichkeit, Nachrichten zu lesen, die ihm nicht geschickt wurden, und
 `getChatAdministrators` ist alles, was es auflisten darf — also ist eine
-Telegram-Mitgliederliste eine Liste von Administratoren und sagt das auch.
+Telegram-Mitgliederliste eine Liste von Administratoren und sagt das auch. Ein privater
+Chat hat gar keine Mitgliederliste: `{channel_members}` lautet dort `(unavailable)`, und das
+Mitglieder-Tool nennt den Grund, ohne Telegram aufzurufen.
 
 Drei Dinge, die es vor dem Gewähren zu wissen lohnt:
 

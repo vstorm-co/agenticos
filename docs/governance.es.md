@@ -1,5 +1,5 @@
 ---
-source_sha: "4a5506769583"
+source_sha: "d110998b8093"
 ---
 
 # Governance { #governance }
@@ -79,6 +79,8 @@ Antes de guardar una respuesta terminada, la plataforma vuelve a comprobar la me
 El aviso de finalización enlaza el chat solo tras una entrega correcta.
 
 `last_delivery_status` distingue entrega, solo registro, ausencia de respuesta y ejecución incompleta; los registros históricos siguen sin estado conocido hasta otra ejecución. La migración `0265_trigger_delivery_status.py` añade este estado sin inferir éxitos anteriores.
+
+Para una rutina cuya conversación es un chat privado de una aplicación de chat, el estado es `pending` hasta que el bot publica la respuesta, y después `delivered` o `unavailable` con un aviso al propietario. La migración `0350_trigger_delivery_pending.py` añade `pending`; su reversión lee `pending` como `delivered`. Consulte [Respuestas de rutinas en un chat privado](channels.md#routine-answers-in-a-private-chat).
 
 Define `ends_at` con un desplazamiento UTC para el trabajo con duración limitada y
 `monthly_budget_usd` para un límite mensual más estricto. La herramienta MCP de

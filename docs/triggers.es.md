@@ -1,5 +1,5 @@
 ---
-source_sha: "6aec4865a6f4"
+source_sha: "e98feb55dd96"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -75,6 +75,10 @@ además la respuesta, para la persona que lo creó (#2575): `primary`, el valor 
 conversación con el agente, así que todo lo que le dice está en un solo lugar; `conversation` es uno de
 sus otros chats (`delivery_conversation_id`), para una rutina creada en ese chat; `run_log` no la publica
 en ningún otro sitio.
+
+Cuando ese chat es un chat privado de una aplicación de chat, el bot también publica allí la respuesta (véase
+[Respuestas de rutinas en un chat privado](channels.md#routine-answers-in-a-private-chat)); el estado es
+`pending` hasta que se envía.
 
 Solo se entrega una ejecución completada con respuesta, y una entrega que no puede
 llegar - el chat se borró - deja la ejecución en el registro en lugar de hacerla fallar. Un chat que no es

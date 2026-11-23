@@ -1,5 +1,5 @@
 ---
-source_sha: "4a5506769583"
+source_sha: "d110998b8093"
 ---
 
 # Governance { #governance }
@@ -79,6 +79,8 @@ Vor dem Speichern einer fertigen Antwort prüft die Plattform erneut die aktive 
 Abschlussmeldungen verlinken den Chat erst nach erfolgreicher Zustellung.
 
 `last_delivery_status` unterscheidet Zustellung, nur Protokoll, keine Antwort und einen unvollständigen Lauf; historische Einträge bleiben bis zum nächsten Lauf unbekannt. Die Migration `0265_trigger_delivery_status.py` ergänzt diesen Status, ohne frühere Erfolge zu erraten.
+
+Für eine Routine, deren Unterhaltung ein privater Chat in einer Chat-App ist, lautet der Status `pending`, bis der Bot die Antwort gepostet hat, danach `delivered` oder `unavailable` mit einer Benachrichtigung an die besitzende Person. Die Migration `0350_trigger_delivery_pending.py` ergänzt `pending`; ihr Downgrade liest `pending` als `delivered`. Siehe [Routine-Antworten in einem privaten Chat](channels.md#routine-answers-in-a-private-chat).
 
 Setzen Sie `ends_at` mit UTC-Offset für zeitlich begrenzte Aufgaben und
 `monthly_budget_usd` für ein engeres Monatslimit. Das MCP-Aktualisierungstool kann

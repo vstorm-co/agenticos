@@ -19,6 +19,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Stop posting a streamed Telegram answer twice: Telegram's "message is not modified" reply to the final edit is now a success instead of an error that triggered a second post (#3227).
+
+- Stop logging an error when an agent asks for the member list of a Telegram private chat. A private chat has no member list, so `{channel_members}` reads `(unavailable)` and the member tool says why, without calling Telegram (#3229).
+
+- Post the answer of a routine made in a private Telegram, Slack, Mattermost, Teams, Discord or Matrix chat to that chat through the bot. The routine reads `pending` until the chat accepts the answer instead of `delivered` before it has it, and `unavailable` with a notice to the owner when it cannot (#3228).
+
+### Upgrading
+
+- Migration `0350_trigger_delivery_pending.py` adds the `pending` delivery status. Its downgrade reads `pending` as `delivered`.
+- After the upgrade, existing routines whose answer conversation is a private chat start posting to that chat. A routine that also sets `notification_channels=["telegram"]` (or another chat app) posts the answer twice: remove that channel. The same applies to a routine whose Teams conversation is the same Teams chat it answers in.
+- Deploy the API before the workers, or together. The new `routine-chat-answer` job needs the new worker, and an API pod on older code cannot serialise a `pending` routine, so routine listings fail until every API pod is updated.
+
 ## [1.90.1] - 2026-11-22
 
 ### Fixed

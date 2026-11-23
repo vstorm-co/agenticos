@@ -71,6 +71,8 @@ Completion notifications link to the conversation only after successful delivery
 
 `last_delivery_status` distinguishes delivery, log-only, no answer and an incomplete run; historical rows stay unknown until another fire. Migration `0265_trigger_delivery_status.py` adds this status without inferring past success.
 
+For a routine whose conversation is a private chat on a chat app, the status reads `pending` until the bot has posted the answer, then `delivered`, or `unavailable` with a notice to the owner. Migration `0350_trigger_delivery_pending.py` adds `pending`; its downgrade reads `pending` as `delivered`. See [Routine answers in a private chat](channels.md#routine-answers-in-a-private-chat).
+
 Set `ends_at` with a UTC offset for time-bounded work, and `monthly_budget_usd`
 for a tighter monthly limit. The MCP update tool can clear either setting.
 An ordinary API key cannot authorize a routine to use its issuer's personal accounts. Background runs, impersonation and resumed group or public turns cannot grant that personal authority either.

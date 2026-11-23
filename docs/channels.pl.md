@@ -1,5 +1,5 @@
 ---
-source_sha: "3b887e9777b8"
+source_sha: "fd5c7644afd6"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2010,6 +2010,14 @@ do czatu. Cofnięty dostęp blokuje wysyłkę. Platforma bez idempotentnej wysy�
 może pokazać duplikat, jeśli przyjęła wiadomość, ale zgubiła potwierdzenie.
 Wyczerpane próby widać w **Admin → Background jobs** (`deliver-channel-handback`).
 
+### Odpowiedzi rutyn w czacie prywatnym { #routine-answers-in-a-private-chat }
+
+Rutyna utworzona w czacie prywatnym na Telegramie, Slacku, Mattermoście, Teams, Discordzie lub Matrixie odpowiada w tym czacie. Gdy odpowiedź trafi do rozmowy, bot publikuje ją także tam, więc osoba czyta ją tam, gdzie o nią poprosiła.
+
+Przed publikacją platforma ponownie sprawdza powiązane konto twórcy, jego członkostwo, przypisanego agenta i rozmowę. Dopóki publikacja czeka, rutyna pokazuje **Wysyłanie ostatniego wyniku do czatu**. Gdy czat przyjmie odpowiedź, status to `delivered`. Gdy czat jej nie przyjmie, rutyna pokazuje **Ostatni wynik niedostępny w czacie**, a jej właściciel dostaje powiadomienie. Odpowiedź zostaje w dzienniku uruchomień.
+
+Czaty grupowe, SMS, iMessage i e-mail tylko zapisują odpowiedź. Po `/new` stara rozmowa nie jest już rozmową czatu, więc późniejsze odpowiedzi zostają w konsoli. Nie kieruj dodatkowo powiadomień rutyny do tego samego czatu: odpowiedź przyszłaby dwa razy.
+
 ### Następne kroki jako przyciski { #next-steps-as-buttons }
 
 Odpowiedź agenta z [Następnymi krokami](reference/capabilities.md#follow-ups),
@@ -3031,7 +3039,9 @@ Nowe powiązania mają włączone wszystkie obsługiwane narzędzia. Istniejące
 tego się nie oferuje: Telegram nie daje botowi żadnego katalogu czatów do
 przeszukania ani żadnego sposobu na czytanie wiadomości, których do niego nie
 wysłano, a `getChatAdministrators` to całość tego, co może wylistować — więc lista
-członków w Telegramie to lista administratorów i mówi to wprost.
+członków w Telegramie to lista administratorów i mówi to wprost. Czat prywatny
+nie ma listy członków w ogóle: `{channel_members}` pokazuje tam `(unavailable)`, a narzędzie
+członków mówi dlaczego, bez wywoływania Telegrama.
 
 Trzy rzeczy warte wiedzy przed ich przyznaniem:
 
