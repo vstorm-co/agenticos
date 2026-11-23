@@ -154,6 +154,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Register a public OAuth client automatically when an MCP authorization server
   advertises `none` and does not support `client_secret_post`.
+
 - Rejudge skill checks by a stored rule version, report inaccessible rows as skipped, and recount only finished attempts under the session lock. Preserve indexed UUID lookups for judge costs.
 
 - Hide Add to dataset for eval-only knowledge topics, and count authoring context in Unicode code points so emoji do not cause false truncation.

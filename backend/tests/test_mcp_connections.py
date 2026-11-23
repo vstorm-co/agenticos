@@ -5656,7 +5656,7 @@ class TestAPreRegisteredClientIsRefusedBeforeItIsStaged:
         ),
     ],
 )
-async def test_dynamic_registration_uses_public_pkce_when_required(
+async def test_dynamic_registration_follows_the_servers_auth_methods(
     monkeypatch: pytest.MonkeyPatch,
     supported_methods: list[str] | None,
     expected_method: str,
