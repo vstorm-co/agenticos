@@ -2684,6 +2684,9 @@
     }
   },
   "approvalFeedback": {
+    "savedApproval": "Bereits genehmigt: {action}",
+    "savedRejection": "Bereits abgelehnt: {action}",
+    "retryResume": "Fortsetzen erneut versuchen",
     "trigger": "Mit Feedback ablehnen",
     "hint": "Die vorgeschlagene Aktion wird nicht ausgeführt. Ihr Feedback wird mit der Ablehnung gespeichert.",
     "batchHint": "Alle aufgeführten Aufrufe werden abgelehnt. Hinterlassen Sie nur bei den Aufrufen eine Notiz, zu denen Sie Feedback geben möchten.",

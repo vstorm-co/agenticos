@@ -684,16 +684,28 @@ async def test_binary_arguments_survive_the_approval_checkpoint() -> None:
 
 
 @pytest.mark.security
-async def test_a_read_only_hint_change_cannot_bypass_a_recorded_rejection() -> None:
-    script = _Script("await write(i=1)")
+@pytest.mark.parametrize("note", [None, "Use the draft instead"])
+async def test_a_read_only_hint_change_cannot_bypass_a_recorded_rejection(note: str | None) -> None:
+    script = _Script(
+        "try:\n    await write(i=1)\nexcept RuntimeError as error:\n    message = str(error)\nmessage"
+    )
     assert isinstance((await script.step()).output, DeferredToolRequests)
     for key in script.pending:
-        script.decisions[key] = ApprovalRejected("Rejected by reviewer")
+        script.decisions[key] = ApprovalRejected(note)
     script.pending.clear()
     script.tools.tools["write"].metadata = {NEEDS_APPROVAL: False}
     result = await script.step()
     assert result.output == "done"
     assert script.effects == []
+    (returned,) = [
+        part
+        for message in result.new_messages()
+        for part in message.parts
+        if isinstance(part, ToolReturnPart)
+    ]
+    assert returned.content == (
+        f"The tool call was not approved: {note}" if note else "The tool call was not approved"
+    )
 
 
 @pytest.mark.parametrize("failure", ["budget", "guardrail"])

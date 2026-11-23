@@ -25,11 +25,12 @@ import { usePermissions } from "@/hooks";
 import { approvalSummary } from "@/lib/agent-step-captions";
 import { callSummary } from "@/lib/approval-view";
 import { cn } from "@/lib/utils";
-import type { ActionRequest, ReviewConfig, Decision } from "@/types";
+import type { ActionRequest, ReviewConfig, Decision, PendingApproval } from "@/types";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
 interface ToolApprovalDialogProps {
+  savedDecisions?: PendingApproval["savedDecisions"];
   actionRequests: ActionRequest[];
   reviewConfigs: ReviewConfig[];
   onDecisions: (decisions: Decision[]) => void;
@@ -66,11 +67,13 @@ interface ToolApprovalDialogProps {
  */
 export function ToolApprovalDialog({
   actionRequests,
+  savedDecisions = [],
   onDecisions,
   disabled = false,
   mayRemember = false,
 }: ToolApprovalDialogProps) {
   const t = useTranslations("chat");
+  const feedback = useTranslations("approvalFeedback");
   const tTools = useTranslations("chat.tools");
   const { can } = usePermissions();
   const mayDecide = can(Perm.approvalsDecide);
@@ -114,6 +117,13 @@ export function ToolApprovalDialog({
               "-mr-1 max-h-[min(36dvh,20rem)] scrollbar-thin [scrollbar-gutter:stable] overflow-y-auto overscroll-contain pr-2",
           )}
         >
+          {savedDecisions.map(({ request, approved }) => (
+            <li key={request.id} className="text-muted-foreground text-sm">
+              {feedback(approved ? "savedApproval" : "savedRejection", {
+                action: phrase(request.tool_name),
+              })}
+            </li>
+          ))}
           {actionRequests.map((action) => {
             // The Architect's agent draft is decided as a draft, not as a JSON call (#1799).
             const draft = action.tool_name === AGENT_DRAFT_TOOL ? draftArgs(action.args) : null;
@@ -166,7 +176,11 @@ export function ToolApprovalDialog({
           })}
         </ul>
 
-        {mayDecide ? (
+        {mayDecide && actionRequests.length === 0 ? (
+          <Button size="sm" disabled={disabled} onClick={() => onDecisions([])}>
+            {feedback("retryResume")}
+          </Button>
+        ) : mayDecide ? (
           <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
             <Button
               size="sm"

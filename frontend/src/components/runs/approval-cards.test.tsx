@@ -467,7 +467,14 @@ it("includes a tool rejection comment in the decision and its history", async ()
     />,
   );
   await userEvent.click(screen.getByRole("button", { name: "Reject with feedback" }));
-  await userEvent.type(screen.getByRole("textbox", { name: "Feedback" }), note);
+  const field = screen.getByRole("textbox", { name: "Feedback" });
+  for (const clientX of [200, -200]) {
+    fireEvent.pointerDown(field, { pointerId: 1, pointerType: "touch", clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(field, { pointerId: 1, pointerType: "touch", clientX, clientY: 0 });
+    fireEvent.pointerUp(field, { pointerId: 1, pointerType: "touch" });
+  }
+  expect(onDecide).not.toHaveBeenCalled();
+  await userEvent.type(field, note);
   await userEvent.click(screen.getByRole("button", { name: "Reject and send feedback" }));
   expect(onDecide).toHaveBeenCalledWith(false, note);
 

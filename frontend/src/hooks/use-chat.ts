@@ -2787,7 +2787,7 @@ export function useChat(options: UseChatOptions = {}) {
       // rebuilding this callback, but it cannot be written during render - and
       // rebuilding it is harmless: it is only ever passed down as a prop.
       const parked = pendingApproval;
-      if (parked === null) return;
+      if (parked === null || decisions.length !== parked.actionRequests.length) return;
       // A click consumes the batch before React can render another handler.
       // HTTP continuations can park again without a WebSocket approval frame.
       const decisionToken = {};
@@ -2806,34 +2806,30 @@ export function useChat(options: UseChatOptions = {}) {
       // so the panel reported "3 approved" and nothing whatsoever happened.
       // Recording the decision on the row is also what keeps the queue, the
       // audit entry and the email honest about what was decided.
+      const savedDecisions = [...(parked.savedDecisions ?? [])];
+      let continuesInChat = parked.continuesInChat ?? false;
+      const recordDecision = (request: ActionRequest, approved: boolean) => {
+        savedDecisions.push({ request, approved });
+        decidedApprovalIdsRef.current.add(request.id);
+        // The parked turn has already ended, so the live message ref is null.
+        if (parked.messageId !== null) {
+          updateToolCallPart(parked.messageId, request.tool_call_id, {
+            status: approved ? "running" : "error",
+            result: approved ? undefined : "Refused",
+          });
+        }
+      };
       try {
         // A run asked in a chat is continued by the server, so every answer
         // here says so and the browser must not resume it as well.
-        let continuesInChat = false;
         for (const [index, request] of parked.actionRequests.entries()) {
-          const decision = decisions[index];
-          // A later request in the batch can fail after an earlier decision was saved.
-          if (decision === undefined || decidedApprovalIdsRef.current.has(request.id)) continue;
+          const decision = decisions[index]!;
           const decided = await decideApproval(request.id, decision);
-          decidedApprovalIdsRef.current.add(request.id);
+          recordDecision(request, decision.type === "approve");
           if (decided?.continues_in_chat) continuesInChat = true;
-          // `parked.messageId`, never the live ref: the turn ended at `complete`
-          // the moment the run parked, so the ref is null by now and every one of
-          // these updates was being skipped - which is why the step stayed at
-          // "waiting for approval" after an approval that had actually worked.
-          if (parked.messageId !== null) {
-            updateToolCallPart(parked.messageId, request.tool_call_id, {
-              status: decision.type === "approve" ? "running" : "error",
-              result: decision.type === "approve" ? undefined : "Refused",
-            });
-          }
         }
-        if (
-          parked.actionRequests.every((request) => decidedApprovalIdsRef.current.has(request.id))
-        ) {
-          await clearApprovalNotice(queryClient, activeConversationId, parked.runId);
-          void queryClient.invalidateQueries({ queryKey: qk.runs.all() });
-        }
+        await clearApprovalNotice(queryClient, activeConversationId, parked.runId);
+        void queryClient.invalidateQueries({ queryKey: qk.runs.all() });
         if (continuesInChat) {
           // Approval queues the continuation; it does not complete the tool.
           // Persisted run updates replace these pending steps with their actual
@@ -2884,8 +2880,8 @@ export function useChat(options: UseChatOptions = {}) {
         const settled = new Map((resumed.settled ?? []).map((call) => [call.tool_call_id, call]));
         if (parked.messageId !== null) {
           const id = parked.messageId;
-          for (const [index, request] of parked.actionRequests.entries()) {
-            if (decisions[index]?.type === "approve") {
+          for (const { request, approved } of savedDecisions) {
+            if (approved) {
               updateToolCallPart(id, request.tool_call_id, {
                 status: "completed",
                 result: settled.get(request.tool_call_id)?.result,
@@ -2897,7 +2893,7 @@ export function useChat(options: UseChatOptions = {}) {
           showContinuation(
             resumed,
             parked.runId,
-            new Set(parked.actionRequests.map((request) => request.tool_call_id)),
+            new Set(savedDecisions.map(({ request }) => request.tool_call_id)),
           );
         }
       } catch (error) {
@@ -2914,11 +2910,28 @@ export function useChat(options: UseChatOptions = {}) {
           toast.error(getErrorMessage(error, tErrors));
           return;
         }
+        // A concurrent reviewer (or a POST whose reply was lost) may have saved
+        // a different choice. Show that outcome before letting anyone continue.
+        const details = error instanceof ApiError && error.status === 400 ? error.details : null;
+        const alreadyDecided = parked.actionRequests.find(
+          (request) => request.id === details?.approval_id,
+        );
+        if (alreadyDecided && (details?.status === "approved" || details?.status === "rejected")) {
+          recordDecision(alreadyDecided, details.status === "approved");
+          if (details.continues_in_chat === true) continuesInChat = true;
+        }
         // The decision failed to record, or the resume could not be built (a secret
         // deleted since the park): the run is still parked, so put the approval back
         // rather than swallowing it - a panel that vanished is a person believing
         // they unblocked it, and the retry can now succeed.
-        setPendingApproval(parked);
+        setPendingApproval({
+          ...parked,
+          actionRequests: parked.actionRequests.filter(
+            (request) => !decidedApprovalIdsRef.current.has(request.id),
+          ),
+          savedDecisions,
+          continuesInChat,
+        });
         toast.error(getErrorMessage(error, tErrors));
       } finally {
         if (decidingApprovalRef.current === decisionToken) {

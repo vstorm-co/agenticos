@@ -2071,6 +2071,68 @@ describe("useChat - approvals and questions", () => {
     expect(post).not.toHaveBeenCalledWith("/runs/r-1/resume");
   });
 
+  it.each([true, false])(
+    "shows a conflicting saved approval before continuing (server resumes: %s)",
+    async (inChat) => {
+      post
+        .mockRejectedValueOnce(
+          new ApiError(400, "Already approved", {
+            error: {
+              code: "BAD_REQUEST",
+              message: "Already approved",
+              details: {
+                approval_id: "ar-1",
+                status: "approved",
+                continues_in_chat: inChat,
+              },
+            },
+          }),
+        )
+        .mockResolvedValue({ status: "completed" });
+      const { result } = renderHook(() => useChat(), { wrapper });
+      receive("tool_approval_required", {
+        run_id: "r-1",
+        action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
+        review_configs: [],
+      });
+      await act(async () => result.current.sendResumeDecisions([{ type: "reject" }]));
+      expect(result.current.pendingApproval?.actionRequests).toEqual([]);
+      expect(result.current.pendingApproval?.savedDecisions).toMatchObject([{ approved: true }]);
+      expect(post).toHaveBeenCalledTimes(1);
+      await act(async () => result.current.sendResumeDecisions([]));
+      expect(post).toHaveBeenCalledTimes(inChat ? 1 : 2);
+      expect(result.current.pendingApproval).toBeNull();
+    },
+  );
+
+  it("retries only the resume and settles the previously approved step", async () => {
+    post.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("Connection lost"));
+    post.mockResolvedValueOnce({
+      status: "completed",
+      settled: [{ tool_call_id: "tc-1", result: "Sent" }],
+    });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "send_email", args: {} });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
+      review_configs: [],
+    });
+    await act(async () => result.current.sendResumeDecisions([{ type: "approve" }]));
+    expect(result.current.pendingApproval?.actionRequests).toEqual([]);
+    await act(async () => result.current.sendResumeDecisions([]));
+    expect(post.mock.calls).toEqual([
+      ["/approvals/ar-1", { approved: true }],
+      ["/runs/r-1/resume"],
+      ["/runs/r-1/resume"],
+    ]);
+    expect(useChatStore.getState().messages[0]?.toolCalls?.[0]).toMatchObject({
+      status: "completed",
+      result: "Sent",
+    });
+  });
+
   it("does not resubmit saved rejection feedback when retrying a partially decided batch", async () => {
     post.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("Request failed"));
     post.mockResolvedValue({ status: "completed", output: "Done." });
@@ -2091,15 +2153,18 @@ describe("useChat - approvals and questions", () => {
     await act(async () => {
       await result.current.sendResumeDecisions(decisions);
     });
-    expect(result.current.pendingApproval).not.toBeNull();
+    expect(result.current.pendingApproval?.actionRequests.map(({ id }) => id)).toEqual(["ar-2"]);
+    expect(result.current.pendingApproval?.savedDecisions).toMatchObject([
+      { request: { id: "ar-1" }, approved: false },
+    ]);
     await act(async () => {
-      await result.current.sendResumeDecisions(decisions);
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
     });
 
     expect(post.mock.calls).toEqual([
       ["/approvals/ar-1", { approved: false, note: "Use a draft instead" }],
       ["/approvals/ar-2", { approved: false, note: "Remove pricing" }],
-      ["/approvals/ar-2", { approved: false, note: "Remove pricing" }],
+      ["/approvals/ar-2", { approved: true }],
       ["/runs/r-1/resume"],
     ]);
   });
@@ -3095,10 +3160,8 @@ describe("useChat - approvals and questions", () => {
       await result.current.sendResumeDecisions([{ type: "approve" }]);
     });
 
-    expect(post.mock.calls).toEqual([
-      ["/approvals/ar-1", { approved: true }],
-      ["/runs/r-9/resume"],
-    ]);
+    expect(post).not.toHaveBeenCalled();
+    expect(result.current.pendingApproval?.actionRequests).toHaveLength(2);
   });
 
   it("surfaces the questions an agent asked, filling in what it left out", () => {

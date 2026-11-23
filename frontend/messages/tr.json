@@ -114,6 +114,9 @@
     "nativeLogoutFailed": "Oturum kapatıldı ancak uygulama yerel erişimi temizleyemedi."
   },
   "approvalFeedback": {
+    "savedApproval": "Zaten onaylandı: {action}",
+    "savedRejection": "Zaten reddedildi: {action}",
+    "retryResume": "Sürdürmeyi yeniden dene",
     "trigger": "Geri bildirimle reddet",
     "hint": "Önerilen işlem çalıştırılmaz. Geri bildiriminiz ret kararıyla birlikte kaydedilir.",
     "batchHint": "Listelenen tüm çağrılar reddedilir. Yalnızca geri bildirim vermek istediğiniz çağrılara not ekleyin.",

@@ -6,6 +6,9 @@
     "ctaShort": "GitHub"
   },
   "approvalFeedback": {
+    "savedApproval": "Już zatwierdzono: {action}",
+    "savedRejection": "Już odrzucono: {action}",
+    "retryResume": "Ponów wznowienie",
     "trigger": "Odrzuć z uwagami",
     "hint": "Proponowana akcja nie zostanie wykonana. Uwagi zostaną zapisane wraz z odrzuceniem.",
     "batchHint": "Wszystkie wymienione wywołania zostaną odrzucone. Dodaj uwagi tylko do wybranych wywołań.",

@@ -1665,6 +1665,7 @@ function ChatUI({
               >
                 <div className="chat-composer-width">
                   <ToolApprovalDialog
+                    savedDecisions={pendingApproval.savedDecisions}
                     actionRequests={pendingApproval.actionRequests}
                     reviewConfigs={pendingApproval.reviewConfigs}
                     onDecisions={onResumeDecisions}

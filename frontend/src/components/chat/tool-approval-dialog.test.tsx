@@ -61,6 +61,22 @@ function mount(actionRequests: ActionRequest[]) {
  * answers there actually are, and the arguments are read.
  */
 describe("the tool approval dialog", () => {
+  it("offers only resume when all choices were saved", async () => {
+    const onDecisions = vi.fn();
+    render(
+      <ToolApprovalDialog
+        actionRequests={[]}
+        savedDecisions={[{ request: action("a-1"), approved: true }]}
+        reviewConfigs={[]}
+        onDecisions={onDecisions}
+      />,
+    );
+    expect(screen.getByText(/Already approved:/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /approve|reject/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry resume" }));
+    expect(onDecisions).toHaveBeenCalledWith([]);
+  });
+
   it("rejects a batch with feedback only on the call the reviewer annotated", async () => {
     const onDecisions = mount([action("a-1"), action("a-2")]);
 
