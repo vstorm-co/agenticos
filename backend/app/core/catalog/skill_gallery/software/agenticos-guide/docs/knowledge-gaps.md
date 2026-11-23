@@ -208,6 +208,8 @@ cases that failed because the knowledge was missing should now pass.
 
 ## Drafting the missing content { #drafting-the-missing-content }
 
+The topic editor places the document draft beside its evidence on a wide screen. On a phone, switch between **Suggested document** and **Why this is needed** without losing edits. **Save** keeps a draft; **Add to knowledge base** adds its content to the named target. Redrafting is disabled while changes are unsaved, and closing the dialog asks before discarding them. The editor is disabled while a new draft is being generated.
+
 **Draft**, in an open topic, asks a model to write the passage or FAQ entry
 the knowledge base is missing. The button shows the most one draft costs. It is
 one run of the
@@ -234,8 +236,7 @@ that could not be written, because a budget was spent or the model became unavai
 person's questions says so too: check it knowing it rests on what one person
 asked.
 
-The draft fills the topic's editor, with a link to its run. You can copy it as
-Markdown, and it reaches the knowledge base only when somebody adds it. The drafter does not know your company's facts: where an answer needs
+The draft fills the topic's editor, with a link to its run. Its creation time appears with the draft heading. It reaches the knowledge base only when somebody adds it. The drafter does not know your company's facts: where an answer needs
 a number, a date or a rule, it writes `{{what to fill in}}`, and the editor
 lists each one until it is replaced.
 
@@ -341,3 +342,5 @@ read for what the agent said, not for the rating.
 
 Names are not taken out of what the drafter reads, nor flagged in content to
 add: nothing here recognises a name. Check a draft for them before you add it.
+
+A saved draft opens as a readable document. Choose **Edit document** to change its title or content, then **Read document** to review those edits without losing them. Retrieval details are available under each question’s explanation.

@@ -1055,18 +1055,6 @@
       "extractor": "Standard-Schlüssel-Extraktor",
       "extractorHint": "Listet die Fakten der Referenzantworten jedes Datasets für ihre Schlüssel-Prüfungen auf."
     },
-    "judgeUnused": "Noch kein Dataset nutzt diesen Bewerter.",
-    "judgeDatasets": "Datasets",
-    "judgeDatasetOpen": "Zeigen, was dieser Bewerter in {name} bewertet hat",
-    "judgeDatasetGradingOff": "Bewertung aus",
-    "judgeDatasetNothing": "Dieser Bewerter hat in diesem Dataset noch nichts bewertet.",
-    "judgeDatasetEvalRuns": "Eval-Runs, die er bewertet hat",
-    "judgeDatasetGrades": "Seine letzten Bewertungen",
-    "judgeDatasetAnswer": "Antwort ↗",
-    "judgeDatasetSeeAll": "Alle im Tab Prüfung ansehen",
-    "judgeDatasetsHint": "Die Datasets, die diesen Bewerter gewählt haben, mit Bewertung oder ohne. Ein Dataset wählt seinen Bewerter im Tab Bewertung; öffnen Sie eines, um zu sehen, was der Bewerter dort bewertet hat.",
-    "judgeAgreement": "Menschen stimmten diesem Bewerter bei {agreed} von {decided, plural, =1 {1 entschiedenen Ergebnis} other {# entschiedenen Ergebnissen}} zu.",
-    "judgeAgreementNone": "Noch niemand hat ein Ergebnis entschieden, das dieser Bewerter bewertet hat, daher gibt es keine Übereinstimmung zu zeigen.",
     "guardsSaved": "Wächter gespeichert",
     "failedGuards": "Die Wächter konnten nicht gespeichert werden",
     "guardsStarted": "{count, plural, =0 {Nichts zu starten - jeder Wächter hat bestanden oder prüft schon} =1 {1 Eval-Suite gestartet} other {# Eval-Suites gestartet}}",
@@ -1098,7 +1086,6 @@
     "systemAgentKnowledgeHelp": "{kind, select, judge {Prüft Fakten in einer Antwort anhand der Wissensdatenbanken des bewerteten Agents, wo keine Referenzantwort sie nennt.} generator {Durchsucht die Wissensdatenbanken, aus denen Sie Fälle entwerfen, damit Fragen dem folgen, was dort wirklich steht.} classifier {Prüft, ob die Wissensdatenbank eine Frage schon beantwortet, bevor er sie zur Lücke erklärt.} drafter {Durchsucht die Wissensdatenbank der Lücke, damit ein Entwurf nicht wiederholt, was ein Dokument schon sagt.} improver {Liest die Wissensdatenbanken des Agents, den er verbessert, damit seine Änderungen zu ihrem Inhalt passen.} other {Durchsucht die Wissensdatenbanken, die die Plattform für jeden Run auswählt.}}",
     "systemAgentMaxSteps": "Max. Schritte",
     "systemAgentMaxStepsHint": "Jeder Schritt ist eine bezahlte Anfrage bei jeder Antwort, die er liest. Höchstens {max}; leer bedeutet {fallback}.",
-    "temperatureVariesVerdict": "{kind, select, judge {Über 0 kann dieselbe Antwort beim zweiten Mal anders bewertet werden. 0 hält Bewertungen wiederholbar.} other {Über 0 kann dieselbe Antwort beim zweiten Mal anders eingeordnet werden. 0 hält die Einordnung wiederholbar.}}",
     "mapMoreItems": "+{count} weitere · alle anzeigen",
     "unavailableTitle": "Agent nicht verfügbar",
     "loadFailedTitle": "Agent konnte nicht geladen werden",
@@ -6565,7 +6552,6 @@
       "knowledge": "Wissen",
       "skills": "Skills",
       "evals": "Evals",
-      "judgeDatasets": "Datasets",
       "categoriesHint": "Grobe Gruppen - Support, Finanzen, intern. Der Katalog filtert danach.",
       "tagsHint": "Alles Feinere, wonach Sie später suchen möchten.",
       "labelCount": "{used} von {max}",
@@ -6589,7 +6575,6 @@
       "improveSession": "Verbessern",
       "setBaseline": "Ausgangswert festlegen",
       "improveFromGaps": "Diesen Agent anhand dieser Lücken verbessern",
-      "systemAgentReadOnly": "Nur ein Administrator der Organisation kann einen Systemagent ändern. Hier können Sie nachlesen, wie er arbeitet.",
       "continueConversation": "Meine Unterhaltung fortsetzen",
       "modelCredentialMode": "Modellzugriff",
       "organizationModelKey": "Organisationsschlüssel verwenden",
@@ -14844,7 +14829,6 @@
       "suggestReferenceAction": "Mit der Referenz vergleichen",
       "judgeChanged": "Ergebnisse des vorigen Bewerters oder Modells sind nicht mit den ab jetzt benoteten vergleichbar.",
       "cancel": "Abbrechen",
-      "groupEvalRun": "Eval-Run · {when}",
       "agentGone": "Ein Agent, den es nicht mehr gibt",
       "agentVersion": "{name} · v{version}",
       "answer": "Antwort",
@@ -15447,14 +15431,28 @@
       "phone": "Telefonnummer"
     },
     "flagsConfirm": "Ich habe es geprüft: Nichts davon identifiziert eine Person, oder es gehört in die Wissensdatenbank.",
-    "addToKnowledgeBase": "Zu {knowledgeBase} hinzufügen",
     "saveContent": "Speichern",
     "contentSaved": "Inhalt gespeichert",
     "contentAdded": "Zu {knowledgeBase} hinzugefügt. Das Dokument wird verarbeitet.",
     "coveredBy": "Abgedeckt durch <link>{name}</link>, aus diesem Thema der Wissensdatenbank hinzugefügt.",
     "alreadyCoveredBy": "Der Lücken-Entwerfer fand diese Fragen bereits beantwortet, durch {sources}. Wenn ja, verwerfen Sie das Thema, statt Inhalt hinzuzufügen.",
     "alreadyCovered": "Der Lücken-Entwerfer fand diese Fragen bereits beantwortet. Wenn ja, verwerfen Sie das Thema, statt Inhalt hinzuzufügen.",
-    "draftAgainInSession": "Ein neuer Entwurf ersetzt den in dieser Sitzung getesteten, daher gilt dieser Test nicht mehr für ihn."
+    "draftAgainInSession": "Ein neuer Entwurf ersetzt den in dieser Sitzung getesteten, daher gilt dieser Test nicht mehr für ihn.",
+    "workspace": {
+      "draft": "Dokumentvorschlag",
+      "evidence": "Warum es benötigt wird ({count})",
+      "unsaved": "Ungespeicherte Änderungen. Speichern Sie den Entwurf, bevor Sie eine weitere Version erstellen.",
+      "discardTitle": "Ungespeicherte Änderungen verwerfen?",
+      "discardBody": "Ihre Änderungen an diesem Dokument wurden nicht gespeichert.",
+      "discard": "Änderungen verwerfen",
+      "keepEditing": "Weiter bearbeiten",
+      "add": "Zur Wissensbasis hinzufügen",
+      "target": "Ziel: {name}",
+      "read": "Dokument lesen",
+      "edit": "Dokument bearbeiten",
+      "searchDetails": "Warum wurde diese Frage markiert?"
+    },
+    "draftCreated": "Entwurf erstellt: {time}"
   },
   "evals": {
     "title": "Evals",
@@ -15620,19 +15618,19 @@
       "criteriaHint": "Jede Frage zählt den Anteil ihrer Kriterien, den ihre erste Antwort erfüllt hat: sechs von sieben zählen 6/7, während die Bestehensquote sie als nicht bestanden zählt."
     },
     "cases": {
-      "title": "{count, plural, =1 {1 Fall} other {# Fälle}}",
+      "title": "{count, plural, one {# Frage} other {# Fragen}}",
       "outcomeFilter": "Ergebnis",
       "tagFilter": "Tag",
       "allTags": "Alle Tags",
       "outcome": {
-        "all": "Alle Ergebnisse",
+        "all": "Alle Antworten",
         "passed": "Bestanden",
-        "failed": "Nicht bestanden",
+        "failed": "Überprüfen",
         "undecided": "Unentschieden"
       },
       "flip": {
-        "regression": "{confirmed, select, true {Bestätigte Regression} other {Regression, unbestätigt}}",
-        "fixed": "{confirmed, select, true {Bestätigte Behebung} other {Behoben, unbestätigt}}",
+        "regression": "{confirmed, select, true {Verschlechtert} other {Möglicherweise schlechter}}",
+        "fixed": "{confirmed, select, true {Verbessert} other {Möglicherweise verbessert}}",
         "incomplete": "Auf {side} nicht bewertet",
         "crashed": "{confirmed, select, true {Verschlechtert: der Agent ist abgestürzt} other {Einmal verschlechtert: der Agent ist abgestürzt}}"
       },
@@ -15648,7 +15646,13 @@
         "excluded": "Belegkopie"
       },
       "criteria": "{passed}/{graded}",
-      "criteriaTitle": "{passed} von {graded} Kriterien erfüllt"
+      "answerState": {
+        "passed": "Bestanden",
+        "failed": "Überprüfen",
+        "undecided": "Nicht bewertet",
+        "incomplete": "Nicht abgeschlossen",
+        "pending": "Wartet"
+      }
     },
     "case": {
       "firstAnswer": "Antwort",
@@ -16041,7 +16045,50 @@
       "pooled": "Dieser Run ist eine Etappe der Prüfung. Die Prüfung bewertet jeden Agent auf den zurückgehaltenen Fragen aller seiner Etappen zusammen, daher sagt diese Etappe allein weniger als die Prüfung."
     },
     "notAsked": "{count, plural, =1 {1 Frage dieses Datasets war nicht in der Stichprobe dieser Etappe und wurde nicht gestellt.} other {# Fragen dieses Datasets waren nicht in der Stichprobe dieser Etappe und wurden nicht gestellt.}}",
-    "runMetaStage": "{date} · {cost} ausgegeben"
+    "runMetaStage": "{date} · {cost} ausgegeben",
+    "resultTabs": {
+      "questions": "Antworten",
+      "criteria": "Was geprüft wurde",
+      "performance": "Details",
+      "methodology": "Messverfahren"
+    },
+    "resultSummary": "{fixed} bestätigte Verbesserungen · {broken} bestätigte Regressionen",
+    "resultSides": "{baseline} → {candidate}",
+    "resultReruns": "Bestätigungsläufe ({count})",
+    "resultFailed": "Antworten prüfen ({count})",
+    "resultNoCriteria": "Für diesen Lauf sind noch keine Ergebnisse der Kriterienfamilien verfügbar.",
+    "plain": {
+      "label": "Testübersicht",
+      "single": "{passed} von {cases} Antworten bestanden",
+      "worse": "Einige Antworten wurden schlechter",
+      "incomplete": "Einige Antworten konnten nicht bewertet werden",
+      "improved": "Der aktualisierte Agent antwortet besser",
+      "requirements": "Antworten erfüllen mehr Ihrer Anforderungen",
+      "unchanged": "Keine klare Verbesserung",
+      "invalid": "Die Ergebnisse sind noch nicht vergleichbar",
+      "tooFew": "Fügen Sie weitere unabhängige Testfragen hinzu, um die Versionen zu vergleichen.",
+      "cannotCompare": "Diese Tests sind nicht vergleichbar. Die Testdetails erklären, was geändert werden muss.",
+      "changes": "{fixed} Antworten verbessert · {broken} verschlechtert",
+      "singleBody": "{failed, plural, =0 {Keine falschen Antworten gefunden.} one {Eine Antwort muss überprüft werden.} other {# Antworten müssen überprüft werden.}}",
+      "undecided": "{count, plural, one {Eine Antwort konnte nicht bewertet werden.} other {# Antworten konnten nicht bewertet werden.}}",
+      "unstable": "Einige Antworten schwankten zwischen Tests. Ihre Verbesserung ist nicht bestätigt.",
+      "details": "Testdetails",
+      "actions": "Weitere Aktionen",
+      "expectation": "Erwartete Antwort und Bewertungsregeln",
+      "notCompared": "Noch kein Vergleich verfügbar",
+      "before": "Vorher",
+      "after": "Nachher",
+      "partial": "Sehen Sie unten nach, welche Antworten bewertet werden konnten.",
+      "overallWorseBody": "Die Gesamtqualität sank, obwohl keine einzelne Antwort durchgehend schlechter war.",
+      "requirementsBody": "Mehr Anforderungen wurden erfüllt, aber keine ganze Antwort wurde durchgehend verbessert.",
+      "reviewChanges": "Änderungen prüfen",
+      "passedCount": "{passed} von {cases} Antworten bestanden"
+    },
+    "workspace": {
+      "details": "Testverfahren · Kriterien, Kosten und Details",
+      "answers": "Antworten prüfen",
+      "answersHint": "Öffnen Sie eine Frage, um die Antwort und ihre Bewertung zu lesen."
+    }
   },
   "authoring": {
     "strip": {
@@ -16525,12 +16572,12 @@
     "openAgent": "Agent öffnen",
     "accept": "Diese Änderungen annehmen",
     "resultDecision": {
-      "title": "Was diese Sitzung ergeben hat",
+      "title": "Ergebnis",
       "options": "Was Sie tun können",
-      "better": "Versuch {number} hat {agent} verbessert: {fixed, plural, one {# Frage} other {# Fragen}} behoben, keine verschlechtert.",
+      "better": "Der aktualisierte Agent beantwortete {fixed} weitere Testfragen richtig.",
       "chosen": "Sie haben Versuch {number} zum Übernehmen gewählt.",
-      "published": "{version, select, unknown {Versuch {number} wurde veröffentlicht.} other {Versuch {number} wurde als Version {version} veröffentlicht.}}",
-      "acceptedDraft": "Versuch {number} wurde als Entwurf übernommen.",
+      "published": "{version, select, unknown {Änderungen veröffentlicht.} other {Als Version {version} veröffentlicht.}}",
+      "acceptedDraft": "Im Entwurf des Agenten gespeichert.",
       "failed": "Die Sitzung wurde durch einen Fehler beendet, bevor sie fertig war.",
       "noneBetter": "{count, plural, =0 {Kein Versuch wurde gemessen, daher ist offen, ob {agent} besser wurde.} one {Der Versuch hat {agent} nicht verbessert.} other {Keiner der # Versuche hat {agent} verbessert.}}",
       "worse": "Versuch {number} hat es verschlechtert: {broken, plural, one {# Frage funktioniert nicht mehr} other {# Fragen funktionieren nicht mehr}}.",
@@ -16775,10 +16822,8 @@
     "noChangesFound": "Wir haben keine Änderung gefunden, die zu den aktuellen Anweisungen passt. Das haben wir versucht:",
     "triedAttempt": "Versuch {number}: {verdict, select, better {die Änderungen haben es verbessert} criteria_better {die Änderungen haben einige Kriterien verbessert, noch keine Frage umgeschlagen} regression {die Änderungen haben funktionierende Fragen verschlechtert} criteria_worse {die Änderungen haben einige Kriterien verschlechtert} no_change {keine messbare Änderung} inconclusive {das Ergebnis ließ sich nicht messen} unmeasured {Änderungen vorgeschlagen, noch nicht getestet} other {keine Änderung vorgeschlagen}}{dropped, plural, =0 {} one {; # Änderung passte nicht zu den aktuellen Anweisungen} other {; # Änderungen passten nicht zu den aktuellen Anweisungen}}.",
     "handledChange": "{before} → {after} von {total} Fragen gut beantwortet.",
-    "newlyFixed": "Neu behoben",
-    "newlyBroken": "Neu verschlechtert",
-    "possiblyBroken": "Möglicherweise verschlechtert",
-    "possiblyFixed": "Möglicherweise behoben",
+    "newlyFixed": "Verbesserte Antworten",
+    "newlyBroken": "Verschlechterte Antworten",
     "notConfirmedMore": "+{count} nicht bestätigt",
     "notConfirmedHint": "Nicht bestätigt: Die Antwort hat sich einmal geändert, beim erneuten Stellen aber nicht auf dieselbe Weise.",
     "notConfirmedYet": "Noch nicht bestätigt ({count})",
@@ -17056,7 +17101,29 @@
       "addQuestions": "Fragen aus anderen Gesprächen hinzufügen"
     },
     "likedSignals": "Positiv bewertete Antworten",
-    "reviewedSignals": "Weitere überprüfte Testantworten"
+    "reviewedSignals": "Weitere überprüfte Testantworten",
+    "record": {
+      "result": "Ergebnis",
+      "changes": "Änderungen",
+      "check": "Testfragen",
+      "attempts": "Versuche",
+      "understand": "Analyse",
+      "accept": "Entscheidung",
+      "back": "Zurück zur Ressource",
+      "spent": "Ausgegeben: {spent}",
+      "passRateScope": "Über alle Fragen der Evaluation",
+      "more": "Sitzungsdetails",
+      "answersPassed": "Bestandene Antworten",
+      "answerCount": "{passed} von {cases}"
+    },
+    "workspace": {
+      "changes": "Was sich geändert hat",
+      "evidence": "Sind die Antworten besser?",
+      "change": "Änderung {number}",
+      "exactChange": "Genauen Wortlaut vergleichen",
+      "invalid": "Der Test konnte die Versionen nicht zuverlässig vergleichen. Prüfen Sie ihn zuerst.",
+      "noExamples": "Es gibt keine geänderten Antworten. Öffnen Sie den vollständigen Test für alle Fragen."
+    }
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",
@@ -17779,11 +17846,10 @@
         "criteria_worse": "Schlechter bei Kriterien",
         "within_noise": "Im Rauschen",
         "worse": "Schlechter",
-        "unknown": "Unbekannt"
+        "unknown": "Nicht bestätigt"
       },
       "fixedBroken": "{fixed, plural, =1 {Behebt 1 Frage} other {Behebt # Fragen}}, {broken, plural, =1 {verschlechtert 1} other {verschlechtert #}}.",
       "fixedBrokenUnconfirmed": "Beim ersten Versuch {fixed, plural, =1 {schien 1 Frage behoben} other {schienen # Fragen behoben}} und {broken, plural, =1 {1 verschlechtert} other {# verschlechtert}}, aber erneutes Fragen hat das nicht bestätigt, daher zählt der Agent als unverändert.",
-      "tooFewGroup": "Zu wenige Fragen, um sicher zu sein: Jeder Agent unten bekam weniger zurückgelegte Fragen, als ein Ergebnis braucht.",
       "unknown": {
         "no_questions": "Nicht geprüft: Er hat keine Testfragen, bei denen er den Skill geladen hat, und der Skill hat keine eigenen.",
         "no_access": "Nicht geprüft: Sie dürfen diesen Agent nicht ausführen.",
@@ -17796,7 +17862,7 @@
         "all_evidence": "Nicht geprüft: Jede Frage stammt aus den Unterhaltungen, aus denen die Änderung gelernt hat.",
         "cancelled": "Nicht geprüft: Die Prüfung wurde angehalten, bevor ihre Runs fertig waren.",
         "own_not_asked": "Nicht geprüft: Seine eigenen Fragen blieben ungestellt, und jetzt entscheiden sie über ihn.",
-        "too_few_questions": "Zu wenige Fragen, um sicher zu sein: {fixed} von {heldOut} fielen besser aus und {broken} schlechter, weniger Fragen, als ein Ergebnis braucht."
+        "too_few_questions": "Zu wenige Testfragen, um die Änderung zu bestätigen. Geprüfte Fragen: {heldOut}."
       },
       "skillSetOnly": "Nur auf den eigenen Fragen des Skills geprüft: Er hatte keine eigenen, bei denen er den Skill geladen hat.",
       "stage": {
@@ -17806,9 +17872,9 @@
       },
       "summary": {
         "worse": "{count} schlechter",
-        "unknown": "{count} unbekannt",
+        "unknown": "{count} nicht bestätigt",
         "same": "{count} unverändert",
-        "better": "{count} besser",
+        "better": "{count} verbessert",
         "pending": "{count} in Prüfung",
         "filter": "Nur zeigen"
       },
@@ -18034,6 +18100,12 @@
         "catch_up": "Auf main nachziehen",
         "to_main": "Nach main verschieben"
       }
+    },
+    "workspace": {
+      "title": "Was bedeutet diese Änderung für Ihre Agenten?",
+      "hint": "Ein Skill wird gemeinsam genutzt. Prüfen Sie jeden Agenten: Eine angewandte Änderung hilft nicht automatisch allen.",
+      "agents": "Auswirkungen auf Agenten",
+      "skillText": "In dieser Sitzung geprüfter Skill"
     }
   },
   "resourceAppearance": {
