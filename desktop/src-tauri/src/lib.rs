@@ -1022,6 +1022,15 @@ fn is_first_window(app: &AppHandle) -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(target_os = "macos")]
+fn console_popup_web_url(url: &Url) -> Option<&str> {
+    (matches!(url.scheme(), "http" | "https")
+        && url.has_host()
+        && url.username().is_empty()
+        && url.password().is_none())
+    .then(|| url.as_str())
+}
+
 fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow> {
     let handle = app.clone();
     let appearance = settings::current(app).appearance;
@@ -1070,7 +1079,17 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
     }
     #[cfg(target_os = "macos")]
     {
+        let app = app.clone();
         builder = builder
+            // WKWebView drops new-window requests by default, including link context menu actions.
+            .on_new_window(move |url, _| {
+                if let Some(url) = console_popup_web_url(&url) {
+                    if app.opener().open_url(url, None::<&str>).is_err() {
+                        eprintln!("Could not open the link in your browser.");
+                    }
+                }
+                tauri::webview::NewWindowResponse::Deny
+            })
             .title_bar_style(tauri::TitleBarStyle::Overlay)
             .hidden_title(true)
             .traffic_light_position(tauri::LogicalPosition::new(TRAFFIC_LIGHTS.0, TRAFFIC_LIGHTS.1));
@@ -1852,6 +1871,24 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn console_popups_only_forward_web_addresses_without_credentials() {
+        for address in ["https://example.com/path?q=one#anchor", "http://example.com/"] {
+            let url = Url::parse(address).unwrap();
+            assert_eq!(super::console_popup_web_url(&url), Some(address));
+        }
+        for address in [
+            "about:blank",
+            "file:///tmp/example",
+            "agenticos://settings",
+            "https://user:password@example.com/",
+        ] {
+            let url = Url::parse(address).unwrap();
+            assert_eq!(super::console_popup_web_url(&url), None);
+        }
+    }
+
     #[test]
     fn first_window_takes_four_fifths_of_the_screen() {
         // A 14" MacBook Pro at its default scale: 3024x1964 physical, factor 2.

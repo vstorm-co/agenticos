@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Open chat links that request a new window in the default browser on macOS.
+
 ## [1.92.0] - 2026-11-23
 
 ### Added
