@@ -39,6 +39,7 @@ vi.mock("@/hooks", () => ({
     refetchProfiles: vi.fn(),
     deleteProfile: { isPending: false },
     createProfile: { mutateAsync: state.createModel, isPending: false },
+    updateProfile: { mutateAsync: vi.fn(), isPending: false },
     catalog: [
       {
         id: "anthropic",

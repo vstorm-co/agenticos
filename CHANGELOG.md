@@ -23,6 +23,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - The personal work extractor moves to `personal-work-v7` to retain concrete work needs and supply source-attributed temporal context. Existing authorized history is refreshed lazily in bounded jobs under the configured proactivity budget; select the intended background model before resuming a paused rollout. Saved Inbox decisions are retained.
 
+### Added
+
+- Configure model defaults for daily briefing, suggestions and memory maintenance: reasoning effort, sampling, output limits, request timeout and parallel tool calls. Reuse the agent builder controls, preserve provider defaults when unset, and save changes explicitly to the shared model profile.
+
 ### Fixed
 
 - Personal Inbox readers receive structured questions, linked authenticated answers, original timestamps and timezone-aware local dates throughout extraction and verification. Schedule wording is interpreted by the model rather than a weekday/time regex. Memory maintenance retains source timestamps and question/answer provenance; clipped transcript tails are marked explicitly.

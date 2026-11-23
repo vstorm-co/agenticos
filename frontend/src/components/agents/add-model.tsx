@@ -3,8 +3,10 @@
 import { useId, useState, type ReactNode } from "react";
 import { Check, KeyRound, Plus, Save } from "lucide-react";
 
+import { canonicalJson } from "@/lib/canonical-json";
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import { hasKey, LISTED_AT_ENDPOINT, LISTED_WITH_KEY, runsAgents } from "@/lib/model-profiles";
+import { ProfileModelSettings } from "./profile-model-settings";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
 import { InlineSecret } from "@/components/vault/inline-secret";
@@ -33,6 +35,7 @@ import type { ModelApi, ModelProfile, ModelRegion, ProviderInfo } from "@/types/
 import { useTranslations } from "next-intl";
 
 interface AddModelProps {
+  generationSettings?: boolean;
   /** The caller owns the provider choice; do not draw a second selector. Remount on change. */
   fixedProviderId?: string;
   /** Keep an existing model’s connection details behind a readable summary. */
@@ -258,8 +261,12 @@ export function AddModel({
   selected,
   purpose,
   collapseConnection = false,
+  generationSettings = false,
 }: AddModelProps) {
   const fieldId = useId();
+  const [params, setParams] = useState<Record<string, unknown>>(selected?.params ?? {});
+  const savedParams = canonicalJson(selected?.params ?? {});
+  const [previousParams, setPreviousParams] = useState(savedParams);
   const [connectionOpen, setConnectionOpen] = useState(false);
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
@@ -439,11 +446,23 @@ export function AddModel({
   // profile* while ignoring the endpoint, the key and the name somebody had
   // just typed. A form with any of those filled in is creating something,
   // whatever its first two fields say.
+  // A refetch can rotate shared defaults; refresh an untouched form without erasing edits.
+  if (previousParams !== savedParams) {
+    if (
+      canonicalJson(params) === previousParams &&
+      providerId === selected?.provider &&
+      model.trim() === selected?.model
+    )
+      setParams(selected.params);
+    setPreviousParams(savedParams);
+  }
+
   const unchanged =
     selected !== undefined &&
     provider?.id === selected.provider &&
     model.trim() === selected.model &&
     label.trim() === "" &&
+    (!generationSettings || canonicalJson(params) === canonicalJson(selected.params)) &&
     baseUrl.trim() === (selected.base_url ?? "") &&
     api === (selected.api ?? null) &&
     // A Stav profile stored with no region runs in the default one, which is
@@ -524,6 +543,7 @@ export function AddModel({
         // All three, every time: the server compares them with what is stored
         // and writes only what differs, so what the form shows is what is saved.
         changes: {
+          ...(generationSettings ? { params } : {}),
           secret_id: chosenKey || null,
           base_url: customEndpoint ? baseUrl.trim() : null,
           api,
@@ -572,6 +592,7 @@ export function AddModel({
         label: label.trim() || automaticLabel,
         provider: provider.id,
         model: model.trim(),
+        ...(generationSettings ? { params } : {}),
         // `null`, not `""`: the API distinguishes "no key, this is self-hosted"
         // from an unset field, and an empty string is neither.
         secret_id: chosenKey || null,
@@ -617,6 +638,7 @@ export function AddModel({
               value={providerId}
               onValueChange={(value) => {
                 setPickedProvider(value);
+                setParams({});
                 setSecretId("");
                 setModel("");
                 setBaseUrl("");
@@ -676,6 +698,12 @@ export function AddModel({
             id={`${fieldId}-add-model-id`}
             value={model}
             onChange={(next) => {
+              if (next !== model)
+                setParams(
+                  next.trim() === selected?.model && providerId === selected.provider
+                    ? selected.params
+                    : {},
+                );
               setModel(next);
               setFailure(NO_FAILURE);
             }}
@@ -912,6 +940,14 @@ export function AddModel({
           </FormField>
         )}
       </ConnectionSettings>
+
+      {generationSettings && provider !== undefined && model.trim() !== "" && (
+        <ProfileModelSettings
+          value={params}
+          onChange={setParams}
+          disabled={disabled || createProfile.isPending || updateProfile.isPending}
+        />
+      )}
 
       {/* The name is derived and almost never worth changing - it exists so an
           organization can run the same model twice under two keys and tell them
