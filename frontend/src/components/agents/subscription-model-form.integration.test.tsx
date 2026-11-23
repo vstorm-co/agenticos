@@ -153,6 +153,42 @@ it("creates a separately priced subscription profile instead of reusing automati
     }),
   );
 });
+
+it.each([false, true])(
+  "starts a different subscription model at automatic prices (library: %s)",
+  async (library) => {
+    const previousModel = "account-" + "a".repeat(24) + "/other-model";
+    mount(previousModel, library, { input: "2", output: "5" });
+    if (library) {
+      await userEvent.click(await screen.findByRole("option", { name: "claude-via-google" }));
+    } else {
+      await choose();
+    }
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith({
+        provider: "subscription_accounts",
+        secret_id: null,
+        model: pinned,
+        label: `Google Antigravity · ${pinned}`,
+      }),
+    );
+  },
+);
+
+it("reuses the saved subscription profile with the same account, model and rates", async () => {
+  const rates = { input: "2", output: "5" };
+  const profile = {
+    id: "saved",
+    provider: "subscription_accounts",
+    model: pinned,
+    custom_pricing: rates,
+  };
+  profiles = [profile];
+  mount(pinned, false, rates);
+  await choose();
+  expect(create).not.toHaveBeenCalled();
+  expect(selected).toHaveBeenCalledWith(profile);
+});
 it("surfaces a failed creation and lets the user retry", async () => {
   create.mockRejectedValueOnce(new Error("refused"));
   mount();

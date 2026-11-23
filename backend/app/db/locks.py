@@ -150,6 +150,8 @@ class LockScope(IntEnum):
     #: Starting a check of one skill by hand: two starts at once would both find no
     #: check of the same text running and pay for it twice.
     SKILL_CHECK_STARTS_PER_SKILL = 37
+    #: A custom-priced profile's approval and replacement of the credential it uses.
+    MODEL_PRICING_PER_SECRET = 39
 
 
 def _key(subject: UUID) -> int:

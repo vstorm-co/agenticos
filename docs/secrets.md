@@ -314,6 +314,9 @@ edits only their own. A secret can also be shared to a specific member or agent
 with a resource grant, which widens access to that one row without promoting
 anybody. See [Permissions](permissions.md).
 
+Rotating a vault credential used by a model profile with custom prices also
+requires `budgets:manage`.
+
 ## Operations
 
 The master key is `VAULT_MASTER_KEY`. It falls back to `SECRET_KEY` so a fresh

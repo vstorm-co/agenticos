@@ -86,6 +86,22 @@ describe("the keys", () => {
 });
 
 describe("the rotate action", () => {
+  it("hides rotation for a protected credential while keeping access and deletion actions", () => {
+    render(
+      <VaultTable
+        secrets={[secret({ name: "Priced key", can_edit: true, can_rotate: false })]}
+        purposes={PURPOSES}
+        onShare={noop}
+        onRotate={noop}
+        onDelete={noop}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Rotate Priced key" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /manage access to priced key/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /delete priced key/i })).toBeVisible();
+  });
+
   it("is a reconnect for a ChatGPT sign-in, which is replaced by signing in again", async () => {
     const onRotate = vi.fn();
     const chatgpt = secret({

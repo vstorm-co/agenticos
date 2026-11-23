@@ -197,6 +197,8 @@ export type SecretVisibility = "private" | "team" | "org";
 export interface Secret {
   /** Effective edit access in listings; absent on older deployments or write responses. */
   can_edit?: boolean;
+  /** Effective credential rotation access in vault listings. */
+  can_rotate?: boolean;
   id: string;
   name: string;
   description: string | null;

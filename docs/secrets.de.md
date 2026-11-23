@@ -1,5 +1,5 @@
 ---
-source_sha: "24f7a7b1655a"
+source_sha: "92fbf49a9fb3"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -350,6 +350,9 @@ der Organisation, ein Member nur seine eigenen. Ein Secret kann außerdem über
 einen Resource Grant an ein bestimmtes Mitglied oder einen bestimmten Agent
 freigegeben werden, was den Zugriff auf genau diese eine Zeile erweitert, ohne
 jemanden zu befördern. Siehe [Berechtigungen](permissions.md).
+
+Wer einen Tresor-Zugangsschlüssel rotiert, den ein Modellprofil mit eigenen
+Preisen verwendet, braucht zusätzlich `budgets:manage`.
 
 ## Betrieb { #operations }
 
