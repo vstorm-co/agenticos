@@ -1,5 +1,5 @@
 ---
-source_sha: "594c58e1d30b"
+source_sha: "e2a19cf6c8da"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -849,6 +849,8 @@ identifiziert sich als AgenticOS und verspricht keinen Zugriff über den eigenen
 angekündigten Katalog hinaus.
 
 ### Registrierte Agenten als Gesprächslaufzeit { #external-runtime }
+
+Antigravity mit einem Gemini-Tresorschlüssel verwendet das optionale Feld für die native Modell-ID, statt den von Desktop geerbten Schlüssel zur Katalogabfrage zu verwenden. Ein leeres Feld behält die CLI-Vorgabe; eine explizite ID wird vor dem Prompt anhand der laufenden Sitzung geprüft.
 
 Jeder unter **Externe ACP-Agenten** registrierte Agent kann das Gespräch auch selbst
 beantworten, anstelle des Modellprofils des Agenten, nach [demselben

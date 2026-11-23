@@ -1,5 +1,5 @@
 ---
-source_sha: "b2d7c8981e4a"
+source_sha: "700e1da74653"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -436,6 +436,8 @@ Una clave de plan no es intercambiable con la clave de API facturada por uso del
 | Synthetic | `https://api.synthetic.new/openai/v1` |
 
 **Tu propia pasarela CLIProxyAPI.** Las cuentas cuyos proveedores no emiten clave de plan (Antigravity, Grok Build, Devin, Muse Code, inicio de sesión de Kimi Code y otras) se pueden usar mediante una pasarela [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) que ejecutes tú o tu operador fuera del stack. Las [cuentas de suscripción](#subscription-accounts) son la misma idea integrada, con las cuentas de cada persona separadas. Inicia sesión en las cuentas con los comandos propios de la pasarela, añade una clave de cliente en `access.api-keys` y crea un perfil **CLIProxyAPI (subscription gateway)** con su Endpoint (por ejemplo `http://cliproxyapi:8317/v1` para un contenedor de la pasarela en la red del despliegue) y esa clave de cliente. Cada cuenta de la pasarela está disponible para quien pueda usar el perfil, así que ejecuta una pasarela personal para una cuenta personal. Añade el host de la pasarela a `OUTBOUND_PRIVATE_ALLOWLIST`; las direcciones de loopback nunca son accesibles desde el servidor. Los proveedores pueden limitar o suspender cuentas usadas así; ese riesgo es del titular de la cuenta.
+
+El ámbito también incluye el ID de membresía: volver a unirse crea un ámbito nuevo, por lo que un trabajo de limpieza antiguo no puede borrar cuentas recién conectadas. La eliminación de credenciales se encola incluso con el gateway desactivado. Un gateway desactivado o con fallos deja un trabajo fallido visible en lugar de confirmar la eliminación; reintente ese trabajo tras restaurar el gateway. Si falla la consulta del estado de inicio de sesión, se muestra un error y un botón para reintentar.
 
 Selecciona la clave del almacén y confirma el destino antes de cargar modelos. Un catálogo personalizado utiliza solo esa clave y ese endpoint. Si la lista no está disponible, puedes escribir el modelo manualmente; no se sustituye por el catálogo general de la API. Las estimaciones de presupuesto de AgenticOS no miden la cuota restante de tu suscripción.
 

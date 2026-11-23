@@ -369,7 +369,7 @@ async def test_account_catalog_uses_the_selected_grant_and_keeps_only_visible_mo
     setup, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ctx, _, _, _ = setup
-    row = MagicMock(id=uuid4(), authorization_generation=uuid4())
+    row = MagicMock(id=uuid4(), authorization_generation=uuid4(), owner_user_id=ctx.user_id)
     monkeypatch.setattr(plan.OrganizationSecretService, "get_usable", AsyncMock(return_value=row))
     monkeypatch.setattr(plan.VaultChatGPTCredentials, "load", AsyncMock(return_value=grant()))
     monkeypatch.setattr(plan.VaultChatGPTCredentials, "assert_current", AsyncMock())
@@ -572,7 +572,7 @@ async def test_account_catalog_is_bounded_and_rejects_ambiguous_or_incompatible_
     setup, monkeypatch: pytest.MonkeyPatch, body: dict[str, object]
 ) -> None:
     ctx, _, _, _ = setup
-    row = MagicMock(id=uuid4(), authorization_generation=uuid4())
+    row = MagicMock(id=uuid4(), authorization_generation=uuid4(), owner_user_id=ctx.user_id)
     monkeypatch.setattr(plan.OrganizationSecretService, "get_usable", AsyncMock(return_value=row))
     monkeypatch.setattr(plan.VaultChatGPTCredentials, "load", AsyncMock(return_value=grant()))
     monkeypatch.setattr(plan.VaultChatGPTCredentials, "assert_current", AsyncMock())
@@ -783,7 +783,7 @@ async def test_an_oversized_account_catalog_is_refused_while_streaming(
     setup, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ctx, _, _, _ = setup
-    row = MagicMock(id=uuid4(), authorization_generation=uuid4())
+    row = MagicMock(id=uuid4(), authorization_generation=uuid4(), owner_user_id=ctx.user_id)
     monkeypatch.setattr(plan.OrganizationSecretService, "get_usable", AsyncMock(return_value=row))
     monkeypatch.setattr(plan.VaultChatGPTCredentials, "load", AsyncMock(return_value=grant()))
     monkeypatch.setattr(plan.VaultChatGPTCredentials, "assert_current", AsyncMock())
@@ -810,3 +810,24 @@ async def test_the_secret_service_lists_only_the_selected_chatgpt_accounts_model
     db, ctx, secret = MagicMock(), _ctx(), uuid4()
     assert await OrganizationSecretService(db).chatgpt_models(ctx, secret) == ["gpt-x"]
     listed.assert_awaited_once_with(db, ctx, secret)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("caller", [None, "another_member"])
+async def test_account_catalog_refuses_other_members_before_constructing_a_provider(
+    setup, monkeypatch: pytest.MonkeyPatch, caller: str | None
+) -> None:
+    from dataclasses import replace
+
+    from app.core.exceptions import AuthorizationError
+
+    ctx, _, _, _ = setup
+    row = MagicMock(id=uuid4(), owner_user_id=ctx.user_id)
+    read = AsyncMock(return_value=row)
+    provider = MagicMock()
+    monkeypatch.setattr(plan.OrganizationSecretService, "get_usable", read)
+    monkeypatch.setattr("app.agents.chatgpt_plan.ChatGPTPlanProvider", provider)
+    ctx = replace(ctx, user_id=None if caller is None else uuid4())
+    with pytest.raises(AuthorizationError, match="grant owner"):
+        await plan.account_models(MagicMock(), ctx, row.id)
+    provider.assert_not_called()

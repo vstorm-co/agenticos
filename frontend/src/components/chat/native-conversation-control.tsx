@@ -190,7 +190,9 @@ function ExternalChoices({
   const selected = registrations.find(
     (registration) => registration.id === runtime.registration_id,
   );
-  const listed = selected !== undefined && !SELF_CHOSEN_MODELS.includes(selected.provider);
+  const keyed = selected?.provider === "antigravity_api_key";
+  const listed =
+    selected !== undefined && !keyed && !SELF_CHOSEN_MODELS.includes(selected.provider);
   return (
     <div className="space-y-2">
       {registrations.length > 1 && (
@@ -220,7 +222,17 @@ function ExternalChoices({
       {selected?.provider === "antigravity_api_key" && (
         <VaultKeyChoice runtime={runtime} onChange={onChange} />
       )}
-      {listed ? (
+      {keyed ? (
+        <label className="block text-xs">
+          {t("primaryRuntimeModel")}
+          <Input
+            aria-label={t("primaryRuntimeModel")}
+            className="mt-1"
+            value={runtime.model_id ?? ""}
+            onChange={(event) => onChange({ ...runtime, model_id: event.target.value || null })}
+          />
+        </label>
+      ) : listed ? (
         <ExternalModels runtime={runtime} onChange={onChange} />
       ) : (
         <p className="text-muted-foreground text-xs">{t("externalCliModels")}</p>

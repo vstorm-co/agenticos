@@ -402,6 +402,12 @@ async def test_a_vault_gemini_key_reaches_only_the_launch_and_never_the_answer(
             pass
 
     async def run(pipe, **options) -> CodingReport:
+        with pytest.raises(ValueError, match="Credential"):
+            await options["platform_tools"].dispatch(
+                "_agenticos/tools/call",
+                {"name": "increment", "arguments": {"value": key.api_key.get_secret_value()}},
+            )
+        assert _calls == []
         await options["shown"]([Said("Key AIza-sec"), Said("ret-value is set")])
         return CodingReport(
             harness="custom", access="edit", outcome="completed", answer="", session_id="s1"

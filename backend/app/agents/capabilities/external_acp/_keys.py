@@ -29,6 +29,7 @@ async def selected_key(
         or ctx.deps.organization_id is None
         or audience is None
         or audience.user_id != person
+        or audience.shared_transcript
         or audience.room_key is not None
         or not isinstance(workspace, DeviceWorkspace)
         or workspace.owner_id != person

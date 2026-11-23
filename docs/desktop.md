@@ -798,6 +798,8 @@ its own advertised catalog.
 
 ### Registered agents as the conversation runtime { #external-runtime }
 
+Antigravity with a Gemini Vault key uses the optional native model ID field instead of probing the key inherited by Desktop. Leave it empty to keep the CLI default; an explicit ID is checked against the running session before a prompt is sent.
+
 Any agent registered under **External ACP agents** can also answer the
 conversation itself, instead of the agent's model profile, under the
 [same contract](#codex-conversation) as Codex and Claude Agent: Antigravity in either

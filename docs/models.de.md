@@ -1,5 +1,5 @@
 ---
-source_sha: "b2d7c8981e4a"
+source_sha: "700e1da74653"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -456,6 +456,8 @@ Ein Planschlüssel ist nicht mit dem nutzungsabhängigen API-Schlüssel des Anbi
 | Synthetic | `https://api.synthetic.new/openai/v1` |
 
 **Eigenes CLIProxyAPI-Gateway.** Konten, für die der Anbieter keinen Planschlüssel ausgibt (Antigravity, Grok Build, Devin, Muse Code, Kimi-Code-Anmeldung und weitere), lassen sich über ein [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)-Gateway nutzen, das du oder dein Betreiber außerhalb des Stacks betreibt. [Abonnement-Konten](#subscription-accounts) sind dieselbe Idee eingebaut, mit den Konten jeder Person getrennt voneinander. Melde die Konten mit den eigenen Login-Befehlen des Gateways an, lege unter `access.api-keys` einen Client-Schlüssel an und erstelle dann ein Profil **CLIProxyAPI (subscription gateway)** mit dessen Endpoint (zum Beispiel `http://cliproxyapi:8317/v1` für einen Gateway-Container im Netz des Deployments) und diesem Client-Schlüssel. Jedes Konto im Gateway steht allen offen, die das Profil nutzen dürfen; betreibe für ein persönliches Konto daher ein persönliches Gateway. Trage den Host des Gateways in `OUTBOUND_PRIVATE_ALLOWLIST` ein; Loopback-Adressen sind vom Server aus nie erreichbar. Anbieter können so genutzte Konten einschränken oder sperren; dieses Risiko trägt der Kontoinhaber.
+
+Der Scope enthält auch die Mitgliedschafts-ID: Ein erneuter Beitritt erzeugt einen neuen Scope, sodass ein alter Bereinigungsauftrag keine neu verbundenen Konten löschen kann. Das Löschen der Anmeldedaten wird auch bei deaktiviertem Gateway eingereiht. Ein deaktiviertes oder fehlerhaftes Gateway hinterlässt einen sichtbar fehlgeschlagenen Auftrag statt einer Löschbestätigung; wiederholen Sie ihn nach Wiederherstellung des Gateways. Ein fehlgeschlagener Abruf des Anmeldestatus zeigt einen Fehler und eine Schaltfläche zum Wiederholen.
 
 Wähle den Vault-Schlüssel und bestätige das Ziel, bevor du Modelle lädst. Ein eigener Katalog verwendet nur diesen Schlüssel und Endpoint. Eine nicht verfügbare Liste lässt die manuelle Modelleingabe zu, statt den allgemeinen API-Katalog einzusetzen. Die Budgetschätzungen von AgenticOS messen nicht dein verbleibendes Abonnementkontingent.
 

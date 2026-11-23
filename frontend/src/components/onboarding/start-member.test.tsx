@@ -1,7 +1,7 @@
-vi.mock("@/hooks/use-report-start-step", () => ({ useReportStartStep: () => undefined }));
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
+vi.mock("@/hooks/use-report-start-step", () => ({ useReportStartStep: () => undefined }));
 import type { Onboarding } from "@/lib/onboarding-api";
 import { StartMember } from "./start-member";
 

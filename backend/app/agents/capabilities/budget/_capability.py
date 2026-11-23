@@ -126,6 +126,28 @@ class BudgetExceeded(Exception):
         )
 
 
+UNMETERED_PROVIDERS = frozenset(
+    {
+        "github_copilot",
+        "github-copilot",
+        "openai_chatgpt",
+        "openai-chatgpt",
+        "native-codex",
+        "native-claude_code",
+        "native-external",
+        "kimi_code",
+        "alibaba_coding_plan",
+        "opencode_go",
+        "ollama_cloud",
+        "cliproxyapi",
+        "subscription_accounts",
+        "nous_portal",
+        "chutes",
+        "synthetic",
+    }
+)
+
+
 def price_request(
     usage: RequestUsage | RunUsage, model_name: str, provider: str | None
 ) -> Decimal | None:
@@ -167,24 +189,7 @@ def price_request(
             back to another provider reports a model this hint does not match,
             so resolution is retried without it rather than mispricing.
     """
-    if provider in {
-        "github_copilot",
-        "github-copilot",
-        "openai_chatgpt",
-        "openai-chatgpt",
-        "native-codex",
-        "native-claude_code",
-        "native-external",
-        "kimi_code",
-        "alibaba_coding_plan",
-        "opencode_go",
-        "ollama_cloud",
-        "cliproxyapi",
-        "subscription_accounts",
-        "nous_portal",
-        "chutes",
-        "synthetic",
-    }:
+    if provider in UNMETERED_PROVIDERS:
         # Subscription allowances have no verified per-token USD contract.
         return None
     if (reported := _provider_reported_cost(usage)) is not None:
@@ -1063,11 +1068,11 @@ class BudgetGuard(AbstractCapability[Any]):
         usage = getattr(response, "usage", None)
         if usage is not None:
             provider = self.provider
-            if provider in {"github_copilot", "github-copilot"} and response.provider_name not in {
-                None,
-                "github_copilot",
-                "github-copilot",
-            }:
+            if (
+                provider in UNMETERED_PROVIDERS
+                and response.provider_name is not None
+                and response.provider_name not in UNMETERED_PROVIDERS
+            ):
                 # An explicitly configured fallback may have billed a metered API.
                 provider = response.provider_name
             self.ledger.record(model_name, usage, provider)

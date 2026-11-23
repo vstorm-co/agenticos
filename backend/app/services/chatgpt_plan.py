@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients.redis import RedisClient
 from app.core.config import settings
-from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import OpenAIChatGPTSecret, SecretKind, seal_secret, unseal_kind
 from app.core.vault import VaultScope
@@ -399,6 +399,10 @@ async def account_models(db: AsyncSession, ctx: AuthContext, secret_id: UUID) ->
     row = await OrganizationSecretService(db).get_usable(
         ctx, secret_id, kind=SecretKind.OPENAI_CHATGPT
     )
+    if ctx.user_id is None or row.owner_user_id != ctx.user_id:
+        raise AuthorizationError(
+            message="Only the grant owner may list this ChatGPT account's models"
+        )
     source = VaultChatGPTCredentials(
         organization_id=ctx.organization_id,
         secret_id=row.id,

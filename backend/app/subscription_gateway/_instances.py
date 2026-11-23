@@ -24,6 +24,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import anyio
 import httpx
 import yaml
 
@@ -156,13 +157,19 @@ class Supervisor:
         client, management = self._keys(folder)
         port = _free_port()
         process = await self.spawn(self.binary, self._configure(folder, port, client, management))
-        deadline = self.clock() + self.start_timeout
-        while process.returncode is None and self.clock() < deadline:
-            if await self.probe(port, client):
-                return Instance(scope, port, client, management, process, self.clock())
-            await asyncio.sleep(0.2)
-        await _terminate(process)
-        raise GatewayError("The account gateway did not start. Try again shortly.", status=503)
+        admitted = False
+        try:
+            deadline = self.clock() + self.start_timeout
+            while process.returncode is None and self.clock() < deadline:
+                if await self.probe(port, client):
+                    admitted = True
+                    return Instance(scope, port, client, management, process, self.clock())
+                await asyncio.sleep(0.2)
+            raise GatewayError("The account gateway did not start. Try again shortly.", status=503)
+        finally:
+            if not admitted:
+                with anyio.CancelScope(shield=True):
+                    await _terminate(process)
 
     async def _make_room(self) -> None:
         """Stop the least recently used idle process when the ceiling is reached."""
@@ -209,7 +216,18 @@ class Supervisor:
         folder = self.directory(scope)
         async with self._locks.setdefault(scope, asyncio.Lock()):
             await self.stop(scope)
-            shutil.rmtree(folder, ignore_errors=True)
+            try:
+                shutil.rmtree(folder)
+            except FileNotFoundError:
+                if folder.exists():
+                    raise GatewayError(
+                        "Account credential deletion is incomplete; retry shortly", status=503
+                    ) from None
+            except OSError:
+                logger.exception("Account credential deletion failed")
+                raise GatewayError(
+                    "Account credential deletion failed; retry shortly", status=503
+                ) from None
 
     async def reap(self) -> None:
         """Stop processes nobody has used for `idle_seconds`; their sign-ins stay on disk."""

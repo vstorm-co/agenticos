@@ -303,3 +303,33 @@ it("does not request a callback URL for a device flow without a separate code", 
   expect(within(dialog).queryByLabelText("Address your browser ended on")).not.toBeInTheDocument();
   expect(within(dialog).queryByRole("button", { name: "Finish" })).not.toBeInTheDocument();
 });
+
+it("shows a failed device status read and resumes sign-in after an explicit retry", async () => {
+  vi.mocked(apiClient.post).mockResolvedValue({
+    url: "https://auth.example/device",
+    state: "st-1",
+    flow: "device",
+    user_code: "ABCD-1234",
+    expires_in: 600,
+  });
+  const original = vi.mocked(apiClient.get).getMockImplementation()!;
+  let failed = true;
+  vi.mocked(apiClient.get).mockImplementation(async (...args) => {
+    if (args[0].startsWith("/subscription-accounts/sign-ins/") && failed)
+      throw new Error("Status temporarily unavailable");
+    return original(...args);
+  });
+  mount();
+  const kimi = await rowOf("Kimi Code (kimi.com)");
+  await userEvent.click(kimi.getByRole("button", { name: "Connect" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    "Status temporarily unavailable",
+  );
+  expect(within(dialog).queryByText("Waiting for sign-in…")).toBeNull();
+  failed = false;
+  signInStatus = "ok";
+  await userEvent.click(within(dialog).getByRole("button", { name: "Retry" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(toast.success).toHaveBeenCalledWith("Kimi Code (kimi.com) is connected");
+});

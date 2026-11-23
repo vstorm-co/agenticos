@@ -390,7 +390,12 @@ export function useExternalAgents() {
     enabled: isDesktopShell(shell),
     refetchOnWindowFocus: false,
   });
-  const refresh = () => client.invalidateQueries({ queryKey: qk.desktop.externalAgents() });
+  const refresh = async () => {
+    await Promise.all([
+      client.invalidateQueries({ queryKey: qk.desktop.externalAgents() }),
+      client.invalidateQueries({ queryKey: qk.desktop.externalOptions(null).slice(0, -1) }),
+    ]);
+  };
   const save = useMutation({ mutationFn: saveExternalAgent, onSuccess: refresh });
   const remove = useMutation({ mutationFn: removeExternalAgent, onSuccess: refresh });
   return { state, save, remove };

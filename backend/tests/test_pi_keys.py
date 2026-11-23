@@ -120,6 +120,7 @@ async def test_vault_visibility_and_live_membership_are_checked_before_native_ex
         "missing_org",
         "audience",
         "room",
+        "shared_transcript",
         "other_computer",
         "user_id",
         "no_workspace",
@@ -143,6 +144,8 @@ async def test_native_export_requires_the_initiating_members_own_private_compute
         context.deps.audience = None
     elif change == "room":
         context.deps.audience = RunAudience(user_id=person, room_key="room:shared")
+    elif change == "shared_transcript":
+        context.deps.audience = RunAudience(user_id=person, shared_transcript=True)
     elif change == "other_computer":
         context.deps.run_person = uuid4()
     elif change == "user_id":

@@ -332,8 +332,23 @@ async def test_a_malformed_device_reply_cannot_be_treated_as_pending_or_connecte
         ("anthropic", "anthropic"),
     ],
 )
+@pytest.mark.parametrize(
+    "provider",
+    [
+        "github_copilot",
+        "kimi_code",
+        "alibaba_coding_plan",
+        "opencode_go",
+        "ollama_cloud",
+        "cliproxyapi",
+        "subscription_accounts",
+        "nous_portal",
+        "chutes",
+        "synthetic",
+    ],
+)
 async def test_explicit_metered_fallback_is_priced_under_its_own_provider(
-    reported: str | None, expected: str
+    reported: str | None, expected: str, provider: str
 ) -> None:
     from decimal import Decimal
 
@@ -342,7 +357,8 @@ async def test_explicit_metered_fallback_is_priced_under_its_own_provider(
 
     from app.agents.capabilities.budget import _capability as budget
 
-    guard = budget.BudgetGuard(provider="github_copilot")
+    guard = budget.BudgetGuard(provider=provider)
+    expected = provider if reported in {None, "github_copilot", "github-copilot"} else expected
     response = ModelResponse(
         parts=[TextPart("done")],
         model_name="billed-model",

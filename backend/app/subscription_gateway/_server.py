@@ -14,11 +14,12 @@ import secrets
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
+import anyio
 import httpx
 from fastapi import Depends, FastAPI, Header, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field, JsonValue
-from starlette.background import BackgroundTask
+from starlette.types import Receive, Scope, Send
 
 from app.subscription_gateway._account_data import account_prefix, account_usage
 
@@ -131,6 +132,29 @@ def _model_ids(listed: JsonValue) -> list[str]:
     return ids
 
 
+class _ForwardedResponse(StreamingResponse):
+    """Own the upstream lease even when streaming or ASGI delivery fails."""
+
+    def __init__(self, upstream: httpx.Response, held: contextlib.AsyncExitStack) -> None:
+        self.held = held
+        super().__init__(
+            upstream.aiter_raw(),
+            status_code=upstream.status_code,
+            headers={
+                key: value
+                for key, value in upstream.headers.items()
+                if key.lower() not in _HOP | {"content-length"}
+            },
+        )
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            with anyio.CancelScope(shield=True):
+                await self.held.aclose()
+
+
 def create_app(supervisor: Supervisor, token: str, *, reap_seconds: float = 60) -> FastAPI:
     async def authorized(authorization: Annotated[str, Header()] = "") -> None:
         expected = f"Bearer {token}"
@@ -169,11 +193,11 @@ def create_app(supervisor: Supervisor, token: str, *, reap_seconds: float = 60) 
         # Held until the response body has been streamed, so an idle reaper
         # cannot stop a process in the middle of an answer.
         held = contextlib.AsyncExitStack()
-        instance = await held.enter_async_context(supervisor.use(scope))
-        client = await held.enter_async_context(
-            httpx.AsyncClient(timeout=httpx.Timeout(600, connect=10))
-        )
         try:
+            instance = await held.enter_async_context(supervisor.use(scope))
+            client = await held.enter_async_context(
+                httpx.AsyncClient(timeout=httpx.Timeout(600, connect=10))
+            )
             upstream = await client.send(
                 client.build_request(
                     request.method,
@@ -191,20 +215,15 @@ def create_app(supervisor: Supervisor, token: str, *, reap_seconds: float = 60) 
                 ),
                 stream=True,
             )
-        except httpx.HTTPError:
-            await held.aclose()
-            raise GatewayError("The account gateway is unavailable", status=502) from None
-        held.push_async_callback(upstream.aclose)
-        return StreamingResponse(
-            upstream.aiter_raw(),
-            status_code=upstream.status_code,
-            headers={
-                key: value
-                for key, value in upstream.headers.items()
-                if key.lower() not in _HOP | {"content-length"}
-            },
-            background=BackgroundTask(held.aclose),
-        )
+            held.push_async_callback(upstream.aclose)
+            response = _ForwardedResponse(upstream, held)
+        except BaseException as failed:
+            with anyio.CancelScope(shield=True):
+                await held.aclose()
+            if isinstance(failed, httpx.HTTPError):
+                raise GatewayError("The account gateway is unavailable", status=502) from None
+            raise
+        return response
 
     @app.post("/scopes/{scope}/logins", dependencies=guarded)
     async def start_login(scope: str, body: LoginStart) -> JsonValue:

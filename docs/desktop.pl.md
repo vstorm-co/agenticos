@@ -1,5 +1,5 @@
 ---
-source_sha: "594c58e1d30b"
+source_sha: "e2a19cf6c8da"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -807,6 +807,8 @@ modeli firm trzecich do wskazanych klientów; AgenticOS przedstawia się jako
 AgenticOS i nie obiecuje dostępu poza katalogiem, który sam ogłasza.
 
 ### Zarejestrowani agenci jako środowisko rozmowy { #external-runtime }
+
+Antigravity z kluczem Gemini z Vault korzysta z opcjonalnego pola identyfikatora modelu zamiast odpytywać katalog kluczem odziedziczonym przez Desktop. Puste pole zachowuje wybór CLI; podany identyfikator jest sprawdzany w działającej sesji przed wysłaniem promptu.
 
 Każdy agent zarejestrowany w **Zewnętrznych agentach ACP** może też sam odpowiadać
 w rozmowie zamiast profilu modelu agenta, na [tych samych zasadach](#codex-conversation)

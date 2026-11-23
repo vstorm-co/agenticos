@@ -3,6 +3,7 @@
 import json
 import uuid
 from collections.abc import AsyncGenerator, Callable
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -67,6 +68,16 @@ def ctx(**overrides: object) -> AuthContext:
 
 def gateway(handler: Callable[[httpx.Request], httpx.Response]) -> SubscriptionGateway:
     return SubscriptionGateway(URL + "/", TOKEN, transport=httpx.MockTransport(handler))
+
+
+MEMBERSHIP_ID = uuid.UUID("00000000-0000-0000-0000-000000000031")
+
+
+@pytest.fixture(autouse=True)
+def membership(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        module.member_repo, "get", AsyncMock(return_value=SimpleNamespace(id=MEMBERSHIP_ID))
+    )
 
 
 @pytest.fixture
@@ -205,7 +216,7 @@ def test_the_gateway_url_needs_a_long_token() -> None:
 
 async def test_the_service_acts_on_the_callers_own_scope_only(enabled: None) -> None:
     caller = ctx()
-    scope = gateway_scope(caller.organization_id, caller.user_id)
+    scope = gateway_scope(caller.organization_id, caller.user_id, MEMBERSHIP_ID)
     fake = AsyncMock(spec=SubscriptionGateway)
     fake.accounts.return_value = []
     fake.models.return_value = ["m"]
@@ -285,14 +296,17 @@ async def test_leaving_queues_a_durable_wipe_of_that_persons_scope(enabled: None
     enqueue.assert_awaited_once()
     task, payload = enqueue.await_args.args[1:]
     assert task is WIPE_SUBSCRIPTION_ACCOUNTS
-    assert payload == WipeSubscriptionAccounts(scopes=[gateway_scope(org, person)])
+    assert payload == WipeSubscriptionAccounts(
+        scopes=sorted([gateway_scope(org, person), gateway_scope(org, person, MEMBERSHIP_ID)])
+    )
 
 
-async def test_no_gateway_queues_nothing(disabled: None) -> None:
+async def test_disabled_gateway_preserves_the_deletion_obligation(disabled: None) -> None:
     with patch.object(module, "enqueue", AsyncMock()) as enqueue:
         await queue_wipe(MagicMock(), uuid.uuid4(), [uuid.uuid4()])
-    enqueue.assert_not_awaited()
-    await wipe_scopes(WipeSubscriptionAccounts(scopes=["a" * 64]))
+    enqueue.assert_awaited_once()
+    with pytest.raises(ConfigurationError):
+        await wipe_scopes(WipeSubscriptionAccounts(scopes=["a" * 64]))
 
 
 async def test_the_wipe_job_wipes_every_scope(enabled: None) -> None:
@@ -399,7 +413,9 @@ async def test_a_run_reaches_the_runners_own_scope(enabled: None) -> None:
     spec = _spec(gateway_credential(), [gateway_credential(), key])
     with patch.object(ModelProfileService, "_resolve_in", AsyncMock(return_value=spec)):
         resolved = await ModelProfileService(MagicMock()).resolve(caller)
-    endpoint = f"{URL}/scopes/{gateway_scope(caller.organization_id, caller.user_id)}/v1"
+    endpoint = (
+        f"{URL}/scopes/{gateway_scope(caller.organization_id, caller.user_id, MEMBERSHIP_ID)}/v1"
+    )
     assert resolved.credential.base_url == endpoint
     assert isinstance(resolved.credential.secret, ApiKeySecret)
     assert resolved.credential.secret.api_key.get_secret_value() == TOKEN
@@ -415,7 +431,7 @@ async def test_a_spec_without_the_gateway_is_returned_as_it_is(enabled: None) ->
     spec = _spec(key, [])
     with patch.object(ModelProfileService, "_resolve_in", AsyncMock(return_value=spec)):
         assert await ModelProfileService(MagicMock()).resolve(ctx()) is spec
-    assert bind_to_person(key, uuid.uuid4(), uuid.uuid4()) is key
+    assert await bind_to_person(MagicMock(), key, uuid.uuid4(), uuid.uuid4()) is key
 
 
 async def test_nobody_behind_a_run_reaches_nobodys_accounts(enabled: None) -> None:
@@ -532,10 +548,13 @@ async def test_deleting_an_account_wipes_it_in_every_organization(enabled: None)
     ):
         await module.queue_wipe_person(MagicMock(), person)
         await module.queue_wipe_person(MagicMock(), person)
-    enqueue.assert_awaited_once()
-    payload = enqueue.await_args.args[2]
-    assert payload.scopes == sorted([gateway_scope(first, person), gateway_scope(second, person)])
-    assert enqueue.await_args.kwargs["organization_id"] is None
+    assert enqueue.await_count == 2
+    scopes = {scope for call in enqueue.await_args_list for scope in call.args[2].scopes}
+    assert scopes == {
+        gateway_scope(org, person, generation)
+        for org in [first, second]
+        for generation in [None, MEMBERSHIP_ID]
+    }
 
 
 async def test_deleting_an_organization_wipes_every_members_accounts(enabled: None) -> None:
@@ -546,15 +565,27 @@ async def test_deleting_an_organization_wipes_every_members_accounts(enabled: No
     ):
         await module.queue_organization_wipe(MagicMock(), org)
     payload = enqueue.await_args.args[2]
-    assert payload.scopes == sorted([gateway_scope(org, first), gateway_scope(org, second)])
+    assert payload.scopes == sorted(
+        gateway_scope(org, person, generation)
+        for person in [first, second]
+        for generation in [None, MEMBERSHIP_ID]
+    )
     assert enqueue.await_args.kwargs["organization_id"] == org
 
 
-async def test_teardown_reads_no_membership_without_a_gateway(disabled: None) -> None:
-    db = MagicMock()
-    await module.queue_organization_wipe(db, uuid.uuid4())
-    await module.queue_wipe_person(db, uuid.uuid4())
-    db.execute.assert_not_called()
+async def test_disabled_gateway_still_records_organization_and_person_cleanup(
+    disabled: None,
+) -> None:
+    with (
+        patch.object(module.member_repo, "list_user_ids", AsyncMock(return_value=[uuid.uuid4()])),
+        patch.object(
+            module.member_repo, "list_organization_ids", AsyncMock(return_value=[uuid.uuid4()])
+        ),
+        patch.object(module, "enqueue", AsyncMock()) as enqueue,
+    ):
+        await module.queue_organization_wipe(MagicMock(), uuid.uuid4())
+        await module.queue_wipe_person(MagicMock(), uuid.uuid4())
+    assert enqueue.await_count == 2
 
 
 async def test_account_models_route_keeps_the_authenticated_context(
@@ -674,3 +705,46 @@ def test_other_subscription_models_keep_their_supported_strict_tools() -> None:
         "account-" + "a" * 24 + "/gpt-6-sol",
     )
     assert model.profile.get("openai_supports_strict_tool_definition", True)
+
+
+@pytest.mark.security
+async def test_delayed_or_retried_departure_wipes_cannot_delete_a_rejoined_members_accounts(
+    enabled: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    caller = ctx()
+    member = SimpleNamespace(id=uuid.uuid4())
+    monkeypatch.setattr(module.member_repo, "get", AsyncMock(return_value=member))
+    queued = AsyncMock()
+    monkeypatch.setattr(module, "enqueue", queued)
+    old_scope = await SubscriptionAccountService(MagicMock())._scope(caller)
+    await queue_wipe(MagicMock(), caller.organization_id, [caller.user_id])
+    job = queued.await_args.args[2]
+    member.id = uuid.uuid4()
+    new_scope = await SubscriptionAccountService(MagicMock())._scope(caller)
+    credentials = {old_scope: "old", new_scope: "new"}
+    gateway = AsyncMock(spec=SubscriptionGateway)
+
+    async def wipe(scope: str) -> None:
+        credentials.pop(scope, None)
+
+    gateway.wipe.side_effect = wipe
+    monkeypatch.setattr(module, "configured_gateway", lambda: gateway)
+    await wipe_scopes(job)
+    await wipe_scopes(job)
+    assert credentials == {new_scope: "new"}
+    assert old_scope != new_scope
+
+
+@pytest.mark.security
+async def test_a_departed_member_cannot_reach_subscription_accounts(
+    enabled: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(module.member_repo, "get", AsyncMock(return_value=None))
+    with pytest.raises(AuthorizationError, match="active membership"):
+        await SubscriptionAccountService(MagicMock()).accounts(ctx())
+    with patch.object(module, "enqueue", AsyncMock()) as enqueue:
+        caller = ctx()
+        await queue_wipe(MagicMock(), caller.organization_id, [caller.user_id])
+    assert enqueue.await_args.args[2].scopes == [
+        gateway_scope(caller.organization_id, caller.user_id)
+    ]

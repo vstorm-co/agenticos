@@ -1510,13 +1510,18 @@ class TestResolution:
         assert isinstance(spec.build(), FallbackModel)
 
     @pytest.mark.anyio
-    async def test_a_fallback_on_a_speech_model_is_left_out_of_the_chain(self):
+    @pytest.mark.parametrize(
+        "provider,model", [("openai", "gpt-4o-mini-tts"), ("openai_chatgpt", "gpt-account")]
+    )
+    async def test_an_unsupported_fallback_is_left_out_of_the_chain(
+        self, provider: str, model: str
+    ):
         """A provider failure must not hand the conversation to a model that
         cannot hold one (#2487). Publish refuses such a fallback; this covers one
         added to the profile afterwards. A custom endpoint is unknown, so kept."""
         ctx = _ctx()
         secret = _vault_secret(ctx)
-        speech = _profile(ctx, secret, model="gpt-4o-mini-tts")
+        speech = _profile(ctx, secret, provider=provider, model=model)
         custom = _profile(ctx, secret, model="whisper-1", base_url="http://vllm:8000/v1")
         profile = _profile(ctx, secret, fallbacks=[speech.id, custom.id])
 

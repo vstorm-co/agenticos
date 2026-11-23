@@ -1,5 +1,5 @@
 ---
-source_sha: "594c58e1d30b"
+source_sha: "e2a19cf6c8da"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -838,6 +838,8 @@ AgenticOS se identifica como AgenticOS y no promete acceso más allá de su prop
 catálogo anunciado.
 
 ### Agentes registrados como entorno de conversación { #external-runtime }
+
+Antigravity con una clave Gemini de Vault usa el campo opcional de ID de modelo nativo, en lugar de consultar el catálogo con la clave heredada por Desktop. Déjelo vacío para conservar la selección de la CLI; un ID explícito se comprueba en la sesión activa antes de enviar el prompt.
 
 Cualquier agente registrado en **External ACP agents** también puede responder la
 conversación, en lugar del perfil de modelo del agente, con el [mismo

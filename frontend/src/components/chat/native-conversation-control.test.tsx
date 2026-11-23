@@ -275,7 +275,7 @@ describe("native primary conversation choice", () => {
         claudeEnabled
         codexEnabled
         externalEnabled
-        registrations={[{ ...agy("agy", "Antigravity"), provider: "antigravity_api_key" }]}
+        registrations={[agy("agy", "Antigravity")]}
         target={{
           ...base,
           conversation_runtime: {
@@ -289,7 +289,6 @@ describe("native primary conversation choice", () => {
       />,
     );
     expect(screen.getByRole("alert")).toHaveTextContent(/Google personal login/);
-    expect(screen.queryByText(/uses your Google personal sign-in/)).toBeNull();
     expect(screen.getByRole("combobox", { name: "Model" })).toBeDisabled();
     expect(screen.queryByRole("combobox", { name: "Agent" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Read models again" }));
@@ -433,6 +432,8 @@ describe("native primary conversation choice", () => {
 
   it("falls back to Desktop's key when the vault cannot be listed", () => {
     vault.current = { secrets: [], listError: new Error("403") };
+    const changed = vi.fn();
+    options.requested.length = 0;
     render(
       <NativeConversationControl
         claudeEnabled
@@ -448,9 +449,14 @@ describe("native primary conversation choice", () => {
             registration_id: "agy-key",
           },
         }}
-        onChange={vi.fn()}
+        onChange={changed}
       />,
     );
     expect(screen.getByText(/key inherited by Desktop is used/)).toBeVisible();
+    expect(options.requested).toEqual([]);
+    fireEvent.change(screen.getByRole("textbox", { name: "Native model ID (optional)" }), {
+      target: { value: "gemini-pro" },
+    });
+    expect(changed.mock.lastCall?.[0].conversation_runtime?.model_id).toBe("gemini-pro");
   });
 });

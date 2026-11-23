@@ -842,9 +842,9 @@ class ModelProfileService:
         # person `_may_spend` just admitted.
         return replace(
             spec,
-            credential=bind_to_person(spec.credential, ctx.organization_id, person),
+            credential=await bind_to_person(self.db, spec.credential, ctx.organization_id, person),
             fallbacks=[
-                (bind_to_person(credential, ctx.organization_id, person), model)
+                (await bind_to_person(self.db, credential, ctx.organization_id, person), model)
                 for credential, model in usable
             ],
         )
@@ -965,7 +965,8 @@ class ModelProfileService:
                     )
                     continue
                 if (
-                    is_decision_api(fallback.provider, fallback.api)
+                    fallback.provider == "openai_chatgpt"
+                    or is_decision_api(fallback.provider, fallback.api)
                     or not model_outputs(
                         fallback.provider, fallback.model, base_url=fallback.base_url
                     ).chat
@@ -974,7 +975,7 @@ class ModelProfileService:
                     # (#2487): publish refuses one, and a fallback added to the
                     # profile afterwards degrades the chain the same way.
                     logger.warning(
-                        "Model profile %s lists fallback %s, which is not a chat model; skipping",
+                        "Model profile %s lists fallback %s, which cannot be an automatic chat fallback; skipping",
                         profile.id,
                         fallback.id,
                     )

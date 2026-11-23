@@ -117,6 +117,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Protect native Vault keys in forwarded tool calls and shared transcripts, price metered subscription fallbacks under the responding provider, and restrict official ChatGPT model catalogs to their grant owner.
+- Release gateway streams and startup processes on failure or cancellation, report credential deletion failures, and isolate rejoined memberships from delayed account cleanup. Cleanup remains recorded while the gateway is disabled.
+- Show sign-in polling failures with a retry action, refresh external-agent catalogs after registration changes, support legacy ACP model selection, and allow Antigravity model IDs without probing Desktop's environment key.
+
 - Toggle chat source and browser side panels closed from the same entry point; switching answers or browser sessions keeps the requested panel open.
 
 - Keep avatar colour selection and keyboard-focus rings fully visible inside expanded profile settings and other clipped panels.

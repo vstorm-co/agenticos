@@ -243,6 +243,7 @@ export function SubscriptionSignInDialog({
   const status = useSubscriptionSignInStatus(actions.scope, started?.state ?? null);
   const finished = status.data?.status === "ok";
   const refused = status.data?.status === "error";
+  const pollFailed = status.isError;
   const name = t(`providers.${provider}`);
 
   // Start once, when the dialog opens; the effect's own flag survives a re-render.
@@ -341,9 +342,29 @@ export function SubscriptionSignInDialog({
                 </FormField>
               </div>
             )}
-            <p className={refused ? "text-destructive text-xs" : "text-muted-foreground text-xs"}>
-              {refused ? (status.data?.error ?? t("refused")) : t("waiting")}
+            <p
+              className={
+                refused || pollFailed ? "text-destructive text-xs" : "text-muted-foreground text-xs"
+              }
+              role={pollFailed ? "alert" : undefined}
+            >
+              {pollFailed
+                ? getErrorMessage(status.error, errors)
+                : refused
+                  ? (status.data?.error ?? t("refused"))
+                  : t("waiting")}
             </p>
+            {pollFailed && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={status.isFetching}
+                onClick={() => void status.refetch()}
+              >
+                {common("retry")}
+              </Button>
+            )}
           </form>
         )}
 

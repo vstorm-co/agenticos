@@ -818,6 +818,7 @@ async def _configure_session(
     effort: str | None,
 ) -> Mapping[str, object]:
     """Apply choices and return the runtime's acknowledged session settings."""
+    state: dict[str, object] = {}
     options = (opened or {}).get("configOptions")
     for category, value in (("model", model), ("thought_level", effort)):
         if value is None:
@@ -835,6 +836,19 @@ async def _configure_session(
             else None
         )
         identifier = option.get("id") if option is not None else None
+        if category == "model" and option is None:
+            legacy = (opened or {}).get("models")
+            advertised = legacy.get("availableModels") if isinstance(legacy, dict) else None
+            if isinstance(legacy, dict) and isinstance(advertised, list):
+                if not any(
+                    isinstance(item, dict) and item.get("modelId") == value for item in advertised
+                ):
+                    raise AcpError("This coding agent does not advertise the selected model")
+                await conversation.request(
+                    "session/set_model", {"sessionId": session_id, "modelId": value}
+                )
+                state["models"] = {**legacy, "currentModelId": value}
+                continue
         if not isinstance(identifier, str) or not identifier:
             label = "model" if category == "model" else "reasoning level"
             raise AcpError(
@@ -845,7 +859,7 @@ async def _configure_session(
             {"sessionId": session_id, "configId": identifier, "value": value},
         )
         options = (configured or {}).get("configOptions", options)
-    return {"configOptions": options}
+    return {**state, "configOptions": options}
 
 
 def current_session_model(opened: Mapping[str, object] | None) -> str | None:

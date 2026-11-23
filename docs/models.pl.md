@@ -1,5 +1,5 @@
 ---
-source_sha: "b2d7c8981e4a"
+source_sha: "700e1da74653"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -427,6 +427,8 @@ Klucz planu nie jest zamienny z kluczem zwykłego API rozliczanego według użyc
 | Synthetic | `https://api.synthetic.new/openai/v1` |
 
 **Własna brama CLIProxyAPI.** Konta, do których dostawcy nie wydają klucza planu (Antigravity, Grok Build, Devin, Muse Code, logowanie Kimi Code i inne), można używać przez bramę [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) uruchomioną przez Ciebie lub operatora poza stosem. [Konta subskrypcyjne](#subscription-accounts) to ten sam pomysł wbudowany w platformę, z kontami każdej osoby trzymanymi osobno. Zaloguj konta w bramie jej własnymi poleceniami logowania, dodaj klucz klienta w `access.api-keys`, a potem utwórz profil **CLIProxyAPI (subscription gateway)** z jej Endpointem (na przykład `http://cliproxyapi:8317/v1` dla kontenera bramy w sieci wdrożenia) i tym kluczem klienta. Każde konto trzymane przez bramę jest dostępne dla każdego, kto może użyć profilu, więc dla konta osobistego uruchom osobistą bramę. Dodaj host bramy do `OUTBOUND_PRIVATE_ALLOWLIST`; adresy pętli zwrotnej nigdy nie są osiągalne z serwera. Dostawcy mogą ograniczyć lub zawiesić konta używane w ten sposób; to ryzyko ponosi właściciel konta.
+
+Scope obejmuje także identyfikator członkostwa: ponowne dołączenie tworzy nowy scope, więc stare zadanie sprzątania nie usunie nowo połączonych kont. Usunięcie danych logowania trafia do kolejki również przy wyłączonym gatewayu. Wyłączony lub niesprawny gateway pozostawia widoczne nieudane zadanie zamiast potwierdzenia usunięcia; po przywróceniu gatewaya ponów zadanie. Błąd odczytu statusu logowania pokazuje komunikat i przycisk ponowienia.
 
 Przed wczytaniem modeli wybierz klucz z sejfu i potwierdź adres docelowy. Własny katalog korzysta tylko z tego klucza i endpointu; brak listy pozwala wpisać model ręcznie, bez zastępowania jej katalogiem zwykłego API. Szacunki budżetu AgenticOS nie określają pozostałego limitu subskrypcji.
 

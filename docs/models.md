@@ -461,6 +461,12 @@ background job deletes their sign-ins; deleting an organization deletes every
 member's. Signing in to the same account in two organizations means signing in
 twice.
 
+Scopes also include the membership ID: rejoining creates a new scope, so
+an old cleanup job cannot delete newly connected accounts. Credential deletion is
+queued even while the gateway is disabled; a disabled or failing gateway leaves a
+visible failed job rather than confirming deletion. Retry that job after restoring
+the gateway. A failed sign-in status read shows an error and a Retry control.
+
 Vendors may limit how a subscription is used outside their own apps and can
 suspend an account for it. The console states this risk, and the account owner
 accepts it. Cursor and Qwen Code have no sign-in the gateway supports, so they

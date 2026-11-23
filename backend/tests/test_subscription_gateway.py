@@ -75,14 +75,14 @@ def supervisor(tmp_path: Path) -> Supervisor:
 
 async def test_every_route_needs_the_shared_token(supervisor: Supervisor) -> None:
     async with gateway(supervisor) as client:
-        assert (await client.get("/health")).json() == {"status": "ok"}
+        reply = await client.get("/health")
+        assert reply.json() == {"status": "ok"}
         refused = await client.get(
             f"/scopes/{ALICE}/accounts", headers={"Authorization": "Bearer nope"}
         )
         assert refused.status_code == 401
-        assert (
-            await client.get(f"/scopes/{ALICE}/accounts", headers={"Authorization": ""})
-        ).status_code == 401
+        reply = await client.get(f"/scopes/{ALICE}/accounts", headers={"Authorization": ""})
+        assert reply.status_code == 401
     assert not supervisor.root.exists()
 
 
@@ -144,16 +144,17 @@ async def test_sign_in_answers_carry_only_what_the_console_needs(supervisor: Sup
             "flow": "device",
             "user_code": "CODE-1",
         }
-        assert (await client.get(f"/scopes/{ALICE}/logins/state-1")).json() == {"status": "ok"}
-        assert (await client.get(f"/scopes/{ALICE}/logins/other")).json() == {"status": "wait"}
+        reply = await client.get(f"/scopes/{ALICE}/logins/state-1")
+        assert reply.json() == {"status": "ok"}
+        reply = await client.get(f"/scopes/{ALICE}/logins/other")
+        assert reply.json() == {"status": "wait"}
         callback = await client.post(
             f"/scopes/{ALICE}/logins/state-1/callback",
             json={"redirect_url": "http://localhost/cb?code=1"},
         )
         assert callback.json() == {"accepted": True}
-        assert (await client.delete(f"/scopes/{ALICE}/logins/state-1")).json() == {
-            "cancelled": True
-        }
+        reply = await client.delete(f"/scopes/{ALICE}/logins/state-1")
+        assert reply.json() == {"cancelled": True}
 
         accounts = (await client.get(f"/scopes/{ALICE}/accounts")).json()
         assert accounts == {
@@ -186,26 +187,33 @@ async def test_refusals_stay_generic(supervisor: Supervisor) -> None:
             malformed = await client.post(f"/scopes/{ALICE}/logins", json={"provider": "xai"})
             assert malformed.status_code == 502
 
-        assert (await client.get(f"/scopes/{ALICE}/logins/odd")).status_code == 502
+        reply = await client.get(f"/scopes/{ALICE}/logins/odd")
+        assert reply.status_code == 502
         rejected = await client.post(
             f"/scopes/{ALICE}/logins/wrong/callback", json={"redirect_url": "http://localhost/cb"}
         )
         assert rejected.status_code == 400
-        assert (await client.get(f"/scopes/{ALICE}/logins/bad%20state")).status_code == 400
-        assert (await client.delete(f"/scopes/{ALICE}/accounts/..%2Fkeys")).status_code in {
+        reply = await client.get(f"/scopes/{ALICE}/logins/bad%20state")
+        assert reply.status_code == 400
+        reply = await client.delete(f"/scopes/{ALICE}/accounts/..%2Fkeys")
+        assert reply.status_code in {
             400,
             404,
         }
-        assert (await client.delete(f"/scopes/{ALICE}/accounts/a%20b")).status_code == 400
-        assert (await client.get("/scopes/not-a-scope/accounts")).status_code == 404
-        assert (await client.get("/scopes/../v1/models")).status_code == 404
+        reply = await client.delete(f"/scopes/{ALICE}/accounts/a%20b")
+        assert reply.status_code == 400
+        reply = await client.get("/scopes/not-a-scope/accounts")
+        assert reply.status_code == 404
+        reply = await client.get("/scopes/../v1/models")
+        assert reply.status_code == 404
 
 
 async def test_wipe_forgets_the_scope_for_good(supervisor: Supervisor) -> None:
     async with gateway(supervisor) as client:
         await client.get(f"/scopes/{ALICE}/v1/models")
         first_key = supervisor._running[ALICE].client_key
-        assert (await client.delete(f"/scopes/{ALICE}")).json() == {"wiped": True}
+        reply = await client.delete(f"/scopes/{ALICE}")
+        assert reply.json() == {"wiped": True}
         assert ALICE not in supervisor._running
         assert not (supervisor.root / ALICE).exists()
         await client.get(f"/scopes/{ALICE}/v1/models")
@@ -370,8 +378,10 @@ async def test_a_chosen_account_gets_a_scope_bound_model_route(supervisor: Super
         expected = account_prefix(ALICE, "antigravity-me.json") + "/claude-via-google"
         assert alice.json() == {"model": expected}
         assert bob.json() != alice.json()
-        assert (await select(ALICE)).json() == alice.json()
-        assert (await select(ALICE, "unlisted")).status_code == 400
+        reply = await select(ALICE)
+        assert reply.json() == alice.json()
+        reply = await select(ALICE, "unlisted")
+        assert reply.status_code == 400
         streamed = await client.post(
             f"/scopes/{ALICE}/v1/chat/completions", json={"model": expected}
         )
@@ -407,11 +417,14 @@ async def test_account_selection_refuses_unusable_or_unregistered_routes(
                 f"/scopes/{ALICE}/accounts/account.json/model-selection", json={"model": "known"}
             )
 
-        assert (await select()).status_code == 409
+        reply = await select()
+        assert reply.status_code == 409
         mode = "malformed"
-        assert (await select()).status_code == 502
+        reply = await select()
+        assert reply.status_code == 502
         mode = "not-registered"
-        assert (await select()).status_code == 503
+        reply = await select()
+        assert reply.status_code == 503
     with pytest.raises(GatewayError):
         _server._public_account(ALICE, {"name": None})
     assert _server._model_ids({"models": [None, {"id": 1}, {"id": "ok"}]}) == ["ok"]
@@ -441,40 +454,44 @@ async def test_account_quota_route_uses_only_the_named_scope(
     monkeypatch.setattr(_server, "claude_usage", quota)
     monkeypatch.setattr(_server, "kimi_usage", quota)
     async with gateway(supervisor) as client:
-        assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).status_code == 200
+        reply = await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")
+        assert reply.status_code == 200
         assert quota.await_args.args[0].scope == ALICE
         assert quota.await_args.args[1] == "mine"
         row.pop("auth_index")
-        assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).status_code == 409
+        reply = await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")
+        assert reply.status_code == 409
         row["provider"] = "codex"
         row["auth_index"] = "mine"
         row["id_token"] = {"chatgpt_account_id": "account"}
-        assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).status_code == 200
+        reply = await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")
+        assert reply.status_code == 200
         assert quota.await_args.args[2] == "account"
         row["id_token"] = None
-        assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).json()[
-            "status"
-        ] == "unavailable"
+        reply = await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")
+        assert reply.json()["status"] == "unavailable"
         row["provider"] = "claude"
         calls = quota.await_count
-        assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).json()[
-            "status"
-        ] == "unavailable"
+        reply = await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")
+        assert reply.json()["status"] == "unavailable"
         assert quota.await_count == calls + 1
         row.pop("auth_index")
-        assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).status_code == 409
+        reply = await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")
+        assert reply.status_code == 409
         row["auth_index"] = "mine"
         for provider in ("kimi", "kimi-ai"):
             row["provider"] = provider
-            assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).status_code == 200
+            reply = await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")
+            assert reply.status_code == 200
             assert quota.await_args.kwargs == {"international": provider == "kimi-ai"}
         row.pop("auth_index")
-        assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).status_code == 409
+        reply = await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")
+        assert reply.status_code == 409
         row["provider"] = "meta"
-        assert (await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")).json()[
-            "status"
-        ] == "unavailable"
-        assert (await client.get(f"/scopes/{ALICE}/accounts/missing.json/usage")).status_code == 404
+        reply = await client.get(f"/scopes/{ALICE}/accounts/a.json/usage")
+        assert reply.json()["status"] == "unavailable"
+        reply = await client.get(f"/scopes/{ALICE}/accounts/missing.json/usage")
+        assert reply.status_code == 404
 
 
 @pytest.mark.parametrize("provider", sorted(_server.PROVIDERS))
@@ -526,3 +543,121 @@ async def test_management_transport_failures_are_controlled_and_private(
         await _server._management(instance, "GET", "/oauth/status")
     assert error.value.status == (504 if timeout else 502)
     assert "private-token" not in str(error.value)
+
+
+@pytest.mark.parametrize("failure", ["cancel", "probe"])
+async def test_startup_failure_reaps_the_untracked_child(tmp_path: Path, failure: str) -> None:
+    entered = asyncio.Event()
+    child: asyncio.subprocess.Process | None = None
+
+    async def spawn(binary: str, config: Path) -> asyncio.subprocess.Process:
+        nonlocal child
+        child = await sleeper(binary, config)
+        return child
+
+    async def probe(_port: int, _key: str) -> bool:
+        entered.set()
+        if failure == "probe":
+            raise RuntimeError("probe failed")
+        await asyncio.Event().wait()
+        return False
+
+    supervisor = Supervisor(root=tmp_path, binary="unused", spawn=spawn, probe=probe)
+
+    async def use() -> None:
+        async with supervisor.use(ALICE):
+            pytest.fail("A failed startup must not be admitted")
+
+    task = asyncio.create_task(use())
+    await entered.wait()
+    if failure == "cancel":
+        task.cancel()
+    with pytest.raises(asyncio.CancelledError if failure == "cancel" else RuntimeError):
+        await task
+    await supervisor.close()
+    assert child is not None and child.returncode is not None
+    assert supervisor._running == {}
+
+
+@pytest.mark.parametrize("send_fails", [False, True])
+async def test_forwarded_response_releases_its_lease_on_stream_or_send_failure(
+    tmp_path: Path, send_fails: bool
+) -> None:
+    import contextlib
+
+    from starlette.types import Message
+
+    class BrokenStream(httpx.AsyncByteStream):
+        closed = False
+
+        async def __aiter__(self) -> AsyncGenerator[bytes]:
+            yield b"first"
+            raise httpx.ReadError("upstream broke")
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+    supervisor = Supervisor(root=tmp_path, binary="unused", spawn=sleeper, probe=always)
+    held = contextlib.AsyncExitStack()
+    instance = await held.enter_async_context(supervisor.use(ALICE))
+    stream = BrokenStream()
+    upstream = httpx.Response(200, stream=stream)
+    held.push_async_callback(upstream.aclose)
+    response = _server._ForwardedResponse(upstream, held)
+
+    async def send(_message: Message) -> None:
+        if send_fails:
+            raise RuntimeError("downstream broke")
+
+    async def receive() -> Message:
+        await asyncio.Event().wait()
+        return {"type": "http.disconnect"}
+
+    try:
+        with pytest.raises(RuntimeError if send_fails else httpx.ReadError):
+            await response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send)
+        assert instance.active == 0 and stream.closed
+    finally:
+        await held.aclose()
+        await supervisor.close()
+
+
+@pytest.mark.parametrize("error", [PermissionError, FileNotFoundError])
+async def test_wipe_reports_filesystem_failure_and_only_ignores_absence(
+    supervisor: Supervisor, monkeypatch: pytest.MonkeyPatch, error: type[OSError]
+) -> None:
+    await supervisor.wipe(ALICE)
+    async with supervisor.use(ALICE):
+        pass
+
+    def denied(_path: Path) -> None:
+        raise error("private path")
+
+    monkeypatch.setattr(_instances.shutil, "rmtree", denied)
+    with pytest.raises(GatewayError, match=r"deletion (failed|is incomplete)") as failed:
+        await supervisor.wipe(ALICE)
+    assert failed.value.status == 503
+    assert (supervisor.root / ALICE / "keys.json").exists()
+    assert ALICE not in supervisor._running
+
+
+@pytest.mark.parametrize("failure", [RuntimeError, asyncio.CancelledError])
+async def test_failure_before_returning_the_stream_closes_every_acquired_resource(
+    supervisor: Supervisor, monkeypatch: pytest.MonkeyPatch, failure: type[BaseException]
+) -> None:
+    from contextlib import AsyncExitStack
+
+    upstreams: list[httpx.Response] = []
+
+    def failed_response(
+        upstream: httpx.Response, _held: AsyncExitStack
+    ) -> _server._ForwardedResponse:
+        upstreams.append(upstream)
+        raise failure("response admission interrupted")
+
+    async with gateway(supervisor) as client:
+        monkeypatch.setattr(_server, "_ForwardedResponse", failed_response)
+        with pytest.raises(failure):
+            await client.get(f"/scopes/{ALICE}/v1/models")
+        assert supervisor._running[ALICE].active == 0
+        assert upstreams[0].is_closed

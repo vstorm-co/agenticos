@@ -318,9 +318,6 @@ class NativeConversationModel(Model):
         )
         if len(prompt.encode()) > 2 << 20:
             raise AcpError("The native conversation context exceeds the 2 MiB admission limit")
-        tools = RuntimeTools(
-            ctx, readonly_tools=(self.readonly_tools or {}) if self.access == "read_only" else None
-        )
         acp_harness: AcpHarness = "custom" if self.harness == "external" else self.harness
         # Desktop admits a Gemini vault key only for the Antigravity key template.
         key = await selected_key(ctx, "gemini" if self.secret_id else None, self.secret_id)
@@ -339,6 +336,11 @@ class NativeConversationModel(Model):
         said: list[str] = []
         size = 0
         redactions = (key.api_key.get_secret_value(),) if key is not None else ()
+        tools = RuntimeTools(
+            ctx,
+            readonly_tools=(self.readonly_tools or {}) if self.access == "read_only" else None,
+            secrets=redactions,
+        )
 
         async def shown(items: list[LiveItem]) -> None:
             nonlocal size

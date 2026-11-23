@@ -1,8 +1,8 @@
-vi.mock("@/hooks/use-report-start-step", () => ({ useReportStartStep: () => undefined }));
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+vi.mock("@/hooks/use-report-start-step", () => ({ useReportStartStep: () => undefined }));
 import { AccountAppearance } from "@/components/layout/account-appearance";
 import { useThemeStore } from "@/stores/theme-store";
 import { useAuthStore } from "@/stores/auth-store";
