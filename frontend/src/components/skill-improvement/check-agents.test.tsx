@@ -127,6 +127,13 @@ describe("CheckAgents", () => {
         "Too few questions to be sure: 3 of 4 came out better and 0 worse, fewer questions than a result needs.",
       ),
     ).toBeInTheDocument();
+    // The group above its agents says it once, with no agent's counts to fill in.
+    expect(
+      screen.getByText(
+        "Too few questions to be sure: each agent below was asked fewer held-out questions than a result needs.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/\{fixed\}/)).toBeNull();
   });
 
   it("says what each agent fixed and broke, with a link to the run", async () => {

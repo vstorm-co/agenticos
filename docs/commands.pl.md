@@ -1,5 +1,5 @@
 ---
-source_sha: "6afbc24a10fe"
+source_sha: "242644bd64d5"
 ---
 
 # Polecenia { #commands }
@@ -359,6 +359,16 @@ uv run agenticos cmd doctor --profile hipaa
 # Report-only - a spec is exported into a client's own git, so unbinding is a person's
 # call. Exits non-zero when it finds one, so a cron can gate on it.
 uv run agenticos cmd audit-skill-bindings
+
+# Ocenia ponownie, z zachowanych runów, agentów zakończonych checków skilla, których
+# wynik ustaliła starsza reguła: zapisany przed rodzinami kryteriów nie pokazuje rodzin,
+# a zapisany przed powodem "za mało pytań" mówi, że run nie ocenił każdej
+# odpowiedzi. Dolicza też oceny sędziego do próby sesji skilla, która policzyła
+# tylko odpowiedzi swojego checka. Żaden model nie jest pytany, a rozstrzygnięty
+# check zachowuje decyzję. Bez --check przechodzi wszystkie takie checki i próby;
+# powtórz --check, by wskazać kilka.
+uv run agenticos cmd skill-checks-rejudge
+uv run agenticos cmd skill-checks-rejudge --check <check-id>
 
 # Recompute the app-admin audit trail's tamper-evidence hash chain and report any
 # break. Each entry links to the previous one's hash, so editing, reordering,

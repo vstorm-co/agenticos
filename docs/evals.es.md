@@ -1,5 +1,5 @@
 ---
-source_sha: "5dd4c3bfb09e"
+source_sha: "ce67e57114b5"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -136,21 +136,33 @@ caso cuando un juez puntúa el dataset .
 
 La estimación incluye la calificación con modelo siempre que el dataset la requiera, al precio del modelo elegido en Grading. Ningún interruptor organizacional desactiva ese calificador.
 
-Un agent sin historial en un modelo se estima como un caso típico -
-`EVAL_FALLBACK_INPUT_TOKENS` de entrada, `EVAL_FALLBACK_OUTPUT_TOKENS` de
+Un agent sin historial en un modelo se estima como peticiones típicas - cada una
+con `EVAL_FALLBACK_INPUT_TOKENS` de entrada y `EVAL_FALLBACK_OUTPUT_TOKENS` de
 salida - al precio propio del modelo, o en `EVAL_FALLBACK_CASE_COST_USD` para un
 modelo sin precio conocido, y la estimación dice que es una suposición aproximada
-(`basis: "fallback"`). Un juez sin historial se calcula igual, en el modelo que
-nombra su spec publicado; la estimación avisa si es el modelo probado, y la
-página de un run si lo fue. El coste del baseline forma parte del total, salvo
+(`basis: "fallback"`). Una respuesta es una petición, o
+`1 + EVAL_FALLBACK_TOOL_ROUNDS` cuando el agent tiene una herramienta: cada
+llamada a una herramienta se responde en otra petición.
+
+Un juez sin historial se calcula como una petición que también lee la respuesta
+que califica, en el modelo que nombra su spec publicado; la estimación avisa si
+es el modelo probado, y la página de un run si lo fue. El coste del baseline forma parte del total, salvo
 que se reutilice un baseline reciente que coincida; en ese caso sus primeras
 respuestas no cuestan nada y la estimación nombra el run del que provienen.
 
 ### El budget que deja { #the-budget-it-leaves }
 
 Una evaluación usa los presupuestos mensuales existentes del agente y de la
-organización. La estimación muestra lo que quedaría tras el gasto total previsto
-como `agent_after_usd` y `org_after_usd`. El inicio devuelve `402` si la primera
+organización. `total_usd` son las primeras respuestas y su calificación, y
+`expected_usd` lo que el run probablemente cuesta: eso, más la mitad de
+`rerun_ceiling_usd` para un run comparado con un baseline, porque un run así
+suele volver a preguntar cerca de la mitad de los casos que puede. Un run de
+estabilidad vuelve a preguntar cada caso, y un run sin nada con qué comparar,
+ninguno. El diálogo de inicio muestra `expected_usd` con lo máximo que el run
+puede costar debajo, y la página de un run lo que gastó frente a ambos.
+
+La estimación muestra lo que quedaría en los presupuestos tras el gasto total
+previsto como `agent_after_usd` y `org_after_usd`. El inicio devuelve `402` si la primera
 pasada más `rerun_ceiling_usd` supera cualquiera de los presupuestos. El límite
 incluye todos los intentos de confirmación, el juez y las repeticiones del
 baseline, también cuando se reutiliza. El coste real puede variar. Cada petición
@@ -475,9 +487,10 @@ manda ningún caso a volver a preguntarse. Además de los casos cuyo resultado
 cambió, estos son los únicos casos que se repiten.
 
 Un run que aparta preguntas para una sesión de Improve se juzga solo por ellas,
-así que sus casos apartados deciden sus familias por separado del resto. Una
-familia decidida en todo el run se sigue repitiendo en los casos apartados
-cuando estos no la deciden.
+así que solo se repiten sus casos apartados, y sus familias se deciden en ellos.
+Sus casos de entrenamiento nunca se vuelven a preguntar: el siguiente intento lee
+sus primeras respuestas, y nada lee una repetición de ellos. Su límite de
+repeticiones cuenta solo los casos apartados.
 
 El veredicto de abajo sigue siendo sobre casos enteros; una
 [sesión de Improve](authoring.md#the-improve-wizard) y una
@@ -714,8 +727,9 @@ Slack todavía no es un canal de notificaciones.
 | `EVAL_BASELINE_CACHE_HOURS` | `24` | Qué antigüedad puede tener un baseline coincidente para reutilizarse |
 | `EVAL_SIGNIFICANCE` | `0.05` | El nivel por debajo del cual los cambios confirmados son un veredicto |
 | `EVAL_EFFICIENCY_TOLERANCE` | `0.05` | Un cambio relativo de coste, tokens o latencia que cuenta como ninguno |
-| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | Los tokens de entrada con los que se calcula el precio de un caso en un modelo sin historial |
-| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Los tokens de salida con los que se calcula el precio de un caso en un modelo sin historial |
+| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | Los tokens de entrada con los que se calcula el precio de una petición en un modelo sin historial |
+| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Los tokens de salida con los que se calcula el precio de una petición en un modelo sin historial |
+| `EVAL_FALLBACK_TOOL_ROUNDS` | `2` | Cuántas peticiones más allá de una necesita la respuesta de un agent con herramientas en un modelo sin historial |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | La estimación por caso en un modelo sin historial ni precio conocido |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Cuántos runs recientes promedia la estimación |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | Cuánto puede estar parado un run en marcha, con su worker callado, antes de que el barrido lo dé por fallido |
