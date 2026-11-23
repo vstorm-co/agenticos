@@ -736,9 +736,9 @@ class TestWhoNeedsAttention:
             MagicMock(id=uuid4(), agent_id=hidden, is_active=False),
         )
         agents = {
-            refunds: MagicMock(id=refunds),
-            clerk: MagicMock(id=clerk),
-            hidden: MagicMock(id=hidden),
+            refunds: MagicMock(id=refunds, kind="agent"),
+            clerk: MagicMock(id=clerk, kind="agent"),
+            hidden: MagicMock(id=hidden, kind="agent"),
         }
         for agent, name in ((refunds, "Refund desk"), (clerk, "Clerk"), (hidden, "Hidden")):
             agents[agent].name = name
