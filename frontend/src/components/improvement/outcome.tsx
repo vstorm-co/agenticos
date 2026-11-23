@@ -168,9 +168,11 @@ export function ResultSummary({
 export function KnowledgeDocuments({
   session,
   accept = false,
+  hideEmpty = false,
 }: {
   session: Improvement;
   accept?: boolean;
+  hideEmpty?: boolean;
 }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
@@ -183,6 +185,7 @@ export function KnowledgeDocuments({
   const drafted = shown.filter((topic) => topic.has_draft && !topic.drafting);
   const stale = drafted.filter((topic) => topic.draft_stale).length;
   const ready = drafted.filter((topic) => !topic.draft_stale && topic.can_edit).length;
+  if (hideEmpty && !isLoading && !error && shown.length === 0 && open === null) return null;
   return (
     <section className="min-w-0 space-y-3" data-tour="improvement-knowledge">
       <h3 className="text-sm font-medium">

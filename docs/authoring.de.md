@@ -1,5 +1,5 @@
 ---
-source_sha: "7a5b304f7b1c"
+source_sha: "dcf5445d27d2"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -182,6 +182,8 @@ dem vergleichen können, was die Runs ergaben.
 ## Konfiguration { #configuration }
 
 Abgeschlossene Improve-Sitzungen zeigen Ergebnis, gespeicherte Änderungen und geänderte Antworten gemeinsam. Die erste Antwort ist zum Vergleich geöffnet; Verschlechterungen stehen zuerst. Eine wiederverwendete Ausgangsantwort wird aus ihrem ursprünglichen Run gelesen. Skill-Ergebnisse zeigen die Auswirkungen je Agent neben den Änderungen; Anwendung bedeutet keine Verbesserung für alle. Registerkarten über dem Ergebnis bieten **Ergebnis**, **Änderungen**, **Testfragen** und **Versuche**. **Analyse** und **Entscheidung** bleiben unter **Sitzungsdetails**; bestehende Links funktionieren weiter. Entscheidungsaktionen erscheinen nur bei einer verfügbaren Entscheidung.
+
+**Versuche** öffnet standardmäßig die erste Karte, **Testfragen** den Abschnitt **Fragen prüfen**. Historische **Änderungen** nutzen die volle Breite und lassen einen leeren Wissensabschnitt weg.
 
 Neben dem Text kann der Assistent eine Änderung an einigen Teilen der
 Konfiguration eines Agents vorschlagen. Jede ist ein Vorschlag wie jeder andere,

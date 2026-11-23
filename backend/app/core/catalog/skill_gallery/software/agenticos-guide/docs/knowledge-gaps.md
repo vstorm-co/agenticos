@@ -236,8 +236,7 @@ that could not be written, because a budget was spent or the model became unavai
 person's questions says so too: check it knowing it rests on what one person
 asked.
 
-The draft fills the topic's editor, with a link to its run. You can copy it as
-Markdown, and it reaches the knowledge base only when somebody adds it. The drafter does not know your company's facts: where an answer needs
+The draft fills the topic's editor, with a link to its run. Its creation time appears with the draft heading. It reaches the knowledge base only when somebody adds it. The drafter does not know your company's facts: where an answer needs
 a number, a date or a rule, it writes `{{what to fill in}}`, and the editor
 lists each one until it is replaced.
 

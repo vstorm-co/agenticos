@@ -1,5 +1,5 @@
 ---
-source_sha: "376b00eb0c95"
+source_sha: "95f4a9123a2e"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -244,9 +244,7 @@ wyczerpał albo model stał się niedostępny, mówi o tym, z przyciskiem
 **Spróbuj ponownie** (Try again). Szkic napisany z pytań jednej osoby też to
 mówi: sprawdź go, wiedząc, że opiera się na tym, o co pytała jedna osoba.
 
-Szkic wypełnia edytor tematu, z odnośnikiem do swojego runa. Możesz go
-skopiować jako Markdown, a do bazy wiedzy trafia dopiero wtedy, gdy ktoś go
-doda. Agent nie zna faktów twojej firmy: tam, gdzie odpowiedź wymaga
+Szkic wypełnia edytor tematu, z odnośnikiem do swojego runa. Czas utworzenia jest przy nagłówku szkicu. Do bazy wiedzy trafia dopiero wtedy, gdy ktoś go doda. Agent nie zna faktów twojej firmy: tam, gdzie odpowiedź wymaga
 liczby, daty albo reguły, wpisuje `{{what to fill in}}`, a edytor wymienia każde
 takie miejsce, dopóki nie zostanie zastąpione.
 

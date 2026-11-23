@@ -16806,10 +16806,7 @@
     "newlyBroken": "Kötüleşen yanıtlar",
     "workspace": {
       "changes": "Neler değişti",
-      "changesHint": "Her değişikliğin gerekçesini okuyun. Tam metin için karşılaştırmayı açın.",
       "evidence": "Yanıtlar iyileşti mi?",
-      "evidenceHint": "Bu sorular güncellemeden sonra farklı yanıtlandı. Yanıtları karşılaştırmak için birini açın.",
-      "finished": "Ne oldu",
       "change": "Değişiklik {number}",
       "exactChange": "Tam metni karşılaştır",
       "invalid": "Test sürümleri güvenilir biçimde karşılaştıramadı. Sonuç çıkarmadan önce testi inceleyin.",
@@ -16943,7 +16940,8 @@
       "read": "Belgeyi oku",
       "edit": "Belgeyi düzenle",
       "searchDetails": "Bu soru neden işaretlendi?"
-    }
+    },
+    "draftCreated": "Taslak oluşturuldu: {time}"
   },
   "skillImprovement": {
     "agents": {

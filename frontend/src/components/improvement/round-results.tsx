@@ -393,15 +393,18 @@ export function AttemptRow({
   session,
   round,
   extra,
+  initiallyOpen = false,
 }: {
+  initiallyOpen?: boolean;
   session: Improvement;
   round: ImprovementIteration;
   extra?: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   return (
     <NativeDisclosure
-      className="rounded-xl border"
+      className="bg-card rounded-xl border"
+      open={initiallyOpen}
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
       <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 p-3 text-sm sm:px-4">

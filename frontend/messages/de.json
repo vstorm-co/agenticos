@@ -15438,7 +15438,8 @@
       "read": "Dokument lesen",
       "edit": "Dokument bearbeiten",
       "searchDetails": "Warum wurde diese Frage markiert?"
-    }
+    },
+    "draftCreated": "Entwurf erstellt: {time}"
   },
   "evals": {
     "title": "Evals",
@@ -17103,10 +17104,7 @@
     },
     "workspace": {
       "changes": "Was sich geändert hat",
-      "changesHint": "Lesen Sie die Begründung. Öffnen Sie den Vergleich für den genauen Wortlaut.",
       "evidence": "Sind die Antworten besser?",
-      "evidenceHint": "Diese Fragen wurden nach der Änderung anders beantwortet. Öffnen Sie eine Frage für den Vergleich.",
-      "finished": "Was passiert ist",
       "change": "Änderung {number}",
       "exactChange": "Genauen Wortlaut vergleichen",
       "invalid": "Der Test konnte die Versionen nicht zuverlässig vergleichen. Prüfen Sie ihn zuerst.",

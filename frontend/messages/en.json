@@ -15752,7 +15752,8 @@
       "read": "Read document",
       "edit": "Edit document",
       "searchDetails": "Why was this question flagged?"
-    }
+    },
+    "draftCreated": "Draft created {time}"
   },
   "evals": {
     "title": "Evals",
@@ -17417,10 +17418,7 @@
     },
     "workspace": {
       "changes": "What changed",
-      "changesHint": "Read why each change was made. Open the comparison for the exact wording.",
       "evidence": "Did the answers improve?",
-      "evidenceHint": "These questions changed after the update. Open one to compare the answers before and after.",
-      "finished": "What happened",
       "change": "Change {number}",
       "exactChange": "Compare the exact wording",
       "invalid": "The test could not reliably compare the versions. Review the test before drawing conclusions.",

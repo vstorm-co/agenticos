@@ -1040,8 +1040,10 @@ it("lists every attempt on a finished session's Changes, not the selection it de
 it("opens attempts from a finished result and restores the attempt tab from its URL", async () => {
   state.session!.status = "published";
   state.session!.published_version = 4;
+  state.session!.iterations.push({ ...state.session!.iterations[0]!, id: "r2", number: 2 });
+  state.session!.iteration = 2;
   const view = render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  expect(screen.queryByText("Attempt 1 of 3")).toBeNull();
+  expect(screen.getByRole("tab", { name: "Result" })).toHaveAttribute("aria-selected", "true");
   const navigation = screen.getByRole("tablist");
   expect(navigation).toBeVisible();
   expect(
@@ -1051,6 +1053,8 @@ it("opens attempts from a finished result and restores the attempt tab from its 
   await userEvent.click(screen.getByRole("tab", { name: "Attempts" }));
   expect(screen.getByRole("tab", { name: "Attempts" })).toHaveAttribute("aria-selected", "true");
   expect(screen.getByText("Attempt 1 of 3")).toBeVisible();
+  expect(screen.getByText("Attempt 1 of 3").closest("details")).toHaveAttribute("open");
+  expect(screen.getByText("Attempt 2 of 3").closest("details")).not.toHaveAttribute("open");
   expect(new URLSearchParams(window.location.search).get("step")).toBe("attempts");
   view.unmount();
   render(<ImprovementPage agentId="a1" sessionId="s1" />);

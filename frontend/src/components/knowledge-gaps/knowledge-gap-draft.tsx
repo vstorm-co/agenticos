@@ -15,6 +15,7 @@ import type {
   KnowledgeGapDraft,
   KnowledgeGapTopicDetail,
 } from "@/types/knowledge-gaps";
+import { KnowledgeGapDraftTime } from "./knowledge-gap-draft-meta";
 import { KnowledgeGapDraftCard } from "./knowledge-gap-draft-card";
 import { KnowledgeGapDraftStatus } from "./knowledge-gap-draft-status";
 import { KnowledgeGapEditor } from "./knowledge-gap-editor";
@@ -53,7 +54,10 @@ export function KnowledgeGapDraftPanel({
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="hidden text-sm font-medium lg:block">{t("workspace.draft")}</h3>
+        <div className="space-y-1">
+          <h3 className="hidden text-sm font-medium lg:block">{t("workspace.draft")}</h3>
+          {topic.draft && <KnowledgeGapDraftTime draft={topic.draft} />}
+        </div>
         <KnowledgeGapDraftStatus topic={topic} editable={mayDraft} offerRedraft disabled={dirty} />
       </div>
       {dirty && topic.status !== "covered" && (

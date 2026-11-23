@@ -503,3 +503,24 @@ it("does not state stored improvements until the comparison is read, and offers 
   await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
   expect(state.comparisonRetry).toHaveBeenCalled();
 });
+
+it("omits an empty knowledge section from historical changes while preserving loading, errors and an open editor", async () => {
+  state.topics = [];
+  const view = render(<KnowledgeDocuments session={SESSION} hideEmpty />);
+  expect(screen.queryByText("Missing from the knowledge base")).toBeNull();
+  state.topicsLoading = true;
+  view.rerender(<KnowledgeDocuments session={SESSION} hideEmpty />);
+  expect(screen.getByRole("status", { name: "Loading the topics…" })).toBeVisible();
+  state.topicsLoading = false;
+  state.topicsError = new Error("Unavailable knowledge");
+  view.rerender(<KnowledgeDocuments session={SESSION} hideEmpty />);
+  expect(screen.getByText("Unavailable knowledge")).toBeVisible();
+  state.topicsError = null;
+  state.topics = [topic("t1")];
+  view.rerender(<KnowledgeDocuments session={SESSION} hideEmpty />);
+  expect(screen.getByText("Topic t1")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: /Review the draft/ }));
+  state.topics = [];
+  view.rerender(<KnowledgeDocuments session={SESSION} hideEmpty />);
+  expect(screen.getByRole("button", { name: "Close draft t1 in the wizard" })).toBeVisible();
+});

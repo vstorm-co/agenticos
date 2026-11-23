@@ -1,5 +1,5 @@
 ---
-source_sha: "376b00eb0c95"
+source_sha: "95f4a9123a2e"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -254,8 +254,7 @@ presupuesto o el modelo dejó de estar disponible, lo indica, con **Try again**.
 Un borrador escrito a partir de las preguntas de una sola persona también lo
 indica: revísalo sabiendo que se basa en lo que preguntó una persona.
 
-El borrador rellena el editor del tema, con un enlace a su run. Puedes copiarlo
-como Markdown, y solo llega a la base de conocimiento cuando alguien lo añade. El redactor no conoce los datos de tu empresa: donde una
+El borrador rellena el editor del tema, con un enlace a su run. La fecha de creación aparece junto al encabezado del borrador. Solo llega a la base de conocimiento cuando alguien lo añade. El redactor no conoce los datos de tu empresa: donde una
 respuesta necesita una cifra, una fecha o una regla, escribe
 `{{what to fill in}}`, y el editor enumera cada uno hasta que se sustituye.
 

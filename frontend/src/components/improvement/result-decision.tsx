@@ -49,7 +49,7 @@ export function ResultStep({
   const host = chosen ?? session.iterations.at(-1);
   return (
     <section className="space-y-4" data-tour="improvement-results">
-      <Card className="grid min-w-0 gap-6 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,1fr)]">
+      <Card className="min-w-0 space-y-5 p-4 sm:p-5">
         <ResultDecision
           session={session}
           agent={agent}
@@ -59,21 +59,27 @@ export function ResultStep({
           onAccept={onAccept}
           onStarted={onStarted}
         />
-        <ResultSummary session={session} round={chosen} />
+        <div className="border-t pt-4">
+          <ResultSummary session={session} round={chosen} />
+        </div>
       </Card>
       {(changes || evidence) && (
-        <div
-          className={
-            changes && evidence ? "grid min-w-0 items-start gap-4 xl:grid-cols-2" : "min-w-0"
-          }
-        >
+        <div className="min-w-0 space-y-4">
           {changes && (
-            <ListCard title={t("workspace.changes")} counted={t("workspace.changesHint")}>
+            <ListCard
+              role="region"
+              aria-label={t("workspace.changes")}
+              title={t("workspace.changes")}
+            >
               {changes}
             </ListCard>
           )}
           {evidence && (
-            <ListCard title={t("workspace.evidence")} counted={t("workspace.evidenceHint")}>
+            <ListCard
+              role="region"
+              aria-label={t("workspace.evidence")}
+              title={t("workspace.evidence")}
+            >
               {evidence}
             </ListCard>
           )}
@@ -95,7 +101,9 @@ export function ResultStep({
 export function ResultAttempts({
   session,
   knowledgeCheck,
+  openFirst = false,
 }: {
+  openFirst?: boolean;
   session: Improvement;
   knowledgeCheck: ReactNode;
 }) {
@@ -114,11 +122,12 @@ export function ResultAttempts({
               {t("sessionTotal", { total: usd(session.spent_usd, locale) })}
             </p>
           </div>
-          {session.iterations.map((round) => (
+          {session.iterations.map((round, index) => (
             <AttemptRow
               key={round.id}
               session={session}
               round={round}
+              initiallyOpen={openFirst && index === 0}
               extra={round.id === host?.id ? knowledgeCheck : undefined}
             />
           ))}
@@ -256,6 +265,8 @@ function ResultDecision({
     (round) => GAINS.includes(round.verdict) && round.number <= session.max_iterations,
   );
   const diagnosed = noisy && !better;
+  const closed = isClosed(session);
+  const Summary = closed ? "h2" : "p";
   const topicsButton = (variant: "default" | "outline") => (
     <Button asChild variant={variant}>
       <a href={`#${DOCUMENTS_ANCHOR}`}>{t("resultDecision.reviewTopics")}</a>
@@ -263,18 +274,16 @@ function ResultDecision({
   );
   return (
     <section className="min-w-0 space-y-3" data-tour="improvement-decision">
-      <h2 className="text-lg font-medium">
-        {t(isClosed(session) ? "workspace.finished" : "resultDecision.title")}
-      </h2>
-      <p
+      {!closed && <h2 className="text-lg font-medium">{t("resultDecision.title")}</h2>}
+      <Summary
         role={session.status === "failed" && session.stop_reason ? "alert" : undefined}
-        className="text-sm"
+        className={closed ? "text-base leading-relaxed font-medium" : "text-sm"}
       >
         {[
           ...(diagnosed && noise ? [noiseSentence(t, locale, noise, agent)] : []),
           ...headline(t, locale, session, agent, topics),
         ].join(" ")}
-      </p>
+      </Summary>
       {session.status === "published" && session.published_version != null && (
         <Link
           className="inline-block text-sm underline underline-offset-4"

@@ -679,3 +679,12 @@ it("keeps an existing nonempty sample visible during background refresh", () => 
   expect(screen.getByText(/4 selected source examples/)).toBeInTheDocument();
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
 });
+
+it("opens the question review on arrival when requested and lets the reader collapse it", async () => {
+  render(<TestQuestions session={SESSION} reviewInitiallyOpen />);
+  const review = screen.getByText("Review the questions").closest("details");
+  expect(review).toHaveAttribute("open");
+  expect(screen.getByText("A good answer: 30 days")).toBeVisible();
+  await userEvent.click(screen.getByText("Review the questions"));
+  expect(review).not.toHaveAttribute("open");
+});

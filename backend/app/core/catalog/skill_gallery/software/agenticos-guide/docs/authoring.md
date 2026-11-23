@@ -169,6 +169,8 @@ the runs found.
 
 Finished Improve sessions show the outcome, saved changes and changed answers together. The first changed answer is open for comparison; regressions appear first. A reused baseline reads its answer from its original run. Skill results show each agent’s outcome beside the changes, and application does not imply every agent improved. Tabs above the result provide **Result**, **Changes**, **Test questions** and **Attempts**. **Analysis** and **Decision** remain in **Session details**; existing step links still work. Decision actions appear only while a decision is available.
 
+**Attempts** opens its first card by default, and **Test questions** opens **Review the questions**. Historical **Changes** uses the full width and omits an empty knowledge section.
+
 Besides the text, the assistant can suggest a change to a few parts of an
 agent's configuration. Each one is a suggestion like any other, decided on its
 own in the strip, and shown by name: the model, knowledge base, context file,

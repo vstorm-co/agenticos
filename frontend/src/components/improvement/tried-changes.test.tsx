@@ -186,7 +186,13 @@ it("puts the saved wording and rationale directly in the report, with only the e
   view.rerender(
     <AcceptedChanges session={SESSION} round={{ ...FIRST, included_hunk_ids: null }} report />,
   );
-  expect(screen.getByText("Change 1")).toBeVisible();
+  expect(screen.queryByText("Change 1")).toBeNull();
+  state.changes = { 1: [hunk({ id: "h0" }), hunk({ id: "h1" })] };
+  view.rerender(
+    <AcceptedChanges session={SESSION} round={{ ...FIRST, included_hunk_ids: null }} report />,
+  );
+  expect(screen.getByRole("heading", { name: "Change 1" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Change 2" })).toBeVisible();
   state.changes = {};
   view.rerender(<AcceptedChanges session={SESSION} round={FIRST} report />);
   expect(screen.getByText("No change was written in this attempt.")).toBeVisible();

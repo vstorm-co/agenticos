@@ -147,7 +147,7 @@ function Session({
       session={session}
       readOnly={readOnly}
       closeHref={`/agents/${agentId}`}
-      attempts={<ResultAttempts session={session} knowledgeCheck={knowledgeCheck} />}
+      attempts={<ResultAttempts session={session} knowledgeCheck={knowledgeCheck} openFirst />}
       wordingOpen={wordingOpen}
       footer={
         selectionDirty &&
@@ -173,7 +173,12 @@ function Session({
               </>
             ))}
           {step === "changes" && (
-            <section className="grid gap-6 md:grid-cols-[2fr_1fr]" data-tour="improvement-changes">
+            <section
+              className={
+                isClosed(session) ? "min-w-0 space-y-4" : "grid gap-6 md:grid-cols-[2fr_1fr]"
+              }
+              data-tour="improvement-changes"
+            >
               {stopOf(session) === "changes" ? (
                 <section className="min-w-0 space-y-4">
                   <AttemptHistory session={session} />
@@ -247,13 +252,13 @@ function Session({
                   </ul>
                 </Card>
               )}
-              <KnowledgeDocuments session={session} />
+              <KnowledgeDocuments session={session} hideEmpty={isClosed(session)} />
             </section>
           )}
           {step === "check" &&
             (isClosed(session) ? (
               <section className="space-y-4" data-tour="improvement-check">
-                <TestQuestions session={session} />
+                <TestQuestions session={session} reviewInitiallyOpen />
                 {resultRunId && (
                   <Link
                     className="inline-block text-sm underline underline-offset-4"

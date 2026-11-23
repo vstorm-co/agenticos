@@ -1,5 +1,5 @@
 ---
-source_sha: "376b00eb0c95"
+source_sha: "95f4a9123a2e"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -258,9 +258,7 @@ versuchen** (Try again). Ein Entwurf aus den Fragen einer einzigen Person sagt
 das ebenfalls: Prüfe ihn im Wissen, dass er auf dem beruht, was eine Person
 gefragt hat.
 
-Der Entwurf füllt den Editor des Themas, mit einem Link zu seinem Run. Du
-kannst ihn als Markdown kopieren, und in die Wissensdatenbank kommt er erst,
-wenn ihn jemand hinzufügt. Der Entwerfer kennt
+Der Entwurf füllt den Editor des Themas, mit einem Link zu seinem Run. Die Erstellungszeit steht bei der Entwurfsüberschrift. In die Wissensdatenbank kommt er erst, wenn ihn jemand hinzufügt. Der Entwerfer kennt
 die Fakten deines Unternehmens nicht: Wo eine Antwort eine Zahl, ein Datum oder
 eine Regel braucht, schreibt er `{{what to fill in}}`, und der Editor listet
 jede solche Stelle auf, bis sie ersetzt ist.

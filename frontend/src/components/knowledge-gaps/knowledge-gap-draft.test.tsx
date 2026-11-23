@@ -218,3 +218,13 @@ it("disables redrafting while the editor has unsaved changes", async () => {
   expect(screen.getByRole("button", { name: /^Redraft/ })).toBeDisabled();
   expect(screen.getByRole("status")).toHaveTextContent("Unsaved changes");
 });
+
+it("labels the draft creation time beside its heading rather than below document actions", () => {
+  render(<KnowledgeGapDraftPanel topic={DRAFTED} />);
+  const time = screen.getByText(/^Draft created/);
+  expect(time.tagName).toBe("TIME");
+  expect(time).toHaveAttribute("datetime", DRAFTED.draft!.drafted_at);
+  expect(
+    screen.getByRole("heading", { name: "Suggested document" }).parentElement,
+  ).toContainElement(time);
+});

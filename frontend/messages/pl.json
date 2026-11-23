@@ -15525,7 +15525,8 @@
       "read": "Czytaj dokument",
       "edit": "Edytuj dokument",
       "searchDetails": "Dlaczego oznaczono to pytanie?"
-    }
+    },
+    "draftCreated": "Szkic utworzono {time}"
   },
   "evals": {
     "title": "Ewaluacje",
@@ -17190,10 +17191,7 @@
     },
     "workspace": {
       "changes": "Co się zmieniło",
-      "changesHint": "Przeczytaj uzasadnienie zmian. Rozwiń porównanie, aby zobaczyć dokładną treść.",
       "evidence": "Czy odpowiedzi są lepsze?",
-      "evidenceHint": "Te pytania otrzymały inne odpowiedzi po zmianie. Otwórz pytanie, aby porównać odpowiedzi przed i po.",
-      "finished": "Co się wydarzyło",
       "change": "Zmiana {number}",
       "exactChange": "Porównaj dokładną treść",
       "invalid": "Test nie pozwala wiarygodnie porównać wersji. Sprawdź go przed wyciągnięciem wniosków.",

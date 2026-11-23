@@ -24,8 +24,8 @@ export function TriedChanges({ session }: { session: Improvement }) {
       {tried.map((round, index) => {
         const heldBack = round.number > session.max_iterations;
         return (
-          <NativeDisclosure key={round.id} open={index === 0} className="rounded-xl border p-4">
-            <summary className="cursor-pointer text-sm font-medium">
+          <NativeDisclosure key={round.id} open={index === 0} className="space-y-3">
+            <summary className="bg-card cursor-pointer rounded-xl border px-4 py-3 text-sm font-medium">
               {heldBack
                 ? t("heldBack")
                 : t("triedAttempt", {
@@ -110,7 +110,11 @@ export function AcceptedChanges({
       {tested.map((hunk, index) =>
         report ? (
           <article key={hunk.id} className="space-y-3 border-b pb-5 last:border-0 last:pb-0">
-            <h3 className="text-sm font-medium">{t("workspace.change", { number: index + 1 })}</h3>
+            {tested.length > 1 && (
+              <h3 className="text-sm font-medium">
+                {t("workspace.change", { number: index + 1 })}
+              </h3>
+            )}
             <p className="text-sm leading-relaxed whitespace-pre-wrap">{hunk.rationale}</p>
             {["instructions", "skill_body", "skill_description"].includes(hunk.kind) &&
               hunk.new_text && (
