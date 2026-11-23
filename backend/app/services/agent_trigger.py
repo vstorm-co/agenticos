@@ -3569,7 +3569,7 @@ class AgentTriggerService:
             self.db,
             organization_id=trigger.organization_id,
             user_id=None,
-            title=f"{agent_name} - {suffix}",
+            title=trigger.name or f"{agent_name} - {suffix}",
             project_id=trigger.project_id,
         )
         trigger.conversation_id = conversation.id

@@ -1,5 +1,5 @@
 ---
-source_sha: "34cfa3c22163"
+source_sha: "304b52e98b6d"
 ---
 
 # Governance { #governance }
@@ -2555,7 +2555,7 @@ El agente aporta identificadores estables de elemento y revisión, contexto y el
 
 Los hallazgos se guardan en la llamada MCP. Un fallo posterior no elimina lo publicado; el intento fallido permanece visible y los reintentos deduplican las revisiones.
 
-Cada rutina reutiliza una conversación de sistema como registro. Leerla requiere `runs:view` y acceso al agente; no es el chat privado del propietario. Las ejecuciones nuevas no envían automáticamente los mensajes anteriores del registro al modelo. La memoria configurada y las lecturas explícitas de fuentes aportan continuidad.
+Cada rutina reutiliza una conversación de sistema como registro. Su creador la ve en la barra lateral del chat mientras conserve `runs:view` y acceso actual al agente; se aplican la búsqueda, la paginación y los indicadores de ejecución y mensajes sin leer. Leerla requiere `runs:view` y acceso al agente; no es el chat privado del propietario. Las ejecuciones nuevas no envían automáticamente los mensajes anteriores del registro al modelo. La memoria configurada y las lecturas explícitas de fuentes aportan continuidad.
 
 La ejecución desatendida no tiene un canal `ask_user` activo. Si falta información esencial, las instrucciones indican publicar la pregunta y el trabajo bloqueado como hallazgo en Inbox, en vez de suponer una respuesta. Esto no crea por sí solo un formulario de preguntas pausado y reanudable.
 

@@ -1646,10 +1646,12 @@ function ChatUI({
             ) : null}
             {/* Findings and approval decisions sit beside the composer. */}
             {conversationId && !compact && (
-              <OutcomeCards
-                conversationId={conversationId}
-                className="pointer-events-auto mx-auto max-h-40 w-full max-w-5xl overflow-y-auto overscroll-contain px-2 pb-2 sm:px-4"
-              />
+              <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 sm:px-4">
+                <OutcomeCards
+                  conversationId={conversationId}
+                  className="chat-composer-width max-h-40 overflow-y-auto overscroll-contain pb-2"
+                />
+              </div>
             )}
             {personalGaps.length > 0 && (
               <div className="chat-composer-suggestions pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">

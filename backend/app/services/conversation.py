@@ -1399,6 +1399,21 @@ class ConversationService:
             if user_id is not None and project_scope != "exclude"
             else []
         )
+        routine_access = None
+        if user_id is not None and reader is not None and not for_model:
+            ctx = reader
+            if (
+                ctx.user_id == user_id
+                and ctx.organization_id == organization_id
+                and ctx.has(Perm.RUNS_VIEW)
+            ):
+                grants = await visible_resource_ids(
+                    self.db, ctx, resource_type=AGENT, perm=Perm.AGENTS_VIEW
+                )
+                routine_access = conversation_repo.RoutineLogAccess(
+                    scope=ctx.scope_for(Perm.AGENTS_VIEW),
+                    shared_agent_ids=frozenset(grants or ()),
+                )
         items = await conversation_repo.get_conversations_by_user(
             self.db,
             user_id=user_id,
@@ -1425,6 +1440,7 @@ class ConversationService:
             ),
             participant_conversation_ids=participant_ids,
             visible_project_ids=project_ids,
+            routine_access=routine_access,
             hide_api=hide_api,
             hide_channels=hide_channels,
             project_id=project_id,
@@ -1441,6 +1457,7 @@ class ConversationService:
             archived_only=archived_only,
             participant_conversation_ids=participant_ids,
             visible_project_ids=project_ids,
+            routine_access=routine_access,
             hide_api=hide_api,
             hide_channels=hide_channels,
             project_id=project_id,

@@ -28,6 +28,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Show the creator's routine run logs in the chat sidebar with current access,
+  search, pagination and running/unread state.
 - Revoke standing routine consents when switching to manual approvals and keep
   portal creation identity-free during administrator impersonation.
 - Recognize historical routine source fingerprints across chat starter visibility

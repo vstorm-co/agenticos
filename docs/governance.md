@@ -2405,7 +2405,7 @@ The agent supplies stable item and revision IDs, useful context and any requeste
 
 Published findings are committed at the MCP call. A later run failure does not erase an already reported finding; the failed attempt remains visible and retries deduplicate source revisions.
 
-Each routine reuses one system run-log conversation. Reading that log requires `runs:view` and access to the agent; it is not the owner's private chat. New activations do not automatically replay its previous messages to the model. Configured memory and explicit source reads provide continuity instead.
+Each routine reuses one system run-log conversation. Its creator sees that log in the chat sidebar while retaining `runs:view` and current access to the agent; search, pagination and running/unread indicators apply normally. Reading that log requires `runs:view` and access to the agent; it is not the owner's private chat. New activations do not automatically replay its previous messages to the model. Configured memory and explicit source reads provide continuity instead.
 
 Unattended execution has no live `ask_user` channel. If essential input is missing, the agent is instructed to publish the question and blocked work as an Inbox finding, rather than assume an answer. This does not itself park a resumable question form.
 

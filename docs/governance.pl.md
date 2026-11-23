@@ -1,5 +1,5 @@
 ---
-source_sha: "34cfa3c22163"
+source_sha: "304b52e98b6d"
 ---
 
 # Governance { #governance }
@@ -2544,7 +2544,7 @@ Agent podaje stałe identyfikatory elementu i rewizji, kontekst oraz pełny zam�
 
 Ustalenie jest zatwierdzane w bazie przy wywołaniu MCP. Późniejszy błąd przebiegu nie usuwa już opublikowanej karty; nieudana próba pozostaje widoczna, a ponowienia deduplikują rewizje źródeł.
 
-Każda rutyna używa ponownie jednego systemowego chatu z logiem. Odczyt wymaga `runs:view` i dostępu do agenta; nie jest to prywatny chat właściciela. Nowe wykonanie nie przekazuje automatycznie poprzednich wiadomości logu do modelu. Ciągłość zapewniają skonfigurowana pamięć i jawny odczyt źródeł.
+Każda rutyna używa ponownie jednego systemowego chatu z logiem. Twórca widzi go w panelu bocznym chatów, jeśli nadal ma `runs:view` i dostęp do agenta; działają wyszukiwanie, stronicowanie oraz oznaczenia aktywnego wykonania i nieprzeczytanych wiadomości. Odczyt wymaga `runs:view` i dostępu do agenta; nie jest to prywatny chat właściciela. Nowe wykonanie nie przekazuje automatycznie poprzednich wiadomości logu do modelu. Ciągłość zapewniają skonfigurowana pamięć i jawny odczyt źródeł.
 
 Wykonanie bez nadzoru nie ma aktywnego kanału `ask_user`. Gdy brakuje niezbędnych informacji, instrukcja każe opublikować pytanie i opis zablokowanej pracy w Inboxie, zamiast zakładać odpowiedź. Samo to nie wstrzymuje wykonania z formularzem pytania do wznowienia.
 

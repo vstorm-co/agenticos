@@ -1,5 +1,5 @@
 ---
-source_sha: "34cfa3c22163"
+source_sha: "304b52e98b6d"
 ---
 
 # Governance { #governance }
@@ -2703,7 +2703,7 @@ Der Agent übergibt stabile Element- und Revisionskennungen, Kontext und angefor
 
 Veröffentlichte Ergebnisse werden beim MCP-Aufruf gespeichert. Ein späterer Run-Fehler löscht sie nicht; der fehlgeschlagene Versuch bleibt sichtbar und Wiederholungen deduplizieren Quellenrevisionen.
 
-Jede Routine verwendet dieselbe Systemunterhaltung als Ausführungsprotokoll. Zum Lesen sind `runs:view` und Zugriff auf den Agenten erforderlich; sie ist kein privater Chat des Eigentümers. Neue Ausführungen übernehmen frühere Protokollnachrichten nicht automatisch als Modellkontext. Konfigurierter Speicher und explizite Quellenabfragen stellen stattdessen Kontinuität her.
+Jede Routine verwendet dieselbe Systemunterhaltung als Ausführungsprotokoll. Die erstellende Person sieht sie in der Chat-Seitenleiste, solange `runs:view` und aktueller Zugriff auf den Agenten bestehen; Suche, Seitennavigation sowie Lauf- und Ungelesen-Anzeigen gelten wie gewohnt. Zum Lesen sind `runs:view` und Zugriff auf den Agenten erforderlich; sie ist kein privater Chat des Eigentümers. Neue Ausführungen übernehmen frühere Protokollnachrichten nicht automatisch als Modellkontext. Konfigurierter Speicher und explizite Quellenabfragen stellen stattdessen Kontinuität her.
 
 Unbeaufsichtigte Ausführungen haben keinen aktiven `ask_user`-Kanal. Fehlen notwendige Angaben, soll der Agent die Frage und die blockierte Arbeit als Inbox-Befund veröffentlichen, statt eine Antwort anzunehmen. Dadurch entsteht kein pausiertes, fortsetzbares Frageformular.
 

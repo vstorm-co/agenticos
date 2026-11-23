@@ -186,7 +186,9 @@ def _trigger(**overrides: object) -> MagicMock:
         "setup_issues": [],
     }
     defaults.update(overrides)
-    return MagicMock(**defaults)
+    trigger = MagicMock(**defaults)
+    trigger.name = overrides.get("name")
+    return trigger
 
 
 def _interval(
@@ -5855,3 +5857,24 @@ async def test_only_owner_in_person_may_change_the_routine_action_mode(caller):
         pytest.raises(AuthorizationError, match=r"creator.*approval policy"),
     ):
         await service.update(ctx, trigger.agent_id, trigger.id, TriggerUpdate(action_mode="agent"))
+
+
+async def test_delivery_does_not_apply_a_result_mode_changed_after_admission():
+    trigger = _trigger(result_mode="report", answer_to="primary")
+    with (
+        patch(
+            "app.services.agent_trigger.agent_trigger_repo.get_by_id",
+            new=AsyncMock(return_value=trigger),
+        ),
+        patch(
+            "app.services.agent_trigger.conversation_repo.create_message", new=AsyncMock()
+        ) as post,
+    ):
+        delivered = await _service()._deliver(
+            trigger,
+            agent=_agent(),
+            run=MagicMock(routine_policy={"result_mode": "inbox"}),
+            answer="Done",
+        )
+    assert delivered.status == "unavailable"
+    post.assert_not_awaited()
