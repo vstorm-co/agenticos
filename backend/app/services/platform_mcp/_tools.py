@@ -1257,7 +1257,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     """Every operation, bound to `api`."""
 
     async def whoami() -> dict[str, Any]:
-        """Which organization this connection acts in, and the permissions it holds there."""
+        """Which organization this connection acts in, the permissions it holds there, and in an agent's own run which agent that is (`run_agent_id`)."""
         return await api.request("GET", "/me/permissions")
 
     async def list_projects(
@@ -2323,8 +2323,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         return {"deleted": str(watch_id)}
 
     async def create_routine(
-        agent_id: UUID,
         prompt: str,
+        agent_id: UUID | None = None,
         notification_channels: list[ExternalNotificationChannel] | None = None,
         cron_expression: str | None = None,
         every_minutes: int | None = None,
@@ -2339,6 +2339,13 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         result_mode: Literal["report", "inbox"] | None = None,
     ) -> dict[str, Any]:
         """Make an agent run itself on a schedule - a Routine. Needs `agents:run` on it.
+
+        Omit `agent_id` to schedule yourself, the agent this run belongs to; pass one
+        only to schedule another agent. A key or an MCP client must pass it. A
+        delegate that omits it schedules the agent its credential was issued for,
+        the one that started the run. If scheduling yourself is refused as not
+        found, the person may not run you on a schedule; say so instead of
+        searching for another id.
 
         `result_mode="inbox"` checks for relevant source items and creates one private
         working chat and Inbox case per item, including full drafts requested in the
@@ -2389,6 +2396,14 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         agent bindings, retry with other identities, or create duplicates.
         The result names the routine and its next activation.
         """
+        if agent_id is None:
+            own = (await api.request("GET", "/me/permissions")).get("run_agent_id")
+            if not own:
+                return api.refuse(
+                    "Pass agent_id: only an agent's own run can leave it out, and this "
+                    "connection is not one. Find the agent with list_agents."
+                )
+            agent_id = UUID(own)
         body: dict[str, Any] = {"prompt": prompt, "runs_as_creator": runs_as_me}
         if result_mode is not None:
             body["result_mode"] = result_mode

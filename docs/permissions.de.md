@@ -1,5 +1,5 @@
 ---
-source_sha: "758431de6963"
+source_sha: "9a33f1c990a8"
 ---
 
 # Berechtigungen { #permissions }
@@ -700,7 +700,7 @@ hat, angelegt von jemandem, der sehr wohl eine Rolle hatte.
 
 | Endpunkt | Antwortet |
 | --- | --- |
-| `GET /me/permissions` | die Rolle des Aufrufers, `is_app_admin` und jede Berechtigung samt ihrem Scope |
+| `GET /me/permissions` | die Rolle des Aufrufers, `is_app_admin`, jede Berechtigung samt ihrem Scope und, für die Zugangsdaten eines Agent-Laufs, `run_agent_id` |
 | `GET /roles/catalog` | den ganzen Katalog und was jede Rolle bündelt |
 
 Beide sind **eine Bequemlichkeit für die Oberfläche und nichts weiter**. Der

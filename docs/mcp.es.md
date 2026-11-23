@@ -1,5 +1,5 @@
 ---
-source_sha: "e679e735c63f"
+source_sha: "777076ef0c54"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1310,7 +1310,7 @@ Las comprobaciones de conexión actualizan las herramientas descubiertas y el es
 | `discard_agent_draft` | `agents:edit`, sobre un borrador tuyo que nunca se publicó |
 | `run_agent` | `agents:run` |
 | `list_routines` | `agents:view` |
-| `create_routine`, `run_routine_now` | `agents:run` sobre el agent |
+| `create_routine`, `run_routine_now` | `agents:run` sobre el agent; en la propia ejecución de un agent, `create_routine` puede omitir `agent_id` y entonces se refiere a ese agent |
 | `update_routine`, `delete_routine` | quien creó la rutina, o `agents:edit` sobre su agent |
 | `list_runs`, `get_run`, `read_run_transcript`, `read_run_tool_call`, `read_conversation`, `read_conversation_tool_call`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
@@ -1446,6 +1446,12 @@ con los propios registros de la plataforma. En el Builder es la primera tarjeta 
 La plantilla **AgenticOS** lo enlaza así, igual que cada agent creado desde cero,
 de modo que un agent consulta la plataforma desde el principio - y configura una
 rutina o cambia el idioma de la consola cuando se lo piden.
+
+En la propia ejecución de un agent, `whoami` devuelve además `run_agent_id`, el agent
+al que pertenece la ejecución, y `create_routine` sin `agent_id` programa ese agent.
+Una clave de API o un cliente MCP no tienen tal agent y lo indican explícitamente.
+Un delegado que lo omite programa el agent para el que se emitió su credencial, el
+que inició la ejecución.
 
 ### Escritorio, móvil y entornos locales { #desktop-mobile-and-local-environments }
 

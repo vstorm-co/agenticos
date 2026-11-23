@@ -1226,7 +1226,7 @@ Connection checks update discovered tools and status. `test_my_connection` there
 | `discard_agent_draft` | `agents:edit`, on a draft you own that was never published |
 | `run_agent` | `agents:run` |
 | `list_routines` | `agents:view` |
-| `create_routine`, `run_routine_now` | `agents:run` on the agent |
+| `create_routine`, `run_routine_now` | `agents:run` on the agent; in an agent's own run, `create_routine` may leave `agent_id` out to mean that agent |
 | `update_routine`, `delete_routine` | the routine's creator, or `agents:edit` on its agent |
 | `list_runs`, `get_run`, `read_run_transcript`, `read_run_tool_call`, `read_conversation`, `read_conversation_tool_call`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
@@ -1350,6 +1350,11 @@ named after this deployment; switching it on binds it as
 The **AgenticOS** template binds it this way, and so does every agent created from
 scratch, so an agent can look the platform up - and set up a routine, or switch the
 console's language when asked - out of the box.
+
+In an agent's own run, `whoami` also returns `run_agent_id`, the agent the run
+belongs to, and `create_routine` without `agent_id` schedules that agent. An API key
+or an MCP client has no such agent and names one. A delegate that leaves it out
+schedules the agent its credential was issued for, the one that started the run.
 
 ### Desktop, mobile and local environments
 

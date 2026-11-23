@@ -31,6 +31,7 @@ from app.db.models.api_key import ApiKey
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.session import get_db_context
+from app.repositories import agent as agent_repo
 from app.repositories import api_key as api_key_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
@@ -362,6 +363,23 @@ class ApiKeyService:
             )
         issuer = await user_repo.get_by_id(self.db, key.user_id)
         return _read(key, issuer.email if issuer is not None else "", now)
+
+    async def run_agent_id(self, ctx: AuthContext) -> UUID | None:
+        """The agent a platform-minted run credential was issued for, if it is in the organization.
+
+        `None` for a session, a key a person issued, an OAuth token, or an agent
+        that is gone or belongs elsewhere. A default for tools to suggest, never
+        authority: the endpoint that acts on the agent authorizes it again.
+        """
+        if ctx.api_key_id is None or not ctx.key_internal:
+            return None
+        key = await api_key_repo.get(self.db, ctx.api_key_id, organization_id=ctx.organization_id)
+        if key is None or not key.internal or key.source_agent_id is None:
+            return None
+        agent = await agent_repo.get(
+            self.db, key.source_agent_id, organization_id=ctx.organization_id
+        )
+        return None if agent is None else agent.id
 
     async def authenticate(self, raw: str) -> KeyCaller:
         """The issuer and narrowed context a presented key stands for.

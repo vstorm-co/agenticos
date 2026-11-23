@@ -1,5 +1,5 @@
 ---
-source_sha: "758431de6963"
+source_sha: "9a33f1c990a8"
 ---
 
 # Permisos { #permissions }
@@ -665,7 +665,7 @@ por alguien que sí tenía un rol.
 
 | Endpoint | Responde |
 | --- | --- |
-| `GET /me/permissions` | el rol de quien llama, `is_app_admin`, y cada permiso con su scope |
+| `GET /me/permissions` | el rol de quien llama, `is_app_admin`, cada permiso con su scope y, para la credencial de ejecución de un agent, `run_agent_id` |
 | `GET /roles/catalog` | el catálogo entero y lo que agrupa cada rol |
 
 Los dos son **una comodidad para la UI y nada más**. El servidor vuelve a
