@@ -1,5 +1,5 @@
 ---
-source_sha: "028bb959d3cf"
+source_sha: "0fb71853e2ff"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -873,7 +873,7 @@ lectura y escritura de caché son opcionales; si quedan vacías, usan la de entr
 Un cero explícito es un precio. La API utiliza `custom_pricing`: omitirlo en una
 actualización conserva el ajuste; enviar `null` restaura el precio automático.
 
-Cambiar o restablecer los precios requiere `budgets:manage`, además de gestionar las conexiones de modelos. Los perfiles de suscripción admiten los mismos precios opcionales por token: miden el consumo del presupuesto, no la cuota de la suscripción. Cuando las tarifas personalizadas sustituyen el coste contable, los importes originales del proveedor permanecen en los metadatos de uso.
+Cambiar o restablecer los precios requiere `budgets:manage`, además de gestionar las conexiones de modelos. Ese permiso también se requiere al cambiar la clave o el endpoint de un perfil con precios personalizados. Los perfiles de suscripción admiten los mismos precios opcionales por token: miden el consumo del presupuesto, no la cuota de la suscripción. Cuando las tarifas personalizadas sustituyen el coste contable, los importes originales del proveedor permanecen en los metadatos de uso.
 
 Las tarifas propias tienen prioridad sobre el catálogo y la factura del proveedor.
 Se aplican las del perfil que realmente responde, incluidos fallbacks, delegaciones

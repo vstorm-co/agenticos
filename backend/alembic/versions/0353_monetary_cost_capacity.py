@@ -60,8 +60,20 @@ _COLUMNS = (
 def upgrade() -> None:
     for table, column in _COLUMNS:
         op.alter_column(table, column, existing_type=sa.Numeric(12, 6), type_=sa.Numeric(38, 6))
+    op.alter_column(
+        "workflow_retained_spend",
+        "cost_usd",
+        existing_type=sa.Numeric(13, 6),
+        type_=sa.Numeric(38, 6),
+    )
 
 
 def downgrade() -> None:
+    op.alter_column(
+        "workflow_retained_spend",
+        "cost_usd",
+        existing_type=sa.Numeric(38, 6),
+        type_=sa.Numeric(13, 6),
+    )
     for table, column in reversed(_COLUMNS):
         op.alter_column(table, column, existing_type=sa.Numeric(38, 6), type_=sa.Numeric(12, 6))

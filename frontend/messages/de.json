@@ -997,6 +997,7 @@
     "notAChatModelHint": "{model} ist kein Chat-Modell - es dient der Sprachausgabe, Transkription, Bildern oder Embeddings, und ein Agent kann nicht darauf laufen. Wählen Sie vor dem Veröffentlichen ein Chat-Modell.",
     "modelHasNoKeyHint": "Der Schlüssel dieses Modells wurde aus dem Vault gelöscht, daher kann nichts darauf laufen. Geben Sie ihm im Modellbereich einen Schlüssel oder wählen Sie ein anderes Modell.",
     "updateModel": "Modell aktualisieren",
+    "pricedModelConnectionLocked": "Wer Schlüssel oder Endpunkt eines Modells mit eigenen Preisen ändern möchte, braucht die Berechtigung zur Budgetverwaltung.",
     "updateModelHint": "Speichert den neuen Schlüssel, Endpunkt oder die API für {label}. Alles, was dieses Modell nutzt, wechselt mit: jeder Agent und jede Sammlung oder geplante Arbeit darauf. Um diese unverändert zu lassen, wählen Sie „Nennen Sie ihn anders“ und fügen Sie ein eigenes Modell hinzu.",
     "notAChatModelRefused": "{model} ist kein Chat-Modell - ein Agent kann nicht darauf laufen. Wählen Sie ein Chat-Modell.",
     "secretForDifferentService": "Der Schlüssel „{name}“ ist für einen anderen Dienst bestimmt. Wählen Sie einen Schlüssel für diese Konfiguration.",

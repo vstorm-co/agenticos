@@ -10367,6 +10367,7 @@
     "notAChatModelHint": "{model} nie jest modelem czatu - służy do zamiany tekstu na mowę, transkrypcji, obrazów lub embeddingów, więc agent nie może na nim działać. Przed publikacją wybierz model czatu.",
     "modelHasNoKeyHint": "Klucz tego modelu został usunięty z vaulta, więc nic nie może na nim działać. Przypisz mu klucz w panelu modelu albo wybierz inny model.",
     "updateModel": "Zaktualizuj model",
+    "pricedModelConnectionLocked": "Zmiana klucza lub endpointu modelu z własnymi cenami wymaga uprawnienia do zarządzania budgetami.",
     "updateModelHint": "Zapisuje nowy klucz, endpoint lub API w {label}. Wszystko, co używa tego modelu, przełączy się razem z nim: każdy agent oraz każda kolekcja czy zaplanowana praca na nim. Aby zostawić je bez zmian, wybierz „Nazwij to inaczej” i dodaj osobny model.",
     "notAChatModelRefused": "{model} nie jest modelem czatu - agent nie może na nim działać. Wybierz model czatu.",
     "secretForDifferentService": "Klucz „{name}” jest przeznaczony do innej usługi. Wybierz klucz pasujący do tej konfiguracji.",

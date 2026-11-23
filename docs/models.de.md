@@ -1,5 +1,5 @@
 ---
-source_sha: "028bb959d3cf"
+source_sha: "0fb71853e2ff"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -902,7 +902,7 @@ Eingabepreis. Eine ausdrückliche Null ist ein Preis. Die API verwendet dafür
 `custom_pricing`: Auslassen beim Aktualisieren behält die Einstellung bei,
 `null` stellt die automatische Preisermittlung wieder her.
 
-Das Ändern oder Zurücksetzen von Preisen erfordert neben der Verwaltung von Modellverbindungen auch `budgets:manage`. Abonnementprofile unterstützen dieselben optionalen Tokenpreise; diese messen den Budgetverbrauch, nicht das Abonnementkontingent. Wenn eigene Preise die Abrechnung ersetzen, bleiben die ursprünglichen Anbieterbeträge in den Nutzungsmetadaten erhalten.
+Das Ändern oder Zurücksetzen von Preisen erfordert neben der Verwaltung von Modellverbindungen auch `budgets:manage`. Diese Berechtigung ist auch erforderlich, wenn sich Schlüssel oder Endpunkt eines Profils mit eigenen Preisen ändern. Abonnementprofile unterstützen dieselben optionalen Tokenpreise; diese messen den Budgetverbrauch, nicht das Abonnementkontingent. Wenn eigene Preise die Abrechnung ersetzen, bleiben die ursprünglichen Anbieterbeträge in den Nutzungsmetadaten erhalten.
 
 Eigene Preise haben Vorrang vor Katalogpreisen und Anbieterrechnungen.
 Es gelten die Preise des tatsächlich antwortenden Profils, auch bei Fallbacks,

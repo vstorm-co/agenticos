@@ -1,5 +1,5 @@
 ---
-source_sha: "028bb959d3cf"
+source_sha: "0fb71853e2ff"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -849,7 +849,7 @@ cache są opcjonalne; puste dziedziczą cenę wejścia. Jawne zero jest ceną.
 API udostępnia ten sam dokument jako `custom_pricing`: pominięcie przy aktualizacji
 zachowuje ustawienie, a `null` przywraca wycenę automatyczną.
 
-Zmiana cen lub przywrócenie cen automatycznych wymaga `budgets:manage` oraz uprawnienia do zarządzania połączeniami modeli. Profile subskrypcji obsługują te same opcjonalne ceny tokenów: służą do rozliczania budżetu, a nie limitu subskrypcji. Gdy własne ceny zastępują koszt w rozliczeniach, pierwotny rachunek dostawcy pozostaje w metadanych użycia.
+Zmiana cen lub przywrócenie cen automatycznych wymaga `budgets:manage` oraz uprawnienia do zarządzania połączeniami modeli. To uprawnienie jest też wymagane przy zmianie klucza lub endpointu profilu z własnymi cenami. Profile subskrypcji obsługują te same opcjonalne ceny tokenów: służą do rozliczania budżetu, a nie limitu subskrypcji. Gdy własne ceny zastępują koszt w rozliczeniach, pierwotny rachunek dostawcy pozostaje w metadanych użycia.
 
 Własne stawki mają pierwszeństwo przed katalogiem i rachunkiem dostawcy.
 Podążają za profilem, który faktycznie odpowiada, również w fallbackach,
