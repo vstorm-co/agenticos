@@ -212,8 +212,7 @@ class SystemAgentRunner:
         except RunFailedError as failure:
             cause = failure.__cause__
             recorded = failure.details or {}
-            if recorded.get("run_id"):
-                self.failed_run_id = UUID(str(recorded["run_id"]))
+            self.failed_run_id = UUID(str(recorded["run_id"])) if "run_id" in recorded else None
             diagnosis = _output_failure(cause)
             if diagnosis is not None:
                 run_id = UUID(str(recorded["run_id"]))
