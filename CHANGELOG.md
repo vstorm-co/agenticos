@@ -27,6 +27,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Inbox routines no longer fail on every run: their findings are now read from the run's structured answer instead of its display text, so findings are published and an empty reading records no answer.
 - Let an agent bound to the platform MCP server schedule a routine for itself: `create_routine` without `agent_id` now schedules the agent the run belongs to, and `GET /me/permissions` returns that agent as `run_agent_id` for an agent's run credential. An API key or an MCP client still names the agent.
 
 - Stop posting a streamed Telegram answer twice: Telegram's "message is not modified" reply to the final edit is now a success instead of an error that triggered a second post (#3227).

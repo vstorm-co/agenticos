@@ -5472,6 +5472,48 @@ async def test_inbox_mode_only_delivers_relevant_cases_to_the_owner(findings):
         publisher.return_value.publish.assert_not_awaited()
 
 
+@pytest.mark.parametrize(
+    "findings",
+    [[], [{"key": "thread", "revision": "mail-1", "title": "Reply", "content": "Draft"}]],
+)
+async def test_an_inbox_fire_reads_its_findings_from_the_structured_answer(findings):
+    """The runner returns display text (a fenced block); the object arrives apart."""
+    from app.agents.factory import answer_text
+
+    agent = _agent()
+    service = _service(agent)
+    trigger = _trigger(agent_id=agent.id, result_mode="inbox", answer_to="primary")
+    run = MagicMock(
+        id=uuid.uuid4(),
+        status=RunStatus.COMPLETED.value,
+        routine_policy={"result_mode": "inbox"},
+    )
+    reading = {"findings": findings}
+    target = uuid.uuid4()
+
+    async def execute(*args, structured=None, **kwargs):
+        if structured is not None:
+            structured.append(reading)
+        return answer_text(reading), run
+
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch("app.services.agent_trigger.member_repo") as members,
+        patch("app.services.agent_trigger.conversation_repo") as conversations,
+        patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        patch("app.services.agent_trigger.RoutineFindingService") as publisher,
+        patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+    ):
+        repo.get_by_id = AsyncMock(return_value=trigger)
+        members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+        conversations.create_conversation = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+        publisher.return_value.publish = AsyncMock(return_value=target)
+        runner_cls.return_value.execute = AsyncMock(side_effect=execute)
+        await service.fire(trigger.id, activation_id=uuid.uuid4())
+    assert trigger.last_delivery_status == ("delivered" if findings else "no_answer")
+    assert publisher.return_value.publish.await_count == len(findings)
+
+
 @pytest.mark.parametrize("mode", [None, "invalid"])
 async def test_invalid_or_null_routine_result_policy_is_refused(mode):
     with pytest.raises(PydanticValidationError):

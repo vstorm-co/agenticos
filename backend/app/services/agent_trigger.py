@@ -3105,12 +3105,14 @@ class AgentTriggerService:
             if not await TaskExecution(self.db).started(ctx, trigger):
                 await self._disable(trigger, reason="task_unavailable")
                 return
+        structured: list[dict[str, Any]] = []
         try:
             answer, run = await runner.execute(
                 ctx,
                 trigger.agent_id,
                 message,
                 surface=RunSurface.SCHEDULE,
+                structured=structured,
                 output_schema=RoutineReading.model_json_schema()
                 if trigger.result_mode == "inbox"
                 else None,
@@ -3297,7 +3299,16 @@ class AgentTriggerService:
         delivery = AnswerDelivery(TriggerDeliveryStatus.NOT_COMPLETED)
         if run.status == RunStatus.COMPLETED.value:
             delivery = (
-                await self._deliver(trigger, agent=agent, run=run, answer=answer)
+                await self._deliver(
+                    trigger,
+                    agent=agent,
+                    run=run,
+                    # The display text renders the object for reading; an inbox
+                    # routine is read from the object itself.
+                    answer=json.dumps(structured[0])
+                    if trigger.result_mode == "inbox" and structured
+                    else answer,
+                )
                 if answer and delivery_allowed
                 else AnswerDelivery(
                     TriggerDeliveryStatus.NO_ANSWER

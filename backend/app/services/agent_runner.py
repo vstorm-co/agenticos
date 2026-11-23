@@ -9156,7 +9156,15 @@ class AgentRunnerService:
                     if deferred_tool_results is not None:
                         from app.services.routine_delivery import RoutineDeliveryService
 
-                        await RoutineDeliveryService(self.db).queue(prepared.run, answer=output)
+                        await RoutineDeliveryService(self.db).queue(
+                            prepared.run,
+                            # An inbox routine is read from the answer's object, not
+                            # from the display text rendered for it.
+                            answer=json.dumps(structured)
+                            if structured is not None
+                            and (prepared.run.routine_policy or {}).get("result_mode") == "inbox"
+                            else output,
+                        )
 
                     # Persist required handback in the same transaction as this segment,
                     # including failures and cancellations. Delivery never replays tools.

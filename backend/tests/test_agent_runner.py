@@ -10469,6 +10469,44 @@ async def test_only_resumed_runs_queue_the_canonical_answer_before_the_terminal_
 
 
 @pytest.mark.anyio
+async def test_a_resumed_inbox_run_queues_its_object_not_the_display_text() -> None:
+    import json
+
+    from pydantic_ai.tools import DeferredToolResults
+
+    service = AgentRunnerService(_db())
+    prepared = _prepared()
+    prepared.run.routine_policy = {"result_mode": "inbox"}
+    reading = {"findings": []}
+    prepared.built.agent.run = AsyncMock(
+        return_value=MagicMock(output=reading, new_messages=MagicMock(return_value=[]))
+    )
+
+    async def finished(*args: object, **kwargs: object) -> object:
+        status = kwargs["status"]
+        assert isinstance(status, RunStatus)
+        prepared.run.status = status.value
+        return prepared.run
+
+    with (
+        patch.object(service, "finish", new=AsyncMock(side_effect=finished)),
+        patch.object(service.transcript, "record", new=AsyncMock()),
+        patch(
+            "app.services.routine_delivery.RoutineDeliveryService.queue", new=AsyncMock()
+        ) as queue,
+    ):
+        segment = await service._run(
+            prepared,
+            user_prompt=None,
+            said=None,
+            message_history=None,
+            deferred_tool_results=DeferredToolResults(),
+        )
+    assert segment.structured == reading
+    queue.assert_awaited_once_with(prepared.run, answer=json.dumps(reading))
+
+
+@pytest.mark.anyio
 @pytest.mark.parametrize("offline", [False, True])
 async def test_device_activation_is_admitted_only_after_workspace_readiness(offline: bool) -> None:
     from app.services.routine_devices import RoutineDeviceOffline
