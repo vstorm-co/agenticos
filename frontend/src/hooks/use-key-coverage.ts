@@ -16,7 +16,8 @@ export const KEY_COVERAGE_POLL_MS = 3000;
  * An agent's coverage of a dataset's keys, asked about again while it is judged,
  * and asking for a new one.
  *
- * A pair with no report is `null`.
+ * A pair with no report is `null`; one whose report could not be read has `error`,
+ * so a refusal never reads as "not checked yet".
  */
 export function useKeyCoverage(datasetId: string, agentId: string) {
   const t = useTranslations("datasets.keyCoverage");
@@ -24,7 +25,7 @@ export function useKeyCoverage(datasetId: string, agentId: string) {
   const queryClient = useQueryClient();
   const queryKey = qk.datasets.keyCoverage(datasetId, agentId);
   const url = `/datasets/${datasetId}/key-coverage`;
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey,
     queryFn: async () => {
       try {
@@ -45,6 +46,7 @@ export function useKeyCoverage(datasetId: string, agentId: string) {
   return {
     report: data ?? null,
     loading: isLoading,
+    error,
     start: () => start.mutate(),
     starting: start.isPending,
   };

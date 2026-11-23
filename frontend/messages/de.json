@@ -15264,9 +15264,9 @@
       "noneReadOnly": "Für diesen Agenten noch nicht geprüft. Wer ihn bearbeiten darf, kann prüfen.",
       "running": "Es wird beurteilt, welche Quellen jeden Schlüssel enthalten…",
       "failed": "Die Abdeckung konnte nicht beurteilt werden: {error}",
-      "summary": "{uncovered, plural, =0 {Jeder Schlüssel hat eine Quelle} one {# Schlüssel hat keine Quelle} other {# Schlüssel haben keine Quelle}} von {count, plural, one {# Schlüssel} other {# Schlüsseln}} in Version {version}.",
+      "summary": "{count, plural, one {# Schlüssel} other {# Schlüssel}} in Version {version}: {covered, plural, other {#}} mit Quelle, {uncovered, plural, other {#}} ohne, {unsure, plural, other {#}} unsicher.",
       "outOfDate": "Für eine frühere Version des Agenten oder des Datasets erstellt, daher liest Improve ihn nicht mehr. Prüfen Sie erneut, um ihn zu aktualisieren.",
-      "unseen": "{count, plural, one {# Quelle dieses Agenten wurde} other {# Quellen dieses Agenten wurden}} nicht gelesen: Die Person, die gefragt hat, darf sie nicht sehen.",
+      "unseen": "{count, plural, one {# Quelle dieses Agenten wurde} other {# Quellen dieses Agenten wurden}} nicht gelesen - solche, die die fragende Person nicht sehen darf, oder MCP-Server, die über das Konto jeder Person laufen -, daher nutzt Improve diesen Bericht nicht.",
       "from": "Aus: {sources}",
       "hiddenSource": "eine Quelle, die Sie nicht sehen dürfen",
       "verdict": {
@@ -15274,7 +15274,8 @@
         "not_covered": "Keine Quelle",
         "unsure": "Unsicher"
       },
-      "failedToStart": "Die Abdeckungsprüfung konnte nicht gestartet werden"
+      "failedToStart": "Die Abdeckungsprüfung konnte nicht gestartet werden",
+      "unreadable": "Der Abdeckungsbericht konnte nicht gelesen werden."
     },
     "visibility": {
       "private": "Privat",

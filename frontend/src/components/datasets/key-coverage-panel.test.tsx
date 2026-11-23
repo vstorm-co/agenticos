@@ -15,6 +15,7 @@ vi.mock("@/hooks/use-eval-runs", () => ({ useEveryAgent: () => agents }));
 const coverage = {
   report: null as KeyCoverageReport | null,
   loading: false,
+  error: null as Error | null,
   start: vi.fn(),
   starting: false,
 };
@@ -80,6 +81,7 @@ beforeEach(() => {
   agents.error = null;
   coverage.report = null;
   coverage.loading = false;
+  coverage.error = null;
   coverage.starting = false;
 });
 
@@ -134,13 +136,36 @@ describe("KeyCoveragePanel", () => {
     await choose("Writer");
     expect(screen.queryByText(/Made for an earlier version/)).not.toBeInTheDocument();
 
-    expect(screen.getByText("1 key has no source of 3 keys in version 3.")).toBeInTheDocument();
-    expect(screen.getByText(/2 sources of this agent were not read/)).toBeInTheDocument();
+    expect(
+      screen.getByText("3 keys in version 3: 1 with a source, 1 with none, 1 unsure."),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/2 sources of this agent were not read/)).toHaveTextContent(
+      "so Improve does not use this report",
+    );
     const keys = screen.getAllByRole("listitem").map((item) => item.firstChild?.textContent);
     expect(keys).toEqual(["Due dateNo source", "CustomerUnsure", "Invoice numberCovered"]);
     expect(screen.getByText("From: a source you cannot see, crm")).toBeInTheDocument();
     expect(screen.getByText("Nothing names it")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Check again" })).toBeInTheDocument();
+  });
+
+  it("says a report that could not be read, rather than that none was made", async () => {
+    coverage.error = new Error("offline");
+    await choose("Writer");
+
+    expect(screen.getByRole("alert")).toHaveTextContent("The coverage report could not be read.");
+    expect(screen.queryByText("Not checked yet for this agent.")).not.toBeInTheDocument();
+  });
+
+  it("counts unsure keys apart from the ones with a source", async () => {
+    coverage.report = report({
+      items: [{ key: "Due date", verdict: "unsure", sources: [], why: null }],
+    });
+    await choose("Writer");
+
+    expect(
+      screen.getByText("1 key in version 3: 0 with a source, 0 with none, 1 unsure."),
+    ).toBeInTheDocument();
   });
 
   it("says a report made for an earlier version is out of date", async () => {

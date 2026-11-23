@@ -64,10 +64,17 @@ export function KeyCoveragePanel({ datasetId }: { datasetId: string }) {
 
 function AgentCoverage({ datasetId, agent }: { datasetId: string; agent: Agent }) {
   const t = useTranslations("datasets.keyCoverage");
-  const { report, loading, start, starting } = useKeyCoverage(datasetId, agent.id);
+  const { report, loading, error, start, starting } = useKeyCoverage(datasetId, agent.id);
   const running = report?.status === "running";
 
   if (loading) return <LoadingState />;
+  if (error) {
+    return (
+      <p className="text-destructive text-sm" role="alert">
+        {t("unreadable")}
+      </p>
+    );
+  }
   return (
     <div className="space-y-4">
       {agent.can_edit && (
@@ -111,11 +118,18 @@ function Report({ report }: { report: KeyCoverageReport }) {
   const items = [...report.items].sort(
     (a, b) => ORDER.indexOf(a.verdict) - ORDER.indexOf(b.verdict),
   );
-  const uncovered = items.filter((item) => item.verdict === "not_covered").length;
+  const counted = (verdict: CoverageItem["verdict"]) =>
+    items.filter((item) => item.verdict === verdict).length;
   return (
     <div className="space-y-3">
       <p className="text-sm" role="status">
-        {t("summary", { uncovered, count: items.length, version: report.dataset_version })}
+        {t("summary", {
+          count: items.length,
+          version: report.dataset_version,
+          covered: counted("covered"),
+          uncovered: counted("not_covered"),
+          unsure: counted("unsure"),
+        })}
       </p>
       {!report.current && <p className="text-muted-foreground text-sm">{t("outOfDate")}</p>}
       {report.unseen_sources > 0 && (

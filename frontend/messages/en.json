@@ -15578,9 +15578,9 @@
       "noneReadOnly": "Not checked yet for this agent. Someone who may edit it can check.",
       "running": "Judging which sources hold each key…",
       "failed": "The coverage could not be judged: {error}",
-      "summary": "{uncovered, plural, =0 {Every key has a source} =1 {1 key has no source} other {# keys have no source}} of {count, plural, =1 {1 key} other {# keys}} in version {version}.",
+      "summary": "{count, plural, =1 {1 key} other {# keys}} in version {version}: {covered, plural, other {#}} with a source, {uncovered, plural, other {#}} with none, {unsure, plural, other {#}} unsure.",
       "outOfDate": "Made for an earlier version of the agent or the dataset, so Improve no longer reads it. Check again to bring it up to date.",
-      "unseen": "{count, plural, =1 {1 source of this agent was} other {# sources of this agent were}} not read: the person who asked may not see {count, plural, =1 {it} other {them}}.",
+      "unseen": "{count, plural, =1 {1 source of this agent was} other {# sources of this agent were}} not read - ones the person who asked may not see, or MCP servers reached through each person's own account - so Improve does not use this report.",
       "from": "From: {sources}",
       "hiddenSource": "a source you cannot see",
       "verdict": {
@@ -15588,7 +15588,8 @@
         "not_covered": "No source",
         "unsure": "Unsure"
       },
-      "failedToStart": "The coverage check could not be started"
+      "failedToStart": "The coverage check could not be started",
+      "unreadable": "The coverage report could not be read."
     },
     "visibility": {
       "private": "Private",

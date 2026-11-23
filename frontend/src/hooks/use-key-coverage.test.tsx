@@ -49,6 +49,7 @@ describe("useKeyCoverage", () => {
     const other = renderHook(() => useKeyCoverage("d2", "a2"), { wrapper });
     await waitFor(() => expect(other.result.current.loading).toBe(false));
     expect(other.result.current.report).toBeNull();
+    expect(other.result.current.error).toBeInstanceOf(ApiError);
   });
 
   it("asks again while the keys are judged, and stops once they are", async () => {

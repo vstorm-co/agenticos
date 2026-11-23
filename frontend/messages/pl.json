@@ -15351,9 +15351,9 @@
       "noneReadOnly": "Ten agent nie był jeszcze sprawdzany. Może to zrobić osoba, która może go edytować.",
       "running": "Sprawdzanie, które źródła zawierają każdy klucz…",
       "failed": "Nie udało się ocenić pokrycia: {error}",
-      "summary": "{uncovered, plural, =0 {Każdy klucz ma źródło} one {# klucz nie ma źródła} few {# klucze nie mają źródła} many {# kluczy nie ma źródła} other {# klucza nie ma źródła}} spośród {count, plural, one {# klucza} other {# kluczy}} w wersji {version}.",
+      "summary": "{count, plural, one {# klucz} few {# klucze} many {# kluczy} other {# klucza}} w wersji {version}: ze źródłem {covered, plural, other {#}}, bez źródła {uncovered, plural, other {#}}, niepewne {unsure, plural, other {#}}.",
       "outOfDate": "Raport dotyczy wcześniejszej wersji agenta albo datasetu, więc Improve już go nie czyta. Sprawdź ponownie, żeby go odświeżyć.",
-      "unseen": "{count, plural, one {# źródło tego agenta nie zostało przeczytane} few {# źródła tego agenta nie zostały przeczytane} many {# źródeł tego agenta nie zostało przeczytanych} other {# źródła tego agenta nie zostało przeczytane}}: osoba, która zleciła sprawdzenie, nie ma do nich dostępu.",
+      "unseen": "{count, plural, one {# źródło tego agenta nie zostało przeczytane} few {# źródła tego agenta nie zostały przeczytane} many {# źródeł tego agenta nie zostało przeczytanych} other {# źródła tego agenta nie zostało przeczytane}} - takie, których zlecający nie widzi, albo serwery MCP działające przez konto każdej osoby - więc Improve nie korzysta z tego raportu.",
       "from": "Źródła: {sources}",
       "hiddenSource": "źródło, którego nie widzisz",
       "verdict": {
@@ -15361,7 +15361,8 @@
         "not_covered": "Brak źródła",
         "unsure": "Niepewne"
       },
-      "failedToStart": "Nie udało się rozpocząć sprawdzania pokrycia"
+      "failedToStart": "Nie udało się rozpocząć sprawdzania pokrycia",
+      "unreadable": "Nie udało się odczytać raportu pokrycia."
     },
     "visibility": {
       "private": "Prywatna",
