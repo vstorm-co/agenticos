@@ -56,7 +56,7 @@ names no author is in the evidence column below.
 |---|---|---|---|---|
 | aiofile | 3.12.3 | Apache-2.0 | https://github.com/mosquito/aiofile | License-Expression |
 | aiofiles | 25.1.0 | Apache-2.0 | https://github.com/Tinche/aiofiles | License field |
-| aiogram | 3.31.0 | MIT | https://github.com/aiogram/aiogram/ | License-Expression |
+| aiogram | 3.33.0 | MIT | https://github.com/aiogram/aiogram/ | License-Expression |
 | aiohappyeyeballs | 2.7.1 | PSF-2.0 | https://github.com/aio-libs/aiohappyeyeballs | License field |
 | aiohttp | 3.14.5 | Apache-2.0 AND MIT | https://github.com/aio-libs/aiohttp | License-Expression |
 | aiohttp-retry | 2.9.1 | MIT | https://github.com/inyutin/aiohttp_retry | License field |
@@ -70,13 +70,13 @@ names no author is in the evidence column below.
 | asgiref | 3.13.0 | BSD-3-Clause | https://asgi.readthedocs.io/ | License field |
 | asyncpg | 0.32.0 | Apache-2.0 | https://github.com/MagicStack/asyncpg | License-Expression |
 | attrs | 26.1.0 | MIT | https://github.com/python-attrs/attrs | License-Expression |
-| authlib | 1.9.5 | BSD-3-Clause | https://github.com/authlib/authlib | License field |
+| authlib | 1.9.9 | BSD-3-Clause | https://github.com/authlib/authlib | License field |
 | bcrypt | 5.0.0 | Apache-2.0 | https://github.com/pyca/bcrypt/ | License field |
 | beartype | 0.23.1 | MIT | https://github.com/beartype/beartype | License-Expression |
 | beautifulsoup4 | 4.15.0 | MIT | https://www.crummy.com/software/BeautifulSoup/bs4/ | License field |
 | bidict | 0.24.1 | MPL-2.0 | https://github.com/jab/bidict | License-Expression; review accepted |
-| boto3 | 1.44.2 | Apache-2.0 | https://github.com/boto/boto3 | License field |
-| botocore | 1.44.3 | Apache-2.0 | https://github.com/boto/botocore | License field |
+| boto3 | 1.44.7 | Apache-2.0 | https://github.com/boto/boto3 | License field |
+| botocore | 1.44.9 | Apache-2.0 | https://github.com/boto/botocore | License field |
 | bracex | 3.2 | MIT | https://github.com/facelessuser/bracex | License-Expression |
 | cachetools | 7.2.6 | MIT | https://github.com/tkem/cachetools/ | License-Expression |
 | caio | 0.12.10 | Apache-2.0 | https://github.com/mosquito/caio/ | License-Expression |
@@ -112,8 +112,8 @@ names no author is in the evidence column below.
 | executing | 2.3.0 | MIT | https://github.com/alexmojaki/executing | License field |
 | fastapi | 0.165.0 | MIT | https://github.com/fastapi/fastapi | License-Expression |
 | fastavro | 1.13.1 | MIT | https://github.com/fastavro/fastavro | License field |
-| fastmcp | 4.1.8 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression |
-| fastmcp-slim | 4.1.8 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression; no licence file, attributed to Jeremiah Lowin, Nate Nowack |
+| fastmcp | 4.2.3 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression |
+| fastmcp-slim | 4.2.3 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression; no licence file, attributed to Jeremiah Lowin, Nate Nowack |
 | filelock | 4.2.4 | MIT | https://github.com/tox-dev/py-filelock | License-Expression |
 | frozenlist | 1.8.0 | Apache-2.0 | https://github.com/aio-libs/frozenlist | License field |
 | fsspec | 2026.9.0 | BSD-3-Clause | https://github.com/fsspec/filesystem_spec | License-Expression |
@@ -131,12 +131,12 @@ names no author is in the evidence column below.
 | hpack | 4.2.0 | MIT | https://github.com/python-hyper/hpack/ | License-Expression |
 | http-ece | 1.2.1 | MIT | https://github.com/martinthomson/encrypted-content-encoding | License field; no licence file, attributed to Martin Thomson |
 | httpcore | 1.0.9 | BSD-3-Clause | https://github.com/encode/httpcore | License-Expression |
-| httpcore2 | 2.16.0 | BSD-3-Clause | https://github.com/pydantic/httpx2/blob/main/src/httpcore2 | License-Expression |
+| httpcore2 | 2.16.2 | BSD-3-Clause | https://github.com/pydantic/httpx2/blob/main/src/httpcore2 | License-Expression |
 | httptools | 0.9.0 | MIT | https://github.com/MagicStack/httptools | License-Expression |
 | httpx | 0.28.1 | BSD-3-Clause | https://github.com/encode/httpx | License field |
 | httpx-sse | 0.4.3 | MIT | https://github.com/florimondmanca/httpx-sse | License field |
 | httpx-ws | 0.9.0 | MIT | https://github.com/frankie567/httpx-ws | classifier |
-| httpx2 | 2.16.0 | BSD-3-Clause | https://github.com/pydantic/httpx2 | License-Expression |
+| httpx2 | 2.16.2 | BSD-3-Clause | https://github.com/pydantic/httpx2 | License-Expression |
 | huggingface-hub | 1.18.0 | Apache-2.0 | https://github.com/huggingface/huggingface_hub | License field |
 | hyperframe | 6.1.0 | MIT | https://github.com/python-hyper/hyperframe/ | classifier |
 | idna | 3.20 | BSD-3-Clause | https://github.com/kjd/idna | License-Expression |
@@ -209,13 +209,13 @@ names no author is in the evidence column below.
 | pyasn1 | 0.6.5 | BSD-2-Clause | https://github.com/pyasn1/pyasn1 | License field |
 | pyasn1-modules | 0.4.2 | BSD-2-Clause | https://github.com/pyasn1/pyasn1-modules | licence file text |
 | pycparser | 3.12 | BSD-3-Clause | https://github.com/eliben/pycparser | License-Expression |
-| pydantic | 2.14.3 | MIT | https://github.com/pydantic/pydantic | License-Expression |
+| pydantic | 2.14.4 | MIT | https://github.com/pydantic/pydantic | License-Expression |
 | pydantic-ai-backend | 0.2.39 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
 | pydantic-ai-harness | 0.71.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-ai-otari | 0.1.0 | Apache-2.0 | https://github.com/mozilla-ai/otari | License-Expression |
 | pydantic-ai-skills | 2.1.2 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
 | pydantic-ai-slim | 2.71.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
-| pydantic-core | 2.50.4 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
+| pydantic-core | 2.50.5 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
 | pydantic-graph | 2.71.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-monty | 1.6.0 | MIT | https://github.com/pydantic/monty | License-Expression; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-monty-client | 1.6.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
@@ -230,7 +230,7 @@ names no author is in the evidence column below.
 | python-docx | 1.2.0 | MIT | https://github.com/python-openxml/python-docx | License field |
 | python-dotenv | 1.2.4 | BSD-3-Clause | https://github.com/theskumar/python-dotenv | License field |
 | python-engineio | 4.14.0 | MIT | https://code.miguelgrinberg.com/miguelgrinberg/python-engineio | License field |
-| python-multipart | 0.0.33 | Apache-2.0 | https://github.com/Kludex/python-multipart | License-Expression |
+| python-multipart | 0.0.34 | Apache-2.0 | https://github.com/Kludex/python-multipart | License-Expression |
 | python-pptx | 1.0.2 | MIT | https://github.com/scanny/python-pptx | License field |
 | python-socketio | 5.17.0 | MIT | https://code.miguelgrinberg.com/miguelgrinberg/python-socketio | License field |
 | pywebpush | 2.5.0 | MPL-2.0 | https://github.com/web-push-libs/pywebpush | License-Expression; review accepted |
@@ -238,7 +238,7 @@ names no author is in the evidence column below.
 | rank-bm25 | 0.2.2 | Apache-2.0 | https://github.com/dorianbrown/rank_bm25 | License field |
 | redis | 8.1.0 | MIT | https://github.com/redis/redis-py | License-Expression |
 | referencing | 0.37.0 | MIT | https://github.com/python-jsonschema/referencing | License-Expression |
-| regex | 2026.11.9 | Apache-2.0 AND CNRI-Python | https://github.com/mrabarnett/mrab-regex | License-Expression |
+| regex | 2026.11.19 | Apache-2.0 AND CNRI-Python | https://github.com/mrabarnett/mrab-regex | License-Expression |
 | requests | 2.34.2 | Apache-2.0 | https://github.com/psf/requests | License field |
 | rich | 15.0.0 | MIT | https://github.com/Textualize/rich | License field |
 | rich-rst | 2.2.0 | MIT | https://github.com/wasi-master/rich-rst | License-Expression |
@@ -247,10 +247,10 @@ names no author is in the evidence column below.
 | shellingham | 1.5.4 | ISC | https://github.com/sarugaku/shellingham | License field |
 | simple-websocket | 1.1.0 | MIT | https://github.com/miguelgrinberg/simple-websocket | classifier |
 | six | 1.17.0 | MIT | https://github.com/benjaminp/six | License field |
-| slack-sdk | 3.47.0 | MIT | https://github.com/slackapi/python-slack-sdk | License field |
+| slack-sdk | 3.48.0 | MIT | https://github.com/slackapi/python-slack-sdk | License field |
 | sniffio | 1.3.1 | Apache-2.0 | https://github.com/python-trio/sniffio | licence file text |
-| soupsieve | 4.1 | MIT | https://github.com/facelessuser/soupsieve | License-Expression |
-| sqlalchemy | 2.1.8 | MIT | https://github.com/sqlalchemy/sqlalchemy | License-Expression |
+| soupsieve | 4.1.2 | MIT | https://github.com/facelessuser/soupsieve | License-Expression |
+| sqlalchemy | 2.1.9 | MIT | https://github.com/sqlalchemy/sqlalchemy | License-Expression |
 | sse-starlette | 3.6.0 | BSD-3-Clause | https://github.com/sysid/sse-starlette | License-Expression |
 | starlette | 1.10.0 | BSD-3-Clause | https://github.com/Kludex/starlette | License-Expression |
 | subagents-pydantic-ai | 0.2.25 | MIT | https://github.com/vstorm-co/subagents-pydantic-ai | License field |
@@ -267,7 +267,7 @@ names no author is in the evidence column below.
 | typesafe-sdk | 0.7.5 | MIT | https://github.com/typesafe-ai/typesafe-sdk-python | License-Expression |
 | typing-extensions | 4.16.0 | PSF-2.0 | https://github.com/python/typing_extensions | License-Expression |
 | typing-inspection | 0.4.4 | MIT | https://github.com/pydantic/typing-inspection | License-Expression |
-| uncalled-for | 0.4.1 | MIT | https://github.com/chrisguidry/uncalled-for | License-Expression |
+| uncalled-for | 0.6.2 | MIT | https://github.com/chrisguidry/uncalled-for | License-Expression |
 | urllib3 | 2.8.0 | MIT | https://urllib3.readthedocs.io | License-Expression |
 | uvicorn | 0.54.0 | BSD-3-Clause | https://github.com/Kludex/uvicorn | License-Expression |
 | uvloop | 0.23.0 | MIT | https://github.com/MagicStack/uvloop | License field |

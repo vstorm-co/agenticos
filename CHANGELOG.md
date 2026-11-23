@@ -31,6 +31,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Update the backend framework, MCP, authentication, channel and validation dependencies from #3235 and #3236. Retain croniter 6 so existing saved cron expressions keep their scheduling semantics.
+
 - Adapt skill catalog rendering, code-result serialization and the Stav client factory to the updated agent SDK contracts.
 
 - Personal Inbox readers receive structured questions, linked authenticated answers, original timestamps and timezone-aware local dates throughout extraction and verification. Schedule wording is interpreted by the model rather than a weekday/time regex. Memory maintenance retains source timestamps and question/answer provenance; clipped transcript tails are marked explicitly.
