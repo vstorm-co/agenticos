@@ -1413,7 +1413,11 @@ class EvalRunService:
                 output_tokens=settings.EVAL_FALLBACK_OUTPUT_TOKENS,
             )
             priced = price_request(
-                typical, model.model, model.provider, custom_pricing=model.credential.custom_pricing
+                typical,
+                model.model,
+                model.provider,
+                custom_pricing=model.credential.custom_pricing,
+                exchange_rates=model.credential.exchange_rates,
             )
             if priced is not None:
                 return Decimal(priced).quantize(_CENT), False
@@ -1439,6 +1443,7 @@ class EvalRunService:
                 model.model,
                 model.provider,
                 custom_pricing=model.credential.custom_pricing,
+                exchange_rates=model.credential.exchange_rates,
             )
             if priced is not None:
                 return Decimal(priced).quantize(_CENT)

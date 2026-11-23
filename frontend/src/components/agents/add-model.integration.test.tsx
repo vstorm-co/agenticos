@@ -65,6 +65,10 @@ const state = {
   permissions: [] as Permission[],
 };
 
+vi.mock("@/hooks/use-currencies", () => ({
+  useCurrencies: () => ({ data: { rates: { USD: "1", EUR: "0.9" } } }),
+}));
+
 vi.mock("./subscription-model-form", () => ({
   SubscriptionModelForm: ({
     provider,

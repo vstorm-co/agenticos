@@ -4858,7 +4858,7 @@
       "accessHint": "Katılımı, başlangıç kuruluşunu ve kullanım sınırlarını yönetin.",
       "notices": "Duyurular ve bakım modu",
       "noticesHint": "Bir duyuru paylaşın veya bakım ekranını yapılandırın.",
-      "services": "Ses ve mobil",
+      "services": "Hizmetler ve maliyetler",
       "servicesHint": "Ses kaydı tercihleri ve mobil uygulama anlık bildirimleri.",
       "operations": "Güncellemeler ve tanılama",
       "operationsHint": "Uygulama güncellemeleri ve dağıtım tanılaması."
@@ -17120,6 +17120,25 @@
     "cache_read": "Önbellek okuma tokenları",
     "cache_write": "Önbellek yazma tokenları",
     "override": "Özel fiyatları kullan (milyon token başına USD)",
-    "cacheDefault": "Girdi fiyatını kullanmak için boş bırakın."
+    "cacheDefault": "Girdi fiyatını kullanmak için boş bırakın.",
+    "overrideCurrency": "Özel fiyatları kullan (milyon token başına)",
+    "currency": "Fiyatlandırma para birimi"
+  },
+  "currencies": {
+    "title": "Para birimleri ve döviz kurları",
+    "manualRates": "1 USD başına para birimi miktarını girin. Kurlar elle yönetilir; kaydedilen maliyetler, oluştukları anda kullanılan kuru korur.",
+    "deploymentDefault": "Varsayılan kuruluş para birimi",
+    "rate": "USD başına {currency}",
+    "remove": "{currency} kaldır",
+    "code": "Para birimi kodu",
+    "newRate": "USD başına birim",
+    "add": "Para birimi ekle",
+    "reset": "Ortam varsayılanlarını kullan",
+    "organization": "Kuruluş para birimi",
+    "organizationHint": "Dağıtım varsayılanını devralın veya raporlama para birimini seçin. Mevcut fiyat ve limitler özgün birimlerini korur.",
+    "inherit": "Devral ({currency})",
+    "loadFailed": "Para birimi ayarları yüklenemedi",
+    "retry": "Yeniden dene",
+    "saveFailed": "Para birimi kaydedilemedi"
   }
 }

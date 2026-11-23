@@ -327,7 +327,9 @@ def _environment():
                     label="gpt-test",
                     model="gpt-test",
                     provider="openai",
-                    credential=SimpleNamespace(custom_pricing=None),
+                    credential=SimpleNamespace(
+                        custom_pricing=None, exchange_rates={"USD": Decimal(1)}
+                    ),
                 )
             ),
         ),
@@ -1686,7 +1688,7 @@ async def test_a_model_with_no_history_is_priced_at_its_own_price(db) -> None:
         label="nano",
         model="gpt-4.1-nano",
         provider="openai",
-        credential=SimpleNamespace(custom_pricing=None),
+        credential=SimpleNamespace(custom_pricing=None, exchange_rates={"USD": Decimal(1)}),
     )
 
     with patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=priced)):
@@ -2642,7 +2644,7 @@ async def test_a_judge_with_no_history_is_priced_at_its_models_price(db) -> None
         label="nano",
         model="gpt-4.1-nano",
         provider="openai",
-        credential=SimpleNamespace(custom_pricing=None),
+        credential=SimpleNamespace(custom_pricing=None, exchange_rates={"USD": Decimal(1)}),
     )
     service = EvalRunService(db)
 

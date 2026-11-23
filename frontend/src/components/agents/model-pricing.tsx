@@ -3,14 +3,26 @@
 import { useId } from "react";
 import { useTranslations } from "next-intl";
 
-import { FormField, Input, Switch } from "@/components/ui";
+import {
+  FormField,
+  Input,
+  Switch,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui";
 import type { TokenPricing } from "@/types/providers";
 
 const RATES = ["input", "output", "cache_read", "cache_write"] as const;
 
 export function sameTokenPricing(left: TokenPricing | null, right: TokenPricing | null): boolean {
   if (left === null || right === null) return left === right;
-  return RATES.every((field) => (left[field] ?? null) === (right[field] ?? null));
+  return (
+    (left.currency ?? "USD") === (right.currency ?? "USD") &&
+    RATES.every((field) => (left[field] ?? null) === (right[field] ?? null))
+  );
 }
 
 export function validTokenPricing(value: TokenPricing | null): boolean {
@@ -32,8 +44,10 @@ export function ModelPricing({
   automatic,
   disabled,
   onChange,
+  currencies = ["USD"],
 }: {
   value: TokenPricing | null;
+  currencies?: string[];
   automatic?: TokenPricing | null;
   disabled?: boolean;
   onChange: (value: TokenPricing | null) => void;
@@ -74,40 +88,60 @@ export function ModelPricing({
             )
           }
         />
-        {t("override")}
+        {t("overrideCurrency")}
       </label>
       {value !== null && (
-        <div className="grid grid-cols-2 gap-3">
-          {RATES.map((field) => (
-            <FormField
-              key={field}
-              htmlFor={`${id}-${field}`}
-              label={t(field)}
-              description={
-                field === "cache_read" || field === "cache_write" ? t("cacheDefault") : undefined
-              }
+        <div className="space-y-3">
+          <FormField label={t("currency")} htmlFor={`${id}-currency`}>
+            <Select
+              value={value.currency ?? "USD"}
+              disabled={disabled}
+              onValueChange={(currency) => onChange({ ...value, currency })}
             >
-              <Input
-                id={`${id}-${field}`}
-                type="number"
-                min="0"
-                max="1000000"
-                step="any"
-                required={field === "input" || field === "output"}
-                value={value[field] ?? ""}
-                onChange={(event) =>
-                  onChange({
-                    ...value,
-                    [field]:
-                      event.target.value === "" &&
-                      (field === "cache_read" || field === "cache_write")
-                        ? null
-                        : event.target.value,
-                  })
+              <SelectTrigger id={`${id}-currency`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[...new Set([...currencies, value.currency ?? "USD"])].map((currency) => (
+                  <SelectItem key={currency} value={currency}>
+                    {currency}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            {RATES.map((field) => (
+              <FormField
+                key={field}
+                htmlFor={`${id}-${field}`}
+                label={t(field)}
+                description={
+                  field === "cache_read" || field === "cache_write" ? t("cacheDefault") : undefined
                 }
-              />
-            </FormField>
-          ))}
+              >
+                <Input
+                  id={`${id}-${field}`}
+                  type="number"
+                  min="0"
+                  max="1000000"
+                  step="any"
+                  required={field === "input" || field === "output"}
+                  value={value[field] ?? ""}
+                  onChange={(event) =>
+                    onChange({
+                      ...value,
+                      [field]:
+                        event.target.value === "" &&
+                        (field === "cache_read" || field === "cache_write")
+                          ? null
+                          : event.target.value,
+                    })
+                  }
+                />
+              </FormField>
+            ))}
+          </div>
         </div>
       )}
     </fieldset>

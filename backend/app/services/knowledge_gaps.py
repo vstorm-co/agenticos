@@ -1752,6 +1752,7 @@ class KnowledgeGapService:
             model.model,
             model.provider,
             custom_pricing=model.credential.custom_pricing,
+            exchange_rates=model.credential.exchange_rates,
         )
         return None if priced is None else priced * steps(spec)
 

@@ -15,7 +15,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from pydantic_ai.messages import ModelMessage, ModelResponse
-from pydantic_ai.models import ModelRequestParameters, StreamedResponse
+from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 from pydantic_ai.models.wrapper import WrapperModel
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import RunContext
@@ -40,18 +40,22 @@ def _amount(value: object) -> Decimal | None:
 class _Capture:
     cost: Decimal | None = None
     currency: str | None = None
+    exchange_rates: Mapping[str, Decimal] | None = None
 
     def apply(self, usage: RequestUsage) -> None:
         if self.cost is None:
             return
-        rate = settings.STAV_NOK_PER_USD if self.currency == "NOK" else None
+        rates = self.exchange_rates or {}
+        rate = rates.get(self.currency) if self.currency is not None else None
+        if rate is None and self.currency == "NOK":
+            rate = settings.STAV_NOK_PER_USD
         if self.currency == "USD":
             usd = self.cost
-        elif self.currency == "NOK" and rate is not None:
+        elif rate is not None and rate.is_finite() and rate > 0:
             usd = self.cost / rate
         else:
             logger.warning(
-                "Stav billed cost cannot be converted to USD; configure STAV_NOK_PER_USD for NOK"
+                "Stav billed cost cannot be converted to USD; configure its currency rate"
             )
             return
         # RequestUsage explicitly supports arbitrary serialized usage fields.
@@ -64,7 +68,8 @@ class _Capture:
             "amount": str(self.cost),
             "currency": self.currency,
             "cost_usd": str(usd),
-            "nok_per_usd": str(rate) if rate is not None else None,
+            "nok_per_usd": str(rate) if self.currency == "NOK" and rate is not None else None,
+            "units_per_usd": str(rate) if rate is not None else None,
         }
         setattr(usage, "provider_reported_cost", provenance)  # noqa: B010 - SDK extension, absent from its static type
 
@@ -101,13 +106,17 @@ def capture_stav_cost(data: object, headers: Mapping[str, str]) -> None:
 class StavCostModel(WrapperModel):
     """Attach the request's billed cost before any budget or ambient meter sees it."""
 
+    def __init__(self, wrapped: Model, exchange_rates: Mapping[str, Decimal] | None = None) -> None:
+        super().__init__(wrapped)
+        self.exchange_rates = dict(exchange_rates) if exchange_rates is not None else None
+
     async def request(
         self,
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
     ) -> ModelResponse:
-        capture = _Capture()
+        capture = _Capture(exchange_rates=self.exchange_rates)
         token = _active.set(capture)
         try:
             response = await self.wrapped.request(
@@ -126,7 +135,7 @@ class StavCostModel(WrapperModel):
         model_request_parameters: ModelRequestParameters,
         run_context: RunContext[Any] | None = None,
     ) -> AsyncGenerator[StreamedResponse]:
-        capture = _Capture()
+        capture = _Capture(exchange_rates=self.exchange_rates)
         token = _active.set(capture)
         try:
             async with self.wrapped.request_stream(

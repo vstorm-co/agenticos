@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- Apply `0353_currency_settings.py` for manual deployment exchange rates and nullable organization currency preferences. Existing prices and USD limits retain their units.
+
 - Apply `0352_model_profile_pricing.py` before starting the API. Existing profiles retain automatic pricing.
 
 - Apply `0351_merge_personal_context_and_onboarding.py` to join the personal work index and provider/onboarding migration histories.
@@ -36,6 +38,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Apply `0342_personal_coding_sessions.py` and update API/workers together before using retained personal coding sessions. Existing workspace rows are unchanged. Sessions remain subject to provider idle expiry; failed tasks without confirmed safe retention are discarded.
 
 ### Added
+
+- Select a currency for custom model token prices and convert usage to accounting USD with a recorded rate snapshot. Configure manual rates in administration or `CURRENCY_RATES`; retain `STAV_NOK_PER_USD` as a legacy fallback. Organization currency preferences are exposed separately; report and budget presentation in those currencies remains pending.
 
 - Set flat USD token prices per model profile in the console and API, including cache rates and explicit free usage. Fallbacks and delegates use their own profile prices; keyless usage reaches budgets and reports. Existing recorded costs remain unchanged.
 

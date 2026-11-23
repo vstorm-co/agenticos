@@ -202,3 +202,36 @@ it("guides setup from access settings and advances only when edited settings hav
   act(() => firstSave[1].onSuccess());
   expect(next).toHaveBeenCalledOnce();
 });
+
+it("saves only the edited currency document", async () => {
+  settings = SAVED;
+  loading = false;
+  const user = userEvent.setup();
+  render(<DeploymentSettingsForm />, { wrapper: queryWrapper() });
+  await user.click(screen.getByRole("tab", { name: "Services & costs" }));
+  await user.type(screen.getByLabelText("Currency code"), "EUR");
+  await user.type(screen.getByLabelText("Units per USD"), "0.9");
+  await user.click(screen.getByRole("button", { name: "Add currency" }));
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  expect(save).toHaveBeenCalledWith(
+    { currency_settings: { default_currency: "USD", rates: { USD: "1", EUR: "0.9" } } },
+    expect.any(Object),
+  );
+});
+
+it("previews the environment values before saving a cleared currency override", async () => {
+  settings = {
+    ...SAVED,
+    currency_settings: { default_currency: "EUR", rates: { USD: "1", EUR: "0.9" } },
+    effective_currency_settings: { default_currency: "EUR", rates: { USD: "1", EUR: "0.9" } },
+    environment_currency_settings: { default_currency: "USD", rates: { USD: "1" } },
+  };
+  loading = false;
+  const user = userEvent.setup();
+  render(<DeploymentSettingsForm />, { wrapper: queryWrapper() });
+  await user.click(screen.getByRole("tab", { name: "Services & costs" }));
+  await user.click(screen.getByRole("button", { name: "Use environment defaults" }));
+  expect(screen.queryByLabelText("EUR per USD")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  expect(save).toHaveBeenCalledWith({ currency_settings: null }, expect.any(Object));
+});

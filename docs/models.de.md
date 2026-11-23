@@ -1,5 +1,5 @@
 ---
-source_sha: "c0a7dc426e6a"
+source_sha: "30821f871326"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -896,7 +896,7 @@ dafür zu Hause an, was zwei wissenswerte Dinge bedeutet:
 - Preise zu aktualisieren ist ein Abhängigkeits-Update.
 
 Im Abschnitt **Preise** eines Modellprofils können Sie automatische Tokenpreise
-überschreiben. Eingabe und Ausgabe werden in USD pro Million Tokens angegeben.
+überschreiben. Eingabe und Ausgabe werden pro Million Tokens in der gewählten Währung angegeben (standardmäßig USD).
 Cache-Lese- und Schreibpreise sind optional und übernehmen bei leerem Feld den
 Eingabepreis. Eine ausdrückliche Null ist ein Preis. Die API verwendet dafür
 `custom_pricing`: Auslassen beim Aktualisieren behält die Einstellung bei,
@@ -920,6 +920,15 @@ Sie haben kein [Vault-Secret](secrets.md) für eine Zuordnung im Schlüsselberic
 
 Die Kosten werden *vor* jeder Modellanfrage geprüft und auch dann erfasst, wenn
 der Run fehlschlägt. Siehe [Budgets](governance.md#budgets).
+
+Eigene Preise enthalten einen `currency`-Code, unabhängig von Organisation und
+Oberflächensprache. Administratoren pflegen manuelle Kurse unter **Währungen und
+Wechselkurse**. Ein Kurs bedeutet Währungseinheiten pro USD: Bei EUR `0.9` werden
+`9 EUR` als `10 USD` erfasst. Die Nutzung behält ursprünglichen Betrag, Währung und
+angewendeten Kurs; spätere Änderungen überschreiben diese USD-Kosten nicht.
+Fehlende Umrechnung bleibt unbepreist; begrenzte Anfragen werden vor der Inferenz
+abgelehnt. Die Währungspräferenz der Organisation wird getrennt gespeichert;
+eingebaute Berichte und Budgets bleiben bis zum Abschluss von #3221 in USD.
 
 ### Eine Delegation löst ihr eigenes Profile auf { #a-delegation-resolves-its-own-profile }
 

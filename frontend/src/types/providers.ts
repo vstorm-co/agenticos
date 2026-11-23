@@ -70,6 +70,7 @@ export interface ProviderCatalog {
 
 /** Decimal strings preserve the saved price without binary float rounding. */
 export interface TokenPricing {
+  currency?: string;
   input: string;
   output: string;
   cache_read?: string | null;

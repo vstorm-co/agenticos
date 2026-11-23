@@ -4741,7 +4741,7 @@
       "accessHint": "Określ, kto może dołączyć, organizację początkową i limity użycia.",
       "notices": "Ogłoszenia i tryb konserwacji",
       "noticesHint": "Wyświetl ogłoszenie lub skonfiguruj ekran prac serwisowych.",
-      "services": "Głos i aplikacja",
+      "services": "Usługi i koszty",
       "servicesHint": "Nagrywanie dźwięku i powiadomienia push w aplikacji mobilnej.",
       "operations": "Aktualizacje i diagnostyka",
       "operationsHint": "Aktualizacje aplikacji i diagnostyka wdrożenia."
@@ -21354,6 +21354,25 @@
     "cache_read": "Odczyt pamięci podręcznej",
     "cache_write": "Zapis pamięci podręcznej",
     "override": "Użyj własnych cen (USD za milion tokenów)",
-    "cacheDefault": "Pozostaw puste, aby użyć ceny wejściowej."
+    "cacheDefault": "Pozostaw puste, aby użyć ceny wejściowej.",
+    "overrideCurrency": "Użyj własnych cen (za milion tokenów)",
+    "currency": "Waluta cennika"
+  },
+  "currencies": {
+    "title": "Waluty i kursy wymiany",
+    "manualRates": "Podaj liczbę jednostek waluty za 1 USD. Kursy są ręczne; zapisane koszty zachowują kurs zastosowany przy ich naliczeniu.",
+    "deploymentDefault": "Domyślna waluta organizacji",
+    "rate": "{currency} za USD",
+    "remove": "Usuń {currency}",
+    "code": "Kod waluty",
+    "newRate": "Jednostki za USD",
+    "add": "Dodaj walutę",
+    "reset": "Użyj ustawień środowiska",
+    "organization": "Waluta organizacji",
+    "organizationHint": "Dziedzicz domyślną walutę wdrożenia lub wybierz walutę raportowania. Istniejące ceny i limity zachowują pierwotne jednostki.",
+    "inherit": "Dziedzicz ({currency})",
+    "loadFailed": "Nie udało się wczytać ustawień walut",
+    "retry": "Ponów",
+    "saveFailed": "Nie udało się zapisać waluty"
   }
 }

@@ -684,3 +684,12 @@ async def set_onboarding_reminders(
     )
     await db.flush()
     return result.scalar_one()
+
+
+async def set_currency(
+    db: AsyncSession, org: Organization, *, currency: str | None
+) -> Organization:
+    org.currency = currency
+    await db.flush()
+    await db.refresh(org)
+    return org

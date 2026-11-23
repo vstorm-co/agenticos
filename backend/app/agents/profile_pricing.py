@@ -1,7 +1,8 @@
 """Bind accounting to the profile that actually answers, before SDK aggregation."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Mapping
 from contextlib import asynccontextmanager
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -23,13 +24,33 @@ class ProfilePricingModel(WrapperModel):
     RunUsage aggregation, including free requests and invalid usage.
     """
 
-    def __init__(self, wrapped: Model, pricing: TokenPricing, profile_id: UUID | None) -> None:
+    def __init__(
+        self,
+        wrapped: Model,
+        pricing: TokenPricing,
+        profile_id: UUID | None,
+        exchange_rates: Mapping[str, Decimal] | None = None,
+    ) -> None:
         super().__init__(wrapped)
         self.pricing = pricing
         self.profile_id = profile_id
+        self.exchange_rates = (
+            dict(exchange_rates) if exchange_rates is not None else {"USD": Decimal(1)}
+        )
+
+    def check_price(self) -> None:
+        from app.agents.capabilities.budget import require_ambient_price
+
+        require_ambient_price(
+            "profile",
+            self.model_name,
+            custom_pricing=self.pricing,
+            exchange_rates=self.exchange_rates,
+        )
 
     def apply(self, usage: RequestUsage) -> None:
-        cost = self.pricing.cost(usage)
+        amount = self.pricing.cost(usage)
+        cost = self.pricing.usd_cost(usage, self.exchange_rates)
         usage.cost = cost
         if hasattr(usage, "provider_reported_requests"):
             setattr(usage, "provider_reported_requests", 0)  # noqa: B010 - overridden bills must not count twice
@@ -39,6 +60,11 @@ class ProfilePricingModel(WrapperModel):
         provenance = {
             "profile_id": str(self.profile_id) if self.profile_id else None,
             "rates": self.pricing.model_dump(mode="json"),
+            "amount": str(amount) if amount is not None else None,
+            "currency": self.pricing.currency,
+            "units_per_usd": str(self.exchange_rates[self.pricing.currency])
+            if self.pricing.currency in self.exchange_rates
+            else None,
             "cost_usd": str(cost) if cost is not None else None,
         }
         setattr(usage, "profile_pricing", provenance)  # noqa: B010 - SDK serialized usage metadata
@@ -49,6 +75,7 @@ class ProfilePricingModel(WrapperModel):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
     ) -> ModelResponse:
+        self.check_price()
         response = await self.wrapped.request(messages, model_settings, model_request_parameters)
         self.apply(response.usage)
         return response
@@ -61,6 +88,7 @@ class ProfilePricingModel(WrapperModel):
         model_request_parameters: ModelRequestParameters,
         run_context: RunContext[Any] | None = None,
     ) -> AsyncGenerator[StreamedResponse]:
+        self.check_price()
         async with self.wrapped.request_stream(
             messages, model_settings, model_request_parameters, run_context
         ) as stream:

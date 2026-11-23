@@ -9,6 +9,8 @@ import {
   DeploymentSettingsLayout,
   DeploymentSettingsPanel,
 } from "@/components/admin/deployment-settings-layout";
+import { CurrencySettingsEditor } from "./currency-settings";
+import { validCurrencySettings } from "@/lib/currency-api";
 import { DeploymentUpdatesCard } from "@/components/admin/deployment-updates-card";
 import { DiagnosticsCard } from "@/components/admin/diagnostics-card";
 import { ApnsKeyCard } from "@/components/admin/apns-key-card";
@@ -107,6 +109,7 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
   }
 
   const draft: DeploymentSettingsPatch = {
+    currency_settings: settings?.currency_settings,
     app_name: settings?.app_name,
     tagline: settings?.tagline,
     description: settings?.description,
@@ -222,7 +225,10 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
         guided={!!onContinue}
         onContinue={onContinue}
         dirty={Object.keys(edits).length > 0 || Object.keys(timing).length > 0}
-        invalid={invalidTiming}
+        invalid={
+          invalidTiming ||
+          (draft.currency_settings != null && !validCurrencySettings(draft.currency_settings))
+        }
         pending={save.isPending}
         onSave={submit}
         onDiscard={() => {
@@ -607,6 +613,18 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
         }
         services={
           <>
+            <CurrencySettingsEditor
+              value={draft.currency_settings ?? null}
+              effective={
+                settings?.environment_currency_settings ??
+                settings?.effective_currency_settings ?? {
+                  default_currency: "USD",
+                  rates: { USD: "1" },
+                }
+              }
+              disabled={save.isPending}
+              onChange={(value) => set("currency_settings", value)}
+            />
             <DictationAudioCard
               checked={draft.dictation_compressed_audio ?? false}
               disabled={save.isPending}

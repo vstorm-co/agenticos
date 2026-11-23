@@ -506,7 +506,11 @@ class AuthoringService:
                 output_tokens=_OUTPUT_TOKENS,
             )
             priced = price_request(
-                usage, model.model, model.provider, custom_pricing=model.credential.custom_pricing
+                usage,
+                model.model,
+                model.provider,
+                custom_pricing=model.credential.custom_pricing,
+                exchange_rates=model.credential.exchange_rates,
             )
             if priced is not None:
                 return Decimal(priced) * steps(published)

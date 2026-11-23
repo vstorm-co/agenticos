@@ -7,6 +7,7 @@ number - which is shown so a person decides with a figure in front of them.
 """
 
 import math
+from collections.abc import Mapping
 from decimal import Decimal
 
 from pydantic_ai.usage import RequestUsage
@@ -35,6 +36,7 @@ def estimate_cost(
     model_name: str,
     provider: str | None,
     custom_pricing: TokenPricing | None = None,
+    exchange_rates: Mapping[str, Decimal] | None = None,
 ) -> Decimal | None:
     """Estimated USD cost using profile rates first, or `None` without a known price."""
     input_tokens, output_tokens = estimate_tokens(prompt, cases)
@@ -43,4 +45,5 @@ def estimate_cost(
         model_name,
         provider,
         custom_pricing=custom_pricing,
+        exchange_rates=exchange_rates,
     )

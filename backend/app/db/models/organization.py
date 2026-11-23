@@ -117,6 +117,7 @@ class Organization(Base, TimestampMixin):
     # Numeric to the same scale as `agent_runs.cost_usd`: the cap is compared
     # against a sum of those, and a float would drift against the total the
     # Activity page shows.
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
     monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
 
     # What the platform may spend on each person in a calendar month on work it

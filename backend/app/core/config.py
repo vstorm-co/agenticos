@@ -11,6 +11,7 @@ from uuid import UUID
 from pydantic import Field, computed_field, field_validator, model_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.currency import CurrencyCode, CurrencySettings
 from app.core.map_tiles import MapTiles, resolve as resolve_map_tiles
 from app.core.sanitize import (
     PrivateAllowlist,
@@ -339,6 +340,14 @@ class Settings(BaseSettings):
     DEFAULT_ORG_MONTHLY_BUDGET_USD: Decimal | None = Decimal("100")
 
     STAV_NOK_PER_USD: Decimal | None = Field(default=None, gt=0, allow_inf_nan=False)
+
+    DEFAULT_ORG_CURRENCY: CurrencyCode = "USD"
+    CURRENCY_RATES: dict[str, Decimal] = Field(default_factory=lambda: {"USD": Decimal(1)})
+
+    @model_validator(mode="after")
+    def validate_currency_defaults(self) -> Settings:
+        CurrencySettings(default_currency=self.DEFAULT_ORG_CURRENCY, rates=self.CURRENCY_RATES)
+        return self
 
     @field_validator("DEFAULT_ORG_MONTHLY_BUDGET_USD")
     @classmethod

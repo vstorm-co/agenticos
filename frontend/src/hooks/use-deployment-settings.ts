@@ -1,5 +1,6 @@
 "use client";
 
+import type { CurrencySettings } from "@/lib/currency-api";
 import type { ChatHomeOverrides } from "@/lib/console-experience-api";
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,6 +28,9 @@ import { qk } from "@/lib/query-keys";
  */
 
 export interface DeploymentSettings extends BrandingResponse {
+  currency_settings?: CurrencySettings | null;
+  effective_currency_settings?: CurrencySettings;
+  environment_currency_settings?: CurrencySettings;
   chat_home_available?: ChatHomeOverrides | null;
   onboarding_reminders_available?: boolean | null;
   announcement_expires_at?: string | null;
@@ -73,6 +77,7 @@ export const DEFAULT_ORGANIZATION_ROLES = [
 export type DefaultOrganizationRole = (typeof DEFAULT_ORGANIZATION_ROLES)[number];
 
 export interface DeploymentSettingsPatch {
+  currency_settings?: CurrencySettings | null;
   chat_home_available?: ChatHomeOverrides | null;
   onboarding_reminders_available?: boolean | null;
   announcement_expires_at?: string | null;
@@ -123,6 +128,7 @@ export function useDeploymentSettings() {
     mutationFn: (patch: DeploymentSettingsPatch) =>
       apiClient.patch<DeploymentSettings>("/admin/settings", patch),
     onSuccess: async () => {
+      void queryClient.invalidateQueries({ queryKey: qk.currencies.all() });
       void queryClient.invalidateQueries({ queryKey: qk.consoleExperience.all() });
       // The agent limit is one of these settings, and the Agents page reads it
       // through its own query: without this it would offer New agent past a limit

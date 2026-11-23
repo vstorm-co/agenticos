@@ -819,7 +819,7 @@ home for them, which means two things worth knowing:
 - Updating prices is a dependency bump.
 
 You can override automatic token prices in a model profile's **Pricing** section.
-Set input and output rates in USD per million tokens; cache read and write rates
+Set input and output rates per million tokens in the selected currency (USD by default); cache read and write rates
 are optional and inherit the input rate when empty. An explicit zero is a price.
 The API exposes the same document as `custom_pricing`; omit it to keep the saved
 setting on update, or send `null` to restore automatic pricing.
@@ -842,6 +842,15 @@ They have no [vault secret](secrets.md) to attribute a key-level report to.
 
 Cost is checked *before* each model request and recorded even when the run fails.
 See [Budgets](governance.md#budgets).
+
+Custom pricing carries a `currency` code, independently of the organization and
+UI language. Deployment administrators configure manual rates in **Currencies and
+exchange rates** under administration settings. Rates are currency units per USD:
+with EUR at `0.9`, a `9 EUR` cost records `10 USD`. Usage retains the original
+amount, currency and applied rate; later changes do not rewrite that USD cost.
+A missing conversion remains unpriced, and capped model calls are refused before
+inference. Organization currency preferences are stored separately; the built-in
+reporting and budget views still use USD while the remaining #3221 work is developed.
 
 ### A delegation resolves its own profile
 

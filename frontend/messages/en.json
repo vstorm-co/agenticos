@@ -8915,7 +8915,7 @@
       "accessHint": "Control who can join, their starting organization and usage limits.",
       "notices": "Announcements & maintenance",
       "noticesHint": "Share a notice or configure the maintenance screen.",
-      "services": "Voice & mobile",
+      "services": "Services & costs",
       "servicesHint": "Audio recording preferences and push notifications for the mobile app.",
       "operations": "Updates & diagnostics",
       "operationsHint": "Application updates and deployment diagnostics."
@@ -21581,6 +21581,25 @@
     "cache_read": "Cache read tokens",
     "cache_write": "Cache write tokens",
     "override": "Use custom prices (USD per million tokens)",
-    "cacheDefault": "Leave empty to use the input price."
+    "cacheDefault": "Leave empty to use the input price.",
+    "overrideCurrency": "Use custom prices (per million tokens)",
+    "currency": "Pricing currency"
+  },
+  "currencies": {
+    "title": "Currencies and exchange rates",
+    "manualRates": "Enter currency units for 1 USD. Rates are manual; recorded costs keep the rate applied when they were incurred.",
+    "deploymentDefault": "Default organization currency",
+    "rate": "{currency} per USD",
+    "remove": "Remove {currency}",
+    "code": "Currency code",
+    "newRate": "Units per USD",
+    "add": "Add currency",
+    "reset": "Use environment defaults",
+    "organization": "Organization currency",
+    "organizationHint": "Inherit the deployment default or select a reporting currency. Existing prices and limits keep their original units.",
+    "inherit": "Inherit ({currency})",
+    "loadFailed": "Currency settings could not be loaded",
+    "retry": "Retry",
+    "saveFailed": "The currency could not be saved"
   }
 }

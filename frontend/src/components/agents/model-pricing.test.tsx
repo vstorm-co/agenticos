@@ -90,3 +90,32 @@ it("compares saved prices without treating omitted optional cache rates as edits
   ).toBe(true);
   expect(sameTokenPricing({ input: "0", output: "1" }, { input: "2", output: "1" })).toBe(false);
 });
+
+it("keeps a model pricing currency independent of automatic USD prices", async () => {
+  const user = userEvent.setup();
+  function CurrencyForm() {
+    const [value, setValue] = useState<TokenPricing | null>({ input: "9", output: "0" });
+    return (
+      <>
+        <ModelPricing
+          value={value}
+          automatic={{ input: "2", output: "3" }}
+          currencies={["USD", "EUR"]}
+          onChange={setValue}
+        />
+        <output data-testid="pricing">{JSON.stringify(value)}</output>
+      </>
+    );
+  }
+  render(<CurrencyForm />);
+  await user.click(screen.getByLabelText("Pricing currency"));
+  await user.click(screen.getByRole("option", { name: "EUR" }));
+  expect(JSON.parse(screen.getByTestId("pricing").textContent!).currency).toBe("EUR");
+  expect(screen.getByLabelText("Input tokens")).toHaveValue(9);
+  expect(
+    sameTokenPricing(
+      { input: "9", output: "0", currency: "USD" },
+      { input: "9", output: "0", currency: "EUR" },
+    ),
+  ).toBe(false);
+});

@@ -21,6 +21,7 @@ from app.clients.subscription_gateway import configured_gateway
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.field_errors import refused_field
 from app.core.permissions import Perm
+from app.schemas.currency import CurrencyContext
 from app.schemas.model_profile import (
     ImageModelRead,
     ImageProviderList,
@@ -63,6 +64,14 @@ from app.services.text_to_speech_models import providers as text_to_speech_provi
 from app.services.video_models import providers as video_providers
 
 router = APIRouter()
+
+
+@router.get(
+    "/currencies", response_model=CurrencyContext, dependencies=[Depends(require(Perm.AGENTS_VIEW))]
+)
+async def currency_context(service: ModelProfileSvc, ctx: Auth) -> Any:
+    """Effective organization currency and manual rates; never provider credentials."""
+    return await service.currency_context(ctx)
 
 
 @router.get(

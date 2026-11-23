@@ -239,6 +239,8 @@ cap stops the run on the request after it.
 
 ### A cost that could not be measured says so
 
+Stav also accepts deployment currency rates for its billed currency, including EUR. A configured NOK rate takes precedence over the legacy `STAV_NOK_PER_USD` fallback described below. USD remains the stored accounting currency; usage retains the actual billed currency and applied rate.
+
 Stav's billed cost takes precedence over the snapshot: `usage.cost` with
 `cost_currency`, or the `x-stav-cost` and `x-stav-cost-currency` headers. Both
 Chat Completions and Responses include streamed requests. USD is used directly;

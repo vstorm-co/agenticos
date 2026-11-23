@@ -68,6 +68,7 @@ export interface TextToSpeechSettingsUpdate {
 }
 
 export interface Organization {
+  currency?: string | null;
   chat_home_defaults?: ChatHomeOverrides | null;
   onboarding_reminders?: OnboardingReminderOverrides | null;
   id: string;

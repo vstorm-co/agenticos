@@ -52,6 +52,10 @@ class DeploymentSettings(Base, TimestampMixin):
     )
     """Always true. The unique constraint on it is what makes this table a singleton."""
 
+    currency_settings: Mapped[dict[str, object] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+
     onboarding_reminders_available: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     announcement_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

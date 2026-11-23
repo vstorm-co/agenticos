@@ -1,5 +1,5 @@
 ---
-source_sha: "fa596edf1ff5"
+source_sha: "8a34e67d491b"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -21,7 +21,9 @@ kein Rebuild.
     Es ist dieselbe Autorität, die Nutzer und Tenants bereits über die gesamte
     Installation hinweg verwaltet.
 
-Die Konsole gliedert die Einstellungen in Identität, Zugang und Konten, Mitteilungen und Wartungsmodus, Sprache und Mobilgerät sowie Updates und Diagnose. Jeder Abschnitt hat eine teilbare URL mit `?section=`. Beim Wechsel über einen Abschnittslink bleiben ungespeicherte Änderungen erhalten. Speichern übernimmt die bearbeiteten Felder aller Abschnitte; Änderungen verwerfen stellt deren gespeicherte Werte wieder her. Bilduploads und Zugangsdaten für mobile Push-Benachrichtigungen werden weiterhin separat gespeichert.
+Die Konsole gliedert die Einstellungen in Identität, Zugang und Konten, Mitteilungen und Wartungsmodus, Dienste und Kosten sowie Updates und Diagnose. Jeder Abschnitt hat eine teilbare URL mit `?section=`. Beim Wechsel über einen Abschnittslink bleiben ungespeicherte Änderungen erhalten. Speichern übernimmt die bearbeiteten Felder aller Abschnitte; Änderungen verwerfen stellt deren gespeicherte Werte wieder her. Bilduploads und Zugangsdaten für mobile Push-Benachrichtigungen werden weiterhin separat gespeichert.
+
+Dienste und Kosten enthält auch manuelle Wechselkurse und die Standard-Währungspräferenz der Organisation. Kurse bedeuten Währungseinheiten pro USD; USD bleibt genau 1. Das Löschen der Überschreibung stellt `DEFAULT_ORG_CURRENCY` und `CURRENCY_RATES` wieder her. Gespeicherte Preise und bestehende USD-Limits werden nicht umgedeutet. Organisationspräferenzen werden unter Governance gespeichert; Berichts- und Budgetdarstellung in diesen Währungen folgt noch.
 
 ## Identität { #identity }
 

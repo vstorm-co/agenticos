@@ -1,5 +1,5 @@
 ---
-source_sha: "fa596edf1ff5"
+source_sha: "8a34e67d491b"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -19,7 +19,9 @@ bez ponownego wdrożenia, bez zmiennej środowiskowej, bez przebudowy.
     To ta sama władza, która już administruje użytkownikami i tenantami w całej
     instalacji.
 
-Konsola dzieli ustawienia na Wygląd i nazwę, Dostęp i konta, Ogłoszenia i tryb konserwacji, Głos i aplikację oraz Aktualizacje i diagnostykę. Każda sekcja ma własny adres z parametrem `?section=`. Przejście do innej sekcji zachowuje niezapisane zmiany. Zapis obejmuje edytowane pola ze wszystkich sekcji; Odrzuć zmiany przywraca ich zapisane wartości. Wysyłanie obrazów i dane uwierzytelniające powiadomień mobilnych nadal zapisują się niezależnie.
+Konsola dzieli ustawienia na Wygląd i nazwę, Dostęp i konta, Ogłoszenia i tryb konserwacji, Usługi i koszty oraz Aktualizacje i diagnostykę. Każda sekcja ma własny adres z parametrem `?section=`. Przejście do innej sekcji zachowuje niezapisane zmiany. Zapis obejmuje edytowane pola ze wszystkich sekcji; Odrzuć zmiany przywraca ich zapisane wartości. Wysyłanie obrazów i dane uwierzytelniające powiadomień mobilnych nadal zapisują się niezależnie.
+
+Sekcja Usługi i koszty zawiera też ręczne kursy walut i domyślną preferencję waluty organizacji. Kursy oznaczają jednostki waluty za USD; USD musi wynosić dokładnie 1. Wyczyszczenie nadpisania przywraca `DEFAULT_ORG_CURRENCY` i `CURRENCY_RATES`. Ustawienia nie zmieniają znaczenia zapisanych cen ani istniejących limitów USD. Nadpisanie organizacji jest zapisywane w sekcji Nadzór; prezentacja raportów i budżetów w tych walutach pozostaje do wdrożenia.
 
 ## Tożsamość { #identity }
 

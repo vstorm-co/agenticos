@@ -88,6 +88,8 @@ The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Aggregate cap on attachment text across one turn |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | The monthly spend ceiling a **new** organization starts with, in USD, so it is not one runaway agent away from a surprise bill. Applies at creation only; existing organizations are untouched and any organization can be cleared back to no cap afterwards. Must be positive; leave **empty** to start organizations uncapped (the older opt-in posture) |
 | `STAV_NOK_PER_USD` | empty | Operator-maintained NOK per USD for Stav billed costs. Finite and positive; for example, `10` divides NOK by 10 (illustrative, not a current rate). USD needs no setting. No rate is fetched; without conversion, the price catalog is used and unknown models remain partial |
+| `DEFAULT_ORG_CURRENCY` | `USD` | Default organization currency when deployment settings do not override it. USD if unset; the currency must have a rate. This does not change the units of existing prices or USD limits. |
+| `CURRENCY_RATES` | `{"USD":"1"}` | JSON object of currency units per USD, for example `{"USD":"1","EUR":"0.9","PLN":"4"}`. Include USD at exactly 1; rates must be finite and positive. Administration settings override this document. |
 
 For production channel pictures, set `VISUAL_RENDER_CDP_URL=http://visual-render:9222` and `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` in `backend/.env`. `scripts/deploy.sh` then enables the `visuals` profile in `docker-compose-prod.yml`; for a manual start, add `--profile visuals`.
 

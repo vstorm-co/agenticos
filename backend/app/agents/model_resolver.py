@@ -51,6 +51,7 @@ second run.
 
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
@@ -604,6 +605,7 @@ class ResolvedCredential:
     routing: Mapping[str, str | None] = field(default_factory=dict)
     # Personal Copilot calls validate the connection again before each request.
     token_source: Callable[[], Awaitable[str]] | None = field(default=None, repr=False)
+    exchange_rates: Mapping[str, Decimal] = field(default_factory=lambda: {"USD": Decimal(1)})
     custom_pricing: TokenPricing | None = None
     profile_id: UUID | None = None
 
@@ -808,7 +810,12 @@ def build_model(credential: ResolvedCredential, model: str) -> Model:
     if credential.custom_pricing is not None:
         from app.agents.profile_pricing import ProfilePricingModel
 
-        return ProfilePricingModel(model_client, credential.custom_pricing, credential.profile_id)
+        return ProfilePricingModel(
+            model_client,
+            credential.custom_pricing,
+            credential.profile_id,
+            credential.exchange_rates,
+        )
     if credential.provider == "llmtr":
         from app.agents.llmtr import LlmtrModel
 
@@ -816,7 +823,7 @@ def build_model(credential: ResolvedCredential, model: str) -> Model:
     if credential.provider == "stav":
         from app.agents.stav_cost import StavCostModel
 
-        return StavCostModel(model_client)
+        return StavCostModel(model_client, credential.exchange_rates)
     return model_client
 
 

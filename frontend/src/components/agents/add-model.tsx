@@ -6,6 +6,7 @@ import { Check, KeyRound, Plus, Save } from "lucide-react";
 
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import { hasKey, LISTED_AT_ENDPOINT, LISTED_WITH_KEY, runsAgents } from "@/lib/model-profiles";
+import { useCurrencies } from "@/hooks/use-currencies";
 import { ModelPricing, sameTokenPricing, validTokenPricing } from "./model-pricing";
 import type { TokenPricing } from "@/types/providers";
 import { ModelSourceSelect } from "./model-source-select";
@@ -273,6 +274,7 @@ export function AddModel({
   purpose,
   collapseConnection = false,
 }: AddModelProps) {
+  const currencyContext = useCurrencies();
   const fieldId = useId();
   const [connectionOpen, setConnectionOpen] = useState(false);
   const [customPricing, setCustomPricing] = useState<TokenPricing | null>(
@@ -1015,6 +1017,7 @@ export function AddModel({
       {provider !== undefined && (
         <ModelPricing
           value={customPricing}
+          currencies={Object.keys(currencyContext.data?.rates ?? { USD: "1" })}
           automatic={
             suggestions.find((entry) => entry.id === model.trim())?.automatic_pricing ??
             (selected?.provider === providerId && selected.model === model.trim()

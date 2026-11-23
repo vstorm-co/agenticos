@@ -64,9 +64,11 @@ from app.repositories import (
     organization_secret_repo,
     system_agent_repo,
 )
+from app.schemas.currency import CurrencyContext
 from app.schemas.model_profile import ModelProfileUpdate, NativeRuntimeAvailability
 from app.schemas.token_pricing import TokenPricing
 from app.services.access import AGENT, SECRET, accessible_ids, resolve_access
+from app.services.currency import CurrencyService
 from app.services.model_catalog import CUSTOM_LISTINGS, CatalogModel, models_for
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.openai_codex import VaultCodexCredentials
@@ -327,6 +329,9 @@ class ModelProfileService:
 
     async def list_profiles(self, ctx: AuthContext) -> list[ModelProfile]:
         return await credential_repo.list_profiles(self.db, organization_id=ctx.organization_id)
+
+    async def currency_context(self, ctx: AuthContext) -> CurrencyContext:
+        return await CurrencyService(self.db).context(ctx.organization_id)
 
     async def create_profile(
         self,
@@ -758,6 +763,11 @@ class ModelProfileService:
             if profile.custom_pricing is not None
             else None
         )
+        exchange_rates = (
+            dict((await CurrencyService(self.db).settings()).rates)
+            if profile.provider == "stav" and pricing is None
+            else await CurrencyService(self.db).rates_for(pricing)
+        )
         if profile.secret_id is None:
             if not lacks_key(
                 profile.provider,
@@ -768,6 +778,7 @@ class ModelProfileService:
                 return ResolvedCredential(
                     provider=profile.provider,
                     custom_pricing=pricing,
+                    exchange_rates=dict(exchange_rates),
                     profile_id=profile.id,
                     secret=NoSecret(),
                     base_url=profile.base_url,
@@ -798,6 +809,7 @@ class ModelProfileService:
         return ResolvedCredential(
             provider=profile.provider,
             custom_pricing=pricing,
+            exchange_rates=dict(exchange_rates),
             profile_id=profile.id,
             secret=value,
             credential_id=secret.id,

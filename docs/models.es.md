@@ -1,5 +1,5 @@
 ---
-source_sha: "c0a7dc426e6a"
+source_sha: "30821f871326"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -868,7 +868,7 @@ conviene saber:
 - Actualizar los precios es subir una dependencia.
 
 En la sección **Precios** de un perfil puedes sustituir los precios automáticos
-de tokens. Indica entrada y salida en USD por millón de tokens. Las tarifas de
+de tokens. Indica entrada y salida por millón de tokens en la moneda elegida (USD por defecto). Las tarifas de
 lectura y escritura de caché son opcionales; si quedan vacías, usan la de entrada.
 Un cero explícito es un precio. La API utiliza `custom_pricing`: omitirlo en una
 actualización conserva el ajuste; enviar `null` restaura el precio automático.
@@ -892,6 +892,15 @@ informe por clave.
 
 El coste se comprueba *antes* de cada petición al modelo y se registra incluso
 cuando el run falla. Ver [Budgets](governance.md#budgets).
+
+Los precios propios incluyen un código `currency`, independiente de la organización
+y del idioma. Los administradores mantienen tipos manuales en **Monedas y tipos de
+cambio**. Son unidades de moneda por USD: con EUR a `0.9`, `9 EUR` se registran como
+`10 USD`. El uso conserva importe, moneda y tipo aplicados; los cambios posteriores
+no sobrescriben ese coste en USD. Una conversión ausente queda sin tarifar y las
+peticiones con límite se rechazan antes de la inferencia. La preferencia monetaria
+de la organización se guarda por separado; informes y presupuestos integrados
+siguen en USD mientras se completa el resto de #3221.
 
 ### Una delegación resuelve su propio perfil { #a-delegation-resolves-its-own-profile }
 

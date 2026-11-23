@@ -2994,3 +2994,53 @@ def test_custom_pricing_upgrade_preserves_existing_profiles_and_downgrades_clean
         assert result.returncode == 0, result.stderr
     finally:
         engine.dispose()
+
+
+def test_currency_settings_upgrade_keeps_existing_prices_and_limits_in_usd() -> None:
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("downgrade", "0352_model_profile_pricing")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.begin() as db:
+            user_id, org_id, profile_id = uuid4(), uuid4(), uuid4()
+            db.execute(_HISTORICAL_USER_INSERT, {"id": user_id, "email": f"{user_id}@example.test"})
+            db.execute(
+                _HISTORICAL_ORGANIZATION_INSERT,
+                {
+                    "id": org_id,
+                    "name": "Currency upgrade",
+                    "slug": f"currency-{org_id}",
+                    "owner": user_id,
+                },
+            )
+            db.execute(
+                text("UPDATE organizations SET monthly_budget_usd = 100 WHERE id = :id"),
+                {"id": org_id},
+            )
+            db.execute(
+                text(
+                    "INSERT INTO model_profiles (id, organization_id, label, provider, model, custom_pricing) VALUES (:id, :org, 'Legacy', 'ollama', 'alias', '{\"input\":\"2\",\"output\":\"3\"}'::jsonb)"
+                ),
+                {"id": profile_id, "org": org_id},
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as db:
+            row = db.execute(
+                text("SELECT currency, monthly_budget_usd FROM organizations WHERE id = :id"),
+                {"id": org_id},
+            ).one()
+            assert row == (None, Decimal(100))
+            assert db.scalar(
+                text("SELECT custom_pricing FROM model_profiles WHERE id = :id"), {"id": profile_id}
+            ) == {"input": "2", "output": "3"}
+        result = _alembic("check")
+        assert result.returncode == 0, result.stderr
+        result = _alembic("downgrade", "0352_model_profile_pricing")
+        assert result.returncode == 0, result.stderr
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()

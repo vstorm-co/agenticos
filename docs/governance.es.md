@@ -1,5 +1,5 @@
 ---
-source_sha: "4a5506769583"
+source_sha: "cb4d96da57ce"
 ---
 
 # Governance { #governance }
@@ -256,6 +256,8 @@ rechazarse, así que una compactación que cruza un tope detiene el run en la
 petición siguiente.
 
 ### Un coste que no se pudo medir lo dice { #a-cost-that-could-not-be-measured-says-so }
+
+Stav también acepta tipos del despliegue para la moneda facturada, incluido EUR. Un tipo NOK configurado tiene prioridad sobre el antiguo `STAV_NOK_PER_USD` descrito a continuación. USD sigue como unidad de registro; el uso conserva la moneda facturada y el tipo aplicado.
 
 El coste facturado por Stav prevalece sobre el catálogo: `usage.cost` con
 `cost_currency`, o las cabeceras `x-stav-cost` y `x-stav-cost-currency`. Incluye

@@ -51,7 +51,7 @@ it("uses the ordinary first section for an invalid deep link", () => {
 
 it("updates the shareable section URL when a person changes sections", async () => {
   view();
-  await userEvent.click(screen.getByRole("tab", { name: "Voice & mobile" }));
+  await userEvent.click(screen.getByRole("tab", { name: "Services & costs" }));
   expect(screen.getByText("Voice fields")).toBeVisible();
   expect(new URLSearchParams(window.location.search).get("section")).toBe("services");
 });

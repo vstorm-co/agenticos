@@ -28,7 +28,7 @@ total as a floor.
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable, Generator
+from collections.abc import Awaitable, Callable, Generator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from copy import copy
@@ -155,6 +155,7 @@ def price_request(
     provider: str | None,
     *,
     custom_pricing: TokenPricing | None = None,
+    exchange_rates: Mapping[str, Decimal] | None = None,
 ) -> Decimal | None:
     """What one model request cost, or `None` if the model is not priced.
 
@@ -196,7 +197,7 @@ def price_request(
             so resolution is retried without it rather than mispricing.
     """
     if custom_pricing is not None:
-        return custom_pricing.cost(usage)
+        return custom_pricing.usd_cost(usage, exchange_rates)
     if _profile_requests(usage, "profile_priced_requests"):
         native = usage.cost
         return (
@@ -659,7 +660,13 @@ def guarded_by(guard: BudgetGuard) -> Generator[None]:
         _active_guard.reset(token)
 
 
-def require_ambient_price(provider: str, model_name: str) -> None:
+def require_ambient_price(
+    provider: str,
+    model_name: str,
+    *,
+    custom_pricing: TokenPricing | None = None,
+    exchange_rates: Mapping[str, Decimal] | None = None,
+) -> None:
     """Refuse a price-dependent provider request when a USD ceiling cannot be enforced.
 
     Called by providers whose new model IDs have no reviewed price snapshot.
@@ -670,7 +677,13 @@ def require_ambient_price(provider: str, model_name: str) -> None:
         return
     if (
         guard.ledger.has_unpriced_models
-        or price_request(RequestUsage(input_tokens=1, output_tokens=1), model_name, provider)
+        or price_request(
+            RequestUsage(input_tokens=1, output_tokens=1),
+            model_name,
+            provider,
+            custom_pricing=custom_pricing,
+            exchange_rates=exchange_rates,
+        )
         is None
     ):
         raise BadRequestError(
@@ -1104,7 +1117,8 @@ class BudgetGuard(AbstractCapability[Any]):
         await self.assert_within_budget()
 
         try:
-            response = await handler(request_context)
+            with guarded_by(self):
+                response = await handler(request_context)
         except RefusedAfterAnswer as refused:
             if refused.response is not None:
                 self._record(refused.response)

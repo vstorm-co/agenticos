@@ -1,5 +1,5 @@
 ---
-source_sha: "4a5506769583"
+source_sha: "cb4d96da57ce"
 ---
 
 # Governance { #governance }
@@ -266,6 +266,8 @@ Ausgabe wird festgehalten statt abgelehnt, sodass eine Kompaktierung, die ein Ca
 überschreitet, den Run bei der Anfrage danach stoppt.
 
 ### Kosten, die sich nicht messen ließen, sagen das { #a-cost-that-could-not-be-measured-says-so }
+
+Stav akzeptiert auch Bereitstellungskurse für die Rechnungswährung, einschließlich EUR. Ein konfigurierter NOK-Kurs hat Vorrang vor dem unten beschriebenen bisherigen `STAV_NOK_PER_USD`. USD bleibt die gespeicherte Abrechnungseinheit; die Nutzung behält Rechnungswährung und angewendeten Kurs.
 
 Die von Stav berechneten Kosten haben Vorrang vor dem Katalog: `usage.cost`
 mit `cost_currency` oder die Header `x-stav-cost` und `x-stav-cost-currency`.

@@ -1,5 +1,5 @@
 ---
-source_sha: "c0a7dc426e6a"
+source_sha: "30821f871326"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -844,7 +844,7 @@ do domu, co oznacza dwie rzeczy warte wiedzenia:
 - Aktualizacja cen to podbicie zależności.
 
 W sekcji **Cennik** profilu modelu możesz zastąpić automatyczne ceny tokenów.
-Ustaw stawki wejścia i wyjścia w USD za milion tokenów. Stawki odczytu i zapisu
+Ustaw stawki wejścia i wyjścia za milion tokenów w wybranej walucie (domyślnie USD). Stawki odczytu i zapisu
 cache są opcjonalne; puste dziedziczą cenę wejścia. Jawne zero jest ceną.
 API udostępnia ten sam dokument jako `custom_pricing`: pominięcie przy aktualizacji
 zachowuje ustawienie, a `null` przywraca wycenę automatyczną.
@@ -867,6 +867,15 @@ Nie mają [sekretu w vault](secrets.md) do przypisania w raporcie według klucza
 
 Koszt sprawdzany jest *przed* każdym żądaniem do modelu i zapisywany nawet wtedy,
 gdy run się nie powiedzie. Zobacz [Budżety](governance.md#budgets).
+
+Własny cennik zawiera kod `currency`, niezależny od organizacji i języka interfejsu.
+Administrator wdrożenia ustawia ręczne kursy w sekcji **Waluty i kursy wymiany**
+ustawień administracyjnych. Kurs oznacza jednostki waluty za USD: przy EUR równym
+`0.9` koszt `9 EUR` zapisuje się jako `10 USD`. Zużycie zachowuje pierwotną kwotę,
+walutę i zastosowany kurs; późniejsze zmiany nie nadpisują kosztu w USD. Brak kursu
+pozostawia koszt nieznany, a wywołania z limitem są odrzucane przed inferencją.
+Preferencja waluty organizacji jest zapisywana oddzielnie; wbudowane raporty i
+budżety nadal używają USD do czasu ukończenia pozostałej części #3221.
 
 ### Delegacja rozwiązuje własny profil { #a-delegation-resolves-its-own-profile }
 

@@ -8794,7 +8794,7 @@
       "accessHint": "Zugangsregeln, Startorganisation und Nutzungslimits festlegen.",
       "notices": "Mitteilungen & Wartungsmodus",
       "noticesHint": "Eine Ankündigung anzeigen oder den Wartungsbildschirm einrichten.",
-      "services": "Sprache und Mobilgerät",
+      "services": "Dienste und Kosten",
       "servicesHint": "Audioaufzeichnung und Push-Benachrichtigungen für die mobile App.",
       "operations": "Updates & Diagnose",
       "operationsHint": "Anwendungsupdates und Bereitstellungsdiagnose."
@@ -21267,6 +21267,25 @@
     "cache_read": "Cache-Lesetokens",
     "cache_write": "Cache-Schreibtokens",
     "override": "Eigene Preise verwenden (USD pro Million Tokens)",
-    "cacheDefault": "Leer lassen, um den Eingabepreis zu verwenden."
+    "cacheDefault": "Leer lassen, um den Eingabepreis zu verwenden.",
+    "overrideCurrency": "Eigene Preise verwenden (pro Million Tokens)",
+    "currency": "Preiswährung"
+  },
+  "currencies": {
+    "title": "Währungen und Wechselkurse",
+    "manualRates": "Geben Sie Währungseinheiten pro 1 USD ein. Die Kurse werden manuell gepflegt; gespeicherte Kosten behalten den bei ihrer Entstehung verwendeten Kurs.",
+    "deploymentDefault": "Standardwährung der Organisation",
+    "rate": "{currency} pro USD",
+    "remove": "{currency} entfernen",
+    "code": "Währungscode",
+    "newRate": "Einheiten pro USD",
+    "add": "Währung hinzufügen",
+    "reset": "Umgebungsstandards verwenden",
+    "organization": "Organisationswährung",
+    "organizationHint": "Übernehmen Sie den Bereitstellungsstandard oder wählen Sie eine Berichtswährung. Bestehende Preise und Limits behalten ihre ursprünglichen Einheiten.",
+    "inherit": "Übernehmen ({currency})",
+    "loadFailed": "Währungseinstellungen konnten nicht geladen werden",
+    "retry": "Erneut versuchen",
+    "saveFailed": "Die Währung konnte nicht gespeichert werden"
   }
 }

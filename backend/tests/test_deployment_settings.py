@@ -943,3 +943,20 @@ def test_notice_deadlines_require_an_offset_and_are_normalized_to_utc() -> None:
         assert value.model_dump()[field] == datetime(2026, 11, 21, 10, tzinfo=UTC)
         cleared = DeploymentSettingsUpdate.model_validate({field: None})
         assert cleared.model_dump(exclude_unset=True) == {field: None}
+
+
+async def test_currency_settings_are_written_as_json_and_audited_without_rewriting_budgets(
+    repo, mock_db_session
+):
+    from app.core.currency import CurrencySettings
+
+    currencies = CurrencySettings(
+        default_currency="PLN", rates={"USD": "1", "PLN": "4", "EUR": "0.9"}
+    )
+    service = DeploymentSettingsService(mock_db_session)
+    await service.update(
+        actor_user_id=uuid4(), data=DeploymentSettingsUpdate(currency_settings=currencies)
+    )
+    saved = repo.upsert.await_args.kwargs["update_data"]["currency_settings"]
+    assert saved == {"default_currency": "PLN", "rates": {"USD": "1", "PLN": "4", "EUR": "0.9"}}
+    assert "monthly_budget_usd" not in repo.upsert.await_args.kwargs["update_data"]

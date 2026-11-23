@@ -34,7 +34,9 @@ async def test_a_projected_body_is_priced_as_additional_input_on_its_actual_mode
     )
     resolve = AsyncMock(
         return_value=SimpleNamespace(
-            model="priced-model", provider="openai", credential=SimpleNamespace(custom_pricing=None)
+            model="priced-model",
+            provider="openai",
+            credential=SimpleNamespace(custom_pricing=None, exchange_rates={"USD": Decimal(1)}),
         )
     )
     with (

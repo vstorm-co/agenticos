@@ -86,6 +86,7 @@ import { ROUTES } from "@/lib/constants";
 import { useOrgStore } from "@/stores";
 import { useAssistant } from "@/hooks/use-assistant";
 import { OrgChatHomeSettings } from "@/components/teams/org-chat-home-settings";
+import { OrgCurrency } from "@/components/teams/org-currency";
 import { OrganizationProfileSettings } from "@/components/teams/organization-profile-settings";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
@@ -655,6 +656,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           forceMount
           className="space-y-6 data-[state=inactive]:hidden"
         >
+          {org && <OrgCurrency org={org} />}
           {org && <OrgSpendingLimit org={org} />}
           {org && <OrgApprovalWaiver org={org} />}
           {org && <OrgPublicAttribution org={org} />}
