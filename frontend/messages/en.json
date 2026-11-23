@@ -1078,7 +1078,6 @@
     "systemAgentKnowledgeHelp": "{kind, select, judge {Checks facts in an answer against the knowledge bases of the agent it grades, where no reference answer states them.} generator {Searches the knowledge bases you draft cases from, so questions follow what they really say.} classifier {Checks whether the knowledge base already answers a question before calling it a gap.} drafter {Searches the gap's knowledge base, so a draft does not repeat what a document already says.} improver {Reads the knowledge bases of the agent it improves, so its changes fit what they hold.} other {Searches the knowledge bases the platform picks for each run.}}",
     "systemAgentMaxSteps": "Max steps",
     "systemAgentMaxStepsHint": "Each step is a paid request on every answer it reads. At most {max}; left empty, {fallback}.",
-    "temperatureVariesVerdict": "{kind, select, judge {Above 0, the same answer can be graded differently twice. 0 keeps grades repeatable.} other {Above 0, the same answer can be labelled differently twice. 0 keeps labels repeatable.}}",
     "mapMoreItems": "+{count} more · open to view all",
     "unavailableTitle": "Agent unavailable",
     "loadFailedTitle": "Could not load the agent",

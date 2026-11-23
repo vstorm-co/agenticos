@@ -10334,7 +10334,6 @@
     "systemAgentKnowledgeHelp": "{kind, select, judge {Sprawdza fakty z odpowiedzi w bazach wiedzy ocenianego agenta, tam gdzie nie podaje ich odpowiedź wzorcowa.} generator {Przeszukuje bazy wiedzy, z których tworzysz przypadki, więc pytania trzymają się tego, co w nich naprawdę jest.} classifier {Zanim uzna pytanie za lukę, sprawdza, czy baza wiedzy już na nie odpowiada.} drafter {Przeszukuje bazę wiedzy luki, więc proponowana treść nie powtarza tego, co dokument już mówi.} improver {Czyta bazy wiedzy ulepszanego agenta, więc jego zmiany pasują do tego, co w nich jest.} other {Przeszukuje bazy wiedzy, które platforma wybiera dla każdego runu.}}",
     "systemAgentMaxSteps": "Maks. kroków",
     "systemAgentMaxStepsHint": "Każdy krok to płatne żądanie przy każdej odpowiedzi, którą czyta. Najwyżej {max}; puste pole oznacza {fallback}.",
-    "temperatureVariesVerdict": "{kind, select, judge {Powyżej 0 ta sama odpowiedź może za drugim razem dostać inną ocenę. 0 utrzymuje powtarzalne oceny.} other {Powyżej 0 ta sama odpowiedź może za drugim razem zostać inaczej sklasyfikowana. 0 utrzymuje powtarzalną klasyfikację.}}",
     "mapMoreItems": "+{count} więcej · otwórz pełną listę",
     "unavailableTitle": "Agent niedostępny",
     "loadFailedTitle": "Nie udało się wczytać agenta",

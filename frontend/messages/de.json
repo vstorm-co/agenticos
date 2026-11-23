@@ -1078,7 +1078,6 @@
     "systemAgentKnowledgeHelp": "{kind, select, judge {Prüft Fakten in einer Antwort anhand der Wissensdatenbanken des bewerteten Agents, wo keine Referenzantwort sie nennt.} generator {Durchsucht die Wissensdatenbanken, aus denen Sie Fälle entwerfen, damit Fragen dem folgen, was dort wirklich steht.} classifier {Prüft, ob die Wissensdatenbank eine Frage schon beantwortet, bevor er sie zur Lücke erklärt.} drafter {Durchsucht die Wissensdatenbank der Lücke, damit ein Entwurf nicht wiederholt, was ein Dokument schon sagt.} improver {Liest die Wissensdatenbanken des Agents, den er verbessert, damit seine Änderungen zu ihrem Inhalt passen.} other {Durchsucht die Wissensdatenbanken, die die Plattform für jeden Run auswählt.}}",
     "systemAgentMaxSteps": "Max. Schritte",
     "systemAgentMaxStepsHint": "Jeder Schritt ist eine bezahlte Anfrage bei jeder Antwort, die er liest. Höchstens {max}; leer bedeutet {fallback}.",
-    "temperatureVariesVerdict": "{kind, select, judge {Über 0 kann dieselbe Antwort beim zweiten Mal anders bewertet werden. 0 hält Bewertungen wiederholbar.} other {Über 0 kann dieselbe Antwort beim zweiten Mal anders eingeordnet werden. 0 hält die Einordnung wiederholbar.}}",
     "mapMoreItems": "+{count} weitere · alle anzeigen",
     "unavailableTitle": "Agent nicht verfügbar",
     "loadFailedTitle": "Agent konnte nicht geladen werden",

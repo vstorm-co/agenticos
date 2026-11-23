@@ -209,7 +209,7 @@ import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn, setUrlParam } from "@/lib/utils";
 import type { AgentSpec, CapabilityBindingSpec, McpServerRef } from "@/types/agents";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
-import { forSystemAgent, isSystemAgent, verdictKind } from "@/lib/system-agents";
+import { forSystemAgent, isSystemAgent } from "@/lib/system-agents";
 // The module, not the `@/stores` barrel, which this page's tests stub in part.
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import { Perm } from "@/types/permissions";
@@ -641,10 +641,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     }
     if (!latest.data) return;
     const fresh = latest.data;
-    adoptDraft(
-      isSystem ? forSystemAgent(fresh.draft_spec) : fresh.draft_spec,
-      fresh.draft_revision,
-    );
+    adoptDraft(fresh.draft_spec, fresh.draft_revision);
     setDraftConflict(false);
     remote.keepMine();
     attempts.current = { payload: "", tries: 0 };
@@ -2020,7 +2017,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
                       value={spec.model_settings}
                       onChange={(model_settings) => update({ model_settings })}
                       disabled={!canEdit}
-                      verdict={verdictKind(agent.kind)}
                     />
                     {capabilities
                       .filter((entry) => entry.id === THINKING_ID)
