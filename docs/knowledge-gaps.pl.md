@@ -1,5 +1,5 @@
 ---
-source_sha: "1a0321736e6f"
+source_sha: "1ab1881e5195"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -213,6 +213,8 @@ Przypadki, które nie przechodziły z powodu brakującej wiedzy, powinny teraz
 przejść.
 
 ## Szkic brakującej treści { #drafting-the-missing-content }
+
+Na szerokim ekranie edytor tematu pokazuje szkic dokumentu obok źródeł. Na telefonie przełączaj **Proponowany dokument** i **Dlaczego jest potrzebny** bez utraty zmian. **Zapisz** zachowuje szkic; **Dodaj do bazy wiedzy** dodaje treść do wskazanej bazy. Ponowne generowanie jest zablokowane przy niezapisanych zmianach, a zamknięcie okna wymaga potwierdzenia ich odrzucenia. Podczas generowania nowego szkicu edytor jest zablokowany.
 
 **Napisz szkic** (Draft) w otwartym temacie prosi model o napisanie
 fragmentu albo wpisu FAQ, którego brakuje w bazie wiedzy. Przycisk pokazuje

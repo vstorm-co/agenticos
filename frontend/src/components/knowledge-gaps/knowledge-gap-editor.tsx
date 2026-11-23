@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BookPlus, Save } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -28,7 +28,13 @@ export function blanksIn(text: string): string[] {
  * something that may identify somebody is unconfirmed - what the saved draft holds,
  * or what the server found when adding was tried.
  */
-export function KnowledgeGapEditor({ topic }: { topic: KnowledgeGapTopicDetail }) {
+export function KnowledgeGapEditor({
+  topic,
+  onDirtyChange,
+}: {
+  topic: KnowledgeGapTopicDetail;
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
   const t = useTranslations("knowledgeGaps");
   const [title, setTitle] = useState(topic.draft?.title ?? "");
   const [content, setContent] = useState(topic.draft?.content ?? "");
@@ -39,6 +45,10 @@ export function KnowledgeGapEditor({ topic }: { topic: KnowledgeGapTopicDetail }
   const blanks = blanksIn(`${title}\n${content}`);
   const saved =
     topic.draft !== null && title === topic.draft.title && content === topic.draft.content;
+  const dirty = topic.draft !== null ? !saved : title !== "" || content !== "";
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
   const refused = isIdentifyingContent(add.error)
     ? ((add.error.details?.flags ?? []) as KnowledgeGapFlag[])
     : null;
@@ -52,7 +62,7 @@ export function KnowledgeGapEditor({ topic }: { topic: KnowledgeGapTopicDetail }
   };
 
   return (
-    <div className="space-y-3">
+    <fieldset disabled={topic.drafting} className="min-w-0 space-y-3">
       <div className="space-y-1.5">
         <Label htmlFor="knowledge-gap-title">{t("contentTitle")}</Label>
         <Input
@@ -86,17 +96,7 @@ export function KnowledgeGapEditor({ topic }: { topic: KnowledgeGapTopicDetail }
       {flags.length > 0 && (
         <KnowledgeGapFlags flags={flags} confirmed={confirmed} onConfirmed={setConfirmed} />
       )}
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          disabled={busy || !written || blanks.length > 0 || (flags.length > 0 && !confirmed)}
-          onClick={() =>
-            add.mutate({ topicId: topic.id, title, content, confirmed: confirmed ? flags : [] })
-          }
-        >
-          <BookPlus className="h-3.5 w-3.5" aria-hidden />
-          {t("addToKnowledgeBase", { knowledgeBase: topic.knowledge_base_name })}
-        </Button>
+      <div className="bg-card sticky bottom-0 z-10 flex flex-wrap items-center justify-end gap-2 border-t py-3">
         <Button
           variant="outline"
           size="sm"
@@ -106,8 +106,21 @@ export function KnowledgeGapEditor({ topic }: { topic: KnowledgeGapTopicDetail }
           <Save className="h-3.5 w-3.5" aria-hidden />
           {t("saveContent")}
         </Button>
+        <Button
+          size="sm"
+          disabled={busy || !written || blanks.length > 0 || (flags.length > 0 && !confirmed)}
+          onClick={() =>
+            add.mutate({ topicId: topic.id, title, content, confirmed: confirmed ? flags : [] })
+          }
+        >
+          <BookPlus className="h-3.5 w-3.5" aria-hidden />
+          {t("workspace.add")}
+        </Button>
       </div>
+      <p className="text-muted-foreground text-xs">
+        {t("workspace.target", { name: topic.knowledge_base_name })}
+      </p>
       {topic.draft && <KnowledgeGapDraftMeta draft={topic.draft} />}
-    </div>
+    </fieldset>
   );
 }

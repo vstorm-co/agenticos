@@ -25,7 +25,7 @@ import { AcceptedChanges, TriedChanges } from "./tried-changes";
 import { NotBetterWarning } from "./attempt-choice";
 import { CriteriaNote, GAINS } from "./criteria";
 import { AcceptSummary, GuardNote, KnowledgeDocuments } from "./outcome";
-import { ResultStep } from "./result-decision";
+import { ResultAttempts, ResultStep } from "./result-decision";
 import { type ReadOnlyReason } from "./read-only";
 import { SessionDecision } from "./session-decision";
 import { ImprovementShell, WorkingNote } from "./improvement-shell";
@@ -140,6 +140,7 @@ function Session({
       session={session}
       readOnly={readOnly}
       closeHref={`/agents/${agentId}`}
+      attempts={<ResultAttempts session={session} knowledgeCheck={knowledgeCheck} />}
       wordingOpen={wordingOpen}
       footer={
         selectionDirty &&
@@ -242,9 +243,12 @@ function Session({
               <KnowledgeDocuments session={session} />
             </section>
           )}
-          {step === "check" && (
-            <CheckProgress session={session} onShowResult={() => goTo("result")} />
-          )}
+          {step === "check" &&
+            (isClosed(session) ? (
+              <TestQuestions session={session} />
+            ) : (
+              <CheckProgress session={session} onShowResult={() => goTo("result")} />
+            ))}
           {step === "result" && (
             <ResultStep
               session={session}

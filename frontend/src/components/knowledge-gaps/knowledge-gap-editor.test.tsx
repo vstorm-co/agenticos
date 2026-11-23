@@ -61,7 +61,7 @@ const DRAFT: KnowledgeGapDraft = {
   flags: [],
 };
 
-const ADD = { name: "Add to Handbook" };
+const ADD = { name: "Add to knowledge base" };
 
 function typeContent(text: string) {
   fireEvent.change(screen.getByRole("textbox", { name: "Content" }), { target: { value: text } });
@@ -169,4 +169,20 @@ describe("blanksIn", () => {
       "hours",
     ]);
   });
+});
+
+it("reports unsaved edits and clears the dirty state after the saved content is read", () => {
+  const changed = vi.fn();
+  const draft = { ...DRAFT, content: "Original" };
+  const view = render(<KnowledgeGapEditor topic={{ ...TOPIC, draft }} onDirtyChange={changed} />);
+  expect(changed).toHaveBeenLastCalledWith(false);
+  typeContent("Revised");
+  expect(changed).toHaveBeenLastCalledWith(true);
+  view.rerender(
+    <KnowledgeGapEditor
+      topic={{ ...TOPIC, draft: { ...draft, content: "Revised" } }}
+      onDirtyChange={changed}
+    />,
+  );
+  expect(changed).toHaveBeenLastCalledWith(false);
 });

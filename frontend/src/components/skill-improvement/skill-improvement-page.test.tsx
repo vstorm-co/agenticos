@@ -207,19 +207,15 @@ describe("SkillImprovementPage", () => {
     expect(await screen.findByText("Gone")).toBeVisible();
     state.session = skillSession();
     await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
-    expect(await screen.findByText("Line: main")).toBeVisible();
+    expect(await screen.findByText("How each agent did")).toBeVisible();
   });
 
-  it("marks what an ended session wrote and checked as done, and its end as ended", async () => {
+  it("reads an ended session through compact record tabs without wizard decisions", async () => {
     state.session = skillSession({ status: "rejected", best_iteration_id: null });
     mount();
-
-    expect(await screen.findByRole("button", { name: "Changes" })).toHaveAccessibleDescription(
-      "Done",
-    );
-    expect(screen.getByRole("button", { name: "Accept" })).toHaveAccessibleDescription(
-      "Ended without changes",
-    );
+    expect(await screen.findByRole("tab", { name: "Changes" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Previous step" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Decide what to do" })).toBeNull();
   });
 
   it("leaves a result with nothing to accept to improve further or end", async () => {
@@ -320,5 +316,24 @@ it("allows retrying the initial skill read", async () => {
   mount();
   expect(await screen.findByText("skill unavailable")).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
-  expect(await screen.findByText("Line: main")).toBeVisible();
+  expect(await screen.findByText("How each agent did")).toBeVisible();
+});
+
+it("opens a finished skill's attempts without offering another decision", async () => {
+  state.session = skillSession({ status: "accepted", outcome: "applied" });
+  mount();
+  await userEvent.click(await screen.findByRole("tab", { name: "Attempts" }));
+  expect(screen.getByRole("heading", { name: "Attempts" })).toBeVisible();
+  expect(screen.getByText(/^Attempt 1:/)).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Decide what to do" })).toBeNull();
+});
+
+it("does not offer an empty attempt tab on a cancelled record", async () => {
+  state.session = skillSession({ status: "cancelled", iterations: [], best_iteration_id: null });
+  mount();
+  expect(await screen.findByRole("tab", { name: "Result" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  expect(screen.queryByRole("tab", { name: "Attempts" })).toBeNull();
 });

@@ -33,7 +33,41 @@ export interface Tile {
  * A row of figures a step leads with, stacked on the narrowest phones: the dashboard's
  * `FigureCard`, with a label that wraps, and a link to where a figure is listed in full.
  */
-export function Tiles({ tiles, label }: { tiles: Tile[]; label?: string }) {
+export function Tiles({
+  tiles,
+  label,
+  compact = false,
+}: {
+  tiles: Tile[];
+  label?: string;
+  compact?: boolean;
+}) {
+  if (compact)
+    return (
+      <dl
+        role="group"
+        aria-label={label}
+        className="bg-card grid grid-cols-2 gap-x-6 gap-y-4 rounded-xl border p-4 sm:flex sm:flex-wrap sm:gap-10 sm:p-5"
+      >
+        {tiles.map((tile) => (
+          <div key={tile.label} className="min-w-0 space-y-1">
+            <dt className="text-muted-foreground text-xs">{tile.label}</dt>
+            <dd className="text-xl font-medium tabular-nums">
+              {tile.href ? (
+                <a className="underline underline-offset-4" href={tile.href}>
+                  {tile.value}
+                </a>
+              ) : (
+                tile.value
+              )}
+            </dd>
+            {tile.caption && (
+              <dd className="text-muted-foreground max-w-64 text-xs">{tile.caption}</dd>
+            )}
+          </div>
+        ))}
+      </dl>
+    );
   return (
     <div
       role="group"

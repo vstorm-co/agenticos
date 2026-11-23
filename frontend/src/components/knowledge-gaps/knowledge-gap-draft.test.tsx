@@ -32,8 +32,17 @@ vi.mock("./knowledge-gap-draft-card", () => ({
   }) => <p>{addedTo ? `card ${draft.title} added to ${addedTo}` : `card ${draft.title}`}</p>,
 }));
 vi.mock("./knowledge-gap-editor", () => ({
-  KnowledgeGapEditor: ({ topic }: { topic: { draft: { title: string } | null } }) => (
-    <p>{`editor ${topic.draft?.title ?? "empty"}`}</p>
+  KnowledgeGapEditor: ({
+    topic,
+    onDirtyChange,
+  }: {
+    topic: { draft: { title: string } | null };
+    onDirtyChange?: (value: boolean) => void;
+  }) => (
+    <div>
+      <p>{`editor ${topic.draft?.title ?? "empty"}`}</p>
+      <button onClick={() => onDirtyChange?.(true)}>Change content</button>
+    </div>
   ),
 }));
 
@@ -138,7 +147,7 @@ describe("KnowledgeGapDraftPanel", () => {
     state.granted = [Perm.agentsRun];
     state.org = null;
     const { container } = render(<KnowledgeGapDraftPanel topic={{ ...TOPIC, can_edit: false }} />);
-    expect(container.querySelector("section")).toBeEmptyDOMElement();
+    expect(container.querySelector("section")).toHaveTextContent("Suggested document");
   });
 
   it("gives somebody who may change the knowledge base an editor, empty before any draft", () => {
@@ -198,4 +207,14 @@ describe("KnowledgeGapDraftPanel", () => {
     );
     expect(screen.getByText(/replaces the one this session tested/)).toBeInTheDocument();
   });
+});
+
+it("disables redrafting while the editor has unsaved changes", async () => {
+  state.granted = [Perm.agentsRun];
+  const changed = vi.fn();
+  render(<KnowledgeGapDraftPanel topic={DRAFTED} onDirtyChange={changed} />);
+  await userEvent.click(screen.getByRole("button", { name: "Change content" }));
+  expect(changed).toHaveBeenCalledWith(true);
+  expect(screen.getByRole("button", { name: /^Redraft/ })).toBeDisabled();
+  expect(screen.getByRole("status")).toHaveTextContent("Unsaved changes");
 });

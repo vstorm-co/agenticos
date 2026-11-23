@@ -1,5 +1,5 @@
 ---
-source_sha: "1a0321736e6f"
+source_sha: "1ab1881e5195"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -222,6 +222,8 @@ eval sobre el dataset. Los casos que fallaban porque faltaba el conocimiento
 deberían pasar ahora.
 
 ## Redactar el contenido que falta { #drafting-the-missing-content }
+
+En una pantalla amplia, el editor muestra el borrador junto a sus pruebas. En el teléfono, cambia entre **Documento propuesto** y **Por qué hace falta** sin perder cambios. **Guardar** conserva el borrador; **Añadir a la base de conocimiento** añade el contenido al destino indicado. No se puede regenerar con cambios sin guardar, y al cerrar se pide confirmar su descarte. El editor permanece deshabilitado mientras se genera otro borrador.
 
 **Draft**, en un tema abierto, pide a un modelo que escriba el fragmento o la
 entrada de FAQ que le falta a la base de conocimiento. El botón muestra lo

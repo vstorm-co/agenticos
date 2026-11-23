@@ -193,6 +193,22 @@ function SkillSession({
         session={session}
         readOnly={readOnly}
         closeHref={ROUTES.SKILL_DETAIL(skillId)}
+        attempts={
+          <section className="space-y-4">
+            <h2 className="text-sm font-medium">{tImprovement("attemptsTitle")}</h2>
+            <ul className="divide-y rounded-xl border">
+              {session.iterations.map((round) => (
+                <li key={round.id} className="p-4 text-sm">
+                  {tImprovement("triedAttempt", {
+                    number: round.number,
+                    verdict: round.verdict ?? (round.batch_id ? "unmeasured" : "none"),
+                    dropped: round.dropped.length,
+                  })}
+                </li>
+              ))}
+            </ul>
+          </section>
+        }
         wordingOpen={wordingOpen}
         nextStepDetail={(quote) => (
           <>
@@ -220,9 +236,11 @@ function SkillSession({
         }
         panel={({ step, views, goTo, followCurrent }) => (
           <>
-            <p className="text-muted-foreground text-sm">
-              {t("line", { line: session.line_name })}
-            </p>
+            {step !== "result" && (
+              <p className="text-muted-foreground text-xs">
+                {t("line", { line: session.line_name })}
+              </p>
+            )}
             {step === "understand" &&
               (views.understand.content === "working" ? (
                 <WorkingNote>{t("understandWorking")}</WorkingNote>
@@ -270,14 +288,14 @@ function SkillSession({
               ))
             )}
             {step === "check" && (
-              <section className="space-y-4 rounded-xl border p-6">
+              <section className="space-y-4">
                 <h2 className="font-medium">{t("checkTitle")}</h2>
                 {measured}
                 <MainAloneResult session={session} />
               </section>
             )}
             {step === "result" && (
-              <section className="space-y-4 rounded-xl border p-6">
+              <section className="space-y-4">
                 <h2 className="font-medium">{t("resultTitle")}</h2>
                 {measured}
                 <MainAloneResult session={session} />
@@ -288,7 +306,7 @@ function SkillSession({
                   ) : (
                     <CheckAgain session={session} onStarted={followCurrent} />
                   ))}
-                {isReachable(views.accept) ? (
+                {readOnly === null && isReachable(views.accept) ? (
                   <Button onClick={() => goTo("accept")}>{t("toAccept")}</Button>
                 ) : (
                   readOnly === null && (

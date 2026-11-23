@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { BookCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -29,7 +30,21 @@ import { KnowledgeGapEditor } from "./knowledge-gap-editor";
  * somebody who may change that base is offered them. Anybody else reads the
  * draft as a draft.
  */
-export function KnowledgeGapDraftPanel({ topic }: { topic: KnowledgeGapTopicDetail }) {
+export function KnowledgeGapDraftPanel({
+  topic,
+  onDirtyChange,
+}: {
+  topic: KnowledgeGapTopicDetail;
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
+  const [dirty, setDirty] = useState(false);
+  const changed = useCallback(
+    (value: boolean) => {
+      setDirty(value);
+      onDirtyChange?.(value);
+    },
+    [onDirtyChange],
+  );
   const t = useTranslations("knowledgeGaps");
   const { can } = usePermissions();
   const wizard = useInImproveWizard();
@@ -37,7 +52,15 @@ export function KnowledgeGapDraftPanel({ topic }: { topic: KnowledgeGapTopicDeta
 
   return (
     <section className="space-y-3">
-      <KnowledgeGapDraftStatus topic={topic} editable={mayDraft} offerRedraft />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="hidden text-sm font-medium lg:block">{t("workspace.draft")}</h3>
+        <KnowledgeGapDraftStatus topic={topic} editable={mayDraft} offerRedraft disabled={dirty} />
+      </div>
+      {dirty && topic.status !== "covered" && (
+        <p role="status" className="text-muted-foreground text-xs">
+          {t("workspace.unsaved")}
+        </p>
+      )}
       {wizard && mayDraft && topic.draft && !topic.drafting && (
         <p className="text-muted-foreground text-xs">{t("draftAgainInSession")}</p>
       )}
@@ -46,7 +69,11 @@ export function KnowledgeGapDraftPanel({ topic }: { topic: KnowledgeGapTopicDeta
       )}
       {topic.draft?.already_covered && <AlreadyCovered draft={topic.draft} />}
       {topic.can_edit && topic.status === "open" ? (
-        <KnowledgeGapEditor key={topic.draft?.drafted_at ?? "new"} topic={topic} />
+        <KnowledgeGapEditor
+          key={topic.draft?.drafted_at ?? "new"}
+          topic={topic}
+          onDirtyChange={changed}
+        />
       ) : (
         topic.draft && (
           <KnowledgeGapDraftCard

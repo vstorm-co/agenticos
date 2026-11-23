@@ -278,6 +278,8 @@ them.
 
 ## Results { #results }
 
+The result opens on **Answers**, directly below a summary in plain language. Use **What was checked** for criterion-family results and **Details** for side-by-side metrics and comparison details. Open **How this was measured** for the confirmation explanation. A question shows the baseline before the candidate; confirming reruns are expandable. The outcome filter is kept in the URL, and the selected question stays open when you switch result tabs.
+
 Every attempt keeps the answer, the calls it made - each marked executed,
 blocked, replayed or divergent - every scorer's verdict and reason, its cost,
 its tokens and its latency. The answer and calls are copied onto the result,

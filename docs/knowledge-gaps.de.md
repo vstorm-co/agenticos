@@ -1,5 +1,5 @@
 ---
-source_sha: "1a0321736e6f"
+source_sha: "1ab1881e5195"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -223,6 +223,8 @@ hast, führe ein Eval über das Dataset aus. Die Fälle, die wegen des fehlenden
 Wissens fehlgeschlagen sind, sollten jetzt bestehen.
 
 ## Den fehlenden Inhalt entwerfen { #drafting-the-missing-content }
+
+Auf einem breiten Bildschirm steht der Dokumententwurf neben seinen Belegen. Auf dem Smartphone wechseln Sie ohne Verlust Ihrer Änderungen zwischen **Dokumentvorschlag** und **Warum es benötigt wird**. **Speichern** sichert den Entwurf; **Zur Wissensbasis hinzufügen** fügt den Inhalt dem genannten Ziel hinzu. Eine neue Generierung ist bei ungespeicherten Änderungen gesperrt; vor dem Verwerfen beim Schließen wird nachgefragt. Während der Generierung ist der Editor gesperrt.
 
 **Entwerfen** (Draft) in einem geöffneten Thema bittet ein Modell, die
 Passage oder den FAQ-Eintrag zu schreiben, der der Wissensbasis fehlt. Die

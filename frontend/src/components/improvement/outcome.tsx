@@ -87,6 +87,7 @@ export function ResultSummary({
   return (
     <div className="space-y-2">
       <Tiles
+        compact
         label={`${measured ? t("resultAgent", measured) : t("resultAgentUnknown")} ${knowledge}`}
         tiles={[
           {
@@ -127,15 +128,35 @@ export function ResultSummary({
                 },
               ]
             : []),
-          {
-            label: t("widgets.missingTopics"),
-            value: topics.length,
-            tone: "violet",
-            icon: BookOpen,
-            href: topics.length > 0 ? `#${DOCUMENTS_ANCHOR}` : undefined,
-            caption:
-              added.length > 0 ? t("widgets.alreadyAdded", { count: added.length }) : undefined,
-          },
+          ...(comparison && comparison.verdict !== "invalid"
+            ? [
+                {
+                  label: t("record.answersPassed"),
+                  value: comparison.baseline_summary
+                    ? `${t("record.answerCount", { passed: comparison.baseline_summary.passed, cases: comparison.baseline_summary.cases })} → ${t("record.answerCount", { passed: comparison.candidate_summary.passed, cases: comparison.candidate_summary.cases })}`
+                    : t("record.answerCount", {
+                        passed: comparison.candidate_summary.passed,
+                        cases: comparison.candidate_summary.cases,
+                      }),
+                  caption: t("record.passRateScope"),
+                },
+              ]
+            : []),
+          ...(topics.length > 0 || added.length > 0
+            ? [
+                {
+                  label: t("widgets.missingTopics"),
+                  value: topics.length,
+                  tone: "violet" as const,
+                  icon: BookOpen,
+                  href: topics.length > 0 ? `#${DOCUMENTS_ANCHOR}` : undefined,
+                  caption:
+                    added.length > 0
+                      ? t("widgets.alreadyAdded", { count: added.length })
+                      : undefined,
+                },
+              ]
+            : []),
         ]}
       />
       {pending > 0 && <p className="text-muted-foreground text-xs">{t("notConfirmedHint")}</p>}

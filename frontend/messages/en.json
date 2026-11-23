@@ -15732,14 +15732,25 @@
       "phone": "phone number"
     },
     "flagsConfirm": "I checked it: none of this identifies a person, or it belongs in the knowledge base.",
-    "addToKnowledgeBase": "Add to {knowledgeBase}",
     "saveContent": "Save",
     "contentSaved": "Content saved",
     "contentAdded": "Added to {knowledgeBase}. The document is being processed.",
     "coveredBy": "Covered by <link>{name}</link>, added to the knowledge base from this topic.",
     "alreadyCoveredBy": "The drafter found these questions answered already, by {sources}. If so, dismiss the topic instead of adding content.",
     "alreadyCovered": "The drafter found these questions answered already. If so, dismiss the topic instead of adding content.",
-    "draftAgainInSession": "A new draft replaces the one this session tested, so that test no longer applies to it."
+    "draftAgainInSession": "A new draft replaces the one this session tested, so that test no longer applies to it.",
+    "workspace": {
+      "draft": "Suggested document",
+      "evidence": "Why this is needed ({count})",
+      "unsaved": "Unsaved changes. Save the draft before generating another version.",
+      "discardTitle": "Discard unsaved changes?",
+      "discardBody": "Your changes to this document have not been saved.",
+      "discard": "Discard changes",
+      "keepEditing": "Keep editing",
+      "add": "Add to knowledge base",
+      "target": "Target: {name}",
+      "hint": "Review the text, then add it to the knowledge base so your agents can use it."
+    }
   },
   "evals": {
     "title": "Evals",
@@ -15905,19 +15916,19 @@
       "criteriaHint": "Each question counts the share of its criteria its first answer passed: six of seven counts 6/7, where the pass rate counts it as failed."
     },
     "cases": {
-      "title": "{count, plural, =1 {1 case} other {# cases}}",
+      "title": "{count, plural, one {# question} other {# questions}}",
       "outcomeFilter": "Outcome",
       "tagFilter": "Tag",
       "allTags": "All tags",
       "outcome": {
-        "all": "All outcomes",
+        "all": "All answers",
         "passed": "Passed",
-        "failed": "Failed",
+        "failed": "Needs review",
         "undecided": "Undecided"
       },
       "flip": {
-        "regression": "{confirmed, select, true {Confirmed regression} other {Regression, unconfirmed}}",
-        "fixed": "{confirmed, select, true {Confirmed fix} other {Fixed, unconfirmed}}",
+        "regression": "{confirmed, select, true {Got worse} other {May be worse}}",
+        "fixed": "{confirmed, select, true {Improved} other {May have improved}}",
         "incomplete": "Not graded on {side}",
         "crashed": "{confirmed, select, true {Broke: the agent failed} other {Broke once: the agent failed}}"
       },
@@ -15933,7 +15944,13 @@
         "excluded": "Evidence copy"
       },
       "criteria": "{passed}/{graded}",
-      "criteriaTitle": "{passed} of {graded} criteria passed"
+      "answerState": {
+        "passed": "Passed",
+        "failed": "Needs review",
+        "undecided": "Not graded",
+        "incomplete": "Could not finish",
+        "pending": "Waiting"
+      }
     },
     "case": {
       "firstAnswer": "Answer",
@@ -16325,7 +16342,44 @@
       "pooled": "This run is one stage of the check. The check judges each agent on the held-out questions of all its stages together, so this stage alone can say less than the check."
     },
     "notAsked": "{count, plural, =1 {1 question of this dataset was not in this stage's sample, so it was not asked.} other {# questions of this dataset were not in this stage's sample, so they were not asked.}}",
-    "runMetaStage": "{date} · spent {cost}"
+    "runMetaStage": "{date} · spent {cost}",
+    "resultTabs": {
+      "questions": "Answers",
+      "criteria": "What was checked",
+      "performance": "Details",
+      "methodology": "How this was measured"
+    },
+    "resultSummary": "{fixed} confirmed fixes · {broken} confirmed regressions",
+    "resultSides": "{baseline} → {candidate}",
+    "resultReruns": "Confirming reruns ({count})",
+    "resultFailed": "Review answers ({count})",
+    "resultNoCriteria": "No criterion-family results are available for this run yet.",
+    "plain": {
+      "label": "Test summary",
+      "single": "{passed} of {cases} answers passed",
+      "worse": "Some answers got worse",
+      "incomplete": "Some answers could not be checked",
+      "improved": "The updated agent answered better",
+      "requirements": "Answers follow more of your requirements",
+      "unchanged": "No clear improvement",
+      "invalid": "We cannot compare these results yet",
+      "tooFew": "Add more independent test questions before comparing the versions.",
+      "cannotCompare": "The two tests are not comparable. Open test details to see what needs to change.",
+      "changes": "{fixed} answers improved · {broken} got worse",
+      "singleBody": "{failed, plural, =0 {No incorrect answers were found.} one {One answer needs your review.} other {# answers need your review.}}",
+      "undecided": "{count, plural, one {One answer could not be checked.} other {# answers could not be checked.}}",
+      "unstable": "Some answers varied between tests. Their improvement is not confirmed.",
+      "details": "Test details",
+      "actions": "More actions",
+      "expectation": "Expected answer and checking rules",
+      "notCompared": "No comparison is available yet",
+      "before": "Before",
+      "after": "After",
+      "partial": "Open the answers below to see which ones could be checked.",
+      "overallWorseBody": "The overall quality dropped, even though no individual answer was consistently worse.",
+      "requirementsBody": "More requirements were met, but no whole answer was consistently fixed.",
+      "reviewChanges": "Review changes"
+    }
   },
   "authoring": {
     "strip": {
@@ -16809,12 +16863,12 @@
     "openAgent": "Open the agent",
     "accept": "Accept these changes",
     "resultDecision": {
-      "title": "What this session came to",
+      "title": "Result",
       "options": "What you can do",
-      "better": "Attempt {number} made {agent} better: {fixed, plural, one {# question} other {# questions}} fixed and none broke.",
+      "better": "The updated agent answered {fixed} more test questions correctly.",
       "chosen": "You chose attempt {number} to accept.",
-      "published": "{version, select, unknown {Attempt {number} was published.} other {Attempt {number} was published as version {version}.}}",
-      "acceptedDraft": "Attempt {number} was accepted as a draft.",
+      "published": "{version, select, unknown {Changes published.} other {Published as version {version}.}}",
+      "acceptedDraft": "Saved to the agent’s draft.",
       "failed": "The session stopped on an error before it finished.",
       "noneBetter": "{count, plural, =0 {No attempt was measured, so nothing shows whether {agent} got better.} one {The attempt did not make {agent} better.} other {None of the # attempts made {agent} better.}}",
       "worse": "Attempt {number} made it worse: {broken, plural, one {# question broke} other {# questions broke}}.",
@@ -17059,8 +17113,8 @@
     "noChangesFound": "We couldn't find a change that fits the current instructions. Here is what we tried:",
     "triedAttempt": "Attempt {number}: {verdict, select, better {the changes made it better} criteria_better {the changes made it better on some criteria, no question flipped yet} regression {the changes broke questions that worked} criteria_worse {the changes made some criteria worse} no_change {no measurable change} inconclusive {the result could not be measured} unmeasured {changes proposed, not tested yet} other {no change was proposed}}{dropped, plural, =0 {} one {; # change did not fit the current instructions} other {; # changes did not fit the current instructions}}.",
     "handledChange": "{before} → {after} of {total} questions handled well.",
-    "newlyFixed": "Newly fixed",
-    "newlyBroken": "Newly broken",
+    "newlyFixed": "Improved answers",
+    "newlyBroken": "Answers that got worse",
     "possiblyBroken": "Possibly broken",
     "possiblyFixed": "Possibly fixed",
     "notConfirmedMore": "+{count} not confirmed",
@@ -17340,7 +17394,21 @@
       "addQuestions": "Add questions from other conversations"
     },
     "likedSignals": "Answers rated up",
-    "reviewedSignals": "Other reviewed test answers"
+    "reviewedSignals": "Other reviewed test answers",
+    "record": {
+      "result": "Result",
+      "changes": "Changes",
+      "check": "Test questions",
+      "attempts": "Attempts",
+      "understand": "Analysis",
+      "accept": "Decision",
+      "back": "Back to resource",
+      "spent": "Spent {spent}",
+      "passRateScope": "Across all questions in the evaluation",
+      "more": "Session details",
+      "answersPassed": "Answers passed",
+      "answerCount": "{passed} of {cases}"
+    }
   },
   "unsaved": {
     "title": "You have unsaved changes",
@@ -18063,11 +18131,10 @@
         "criteria_worse": "Worse on criteria",
         "within_noise": "Within noise",
         "worse": "Worse",
-        "unknown": "Unknown"
+        "unknown": "Not verified"
       },
       "fixedBroken": "{fixed, plural, =1 {Fixes 1 question} other {Fixes # questions}}, {broken, plural, =1 {breaks 1} other {breaks #}}.",
       "fixedBrokenUnconfirmed": "{fixed, plural, =1 {1 question looked fixed} other {# questions looked fixed}} and {broken, plural, =1 {1 looked broken} other {# looked broken}} at first, but asking them again did not confirm it, so the agent counts as no change.",
-      "tooFewGroup": "Too few questions to be sure: each agent below was asked fewer held-out questions than a result needs.",
       "unknown": {
         "no_questions": "Not checked: it has no test questions where it loaded the skill, and the skill has none of its own.",
         "no_access": "Not checked: you may not run this agent.",
@@ -18080,7 +18147,7 @@
         "all_evidence": "Not checked: every question came from the conversations the change was learned from.",
         "cancelled": "Not checked: the check was stopped before its runs finished.",
         "own_not_asked": "Not checked: its own questions were left unasked, and they now decide it.",
-        "too_few_questions": "Too few questions to be sure: {fixed} of {heldOut} came out better and {broken} worse, fewer questions than a result needs."
+        "too_few_questions": "Not enough test questions to verify the change. {heldOut} questions were checked."
       },
       "skillSetOnly": "Checked only on the skill's own questions: it had none of its own where it loaded the skill.",
       "stage": {
@@ -18090,9 +18157,9 @@
       },
       "summary": {
         "worse": "{count} worse",
-        "unknown": "{count} not known",
+        "unknown": "{count} not verified",
         "same": "{count} no change",
-        "better": "{count} better",
+        "better": "{count} improved",
         "pending": "{count} still checking",
         "filter": "Show only"
       },

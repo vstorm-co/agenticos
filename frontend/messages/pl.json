@@ -15505,14 +15505,25 @@
       "phone": "numer telefonu"
     },
     "flagsConfirm": "Sprawdzone: nic z tego nie identyfikuje osoby albo powinno być w bazie wiedzy.",
-    "addToKnowledgeBase": "Dodaj do {knowledgeBase}",
     "saveContent": "Zapisz",
     "contentSaved": "Treść zapisana",
     "contentAdded": "Dodano do {knowledgeBase}. Dokument jest przetwarzany.",
     "coveredBy": "Uzupełnione dokumentem <link>{name}</link>, dodanym do bazy wiedzy z tego tematu.",
     "alreadyCoveredBy": "Autor szkiców luk uznał, że na te pytania odpowiada już {sources}. Jeśli tak, odrzuć temat zamiast dodawać treść.",
     "alreadyCovered": "Autor szkiców luk uznał, że na te pytania jest już odpowiedź. Jeśli tak, odrzuć temat zamiast dodawać treść.",
-    "draftAgainInSession": "Nowy szkic zastąpi ten, który przetestowano w tej sesji, więc tamten test przestanie go dotyczyć."
+    "draftAgainInSession": "Nowy szkic zastąpi ten, który przetestowano w tej sesji, więc tamten test przestanie go dotyczyć.",
+    "workspace": {
+      "draft": "Proponowany dokument",
+      "evidence": "Dlaczego jest potrzebny ({count})",
+      "unsaved": "Niezapisane zmiany. Zapisz szkic przed wygenerowaniem kolejnej wersji.",
+      "discardTitle": "Odrzucić niezapisane zmiany?",
+      "discardBody": "Zmiany w tym dokumencie nie zostały zapisane.",
+      "discard": "Odrzuć zmiany",
+      "keepEditing": "Kontynuuj edycję",
+      "add": "Dodaj do bazy wiedzy",
+      "target": "Docelowa baza: {name}",
+      "hint": "Sprawdź treść, a następnie dodaj ją do bazy wiedzy, aby agenci mogli z niej korzystać."
+    }
   },
   "evals": {
     "title": "Ewaluacje",
@@ -15678,19 +15689,19 @@
       "criteriaHint": "Każde pytanie liczy udział kryteriów, które spełniła jego pierwsza odpowiedź: sześć z siedmiu to 6/7, podczas gdy w kolumnie Zaliczone liczy się jako niezaliczone."
     },
     "cases": {
-      "title": "{count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
+      "title": "{count, plural, one {# pytanie} few {# pytania} other {# pytań}}",
       "outcomeFilter": "Wynik",
       "tagFilter": "Tag",
       "allTags": "Wszystkie tagi",
       "outcome": {
-        "all": "Wszystkie wyniki",
+        "all": "Wszystkie odpowiedzi",
         "passed": "Zaliczone",
-        "failed": "Niezaliczone",
+        "failed": "Do sprawdzenia",
         "undecided": "Nierozstrzygnięte"
       },
       "flip": {
-        "regression": "{confirmed, select, true {Potwierdzona regresja} other {Regresja, niepotwierdzona}}",
-        "fixed": "{confirmed, select, true {Potwierdzona naprawa} other {Naprawione, niepotwierdzone}}",
+        "regression": "{confirmed, select, true {Pogorszona} other {Możliwe pogorszenie}}",
+        "fixed": "{confirmed, select, true {Poprawiona} other {Możliwa poprawa}}",
         "incomplete": "Bez oceny na {side}",
         "crashed": "{confirmed, select, true {Zepsute: agent się wysypał} other {Zepsute raz: agent się wysypał}}"
       },
@@ -15706,7 +15717,13 @@
         "excluded": "Kopia dowodu"
       },
       "criteria": "{passed}/{graded}",
-      "criteriaTitle": "Spełnione kryteria: {passed} z {graded}"
+      "answerState": {
+        "passed": "Poprawna",
+        "failed": "Do sprawdzenia",
+        "undecided": "Nie oceniono",
+        "incomplete": "Nie ukończono",
+        "pending": "Oczekuje"
+      }
     },
     "case": {
       "firstAnswer": "Odpowiedź",
@@ -16098,7 +16115,44 @@
       "pooled": "Ten run jest jednym etapem sprawdzenia. Sprawdzenie ocenia każdego agenta na pytaniach kontrolnych ze wszystkich jego etapów razem, więc sam ten etap może powiedzieć mniej niż sprawdzenie."
     },
     "notAsked": "{count, plural, one {1 pytanie tego datasetu nie trafiło do próbki tego etapu, więc go nie zadano.} few {# pytania tego datasetu nie trafiły do próbki tego etapu, więc ich nie zadano.} many {# pytań tego datasetu nie trafiło do próbki tego etapu, więc ich nie zadano.} other {# pytania tego datasetu nie trafiło do próbki tego etapu, więc ich nie zadano.}}",
-    "runMetaStage": "{date} · wydano {cost}"
+    "runMetaStage": "{date} · wydano {cost}",
+    "resultTabs": {
+      "questions": "Odpowiedzi",
+      "criteria": "Co sprawdzono",
+      "performance": "Szczegóły",
+      "methodology": "Jak przeprowadzono pomiar"
+    },
+    "resultSummary": "Potwierdzone poprawki: {fixed} · Potwierdzone regresje: {broken}",
+    "resultSides": "{baseline} → {candidate}",
+    "resultReruns": "Powtórzenia potwierdzające ({count})",
+    "resultFailed": "Sprawdź odpowiedzi ({count})",
+    "resultNoCriteria": "Wyniki rodzin kryteriów nie są jeszcze dostępne dla tego przebiegu.",
+    "plain": {
+      "label": "Podsumowanie testu",
+      "single": "{passed} z {cases} odpowiedzi poprawnych",
+      "worse": "Część odpowiedzi się pogorszyła",
+      "incomplete": "Nie udało się ocenić części odpowiedzi",
+      "improved": "Agent odpowiada lepiej po zmianach",
+      "requirements": "Odpowiedzi spełniają więcej wymagań",
+      "unchanged": "Brak wyraźnej poprawy",
+      "invalid": "Nie możemy jeszcze porównać wyników",
+      "tooFew": "Dodaj więcej niezależnych pytań testowych, aby porównać wersje.",
+      "cannotCompare": "Tych testów nie można porównać. W szczegółach zobaczysz, co trzeba zmienić.",
+      "changes": "Poprawione odpowiedzi: {fixed} · Pogorszone: {broken}",
+      "singleBody": "{failed, plural, =0 {Nie znaleziono błędnych odpowiedzi.} one {Jedna odpowiedź wymaga sprawdzenia.} few {# odpowiedzi wymagają sprawdzenia.} many {# odpowiedzi wymaga sprawdzenia.} other {# odpowiedzi wymaga sprawdzenia.}}",
+      "undecided": "{count, plural, one {Nie udało się ocenić jednej odpowiedzi.} other {Nie udało się ocenić # odpowiedzi.}}",
+      "unstable": "Część odpowiedzi różniła się między testami. Ich poprawa nie jest potwierdzona.",
+      "details": "Szczegóły testu",
+      "actions": "Pozostałe działania",
+      "expectation": "Oczekiwana odpowiedź i zasady oceny",
+      "notCompared": "Porównanie nie jest jeszcze dostępne",
+      "before": "Przed",
+      "after": "Po",
+      "partial": "Sprawdź poniżej, które odpowiedzi udało się ocenić.",
+      "overallWorseBody": "Ogólna jakość spadła, choć żadna pojedyncza odpowiedź nie była stale gorsza.",
+      "requirementsBody": "Spełniono więcej wymagań, ale nie potwierdzono poprawy całych odpowiedzi.",
+      "reviewChanges": "Sprawdź zmiany"
+    }
   },
   "authoring": {
     "strip": {
@@ -16582,12 +16636,12 @@
     "openAgent": "Otwórz agenta",
     "accept": "Zaakceptuj te zmiany",
     "resultDecision": {
-      "title": "Do czego doszła ta sesja",
+      "title": "Wynik",
       "options": "Co możesz zrobić",
-      "better": "Próba {number} poprawiła agenta {agent}: {fixed, plural, one {# pytanie naprawione} few {# pytania naprawione} many {# pytań naprawionych} other {# pytania naprawione}}, żadne nie zepsute.",
+      "better": "Po zmianach agent odpowiedział poprawnie na {fixed} pytań testowych więcej.",
       "chosen": "Wybrano próbę {number} do akceptacji.",
-      "published": "{version, select, unknown {Próba {number} została opublikowana.} other {Próba {number} została opublikowana jako wersja {version}.}}",
-      "acceptedDraft": "Próba {number} została zaakceptowana jako wersja robocza.",
+      "published": "{version, select, unknown {Opublikowano zmiany.} other {Opublikowano jako wersję {version}.}}",
+      "acceptedDraft": "Zapisano w szkicu agenta.",
       "failed": "Sesja zatrzymała się na błędzie, zanim się skończyła.",
       "noneBetter": "{count, plural, =0 {Żadna próba nie została zmierzona, więc nie wiadomo, czy agent {agent} się poprawił.} one {Próba nie poprawiła agenta {agent}.} few {Żadna z # prób nie poprawiła agenta {agent}.} many {Żadna z # prób nie poprawiła agenta {agent}.} other {Żadna z # prób nie poprawiła agenta {agent}.}}",
       "worse": "Próba {number} pogorszyła wynik: {broken, plural, one {# pytanie przestało działać} few {# pytania przestały działać} many {# pytań przestało działać} other {# pytania przestały działać}}.",
@@ -16832,8 +16886,8 @@
     "noChangesFound": "Nie znaleźliśmy zmiany pasującej do obecnych instrukcji. Oto, co próbowaliśmy:",
     "triedAttempt": "Próba {number}: {verdict, select, better {zmiany poprawiły wynik} criteria_better {zmiany poprawiły niektóre kryteria, żadne pytanie jeszcze się nie zmieniło} regression {zmiany zepsuły pytania, które działały} criteria_worse {zmiany pogorszyły niektóre kryteria} no_change {brak mierzalnej zmiany} inconclusive {nie udało się zmierzyć wyniku} unmeasured {zaproponowano zmiany, jeszcze nieprzetestowane} other {nie zaproponowano zmiany}}{dropped, plural, =0 {} one {; # zmiana nie pasowała do obecnych instrukcji} few {; # zmiany nie pasowały do obecnych instrukcji} many {; # zmian nie pasowało do obecnych instrukcji} other {; # zmiany nie pasowało do obecnych instrukcji}}.",
     "handledChange": "{before} → {after} z {total} pytań obsłużonych poprawnie.",
-    "newlyFixed": "Nowo naprawione",
-    "newlyBroken": "Nowo zepsute",
+    "newlyFixed": "Poprawione odpowiedzi",
+    "newlyBroken": "Pogorszone odpowiedzi",
     "possiblyBroken": "Być może zepsute",
     "possiblyFixed": "Być może naprawione",
     "notConfirmedMore": "+{count} niepotwierdzone",
@@ -17113,7 +17167,21 @@
       "addQuestions": "Dodaj pytania z innych rozmów"
     },
     "likedSignals": "Odpowiedzi ocenione pozytywnie",
-    "reviewedSignals": "Pozostałe sprawdzone odpowiedzi testowe"
+    "reviewedSignals": "Pozostałe sprawdzone odpowiedzi testowe",
+    "record": {
+      "result": "Wynik",
+      "changes": "Zmiany",
+      "check": "Pytania testowe",
+      "attempts": "Próby",
+      "understand": "Analiza",
+      "accept": "Decyzja",
+      "back": "Wróć do zasobu",
+      "spent": "Wydano {spent}",
+      "passRateScope": "Wszystkie pytania w ewaluacji",
+      "more": "Szczegóły sesji",
+      "answersPassed": "Poprawne odpowiedzi",
+      "answerCount": "{passed} z {cases}"
+    }
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",
@@ -17836,11 +17904,10 @@
         "criteria_worse": "Gorzej w kryteriach",
         "within_noise": "W granicach szumu",
         "worse": "Gorzej",
-        "unknown": "Nie wiadomo"
+        "unknown": "Nie potwierdzono"
       },
       "fixedBroken": "{fixed, plural, one {Naprawia # pytanie} few {Naprawia # pytania} many {Naprawia # pytań} other {Naprawia # pytania}}, {broken, plural, one {psuje #} few {psuje #} many {psuje #} other {psuje #}}.",
       "fixedBrokenUnconfirmed": "Przy pierwszej próbie {fixed, plural, one {# pytanie wyglądało na naprawione} few {# pytania wyglądały na naprawione} many {# pytań wyglądało na naprawione} other {# pytania wyglądało na naprawione}}, a {broken, plural, one {# na zepsute} few {# na zepsute} many {# na zepsute} other {# na zepsute}}, ale ponowne zapytania tego nie potwierdziły, więc agent liczy się jako bez zmian.",
-      "tooFewGroup": "Za mało pytań, by mieć pewność: każdy agent poniżej dostał mniej odłożonych pytań, niż potrzeba do wyniku.",
       "unknown": {
         "no_questions": "Nie sprawdzono: nie ma pytań testowych tam, gdzie wczytał skill, a skill nie ma własnych.",
         "no_access": "Nie sprawdzono: nie możesz uruchamiać tego agenta.",
@@ -17853,7 +17920,7 @@
         "all_evidence": "Nie sprawdzono: każde pytanie pochodzi z rozmów, z których zmiana się uczyła.",
         "cancelled": "Nie sprawdzono: sprawdzenie zatrzymano, zanim jego runy się skończyły.",
         "own_not_asked": "Nie sprawdzono: jego własnych pytań nie zadano, a teraz to one o nim decydują.",
-        "too_few_questions": "Za mało pytań, by mieć pewność: {fixed} z {heldOut} wypadło lepiej i {broken} gorzej, a to mniej pytań, niż potrzeba do wyniku."
+        "too_few_questions": "Za mało pytań testowych, aby potwierdzić zmianę. Sprawdzono: {heldOut}."
       },
       "skillSetOnly": "Sprawdzony tylko na pytaniach skilla: nie miał własnych tam, gdzie wczytał skill.",
       "stage": {
@@ -17863,9 +17930,9 @@
       },
       "summary": {
         "worse": "Gorzej: {count}",
-        "unknown": "Nieznane: {count}",
+        "unknown": "{count} niepotwierdzonych",
         "same": "Bez zmian: {count}",
-        "better": "Lepiej: {count}",
+        "better": "{count} poprawionych",
         "pending": "W trakcie: {count}",
         "filter": "Pokaż tylko"
       },

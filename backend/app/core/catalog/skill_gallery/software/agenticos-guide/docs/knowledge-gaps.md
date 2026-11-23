@@ -208,6 +208,8 @@ cases that failed because the knowledge was missing should now pass.
 
 ## Drafting the missing content { #drafting-the-missing-content }
 
+The topic editor places the document draft beside its evidence on a wide screen. On a phone, switch between **Suggested document** and **Why this is needed** without losing edits. **Save** keeps a draft; **Add to knowledge base** adds its content to the named target. Redrafting is disabled while changes are unsaved, and closing the dialog asks before discarding them. The editor is disabled while a new draft is being generated.
+
 **Draft**, in an open topic, asks a model to write the passage or FAQ entry
 the knowledge base is missing. The button shows the most one draft costs. It is
 one run of the

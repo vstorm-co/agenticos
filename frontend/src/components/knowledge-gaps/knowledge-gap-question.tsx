@@ -25,7 +25,7 @@ export function KnowledgeGapQuestionItem({ question }: { question: KnowledgeGapQ
       : question.top_similarity.toLocaleString(locale, { maximumFractionDigits: 2 });
 
   return (
-    <li className="border-border space-y-1.5 rounded-lg border px-3 py-2.5 text-sm">
+    <li className="space-y-1.5 py-4 text-sm">
       {question.test_question && (
         <p className="text-muted-foreground text-xs font-medium">{t("testQuestion")}</p>
       )}

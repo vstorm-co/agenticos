@@ -97,21 +97,16 @@ function corrected(attempt: EvalAttempt): boolean {
   return score !== null && score.human_passed !== null && score.human_passed !== score.passed;
 }
 
-/** How many of an answer's required criteria passed, of those that decided; null with none. */
-export function criteriaOfAttempt(attempt: EvalAttempt | undefined): [number, number] | null {
-  const decided = (attempt?.score?.results ?? []).filter(
-    (result) => result.required !== false && (result.status === "pass" || result.status === "fail"),
-  );
-  if (decided.length === 0) return null;
-  return [decided.filter((result) => result.status === "pass").length, decided.length];
-}
-
-/** How each side's first answer to a case came out, one dot per side. */
-function SideDots({
+/** Each side's settled outcome, or its first answer while a comparison is unavailable. */
+function AnswerStates({
   attempts,
   arms,
   check,
+  comparison,
+  flip,
 }: {
+  comparison: EvalComparison | undefined;
+  flip: CaseFlip | undefined;
   attempts: EvalAttempt[];
   arms: EvalRunArm[];
   check: SideCheck | null | undefined;
@@ -123,28 +118,46 @@ function SideDots({
         const first = attempts.find(
           (attempt) => attempt.arm_id === arm.id && attempt.attempt === 0,
         );
-        const state = dotState(first);
+        const settled =
+          flip && comparison
+            ? arm.id === comparison.candidate.arm_id
+              ? { outcome: flip.candidate }
+              : arm.id === comparison.baseline?.arm_id
+                ? { outcome: flip.baseline }
+                : undefined
+            : undefined;
+        const firstState = dotState(first);
+        const state =
+          settled &&
+          firstState !== "incomplete" &&
+          firstState !== "pending" &&
+          firstState !== "undecided"
+            ? settled.outcome === null
+              ? "undecided"
+              : settled.outcome
+                ? "passed"
+                : "failed"
+            : firstState;
         const label = t("cases.dot", {
           side: t("sideModel", { name: sideName(arm, t, check), model: arm.model_label }),
           state,
         });
-        const criteria = criteriaOfAttempt(first);
         return (
-          <span key={arm.id} className="flex items-center gap-0.5">
+          <span key={arm.id} className="flex items-center gap-1">
+            {arms.length > 1 && (
+              <span className="text-muted-foreground text-xs">
+                {arms.length === 2 && arms.some((item) => item.role === "baseline")
+                  ? t(arm.role === "baseline" ? "plain.before" : "plain.after")
+                  : sideName(arm, t, check)}
+              </span>
+            )}
             <span
               role="img"
               aria-label={label}
               title={label}
               className={cn("h-2.5 w-2.5 rounded-full", DOT_CLASS[state])}
             />
-            {criteria && (
-              <span
-                className="text-muted-foreground text-[11px] tabular-nums"
-                title={t("cases.criteriaTitle", { passed: criteria[0], graded: criteria[1] })}
-              >
-                {t("cases.criteria", { passed: criteria[0], graded: criteria[1] })}
-              </span>
-            )}
+            <span className="text-xs">{t(`cases.answerState.${state}`)}</span>
           </span>
         );
       })}
@@ -166,8 +179,12 @@ export function CaseTable({
   brokenTotal,
   opened = null,
   onShowAll,
+  outcome,
+  onOutcomeChange,
 }: {
   run: EvalRun;
+  outcome: CaseOutcomeFilter | null;
+  onOutcomeChange: (outcome: CaseOutcomeFilter | null) => void;
   /** The candidate whose first answers the outcome filter reads. */
   arm: string | null;
   /** How the sides compare once both have answered; none while the run answers. */
@@ -186,14 +203,13 @@ export function CaseTable({
   const excludedIds = new Set(run.proposal_check?.measurement?.excluded_case_ids ?? []);
   const t = useTranslations("evals.cases");
   const tErrors = useTranslations("errors");
-  const [outcome, setOutcome] = useState<string>(ALL);
   const [skip, setSkip] = useState(0);
   const [open, setOpen] = useState<string | null>(
     opened ?? (caseIds?.length === 1 ? (caseIds[0] ?? null) : null),
   );
   // Page three of one tag's or one side's cases is not page three of another's.
   // Compared as a value: the ids arrive as a new array on every render.
-  const scope = JSON.stringify([arm, tag, caseIds]);
+  const scope = JSON.stringify([arm, tag, caseIds, outcome]);
   const [seenScope, setSeenScope] = useState(scope);
   if (seenScope !== scope) {
     setSeenScope(scope);
@@ -203,7 +219,7 @@ export function CaseTable({
   const live = isLive(run.status);
   const { cases, total, isLoading, error, refetch } = useEvalCases(run.id, {
     arm,
-    outcome: outcome === ALL ? null : (outcome as CaseOutcomeFilter),
+    outcome,
     tag,
     caseIds,
     skip,
@@ -238,9 +254,9 @@ export function CaseTable({
         </CardTitle>
         <FilterSelect
           label={t("outcomeFilter")}
-          value={outcome}
+          value={outcome ?? ALL}
           onChange={(value) => {
-            setOutcome(value);
+            onOutcomeChange(OUTCOMES.find((item) => item === value) ?? null);
             setSkip(0);
           }}
           options={[ALL, ...OUTCOMES].map((value) => ({ value, label: t(`outcome.${value}`) }))}
@@ -274,14 +290,13 @@ export function CaseTable({
                     type="button"
                     aria-expanded={expanded}
                     onClick={() => setOpen(expanded ? null : item.case_id)}
-                    className="hover:bg-accent/40 flex min-h-14 w-full items-center gap-3 rounded-lg px-3 text-left transition-colors"
+                    className="hover:bg-accent/40 flex min-h-14 w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-lg px-3 py-3 text-left transition-colors"
                   >
                     {expanded ? (
                       <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
                     ) : (
                       <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
                     )}
-                    <SideDots attempts={item.attempts} arms={run.arms} check={run.proposal_check} />
                     {trainIds.has(item.case_id) && (
                       <Badge variant="outline">{t("partition.train")}</Badge>
                     )}
@@ -293,6 +308,17 @@ export function CaseTable({
                     )}
                     <span className="line-clamp-2 min-w-0 flex-1 text-sm font-medium break-words">
                       {item.input}
+                    </span>
+                    <span className="order-2 basis-full pl-7 sm:order-none sm:basis-auto sm:pl-0">
+                      <AnswerStates
+                        comparison={comparison}
+                        flip={flip}
+                        attempts={item.attempts}
+                        arms={[...run.arms].sort(
+                          (a, b) => Number(b.role === "baseline") - Number(a.role === "baseline"),
+                        )}
+                        check={run.proposal_check}
+                      />
                     </span>
                     {item.attempts.some(corrected) && (
                       <Badge variant="outline">{t("corrected")}</Badge>

@@ -3,7 +3,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { Button, Card } from "@/components/ui";
+import { Button } from "@/components/ui";
+import { isClosed } from "@/lib/improvement-steps";
 import { usd } from "@/components/evals/format";
 import type { Improvement } from "@/types/improvement";
 import { AttemptChoice } from "./attempt-choice";
@@ -39,7 +40,6 @@ export function ResultStep({
   onStarted: () => void;
 }) {
   const t = useTranslations("improvement");
-  const locale = useLocale();
   const { topics } = useSessionTopics(session);
   const chosen = session.iterations.find((round) => round.id === session.best_iteration_id);
   const host = chosen ?? session.iterations.at(-1);
@@ -55,6 +55,33 @@ export function ResultStep({
         onStarted={onStarted}
       />
       <ResultSummary session={session} round={chosen} />
+      {!isClosed(session) && <ResultAttempts session={session} knowledgeCheck={knowledgeCheck} />}
+      {!host && draftCheckShown(session, topics) && (
+        <Details summary={t("showDetails")}>{knowledgeCheck}</Details>
+      )}
+      {topics.length > 0 && (
+        <div id={DOCUMENTS_ANCHOR} className="scroll-mt-4">
+          <KnowledgeDocuments session={session} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function ResultAttempts({
+  session,
+  knowledgeCheck,
+}: {
+  session: Improvement;
+  knowledgeCheck: ReactNode;
+}) {
+  const t = useTranslations("improvement");
+  const locale = useLocale();
+  const host =
+    session.iterations.find((round) => round.id === session.best_iteration_id) ??
+    session.iterations.at(-1);
+  return (
+    <div className="space-y-4">
       {session.iterations.length > 0 && (
         <section className="space-y-2">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -73,15 +100,7 @@ export function ResultStep({
           ))}
         </section>
       )}
-      {!host && draftCheckShown(session, topics) && (
-        <Details summary={t("showDetails")}>{knowledgeCheck}</Details>
-      )}
-      {topics.length > 0 && (
-        <div id={DOCUMENTS_ANCHOR} className="scroll-mt-4">
-          <KnowledgeDocuments session={session} />
-        </div>
-      )}
-    </section>
+    </div>
   );
 }
 
@@ -219,7 +238,7 @@ function ResultDecision({
     </Button>
   );
   return (
-    <Card className="space-y-4 p-4 sm:p-6" data-tour="improvement-decision">
+    <section className="space-y-3" data-tour="improvement-decision">
       <h2 className="font-medium">{t("resultDecision.title")}</h2>
       <p
         role={session.status === "failed" && session.stop_reason ? "alert" : undefined}
@@ -230,6 +249,14 @@ function ResultDecision({
           ...headline(t, locale, session, agent, topics),
         ].join(" ")}
       </p>
+      {session.status === "published" && session.published_version != null && (
+        <Link
+          className="inline-block text-sm underline underline-offset-4"
+          href={`/agents/${session.agent_id}?tab=history&from=${session.published_version}&to=${session.published_version}`}
+        >
+          {t("decision.openVersion", { version: session.published_version })}
+        </Link>
+      )}
       {noise && <TooFewShared noise={noise} />}
       {noisy && better && noise && (
         <p className="text-muted-foreground text-sm">
@@ -278,6 +305,6 @@ function ResultDecision({
         </div>
       )}
       {diagnosed && noise && <UnstableQuestions noise={noise} />}
-    </Card>
+    </section>
   );
 }
