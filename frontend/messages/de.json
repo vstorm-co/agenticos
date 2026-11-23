@@ -10073,7 +10073,7 @@
       "preparation": "Agentenvorbereitung"
     },
     "attemptReason": {
-      "platform_identity_required": "Aktivieren Sie Als Ersteller handeln oder entfernen Sie die integrierte Plattform-MCP-Bindung aus dem Agenten und seinen Delegaten.",
+      "platform_identity_required": "Aktivieren Sie „Als ich ausführen“ oder entfernen Sie die integrierte Plattform-MCP-Bindung aus dem Agenten und seinen Delegaten.",
       "source_review_required": "Prüfen Sie die Quellen der Routine und nicht verfügbare Verbindungen vor einem erneuten Versuch.",
       "agent_unavailable": "Prüfen Sie die veröffentlichte Version, Konfiguration und Zugriffsrechte des Agenten, bevor Sie die Routine wieder aktivieren.",
       "preparation_failed": "Die Vorbereitung ist vor dem Erstellen eines Agentenlaufs fehlgeschlagen. Bitten Sie einen Betreiber, die Worker-Protokolle zu diesem Zeitpunkt zu prüfen.",

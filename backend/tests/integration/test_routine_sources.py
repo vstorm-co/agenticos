@@ -18,6 +18,7 @@ from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceItem
 from app.services.agent_trigger import AgentTriggerService
 from app.services.routine_authority import RoutineAuthority
 from app.services.routine_sources import (
+    PLATFORM_NEEDS_CREATOR,
     RoutineSourceService,
     RoutineSourcesRequired,
     read_policy,
@@ -1144,7 +1145,9 @@ async def test_platform_mcp_requires_an_explicit_creator_identity(
     else:
         options = await service.options(ctx, trigger)
         assert not options.current
-        assert any("Act as creator" in source for source in options.unavailable_sources)
+        assert PLATFORM_NEEDS_CREATOR in options.required_unavailable_sources
+        # A source is a name the console puts inside its own sentence.
+        assert not any(source.endswith(".") for source in options.unavailable_sources)
         with pytest.raises(RoutineSourcesRequired) as refused:
             await service.initial(ctx, trigger)
         assert refused.value.details == {"unavailable_sources": options.unavailable_sources}

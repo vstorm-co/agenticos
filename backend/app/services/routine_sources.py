@@ -211,10 +211,17 @@ class RoutineSourcesRequired(AuthorizationError):
 
 class PlatformRoutineIdentityRequired(RoutineSourcesRequired):
     message = (
-        "The AgenticOS platform MCP server requires Act as creator. Enable it or remove "
+        "The AgenticOS platform MCP server requires Run as me. Turn it on or remove "
         "the platform binding from this agent and its delegates."
     )
     code = "ROUTINE_PLATFORM_IDENTITY_REQUIRED"
+
+
+PLATFORM_NEEDS_CREATOR = "AgenticOS platform MCP (needs Run as me)"
+"""How the platform binding is named in a source list while the routine does not run as its creator.
+
+A name, not a sentence: the console puts it inside its own sentence.
+"""
 
 
 def read_policy(value: object) -> RoutineSourcePolicy:
@@ -602,8 +609,8 @@ class RoutineSourceService:
                 items.append(RoutineSourceItem(kind="platform"))
                 if not trigger.runs_as_creator:
                     requires_creator_identity = True
-                    unavailable.add(PlatformRoutineIdentityRequired.message)
-                    required_unavailable.add(PlatformRoutineIdentityRequired.message)
+                    unavailable.add(PLATFORM_NEEDS_CREATOR)
+                    required_unavailable.add(PLATFORM_NEEDS_CREATOR)
                 continue
             if isinstance(ref, OrgMcpServerRef):
                 connection = await mcp_connection_repo.get_org_scoped_by_id(

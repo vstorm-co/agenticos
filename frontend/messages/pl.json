@@ -8874,7 +8874,7 @@
       "preparation": "Przygotowanie agenta"
     },
     "attemptReason": {
-      "platform_identity_required": "Włącz Działaj jako twórca albo usuń powiązanie wbudowanego platformowego MCP z agenta i jego delegatów.",
+      "platform_identity_required": "Włącz „Uruchamiaj jako ja” albo usuń powiązanie wbudowanego platformowego MCP z agenta i jego delegatów.",
       "source_review_required": "Przejrzyj źródła procedury i sprawdź niedostępne połączenia przed kolejną próbą.",
       "agent_unavailable": "Sprawdź opublikowaną wersję, konfigurację i uprawnienia agenta, zanim ponownie włączysz procedurę.",
       "preparation_failed": "Przygotowanie nie powiodło się przed utworzeniem runu agenta. Poproś operatora o sprawdzenie logów workera z tego czasu.",

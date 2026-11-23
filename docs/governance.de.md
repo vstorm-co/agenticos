@@ -1,5 +1,5 @@
 ---
-source_sha: "d110998b8093"
+source_sha: "167b16467561"
 ---
 
 # Governance { #governance }
@@ -107,7 +107,7 @@ Im Routineformular können Sie das Ende festlegen oder entfernen. Das Datum verw
 
 Eine Routine prüft vor jedem Werkzeug ihren Ersteller, aktive Mitgliedschaft, Rolle und Ausführungsrechte erneut, auch bei Delegationen und nach einer Freigabe. Pausieren, Löschen, Ablauf, Widerruf persönlicher Zustimmung oder Änderungen dieser Berechtigung verhindern weitere Werkzeugaufrufe. Bereits an externe Dienste gesendete Effekte werden dadurch nicht zurückgerufen. Migration `0260_routine_run_origin` bewahrt den Ursprung beim Löschen; ältere geparkte Zeitpläne mit verlorenem Ursprung werden abgelehnt, statt die Rechte der freigebenden Person zu übernehmen.
 
-Der integrierte AgenticOS-MCP-Server erfordert **Als Ersteller handeln**, auch wenn ein veröffentlichter Delegat ihn einbindet. Ohne eine personenbezogene Identität lehnen die Quellenprüfung und das Erstellen der Routine diese Konfiguration mit einer konkreten Erklärung ab. Aktivieren Sie die Option oder entfernen Sie die Plattformbindung aus dem Agenten und seinen Delegaten. Die Plattform übernimmt niemals automatisch die Identität des Erstellers.
+Der integrierte AgenticOS-MCP-Server erfordert **Als ich ausführen**, auch wenn ein veröffentlichter Delegat ihn einbindet. Ohne eine personenbezogene Identität lehnen die Quellenprüfung und das Erstellen der Routine diese Konfiguration mit einer konkreten Erklärung ab. Aktivieren Sie die Option oder entfernen Sie die Plattformbindung aus dem Agenten und seinen Delegaten. Die Plattform übernimmt niemals automatisch die Identität des Erstellers.
 
 Der Routinenverlauf zeigt auch blockierte oder fehlgeschlagene Versuche vor dem Erstellen eines Agentenlaufs. Jeder enthält Zeitpunkt, Phase und einen Reparaturhinweis. Es entstehen keine Modellkosten; Prompts, Anbieterfehler und Zugangsdaten werden nie gespeichert. Die Einträge bleiben bis zum Löschen der Routine oder Organisation erhalten, unabhängig von der Benachrichtigungszustellung. Der Worker-Job fire-trigger speichert ein separates blockiertes oder fehlgeschlagenes Ergebnis. Ein abgeschlossener Warteschlangenjob bedeutet nicht, dass ein Agent erfolgreich lief.
 

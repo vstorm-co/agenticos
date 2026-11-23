@@ -10193,7 +10193,7 @@
       "preparation": "Preparing the agent"
     },
     "attemptReason": {
-      "platform_identity_required": "Enable Act as creator or remove the built-in platform MCP binding from the agent and its delegates.",
+      "platform_identity_required": "Turn on Run as me or remove the built-in platform MCP binding from the agent and its delegates.",
       "source_review_required": "Review the routine’s sources and check unavailable connections before trying again.",
       "agent_unavailable": "Review the agent’s published version, configuration and access before enabling this routine again.",
       "preparation_failed": "Preparation failed before an agent run was created. Ask an operator to inspect the worker logs for this time.",

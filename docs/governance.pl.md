@@ -1,5 +1,5 @@
 ---
-source_sha: "d110998b8093"
+source_sha: "167b16467561"
 ---
 
 # Governance { #governance }
@@ -102,7 +102,7 @@ Formularz rutyny pozwala ustawić lub usunąć datę zakończenia. Data używa p
 
 Rutyna przed każdym narzędziem ponownie sprawdza twórcę, aktywne członkostwo, rolę i granty uruchamiania, także w delegacjach i po zatwierdzeniu. Pauza, usunięcie, wygaśnięcie, cofnięcie zgody na osobiste konta lub zmiana tych uprawnień odmawia kolejnych wywołań. Kontrola nie cofa efektu już wysłanego do zewnętrznej usługi. Migracja `0260_routine_run_origin` zachowuje pochodzenie po usunięciu rutyny; starszy zaparkowany harmonogram, który utracił pochodzenie, jest odrzucany zamiast pożyczać uprawnienia zatwierdzającego.
 
-Wbudowany serwer MCP AgenticOS wymaga opcji **Działaj jako twórca**, również gdy używa go opublikowany delegat. Bez tożsamości użytkownika przegląd źródeł i tworzenie procedury odrzucają tę konfigurację z jasnym wyjaśnieniem. Włącz tę opcję albo usuń powiązanie platformowego MCP z agenta i jego delegatów. Platforma nigdy nie pożycza automatycznie tożsamości twórcy.
+Wbudowany serwer MCP AgenticOS wymaga opcji **Uruchamiaj jako ja**, również gdy używa go opublikowany delegat. Bez tożsamości użytkownika przegląd źródeł i tworzenie procedury odrzucają tę konfigurację z jasnym wyjaśnieniem. Włącz tę opcję albo usuń powiązanie platformowego MCP z agenta i jego delegatów. Platforma nigdy nie pożycza automatycznie tożsamości twórcy.
 
 Historia procedury pokazuje też zablokowane i nieudane próby zakończone przed utworzeniem runu agenta. Każda ma czas, etap i wskazówkę naprawy. Nie naliczają kosztów modelu ani nie zawierają promptów, błędów dostawcy lub poświadczeń. Rekordy pozostają do usunięcia procedury lub organizacji. Błąd dostarczenia powiadomienia nie usuwa historii. Zadanie workera fire-trigger zapisuje osobny wynik zablokowany lub nieudany; zakończenie zadania kolejki nie oznacza poprawnego uruchomienia agenta.
 
