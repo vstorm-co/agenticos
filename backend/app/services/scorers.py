@@ -328,6 +328,11 @@ def _carries(haystack: _Haystack, value: str) -> bool:
     return re.search(before + pattern + after, haystack.text) is not None
 
 
+def carries(text: str, value: str) -> bool:
+    """Whether `text` holds `value` as a `keys` check would find it."""
+    return _carries(_Haystack.of(text), value)
+
+
 def _keys_check(check: KeysCheck, answer: ScoredAnswer, *, required: bool) -> ScorerResult:
     haystack = _Haystack.of(_text(answer, None))
     missing = [entry.key for entry in check.keys if not _carries(haystack, entry.value)]

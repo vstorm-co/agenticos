@@ -67,6 +67,13 @@ describe("RunSourceTag", () => {
       "Open the dataset",
       "/datasets/ds-1?tab=generated",
     ],
+    [
+      "keys drafted",
+      run({ origin: origin({ kind: "key_drafts", dataset_id: "ds-1" }) }),
+      "Key drafts",
+      "Open the dataset",
+      "/datasets/ds-1",
+    ],
   ])("names %s and links to where it is read", (_name, row, label, link, href) => {
     render(<RunSourceTag run={row} />);
     expect(screen.getByText(label)).toBeInTheDocument();

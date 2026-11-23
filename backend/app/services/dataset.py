@@ -49,6 +49,7 @@ from app.repositories import (
     agent_repo,
     agent_run_repo,
     case_generation_repo,
+    case_key_draft_repo,
     conversation_repo,
     credential_repo,
     dataset_repo,
@@ -702,6 +703,9 @@ class DatasetService:
             resource_type=DATASET.key,
             resource_id=dataset.id,
         )
+        await case_key_draft_repo.delete_for_dataset(
+            self.db, organization_id=ctx.organization_id, dataset_id=dataset.id
+        )
         await dataset_repo.delete(self.db, dataset)
         await record_audit(
             self.db,
@@ -1193,6 +1197,27 @@ class DatasetService:
                 details={"dataset_id": dataset.id, "case_id": case_id},
             )
         return previous, found[0], found[1]
+
+    async def editable_case(
+        self, ctx: AuthContext, dataset_id: UUID, case_id: UUID
+    ) -> tuple[Dataset, DatasetCase]:
+        """The dataset and its newest revision of a case, for an editor who can read its text.
+
+        Raises:
+            NotFoundError: As :meth:`get` does, or when the newest version holds no
+                such case.
+            AuthorizationError: Without `datasets:edit`, or when the case's text is
+                masked because its source conversation is not readable.
+        """
+        dataset = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        _, current, _ = await self._held_case(ctx, dataset, case_id)
+        [visible] = await self.case_reads(ctx, [current])
+        if visible.masked:
+            raise AuthorizationError(
+                message="The source conversation must be readable before its text can be read",
+                details={"permission": "runs:view"},
+            )
+        return dataset, current
 
     async def read_case(
         self, ctx: AuthContext, dataset_id: UUID, case_id: UUID, *, version: int | None = None

@@ -1044,6 +1044,10 @@ include = [
     "app/services/case_generation/estimate.py",
     "app/services/case_generation/generation.py",
     "app/services/case_generation/worker.py",
+    "app/db/models/case_key_draft.py",
+    "app/schemas/case_key_draft.py",
+    "app/repositories/case_key_draft.py",
+    "app/services/case_key_draft.py",
     "app/api/routes/v1/dataset_generations.py",
     "app/schemas/agent_test_set.py",
     "app/services/agent_test_set.py",
@@ -1216,6 +1220,7 @@ include = [
     "app/api/routes/v1/authoring.py",
     "app/worker/tasks/authoring_tasks.py",
     "app/worker/tasks/case_generation_tasks.py",
+    "app/worker/tasks/case_key_tasks.py",
     # Improvement sessions: the Improve pipeline run in the background up to a
     # checked proposal.
     "app/db/models/improvement.py",
@@ -1990,6 +1995,10 @@ include = [
     "app/services/case_generation/estimate.py",
     "app/services/case_generation/generation.py",
     "app/services/case_generation/worker.py",
+    "app/db/models/case_key_draft.py",
+    "app/schemas/case_key_draft.py",
+    "app/repositories/case_key_draft.py",
+    "app/services/case_key_draft.py",
     "app/api/routes/v1/dataset_generations.py",
     "app/schemas/agent_test_set.py",
     "app/services/agent_test_set.py",
@@ -2162,6 +2171,7 @@ include = [
     "app/api/routes/v1/authoring.py",
     "app/worker/tasks/authoring_tasks.py",
     "app/worker/tasks/case_generation_tasks.py",
+    "app/worker/tasks/case_key_tasks.py",
     # Improvement sessions: the Improve pipeline run in the background up to a
     # checked proposal.
     "app/db/models/improvement.py",

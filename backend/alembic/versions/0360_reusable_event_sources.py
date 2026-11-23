@@ -16,8 +16,8 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "0357_reusable_event_sources"
-down_revision: str = "0356_improvement_search"
+revision: str = "0360_reusable_event_sources"
+down_revision: str = "0359_merge_search_key_drafts"
 branch_labels: None = None
 depends_on: None = None
 

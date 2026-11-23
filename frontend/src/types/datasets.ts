@@ -170,3 +170,20 @@ export interface DatasetVersionList {
   items: DatasetVersion[];
   total: number;
 }
+
+/** A fact a keys check expects: what it is, and the value the answer must carry. */
+export interface DocumentKey {
+  key: string;
+  value: string;
+}
+
+/** The keys drafted from a case's reference answer, still being listed, or why they could not be. */
+export interface CaseKeyDraft {
+  id: string;
+  case_id: string;
+  status: "running" | "ready" | "failed";
+  keys: DocumentKey[];
+  error: string | null;
+  created_at: string;
+  finished_at: string | null;
+}

@@ -601,6 +601,7 @@ export const qk = {
       ["datasets", id, "cases", query] as const,
     case: (id: string, caseId: string) => ["datasets", id, "case", caseId] as const,
     generations: (id: string) => ["datasets", id, "generations"] as const,
+    keyDraft: (id: string, caseId: string) => ["datasets", id, "key-draft", caseId] as const,
     proposals: (id: string, query: { skip: number; limit: number }) =>
       ["datasets", id, "proposals", query] as const,
     allScores: (id: string) => ["datasets", id, "scores"] as const,

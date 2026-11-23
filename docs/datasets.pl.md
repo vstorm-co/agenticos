@@ -1,5 +1,5 @@
 ---
-source_sha: "d9ca2d821263"
+source_sha: "dc722137c16b"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -425,6 +425,15 @@ Każdej wartości szuka się w odpowiedzi:
   odnajdują;
 - z przecinkiem i kropką bez zmian, bo w jednym języku oddzielają tysiące, a w
   innym część dziesiętną: zapisz wartość tak, jak pokazuje ją dokument.
+
+W konsoli zapisany przypadek z zapisaną odpowiedzią referencyjną ma przy
+sprawdzeniach przycisk **Wypisz klucze z odpowiedzi referencyjnej**. Ekstraktor
+kluczy, agent systemowy, czyta odpowiedź w jobie, jako osoba, która poprosiła,
+z rozliczeniem kosztu i wpisem w Aktywności, i wypisuje podane w niej fakty.
+Zostaje tylko wartość, którą odpowiedź zawiera dosłownie. **Użyj tych kluczy**
+wypełnia sprawdzenie kluczy przypadku do przejrzenia i zapisania; nic nie zapisuje
+się samo, a szkic jest usuwany po użyciu albo odrzuceniu,
+najpóźniej 7 dni po zleceniu.
 
 Każde sprawdzenie przyjmuje opcjonalne `family` (najwyżej 80 znaków): to, co
 sprawdza w całym datasecie, np. `total including VAT` przy regexie każdego

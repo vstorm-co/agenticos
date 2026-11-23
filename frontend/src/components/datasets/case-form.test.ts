@@ -11,6 +11,7 @@ import {
   keyRows,
   lengthFields,
   sameCheck,
+  withKeys,
 } from "./case-form";
 
 const CASE = {
@@ -214,6 +215,21 @@ describe("a keys check", () => {
         ]),
       ]).checks,
     ).toEqual([{ type: "keys", keys: [{ key: "Invoice", value: "INV-7" }] }]);
+  });
+
+  it("fills the first keys check, keeping its other fields, or adds one", () => {
+    const contains = checkDraft({ type: "contains", value: "INV" });
+    const keys = [{ key: "Invoice", value: "INV-7" }];
+    expect(withKeys([contains], keys)).toEqual([
+      contains,
+      { type: "keys", value: "", rest: { keys } },
+    ]);
+    const held = checkDraft(stored);
+    expect(withKeys([contains, held], keys)[1]).toEqual({
+      type: "keys",
+      value: "",
+      rest: { family: "invoice facts", keys },
+    });
   });
 
   it("starts with no keys as a fresh draft", () => {

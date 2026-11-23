@@ -32,6 +32,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Agent Improve puts a criterion down to a skill only when it quotes the skill's own line stating the wrong value or rule, and that line is in the skill's text. Where the skill is only silent, or only forbids other sections, the criterion stays the agent's to fix: the helper proposes the agent change, a skill problem without a line is advice, and the verdict holds the agent to that family (#3178).
 - A skill's Improve started from an agent's Improve learns from the failed training answers that session read that used the skill, so it no longer refuses with "Nothing to learn from yet" when the agent's problems came from evals (#3178).
 - A dataset case's `keys` check lists the facts a written document must carry - an invoice number, a total, a date - each as a label and the value the document should show. It scores the share of keys the answer carries, passes only when it carries them all, and names up to 20 missing labels. A value matches as a whole token: a number is not found inside a longer one, and a space may group thousands. The case and grading editors write it, and anonymising a case removes its keys with its reference answer (#2524).
+- **List keys from the reference answer** in the case editor: the Key extractor system agent reads a saved case's reference answer in a job, as the person who asked, metered and in Activity, and drafts its keys. Only a value the answer states as written is kept, and nothing reaches the case until a person uses the draft and saves it. `POST`, `GET` and `DELETE /datasets/{id}/cases/{case_id}/key-draft`. A draft is deleted once used or dismissed, or after 7 days, and the extractor's run forgets the reference answer whenever its draft goes (#2524).
 
 ### Changed
 
@@ -86,9 +87,18 @@ Two things are versioned separately from this file and worth knowing about:
 - Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
 - Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
 - Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+- Migration `backend/alembic/versions/0354_case_key_drafts.py` adds `case_key_drafts` and the `extractor` agent kind. A draft nobody uses or dismisses is deleted after 7 days by the daily `expire-case-key-drafts` job. Its downgrade drops the table and turns extractor agents into ordinary ones.
+
+
+- Apply `backend/alembic/versions/0356_improvement_search.py` to store Improve search settings, progress and scored variants. Existing sessions retain step-by-step mode.
+
+- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
 - Migration `backend/alembic/versions/0356_improvement_search.py` adds `improvement_runs.mode` (existing sessions read `steps`), the `searching` stage, the `no_variant` stop reason, `improvement_iterations.search` and the `improvement_search_variants` table. Its downgrade drops them, reads a searching session as `proposing` and `no_variant` as `no_proposal`.
 
-- Apply `0357_reusable_event_sources.py` before starting the updated API and worker. It adds source, subscription, delivery and dispatch tables, structured queued routine input and template diagnostics. Existing webhook URLs and credentials stay valid. Before downgrading, detach source subscribers, switch routine prompts back to literal, and finish pending deliveries and structured device waits. Let running source jobs finish. For routine jobs that still carry structured input, drain or cancel queued work and retry or expire dead jobs before downgrading.
+- Apply `0360_reusable_event_sources.py` before starting the updated API and worker. It adds source, subscription, delivery and dispatch tables, structured queued routine input and template diagnostics. Existing webhook URLs and credentials stay valid. Before downgrading, detach source subscribers, switch routine prompts back to literal, and finish pending deliveries and structured device waits. Let running source jobs finish. For routine jobs that still carry structured input, drain or cancel queued work and retry or expire dead jobs before downgrading.
 
 ## [1.91.0] - 2026-11-23
 
@@ -100,7 +110,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Search many variants of an agent's instructions in Improve. **Search variants** in the start dialog (`mode: "search"`) has the helper write complete versions of the instructions a few at a time and grade each on the same draw of the attempt's training questions; held-out questions are never read. The best variant that beats the current instructions comes to **Changes**, and its check, result and acceptance are unchanged; another of the three best can be brought there instead (`PUT /{run_id}/search/choice`). The search has its own budget inside the session's limit and goes over it by at most the variant in flight, an optional cheaper or local grading model, and needs ten training questions (`422` below that). A session that finds nothing better stops with `no_variant`.
 - Configure model defaults for daily briefing, suggestions and memory maintenance: reasoning effort, sampling, output limits, request timeout and parallel tool calls. Reuse the agent builder controls, preserve provider defaults when unset, and save changes explicitly to the shared model profile.
 
 ### Fixed

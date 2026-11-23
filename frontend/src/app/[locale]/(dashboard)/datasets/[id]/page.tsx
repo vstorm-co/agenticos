@@ -121,7 +121,10 @@ export default function DatasetPage({ params }: PageProps) {
     remove,
   } = useDataset(id);
   // Every read behind the Evals tab and the run it starts takes runs:view.
-  const canViewRuns = usePermissions().can(Perm.runsView);
+  const { can } = usePermissions();
+  const canViewRuns = can(Perm.runsView);
+  // The key extractor runs as the person who asks, so it needs `agents:run`.
+  const canRunAgents = can(Perm.agentsRun);
   const { versions } = useDatasetVersions(id);
   const linkedCase = useDatasetCase(id, linked);
   // A link to one case opens it once it arrives, as reading it from the list would;
@@ -501,6 +504,11 @@ export default function DatasetPage({ params }: PageProps) {
             ...new Set(cases.cases.flatMap((item) => item.expected_tool_calls.map((c) => c.tool))),
           ]}
           onSave={editable && !editing.item?.masked ? save : undefined}
+          keyDraft={
+            editable && canRunAgents && editing.item && !editing.item.masked
+              ? { datasetId: id, caseId: editing.item.case_id }
+              : undefined
+          }
           startFrom={editing.startFrom}
           remote={
             editing.item && version === null
