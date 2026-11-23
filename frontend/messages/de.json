@@ -2683,6 +2683,15 @@
       "refreshFailed": "Dein Posteingang konnte nicht aktualisiert werden. Die zuletzt geladenen Einträge werden angezeigt."
     }
   },
+  "approvalFeedback": {
+    "trigger": "Mit Feedback ablehnen",
+    "hint": "Die vorgeschlagene Aktion wird nicht ausgeführt. Ihr Feedback wird mit der Ablehnung gespeichert.",
+    "batchHint": "Alle aufgeführten Aufrufe werden abgelehnt. Hinterlassen Sie nur bei den Aufrufen eine Notiz, zu denen Sie Feedback geben möchten.",
+    "call": "Aufruf {number}: {action}",
+    "comment": "Feedback",
+    "submit": "Ablehnen und Feedback senden",
+    "rejectAll": "Alle ablehnen und Feedback senden"
+  },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
     "chooseSection": "Bereich: {section}",

@@ -1,5 +1,5 @@
 ---
-source_sha: "4a5506769583"
+source_sha: "5a964209ab00"
 ---
 
 # Governance { #governance }
@@ -1583,6 +1583,19 @@ wurden, im Zeitraum - ein Maß für den Fehlgriff, nicht für erneut Berechnetes
 auch eine Komprimierung den gecachten Prompt verkleinern kann. Solange jeder Cache gehalten hat, erscheint die Karte nicht.
 
 ## Freigaben { #approvals }
+
+Wählen Sie im Webchat, unter Aktivität → Freigaben oder im Posteingang
+**Mit Feedback ablehnen**, um den Grund oder eine Alternative anzugeben. Die
+vorgeschlagene Aktion wird nicht ausgeführt. Der Kommentar wird mit der Ablehnung
+gespeichert. Bei mehreren Aufrufen im Chat werden alle abgelehnt, aber jeder
+Kommentar gilt nur für den jeweiligen Aufruf. Ohne Kommentar wählen Sie **Ablehnen**.
+
+Bei einem normalen abgelehnten Agenten-Toolaufruf erhält der Agent den Kommentar,
+wenn der Lauf fortgesetzt wird. Benötigt die überarbeitete Aktion eine Freigabe,
+fragt er erneut. Beim Workflow-Schritt **Um Freigabe bitten** kann der Pfad
+**Abgelehnt** den Kommentar als `note` lesen, etwa um einen Entwurf zu überarbeiten.
+Eine Ablehnung startet keinen automatischen Wiederholungsversuch. Ein abgelehnter
+MCP-Tool-Schritt schlägt weiterhin fehl, ohne das Tool aufzurufen.
 
 Ein gesperrtes Tool parkt den Run und wartet auf eine Person. Der Builder bietet
 **Immer fragen** und **Nie fragen** für eine Capability; einzelne Tools können auch

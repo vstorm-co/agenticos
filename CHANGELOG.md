@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Reject tool calls and workflow approval requests with feedback from web chat, Activity, or Inbox. Agents can use the feedback on resume, and workflow approval steps expose it on their rejected branch.
+
 - Add an instruction-variant search mode to Improve. Try budgeted variants against training questions, keep the strongest candidate and require the existing held-out check and human acceptance before applying it (#3237).
 
 - Count criteria by family. A dataset check takes an optional `family` - every case's `total including VAT` regex, every case's "names the account manager" criterion - and a comparison counts a family case by case: it passes in a case when every criterion of it does. Eval comparisons expose `families`, an Improve attempt keeps them in its verdict, and the result step and the eval run's comparison table them. An attempt with no whole question flipped is judged on its families; one the helper put down to a skill that got worse no longer makes the attempt worse, and the result says the skill is the one to fix. The result step adds **Criteria passed**, before and after, and **Still held back by a skill**, and an attempt that broke questions still names what it made better (#3178).

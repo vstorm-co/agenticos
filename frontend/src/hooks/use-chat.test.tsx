@@ -2047,6 +2047,63 @@ describe("useChat - approvals and questions", () => {
     );
   });
 
+  it("records feedback on a rejected call before continuing the chat", async () => {
+    post.mockResolvedValue({ status: "rejected", run_id: "r-1", continues_in_chat: true });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+    receive("session_ready", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "reject", note: "Use a draft instead" }]);
+    });
+
+    expect(post).toHaveBeenCalledWith("/approvals/ar-1", {
+      approved: false,
+      note: "Use a draft instead",
+    });
+    expect(post).not.toHaveBeenCalledWith("/runs/r-1/resume");
+  });
+
+  it("does not resubmit saved rejection feedback when retrying a partially decided batch", async () => {
+    post.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("Request failed"));
+    post.mockResolvedValue({ status: "completed", output: "Done." });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [
+        { id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} },
+        { id: "ar-2", tool_call_id: "tc-2", tool_name: "send_email", args: {} },
+      ],
+      review_configs: [],
+    });
+    const decisions = [
+      { type: "reject" as const, note: "Use a draft instead" },
+      { type: "reject" as const, note: "Remove pricing" },
+    ];
+
+    await act(async () => {
+      await result.current.sendResumeDecisions(decisions);
+    });
+    expect(result.current.pendingApproval).not.toBeNull();
+    await act(async () => {
+      await result.current.sendResumeDecisions(decisions);
+    });
+
+    expect(post.mock.calls).toEqual([
+      ["/approvals/ar-1", { approved: false, note: "Use a draft instead" }],
+      ["/approvals/ar-2", { approved: false, note: "Remove pricing" }],
+      ["/approvals/ar-2", { approved: false, note: "Remove pricing" }],
+      ["/runs/r-1/resume"],
+    ]);
+  });
+
   it("re-opens the panel when the continuation parks again", async () => {
     // A resume runs the agent, and the agent can reach a second gated call. Nothing
     // announces that here - the continuation runs over HTTP, so no

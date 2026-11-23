@@ -2443,10 +2443,11 @@ export function useChat(options: UseChatOptions = {}) {
 
   /** Record one decision on the `approvals` row it belongs to. */
   const decideApproval = useCallback(
-    (approvalId: string, approved: boolean, rememberScope?: Decision["remember_scope"]) =>
+    (approvalId: string, decision: Decision) =>
       apiClient.post<ToolApproval>(`/approvals/${approvalId}`, {
-        approved,
-        ...(rememberScope ? { remember_scope: rememberScope } : {}),
+        approved: decision.type === "approve",
+        ...(decision.remember_scope ? { remember_scope: decision.remember_scope } : {}),
+        ...(decision.type === "reject" && decision.note ? { note: decision.note } : {}),
       }),
     [],
   );
@@ -2811,12 +2812,9 @@ export function useChat(options: UseChatOptions = {}) {
         let continuesInChat = false;
         for (const [index, request] of parked.actionRequests.entries()) {
           const decision = decisions[index];
-          if (decision === undefined) continue;
-          const decided = await decideApproval(
-            request.id,
-            decision.type === "approve",
-            decision.remember_scope,
-          );
+          // A later request in the batch can fail after an earlier decision was saved.
+          if (decision === undefined || decidedApprovalIdsRef.current.has(request.id)) continue;
+          const decided = await decideApproval(request.id, decision);
           decidedApprovalIdsRef.current.add(request.id);
           if (decided?.continues_in_chat) continuesInChat = true;
           // `parked.messageId`, never the live ref: the turn ended at `complete`

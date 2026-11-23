@@ -1399,6 +1399,18 @@ shrink the prompt the cache held. The card is not shown while every cache held.
 
 ## Approvals
 
+In web chat, Activity → Approvals, or Inbox, choose **Reject with feedback** to
+say why you are blocking an action or what to try instead. The proposed action
+does not run, and the comment is saved with the rejection. In a chat batch, all
+listed calls are rejected, but each comment belongs only to its own call. Use
+**Reject** if you do not need to leave a comment.
+
+On a standard agent tool denial, the agent receives the comment when the run resumes.
+If a revised action needs approval, it asks again. In a workflow's **Ask for
+approval** step, the **Rejected** branch can read the comment as `note`, for
+example to redraft a proposal. Rejection does not retry a step automatically:
+a rejected **Call an MCP tool** step still fails without calling the tool.
+
 A gated tool parks the run and waits for a person. The Builder offers **Always ask**
 and **Never ask** for a capability; individual tools can also **Follow the capability**.
 New capabilities added in the Builder start with **Always ask**. Existing bindings,

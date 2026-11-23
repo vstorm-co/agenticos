@@ -19,6 +19,7 @@ import {
   ToolMark,
   useActionPhrase,
 } from "@/components/runs/approval-request";
+import { RejectionFeedback } from "@/components/runs/rejection-feedback";
 import { Button } from "@/components/ui";
 import { usePermissions } from "@/hooks";
 import { approvalSummary } from "@/lib/agent-step-captions";
@@ -175,6 +176,16 @@ export function ToolApprovalDialog({
             >
               {t("reject")}
             </Button>
+            <RejectionFeedback
+              requests={actionRequests.map((action) => ({
+                id: action.id,
+                label: phrase(action.tool_name),
+              }))}
+              disabled={disabled}
+              onReject={(notes) =>
+                onDecisions(notes.map((note) => ({ type: "reject", ...(note ? { note } : {}) })))
+              }
+            />
             <div className="flex items-center gap-1">
               {mayApprove ? (
                 <Button size="sm" onClick={() => decideAll("approve")} disabled={disabled}>

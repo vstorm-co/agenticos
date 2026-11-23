@@ -568,6 +568,7 @@ export type DecisionType = "approve" | "edit" | "reject";
 
 export interface Decision {
   remember_scope?: "conversation" | "agent";
+  note?: string;
   type: DecisionType;
   editedAction?: {
     id: string;

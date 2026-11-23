@@ -1,5 +1,5 @@
 ---
-source_sha: "4a5506769583"
+source_sha: "5a964209ab00"
 ---
 
 # Governance { #governance }
@@ -1489,6 +1489,19 @@ w cache może też skrócić kompakcja.
 Karty nie ma, dopóki każdy cache trzymał.
 
 ## Zatwierdzenia { #approvals }
+
+W czacie w przeglądarce, w sekcji Aktywność → Zatwierdzenia lub w Skrzynce
+odbiorczej wybierz **Odrzuć z uwagami**, aby wyjaśnić decyzję lub zaproponować
+inne działanie. Proponowana akcja nie zostanie wykonana, a uwagi zostaną zapisane
+wraz z decyzją. Przy wielu wywołaniach w czacie odrzucane są wszystkie, ale każda
+uwaga dotyczy tylko swojego wywołania. Bez uwag wybierz **Odrzuć**.
+
+Po wznowieniu zwykłego uruchomienia agent otrzymuje uwagi do odrzuconego wywołania
+narzędzia. Jeśli zmieniona akcja wymaga zatwierdzenia, agent pyta ponownie. W kroku
+workflow **Poproś o zatwierdzenie** gałąź **Odrzucono** może odczytać uwagi z pola
+`note`, na przykład w celu poprawienia propozycji. Odrzucenie nie ponawia kroku
+automatycznie. Odrzucony krok narzędzia MCP nadal kończy się błędem bez wywołania
+narzędzia.
 
 Narzędzie objęte bramką parkuje run i czeka na osobę. Builder oferuje **Zawsze pytaj**
 i **Nigdy nie pytaj** dla capability; pojedyncze narzędzia mogą też dziedziczyć jej tryb.

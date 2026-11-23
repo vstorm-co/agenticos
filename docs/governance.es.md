@@ -1,5 +1,5 @@
 ---
-source_sha: "4a5506769583"
+source_sha: "5a964209ab00"
 ---
 
 # Governance { #governance }
@@ -1498,6 +1498,19 @@ compactación también puede acortar el prompt que la caché guardaba.
 La tarjeta no aparece mientras todas las cachés aguantaron.
 
 ## Aprobaciones { #approvals }
+
+En el chat web, en Actividad → Aprobaciones o en la bandeja de entrada, elige
+**Rechazar con comentarios** para explicar el motivo o sugerir una alternativa.
+La acción propuesta no se ejecuta y el comentario se guarda con el rechazo.
+En un lote del chat se rechazan todas las llamadas de la lista, pero cada comentario
+solo se asocia con su llamada. Si no necesitas comentar, elige **Rechazar**.
+
+Si se rechaza una llamada normal a una herramienta del agente, este recibe el
+comentario al reanudar la ejecución. Si la acción revisada requiere aprobación,
+el agente vuelve a pedirla. En el paso **Pedir aprobación** de un workflow, la rama
+**Rechazado** puede leer el comentario como `note`, por ejemplo para revisar una
+propuesta. El rechazo no reintenta el paso automáticamente. Un paso de herramienta
+MCP rechazado sigue fallando sin invocar la herramienta.
 
 Una herramienta con aprobación aparca el run y espera a una persona. El Builder ofrece
 **Preguntar siempre** y **No preguntar nunca** para una capability; las herramientas

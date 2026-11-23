@@ -5,6 +5,15 @@
     "description": "Twoje miejsce pracy z AI. Open source.",
     "ctaShort": "GitHub"
   },
+  "approvalFeedback": {
+    "trigger": "Odrzuć z uwagami",
+    "hint": "Proponowana akcja nie zostanie wykonana. Uwagi zostaną zapisane wraz z odrzuceniem.",
+    "batchHint": "Wszystkie wymienione wywołania zostaną odrzucone. Dodaj uwagi tylko do wybranych wywołań.",
+    "call": "Wywołanie {number}: {action}",
+    "comment": "Uwagi",
+    "submit": "Odrzuć i wyślij uwagi",
+    "rejectAll": "Odrzuć wszystkie i wyślij uwagi"
+  },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",
     "chooseSection": "Sekcja: {section}",

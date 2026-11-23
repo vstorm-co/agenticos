@@ -2683,6 +2683,15 @@
       "refreshFailed": "Could not refresh your inbox. Showing the last loaded items."
     }
   },
+  "approvalFeedback": {
+    "trigger": "Reject with feedback",
+    "hint": "The proposed action will not run. Your feedback is saved with the rejection.",
+    "batchHint": "All listed calls will be rejected. Leave a note only on the calls you want to give feedback on.",
+    "call": "Call {number}: {action}",
+    "comment": "Feedback",
+    "submit": "Reject and send feedback",
+    "rejectAll": "Reject all and send feedback"
+  },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
     "chooseSection": "Section: {section}",
