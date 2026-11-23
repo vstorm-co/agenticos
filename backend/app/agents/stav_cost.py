@@ -49,9 +49,11 @@ class _Capture:
         rate = rates.get(self.currency) if self.currency is not None else None
         if rate is None and self.currency == "NOK":
             rate = settings.STAV_NOK_PER_USD
-        if self.currency == "USD":
+        if rate is not None and (not rate.is_finite() or rate <= 0):
+            rate = None
+        if self.currency == "USD" or self.cost.is_zero():
             usd = self.cost
-        elif rate is not None and rate.is_finite() and rate > 0:
+        elif rate is not None:
             usd = self.cost / rate
         else:
             logger.warning(

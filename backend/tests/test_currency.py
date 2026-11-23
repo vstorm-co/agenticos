@@ -167,6 +167,18 @@ def test_stav_uses_generic_rates_and_keeps_the_actual_billed_currency():
     assert usage.__dict__["provider_reported_cost"]["units_per_usd"] == "0.9"
 
 
+@pytest.mark.parametrize("rates", [{}, {"EUR": Decimal("NaN")}])
+def test_stav_zero_bills_keep_provenance_without_a_usable_rate(rates: dict[str, Decimal]) -> None:
+    usage = RequestUsage(input_tokens=1_000_000)
+    _Capture(cost=Decimal("0"), currency="EUR", exchange_rates=rates).apply(usage)
+    entry = SpendLedger().record("gpt-4o-mini", usage, "openai")
+    assert entry.priced and entry.provider_reported and entry.cost_usd == 0
+    provenance = usage.__dict__["provider_reported_cost"]
+    assert provenance["currency"] == "EUR"
+    assert provenance["amount"] == "0"
+    assert provenance["units_per_usd"] is None
+
+
 @pytest.mark.parametrize("rate", [Decimal(0), Decimal(-1), Decimal("NaN"), Decimal("Infinity")])
 def test_an_invalid_stav_conversion_rate_never_becomes_a_bill(rate):
     usage = RequestUsage()

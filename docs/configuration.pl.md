@@ -1,5 +1,5 @@
 ---
-source_sha: "36c0f54c59c7"
+source_sha: "5ef68a514ee8"
 ---
 
 # Konfiguracja { #configuration }
@@ -91,7 +91,7 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Limit na plik dla sparsowanego tekstu wklejanego do promptu bez workspace'u |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Zbiorczy limit tekstu załączników w jednej turze |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | Miesięczny sufit wydatków, z którym startuje **nowa** organizacja, w USD, żeby nie była o jednego rozbieganego agenta od zaskakującego rachunku. Obowiązuje tylko przy tworzeniu; istniejące organizacje pozostają nietknięte i każdej organizacji można później wyczyścić limit. Musi być dodatni; zostaw **pusty**, aby organizacje startowały bez limitu (starsza postawa opt-in) |
-| `STAV_NOK_PER_USD` | puste | Kurs NOK za USD utrzymywany przez operatora do kosztów naliczonych przez Stav. Skończony i dodatni; np. `10` dzieli NOK przez 10 (przykład, nie bieżący kurs). USD nie wymaga ustawienia. Kurs nie jest pobierany; bez przeliczenia używany jest katalog cen, a nieznane modele pozostają częściowo wycenione |
+| `STAV_NOK_PER_USD` | puste | Kurs NOK za USD utrzymywany przez operatora do kosztów naliczonych przez Stav. Skończony i dodatni; np. `10` dzieli NOK przez 10 (przykład, nie bieżący kurs). Kwoty w USD i rachunki na kwotę zero nie wymagają kursu. Jeśli nie można przeliczyć kwoty różnej od zera, używany jest katalog cen. Nieznane modele pozostają częściowo wycenione |
 | `DEFAULT_ORG_CURRENCY` | `USD` | Domyślna waluta organizacji, gdy ustawienia wdrożenia jej nie nadpisują. Domyślnie USD; waluta musi mieć kurs. Nie zmienia jednostek istniejących cen ani limitów USD. |
 | `CURRENCY_RATES` | `{"USD":"1"}` | Obiekt JSON jednostek waluty za USD, np. `{"USD":"1","EUR":"0.9","PLN":"4"}`. USD musi wynosić dokładnie 1; kursy muszą być skończone i dodatnie. Ustawienia administracyjne nadpisują ten dokument. |
 
