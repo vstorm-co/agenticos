@@ -3,7 +3,7 @@ import type { ArtifactDetail } from "../src/types/artifact";
 import type { CostSummary } from "../src/types/runs";
 
 import { expect, test } from "./fixtures";
-import { AUTH_STATE } from "./helpers";
+import { AUTH_STATE, SEEDED_CONTEXT_NAME, SEEDED_SKILL_NAME } from "./helpers";
 
 async function expectTouchTarget(control: Locator) {
   await expect(control).toBeVisible();
@@ -387,13 +387,23 @@ for (const platform of ["ios", "android"] as const) {
       ] as const) {
         await page.setViewportSize({ width, height: 844 });
         await page.goto(path);
+        // The static toolbar arrives before the catalog; native scroll restoration
+        // can still move it while the skeleton is replaced by the seeded rows.
+        const seeded = page.locator("main .peek-card").filter({
+          hasText: path === "/skills" ? SEEDED_SKILL_NAME : SEEDED_CONTEXT_NAME,
+        });
+        await expect(seeded).toBeVisible();
         const filters = page.getByRole("button", { name: /^Filters/ });
+        await filters.scrollIntoViewIfNeeded();
         await expectTouchTarget(filters);
         const sort = page.getByRole("button", { name: "Recently updated", exact: true });
+        await expect(filters).toHaveAttribute("aria-expanded", "false");
         await expect(sort).toBeHidden();
         await filters.tap();
+        await expect(filters).toHaveAttribute("aria-expanded", "true");
         await expect(sort).toBeVisible();
         await filters.tap();
+        await expect(filters).toHaveAttribute("aria-expanded", "false");
         const card = page.locator("main .peek-card").first();
         await expect(card).toBeVisible();
         const add = card.getByRole("button", { name: "Add to an agent", exact: true });
