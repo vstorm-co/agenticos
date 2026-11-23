@@ -1,5 +1,5 @@
 ---
-source_sha: "4d35d3389520"
+source_sha: "962e7b88fd03"
 ---
 
 # Abteilungen und Gruppen { #departments-and-groups }
@@ -124,9 +124,9 @@ Aktion Add to an agent noch eine Liste `used_by`: Das Test-Set eines Agents
 erreicht man über den Agent - seinen Tab **Evals** und **Verbessern** - oder
 über die **Einstellungen** des Datasets. Ein Dataset wird trotzdem wie jede andere
 Ressource geteilt, sodass eine Abteilung es über einen Grant auf dem Dataset
-selbst erreicht; siehe [Datasets](datasets.md#access). Sein Bewerter ist das
-Modell mit den Anweisungen aus den **Einstellungen** des Datasets, kein Agent,
-daher wird dort nichts nach Abteilung ausgewählt.
+selbst erreicht; siehe [Datasets](datasets.md#access). Sein Bewerter wird in den
+**Einstellungen** des Datasets festgelegt, und Abteilungen spielen bei seiner
+Auswahl keine Rolle.
 
 ## Das Budget einer Abteilung { #a-departments-budget }
 

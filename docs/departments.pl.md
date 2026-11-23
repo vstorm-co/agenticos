@@ -1,5 +1,5 @@
 ---
-source_sha: "4d35d3389520"
+source_sha: "962e7b88fd03"
 ---
 
 # Działy i grupy { #departments-and-groups }
@@ -116,9 +116,8 @@ plakietek działów, a dataset nie ma akcji Add to an agent ani listy `used_by`:
 do zestawu testowego agenta dochodzi się od agenta - z jego karty **Ewaluacje**
 i z **Popraw** - albo z **Ustawień** datasetu. Dataset udostępnia się jednak jak każdy
 inny zasób, więc dział dostaje do niego dostęp przez grant na samym datasecie;
-zobacz [Datasety](datasets.md#access). Jego oceniającym jest model i instrukcje
-ustawione w **Ustawieniach** datasetu, a nie agent, więc niczego nie wybiera się
-tam po dziale.
+zobacz [Datasety](datasets.md#access). Jego oceniającego ustawia się w **Ustawieniach**
+datasetu, a działy nie mają wpływu na jego wybór.
 
 ## Budżet działu { #a-departments-budget }
 
