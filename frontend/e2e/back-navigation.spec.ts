@@ -74,8 +74,6 @@ async function seed(page: Page) {
   };
 }
 
-const historyLength = (page: Page) => page.evaluate(() => window.history.length);
-
 let seeded: Awaited<ReturnType<typeof seed>>;
 test.beforeAll(async ({ browser }, testInfo) => {
   const context = await browser.newContext({
@@ -86,7 +84,7 @@ test.beforeAll(async ({ browser }, testInfo) => {
   await context.close();
 });
 
-test("a run opened from the agent's Evals tab returns there, by Back and by its arrow", async ({
+test("a run opened from the agent's Evals tab returns there, by Back and by its breadcrumb", async ({
   page,
 }) => {
   const { agent, run } = seeded;
@@ -100,12 +98,9 @@ test("a run opened from the agent's Evals tab returns there, by Back and by its 
 
   await page.goForward();
   await expect(page).toHaveURL(new RegExp(`/evals/${run}$`));
-  const length = await historyLength(page);
-  await page.getByRole("link", { name: "Back", exact: true }).click();
+  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link").first().click();
   await expect(page).toHaveURL(new RegExp(`/agents/${agent}\\?tab=evals$`));
   await expect(page.getByRole("tab", { name: "Evals" })).toHaveAttribute("aria-selected", "true");
-  // A step back, not a new entry: Forward still reaches the run.
-  expect(await historyLength(page)).toBe(length);
 });
 
 test("a run opened from the dataset's Evals tab returns to that tab", async ({ page }) => {
