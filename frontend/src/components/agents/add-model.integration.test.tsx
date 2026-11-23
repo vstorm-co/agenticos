@@ -2280,3 +2280,32 @@ it("edits and restores pricing for an existing subscription model", async () => 
     changes: { custom_pricing: null },
   });
 });
+
+it("shows a failed subscription price update and allows retrying it", async () => {
+  const user = userEvent.setup();
+  state.catalog = [
+    capabilities("subscription_accounts", "Subscription accounts", { personal_gateway: true }),
+  ];
+  const selected = {
+    id: "sub",
+    provider: "subscription_accounts",
+    model: "claude/sonnet",
+    label: "Claude Code (Pro, Max) · claude/sonnet",
+    secret_id: null,
+    params: {},
+    fallback_profile_ids: [],
+    custom_pricing: { input: "2", output: "5" },
+  };
+  const onCreated = vi.fn();
+  const pending = vi.fn();
+  state.updateProfile.mutateAsync.mockRejectedValueOnce(new Error("pricing unavailable"));
+  mount({ selected, onCreated, onCreationPendingChange: pending });
+  await user.click(screen.getByRole("switch"));
+  await user.click(screen.getByRole("button", { name: "Update model" }));
+  expect(await screen.findByText("pricing unavailable")).toBeVisible();
+  expect(onCreated).not.toHaveBeenCalled();
+  expect(pending).toHaveBeenLastCalledWith(false);
+  await user.click(screen.getByRole("button", { name: "Update model" }));
+  expect(onCreated).toHaveBeenCalledWith({ id: "p-1" });
+  expect(screen.queryByText("pricing unavailable")).not.toBeInTheDocument();
+});
