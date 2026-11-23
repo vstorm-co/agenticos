@@ -31,7 +31,7 @@ export function MeasuredChange({
 }) {
   const t = useTranslations("improvement.attemptChanges");
   return (
-    <div className="space-y-2">
+    <div className="bg-card space-y-2 rounded-lg">
       {reworded(hunk) && (
         <div className="space-y-1">
           <StateBadge tone="neutral">{t("edited")}</StateBadge>

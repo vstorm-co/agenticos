@@ -117,7 +117,9 @@ class PackedRun:
     @property
     def grade_lines(self) -> list[str]:
         return [
-            f"{grade.scorer}/{grade.name}: {_clip(grade.reason, _TURN_CHARS)}"
+            f"{grade.scorer}/{grade.name}"
+            + (f" (family: {grade.family})" if grade.family else "")
+            + f": {_clip(grade.reason, _TURN_CHARS)}"
             for grade in self.grades
         ]
 
@@ -633,6 +635,47 @@ class EvidenceService:
             unknown_runs=sum(count for agent, count in unknown.items() if agent in visible),
             hidden_agents=len((reading | set(unknown)) - visible),
         )
+
+    async def for_skill_handoff(
+        self, ctx: AuthContext, skill_id: UUID, improvement_run_id: UUID
+    ) -> list[PackedRun]:
+        """The failed training answers an agent's session read that used this skill.
+
+        An agent's Improve that hands a skill over found its problems in these
+        answers: test questions of the session's own dataset, from its stored
+        training partition only, which a skill check never measures on. A caller
+        who may not run that dataset reads none of them.
+        """
+        from app.core.exceptions import AuthorizationError
+        from app.repositories import improvement_repo
+
+        session = await improvement_repo.get_run(
+            self.db, improvement_run_id, organization_id=ctx.organization_id
+        )
+        if session is None:
+            return []
+        try:
+            handed = await self.for_improvement(ctx, improvement_run_id)
+        except AuthorizationError:
+            return []
+        failed = [
+            run
+            for run in handed.runs
+            if run.evidence_kind == "train_eval" and run.status == "train_eval_failure"
+        ]
+        uses: dict[UUID, list[RunSkillUse]] = {}
+        for use in await skill_usage_repo.uses_in_runs(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_id=skill_id,
+            run_ids=[run.run_id for run in failed],
+        ):
+            uses.setdefault(use.run_id, []).append(use)
+        return [
+            replace(_by_skill(run, uses[run.run_id], session.agent_id), number=0)
+            for run in failed
+            if run.run_id in uses
+        ]
 
     async def for_context(
         self, ctx: AuthContext, context_id: UUID, *, window_days: int

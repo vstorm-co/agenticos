@@ -176,7 +176,9 @@ it("does not invent examples when sources are gone or unreadable", () => {
   const view = render(<Understand session={SESSION} />);
   expect(screen.getByText(/Nothing to learn from yet/)).toBeInTheDocument();
   expect(screen.queryByText(/No selected examples/)).not.toBeInTheDocument();
-  expect(screen.queryByRole("region", { name: "Fix in the agent" })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("region", { name: "Fix in the agent or its skills" }),
+  ).not.toBeInTheDocument();
   state.loading = true;
   view.rerender(<Understand session={{ ...SESSION, status: "running" }} />);
   expect(screen.getByRole("status")).toBeInTheDocument();
@@ -341,6 +343,46 @@ function withTopic() {
   state.sources!.items[2]!.topic_id = "t1";
 }
 
+it("names the criteria an attempt put down to a skill beside the agent's column", () => {
+  withTopic();
+  const family = {
+    criteria: 4,
+    cases: 5,
+    before: 1,
+    fixed: 0,
+    broken: 0,
+    settled: false,
+    better: false,
+    worse: false,
+    skill: "fernhill-quote-format",
+  };
+  render(
+    <Understand
+      session={{
+        ...SESSION,
+        iterations: [
+          {
+            ...SESSION.iterations[0]!,
+            verdict: "criteria_better",
+            verdict_detail: {
+              families: [
+                { ...family, family: "total including VAT", after: 2 },
+                { ...family, family: "valid for 14 days", after: 0 },
+                { ...family, family: "price break", after: 5, skill: null },
+              ],
+            },
+          },
+        ],
+      }}
+    />,
+  );
+  expect(
+    screen.getByText(
+      "The helper put 2 still-failing criteria down to fernhill-quote-format: those are fixed in the skill, not in the agent's instructions.",
+    ),
+  ).toBeInTheDocument();
+});
+
 it("groups examples by topic into problems and says how many each column holds", async () => {
   withTopic();
   state.sources!.items.push({
@@ -352,7 +394,7 @@ it("groups examples by topic into problems and says how many each column holds",
   render(<Understand session={SESSION} />);
   expect(
     screen.getByText(
-      "We found 3 problems: 2 we can fix in the agent, 1 is information missing from the knowledge base.",
+      "We found 3 problems: 2 we can fix in the agent or its skills, 1 is information missing from the knowledge base.",
     ),
   ).toBeInTheDocument();
   expect(screen.getByText("3 conversations about one topic")).toBeInTheDocument();
@@ -385,7 +427,7 @@ it("keeps answers whose knowledge was added since apart from what is still missi
   render(<Understand session={SESSION} />);
   expect(
     screen.getByText(
-      "We found 4 problems: 2 we can fix in the agent, 2 lacked knowledge that has since been added to the knowledge base.",
+      "We found 4 problems: 2 we can fix in the agent or its skills, 2 lacked knowledge that has since been added to the knowledge base.",
     ),
   ).toBeInTheDocument();
   const group = screen.getByRole("region", { name: "Already in the knowledge base" });
@@ -487,7 +529,7 @@ it("shows a question asked both as a test and in a conversation as one problem",
   render(<Understand session={SESSION} />);
   expect(
     screen.getByText(
-      "We found 3 problems: 2 we can fix in the agent, 1 is information missing from the knowledge base.",
+      "We found 3 problems: 2 we can fix in the agent or its skills, 1 is information missing from the knowledge base.",
     ),
   ).toBeInTheDocument();
   expect(screen.getByText("Test question and conversation example")).toBeInTheDocument();
@@ -636,4 +678,13 @@ it("keeps an existing nonempty sample visible during background refresh", () => 
   render(<StartSignals agentId="a1" datasetId="d1" />);
   expect(screen.getByText(/4 selected source examples/)).toBeInTheDocument();
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
+});
+
+it("opens the question review on arrival when requested and lets the reader collapse it", async () => {
+  render(<TestQuestions session={SESSION} reviewInitiallyOpen />);
+  const review = screen.getByText("Review the questions").closest("details");
+  expect(review).toHaveAttribute("open");
+  expect(screen.getByText("A good answer: 30 days")).toBeVisible();
+  await userEvent.click(screen.getByText("Review the questions"));
+  expect(review).not.toHaveAttribute("open");
 });

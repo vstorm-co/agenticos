@@ -276,7 +276,10 @@ from recent answers, each question is asked once: an answer someone rated wins
 over one that only failed, so one question never asks for an answer and forbids
 it too.
 
-Then the agent's own questions:
+Then the agent's own questions, from the dataset its newest
+[Improve session](authoring.md#the-improve-wizard) measures on when that dataset
+tests it, and otherwise the first dataset testing it. A set kept back for a final
+measurement is so never asked by a skill check while the agent improves on another.
 
 - **Quick**, the default: four questions of the agent's dataset - more when the
   skill's own held-out questions are too few for the five a result needs - whose
@@ -316,12 +319,16 @@ the dataset to add other questions to.
   confirmed better and none worse, is **better on criteria**; one with a
   criterion confirmed worse is **worse on criteria**. Neither moves the rule
   above, which is about whole questions: they count with the better and the
-  worse agents in the bar, and the agent's details list each criterion with its
-  passes before and after.
+  worse agents in the bar, and the agent's details list each
+  [family](evals.md#a-flip-is-confirmed-before-it-counts) of criteria with its
+  passes before and after - every case's check of one thing on one row - or each
+  criterion, for an agent checked before families were kept.
 - An agent that could not be checked - no questions, questions nothing can grade
   or all taken from the change's own conversations, no access, no budget left, no
   published version, a run that failed, a check that was stopped - is
-  **unknown**, and a person acknowledges it before applying.
+  **unknown**, and a person acknowledges it before applying. So is one whose runs
+  graded every answer on fewer held-out questions than a result needs: its row
+  says how many came out better and worse, and that they are too few to be sure.
 
 A check where no agent can be checked still starts, and finishes at once with
 every agent unknown, for a person to acknowledge. The dialog says so before the
@@ -822,6 +829,12 @@ too, since only a promotion moves it.
 fork picked in the chips - in the same five steps as [improving an agent](authoring.md#the-improve-wizard):
 Understand, Changes, Check, Result and Accept. It stops for you after Understand,
 after Changes and at the result, and changes nothing until you accept.
+
+A session opened from an agent's Improve starts from the problems that session
+reported. Only a problem that quotes a line of the skill stating the wrong value
+or rule takes the agent's criteria with it; where the skill is only silent the
+problem is advice, and the agent stays held to those criteria - see [When the
+fault is in a skill](authoring.md#when-the-fault-is-in-a-skill).
 
 Its start says how many rated-down or failed answers it reads, and how many agents
 the line serves. It also says what

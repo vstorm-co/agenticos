@@ -226,9 +226,7 @@ vi.mock("@/stores", () => ({
 
 vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }));
 vi.mock("@/components/agents/model-settings-form", () => ({
-  ModelSettingsForm: ({ verdict }: { verdict?: string }) => (
-    <div data-testid="model-settings" data-verdict={verdict ?? "none"} />
-  ),
+  ModelSettingsForm: () => <div data-testid="model-settings" />,
 }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
 vi.mock("@/components/ui/markdown-editor", () => ({
