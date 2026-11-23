@@ -497,6 +497,7 @@ class TestOneLook:
         status=RunStatus.COMPLETED,
         check=None,
         retain_check=True,
+        locale="pl",
     ):
         async def execute(ctx, agent_id, prompt, **kwargs):
             if error is not None:
@@ -540,7 +541,7 @@ class TestOneLook:
                 f"{LOOK}.user_repo.get_by_id",
                 new=AsyncMock(
                     return_value=MagicMock(
-                        id=USER, is_active=True, locale="pl", time_zone="Europe/Warsaw"
+                        id=USER, is_active=True, locale=locale, time_zone="Europe/Warsaw"
                     )
                     if user
                     else None
@@ -1164,6 +1165,49 @@ async def test_a_watch_cannot_be_edited_to_end_in_the_past():
         pytest.raises(BadRequestError, match="future"),
     ):
         await WatchService(MagicMock()).update(_ctx(), watch.id, WatchUpdate(ends_at=NOW))
+
+
+@pytest.mark.parametrize(
+    ("locale", "line"),
+    [
+        ("en", "No new relevant changes."),
+        ("pl", "Brak nowych istotnych zmian."),
+        ("de", "Keine neuen relevanten Änderungen."),
+        ("es", "No hay cambios relevantes nuevos."),
+        ("ru", "Новых значимых изменений нет."),
+    ],
+)
+async def test_a_no_change_report_is_written_in_the_owners_language(locale, line):
+    watch = _watch(report_mode="every_check", source_conversation_id=uuid.uuid4())
+    patches, _ = TestOneLook._patches(watch, locale=locale)
+    message = AsyncMock()
+    with ExitStack() as stack:
+        for each in patches:
+            stack.enter_context(each)
+        stack.enter_context(
+            patch(
+                f"{LOOK}.ConversationService",
+                return_value=MagicMock(
+                    get_conversation=AsyncMock(
+                        return_value=MagicMock(
+                            id=watch.source_conversation_id, organization_id=ORG, user_id=USER
+                        )
+                    )
+                ),
+            )
+        )
+        stack.enter_context(patch(f"{LOOK}.conversation_repo.create_message", new=message))
+        stack.enter_context(
+            patch(f"{LOOK}.agent_repo.get", new=AsyncMock(return_value=MagicMock(id=AGENT)))
+        )
+        stack.enter_context(
+            patch(
+                f"{LOOK}.NotificationService",
+                return_value=MagicMock(routine_finished=AsyncMock(), watch_blocked=AsyncMock()),
+            )
+        )
+        assert await WatchLook(MagicMock()).look(watch.id) == 0
+    assert message.await_args.kwargs["content"] == f"**{watch.title}**\n\n{line}"
 
 
 @pytest.mark.parametrize("mode", ["changes", "every_check"])

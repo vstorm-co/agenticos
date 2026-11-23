@@ -523,6 +523,7 @@ class WatchLook:
                     "pl": "Brak nowych istotnych zmian.",
                     "de": "Keine neuen relevanten Änderungen.",
                     "es": "No hay cambios relevantes nuevos.",
+                    "ru": "Новых значимых изменений нет.",
                 }.get(locale or "", "No new relevant changes.")
             ]
         if updates and target is not None:
