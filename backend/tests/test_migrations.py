@@ -341,20 +341,29 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
                 name="report",
                 title="Report",
             )
-            routine = AgentTrigger(
-                organization_id=org_id,
-                agent_id=agent.id,
-                created_by_user_id=owner_id,
-                prompt="Report",
-                interval_seconds=300,
-                next_fire_at=datetime.now(UTC),
-                answer_to="conversation",
-                delivery_conversation_id=chat.id,
+            routine_id = uuid4()
+            db.add(page)
+            db.execute(
+                text(
+                    "INSERT INTO agent_triggers "
+                    "(id, organization_id, agent_id, created_by_user_id, prompt, "
+                    "interval_seconds, next_fire_at, answer_to, delivery_conversation_id, "
+                    "is_active, trigger_type, schedule_kind, event_config) "
+                    "VALUES (:id, :organization, :agent, :creator, 'Report', "
+                    "300, :next_fire, 'conversation', :chat, true, 'schedule', 'interval', '{}')"
+                ),
+                {
+                    "id": routine_id,
+                    "organization": org_id,
+                    "agent": agent.id,
+                    "creator": owner_id,
+                    "next_fire": datetime.now(UTC),
+                    "chat": chat.id,
+                },
             )
-            db.add_all([page, routine])
             db.commit()
             agent_id = agent.id
-            page_id, routine_id = page.id, routine.id
+            page_id = page.id
             environment_id, chat_id = environment.id, chat.id
 
         constraints = (

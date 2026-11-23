@@ -1097,3 +1097,57 @@ async def test_an_unavailable_draft_chat_is_a_delivery_problem_not_a_failed_sour
         attempted = stack.enter_context(patch.object(WatchLook, "_mark_attempt", new=AsyncMock()))
         assert await WatchLook(MagicMock()).look(watch.id) == 0
     assert attempted.await_args.kwargs["status"] == WatchAttemptStatus.DELIVERY_UNAVAILABLE
+
+
+async def test_a_watch_removed_during_delivery_does_not_resolve_its_incidents():
+    watch = _watch(report_mode="changes_only")
+    patches, _ = TestOneLook._patches(watch)
+    with ExitStack() as stack:
+        for each in patches:
+            stack.enter_context(each)
+        stack.enter_context(patch(f"{LOOK}.watch_repo.mark_ran", new=AsyncMock(return_value=False)))
+        resolve = stack.enter_context(
+            patch(f"{LOOK}.OutcomeService.resolve_routine_failure", new=AsyncMock())
+        )
+        assert await WatchLook(MagicMock()).look(watch.id) == 0
+    resolve.assert_not_awaited()
+
+
+@pytest.mark.parametrize("refusal", [AuthorizationError, NotFoundError])
+async def test_a_watch_reports_delivery_unavailable_when_its_chat_access_was_revoked(refusal):
+    watch = _watch(report_mode="every_check", source_conversation_id=uuid.uuid4())
+    patches, _ = TestOneLook._patches(watch)
+    with ExitStack() as stack:
+        for each in patches:
+            stack.enter_context(each)
+        stack.enter_context(
+            patch(
+                f"{LOOK}.ConversationService",
+                return_value=MagicMock(
+                    get_conversation=AsyncMock(side_effect=refusal(message="Chat access lost"))
+                ),
+            )
+        )
+        post = stack.enter_context(
+            patch(f"{LOOK}.conversation_repo.create_message", new=AsyncMock())
+        )
+        attempted = stack.enter_context(patch.object(WatchLook, "_mark_attempt", new=AsyncMock()))
+        assert await WatchLook(MagicMock()).look(watch.id) == 0
+    post.assert_not_awaited()
+    assert attempted.await_args.kwargs["status"] == WatchAttemptStatus.DELIVERY_UNAVAILABLE
+
+
+async def test_a_watch_without_a_chat_can_send_its_requested_completion_notice():
+    watch = _watch(report_mode="every_check", source_conversation_id=None)
+    patches, _ = TestOneLook._patches(watch)
+    with ExitStack() as stack:
+        for each in patches:
+            stack.enter_context(each)
+        stack.enter_context(
+            patch(f"{LOOK}.agent_repo.get", new=AsyncMock(return_value=MagicMock(id=AGENT)))
+        )
+        notify = stack.enter_context(
+            patch(f"{LOOK}.NotificationService.routine_finished", new=AsyncMock())
+        )
+        assert await WatchLook(MagicMock()).look(watch.id) == 0
+    assert notify.await_args.kwargs["source_conversation_id"] is None
