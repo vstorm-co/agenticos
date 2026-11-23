@@ -1,5 +1,5 @@
 ---
-source_sha: "304b52e98b6d"
+source_sha: "4c4d606984ca"
 ---
 
 # Governance { #governance }
@@ -69,12 +69,9 @@ sie bestätigt keinen Webhook-Eingang. Öffentliche Webhook-Antworten bleiben un
 
 ## Zustellung von Routinen { #routine-delivery }
 
-Eine im privaten Chat über das Plattform-MCP erstellte Routine antwortet in diesem
-Chat, sofern Sie kein anderes Ziel wählen. Ihre Karte zeigt den aktuellen Zustand,
-die nächste Aktivierung sowie die vorhandenen Aktionen zum Bearbeiten, Pausieren
-und Entfernen. Das Ausführungsprotokoll bleibt unter Routines verfügbar.
+Neue Routinen speichern standardmäßig alle Ausführungen in einem gemeinsamen schreibgeschützten Verlauf. Die erstellende Person kann eine Antwort in einen privaten Chat verzweigen. Alternativ erhält jede Ausführung einen eigenen bearbeitbaren privaten Chat. Die Routinenkarte behält ihre Aktionen zum Bearbeiten, Pausieren und Entfernen. Routines zeigt alle Ausführungen mit Links zu Chat und Ausführungsdetails.
 
-Vor dem Speichern einer fertigen Antwort prüft die Plattform erneut die aktive Mitgliedschaft der erstellenden Person und ihr aktuelles Schreibrecht im gewählten Chat. Ein gelöschtes oder unzugängliches Ziel lässt die Antwort im Ausführungsprotokoll und zeigt **Letzte Antwort im Chat nicht verfügbar** an der Routine. Ein Datenbankfehler während der Nachrichtenzustellung wird isoliert, sodass der abgeschlossene Lauf weder rückgängig gemacht noch der Agent erneut ausgeführt wird.
+Vor dem Chat-Modus-Upgrade zugelassene Läufe behalten ihren bisherigen Zustellungsvertrag. Nur diese älteren Läufe kopieren eine fertige Antwort in das zuvor gewählte Ziel, nachdem aktive Mitgliedschaft und aktuelles Schreibrecht erneut geprüft wurden. Fehlt das Ziel, bleibt die Antwort im Protokoll. Zustellungsfehler machen die abgeschlossene Ausführung nicht rückgängig und starten den Agenten nicht erneut.
 
 Abschlussmeldungen verlinken den Chat erst nach erfolgreicher Zustellung.
 
@@ -2703,7 +2700,13 @@ Der Agent übergibt stabile Element- und Revisionskennungen, Kontext und angefor
 
 Veröffentlichte Ergebnisse werden beim MCP-Aufruf gespeichert. Ein späterer Run-Fehler löscht sie nicht; der fehlgeschlagene Versuch bleibt sichtbar und Wiederholungen deduplizieren Quellenrevisionen.
 
-Jede Routine verwendet dieselbe Systemunterhaltung als Ausführungsprotokoll. Die erstellende Person sieht sie in der Chat-Seitenleiste, solange `runs:view` und aktueller Zugriff auf den Agenten bestehen; Suche, Seitennavigation sowie Lauf- und Ungelesen-Anzeigen gelten wie gewohnt. Zum Lesen sind `runs:view` und Zugriff auf den Agenten erforderlich; sie ist kein privater Chat des Eigentümers. Neue Ausführungen übernehmen frühere Protokollnachrichten nicht automatisch als Modellkontext. Konfigurierter Speicher und explizite Quellenabfragen stellen stattdessen Kontinuität her.
+Neue Routinen verwenden standardmäßig **einen gemeinsamen schreibgeschützten Verlauf** (`chat_mode=shared`). Wähle **einen neuen privaten Chat pro Ausführung** (`chat_mode=per_run`), um jeden vollständigen Verlauf mit Werkzeugaufrufen in einem eigenen bearbeitbaren Chat zu behalten. Weitere Nachrichten ändern die Routine nicht und werden nicht zum Gesprächsverlauf der nächsten Ausführung; die konfigurierte Erinnerung gilt weiterhin. Der Chat erscheint in deiner Seitenleiste.
+
+Wähle **gemeinsamen Verlauf** (`chat_mode=shared`), um Ausführungen an eine schreibgeschützte Systemunterhaltung anzuhängen. Die erstellende Person sieht sie mit `runs:view` und aktuellem Agentenzugriff in der Seitenleiste; Projektprotokolle bleiben durch den Projektzugriff geregelt. Sie kann eine Antwort in einen privaten Chat verzweigen. Neue Ausführungen übernehmen frühere Protokollnachrichten nicht automatisch; Speicher und explizite Quellenabfragen stellen Kontinuität her.
+
+Migration `0351_routine_chat_modes.py` ordnet bisherige Hauptchat- und Einzelchat-Zustellung separaten Ausführungschats zu; reine Protokolle und der bisherige Inbox-Modus werden gemeinsame Verläufe. Unterhaltungen, Zeitpläne, Pausen, Budgets und Quellen-/Werkzeugfreigaben bleiben erhalten. Bestehende Protokolle werden schreibgeschützt; bereits zugelassene Runs ohne Modus-Snapshot behalten ihre bisherige Zustellung. API und Worker gemeinsam aktualisieren. Alte Zielfelder bleiben für Kompatibilität und Downgrade lesbar.
+
+Inbox-Ergebnisse behalten eigene Arbeitsunterhaltungen je stabilem Quellelement. Nicht jede Ausführung erzeugt eine Inbox-Karte.
 
 Unbeaufsichtigte Ausführungen haben keinen aktiven `ask_user`-Kanal. Fehlen notwendige Angaben, soll der Agent die Frage und die blockierte Arbeit als Inbox-Befund veröffentlichen, statt eine Antwort anzunehmen. Dadurch entsteht kein pausiertes, fortsetzbares Frageformular.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "304b52e98b6d"
+source_sha: "4c4d606984ca"
 ---
 
 # Governance { #governance }
@@ -69,12 +69,9 @@ entrega de un webhook. Las respuestas públicas de los webhooks no cambian.
 
 ## Entrega de rutinas { #routine-delivery }
 
-Una rutina creada en un chat privado mediante el MCP de la plataforma responde en
-ese chat, salvo que elijas otro destino. Su tarjeta muestra el estado actual, la
-próxima activación y los controles existentes para editar, pausar y eliminar.
-El registro de ejecuciones sigue disponible en Routines.
+Las rutinas nuevas guardan por defecto todas las ejecuciones en un historial compartido de solo lectura. Su creador puede bifurcar una respuesta a un chat privado para continuar. Como alternativa, cada ejecución puede tener su propio chat privado editable. La tarjeta conserva las acciones de editar, pausar y eliminar. Routines muestra todas las ejecuciones con enlaces a sus chats y detalles.
 
-Antes de guardar una respuesta terminada, la plataforma vuelve a comprobar la membresía activa de la persona creadora y su permiso actual para escribir en el chat elegido. Un destino eliminado o inaccesible deja la respuesta en el registro de ejecución y muestra **Última respuesta no disponible en el chat** en la rutina. Un fallo de base de datos durante la entrega del mensaje queda aislado para no deshacer la ejecución terminada ni volver a ejecutar el agente.
+Las ejecuciones admitidas antes de la actualización de modos de chat conservan su contrato de entrega anterior. Solo estas ejecuciones antiguas copian una respuesta terminada al destino previamente elegido, tras comprobar de nuevo la membresía activa y el permiso actual de escritura. Si falta el destino, la respuesta permanece en el registro. Un fallo de entrega no deshace la ejecución terminada ni vuelve a ejecutar el agente.
 
 El aviso de finalización enlaza el chat solo tras una entrega correcta.
 
@@ -2555,7 +2552,13 @@ El agente aporta identificadores estables de elemento y revisión, contexto y el
 
 Los hallazgos se guardan en la llamada MCP. Un fallo posterior no elimina lo publicado; el intento fallido permanece visible y los reintentos deduplican las revisiones.
 
-Cada rutina reutiliza una conversación de sistema como registro. Su creador la ve en la barra lateral del chat mientras conserve `runs:view` y acceso actual al agente; se aplican la búsqueda, la paginación y los indicadores de ejecución y mensajes sin leer. Leerla requiere `runs:view` y acceso al agente; no es el chat privado del propietario. Las ejecuciones nuevas no envían automáticamente los mensajes anteriores del registro al modelo. La memoria configurada y las lecturas explícitas de fuentes aportan continuidad.
+Las rutinas nuevas usan por defecto **un historial compartido de solo lectura** (`chat_mode=shared`). Elige **un chat privado nuevo por ejecución** (`chat_mode=per_run`) para conservar cada transcripción completa con sus herramientas en un chat editable propio. Los mensajes posteriores no editan la rutina ni pasan a ser la transcripción de la siguiente ejecución; la memoria configurada sigue aplicándose. El chat aparece en la barra lateral.
+
+Elige **historial compartido** (`chat_mode=shared`) para añadir las ejecuciones a una conversación de sistema de solo lectura. Su creador la ve con `runs:view` y acceso actual al agente; los registros de proyectos siguen sujetos al acceso al proyecto. El creador puede bifurcar una respuesta a un chat privado. Las nuevas ejecuciones no reutilizan automáticamente los mensajes anteriores; la memoria y las lecturas explícitas de fuentes aportan continuidad.
+
+La migración `0351_routine_chat_modes.py` convierte la entrega al chat principal o específico en chats por ejecución; el registro exclusivo y el antiguo modo Inbox pasan al historial compartido. Conserva conversaciones, horarios, pausas, presupuestos y consentimientos de fuentes/herramientas. Los registros existentes pasan a solo lectura; las ejecuciones admitidas sin modo guardado mantienen su entrega anterior. Actualiza API y workers juntos. Los campos antiguos siguen legibles para compatibilidad y downgrade.
+
+Los hallazgos de Inbox conservan sus propias conversaciones de trabajo por elemento de origen estable. No se crea una tarjeta para cada ejecución.
 
 La ejecución desatendida no tiene un canal `ask_user` activo. Si falta información esencial, las instrucciones indican publicar la pregunta y el trabajo bloqueado como hallazgo en Inbox, en vez de suponer una respuesta. Esto no crea por sí solo un formulario de preguntas pausado y reanudable.
 

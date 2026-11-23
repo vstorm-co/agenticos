@@ -2352,6 +2352,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         runs_as_me: bool = True,
         ends_at: str | None = None,
         delivery_conversation_id: UUID | None = None,
+        chat_mode: Literal["per_run", "shared"] | None = None,
         answer_to: Literal["run_log", "primary", "conversation"] | None = None,
         monthly_budget_usd: str | None = None,
         pinned_version_id: UUID | None = None,
@@ -2377,17 +2378,18 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         find_chat_channels, then agree the destination and whether this is the same
         thread or a new top-level post. Include the verified bot_id, channel_id and
         optional thread_id in the complete recurring prompt, instructing the agent
-        to send_chat_message after finishing the report. Set answer_to="run_log"
-        for that explicit delivery instead of inheriting this conversation. If the
+        to send_chat_message after finishing the report. Set chat_mode="shared"
+        when only a read-only execution history is needed. If the
         routine requires standing approval for sending, direct the person to its
         access settings in /routines; never promise unattended delivery before that.
         If those tools are absent, explain that the agent's chat-app binding needs
         the corresponding actions enabled. Do not replace it with an unrelated MCP.
         `runs_as_me` fires as the person creating it, with their memory and their
-        own connected accounts, as in their chat. Every run lands in the routine's
-        own log, which the person reads under Routines (`/routines`). A routine
-        created from a private chat answers there unless `answer_to` explicitly
-        selects another target. `ends_at` is an ISO timestamp with its UTC offset;
+        own connected accounts, as in their chat. By default chat_mode="shared"
+        appends every execution to one read-only history. chat_mode="per_run"
+        opens a private chat for each execution with its full transcript;
+        the creator may fork an answer to continue. Follow-up chat messages never
+        edit the routine. answer_to is a legacy destination compatibility field. `ends_at` is an ISO timestamp with its UTC offset;
         set it for time-bounded requests. `monthly_budget_usd` is a decimal USD cap.
         `pinned_version_id` keeps one published version; omitted, future fires
         follow the published version. New routines follow the agent's current
@@ -2425,6 +2427,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             body["ends_at"] = ends_at
         if monthly_budget_usd is not None:
             body["monthly_budget_usd"] = monthly_budget_usd
+        if chat_mode is not None:
+            body["chat_mode"] = chat_mode
         if answer_to is not None:
             body["answer_to"] = answer_to
         if delivery_conversation_id is not None:
@@ -2446,6 +2450,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         ends_at: str | None = None,
         clear_end: bool = False,
         delivery_conversation_id: UUID | None = None,
+        chat_mode: Literal["per_run", "shared"] | None = None,
         answer_to: Literal["run_log", "primary", "conversation"] | None = None,
         monthly_budget_usd: str | None = None,
         clear_budget: bool = False,
@@ -2496,6 +2501,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             body["ends_at"] = None if clear_end else ends_at
         if monthly_budget_usd is not None or clear_budget:
             body["monthly_budget_usd"] = None if clear_budget else monthly_budget_usd
+        if chat_mode is not None:
+            body["chat_mode"] = chat_mode
         if answer_to is not None:
             body["answer_to"] = answer_to
         if delivery_conversation_id is not None:

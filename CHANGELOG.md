@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Default to one read-only shared routine history with creator-owned forks
+  for follow-up work, or choose an editable private chat per execution.
+
 - One-page schedule creation with independent tool approval choices and visible,
   locked explanations for tools that always require approval.
 - Run-bound `publish_inbox_finding` MCP reporting, automatically available to
@@ -38,6 +41,11 @@ Two things are versioned separately from this file and worth knowing about:
   next occurrence blocked until its lease expires.
 
 ### Upgrading
+
+- Migration `0351_routine_chat_modes.py` maps primary/specific-chat delivery to
+  per-run chats and log-only/legacy Inbox delivery to shared history. Existing
+  transcripts, schedules, pauses, budgets and tool consents are retained. Shared
+  histories become read-only; fork an answer to continue in a private chat.
 
 - Drain workers and update API/workers together with migration
   `0350_run_reporting_credential.py`. Routine and monitor Inbox publication now

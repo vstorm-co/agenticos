@@ -60,12 +60,9 @@ does not prove webhook delivery. Public webhook responses remain unchanged.
 
 ## Routine delivery
 
-A routine created from a private chat through the platform MCP answers in that
-chat unless you choose another destination. Its card in the conversation shows
-current state, the next activation and the existing edit, pause and remove controls.
-The run log remains available under Routines.
+New routines save every execution in one shared read-only history by default. Its creator can fork an answer into a private chat to continue. Choose a new private chat per execution if each run should have its own editable conversation. The routine card retains its edit, pause and remove controls, and Routines lists every execution with links to its chat and run details.
 
-Before posting a completed answer, the platform rechecks the creator’s active membership and current write access to the chosen conversation. A removed or inaccessible destination leaves the answer in the run log and shows **Last answer unavailable in chat** on the routine. A database failure during message delivery is isolated so it does not undo the completed fire or run the agent again.
+Runs admitted before the chat-mode upgrade retain their original delivery contract. Only those older runs copy a completed answer to a previously selected destination, after rechecking the creator’s active membership and current write access. A missing destination leaves the answer in the run log. Delivery failures do not undo the completed execution or run the agent again.
 
 Completion notifications link to the conversation only after successful delivery.
 
@@ -2405,7 +2402,13 @@ The agent supplies stable item and revision IDs, useful context and any requeste
 
 Published findings are committed at the MCP call. A later run failure does not erase an already reported finding; the failed attempt remains visible and retries deduplicate source revisions.
 
-Each routine reuses one system run-log conversation. Its creator sees that log in the chat sidebar while retaining `runs:view` and current access to the agent; search, pagination and running/unread indicators apply normally. Reading that log requires `runs:view` and access to the agent; it is not the owner's private chat. New activations do not automatically replay its previous messages to the model. Configured memory and explicit source reads provide continuity instead.
+New routines default to **one shared read-only history** (`chat_mode=shared`). Choose **a new private chat for each run** (`chat_mode=per_run`) to retain each full execution transcript, including tool calls, in its own editable chat. Follow-up messages do not edit the routine or become the next execution’s transcript; configured memory still applies. The chat appears in your chat sidebar.
+
+Choose **shared history** (`chat_mode=shared`) to append executions to one read-only system conversation. The creator sees it in the sidebar with `runs:view` and current agent access; project logs remain governed by project access. The creator can fork an answer into a private chat to continue. New executions do not automatically replay previous log messages; configured memory and explicit source reads provide continuity.
+
+Migration `0351_routine_chat_modes.py` maps existing primary/specific-chat delivery to per-run chats, and log-only or legacy Inbox delivery to shared history. It preserves existing conversations, schedules, pause state, budgets and source/tool consents. Existing logs become read-only; runs already admitted without a chat-mode snapshot retain their old delivery contract. Deploy API and workers together. Legacy destination fields remain readable for compatibility and downgrade.
+
+Inbox findings still have their own working conversations, grouped by stable source item. Publishing a finding does not create a card for every execution.
 
 Unattended execution has no live `ask_user` channel. If essential input is missing, the agent is instructed to publish the question and blocked work as an Inbox finding, rather than assume an answer. This does not itself park a resumable question form.
 

@@ -39,10 +39,8 @@ const PAGE = 50;
  * detail, with the model's requests, the tools and the cost, is where somebody
  * asking "why did this fail" is actually headed.
  *
- * Read through `GET /runs?conversation_id=`: every fire of one trigger appends to
- * a single run-log conversation, so that conversation *is* the trigger's identity
- * in the run history. Which is also what gives each row a status, a duration and
- * a cost the transcript could not - and a link to `/runs?run=<id>`.
+ * Read through `GET /runs?trigger_id=` so independent execution chats and
+ * shared history both show the complete routine history.
  *
  * `activationId` identifies the requested "Run now" fire, or is null. A fire is
  * dispatched after the request commits, so for a second there is no row for it:
@@ -177,11 +175,9 @@ function RunHistory({
 }) {
   const t = useTranslations("triggers");
   const [page, setPage] = useState(0);
-  const conversationId = trigger.conversation_id;
 
   const { runs, total, isLoading, error } = useRuns(undefined, {
-    enabled: conversationId !== null,
-    conversationId: conversationId ?? undefined,
+    triggerId: trigger.id,
     skip: page * PAGE,
     // Poll until a new history identity records the dispatched fire.
     ...(polling ? { refetchIntervalMs: POLL_WHILE_WAITING_MS } : {}),
@@ -192,10 +188,10 @@ function RunHistory({
     if (recorded) onSettled(activationId);
   }, [onSettled, activationId, recorded]);
 
-  if (conversationId !== null && isLoading) {
+  if (isLoading) {
     return <LoadingState variant="skeleton-table" columns={1} rows={4} className="m-5" />;
   }
-  if (conversationId !== null && error !== null) {
+  if (error !== null) {
     return <ErrorState title={t("runsCouldNotBeRead")} className="m-5" />;
   }
 
@@ -291,6 +287,11 @@ function FireRow({ run }: { run: AgentRun }) {
       )}
       {/* Into the run itself, which is where "why did this fail" is answered -
           the requests, the tools and what each turn cost. */}
+      {run.conversation_id && (
+        <Button variant="outline" size="sm" asChild>
+          <Link href={`${ROUTES.CHAT}?id=${run.conversation_id}`}>{t("openExecutionChat")}</Link>
+        </Button>
+      )}
       <Button variant="ghost" size="sm" asChild>
         <Link href={`${ROUTES.RUNS}?run=${run.id}`}>
           {t("openRun")}

@@ -83,6 +83,7 @@ export interface Trigger {
   /** Where each fire's answer is delivered to its person, beside the run log (#2575). */
   action_mode?: "agent" | "manual" | "per_tool" | null;
   result_mode?: "report" | "inbox";
+  chat_mode?: RoutineChatMode;
   answer_to?: TriggerAnswerTo;
   delivery_conversation_id?: string | null;
   /** When the routine stops by itself; null runs until stopped (#2575). */
@@ -159,7 +160,9 @@ export interface TriggerList {
  * `event_config` and `event_secret`. The secret is sent once, on create, and never
  * returned - the server seals it and only its ciphertext is stored.
  */
-/** Where a fire's answer is delivered to its person: their own chat with the agent, one chosen chat, or only the log. */
+/** Independent editable execution chats or one read-only shared history. */
+export type RoutineChatMode = "per_run" | "shared";
+
 export type TriggerAnswerTo = "run_log" | "primary" | "conversation";
 
 export interface TriggerCreate {
@@ -177,6 +180,7 @@ export interface TriggerCreate {
   teams_conversation_id?: string | null;
   action_mode?: "agent" | "manual" | "per_tool" | null;
   result_mode?: "report" | "inbox";
+  chat_mode?: RoutineChatMode;
   answer_to?: TriggerAnswerTo;
   delivery_conversation_id?: string | null;
   ends_at?: string | null;
@@ -245,6 +249,7 @@ export interface TriggerUpdate {
   teams_conversation_id?: string | null;
   action_mode?: "agent" | "manual" | "per_tool" | null;
   result_mode?: "report" | "inbox";
+  chat_mode?: RoutineChatMode;
   answer_to?: TriggerAnswerTo;
   delivery_conversation_id?: string | null;
   ends_at?: string | null;

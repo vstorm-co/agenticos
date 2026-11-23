@@ -1677,7 +1677,9 @@
       "empty": "Wszystko na bieżąco. Nowe ustalenia i ważne tematy pojawią się tutaj.",
       "failed": "Nie udało się wczytać Inboxa.",
       "refreshFailed": "Nie udało się odświeżyć skrzynki. Wyświetlamy ostatnio pobrane elementy."
-    }
+    },
+    "routineHistoryReadOnly": "To historia rutyny tylko do odczytu. Zrób fork odpowiedzi, aby kontynuować w nowym chacie.",
+    "routineContinueChat": "Kontynuuj w nowym chacie"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
@@ -9129,17 +9131,6 @@
       "revoke": "Cofnij zgodę",
       "waitingDevice": "Oczekiwanie na komputer ({count})"
     },
-    "answerToLabel": "Odpowiadaj też w",
-    "answerTo": {
-      "primary": "Moja rozmowa z tym agentem",
-      "run_log": "Tylko dziennik uruchomień",
-      "conversation": "Czat, w którym ją utworzono"
-    },
-    "answerToHint": {
-      "primary": "Każdy wynik trafia też do Twojej własnej rozmowy z tym agentem, więc wszystko, co Ci mówi, jest w jednym miejscu.",
-      "run_log": "Wyniki zostają w dzienniku uruchomień; nic nie trafia do Twoich czatów.",
-      "conversation": "Każdy wynik trafia na czat, dla którego utworzono tę rutynę."
-    },
     "budgetLabel": "Miesięczny budżet (USD, opcjonalnie)",
     "budgetCreatorOnly": "Tylko osoba, która utworzyła tę rutynę, może podnieść albo zdjąć jej limit, dopóki rutyna działa jako ona.",
     "budgetHint": "Ile ta rutyna może wydać w miesiącu. Po wykorzystaniu wstrzymuje się i rusza od pierwszego. Zawęża limity agenta i organizacji, nigdy ich nie podnosi.",
@@ -9251,7 +9242,17 @@
       "manual": "Pytaj przed działaniami",
       "custom": "Wybierz zgody dla każdego narzędzia",
       "existing": "Zachowaj obecne zgody"
-    }
+    },
+    "chatModeLabel": "Rozmowy",
+    "chatMode": {
+      "per_run": "Nowy chat dla każdego uruchomienia",
+      "shared": "Wspólna historia — tylko do odczytu"
+    },
+    "chatModeHint": {
+      "per_run": "Po każdym uruchomieniu możesz kontynuować rozmowę. Wiadomości nie zmieniają rutyny.",
+      "shared": "Wyniki trafiają do wspólnej historii tylko do odczytu. Zrób fork odpowiedzi, aby kontynuować w nowym chacie."
+    },
+    "openExecutionChat": "Otwórz chat"
   },
   "portals": {
     "backToServices": "Wróć do usług",

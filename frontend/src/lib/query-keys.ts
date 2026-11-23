@@ -390,6 +390,7 @@ export const qk = {
         modelLabel?: string;
         userId?: string;
         conversationId?: string;
+        triggerId?: string;
         agentVersionId?: string;
         isTest?: boolean;
         skip?: number;
@@ -413,6 +414,7 @@ export const qk = {
         opts.agentVersionId ?? "any-version",
         opts.isTest ?? "tests-included",
         opts.skip ?? 0,
+        ...(opts.triggerId ? ["trigger", opts.triggerId] : []),
       ] as const,
     detail: (id: string) => ["runs", id] as const,
     // One run's transcript, where the run-detail surface reads the answers

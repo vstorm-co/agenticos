@@ -1,5 +1,5 @@
 ---
-source_sha: "304b52e98b6d"
+source_sha: "4c4d606984ca"
 ---
 
 # Governance { #governance }
@@ -65,12 +65,9 @@ potwierdzenie dostawy webhooka. Publiczne odpowiedzi webhooków pozostają bez z
 
 ## Dostarczanie wyników rutyny { #routine-delivery }
 
-Rutyna utworzona w prywatnym czacie przez MCP platformy odpowiada w tym czacie,
-chyba że wybierzesz inny cel. Jej karta w rozmowie pokazuje aktualny stan,
-następną aktywację oraz istniejące przyciski edycji, wstrzymania i usunięcia.
-Dziennik uruchomień pozostaje dostępny w Routines.
+Nowe rutyny domyślnie zapisują wszystkie wykonania we wspólnej historii tylko do odczytu. Twórca może kontynuować odpowiedź przez fork do prywatnego czatu. Opcja nowego prywatnego czatu dla każdego wykonania daje każdemu przebiegowi własną edytowalną rozmowę. Karta rutyny zachowuje przyciski edycji, wstrzymania i usunięcia, a Routines pokazuje wszystkie wykonania z linkami do czatów i szczegółów.
 
-Przed zapisaniem gotowej odpowiedzi platforma ponownie sprawdza aktywne członkostwo twórcy i jego bieżące prawo zapisu w wybranej rozmowie. Usunięty lub niedostępny cel pozostawia odpowiedź w logu wykonania, a rutyna pokazuje **Ostatni wynik niedostępny w czacie**. Błąd bazy podczas dostarczania wiadomości jest izolowany, aby nie cofał zakończonego wykonania ani nie uruchamiał ponownie agenta.
+Przebiegi przyjęte przed aktualizacją trybów czatu zachowują wcześniejszy sposób dostarczania. Tylko te starsze przebiegi kopiują gotową odpowiedź do wcześniej wybranego celu, po ponownym sprawdzeniu aktywnego członkostwa twórcy i jego bieżącego prawa zapisu. Brak celu pozostawia odpowiedź w logu. Błąd dostarczania nie cofa zakończonego wykonania ani nie uruchamia ponownie agenta.
 
 Powiadomienie o zakończeniu wskazuje rozmowę dopiero po udanym dostarczeniu.
 
@@ -2544,7 +2541,13 @@ Agent podaje stałe identyfikatory elementu i rewizji, kontekst oraz pełny zam�
 
 Ustalenie jest zatwierdzane w bazie przy wywołaniu MCP. Późniejszy błąd przebiegu nie usuwa już opublikowanej karty; nieudana próba pozostaje widoczna, a ponowienia deduplikują rewizje źródeł.
 
-Każda rutyna używa ponownie jednego systemowego chatu z logiem. Twórca widzi go w panelu bocznym chatów, jeśli nadal ma `runs:view` i dostęp do agenta; działają wyszukiwanie, stronicowanie oraz oznaczenia aktywnego wykonania i nieprzeczytanych wiadomości. Odczyt wymaga `runs:view` i dostępu do agenta; nie jest to prywatny chat właściciela. Nowe wykonanie nie przekazuje automatycznie poprzednich wiadomości logu do modelu. Ciągłość zapewniają skonfigurowana pamięć i jawny odczyt źródeł.
+Nowe rutyny domyślnie mają **jedną wspólną historię tylko do odczytu** (`chat_mode=shared`). Opcja **nowego prywatnego chatu dla każdego uruchomienia** (`chat_mode=per_run`) zachowuje cały przebieg i narzędzia w osobnej edytowalnej rozmowie. Kolejne wiadomości nie edytują rutyny ani nie stają się historią następnego wykonania; skonfigurowana pamięć nadal obowiązuje. Chat pojawia się w panelu bocznym rozmów.
+
+Wybierz **wspólną historię** (`chat_mode=shared`), aby dopisywać wykonania do jednego systemowego chatu tylko do odczytu. Twórca widzi go w panelu bocznym, jeśli ma `runs:view` i aktualny dostęp do agenta; dostęp do logów projektu nadal wynika z uprawnień do projektu. Twórca może zrobić fork odpowiedzi do prywatnego chatu. Nowe wykonania nie odczytują automatycznie poprzednich wiadomości logu; ciągłość zapewniają pamięć i jawny odczyt źródeł.
+
+Migracja `0351_routine_chat_modes.py` mapuje dostarczanie do głównego lub wskazanego chatu na osobne chaty wykonania, a sam log i dawny tryb Inbox na wspólną historię. Zachowuje rozmowy, harmonogramy, pauzy, budżety oraz zgody na źródła i narzędzia. Istniejące logi stają się tylko do odczytu; wcześniej dopuszczone wykonania bez zapisanego trybu zachowują dawną umowę dostarczania. Aktualizuj API i workery razem. Dawne pola pozostają czytelne dla zgodności i cofnięcia migracji.
+
+Ustalenia w Inboxie nadal mają własne rozmowy robocze grupowane według stabilnego identyfikatora sprawy. Publikowanie ustalenia nie tworzy karty dla każdego wykonania.
 
 Wykonanie bez nadzoru nie ma aktywnego kanału `ask_user`. Gdy brakuje niezbędnych informacji, instrukcja każe opublikować pytanie i opis zablokowanej pracy w Inboxie, zamiast zakładać odpowiedź. Samo to nie wstrzymuje wykonania z formularzem pytania do wznowienia.
 

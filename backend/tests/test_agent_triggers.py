@@ -144,6 +144,7 @@ def _source_policy():
 def _trigger(**overrides: object) -> MagicMock:
     defaults: dict[str, object] = {
         "id": uuid.uuid4(),
+        "chat_mode": "shared",
         "approved_sources": _source_policy().model_dump(mode="json"),
         "organization_id": _ORG,
         "agent_id": uuid.uuid4(),
@@ -5878,3 +5879,26 @@ async def test_delivery_does_not_apply_a_result_mode_changed_after_admission():
         )
     assert delivered.status == "unavailable"
     post.assert_not_awaited()
+
+
+@pytest.mark.parametrize("mode, expected", [("per_run", "delivered"), ("shared", "run_log")])
+async def test_chat_modes_retain_the_execution_transcript_without_copying_its_answer(
+    mode: str, expected: str
+) -> None:
+    conversation_id = uuid.uuid4()
+    with patch(
+        "app.services.agent_trigger.conversation_repo.create_message", new=AsyncMock()
+    ) as copy:
+        delivery = await _service()._deliver(
+            _trigger(),
+            agent=_agent(),
+            run=MagicMock(routine_policy={"chat_mode": mode}, conversation_id=conversation_id),
+            answer="Completed report",
+        )
+    assert delivery.status == expected and delivery.conversation_id == conversation_id
+    copy.assert_not_awaited()
+
+
+def test_a_chat_mode_update_cannot_clear_its_value() -> None:
+    with pytest.raises(PydanticValidationError, match="chat_mode cannot be set to null"):
+        TriggerUpdate.model_validate({"chat_mode": None})

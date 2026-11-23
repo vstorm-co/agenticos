@@ -4808,6 +4808,7 @@ class AgentRunnerService:
                         "acts_as_creator": routine.acts_as_creator,
                         "action_mode": routine.action_mode,
                         "result_mode": routine.result_mode,
+                        "chat_mode": routine.chat_mode,
                         "approved_sources": None
                         if routine.source_policy is None
                         else routine.source_policy.model_dump(mode="json"),

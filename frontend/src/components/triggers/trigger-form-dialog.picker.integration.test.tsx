@@ -142,30 +142,21 @@ describe("TriggerFormDialog with no agent in context", () => {
   });
 });
 
-it("delivers a routine proposed in a chat back to that exact chat", async () => {
+it("defaults a routine proposed in a chat to shared history", async () => {
   const user = userEvent.setup();
   vi.mocked(apiClient.post).mockResolvedValue({
     id: "t-chat",
     agent_id: "a1",
     trigger_type: "schedule",
   });
-  render(
-    <TriggerFormDialog
-      agentId="a1"
-      originConversationId="source-chat"
-      open
-      onOpenChange={vi.fn()}
-    />,
-    { wrapper },
-  );
+  render(<TriggerFormDialog agentId="a1" open onOpenChange={vi.fn()} />, { wrapper });
   const dialog = await screen.findByRole("dialog");
   await user.type(within(dialog).getByLabelText("Message"), "Report here");
   await user.click(within(dialog).getByRole("button", { name: "Create" }));
   expect(apiClient.post).toHaveBeenCalledWith(
     "/agents/a1/triggers",
     expect.objectContaining({
-      answer_to: "conversation",
-      delivery_conversation_id: "source-chat",
+      chat_mode: "shared",
     }),
   );
 });

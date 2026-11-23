@@ -1151,3 +1151,28 @@ async def test_a_watch_without_a_chat_can_send_its_requested_completion_notice()
         )
         assert await WatchLook(MagicMock()).look(watch.id) == 0
     assert notify.await_args.kwargs["source_conversation_id"] is None
+
+
+async def test_a_changes_only_watch_delivers_its_finding_summary_without_a_completion_notice():
+    watch = _watch(report_mode="changes", source_conversation_id=uuid.uuid4())
+    patches, _ = TestOneLook._patches(watch)
+    with ExitStack() as stack:
+        for each in patches:
+            stack.enter_context(each)
+        stack.enter_context(
+            patch(f"{LOOK}.outcome_repo.count_run_findings", new=AsyncMock(return_value=1))
+        )
+        stack.enter_context(
+            patch(
+                f"{LOOK}.ConversationService", return_value=MagicMock(get_conversation=AsyncMock())
+            )
+        )
+        post = stack.enter_context(
+            patch(f"{LOOK}.conversation_repo.create_message", new=AsyncMock())
+        )
+        notice = stack.enter_context(
+            patch(f"{LOOK}.NotificationService.routine_finished", new=AsyncMock())
+        )
+        assert await WatchLook(MagicMock()).look(watch.id) == 1
+    assert post.await_args.kwargs["conversation_id"] == watch.source_conversation_id
+    notice.assert_not_awaited()

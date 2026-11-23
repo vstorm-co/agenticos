@@ -10328,7 +10328,9 @@
       "empty": "Her şey güncel. Yeni bulgular ve önemli konular burada görünecek.",
       "failed": "Gelen kutun yüklenemedi.",
       "refreshFailed": "Gelen kutunuz yenilenemedi. Son yüklenen öğeler gösteriliyor."
-    }
+    },
+    "routineHistoryReadOnly": "Bu rutin geçmişi salt okunurdur. Yeni bir sohbette devam etmek için yanıtı dallandır.",
+    "routineContinueChat": "Yeni sohbette devam et"
   },
   "admin": {
     "actions": "Eylemler",
@@ -11232,7 +11234,17 @@
       "manual": "İşlemlerden önce sor",
       "custom": "Her araç için izinleri seç",
       "existing": "Mevcut izinleri koru"
-    }
+    },
+    "chatModeLabel": "Sohbetler",
+    "chatMode": {
+      "per_run": "Her çalıştırma için yeni sohbet",
+      "shared": "Ortak geçmiş — salt okunur"
+    },
+    "chatModeHint": {
+      "per_run": "Her çalıştırmadan sonra sohbete devam et. Takip mesajları rutini değiştirmez.",
+      "shared": "Çalıştırmaları salt okunur ortak geçmişte tut. Yeni bir sohbette devam etmek için yanıtı dallandır."
+    },
+    "openExecutionChat": "Sohbeti aç"
   },
   "teams": {
     "acmeCom": "acme.com",

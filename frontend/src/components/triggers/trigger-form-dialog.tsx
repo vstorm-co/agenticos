@@ -63,7 +63,7 @@ import { VersionField } from "@/components/triggers/version-field";
 import { FailurePolicyField } from "@/components/triggers/failure-policy-field";
 import { NotificationChannelsField } from "@/components/triggers/notification-channels-field";
 import type { RoutineNotificationChannel } from "@/types/routines";
-import { AnswerToField } from "@/components/triggers/answer-to-field";
+import { ChatModeField } from "@/components/triggers/chat-mode-field";
 import { BudgetField, parseBudget, raisesBudget } from "@/components/triggers/budget-field";
 import { OverlapField } from "@/components/triggers/overlap-field";
 import { NO_TEAMS_POST, TeamsPostField } from "@/components/triggers/teams-post-field";
@@ -94,7 +94,7 @@ import type {
   Trigger,
   TriggerCreate,
   TriggerCreated,
-  TriggerAnswerTo,
+  RoutineChatMode,
   TriggerOverlap,
   TriggerType,
   TriggerUpdate,
@@ -154,8 +154,6 @@ interface TriggerFormDialogProps {
    * offers a picker over the published agents, seeded with the user's default.
    */
   agentId: string | null;
-  /** The chat that offered this routine; absent on the standalone routines page. */
-  originConversationId?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The trigger to edit, or null/undefined to create a new one. */
@@ -191,13 +189,11 @@ export function TriggerFormDialog({
   initialResultMode = "report",
   initialType = "schedule",
   initialTemplate = null,
-  originConversationId = null,
   onCreated,
 }: TriggerFormDialogProps) {
   const t = useTranslations("triggers");
   const tp = useTranslations("portals");
   const editing = trigger !== null;
-  const hasConversation = !!(trigger?.delivery_conversation_id ?? originConversationId);
   const localWork = useRoutineLocalWork();
   const [preparedLocal, setPreparedLocal] = useState<TriggerCreated | null>(null);
   const [approvedLocal, setApprovedLocal] = useState<LocalTarget | null>(null);
@@ -293,8 +289,13 @@ export function TriggerFormDialog({
     setInvalidEnd(instant === undefined || (instant !== null && Date.parse(instant) <= Date.now()));
   };
   const resultMode = trigger?.result_mode ?? initialResultMode;
-  const [answerTo, setAnswerTo] = useState<TriggerAnswerTo>(
-    trigger ? (trigger.answer_to ?? "run_log") : originConversationId ? "conversation" : "primary",
+  const [chatMode, setChatMode] = useState<RoutineChatMode>(
+    trigger?.chat_mode ??
+      (trigger
+        ? trigger.answer_to === "run_log" || trigger.result_mode === "inbox"
+          ? "shared"
+          : "per_run"
+        : "shared"),
   );
   // Impersonation never supplies the creator's own authority.
   const isCreator =
@@ -550,9 +551,7 @@ export function TriggerFormDialog({
         ? { review_before_activation: true }
         : {}),
       ...(teamsPost !== NO_TEAMS_POST ? { teams_conversation_id: teamsPost } : {}),
-      // Only when it is not the server's default, so a plain create says nothing new.
-      ...(answerTo !== "primary" ? { answer_to: answerTo } : {}),
-      ...(answerTo === "conversation" ? { delivery_conversation_id: originConversationId } : {}),
+      chat_mode: chatMode,
       ...(budgetLimit !== null && budgetLimit !== undefined
         ? { monthly_budget_usd: budgetLimit }
         : {}),
@@ -672,12 +671,12 @@ export function TriggerFormDialog({
         const post = teamsPost === NO_TEAMS_POST ? null : teamsPost;
         if (post !== (trigger.teams_conversation_id ?? null)) patch.teams_conversation_id = post;
         if (resultMode !== (trigger.result_mode ?? "report")) patch.result_mode = resultMode;
-        if (answerTo !== (trigger.answer_to ?? "run_log")) {
-          patch.answer_to = answerTo;
-          if (answerTo === "conversation")
-            patch.delivery_conversation_id =
-              trigger.delivery_conversation_id ?? originConversationId;
-        }
+        const previousChatMode =
+          trigger.chat_mode ??
+          (trigger.answer_to === "run_log" || trigger.result_mode === "inbox"
+            ? "shared"
+            : "per_run");
+        if (chatMode !== previousChatMode) patch.chat_mode = chatMode;
         if (endTouched && end !== undefined) patch.ends_at = end;
         if (
           JSON.stringify(notificationChannels) !==
@@ -1061,6 +1060,7 @@ export function TriggerFormDialog({
               )}
 
               {approvalField}
+              <ChatModeField value={chatMode} onChange={setChatMode} />
               <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
                 {namedEnvironments.length > 0 && (
                   <EnvironmentField
@@ -1083,14 +1083,6 @@ export function TriggerFormDialog({
 
                 {resultMode === "report" && (
                   <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
-                )}
-
-                {resultMode === "report" && (
-                  <AnswerToField
-                    value={answerTo}
-                    onChange={setAnswerTo}
-                    hasConversation={hasConversation}
-                  />
                 )}
                 <FailurePolicyField
                   value={maxFailures}
@@ -1245,6 +1237,7 @@ export function TriggerFormDialog({
             )}
             {approvalField}
             {type === "schedule" && scheduleFields}
+            <ChatModeField value={chatMode} onChange={setChatMode} />
             <p role="note" className="text-muted-foreground text-sm">
               {t(runsAsCreator ? "sourceConsents.runsAsYou" : "sourceConsents.agentIdentity")}
             </p>
@@ -1300,13 +1293,6 @@ export function TriggerFormDialog({
                 <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
               )}
 
-              {resultMode === "report" && (
-                <AnswerToField
-                  value={answerTo}
-                  onChange={setAnswerTo}
-                  hasConversation={hasConversation}
-                />
-              )}
               <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
               <NotificationChannelsField
                 value={notificationChannels}

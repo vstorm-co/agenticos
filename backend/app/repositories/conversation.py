@@ -1524,13 +1524,14 @@ async def fork_conversation(
     source: Conversation,
     through: Message,
     copy_bytes: int,
+    owner_user_id: UUID | None = None,
     restored_summary: dict[str, JsonValue] | None = None,
     copy_summary: bool = True,
 ) -> Conversation:
     """A new conversation holding `source`'s messages up to and including `through`.
 
-    Owned by the source's owner, in its organization and project, with the same
-    title. Each message is copied with its tool calls, in the order it was
+    Owned by the source's owner unless the service supplies the authorized
+    routine creator, in the source organization and project, with the same title. Each message is copied with its tool calls, in the order it was
     written, and flushed one at a time: the ordinal comes from an identity, and
     one multi-row insert does not promise to hand it out in the order of the
     rows.
@@ -1553,7 +1554,7 @@ async def fork_conversation(
     reaches past the fork point covers turns the fork does not have, and is left behind.
     """
     fork = Conversation(
-        user_id=source.user_id,
+        user_id=owner_user_id if owner_user_id is not None else source.user_id,
         organization_id=source.organization_id,
         title=source.title,
         project_id=source.project_id,

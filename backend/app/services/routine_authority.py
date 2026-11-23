@@ -131,6 +131,7 @@ class RoutineAuthority:
     acts_as_creator: bool
     action_mode: Literal["agent", "manual", "per_tool"] | None = None
     routine_kind: Literal["trigger", "watch"] = "trigger"
+    chat_mode: Literal["per_run", "shared"] | None = None
     result_mode: Literal["report", "inbox"] = "report"
     sources: WatchSources | None = None
     action_consents: tuple[RoutineConsent, ...] = ()
@@ -222,6 +223,7 @@ class RoutineAuthority:
         local_target_hash: str | None = None
         reviewed_sources: RoutineSourcePolicy | None = None
         result_mode: Literal["report", "inbox"] = "report"
+        chat_mode: Literal["per_run", "shared"] | None = None
         action_mode: Literal["agent", "manual", "per_tool"] | None = None
         acts_as_creator = (
             ctx.fired_as_creator is not None
@@ -241,6 +243,18 @@ class RoutineAuthority:
                 if not isinstance(recorded_actor, bool):
                     raise _refused()
                 acts_as_creator = recorded_actor
+            recorded_chat = (
+                trigger.chat_mode if run is None else (run.routine_policy or {}).get("chat_mode")
+            )
+            if recorded_chat not in (None, "per_run", "shared"):
+                raise _refused()
+            chat_mode = (
+                "per_run"
+                if recorded_chat == "per_run"
+                else "shared"
+                if recorded_chat == "shared"
+                else None
+            )
             recorded_action = (
                 trigger.action_mode
                 if run is None
@@ -312,6 +326,7 @@ class RoutineAuthority:
             acts_as_creator=acts_as_creator,
             action_mode=action_mode,
             routine_kind="watch" if kind == "watch" else "trigger",
+            chat_mode=chat_mode,
             result_mode=result_mode,
             sources=sources,
             action_consents=action_consents,

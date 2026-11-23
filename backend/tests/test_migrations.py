@@ -2948,3 +2948,99 @@ def test_matrix_surface_migration_preserves_existing_exposures() -> None:
         assert result.returncode == 0, result.stderr
     finally:
         engine.dispose()
+
+
+def test_routine_chat_mode_migration_maps_destinations_without_changing_authority() -> None:
+    from app.db.models.agent import Agent
+    from app.db.models.conversation import Conversation
+
+    assert _alembic("upgrade", "head").returncode == 0
+    assert _alembic("downgrade", "0350_run_reporting_credential").returncode == 0
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with DatabaseSession(engine, expire_on_commit=False) as db:
+            user_id, org_id = uuid4(), uuid4()
+            db.execute(_HISTORICAL_USER_INSERT, {"id": user_id, "email": f"{user_id}@example.com"})
+            db.execute(
+                _HISTORICAL_ORGANIZATION_INSERT,
+                {
+                    "id": org_id,
+                    "name": "Chat modes",
+                    "slug": f"chat-modes-{org_id}",
+                    "owner": user_id,
+                },
+            )
+            agent = Agent(
+                organization_id=org_id,
+                owner_user_id=user_id,
+                name="Reporter",
+                slug=f"reporter-{uuid4()}",
+            )
+            target = Conversation(organization_id=org_id, user_id=user_id)
+            history = Conversation(organization_id=org_id, user_id=None)
+            db.add_all([agent, target, history])
+            db.flush()
+            policy = {"id": "retained-source-consent", "scope_hash": "unchanged"}
+            for label, answer_to, result_mode in (
+                ("primary", "primary", "report"),
+                ("conversation", "conversation", "report"),
+                ("log", "run_log", "report"),
+                ("inbox", "primary", "inbox"),
+            ):
+                db.execute(
+                    text(
+                        "INSERT INTO agent_triggers (id, organization_id, agent_id, created_by_user_id, name, prompt, interval_seconds, next_fire_at, is_active, trigger_type, schedule_kind, event_config, answer_to, result_mode, delivery_conversation_id, conversation_id, approved_sources) "
+                        "VALUES (:id, :org, :agent, :person, :name, 'Unchanged prompt', 86400, :next_fire, false, 'schedule', 'interval', '{}', :answer, :result, :target, :history, CAST(:policy AS jsonb))"
+                    ),
+                    {
+                        "id": uuid4(),
+                        "org": org_id,
+                        "agent": agent.id,
+                        "person": user_id,
+                        "name": label,
+                        "next_fire": datetime.now(UTC),
+                        "answer": answer_to,
+                        "result": result_mode,
+                        "target": target.id if answer_to == "conversation" else None,
+                        "history": history.id,
+                        "policy": json.dumps(policy),
+                    },
+                )
+            db.commit()
+            history_id = history.id
+        for action, revision in (
+            ("upgrade", "head"),
+            ("downgrade", "0350_run_reporting_credential"),
+            ("upgrade", "head"),
+        ):
+            result = _alembic(action, revision)
+            assert result.returncode == 0, result.stderr
+            if action != "upgrade":
+                continue
+            with engine.connect() as db:
+                rows = db.execute(
+                    text(
+                        "SELECT name, chat_mode, is_active, prompt, approved_sources FROM agent_triggers WHERE organization_id = :org"
+                    ),
+                    {"org": org_id},
+                ).all()
+                assert {row.name: row.chat_mode for row in rows} == {
+                    "primary": "per_run",
+                    "conversation": "per_run",
+                    "log": "shared",
+                    "inbox": "shared",
+                }
+                assert all(
+                    not row.is_active
+                    and row.prompt == "Unchanged prompt"
+                    and row.approved_sources == policy
+                    for row in rows
+                )
+                assert (
+                    db.execute(
+                        text("SELECT origin FROM conversations WHERE id = :id"), {"id": history_id}
+                    ).scalar_one()
+                    == "routine"
+                )
+    finally:
+        engine.dispose()

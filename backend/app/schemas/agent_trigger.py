@@ -495,6 +495,10 @@ class TriggerCreate(BaseSchema):
             "Narrows the agent's and the organization's limits; never lifts them (#2575)"
         ),
     )
+    chat_mode: Literal["per_run", "shared"] = Field(
+        default="shared",
+        description="A private editable chat for each execution, or one read-only shared history whose creator may fork an answer.",
+    )
     action_mode: Literal["agent", "manual", "per_tool"] | None = None
     result_mode: Literal["report", "inbox"] = Field(
         default="report",
@@ -680,6 +684,7 @@ _UPDATE_NOT_NULLABLE = (
     "runs_as_creator",
     "overlap",
     "answer_to",
+    "chat_mode",
     "result_mode",
 )
 
@@ -757,6 +762,7 @@ class TriggerUpdate(BaseSchema):
         description="This routine's own monthly limit; null removes it",
     )
     action_mode: Literal["agent", "manual", "per_tool"] | None = None
+    chat_mode: Literal["per_run", "shared"] | None = None
     result_mode: Literal["report", "inbox"] | None = None
     answer_to: Literal["run_log", "primary", "conversation"] | None = Field(
         default=None, description="Where each fire's answer goes; see `TriggerCreate.answer_to`"
@@ -884,6 +890,7 @@ class TriggerRead(BaseSchema, TimestampSchema):
     )
     teams_conversation_id: UUID | None = None
     action_mode: Literal["agent", "manual", "per_tool"] | None = None
+    chat_mode: Literal["per_run", "shared"] = "shared"
     result_mode: Literal["report", "inbox"] = "report"
     answer_to: Literal["run_log", "primary", "conversation"] = "run_log"
     notification_channels: list[ExternalNotificationChannel] | None = Field(

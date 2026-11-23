@@ -273,6 +273,7 @@ describe("TriggersPanel", () => {
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
       action_mode: "agent",
+      chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Do the thing",
       name: null,
@@ -314,6 +315,22 @@ describe("TriggersPanel", () => {
     await user.type(count, "30");
     expect(within(dialog).queryByRole("alert")).toBeNull();
     expect(within(dialog).getByRole("button", { name: "Create" })).toBeEnabled();
+  });
+
+  it("lets an existing routine switch to a shared read-only history", async () => {
+    const user = userEvent.setup();
+    const row = trigger({ chat_mode: "per_run" });
+    serve([row]);
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...row, chat_mode: "shared" });
+    await mount();
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("combobox", { name: "Conversations" }));
+    await user.click(screen.getByRole("option", { name: "Shared history — read-only" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
+      chat_mode: "shared",
+    });
   });
 
   it("edits an email trigger's filter in place, and only when it changed", async () => {
@@ -677,6 +694,7 @@ describe("TriggersPanel", () => {
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
       action_mode: "agent",
+      chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Every couple of days",
       name: null,
@@ -824,6 +842,7 @@ describe("TriggersPanel", () => {
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
       action_mode: "agent",
+      chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Daily digest",
       name: null,
@@ -856,6 +875,7 @@ describe("TriggersPanel", () => {
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
       action_mode: "agent",
+      chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Morning digest",
       name: null,
@@ -928,6 +948,7 @@ describe("TriggersPanel", () => {
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
       action_mode: "agent",
+      chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Sweep the queue",
       name: null,

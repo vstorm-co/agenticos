@@ -240,21 +240,24 @@ describe("TriggerRow run list", () => {
     expect(within(await screen.findByRole("dialog")).getByText(/\$0\.0042/)).toBeVisible();
   });
 
-  it("links each fire to its own run detail", async () => {
+  it("links each fire to its own run detail and execution chat", async () => {
     // The point of listing runs rather than turns: the requests, the tools and
     // the cost per turn are on that page, and there was no way to reach it.
-    serveRuns([run({ id: "r-42" })]);
+    serveRuns([run({ id: "r-42", conversation_id: "execution-chat" })]);
     render(<TriggerRow trigger={trigger()} />, { wrapper });
 
     await userEvent.click(screen.getByRole("button", OPEN));
 
     const link = within(await screen.findByRole("dialog")).getByRole("link", { name: /Open run/ });
     expect(link).toHaveAttribute("href", "/runs?run=r-42");
+    expect(screen.getByRole("link", { name: "Open chat" })).toHaveAttribute(
+      "href",
+      "/chat?id=execution-chat",
+    );
   });
 
   it("asks only for this trigger's own fires", async () => {
-    // Every fire of one trigger appends to a single run-log conversation, so the
-    // conversation is the trigger's identity in the run history.
+    // Routine identity spans independent execution chats and shared histories.
     serveRuns([run()]);
     render(<TriggerRow trigger={trigger({ conversation_id: "c-9" })} />, { wrapper });
 
@@ -263,7 +266,7 @@ describe("TriggerRow run list", () => {
 
     await waitFor(() =>
       expect(apiClient.get).toHaveBeenCalledWith("/runs", {
-        params: expect.objectContaining({ conversation_id: "c-9" }),
+        params: expect.objectContaining({ trigger_id: "t1" }),
       }),
     );
   });
@@ -741,7 +744,7 @@ it.each([false, true])("matches before-run attempts by identity (new: %s)", asyn
 
 it("does not settle a dispatch from cached rows older than its history snapshot", async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const runKey = qk.runs.list({ conversationId: "c1" });
+  const runKey = qk.runs.list({ triggerId: "t1" });
   const attemptKey = qk.triggers.attempts("a1", "t1", 0);
   client.setQueryData(runKey, {
     items: [run({ id: "older-run", routine_activation_id: "old-fire" })],
