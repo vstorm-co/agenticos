@@ -250,3 +250,8 @@ async def test_a_round_of_proposals_is_priced_at_the_improvers_model_or_the_fall
         assert Decimal(0) < price < Decimal("0.10")
     else:
         assert price == expected
+
+
+def test_a_variant_names_itself_by_attempt_generation_and_score():
+    variant = _variant(2, 0.75)
+    assert "generation=2" in repr(variant) and "score=0.75" in repr(variant)

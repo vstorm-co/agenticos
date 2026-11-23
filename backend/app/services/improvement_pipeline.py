@@ -2988,6 +2988,7 @@ class ImprovementPipelineService:
             or run.stage != Stage.FILTERING
             or iteration is None
             or iteration.search is None
+            or iteration.batch_id is None
             or iteration.eval_run_ids
         ):
             raise BadRequestError(
@@ -3004,22 +3005,17 @@ class ImprovementPipelineService:
         if str(variant.id) == iteration.search.get("chosen_variant_id"):
             return await self._read(ctx, run)
         inputs = await self._current_inputs(ctx, run)
-        replaced = iteration.batch_id
+        previous = await authoring_repo.get_batch(
+            self.db, iteration.batch_id, organization_id=ctx.organization_id
+        )
+        assert previous is not None, "deleting a batch sets the attempt's batch_id to null"
         await search.adopt(
             run,
             iteration,
             base=AgentSpec.model_validate(inputs.agent.draft_spec).instructions,
             variant=variant,
         )
-        previous = (
-            None
-            if replaced is None
-            else await authoring_repo.get_batch(
-                self.db, replaced, organization_id=ctx.organization_id
-            )
-        )
-        if previous is not None:
-            await authoring_repo.close_batch(self.db, batch=previous, status=BatchStatus.SUPERSEDED)
+        await authoring_repo.close_batch(self.db, batch=previous, status=BatchStatus.SUPERSEDED)
         await self._audit(run, "variant_chosen", actor_user_id=ctx.subject_id)
         await self._move(run, rules.Transition(Status.RUNNING, Stage.FILTERING))
         return await self._read(ctx, run)
