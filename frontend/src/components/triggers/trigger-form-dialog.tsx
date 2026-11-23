@@ -14,6 +14,7 @@ import { WebhookSignatureFields, webhookSignatureValid } from "./webhook-signatu
 import { FILTER_COPY } from "./portal-trigger-dialog";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Hand, ShieldCheck, SlidersHorizontal } from "lucide-react";
 
 import { useRoutineLocalWork } from "@/hooks/use-routine-local-work";
 import { coveredByAllRoutines } from "@/lib/desktop/routine-work";
@@ -85,7 +86,6 @@ import {
   parseCron,
   unitToSeconds,
   WEEKDAYS,
-  weekdayKey,
 } from "@/lib/trigger-format";
 import type { LocalTarget } from "@/lib/desktop/commands";
 import type {
@@ -251,8 +251,7 @@ export function TriggerFormDialog({
   // event. There is no in-dialog switch, because event triggers are created from
   // the portal grid by default, not this raw form.
   const type = trigger?.trigger_type ?? initialType;
-  // Creating walks the KB-wizard steps; editing has no steps - the shape is
-  // fixed, so its few live fields fit one panel.
+  // Schedules fit one panel; the event flow still has source-specific steps.
   const [step, setStep] = useState<WizardStepId>(type === "event" ? "event" : "configure");
   const [prompt, setPrompt] = useState(trigger?.prompt ?? "");
   const [name, setName] = useState(trigger?.name ?? "");
@@ -535,8 +534,7 @@ export function TriggerFormDialog({
       environment_id: environmentId === DEFAULT_ENV ? null : environmentId,
       ...(pinnedVersion ? { pinned_version_id: pinnedVersion } : {}),
       ...(end ? { ends_at: end } : {}),
-      // The console defaults to the consenting creator; other callers retain
-      // the API's identity-free default.
+      // Send the explicit choice, including an opt-out from creator identity.
       runs_as_creator: runsAsCreator,
       action_mode:
         approvalChoice === "manual" || approvalChoice === "custom"
@@ -858,11 +856,31 @@ export function TriggerFormDialog({
         </SelectTrigger>
         <SelectContent>
           {trigger && !trigger.action_mode && (
-            <SelectItem value="existing">{t("approvalMode.existing")}</SelectItem>
+            <SelectItem value="existing">
+              <span className="inline-flex items-center gap-2">
+                <ShieldCheck className="size-4 shrink-0" aria-hidden />
+                {t("approvalMode.existing")}
+              </span>
+            </SelectItem>
           )}
-          <SelectItem value="automatic">{t("approvalMode.automatic")}</SelectItem>
-          <SelectItem value="manual">{t("approvalMode.manual")}</SelectItem>
-          <SelectItem value="custom">{t("approvalMode.custom")}</SelectItem>
+          <SelectItem value="automatic">
+            <span className="inline-flex items-center gap-2">
+              <ShieldCheck className="size-4 shrink-0" aria-hidden />
+              {t("approvalMode.automatic")}
+            </span>
+          </SelectItem>
+          <SelectItem value="manual">
+            <span className="inline-flex items-center gap-2">
+              <Hand className="size-4 shrink-0" aria-hidden />
+              {t("approvalMode.manual")}
+            </span>
+          </SelectItem>
+          <SelectItem value="custom">
+            <span className="inline-flex items-center gap-2">
+              <SlidersHorizontal className="size-4 shrink-0" aria-hidden />
+              {t("approvalMode.custom")}
+            </span>
+          </SelectItem>
         </SelectContent>
       </Select>
     </FormField>
@@ -1477,7 +1495,7 @@ function ScheduleFields({
  * The "at a set time" builder: a repeat preset and a clock time, compiled to cron
  * by `composeCron` in the parent. A non-technical user picks "every day at 09:00"
  * rather than writing `0 9 * * *`; "Custom (cron)" still takes a raw expression for
- * anything the presets miss. A live summary states what the current choices mean.
+ * anything the presets miss.
  */
 function CronBuilder({
   freq,
@@ -1655,7 +1673,7 @@ interface CadenceFieldsProps extends ScheduleFieldsProps {
 
 /**
  * A schedule's cadence, asked in order: how often, then only what that choice
- * needs, then what it means in one sentence. What happens when a run is still
+ * needs. What happens when a run is still
  * going is rarely changed, so it waits under More options.
  */
 function CadenceFields({ choice, onChoice, overlap, onOverlap, ...schedule }: CadenceFieldsProps) {
@@ -1676,7 +1694,6 @@ function CadenceFields({ choice, onChoice, overlap, onOverlap, ...schedule }: Ca
         />
       )}
       {choice === "custom" && <ScheduleFields {...schedule} />}
-      <CadenceSummary {...schedule} />
       <NativeDisclosure className="group">
         <summary className="text-muted-foreground hover:text-foreground cursor-pointer text-sm font-medium select-none">
           {t("moreOptions")}
@@ -1687,67 +1704,6 @@ function CadenceFields({ choice, onChoice, overlap, onOverlap, ...schedule }: Ca
       </NativeDisclosure>
     </div>
   );
-}
-
-/** What the cadence means, in a sentence - for every choice, the builder's included. */
-function CadenceSummary({ scheduleKind, intervalCount, intervalUnit, cron }: ScheduleFieldsProps) {
-  const t = useTranslations("triggers");
-  if (scheduleKind === "interval") {
-    // An invalid count says so under its own field; there is nothing to restate.
-    if (!intervalCountValid(intervalCount)) return null;
-    return (
-      <p className="bg-muted/60 rounded-xl px-3 py-2 text-sm">
-        {t("summaryInterval", { unit: intervalUnit, count: Number(intervalCount) })}
-      </p>
-    );
-  }
-  if (cron.freq === "advanced") return null;
-  return (
-    <p className="bg-muted/60 rounded-xl px-3 py-2 text-sm">
-      <CronSummary
-        freq={cron.freq}
-        time={cron.time}
-        zone={cron.timeZone}
-        everyDays={cron.everyDays}
-        weekdays={cron.weekdays}
-        dayOfMonth={cron.dayOfMonth}
-      />
-    </p>
-  );
-}
-
-/** A plain-language restatement of the builder's current choices, for reassurance. */
-function CronSummary({
-  freq,
-  time,
-  zone,
-  everyDays,
-  weekdays,
-  dayOfMonth,
-}: {
-  freq: CronFrequency;
-  time: string;
-  zone: string;
-  everyDays: string;
-  weekdays: number[];
-  dayOfMonth: string;
-}) {
-  const t = useTranslations("triggers");
-  if (freq === "everyNDays") {
-    return <>{t("summaryEveryNDays", { count: clampInt(everyDays, 1, 31, 1) })}</>;
-  }
-  if (freq === "weekly") {
-    const chosen = weekdays.length ? weekdays : [1];
-    const days = [...chosen]
-      .sort((a, b) => a - b)
-      .map((value) => t(weekdayKey(value)))
-      .join(", ");
-    return <>{t("summaryWeekly", { time, zone, days })}</>;
-  }
-  if (freq === "monthly") {
-    return <>{t("summaryMonthly", { day: clampInt(dayOfMonth, 1, 31, 1), time, zone })}</>;
-  }
-  return <>{t("summaryDaily", { time, zone })}</>;
 }
 
 interface EventFieldsProps {

@@ -2405,6 +2405,10 @@ The agent supplies stable item and revision IDs, useful context and any requeste
 
 Published findings are committed at the MCP call. A later run failure does not erase an already reported finding; the failed attempt remains visible and retries deduplicate source revisions.
 
+Each routine reuses one system run-log conversation. Reading that log requires `runs:view` and access to the agent; it is not the owner's private chat. New activations do not automatically replay its previous messages to the model. Configured memory and explicit source reads provide continuity instead.
+
+Unattended execution has no live `ask_user` channel. If essential input is missing, the agent is instructed to publish the question and blocked work as an Inbox finding, rather than assume an answer. This does not itself park a resumable question form.
+
 Open the conversation from Inbox to edit the draft or request the next action.
 Reading or editing a draft does not send it or complete the case. Normal tool
 permissions and approval still apply. The platform MCP tools `list_inbox_cases`

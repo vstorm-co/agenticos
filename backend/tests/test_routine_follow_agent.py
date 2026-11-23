@@ -156,6 +156,10 @@ async def test_following_sources_support_per_tool_approval_choices(consented: bo
     with (
         patch("app.services.routine_authority.get_db_context", context),
         patch.object(RoutineAuthority, "check_in", AsyncMock()),
+        patch(
+            "app.services.routine_authority.agent_trigger_repo.get_by_id",
+            AsyncMock(return_value=None),
+        ),
         patch.object(
             RoutineAuthority, "_consent_in", AsyncMock(return_value=person if consented else None)
         ),

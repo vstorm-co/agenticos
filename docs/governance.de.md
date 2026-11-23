@@ -1,5 +1,5 @@
 ---
-source_sha: "871bbe3da872"
+source_sha: "29e5b104ee3f"
 ---
 
 # Governance { #governance }
@@ -2702,6 +2702,10 @@ Inbox-Ergebnisse werden ausschließlich über das AgenticOS-MCP-Werkzeug `publis
 Der Agent übergibt stabile Element- und Revisionskennungen, Kontext und angeforderte vollständige Entwürfe. Unveränderte Revisionen bleiben still; neue aktualisieren denselben Arbeitschat und öffnen den Fall erneut, stummgeschaltete Elemente bleiben stumm. Ein Run kann höchstens acht Ergebnisse veröffentlichen. Endantworten bleiben im Protokoll oder ausdrücklich gewählten Chat und werden nie in Inbox-Karten geparst. Das alte Feld `result_mode` bleibt lesbar, aktiviert aber keine automatische strukturierte Zustellung mehr. Ohne Änderungen wird nichts veröffentlicht, außer ein Monitor soll jede Prüfung melden.
 
 Veröffentlichte Ergebnisse werden beim MCP-Aufruf gespeichert. Ein späterer Run-Fehler löscht sie nicht; der fehlgeschlagene Versuch bleibt sichtbar und Wiederholungen deduplizieren Quellenrevisionen.
+
+Jede Routine verwendet dieselbe Systemunterhaltung als Ausführungsprotokoll. Zum Lesen sind `runs:view` und Zugriff auf den Agenten erforderlich; sie ist kein privater Chat des Eigentümers. Neue Ausführungen übernehmen frühere Protokollnachrichten nicht automatisch als Modellkontext. Konfigurierter Speicher und explizite Quellenabfragen stellen stattdessen Kontinuität her.
+
+Unbeaufsichtigte Ausführungen haben keinen aktiven `ask_user`-Kanal. Fehlen notwendige Angaben, soll der Agent die Frage und die blockierte Arbeit als Inbox-Befund veröffentlichen, statt eine Antwort anzunehmen. Dadurch entsteht kein pausiertes, fortsetzbares Frageformular.
 
 Öffnen Sie das Gespräch aus der Inbox, um den Entwurf zu ändern oder den nächsten
 Schritt zu beauftragen. Lesen und Bearbeiten versenden nichts und erledigen den

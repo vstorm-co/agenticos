@@ -8460,7 +8460,9 @@
       "newWatch": "Monitor and inform",
       "newRoutine": "New routine",
       "scheduledTask": "Run on a schedule",
-      "eventTask": "Run when an event arrives"
+      "eventTask": "Run when an event arrives",
+      "watchNeedsEnabling": "Enable monitoring in Organization settings → Proactive work.",
+      "watchNeedsConnection": "Connect an MCP account in Connections first."
     },
     "signIns": {
       "cancel": "Cancel",
@@ -10286,10 +10288,6 @@
     "weekdayFri": "Fri",
     "weekdaySat": "Sat",
     "weekdaySun": "Sun",
-    "summaryDaily": "Runs every day at {time} ({zone}).",
-    "summaryEveryNDays": "Runs every {count, plural, =1 {day} other {# days}}, continuously from when it is saved.",
-    "summaryWeekly": "Runs at {time} ({zone}) on {days}.",
-    "summaryMonthly": "Runs on day {day} of every month at {time} ({zone}).",
     "eventSource": "Fires on",
     "sourceGithub": "A GitHub issue",
     "webhookUrlPreview": "Delivery URL",
@@ -10427,7 +10425,6 @@
     "choiceWeekly": "Weekly",
     "choiceCustom": "Custom",
     "moreOptions": "More options",
-    "summaryInterval": "Runs every {unit, select, minutes {{count, plural, =1 {minute} other {# minutes}}} hours {{count, plural, =1 {hour} other {# hours}}} other {{count, plural, =1 {day} other {# days}}}}, from when it is saved.",
     "templatesMore": "{count, plural, =1 {Show 1 more} other {Show # more}}",
     "templatesFewer": "Show fewer",
     "local": {

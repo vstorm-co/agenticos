@@ -2643,7 +2643,9 @@
       "newWatch": "İzle ve bildir",
       "newRoutine": "Yeni rutin",
       "scheduledTask": "Zamanlamaya göre çalıştır",
-      "eventTask": "Bir olay geldiğinde çalıştır"
+      "eventTask": "Bir olay geldiğinde çalıştır",
+      "watchNeedsEnabling": "Organizasyon ayarları → Proaktif çalışma bölümünden izlemeyi etkinleştirin.",
+      "watchNeedsConnection": "Önce Bağlantılar bölümünde bir MCP hesabı bağlayın."
     },
     "signIns": {
       "cancel": "İptal",
@@ -11023,10 +11025,6 @@
     "weekdayFri": "Cum",
     "weekdaySat": "Cmt",
     "weekdaySun": "Paz",
-    "summaryDaily": "Her gün {time} ({zone}) saatinde çalışır.",
-    "summaryEveryNDays": "Kaydedildiği andan itibaren {count, plural, =1 {her gün} other {# günde bir}} çalışır.",
-    "summaryWeekly": "{days} günlerinde {time} ({zone}) saatinde çalışır.",
-    "summaryMonthly": "Her ayın {day}. günü {time} ({zone}) saatinde çalışır.",
     "eventSource": "Şu olayda çalışır",
     "sourceGithub": "Bir GitHub issue’su",
     "webhookUrlPreview": "İstek URL’si",
@@ -11160,7 +11158,6 @@
     "choiceWeekly": "Haftalık",
     "choiceCustom": "Özel",
     "moreOptions": "Daha fazla seçenek",
-    "summaryInterval": "Kaydedildiği andan itibaren {unit, select, minutes {{count, plural, =1 {dakikada bir} other {# dakikada bir}}} hours {{count, plural, =1 {saatte bir} other {# saatte bir}}} other {{count, plural, =1 {günde bir} other {# günde bir}}}} çalışır.",
     "templatesMore": "{count, plural, =1 {1 tane daha göster} other {# tane daha göster}}",
     "templatesFewer": "Daha az göster",
     "local": {

@@ -1,5 +1,5 @@
 ---
-source_sha: "871bbe3da872"
+source_sha: "29e5b104ee3f"
 ---
 
 # Governance { #governance }
@@ -2554,6 +2554,10 @@ Los hallazgos llegan a Inbox únicamente mediante la herramienta MCP de AgenticO
 El agente aporta identificadores estables de elemento y revisión, contexto y el borrador completo solicitado. Una revisión sin cambios permanece silenciosa; una nueva actualiza la misma conversación de trabajo y reabre el caso, mientras los elementos silenciados siguen así. Cada ejecución publica hasta ocho hallazgos. La respuesta final permanece en el registro o chat elegido explícitamente y nunca se analiza para crear tarjetas. El campo antiguo `result_mode` sigue siendo legible, pero ya no selecciona entrega estructurada automática. Sin cambios no se publica nada, salvo que un monitor deba informar de cada comprobación.
 
 Los hallazgos se guardan en la llamada MCP. Un fallo posterior no elimina lo publicado; el intento fallido permanece visible y los reintentos deduplican las revisiones.
+
+Cada rutina reutiliza una conversación de sistema como registro. Leerla requiere `runs:view` y acceso al agente; no es el chat privado del propietario. Las ejecuciones nuevas no envían automáticamente los mensajes anteriores del registro al modelo. La memoria configurada y las lecturas explícitas de fuentes aportan continuidad.
+
+La ejecución desatendida no tiene un canal `ask_user` activo. Si falta información esencial, las instrucciones indican publicar la pregunta y el trabajo bloqueado como hallazgo en Inbox, en vez de suponer una respuesta. Esto no crea por sí solo un formulario de preguntas pausado y reanudable.
 
 Abra la conversación desde Inbox para editar el borrador o solicitar el siguiente
 paso. Leer o editar no envía nada ni completa el caso. Siguen vigentes los permisos

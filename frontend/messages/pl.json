@@ -4575,7 +4575,9 @@
       "newWatch": "Monitoruj i informuj",
       "newRoutine": "Nowa rutyna",
       "scheduledTask": "Uruchamiaj według harmonogramu",
-      "eventTask": "Uruchamiaj po zdarzeniu"
+      "eventTask": "Uruchamiaj po zdarzeniu",
+      "watchNeedsEnabling": "Włącz monitoring w ustawieniach organizacji → Praca proaktywna.",
+      "watchNeedsConnection": "Najpierw dodaj konto MCP w Połączeniach."
     },
     "signIns": {
       "cancel": "Anuluj",
@@ -8964,10 +8966,6 @@
     "weekdayFri": "Pt",
     "weekdaySat": "Sb",
     "weekdaySun": "Nd",
-    "summaryDaily": "Uruchomi się codziennie o {time} ({zone}).",
-    "summaryEveryNDays": "Uruchomi się co {count, plural, =1 {dzień} few {# dni} many {# dni} other {# dni}} o {time} UTC.",
-    "summaryWeekly": "Uruchomi się o {time} ({zone}) w: {days}.",
-    "summaryMonthly": "Uruchomi się {day}. dnia każdego miesiąca o {time} ({zone}).",
     "eventSource": "Uruchamia się przy",
     "sourceGithub": "Zgłoszeniu GitHub",
     "webhookUrlPreview": "Adres dostarczania",
@@ -9107,7 +9105,6 @@
     "choiceWeekly": "Co tydzień",
     "choiceCustom": "Własny",
     "moreOptions": "Więcej opcji",
-    "summaryInterval": "Uruchamia się co {unit, select, minutes {{count, plural, one {minutę} few {# minuty} many {# minut} other {# minuty}}} hours {{count, plural, one {godzinę} few {# godziny} many {# godzin} other {# godziny}}} other {{count, plural, one {dzień} other {# dni}}}}, licząc od zapisania.",
     "templatesMore": "{count, plural, one {Pokaż jeszcze 1} few {Pokaż jeszcze #} many {Pokaż jeszcze #} other {Pokaż jeszcze #}}",
     "templatesFewer": "Pokaż mniej",
     "local": {

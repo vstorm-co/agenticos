@@ -498,7 +498,7 @@ class TriggerCreate(BaseSchema):
     action_mode: Literal["agent", "per_tool"] | None = None
     result_mode: Literal["report", "inbox"] = Field(
         default="report",
-        description="Report every completed run, or create deduplicated Inbox cases with a private chat per source item only when attention is needed.",
+        description="Legacy delivery compatibility: report permits answer_to delivery; inbox retains only the run log. In both modes, findings are published explicitly through publish_inbox_finding MCP, never parsed from the final answer.",
     )
     answer_to: Literal["run_log", "primary", "conversation"] = Field(
         default="primary",

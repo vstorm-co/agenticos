@@ -1,5 +1,5 @@
 ---
-source_sha: "871bbe3da872"
+source_sha: "29e5b104ee3f"
 ---
 
 # Governance { #governance }
@@ -2543,6 +2543,10 @@ Ustalenia trafiają do Inboxu wyłącznie przez narzędzie MCP AgenticOS `publis
 Agent podaje stałe identyfikatory elementu i rewizji, kontekst oraz pełny zamówiony szkic. Niezmieniona rewizja nie tworzy kolejnej karty; nowa aktualizuje tę samą rozmowę roboczą i otwiera sprawę ponownie, a wyciszenie nadal obowiązuje. Przebieg publikuje najwyżej osiem ustaleń. Odpowiedź końcowa zostaje w logu lub jawnie wybranym czacie; nie jest parsowana na karty Inboxu. Stare pole `result_mode` pozostaje odczytywalne, lecz nie wybiera już automatycznego dostarczania strukturalnego. Gdy nie ma zmian, nie publikuj karty, chyba że monitor ma raportować każde sprawdzenie.
 
 Ustalenie jest zatwierdzane w bazie przy wywołaniu MCP. Późniejszy błąd przebiegu nie usuwa już opublikowanej karty; nieudana próba pozostaje widoczna, a ponowienia deduplikują rewizje źródeł.
+
+Każda rutyna używa ponownie jednego systemowego chatu z logiem. Odczyt wymaga `runs:view` i dostępu do agenta; nie jest to prywatny chat właściciela. Nowe wykonanie nie przekazuje automatycznie poprzednich wiadomości logu do modelu. Ciągłość zapewniają skonfigurowana pamięć i jawny odczyt źródeł.
+
+Wykonanie bez nadzoru nie ma aktywnego kanału `ask_user`. Gdy brakuje niezbędnych informacji, instrukcja każe opublikować pytanie i opis zablokowanej pracy w Inboxie, zamiast zakładać odpowiedź. Samo to nie wstrzymuje wykonania z formularzem pytania do wznowienia.
 
 Z Inbox otwórz rozmowę, aby poprawić draft lub zlecić następny krok. Czytanie i
 edycja draftu nie wysyłają go i nie kończą sprawy. Nadal obowiązują uprawnienia i

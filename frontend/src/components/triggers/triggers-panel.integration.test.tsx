@@ -730,8 +730,8 @@ describe("TriggersPanel", () => {
     await user.type(screen.getByRole("combobox", { name: "Search city or time zone…" }), "Warsaw");
     await user.click(screen.getByRole("option", { name: "Europe/Warsaw" }));
     expect(
-      within(dialog).getByText("Runs every day at 09:00 (Europe/Warsaw)."),
-    ).toBeInTheDocument();
+      within(dialog).queryByText("Runs every day at 09:00 (Europe/Warsaw)."),
+    ).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
@@ -817,8 +817,8 @@ describe("TriggersPanel", () => {
       "true",
     );
     expect(
-      within(dialog).getByText("Runs every day at 09:00 (Europe/Warsaw)."),
-    ).toBeInTheDocument();
+      within(dialog).queryByText("Runs every day at 09:00 (Europe/Warsaw)."),
+    ).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
@@ -921,8 +921,8 @@ describe("TriggersPanel", () => {
       "true",
     );
     expect(
-      within(dialog).getByText("Runs every 8 hours, from when it is saved."),
-    ).toBeInTheDocument();
+      within(dialog).queryByText("Runs every 8 hours, from when it is saved."),
+    ).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {

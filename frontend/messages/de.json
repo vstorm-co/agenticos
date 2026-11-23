@@ -7732,7 +7732,9 @@
       "newWatch": "Überwachen und informieren",
       "newRoutine": "Neue Routine",
       "scheduledTask": "Nach Zeitplan ausführen",
-      "eventTask": "Bei einem Ereignis ausführen"
+      "eventTask": "Bei einem Ereignis ausführen",
+      "watchNeedsEnabling": "Monitoring unter Organisationseinstellungen → Proaktive Arbeit aktivieren.",
+      "watchNeedsConnection": "Zuerst ein MCP-Konto unter Verbindungen hinzufügen."
     },
     "signIns": {
       "cancel": "Abbrechen",
@@ -10164,10 +10166,6 @@
     "weekdayFri": "Fr",
     "weekdaySat": "Sa",
     "weekdaySun": "So",
-    "summaryDaily": "Läuft jeden Tag um {time} ({zone}).",
-    "summaryEveryNDays": "Läuft {count, plural, =1 {täglich} other {alle # Tage}}, fortlaufend ab dem Speichern.",
-    "summaryWeekly": "Läuft um {time} ({zone}) an {days}.",
-    "summaryMonthly": "Läuft am {day}. jedes Monats um {time} ({zone}).",
     "eventSource": "Löst aus bei",
     "sourceGithub": "Einem GitHub-Issue",
     "webhookUrlPreview": "Zustell-URL",
@@ -10303,7 +10301,6 @@
     "choiceWeekly": "Wöchentlich",
     "choiceCustom": "Eigener",
     "moreOptions": "Weitere Optionen",
-    "summaryInterval": "Läuft {unit, select, minutes {{count, plural, =1 {jede Minute} other {alle # Minuten}}} hours {{count, plural, =1 {jede Stunde} other {alle # Stunden}}} other {{count, plural, =1 {jeden Tag} other {alle # Tage}}}}, ab dem Speichern.",
     "templatesMore": "{count, plural, =1 {1 weitere zeigen} other {# weitere zeigen}}",
     "templatesFewer": "Weniger zeigen",
     "local": {
