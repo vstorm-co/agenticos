@@ -89,6 +89,11 @@
     "sessionsCouldNotBeRead": "The sessions could not be read."
   },
   "agents": {
+    "profileDefaults": "Model defaults",
+    "profileDefaultsHint": "These defaults apply everywhere this saved model is used. Individual agents can override them. Leave unsupported parameters at provider defaults.",
+    "profileThinkingOn": "On · provider effort",
+    "profileThinkingOff": "Off",
+    "profileCustomThinking": "Saved custom setting",
     "buildSummary": {
       "variables": "{count, plural, =0 {System variables} one {System variables and # custom variable} other {System variables and # custom variables}}",
       "voice": "Calls {calls, select, on {on} other {off}} · Dictation {dictation, select, on {on} other {off}}",
