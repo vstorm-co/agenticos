@@ -15,6 +15,7 @@ down_revision: str = "0349_room_participants"
 branch_labels: None = None
 depends_on: None = None
 
+# What `0348_approval_expired_notice` left, in its order: the downgrade restores it exactly.
 _EVENTS_BEFORE = (
     "'budget_exceeded', 'approval_requested', 'run_completed', 'run_failed', "
     "'ingestion_completed', 'ingestion_failed', 'usage_report', "
@@ -27,6 +28,21 @@ _EVENTS_BEFORE = (
     "'capability_requested', 'suggestion', 'finding', 'improvement_finished', "
     "'eval_suite_reevaluated', 'eval_run_finished', 'case_generation_finished', "
     "'workflow_log_alert', 'approval_expired'"
+)
+# The vocabulary after this revision, in the order the models' CHECK constraints
+# list it, so the reflected constraint matches the model's text and not only its members.
+_EVENTS_AFTER = (
+    "'budget_exceeded', 'approval_requested', 'approval_expired', 'run_completed', "
+    "'run_failed', 'ingestion_completed', 'ingestion_failed', 'usage_report', "
+    "'agent_usage_report', 'security_event', 'configuration_changed', "
+    "'announcement', 'artifact_version_published', 'resource_shared', "
+    "'budget_warning', 'mcp_server_down', 'mcp_server_recovered', "
+    "'background_task_paused', 'eval_suite_failed', 'promotion_overridden', "
+    "'shared_change_applied', 'workflow_notification', "
+    "'artifact_owner_changed', 'artifact_share_requested', "
+    "'capability_requested', 'suggestion', 'finding', 'improvement_finished', "
+    "'eval_suite_reevaluated', 'eval_run_finished', 'case_generation_finished', "
+    "'workflow_log_alert', 'room_mention', 'room_thread_reply'"
 )
 # The names the naming convention gave these two checks. The convention puts
 # the table in front of the model's own `ck_...` name and SQLAlchemy hashes a
@@ -161,7 +177,7 @@ def upgrade() -> None:
         "room_submissions_dispatch_check",
         "CHECK (dispatch IN ('explicit', 'mention', 'automatic'))",
     )
-    _event_checks(f"{_EVENTS_BEFORE}, 'room_mention', 'room_thread_reply'", not_valid=True)
+    _event_checks(_EVENTS_AFTER, not_valid=True)
     with op.get_context().autocommit_block():
         for table, name in _VALIDATIONS:
             op.execute(f"ALTER TABLE {table} VALIDATE CONSTRAINT {name}")
