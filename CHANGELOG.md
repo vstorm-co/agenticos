@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.91.0] - 2026-11-23
+
 ### Upgrading
 
 - The bundled agent framework moves to Pydantic AI 2.71 and harness 0.71. Finish paused code executions before upgrading: saved code checkpoints are tied to the interpreter/runtime versions and are rejected after a runtime change rather than replaying completed effects.
@@ -22512,7 +22514,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.91.0...HEAD
+[1.91.0]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...v1.91.0
 [1.90.1]: https://github.com/vstorm-co/agenticos/compare/v1.90.0...v1.90.1
 [1.90.0]: https://github.com/vstorm-co/agenticos/compare/v1.89.1...v1.90.0
 [1.89.1]: https://github.com/vstorm-co/agenticos/compare/v1.89.0...v1.89.1
