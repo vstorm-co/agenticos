@@ -951,6 +951,8 @@ async def test_membership_removed_during_extraction_prevents_writing(
 async def test_memory_extraction_reads_the_end_of_a_long_run_in_chronological_order(
     db: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # Isolate the message-count window from the independent serialized-character limit.
+    monkeypatch.setattr(extraction, "MAX_TRANSCRIPT_CHARS", 100_000)
     user, org, agent, version, model, ctx = await _world(db)
     run, conversation = await _chat_run(db, org, agent, version, user)
     await _transcript(
