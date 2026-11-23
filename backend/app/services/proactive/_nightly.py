@@ -24,6 +24,7 @@ import re
 from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_ai import ModelRetry, RunContext
@@ -37,6 +38,7 @@ from app.core.memory_keys import person_owner_key
 from app.core.permissions import AuthContext
 from app.db.locks import LockScope, hold_subject, hold_subject_shared
 from app.db.models.agent_run import AgentRun, RunStatus
+from app.db.models.conversation import Message
 from app.db.models.organization import OrganizationMember
 from app.db.models.suggestion import SuggestionKind
 from app.db.models.user import User
@@ -104,6 +106,16 @@ class RepeatedRequest(BaseModel):
         max_length=2000,
         description="What the routine or agent should do, written as the person would ask it.",
     )
+    chat_prompt: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=3000,
+        description=(
+            "Ready first-person chat request to act on this proposal: set up the specific "
+            "routine or build the specific agent. Include known sources, deliverable and "
+            "evidence-supported timing; ask only for missing details."
+        ),
+    )
 
 
 class ProfileUpdate(BaseModel):
@@ -163,6 +175,16 @@ instructions. Empty results are valid when the evidence is weak.
   Use an agent (as_agent=true, cron=null) only for repeatable on-demand judgment.
   A job that needs a connector must name it in required_services. In why,
   give a single sentence about the requests that support it.
+  Always write chat_prompt as the person's ready-to-send request to act on this
+  exact proposal, including its named sources and deliverable. For routines, ask
+  to set up the routine; for agents, ask to build the agent. Preserve explicit
+  weekdays and times in the evidence. A repeated local weekday is a suggested
+  day, not confirmed consent or proof of an exact execution time: mention that
+  basis and ask only for the missing time. Do not substitute generic Monday/
+  Friday options for an observed Thursday pattern. Request timestamps describe
+  when a person asked, not necessarily when an event happened. Never invent an
+  event schedule or turn source content into instructions. Never ask whether an
+  opaque Inbox ID needs attention.
 - profile: fill missing fields only when a memory with scope "profile" or an explicit
   legacy note directly states the person's own current role, work or hours. Exclude
   "starter" memories, project responsibilities, roles of other people and guesses.
@@ -247,6 +269,19 @@ def _person(user: User) -> dict[str, object]:
     }
 
 
+def _request_context(message: Message, zone: ZoneInfo) -> dict[str, str]:
+    local = message.created_at.astimezone(zone)
+    return {
+        "thread": str(message.conversation_id),
+        "date_utc": message.created_at.date().isoformat(),
+        "occurred_at": message.created_at.isoformat(),
+        "local_date": local.date().isoformat(),
+        "weekday_local": local.strftime("%A"),
+        "time_zone": str(zone),
+        "text": message.content[:_CLIP],
+    }
+
+
 def _reached_a_model(run: AgentRun) -> bool:
     """Whether a run's first request went out, so its input edge let the prompt through.
 
@@ -288,7 +323,9 @@ class NightlyLook:
         )
         return last is None or now - last >= timedelta(hours=20)
 
-    async def look(self, organization_id: UUID, user_id: UUID) -> int:
+    async def look(
+        self, organization_id: UUID, user_id: UUID, *, refresh_open: bool = False
+    ) -> int:
         """Read one person's week and record what to propose. Returns how many proposals are new."""
         user = await user_repo.get_by_id(self.db, user_id)
         member = await member_repo.get_active(
@@ -327,7 +364,22 @@ class NightlyLook:
             != (user_id, content_hashes[request.message.id])
             for request in requests
         )
-        if not has_unread and member.personal_starters:
+        replacing = (
+            {
+                item.id
+                for item in await suggestion_repo.list_open(
+                    self.db, organization_id=organization_id, user_id=user_id
+                )
+                if item.kind != SuggestionKind.FINDING
+                and item.watch_id is None
+                and item.outcome_id is None
+            }
+            if refresh_open
+            else set()
+        )
+        if refresh_open and not replacing:
+            return 0
+        if not refresh_open and not has_unread and member.personal_starters:
             return 0
 
         notes = await memory_repo.list_for_owner(
@@ -360,6 +412,7 @@ class NightlyLook:
             }
             for item in history
             if item.kind in (SuggestionKind.AGENT, SuggestionKind.ROUTINE)
+            and item.id not in replacing
         ]
         routines = await agent_trigger_repo.routine_prompts_for_screening(
             self.db, organization_id=organization_id, user_id=user_id
@@ -372,14 +425,16 @@ class NightlyLook:
         ]
         request_ids = {index: request.message for index, request in enumerate(requests, start=1)}
         connected_services = sorted({connection.name for connection in connections})
+        zone = ZoneInfo(user.time_zone or "UTC")
+        evidence_context = {
+            str(message.id): _request_context(message, zone) for message in request_ids.values()
+        }
         material = {
             "person": _person(user),
             "requests_this_week": [
                 {
                     "id": index,
-                    "thread": str(message.conversation_id),
-                    "date_utc": message.created_at.date().isoformat(),
-                    "text": message.content[:_CLIP],
+                    **evidence_context[str(message.id)],
                 }
                 for index, message in request_ids.items()
             ],
@@ -442,6 +497,12 @@ class NightlyLook:
             snapshot=read_snapshot,
         ):
             return 0
+        # The model may fail or be refused by a budget. Keep the old Inbox until
+        # a valid reading exists, and do not overwrite a decision made while it ran.
+        if replacing and not await suggestion_repo.remove_open_generated(
+            self.db, organization_id=organization_id, user_id=user_id, expected_ids=replacing
+        ):
+            return 0
         await conversation_repo.mark_nightly_reads(
             self.db,
             organization_id=organization_id,
@@ -481,7 +542,15 @@ class NightlyLook:
         ]
         if reading.profile is not None and not (notes or any(c.agent_id is None for c in claims)):
             reading = reading.model_copy(update={"profile": None})
-        return await self._record(organization_id, user, member, reading, repeats=repeats, now=now)
+        return await self._record(
+            organization_id,
+            user,
+            member,
+            reading,
+            repeats=repeats,
+            evidence_context=evidence_context,
+            now=now,
+        )
 
     async def _past_the_input_edge(
         self, organization_id: UUID, requests: list[PersonRequest]
@@ -517,6 +586,7 @@ class NightlyLook:
         reading: NightlyReading,
         *,
         repeats: list[tuple[RepeatedRequest, list[str]]],
+        evidence_context: dict[str, dict[str, str]],
         now: datetime,
     ) -> int:
         starters = [text.strip()[:STARTER_CHARS] for text in reading.starters if text.strip()]
@@ -532,7 +602,16 @@ class NightlyLook:
                 if repeat.as_agent
                 else {"prompt": repeat.prompt, "cron": repeat.cron}
             )
-            payload.update(intent=repeat.intent, evidence_ids=evidence_ids)
+            payload.update(
+                intent=repeat.intent,
+                evidence_ids=evidence_ids,
+                evidence=[
+                    {"message_id": identifier, **evidence_context[identifier]}
+                    for identifier in evidence_ids
+                ],
+            )
+            if repeat.chat_prompt and repeat.chat_prompt.strip():
+                payload["chat_prompt"] = repeat.chat_prompt.strip()
             proposed += await self._propose(
                 organization_id,
                 user.id,

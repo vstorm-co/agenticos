@@ -26,6 +26,7 @@ import type { Mentionable } from "@/types/mention";
 import { AgentSteps } from "./agent-step";
 import { TurnDrafts } from "./draft-card";
 import { TurnBrowses } from "./browser-card";
+import { TurnFileLinks } from "./turn-file-links";
 import { MarkdownContent } from "./markdown-content";
 import { RichText } from "./mention-chip";
 import { ToolCallCard } from "./tool-call-card";
@@ -287,7 +288,14 @@ export function TurnParts({
   ) {
     rendered.push(<QuestionTurnCard key={interaction.id} calls={[]} interaction={interaction} />);
   }
-  return rendered;
+  return (
+    <TurnFileLinks
+      calls={parts.flatMap((part) => (part.toolCall ? [part.toolCall] : []))}
+      fileSource={fileSource}
+    >
+      {rendered}
+    </TurnFileLinks>
+  );
 }
 
 export const ThinkingBlock = memo(function ThinkingBlock({

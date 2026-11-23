@@ -59,3 +59,23 @@ it("retains the notice and reports a retry that itself fails", async () => {
   expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
   expect(screen.getByRole("alert")).toBeVisible();
 });
+
+it("describes a missing archive honestly without suggesting a connection repair", () => {
+  permissions.canManage = true;
+  render(
+    <WorkspaceReadNotice
+      code="workspace_not_retained"
+      detail="No workspace for session: scope-key"
+      failed={false}
+      cloud
+      onRetry={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Workspace has not been created yet or is no longer retained",
+  );
+  expect(screen.getByText(/attach a file with \+ in the message box/)).toBeVisible();
+  expect(screen.getByText(/Previously saved files may no longer be available/)).toBeVisible();
+  expect(screen.queryByRole("link", { name: "Sandbox connections" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
+});

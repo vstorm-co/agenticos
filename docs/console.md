@@ -2,6 +2,10 @@
 
 The default themes distinguish the canvas, sidebar, cards and floating panels. Blue identifies links and keyboard focus; enabled switches use green. Navigation uses regular weight with a medium active label. Builder section summaries show the current model, variables, voice state and first messages before opening their editors. Sign-in and account recovery use the same concise heading style and a static identity panel.
 
+New generated Inbox proposals carry a ready-to-send action request, rather than a question containing an item ID. Repeated work retains the source requests and their local dates, weekdays and time zone, so a suggested schedule can follow the evidence. Selecting a proposal prepares an editable draft and never sends it automatically. Phone chat shows two starter prompts; wider screens retain four.
+
+Operators can plan a refresh with `agenticos cmd refresh-inbox --organization-id UUID`, then add `--queue` to enqueue it. The configured model and existing budgets still apply. Only open generated proposals are replaced, after a valid reading; a failed or refused reading leaves them intact. Accepted or dismissed decisions, findings, linked cases and approvals remain unchanged. A decision made while generation runs cancels that person's replacement.
+
 Dashboard usage and spending aggregates reuse the same in-memory answer for the same time window for up to 30 minutes. They are not live counters: run events do not refresh these aggregates after every run. A full browser reload starts with a cold cache and asks the API again. Saved layout presets are requested only in the organization view, where their arrangement controls are available.
 
 If your current organization’s onboarding is unfinished, **Finish setup** returns to its guided setup. Dismissing the reminder snoozes it for the effective interval of 1, 3 or 7 days (one day by default). Completion and snoozing follow your membership on the server; loading or failed progress checks never label setup incomplete.
@@ -12,7 +16,9 @@ Inbox keeps the same list frame, row spacing, source marks, title/detail typogra
 
 Files and Sources use the same compact side panel: 400px initially, adjustable from 360 to 420px and capped at 38% of the docked chat width. On a narrow desktop they can temporarily collapse the conversation list; closing restores the earlier choice unless you changed it manually. Browser keeps its wider working area, initially 55% and adjustable from 35% to 65%. Following a citation scrolls only the Sources list, keeping the transcript in place.
 
-At the start of chat, Inbox shows up to two priorities without dates or a separate chat icon. Selecting a row puts its question into the composer for editing; it does not send it. **Open Inbox** opens the complete list. **Workspace — projects** is the default conversation-list layout; `?sidebar=compact` and `?sidebar=comfortable` remain available for comparison.
+When Files reports a workspace that has not been created yet or is no longer retained, this is distinct from a connection failure and does not prove that no files ever existed. Conversation attachments remain available. Attach and send a file through the composer, or ask the agent to create one, to use the workspace; genuine connection and archive failures remain explicit. In chat, a file link with a matching successful tool receipt opens the workspace viewer. Unverified paths remain ordinary links; an unavailable private file origin does not become a link.
+
+At the start of chat, Inbox shows up to two priorities without dates or a separate chat icon. Selecting a row puts its action request into the composer for editing; it does not send it. **Open Inbox** opens the complete list. **Workspace — projects** is the default conversation-list layout; `?sidebar=compact` and `?sidebar=comfortable` remain available for comparison.
 
 Hosted public chat and the embedded widget accept multiline messages: Enter sends, Shift+Enter adds a line, and IME composition never sends early. In the main chat, hosted chat and widget, reading earlier messages pauses automatic following. Streaming and content resizing preserve that position; returning to the bottom or deliberately sending a new message resumes following. Reconnecting or loading history does not pull the reader down.
 
@@ -261,7 +267,7 @@ snapshot you meant to keep.
 
 ## Routines and watches
 
-New schedules and API triggers are saved paused, then show **Review routine access**. Review sources and select the actions that may run without asking; **Enable routine** saves both choices and activates it. **Finish later** leaves it paused. Explicit agent approvals still apply. Resuming unfinished setup reopens this review; activation revalidates the sources.
+New routines automatically use the agent's available configuration at creation, within an approved access and behavior ceiling. No initial access review is required; missing optional MCP accounts do not block unrelated work. Later source or tool expansions and changes to instructions, skills, context or delegates require the creator's review before running. Model-only updates and safe removals stay within the ceiling. Agent approvals, mandatory platform approvals and native folder consent still apply. The access dialog can instead keep a reviewed snapshot; existing restricted routines retain that policy until the owner changes it.
 
 If **Skip this run** prevents an overlapping occurrence, history records the reason without starting or charging another run. You can stop a waiting run directly in this history when the server permits it. Stopping preserves its spend and lets the next scheduled occurrence proceed. Repeated skips behind the same unfinished run share one history entry.
 
@@ -285,7 +291,7 @@ Dashboard cards use the same compact rows, service marks and status labels. Coun
 
 A new chat greets you by local time and shows a compact composer. Files sit beside the agent; chat settings and the permission shield sit beside the model. Context usage stays an icon until opened.
 
-Above the composer, an Inbox timeline shows priority items first and sorts each group newest first, with source marks and no dates. Selecting a row prepares an editable question in the composer; Open Inbox leads to the full list. Approval counts link to the approval queue. Loading, failure and empty states remain distinct. Dictation and calls use the same light surface as the composer. The Architect widget shares the primary action and dictation controls.
+Above the composer, an Inbox timeline shows priority items first and sorts each group newest first, with source marks and no dates. Selecting a row prepares an editable action request in the composer; Open Inbox leads to the full list. Approval counts link to the approval queue. Loading, failure and empty states remain distinct. Dictation and calls use the same light surface as the composer. The Architect widget shares the primary action and dictation controls.
 
 Before the first message, Files and context usage remain visible but disabled. The attachment menu shows its available actions directly. Chat controls use compact sections for connections and remembered approvals; Inbox previews show source and priority.
 
@@ -646,17 +652,31 @@ from then on, and the interview ends with up to three cards to set up - a
 routine, a service to connect, an agent of your own - each one click. Skip a
 question, or ask for something real, and it does the work instead.
 
-**What it noticed overnight.** Where your organization turned it on, once a day,
-early in your morning, the platform looks at your recent conversations in a
-background job: a request you keep
-repeating becomes a proposed routine, what an agent learnt about your role
-becomes a proposed profile, and your empty AgenticOS chat gets first messages
-written for your work. Proposals wait as cards in that empty chat, on your
-dashboard and in the bell, and **Settings → Assistant** lists them all - bring a
-dismissed one back there, or leave yourself out; accept one and it is set up, dismiss it and the same proposal is never
-made again. Nothing runs when nothing new happened, and what this may spend is
-[capped per person](governance.md#proactive-work). A chat link with
-`?agent=<slug>` opens the chat on that agent.
+**Personal assistance.** Where your organization enables it, the platform combines
+readable conversation history with your scoped memory, profile, visible projects,
+private or assigned tasks, current routines, visible table metadata and earlier Inbox decisions. Table records are not read unless they are typed tasks. Meaningful
+changes queue a background refresh; the morning sweep remains a safety net.
+History is indexed in bounded segments with source-linked quotes. Unchanged
+segments reuse their checkpoints; an unchanged reading makes no model call.
+Large histories continue across jobs rather than being cut to seven days or the
+first 400 characters. Existing permissions, opt-out and spending limits apply.
+
+A proposal must cite supplied evidence and pass a second model check. It can offer
+an on-demand agent, recurring work, an existing task or a relevant available feature.
+An authenticated answer to a native question counts as human evidence; arbitrary
+external tool results do not. Missing schedule choices remain questions. Proposals
+appear under **Suggestions**, while routine findings remain **Routine results**.
+Opening a proposal starts a concrete discussion, not a run or an activation.
+Paid work, schedules and publication retain their existing approval requirements.
+A deleted routine is not treated as paused, and dismissed intent stays quiet.
+
+Task and resource lists are bounded and marked incomplete when necessary; a missing
+item in a partial list is not proof it does not exist.
+
+Memory maintenance prioritizes human turns when fitting a transcript to its budget
+and includes authenticated native question answers in chronological order. It
+retains the existing durability and scope rules: a temporary task is not a permanent
+job title. A chat link with `?agent=<slug>` opens that agent.
 
 **Working hours** under **Settings → Profile** tell agents when you work, so a
 routine they propose lands inside your day. Nothing waits on them: they are

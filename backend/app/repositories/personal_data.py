@@ -65,7 +65,9 @@ from app.db.models.eval_run import EvalRun, EvalRunCase
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.knowledge_gap import (
     DraftAuthor,
+    GapSignal,
     KnowledgeGapClassification,
+    KnowledgeGapEvalClassification,
     KnowledgeGapMember,
     KnowledgeGapTopic,
     KnowledgeSearch,
@@ -80,6 +82,7 @@ from app.db.models.notification_route import NotificationRoute
 from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.outcome import Outcome
+from app.db.models.personal_context import PersonalContextCache
 from app.db.models.personal_model_key import PersonalModelKey
 from app.db.models.project_tracking import ProjectTracking
 from app.db.models.routine_delivery import RoutineDelivery
@@ -735,6 +738,10 @@ def _their_turns(user_id: UUID) -> ColumnElement[bool]:
     return or_(Message.author_user_id == user_id, Message.channel_identity_id.in_(linked))
 
 
+_NOT_KEYS = '$[*] ? (!exists(@.type ? (@ == "keys")))'
+"""Every check but a `keys` one, in order; `exists` keeps a check with no type."""
+
+
 async def anonymise_dataset_cases_of(
     db: AsyncSession, user_id: UUID, *, placeholder: str, at: datetime
 ) -> list[UUID]:
@@ -744,8 +751,9 @@ async def anonymise_dataset_cases_of(
     answer they got, so all of it goes:
     the input becomes `placeholder`, and the history, both answers and the note -
     the comment a down-rating left - are emptied. The case keeps its id, its
-    place, its expected tool calls and its checks, which are the curator's, and
-    is marked anonymised, so its curator can rewrite it or remove it.
+    place, its expected tool calls and its checks, which are the curator's,
+    except a `keys` check: its values were drawn from the reference answer that
+    goes. It is marked anonymised, so its curator can rewrite it or remove it.
 
     Revisions are immutable everywhere else; an erasure is the exception, and
     reaches the revisions only earlier versions still hold. Unscoped by
@@ -777,6 +785,7 @@ async def anonymise_dataset_cases_of(
             history=[],
             reference_answer=None,
             counter_example=None,
+            checks=func.jsonb_path_query_array(DatasetCase.checks, cast(_NOT_KEYS, JSONPATH)),
             note=None,
             history_author_ids=[],
             noted_by_user_id=None,
@@ -796,8 +805,9 @@ async def purge_case_copies(db: AsyncSession, revision_ids: list[UUID]) -> int:
     the question's details as arguments, so the answer and calls of every
     attempt go, and every score's copy of the answer with the parts of its
     results that can repeat it - and, through :func:`forget_runs`, what the
-    agent's and the judge's runs kept of the question. The outcome stays:
-    whether the case passed is the organization's.
+    agent's and the judge's runs kept of the question. A knowledge gap read from
+    an answer holds the question, and its verdict a model's words on the answer,
+    so both go too. The outcome stays: whether the case passed is the organization's.
 
     Returns:
         How many attempts and scores were cleared.
@@ -805,11 +815,25 @@ async def purge_case_copies(db: AsyncSession, revision_ids: list[UUID]) -> int:
     if not revision_ids:
         return 0
     answered = await db.execute(
-        select(EvalRunCase.agent_run_id).where(
-            EvalRunCase.case_revision_id.in_(revision_ids), EvalRunCase.agent_run_id.is_not(None)
-        )
+        select(EvalRunCase.agent_run_id)
+        .where(EvalRunCase.case_revision_id.in_(revision_ids))
+        .order_by(EvalRunCase.id)
+        .with_for_update()
     )
     runs = {run_id for run_id in answered.scalars() if run_id is not None}
+    await db.execute(
+        sa_delete(KnowledgeSearch).where(
+            KnowledgeSearch.run_id.in_(runs),
+            KnowledgeSearch.message_id.is_(None),
+            KnowledgeSearch.signal != GapSignal.RETRIEVAL.value,
+        )
+    )
+    classifiers = await db.scalars(
+        sa_delete(KnowledgeGapEvalClassification)
+        .where(KnowledgeGapEvalClassification.run_id.in_(runs))
+        .returning(KnowledgeGapEvalClassification.classifier_run_id)
+    )
+    runs.update(classifier for classifier in classifiers if classifier is not None)
     attempts = await db.execute(
         update(EvalRunCase)
         .where(EvalRunCase.case_revision_id.in_(revision_ids))
@@ -894,6 +918,7 @@ BRIEFING_SUGGESTION_KINDS = (
     SuggestionKind.AGENT,
     SuggestionKind.PROFILE,
     SuggestionKind.ROLE_PACK,
+    SuggestionKind.PERSONAL,
 )
 """What a daily briefing proposes, each drawn from the person's requests and notes."""
 
@@ -916,11 +941,20 @@ async def forget_briefings_of(db: AsyncSession, user_id: UUID, *, organization_i
         )
         .values(personal_starters=None, personal_starters_at=None)
     )
+    await db.execute(
+        sa_delete(PersonalContextCache).where(
+            PersonalContextCache.organization_id == organization_id,
+            PersonalContextCache.user_id == user_id,
+        )
+    )
     removed = await db.execute(
         sa_delete(Suggestion).where(
             Suggestion.organization_id == organization_id,
             Suggestion.user_id == user_id,
-            Suggestion.kind.in_([kind.value for kind in BRIEFING_SUGGESTION_KINDS]),
+            or_(
+                Suggestion.kind.in_([kind.value for kind in BRIEFING_SUGGESTION_KINDS]),
+                Suggestion.payload["personal_context"].as_boolean().is_(True),
+            ),
         )
     )
     await db.flush()

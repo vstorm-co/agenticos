@@ -205,6 +205,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "improvement-mode",
+    page: IMPROVEMENT_START,
+    target: "improvement-mode",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
     id: "improvement-question-set",
     page: IMPROVEMENT_START,
     target: "improvement-question-set",

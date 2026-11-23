@@ -274,6 +274,8 @@ class WorkspaceContents:
     thumbnails: dict[str, str] = field(default_factory=dict)
     """Each small image scaled to a `data:` URI, by path, within the fetch budget."""
 
+    unreadable_code: Literal["workspace_not_retained"] | None = None
+
 
 @dataclass(frozen=True)
 class WorkspaceOverview:
@@ -2087,10 +2089,10 @@ class SandboxWorkspaceService:
             reason = _reason(exc)
             return [WorkspaceContents(entries=[], unreadable_reason=reason) for _ in rows]
         contents: list[WorkspaceContents] = []
-        for session in sessions:
+        for row, session in zip(rows, sessions, strict=True):
             tree = trees[session]
             if isinstance(tree, Exception):
-                contents.append(WorkspaceContents(entries=[], unreadable_reason=_reason(tree)))
+                contents.append(_unreadable_contents(row, tree))
                 continue
             if tree.truncated:
                 logger.warning(
@@ -2183,6 +2185,7 @@ class SandboxWorkspaceService:
         return WorkspaceContents(
             entries=browsable(contents.entries),
             unreadable_reason=contents.unreadable_reason,
+            unreadable_code=contents.unreadable_code,
             truncated=contents.truncated,
         )
 
@@ -2633,7 +2636,7 @@ class SandboxWorkspaceService:
             logger.warning(
                 "workspace_listing_failed", extra={"scope_key": row.scope_key}, exc_info=True
             )
-            return WorkspaceContents(entries=[], unreadable_reason=_reason(exc))
+            return _unreadable_contents(row, exc)
 
     async def read_text(self, ctx: AuthContext, *, conversation_id: UUID, path: str) -> str | None:
         """One file's text, or `None` when there is no such workspace or file."""
@@ -3080,6 +3083,22 @@ def thumbnail_of(path: str, raw: bytes) -> str | None:
         )
         return None
     return f"data:image/webp;base64,{base64.b64encode(scaled.getvalue()).decode()}"
+
+
+def _unreadable_contents(row: AgentWorkspace, exc: Exception) -> WorkspaceContents:
+    # A missing archive says nothing about whether it once held files. Keep that
+    # uncertainty distinct from both an empty archive and a broken connection.
+    not_retained = (
+        row.session_id is None
+        and isinstance(exc, WorkspaceArchiveError)
+        and exc.status_code == 404
+        and _detail(exc) == f"No workspace for session: {row.scope_key}"
+    )
+    return WorkspaceContents(
+        entries=[],
+        unreadable_reason=_reason(exc),
+        unreadable_code="workspace_not_retained" if not_retained else None,
+    )
 
 
 def _reason(exc: Exception) -> str:

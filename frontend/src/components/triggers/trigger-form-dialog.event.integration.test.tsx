@@ -497,8 +497,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      review_before_activation: true,
-      is_active: false,
+      source_mode: "follow_agent",
       prompt: "Triage it",
       name: null,
       trigger_type: "event",
@@ -529,7 +528,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await user.type(dialog.getByLabelText("Message"), "Triage");
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
-    await user.click(await screen.findByRole("button", { name: "Enable routine" }));
+    expect(screen.queryByRole("dialog", { name: "Review routine access" })).not.toBeInTheDocument();
 
     // The dialog does not just close: an event trigger needs its URL pasted into
     // the provider, so it stays open on that URL with a way to copy it.
@@ -567,8 +566,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      review_before_activation: true,
-      is_active: false,
+      source_mode: "follow_agent",
       prompt: "Handle it",
       name: null,
       trigger_type: "event",
@@ -641,7 +639,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
       `/agents/${AGENT_ID}/triggers`,
       expect.objectContaining({ event_source: "linear", event_secret: "linear-signing-secret" }),
     );
-    await user.click(await screen.findByRole("button", { name: "Enable routine" }));
+    expect(screen.queryByRole("dialog", { name: "Review routine access" })).not.toBeInTheDocument();
     const createdDialog = within(await screen.findByRole("dialog", { name: "One more step" }));
     expect(createdDialog.getByLabelText<HTMLInputElement>("Webhook URL").value).toBe(url);
     expect(createdDialog.getByText(/Linear API accepts both/)).toBeInTheDocument();

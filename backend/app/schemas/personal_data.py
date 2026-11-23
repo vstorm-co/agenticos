@@ -322,6 +322,10 @@ class PersonalDataExport(BaseModel):
             "Never the key or its hash."
         )
     )
+    personal_work_context: list[dict[str, JsonValue]] = Field(
+        default_factory=list,
+        description="Private derived work checkpoints whose sources remain readable.",
+    )
     suggestions: list[dict[str, Any]] = Field(
         description=(
             "What the platform proposed to them on its own initiative - drawn from "

@@ -1,5 +1,5 @@
 ---
-source_sha: "ef5a787328c9"
+source_sha: "d9ca2d821263"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -412,6 +412,7 @@ gelesen wird, und eine darüber wird mit Verweis auf `judge.pass_at` abgelehnt.
 | `max_latency_ms` | `value` | Der Run nicht länger als das gedauert hat |
 | `length` | `unit` (`characters` oder `words`), `min` und/oder `max`, optional `path` | Die Antwort mindestens `min` und höchstens `max` lang ist |
 | `judge` | `criterion` | Der Bewerter das Kriterium mit der Bestehensgrenze oder höher bewertet |
+| `keys` | `keys`: Paare aus `key` (einer Bezeichnung) und `value`, höchstens 200 zusammen in den Schlüssel-Prüfungen eines Falls - und in den Standardprüfungen des Datasets; Familie `keys`, sofern keine andere genannt ist | Die Antwort jeden Wert enthält; die Punktzahl ist der Anteil, den sie enthält |
 
 `path` liest in eine Antwort hinein, die JSON ist: `items.0.name` ist der Name
 des ersten Elements. Ohne ihn liest eine Regel die ganze Antwort. Textregeln
@@ -432,6 +433,33 @@ Leerzeichen sind, und braucht mindestens eine Grenze.
 Eine `judge`-Prüfung ist ein Kriterium nur für einen Fall, bewertet im selben
 Run des Bewerters wie die Rubrik des Datasets. Verwenden Sie sie für das, was eine Regel
 nicht ausdrücken kann, etwa „lehnt ab und verrät die Adresse des Kunden nicht“.
+
+Eine `keys`-Prüfung führt die Fakten auf, die ein geschriebenes Dokument enthalten
+muss - eine Rechnungsnummer, einen Betrag, den Namen eines Kunden -, jeweils als
+Bezeichnung und als Wert aus dem Dokument. Die Prüfung besteht, wenn die Antwort
+jeden Wert enthält; ihre Punktzahl ist der Anteil, den sie enthält, und ihre
+Begründung nennt die fehlenden Bezeichnungen.
+
+Jeder Wert wird in der Antwort gesucht:
+
+- als ganzes Token: `12` wird in `120` nicht gefunden, `INV-1` nicht in `INV-10`;
+- nicht innerhalb einer längeren Zahl: `12` wird in `12,50` nicht gefunden, `234`
+  nicht in `1 234` und `1 234` nicht in `1 234 567`;
+- ohne Rücksicht auf Groß- und Kleinschreibung, Folgen von Leerraum und
+  Unicode-Formen wie eine Ligatur oder ein geschütztes Leerzeichen;
+- mit einem Leerzeichen, das die Tausender einer Zahl gruppieren darf, sodass
+  `1234` und `1 234` einander finden;
+- mit Komma und Punkt, wie sie sind, weil sie in einer Sprache Tausender und in
+  einer anderen Dezimalstellen trennen: Schreiben Sie den Wert so, wie das
+  Dokument ihn zeigt.
+
+Jede Prüfung nimmt ein optionales `family` (höchstens 80 Zeichen): die Sache, die
+sie über das ganze Dataset hinweg prüft, etwa `total including VAT` an der Regex
+jedes Falls für seinen eigenen Betrag. Ein Vergleich zählt die Prüfungen einer
+Familie gemeinsam, Fall für Fall, sodass eine Änderung danach beurteilt wird, was
+sich über das Dataset hinweg bewegt hat, und nicht nach dem Muster eines
+einzelnen Falls. Eine Prüfung ohne Familie ist eine eigene Familie; bei einer mit
+Familie bleiben die Bewertung und ihr Fingerabdruck genau wie bisher.
 
 ### Erwartete Tool-Aufrufe { #trajectory }
 
@@ -700,7 +728,8 @@ Wird die Person gelöscht, die die Frage eines Falls gestellt hat, geht auch der
 Frage, die früheren Züge, beide Antworten und die Notiz werden in jeder Version
 ersetzt, die den Fall enthält, und ebenso die Antworten und Aufrufe, die
 Eval-Runs für ihn aufgezeichnet haben. Der Fall behält seine Id, seine
-erwarteten Aufrufe, seine Prüfungen und seine Tags und wird als **Nach Löschung
+erwarteten Aufrufe, seine Prüfungen und seine Tags - außer einer `keys`-Prüfung,
+deren Werte aus der entfernten Antwort stammen - und wird als **Nach Löschung
 anonymisiert** markiert, damit sein Kurator ihn umschreiben oder entfernen kann.
 Bis dahin lässt ein Eval-Run ihn aus, denn eine Antwort auf den Platzhalter misst
 nichts.

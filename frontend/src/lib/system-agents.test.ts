@@ -9,7 +9,6 @@ import {
   SYSTEM_AGENT_KINDS,
   systemAgentOffers,
   takesSkillsOffOnly,
-  verdictKind,
 } from "./system-agents";
 import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
 
@@ -21,19 +20,6 @@ describe("isSystemAgent", () => {
 
   it("treats an agent whose kind is not known yet as an ordinary one", () => {
     expect(isSystemAgent(undefined)).toBe(false);
-  });
-});
-
-describe("verdictKind", () => {
-  it("is the judge's grade and the classifier's label", () => {
-    expect(verdictKind("judge")).toBe("judge");
-    expect(verdictKind("classifier")).toBe("classifier");
-  });
-
-  it("is nothing for a kind that drafts, and for an ordinary agent", () => {
-    for (const kind of ["drafter", "generator", "improver", "agent", undefined] as const) {
-      expect(verdictKind(kind)).toBeUndefined();
-    }
   });
 });
 

@@ -23,9 +23,155 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Reusable webhook event sources with provider presets, private or organization visibility, vault-backed authentication and independent routine/workflow subscribers. Members who can use a source can inspect its next unfiltered event without a routine or workflow. Attaching it still requires edit and run access to the target. In a workflow editor, pin a captured event or paste example JSON for step tests. Routine template prompts insert selected `{{payload.fields}}`, preview without an agent call and report missing fields before execution. Existing dedicated endpoints and literal prompts retain their behavior.
 
+- Add an instruction-variant search mode to Improve. Try budgeted variants against training questions, keep the strongest candidate and require the existing held-out check and human acceptance before applying it (#3237).
+
+- Count criteria by family. A dataset check takes an optional `family` - every case's `total including VAT` regex, every case's "names the account manager" criterion - and a comparison counts a family case by case: it passes in a case when every criterion of it does. Eval comparisons expose `families`, an Improve attempt keeps them in its verdict, and the result step and the eval run's comparison table them. An attempt with no whole question flipped is judged on its families; one the helper put down to a skill that got worse no longer makes the attempt worse, and the result says the skill is the one to fix. The result step adds **Criteria passed**, before and after, and **Still held back by a skill**, and an attempt that broke questions still names what it made better (#3178).
+- An eval run's sides show **Criteria passed** beside the pass rate: the mean share of each question's criteria its first answer passed, so six of seven counts 6/7 rather than a failure. Arm summaries expose `criteria_passed`, `criteria_graded` and `partial_credit`, compared cases each side's `[passed, decided]` criteria, and the case table shows them per question (#3178).
+- Finishing an Improve session takes an optional `round`, so a session that stopped on its attempt is selected and accepted in one call instead of `rounds/{n}/select` first (#3178).
+- A skill's improver writes an edit for every problem it is given, or says in its expected effect why the skill's text cannot fix one, and keeps every problem an agent's Improve handed over. The grades a helper reads name each criterion's family, so a whole family can be put down to a skill (#3178).
+- Agent Improve puts a criterion down to a skill only when it quotes the skill's own line stating the wrong value or rule, and that line is in the skill's text. Where the skill is only silent, or only forbids other sections, the criterion stays the agent's to fix: the helper proposes the agent change, a skill problem without a line is advice, and the verdict holds the agent to that family (#3178).
+- A skill's Improve started from an agent's Improve learns from the failed training answers that session read that used the skill, so it no longer refuses with "Nothing to learn from yet" when the agent's problems came from evals (#3178).
+- A dataset case's `keys` check lists the facts a written document must carry - an invoice number, a total, a date - each as a label and the value the document should show. It scores the share of keys the answer carries, passes only when it carries them all, and names up to 20 missing labels. A value matches as a whole token: a number is not found inside a longer one, and a space may group thousands. The case and grading editors write it, and anonymising a case removes its keys with its reference answer (#2524).
+
+### Changed
+
+- Rebuild eval and Improve results around saved changes, answer comparisons and per-agent impact. Reuse the console’s cards, compact question rows and list toolbars, keep record navigation above the result and technical context on demand, align page insets, open knowledge drafts for reading, and protect unsaved edits. Load reused baseline answers from their original evaluation run. Read agent results in one vertical flow; keep draft timestamps by their heading and remove the redundant copy control. Open the first attempt and the question review by default, and simplify historical Changes (#3186).
+- An eval run asks a case again only when it decides something: its whole outcome flipped, or a family of criteria flipped in it that moved on two cases or more and that an exact McNemar test over its own flipped cases cannot settle. A family settled by its own spread counts every flip it had, and one that moved on a single case decides nothing. Asking every case with any flipped criterion again had cost more than the first answers (#3178).
+- An Improve check settles families on its held-out cases apart from its training cases, as its verdict reads them, so a family that moved on two held-out cases is asked again there even when the whole run would settle it, and a reused baseline is asked those cases again too (#3178).
+- An unchanged draft baseline answers once per Improve session: a later check reuses the earlier check's baseline answers when the draft's fingerprint, the cases left out, the dataset version, model, scoring, environment and judge all match (#3178).
+- An Improve session started from a draft nobody edited since publishing reuses that version's own eval as its baseline, priced at nothing in the estimate, when it left out the same cases as the check (#3178).
+- A skill check asks each agent the dataset its newest Improve session measures on, so a set kept back for a final measurement stays unasked (#3178).
+- A skill check keeps each agent's families of criteria, so its details table one row per family - every case's check of one thing together - instead of one row per case's check. Agents expose `families`; `skill_check_agents` gains the column (#3178).
+- A skill check's agent whose runs graded every answer on fewer held-out questions than a result needs is unknown for `too_few_questions` rather than `inconclusive`, and its row says how many came out better and worse and that they are too few to be sure (#3178).
+
+### Fixed
+
+- Drafting a knowledge-gap passage and a workflow's knowledge search now search
+  exactly the knowledge base that was checked. Both looked the base up again by
+  its collection name, which several bases of one organization can share, so
+  they could read passages from a same-named base the person or the run's
+  principal had no access to.
+- Serialize eval-answer gap classification with case-copy erasure, remove classifier manifests with the erased copies, and keep competing classifications consistent with their recorded misses.
+- Price automatically reused baselines and held-out-only checks consistently before budget gates; show the same expected cost on the evaluation start button and summary.
+- Rejudge skill checks by a stored rule version, report inaccessible rows as skipped, and recount only finished attempts under the session lock. Preserve indexed UUID lookups for judge costs.
+- Hide Add to dataset for eval-only knowledge topics, and count authoring context in Unicode code points so emoji do not cause false truncation.
+- **Cost estimates now include the confirming reruns.** An eval run, an Improve check and a skill check showed as their likely cost only the first answers, while a compared run asks about half of its cases again: on the Fernhill run, checks cost 2 to 3.6 times their estimate. The estimate adds `expected_usd`, the first answers and half of the rerun ceiling for a compared run, and the start dialog, a run's page, the Improve check's quote and a skill check show it with the most the step may cost. An Improve check no longer asks its training cases again, since nothing reads those reruns, and its ceiling counts its held-out cases alone. With no history on a model, an answer from an agent with tools is priced as `1 + EVAL_FALLBACK_TOOL_ROUNDS` requests (new, default 2) and a grading as a request that also reads the answer. (#3188).
+- **A skill's Improve session names what accepting it did.** Its status line read "Kept as draft", an agent session's label, for a change applied to the skill. It now says Applied, Made a fork, Caught up with main or Moved to main. A new `skill-checks-rejudge` command judges again, from their stored runs and with no model call, the agents of finished skill checks that an older rule judged: one kept before families shows them, and one kept before `too_few_questions` existed no longer says its run could not grade every answer. It also counts the judge's gradings in a session attempt that counted only its check's answers, and a skill check's cost now counts them, so a session's spend and budget include its judge. A decided check keeps its decision, and the group of agents with too few questions says so once, without any agent's counts (#3189).
+- **Improve finds missing knowledge in eval answers.** A session that learned from evals sorted no answer for missing knowledge, so it listed no topic even when the agent said the documents were silent: the sort read chat answers alone. Its failed training answers now go to the Knowledge gap classifier too, kept by the run that answered, and one the agent did not know becomes a question in the knowledge base's topics, listed at **Understand** and on the result. Such an answer stays in what the improver reads. A case's erased copies take the questions and verdicts read from its answers with them. The classifier also names what a miss read from an answer lacks, in a few words, and its topic is grouped and named by that - "Lead times by product" rather than one customer's question (#3190).
+
+
+
+- **Needs attention** on the dashboard and the agent list's badge no longer name the platform's
+  own agents (judges, drafters, generators, classifiers and the improver), whose pages do not
+  open; the link led to an unavailable page.
+
+- Drafting a knowledge-gap passage and a workflow's knowledge search now search
+  exactly the knowledge base that was checked. Both looked the base up again by
+  its collection name, which several bases of one organization can share, so
+  they could read passages from a same-named base the person or the run's
+  principal had no access to.
+- Serialize eval-answer gap classification with case-copy erasure, remove classifier manifests with the erased copies, and keep competing classifications consistent with their recorded misses.
+- Price automatically reused baselines and held-out-only checks consistently before budget gates; show the same expected cost on the evaluation start button and summary.
+- Rejudge skill checks by a stored rule version, report inaccessible rows as skipped, and recount only finished attempts under the session lock. Preserve indexed UUID lookups for judge costs.
+- Hide Add to dataset for eval-only knowledge topics, and count authoring context in Unicode code points so emoji do not cause false truncation.
+- **Cost estimates now include the confirming reruns.** An eval run, an Improve check and a skill check showed as their likely cost only the first answers, while a compared run asks about half of its cases again: on the Fernhill run, checks cost 2 to 3.6 times their estimate. The estimate adds `expected_usd`, the first answers and half of the rerun ceiling for a compared run, and the start dialog, a run's page, the Improve check's quote and a skill check show it with the most the step may cost. An Improve check no longer asks its training cases again, since nothing reads those reruns, and its ceiling counts its held-out cases alone. With no history on a model, an answer from an agent with tools is priced as `1 + EVAL_FALLBACK_TOOL_ROUNDS` requests (new, default 2) and a grading as a request that also reads the answer. (#3188).
+- **A skill's Improve session names what accepting it did.** Its status line read "Kept as draft", an agent session's label, for a change applied to the skill. It now says Applied, Made a fork, Caught up with main or Moved to main. A new `skill-checks-rejudge` command judges again, from their stored runs and with no model call, the agents of finished skill checks that an older rule judged: one kept before families shows them, and one kept before `too_few_questions` existed no longer says its run could not grade every answer. It also counts the judge's gradings in a session attempt that counted only its check's answers, and a skill check's cost now counts them, so a session's spend and budget include its judge. A decided check keeps its decision, and the group of agents with too few questions says so once, without any agent's counts (#3189).
+- **Improve finds missing knowledge in eval answers.** A session that learned from evals sorted no answer for missing knowledge, so it listed no topic even when the agent said the documents were silent: the sort read chat answers alone. Its failed training answers now go to the Knowledge gap classifier too, kept by the run that answered, and one the agent did not know becomes a question in the knowledge base's topics, listed at **Understand** and on the result. Such an answer stays in what the improver reads. A case's erased copies take the questions and verdicts read from its answers with them. The classifier also names what a miss read from an answer lacks, in a few words, and its topic is grouped and named by that - "Lead times by product" rather than one customer's question (#3190).
+
 ### Upgrading
 
-- Apply `0349_reusable_event_sources.py` before starting the updated API and worker. It adds source, subscription, delivery and dispatch tables, structured queued routine input and template diagnostics. Existing webhook URLs and credentials stay valid. Before downgrading, detach source subscribers, switch routine prompts back to literal, and finish pending deliveries and structured device waits. Let running source jobs finish. For routine jobs that still carry structured input, drain or cancel queued work and retry or expire dead jobs before downgrading.
+- Apply `backend/alembic/versions/0356_improvement_search.py` to store Improve search settings, progress and scored variants. Existing sessions retain step-by-step mode.
+
+- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+- Migration `backend/alembic/versions/0356_improvement_search.py` adds `improvement_runs.mode` (existing sessions read `steps`), the `searching` stage, the `no_variant` stop reason, `improvement_iterations.search` and the `improvement_search_variants` table. Its downgrade drops them, reads a searching session as `proposing` and `no_variant` as `no_proposal`.
+
+- Apply `0357_reusable_event_sources.py` before starting the updated API and worker. It adds source, subscription, delivery and dispatch tables, structured queued routine input and template diagnostics. Existing webhook URLs and credentials stay valid. Before downgrading, detach source subscribers, switch routine prompts back to literal, and finish pending deliveries and structured device waits. Let running source jobs finish. For routine jobs that still carry structured input, drain or cancel queued work and retry or expire dead jobs before downgrading.
+
+## [1.91.0] - 2026-11-23
+
+### Upgrading
+
+- The bundled agent framework moves to Pydantic AI 2.71 and harness 0.71. Finish paused code executions before upgrading: saved code checkpoints are tied to the interpreter/runtime versions and are rejected after a runtime change rather than replaying completed effects.
+
+- The personal work extractor moves to `personal-work-v7` to retain concrete work needs and supply source-attributed temporal context. Existing authorized history is refreshed lazily in bounded jobs under the configured proactivity budget; select the intended background model before resuming a paused rollout. Saved Inbox decisions are retained.
+
+### Added
+
+- Search many variants of an agent's instructions in Improve. **Search variants** in the start dialog (`mode: "search"`) has the helper write complete versions of the instructions a few at a time and grade each on the same draw of the attempt's training questions; held-out questions are never read. The best variant that beats the current instructions comes to **Changes**, and its check, result and acceptance are unchanged; another of the three best can be brought there instead (`PUT /{run_id}/search/choice`). The search has its own budget inside the session's limit and goes over it by at most the variant in flight, an optional cheaper or local grading model, and needs ten training questions (`422` below that). A session that finds nothing better stops with `no_variant`.
+- Configure model defaults for daily briefing, suggestions and memory maintenance: reasoning effort, sampling, output limits, request timeout and parallel tool calls. Reuse the agent builder controls, preserve provider defaults when unset, and save changes explicitly to the shared model profile.
+
+### Fixed
+
+- Bound the entire memory extraction transcript, including source timestamps, identifiers and JSON escaping, so many short turns cannot exceed the configured input allowance.
+
+- Update the backend framework, MCP, authentication, channel and validation dependencies from #3235 and #3236. Retain croniter 6 so existing saved cron expressions keep their scheduling semantics.
+
+- Adapt skill catalog rendering, code-result serialization and the Stav client factory to the updated agent SDK contracts. Keep tool-output limits restricted to the declared read-back tool rather than exposing new upstream tools implicitly.
+
+- Personal Inbox readers receive structured questions, linked authenticated answers, original timestamps and timezone-aware local dates throughout extraction and verification. Schedule wording is interpreted by the model rather than a weekday/time regex. Memory maintenance retains source timestamps and question/answer provenance; clipped transcript tails are marked explicitly.
+
+- Background model reads now honor their selected model profile's generation parameters, including thinking effort and output limits.
+
+- Preserve grounded personal Inbox opportunities across proposal and verification: recognize recurring requests across conversations, propose new setup when only a historical assistant claim says a missing routine exists, and introduce unused features when they directly help the person's work. Keep deletion, dismissal, current-resource and authenticated-answer checks. Interpret native scheduling answers from their linked questions and temporal context without language-specific weekday/time parsing.
+
+## [1.90.1] - 2026-11-22
+
+### Fixed
+
+- Preserve authenticated value-only question-answer citations when restoring labelled answer context, so a confirmed multi-question automation request is not dropped before proposal generation.
+
+- Initialize channel adapters before personal Inbox workers verify current channel membership, so authorized Slack and Mattermost conversations are not omitted when the API lifespan has not run. Unavailable or revoked membership still refuses access.
+
+## [1.90.0] - 2026-11-22
+
+### Upgrading
+
+- Migration `0349_personal_work_context.py` adds a rebuildable, membership-private work index. Existing authorized history is indexed lazily within the configured proactivity budget; the migration makes no model calls. Deploy API and workers together. The migration also adds the `personal` proposal kind; downgrading removes these rebuildable proposals. Export them first if their decisions must be retained.
+
+### Added
+
+- Build personal Inbox proposals from source-linked conversation history, memory, profile, projects, private tasks, current routines and prior decisions. Reuse unchanged source checkpoints, continue large histories across bounded jobs, and independently verify proposed actions before delivery. Keep paid execution, scheduling and publication behind their established approvals.
+
+### Fixed
+
+- Memory maintenance preserves human statements before long assistant answers and reads authenticated native question answers without treating remote tool text as human evidence.
+
+## [1.89.1] - 2026-11-22
+
+### Fixed
+
+- Recognize the official November 12 and 14 AgenticOS starter templates when upgrading older organizations. Refresh untouched shipped defaults while preserving custom prompts, tools, model choices, budgets and unpublished edits.
+
+## [1.89.0] - 2026-11-21
+
+### Upgrading
+
+- Deploy the API and workers together. New and re-reviewed routines store their source mode, which older workers cannot read. Existing stored routines without a mode retain their restricted policy.
+
+### Added
+
+- Let new routines use their agent's available configuration and approval rules without an initial setup review. Retain the creator-approved access and behavior ceiling: later source/tool expansions or behavior changes require owner review, while model-only updates and safe removals remain allowed. Missing optional MCP accounts do not block unrelated work; required source identity and mandatory approvals remain enforced.
+
+- Let operators queue a bounded refresh of open generated Inbox proposals in one organization. Keep decisions, findings and linked cases, and retain the old proposals when generation fails or a person decides during the refresh.
+
+### Changed
+
+- Prepare actionable Inbox chat drafts from generated proposal text and source evidence, including local weekdays and time zones. Keep drafts editable and show only two starter prompts on phones.
+
+### Fixed
+
+- Claim a generated Inbox proposal before accepting or dismissing it, so refresh waits for an in-progress decision instead of deleting the card during profile updates or role-pack setup.
+
+- Open links to verified tool-produced files in the scoped workspace viewer instead of navigating to nonexistent console pages, and do not present failed writes as produced files.
+
+- Distinguish chat workspaces that have not been created or retained from sandbox connection failures. Keep file attachments available and preserve explicit errors for lost recorded sessions and failed connections.
+
+- Keep routine titles readable in narrow chat cards, with wrapping status and action controls based on the card's available width.
+
+- Preserve the reader's position when a live question appears and keep selected answers visible across submission, server acknowledgements and transcript reloads.
 
 ## [1.88.0] - 2026-11-21
 
@@ -22440,7 +22586,12 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.88.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.91.0...HEAD
+[1.91.0]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...v1.91.0
+[1.90.1]: https://github.com/vstorm-co/agenticos/compare/v1.90.0...v1.90.1
+[1.90.0]: https://github.com/vstorm-co/agenticos/compare/v1.89.1...v1.90.0
+[1.89.1]: https://github.com/vstorm-co/agenticos/compare/v1.89.0...v1.89.1
+[1.89.0]: https://github.com/vstorm-co/agenticos/compare/v1.88.0...v1.89.0
 [1.88.0]: https://github.com/vstorm-co/agenticos/compare/v1.87.1...v1.88.0
 [1.87.1]: https://github.com/vstorm-co/agenticos/compare/v1.87.0...v1.87.1
 [1.87.0]: https://github.com/vstorm-co/agenticos/compare/v1.86.2...v1.87.0

@@ -150,3 +150,83 @@ uv run --directory backend --env-file ../evals/personal/.env sh -c '
 ```
 
 The judge grades only rows that passed deterministic checks. It evaluates an isolated write by the attempted action and what the answer claims happened. Live probes verify the actual effect. A judge provider or token-limit failure is recorded separately from a model verdict. Keep its model fixed across candidate comparisons and log its cost separately. Compare tool accuracy, judged correctness, cost per passing case, p50/p95 latency and incomplete-cost rows. The [design and cost assumptions](DESIGN.md) specify the initial model and expected spend.
+
+## Richer context regression packets
+
+`datasets/context.jsonl` adds **51 synthetic cases**: 40 for proactive assistance
+and 11 for memory. They cover weekly/monthly cycles, high activity, important text
+after the old clip, changed task state without a new chat, tool receipts, shared
+responsibility, feature availability and usage, memory corrections and erasure.
+Three appended training cases supply explicit conversation links and an existing
+routine for native answers/corrections, and a memory reference aligned with the
+writer's durable-fact contract. The original 44 packets remain unchanged: two
+native-answer references lack a question-to-conversation link or an identifiable
+job, and one asks for assignment expiry unsupported by that writer. Report their
+raw results and this fixture audit separately; do not silently relabel failures.
+A further training case reproduces a human automation request with authenticated
+answers followed by an assistant creation claim, while the complete current
+routine list is empty. It expects new setup with the known choices, not attention
+to a fabricated paused resource; the explicit-deletion case remains separate.
+
+The additional adversarial cases cover authenticated Ask user answers, corrections,
+deleted routines, citations that do not support a claim, incomplete resource pages,
+revoked cached evidence, expired questions and timezone-aware schedules.
+Thirty-two cases are marked `holdout`. Their labels remain useful for reporting, but cases inspected during implementation are no longer an unseen holdout. Report that exposure rather than claiming independent validation.
+
+These are desired-behavior fixtures, not another 51 successes for the older
+`NightlyReading` schema. Their references and counter-examples need semantic
+review. The existing 222-case corpus and its scores remain separate. The packets
+use the platform's `DatasetCaseContent` JSONL format, so the normal Dataset import
+and evaluation path can consume them. `run.py` remains the older narrow-contract
+replay. `context_run.py` compares that reader with the production context pipeline
+and memory transcript selection.
+
+```sh
+cd backend
+uv run python ../evals/personal/context_cases.py
+uv run python ../evals/personal/context_cases.py --export /tmp/context-cases.jsonl
+uv run python -m unittest discover -s ../evals/personal
+```
+
+The validator uses the production importer and checks unique case/source IDs,
+partitions, target components and typed context packets. It makes no model calls.
+Private conversation exports, prompts and raw reports belong outside Git. Add
+synthetic regressions for the observed failure instead of committing a user's
+history.
+
+The Python background runner also accepts a resolved Pydantic AI `Model` and an
+explicit `model_label`. This preserves a configured authenticated gateway without
+copying credentials into report files or silently switching to a public endpoint.
+Its CLI model-name behavior is unchanged.
+
+
+### Paired context replay
+
+From the repository root, choose the model explicitly:
+
+```sh
+uv run --directory backend python ../evals/personal/context_run.py \
+  --model "openrouter:YOUR_CONFIGURED_MODEL" \
+  --report /tmp/context-paired.jsonl --max-usd 3
+```
+
+Use repeated `--case <case-id>` for a focused replay. Python callers can pass a
+resolved Pydantic AI `Model` to `run_context` to retain a deployment's configured
+gateway. Keep credentials in that deployment; never copy them into a report.
+
+The new path indexes each conversation separately in 16,000-character segments,
+uses the production citation and ownership checks, proposes up to four cards and
+independently verifies cards and starters. The replay does not mutate product
+resources or activate proposed work. Current database authorization, checkpoint
+persistence, erasure, resumption and unchanged-read behavior are covered separately
+by `tests/integration/test_personal_context_cache.py`.
+
+Every model request, repair and judge call records its output, usage, latency and
+provider-reported cost. The explicit USD limit stops admission after known spend
+reaches it; one admitted request can exceed the remaining amount. Missing cost
+information stops the replay. Preserve failed attempts when calculating total
+spend. A model judge is an aid to review, not a human usefulness rating. Report
+technical failures separately, and do not merge these scores with the original
+222-case corpus.
+
+Temporal-context regressions include Polish and German scheduling answers in words and a message timestamp with unselected time options. Extraction and verification receive original event timestamps, local UTC offsets and linked structured questions/answers. The model interprets scheduling intent; code validates source identities, exact citations and access rather than parsing natural-language weekdays or hours. Memory maintenance retains source timestamps and distinguishes native questions from submitted human answers.

@@ -1,5 +1,5 @@
 ---
-source_sha: "9dab1088209c"
+source_sha: "3b887e9777b8"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -3205,7 +3205,9 @@ Las casillas de **Lo que este agente puede hacer** conceden herramientas reales.
 
 Cada operación vuelve a comprobar la pertenencia a la organización, acceso al agente, vinculación y bot activos, además de pertenencia al canal y correspondencia del hilo. No se une a canales ni utiliza bots de otros agentes. La búsqueda y el historial devuelven páginas limitadas con cursores; una página sin coincidencias no es el final si hay cursor. Los fallos del proveedor son rechazos, no resultados vacíos. Los envíos siguen la política de aprobación; una entrega no confirmada debe comprobarse antes de reintentarse. Las demás plataformas conservan sus herramientas de conversación; las acciones entre canales solo se ofrecen donde el adaptador verifica la pertenencia.
 
-Antes de crear un informe recurrente, acuerda zona horaria, frecuencia y destino, incluido usar el hilo actual o una publicación nueva. Escribe los identificadores verificados del bot, canal e hilo y la tarea completa en el prompt de la rutina, terminando con `send_chat_message`; la copia de la consola queda en el registro. Revisa fuentes y consentimiento permanente de acciones en Rutinas. Una fuente ausente guarda la rutina pausada con indicaciones de configuración; no podrá ejecutarse ni activarse hasta reparar y revisar las fuentes. Repara la rutina existente en lugar de crear más con otros agentes.
+Antes de crear un informe recurrente, acuerda zona horaria, frecuencia y destino, incluido usar el hilo actual o una publicación nueva. Escribe los identificadores verificados del bot, canal e hilo y la tarea completa en el prompt, terminando con `send_chat_message`; la copia de la consola queda en el registro.
+
+Las rutinas nuevas admiten automáticamente la configuración inicialmente disponible del agente dentro de los permisos del creador. Las ampliaciones posteriores de fuentes o comportamiento, incluidas instrucciones o skills efectivos modificados, requieren la revisión de acceso del propietario. Las cuentas MCP opcionales ausentes no bloquean otras tareas. El envío mantiene las aprobaciones del agente y los controles obligatorios; no prometas entrega desatendida si se necesita aprobación. Una configuración obligatoria ausente guarda la rutina en pausa. Repara la rutina existente en vez de duplicarla o cambiar vinculaciones compartidas sin acuerdo.
 
 Las tareas largas transmiten texto y etapas reales de herramientas. En canales de texto la etapa actual sigue visible tras una frase de avance; las actualizaciones limitadas muestran tiempo transcurrido y pasos terminados, sin porcentajes inventados. La respuesta final sustituye el estado temporal. Las plataformas con transmisión nativa conservan su propia cronología.
 

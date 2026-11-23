@@ -48,10 +48,12 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.api_key import ApiKey
 from app.db.models.case_score import CaseScore
+from app.db.models.context import ContextFile
 from app.db.models.conversation import Conversation, Message
 from app.db.models.credential import ModelProfile
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase, EvalRunPurpose, EvalRunStatus
+from app.db.models.improvement import ImprovementVerdict
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
@@ -59,11 +61,21 @@ from app.db.models.run_manifest import RunManifest
 from app.db.models.skill_check import SkillCheck, SkillCheckAgent
 from app.db.models.skill_version import SkillVersion
 from app.db.models.user import User
-from app.repositories import authoring_repo, eval_run_repo, skill_check_repo
+from app.repositories import (
+    authoring_repo,
+    eval_run_repo,
+    skill_check_repo,
+    skill_improvement_repo,
+)
 from app.schemas.agent_environment import EnvironmentCreate
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCaseUpdate, DatasetCreate
-from app.schemas.eval_run import EvalRunRequest, ProposalCheckRecord
+from app.schemas.eval_run import (
+    EvalComparisonRead,
+    EvalRunRead,
+    EvalRunRequest,
+    ProposalCheckRecord,
+)
 from app.schemas.scoring import CaseVerdict, RescoreRequest
 from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import (
@@ -76,9 +88,13 @@ from app.services.api_key import KEY_GONE, ApiKeyService
 from app.services.dataset import DatasetService
 from app.services.eval_run import EvalRunService
 from app.services.eval_run_worker import EvalRunWorker
+from app.services.improvement_pipeline import ImprovementPipelineService
+from app.services.improvement_states import judge
 from app.services.model_profile import ModelProfileService
 from app.services.scorers import JUDGE_PROMPT_VERSION
 from app.services.scoring import ScoringService
+from app.services.skill_check import SkillCheckService
+from app.services.skill_improvement import SkillImprovementService
 from app.services.transcript import RecordedToolCall
 from tests.integration.test_skill_bindings import _skill as _a_skill
 
@@ -1558,24 +1574,29 @@ async def test_a_flip_against_a_baseline_in_the_same_run_reruns_both_sides(db) -
     assert "judge changed while" in (mixed.invalid_reason or "")
 
 
-async def test_a_criterion_that_flipped_in_a_case_still_failing_is_asked_again(db) -> None:
-    """The case fails on both sides, so no case flips; one of its two checks does, and
-    the reruns are what confirm it."""
-    ctx = await _owner(db)
-    agent, _ = await _agent(db, ctx)
-    dataset = await _dataset(db, ctx, cases=1)
-    case = (await DatasetService(db).list_cases(ctx, dataset.id)).items[0]
-    await DatasetService(db).update_case(
-        ctx,
-        dataset.id,
-        case.case_id,
-        DatasetCaseUpdate(
-            checks=[
-                {"type": "contains", "value": "30 days"},
-                {"type": "contains", "value": "receipt"},
-            ]
-        ),
-    )
+async def _with_checks(db: AsyncSession, ctx: AuthContext, cases: int) -> Dataset:
+    """Cases that fail on both sides on "receipt", so no case flips; their "30 days"
+    checks are one family, and that family is what moves."""
+    dataset = await _dataset(db, ctx, cases=cases)
+    service = DatasetService(db)
+    for case in (await service.list_cases(ctx, dataset.id)).items:
+        await service.update_case(
+            ctx,
+            dataset.id,
+            case.case_id,
+            DatasetCaseUpdate(
+                checks=[
+                    {"type": "contains", "value": "30 days", "family": "refund window"},
+                    {"type": "contains", "value": "receipt"},
+                ]
+            ),
+        )
+    return dataset
+
+
+async def _run_paired(
+    db: AsyncSession, ctx: AuthContext, agent: Agent, dataset: Dataset
+) -> tuple[EvalComparisonRead, Model]:
     service = EvalRunService(db)
     started = await service.start(
         ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, paired_baseline=True, reruns=1)
@@ -1587,22 +1608,151 @@ async def test_a_criterion_that_flipped_in_a_case_still_failing_is_asked_again(d
 
     model = Model(db, answer=answer)
     await _run_to_end(db, model, started.id, ctx)
+    return await service.compare(ctx, started.id), model
 
-    comparison = await service.compare(ctx, started.id)
+
+async def test_a_family_that_moved_too_little_to_settle_is_asked_again(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _with_checks(db, ctx, cases=2)
+
+    comparison, model = await _run_paired(db, ctx, agent, dataset)
+
     assert comparison.fixed_confirmed == 0 and comparison.regressions_confirmed == 0
-    # One case on two arms, then once more on each arm for the criterion that moved.
-    assert len(model.calls) == 4
+    # Two cases on two arms, then each case once more on each arm: two flips
+    # cannot settle a family's direction on their own.
+    assert len(model.calls) == 8
+    families = {item.family: item for item in comparison.families}
+    window = families["refund window"]
+    assert (window.cases, window.baseline_passed, window.candidate_passed) == (2, 0, 2)
+    assert (window.fixed, window.fixed_confirmed, window.settled) == (2, 2, False)
+    assert window.better and not window.worse
+    receipt = families["contains 'receipt'"]
+    assert (receipt.candidate_passed, receipt.fixed) == (0, 0)
     moved = {item.name: item for item in comparison.criteria}
-    days = moved["contains '30 days'"]
-    assert (days.graded, days.baseline_passed, days.candidate_passed) == (1, 0, 1)
-    assert (days.fixed_confirmed, days.broken_confirmed) == (1, 0)
-    receipt = moved["contains 'receipt'"]
-    assert (receipt.candidate_passed, receipt.fixed_confirmed) == (0, 0)
+    assert moved["contains '30 days'"].fixed_confirmed == 2
+    # Every question still fails, yet half its criteria now pass.
+    assert {tuple(case.baseline_criteria or ()) for case in comparison.cases} == {(0, 2)}
+    assert {tuple(case.candidate_criteria or ()) for case in comparison.cases} == {(1, 2)}
+    after, before = comparison.candidate_summary, comparison.baseline_summary
+    assert before is not None
+    assert (after.pass_rate, after.criteria_passed, after.criteria_graded) == (0.0, 2, 4)
+    assert (after.partial_credit, before.partial_credit) == (0.5, 0.0)
+    # Two confirmed fixes over four criterion grades; the round keeps that share.
     assert comparison.criterion_change == 0.5
     from app.services.improvement_pipeline import ImprovementPipelineService
 
-    read = await service.get(ctx, started.id)
+    read = await EvalRunService(db).get(ctx, comparison.candidate.run_id)
     assert ImprovementPipelineService._check_result(read, comparison).criterion_change == 0.5
+
+
+async def test_a_family_that_moved_on_the_held_out_cases_is_asked_again_there(db) -> None:
+    """An Improve check is judged on its held-out cases alone. Counted over every case
+    the family settles on its spread, but on the five held out it cannot, so those are
+    asked again on both sides - the baseline standing in from an earlier check too."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _with_checks(db, ctx, cases=11)
+    cases = sorted(
+        (await DatasetService(db).list_cases(ctx, dataset.id)).items, key=lambda c: c.input
+    )
+    held_out = [case.case_id for case in cases[:5]]
+    service = EvalRunService(db)
+    draft = AgentSpec(name="Clerk", instructions="Draft")
+
+    def answer(prompt: str, call: int) -> str:
+        candidate = model.calls[call]["candidate"]
+        return _PASS if candidate.spec.instructions.startswith("Attempt") else _FAIL
+
+    async def check(instructions: str) -> EvalRunRead:
+        started = await service.start(
+            ctx,
+            agent.id,
+            EvalRunRequest(dataset_id=dataset.id, paired_baseline=True, reruns=1),
+            candidate_spec=AgentSpec(name="Clerk", instructions=instructions),
+            baseline_spec=draft,
+            proposal_check=ProposalCheckRecord(
+                kind="agent", base_version=7, suggestions=1, attempt_holdout=held_out
+            ),
+        )
+        await _run_to_end(db, model, started.id, ctx)
+        return await service.get(ctx, started.id)
+
+    model = Model(db, answer=answer)
+    await check("Attempt 1")
+    model = Model(db, answer=answer)
+    second = await check("Attempt 2")
+    comparison = await service.compare(ctx, second.id)
+
+    [baseline] = [arm for arm in second.arms if arm.role == "baseline"]
+    assert baseline.reused_from_arm_id is not None
+    # Eleven first answers from the candidate, then the five held-out cases once more
+    # on each side; the six training cases settle their own family.
+    assert len(model.calls) == 21
+    asked_again = {call["prompt"] for call in model.calls[11:]}
+    assert asked_again == {case.input for case in cases[:5]}
+    [window] = [item for item in comparison.families if item.family == "refund window"]
+    assert (window.cases, window.fixed, window.fixed_confirmed, window.settled) == (
+        5,
+        5,
+        5,
+        False,
+    )
+    assert window.better
+    result = ImprovementPipelineService._check_result(second, comparison)
+    assert judge(result) is ImprovementVerdict.CRITERIA_BETTER
+
+
+async def test_a_measured_run_never_asks_its_training_cases_again(db) -> None:
+    """Its verdict reads the held-out cases alone, and the next attempt reads the
+    training cases' first answers: a family moving on two training cases decides
+    nothing anyone reads, so they are not asked again - and its ceiling holds only the
+    held-out cases."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _with_checks(db, ctx, cases=4)
+    cases = sorted(
+        (await DatasetService(db).list_cases(ctx, dataset.id)).items, key=lambda c: c.input
+    )
+    held_out = [case.case_id for case in cases[:2]]
+    service = EvalRunService(db)
+    request = EvalRunRequest(dataset_id=dataset.id, paired_baseline=True, reruns=1)
+    check = {
+        "candidate_spec": AgentSpec(name="Clerk", instructions="Attempt 1"),
+        "baseline_spec": AgentSpec(name="Clerk", instructions="Draft"),
+    }
+    record = ProposalCheckRecord(
+        kind="agent", base_version=7, suggestions=1, attempt_holdout=held_out
+    )
+
+    def answer(prompt: str, call: int) -> str:
+        candidate = model.calls[call]["candidate"]
+        return _PASS if candidate.spec.instructions.startswith("Attempt") else _FAIL
+
+    estimate = await service.estimate(ctx, agent.id, request, **check, proposal_check=record)
+    started = await service.start(ctx, agent.id, request, **check, proposal_check=record)
+    model = Model(db, answer=answer)
+    await _run_to_end(db, model, started.id, ctx)
+
+    per_case = sum(arm.cost_per_case_usd for arm in estimate.arms)
+    assert estimate.rerun_ceiling_usd == per_case * 2
+    # Four cases on two sides, then the two held-out ones once more on each.
+    assert len(model.calls) == 12
+    asked_again = {call["prompt"] for call in model.calls[8:]}
+    assert asked_again == {case.input for case in cases[:2]}
+
+
+async def test_a_criterion_that_moved_on_one_case_is_not_asked_again(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _with_checks(db, ctx, cases=1)
+
+    comparison, model = await _run_paired(db, ctx, agent, dataset)
+
+    # One case on two arms, and nothing more: one case decides no family.
+    assert len(model.calls) == 2
+    [window] = [item for item in comparison.families if item.family == "refund window"]
+    assert (window.fixed, window.fixed_confirmed, window.better) == (1, 0, False)
 
 
 async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
@@ -1626,6 +1776,8 @@ async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
     # Judge spend belongs to the judge; the organization reserves both.
     assert estimate.agent_after_usd == Decimal("1.40")
     assert estimate.rerun_ceiling_usd == Decimal("0.80")
+    # With no earlier run to compare with, nothing is asked again.
+    assert estimate.expected_usd == estimate.total_usd
 
     # A draft with a looser cap against v7: v7 stops first, so its cap decides.
     agent.draft_spec = {**agent.draft_spec, "budget": {"monthly_usd": 5}}
@@ -1636,6 +1788,8 @@ async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
         EvalRunRequest(dataset_id=dataset.id, candidate="draft", paired_baseline=True),
     )
     assert paired.agent_remaining_usd == Decimal("2")
+    # A compared run usually asks about half of what its ceiling reserves.
+    assert paired.expected_usd == paired.total_usd + paired.rerun_ceiling_usd / 2
 
 
 async def test_an_older_version_without_a_cap_is_estimated_against_the_current_cap(db) -> None:
@@ -1688,6 +1842,27 @@ async def test_a_model_with_no_history_is_priced_at_its_own_price(db) -> None:
     # 2000 tokens in at $0.10/1M and 400 out at $0.40/1M.
     assert (arm.basis, arm.cost_per_case_usd) == ("fallback", Decimal("0.00036"))
     assert arm.cost_usd == Decimal("0.0036")
+
+
+async def test_with_no_history_an_answer_with_tools_is_priced_as_several_requests(db) -> None:
+    """Each tool call is answered in another request, so an agent that searches its
+    documents is priced at more than one."""
+    ctx = await _owner(db)
+    agent, versions = await _agent(db, ctx)
+    versions[7].spec = {"name": "Clerk", "capabilities": [{"id": "knowledge"}]}
+    dataset = await _dataset(db, ctx, cases=10)
+    await db.flush()
+    nano = await _profile(db, ctx, "gpt-4.1-nano")
+    priced = SimpleNamespace(label="nano", model="gpt-4.1-nano", provider="openai")
+
+    with patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=priced)):
+        estimate = await EvalRunService(db).estimate(
+            ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, model_profile_ids=[nano.id])
+        )
+
+    [arm] = estimate.arms
+    # Three requests: 6000 tokens in at $0.10/1M and 1200 out at $0.40/1M.
+    assert (arm.basis, arm.cost_per_case_usd) == ("fallback", Decimal("0.00108"))
 
 
 async def _assist(db: AsyncSession, ctx: AuthContext, *, on: bool) -> None:
@@ -2213,6 +2388,158 @@ async def _checked_run(
     return check, dataset, v7
 
 
+async def test_an_agent_an_older_rule_judged_is_judged_again_from_the_runs_it_kept(db) -> None:
+    """A row judged before families were kept, or before `too_few_questions` existed,
+    reads what its runs say once judged again - and a decided check keeps its status."""
+    ctx = await _owner(db)
+    check, _, v7 = await _checked_run(db, ctx)
+    check.status = "applied"
+    row = await db.scalar(select(SkillCheckAgent).where(SkillCheckAgent.check_id == check.id))
+    assert row is not None
+    row.state, row.unknown_reason, row.families = "unknown", "inconclusive", []
+    await db.flush()
+
+    found = await skill_check_repo.judged_before_families(db)
+
+    assert (ctx.organization_id, check.id, [v7.id]) in found
+    # A running check is judged when its runs finish, not by a sweep.
+    check.status = "running"
+    await db.flush()
+    assert await skill_check_repo.judged_before_families(db, check_ids=[check.id]) == []
+    check.status = "applied"
+    await db.flush()
+
+    await SkillCheckService(db).recompute_after_review(ctx.organization_id, [v7.id])
+
+    await db.refresh(row)
+    assert (row.state, row.unknown_reason) == ("worse", None)
+    assert row.families
+    assert check.status == "applied"
+    assert await skill_check_repo.judged_before_families(db, check_ids=[check.id]) == []
+
+
+async def test_a_skill_checks_cost_counts_the_judges_gradings_beside_the_answers(db) -> None:
+    """A skill session's spend and its budget read this, so a grading is part of what
+    the check cost."""
+    ctx = await _owner(db)
+    check, _, v7 = await _checked_run(db, ctx)
+    score = await db.scalar(select(CaseScore).where(CaseScore.eval_run_id == v7.id).limit(1))
+    assert score is not None
+    grading = AgentRun(
+        organization_id=ctx.organization_id,
+        agent_id=v7.agent_id,
+        surface=RunSurface.EVAL.value,
+        status="completed",
+        model_label="gpt-test",
+        cost_usd=Decimal("0.30"),
+        started_at=datetime.now(UTC),
+    )
+    db.add(grading)
+    await db.flush()
+    judged = {
+        "scorer": "judge",
+        "required": True,
+        "status": "pass",
+        "judge_run_id": str(grading.id),
+    }
+    # One grading of two criteria is one run, counted once.
+    score.results = [
+        *score.results,
+        {**judged, "name": "Tone"},
+        {**judged, "name": "Policy"},
+    ]
+    await db.flush()
+
+    cost = await skill_improvement_repo.check_cost(
+        db, check.id, organization_id=ctx.organization_id
+    )
+
+    answers = await db.scalar(
+        select(func.sum(EvalRunCase.cost_usd)).where(EvalRunCase.eval_run_id == v7.id)
+    )
+    assert cost == answers + Decimal("0.30")
+    assert cost == (await EvalRunService(db).get(ctx, v7.id)).cost_usd
+
+
+async def test_a_session_attempt_counted_without_the_judge_is_counted_again_once(db) -> None:
+    """A skill session's spend reads its attempts' costs, which counted only the answers
+    before the judge's gradings were counted too."""
+    ctx = await _owner(db)
+    check, _, v7 = await _checked_run(db, ctx)
+    grading = AgentRun(
+        organization_id=ctx.organization_id,
+        agent_id=v7.agent_id,
+        surface=RunSurface.EVAL.value,
+        status="completed",
+        model_label="gpt-test",
+        cost_usd=Decimal("0.30"),
+        started_at=datetime.now(UTC),
+    )
+    db.add(grading)
+    await db.flush()
+    score = await db.scalar(select(CaseScore).where(CaseScore.eval_run_id == v7.id).limit(1))
+    assert score is not None
+    score.results = [
+        *score.results,
+        {"scorer": "judge", "name": "Tone", "status": "pass", "judge_run_id": str(grading.id)},
+    ]
+    await db.flush()
+    session = await skill_improvement_repo.create_run(
+        db,
+        organization_id=ctx.organization_id,
+        skill_id=check.skill_id,
+        fork_id=None,
+        base_version_id=check.base_version_id,
+        created_by_user_id=ctx.user_id,
+        created_by_api_key_id=None,
+        window_days=30,
+        max_iterations=1,
+        estimate_usd=Decimal(0),
+        budget_usd=Decimal(15),
+        seed=None,
+    )
+    attempt = await skill_improvement_repo.create_iteration(
+        db, organization_id=ctx.organization_id, run_id=session.id, number=1, note=None
+    )
+    answers, gradings = await skill_improvement_repo.check_cost_parts(
+        db, check.id, organization_id=ctx.organization_id
+    )
+    attempt.skill_check_id, attempt.cost_usd = check.id, answers
+    await db.flush()
+    service = SkillImprovementService(db)
+
+    # An active attempt must not be recounted, even with free answers and a paid judge.
+    await db.execute(update(EvalRunCase).where(EvalRunCase.eval_run_id == v7.id).values(cost_usd=0))
+    answers = Decimal(0)
+    attempt.cost_usd = answers
+    await db.flush()
+    assert not await service.recount_check_cost(ctx.organization_id, attempt.id)
+    assert await skill_improvement_repo.checked_iterations(db, check_ids=[check.id]) == []
+    attempt.cost_usd = answers
+    attempt.ended_at = datetime.now(UTC)
+    await db.flush()
+    assert await service.recount_check_cost(ctx.organization_id, attempt.id)
+    assert gradings == Decimal("0.30")
+    assert attempt.cost_usd == answers + gradings
+    assert not await service.recount_check_cost(ctx.organization_id, attempt.id)
+    # One that also paid for a check a retry replaced cannot be told apart, and is left.
+    attempt.cost_usd = answers + Decimal("0.50")
+    await db.flush()
+    assert not await service.recount_check_cost(ctx.organization_id, attempt.id)
+    assert attempt.cost_usd == answers + Decimal("0.50")
+    assert await skill_improvement_repo.checked_iterations(db, check_ids=[check.id]) == [
+        (ctx.organization_id, attempt.id)
+    ]
+    # With no check named, the sweep lists every attempt that started a check, and only those.
+    unchecked = await skill_improvement_repo.create_iteration(
+        db, organization_id=ctx.organization_id, run_id=session.id, number=2, note=None
+    )
+    swept = await skill_improvement_repo.checked_iterations(db)
+    assert (ctx.organization_id, attempt.id) in swept
+    assert (ctx.organization_id, unchecked.id) not in swept
+    assert not await service.recount_check_cost(ctx.organization_id, uuid.uuid4())
+
+
 async def test_a_skill_checks_regression_its_re_asks_confirmed_outlasts_a_verdict_on_one_answer(
     db,
 ) -> None:
@@ -2634,8 +2961,9 @@ async def test_a_judge_with_no_history_is_priced_at_its_models_price(db) -> None
     with patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=priced)):
         estimate = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
 
-    # Ten cases, each 2000 tokens in at $0.10/1M and 400 out at $0.40/1M.
-    assert estimate.judge_usd == Decimal("0.0036")
+    # Ten cases, each 2000 tokens and the 400-token answer it grades in at $0.10/1M,
+    # and 400 out at $0.40/1M.
+    assert estimate.judge_usd == Decimal("0.0040")
     assert estimate.judge_model_profile_id == nano.id
 
 
@@ -2691,7 +3019,17 @@ async def test_the_judges_run_names_the_eval_case_it_graded(db) -> None:
     score = await db.scalar(select(CaseScore).where(CaseScore.eval_run_id == run.id))
     assert score is not None
     judge_run = uuid.uuid4()
-    score.results = [*score.results, {"scorer": "judge", "judge_run_id": str(judge_run)}]
+    score.results = [
+        *score.results,
+        {
+            "scorer": "judge",
+            "name": "Tone",
+            "required": True,
+            "status": "pass",
+            "reason": "4/5: Polite",
+            "judge_run_id": str(judge_run),
+        },
+    ]
     await db.flush()
 
     link = await service.case_link(ctx, judge_run)
@@ -3060,6 +3398,167 @@ async def test_cases_from_a_proposals_evidence_are_left_out_and_listed(db) -> No
     assert started.excluded_case_ids == [first.case_id]
     assert started.cases == 2
     assert started.paired is True
+    assert all(arm.reused_from_arm_id is None for arm in started.arms)
+
+
+async def test_an_unchanged_draft_baseline_is_answered_once_across_checks(db) -> None:
+    """An improvement session measures each attempt against the same draft and leaves
+    out the same evidence; the second check reuses the first one's baseline answers."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    evidence = uuid.uuid4()
+    db.add(Conversation(id=evidence, organization_id=ctx.organization_id))
+    first_case = (
+        (
+            await db.execute(
+                select(DatasetCase)
+                .where(DatasetCase.dataset_id == dataset.id)
+                .order_by(DatasetCase.input)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    assert first_case is not None
+    first_case.source_conversation_id = evidence
+    await db.flush()
+    service = EvalRunService(db)
+    draft = AgentSpec(name="Clerk", instructions="Draft")
+
+    async def check(instructions: str, baseline: AgentSpec = draft) -> tuple[EvalRunRead, Model]:
+        started = await service.start(
+            ctx,
+            agent.id,
+            EvalRunRequest(dataset_id=dataset.id, paired_baseline=True),
+            candidate_spec=AgentSpec(name="Clerk", instructions=instructions),
+            baseline_spec=baseline,
+            exclude_conversations=[evidence],
+        )
+        model = Model(db)
+        await _run_to_end(db, model, started.id, ctx)
+        return await service.get(ctx, started.id), model
+
+    first, first_model = await check("Attempt 1")
+    second, second_model = await check("Attempt 2")
+    changed, changed_model = await check(
+        "Attempt 3", AgentSpec(name="Clerk", instructions="Edited draft")
+    )
+
+    assert all(arm.reused_from_arm_id is None for arm in first.arms)
+    assert len(first_model.calls) == 4
+    [reused] = [arm for arm in second.arms if arm.role == "baseline"]
+    [answered] = [arm for arm in first.arms if arm.role == "baseline"]
+    assert reused.reused_from_arm_id == answered.id
+    # Only the candidate answers the two cases outside the evidence.
+    assert len(second_model.calls) == 2
+    assert (await service.compare(ctx, second.id)).compared == 2
+    assert all(arm.reused_from_arm_id is None for arm in changed.arms)
+    assert len(changed_model.calls) == 4
+
+
+async def test_a_draft_still_equal_to_a_published_version_reuses_that_version_s_answers(
+    db,
+) -> None:
+    """An improvement session starts from a draft nobody has edited since publishing,
+    and the version's own eval already answered every case the check asks."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    service = EvalRunService(db)
+    published = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), published.id, ctx)
+    [answered] = published.arms
+    unchanged = AgentSpec(name="Clerk", instructions="v7")
+    request = EvalRunRequest(dataset_id=dataset.id, paired_baseline=True)
+    attempt = AgentSpec(name="Clerk", instructions="Attempt 1")
+
+    quote = await service.estimate(
+        ctx, agent.id, request, candidate_spec=attempt, baseline_spec=unchanged
+    )
+    started = await service.start(
+        ctx, agent.id, request, candidate_spec=attempt, baseline_spec=unchanged
+    )
+    model = Model(db)
+    await _run_to_end(db, model, started.id, ctx)
+
+    [baseline] = [arm for arm in quote.arms if arm.role == "baseline"]
+    assert (baseline.basis, baseline.cost_usd) == ("cached", 0)
+    assert baseline.cached_from_run_id == published.id
+    [reused] = [arm for arm in started.arms if arm.role == "baseline"]
+    assert reused.reused_from_arm_id == answered.id
+    assert len(model.calls) == 3
+    assert (await service.compare(ctx, started.id)).compared == 3
+
+
+async def test_a_draft_whose_context_file_was_edited_since_is_answered_again(db) -> None:
+    """A bound context file is read live at every answer, so answers given before an
+    edit were given to other text, however unchanged the draft's spec is."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    prices = ContextFile(organization_id=ctx.organization_id, name="prices", content="£1 each")
+    db.add(prices)
+    await db.flush()
+    service = EvalRunService(db)
+    draft = AgentSpec(name="Clerk", instructions="Draft", context_ids=[prices.id])
+
+    async def check(instructions: str) -> EvalRunRead:
+        started = await service.start(
+            ctx,
+            agent.id,
+            EvalRunRequest(dataset_id=dataset.id, paired_baseline=True),
+            candidate_spec=AgentSpec(
+                name="Clerk", instructions=instructions, context_ids=[prices.id]
+            ),
+            baseline_spec=draft,
+        )
+        await _run_to_end(db, Model(db), started.id, ctx)
+        return started
+
+    first = await check("Attempt 1")
+    unchanged = await check("Attempt 2")
+    prices.content = "£2 each"
+    prices.updated_at = datetime.now(UTC)
+    await db.flush()
+    edited = await check("Attempt 3")
+
+    [answered] = [arm for arm in first.arms if arm.role == "baseline"]
+    [reused] = [arm for arm in unchanged.arms if arm.role == "baseline"]
+    assert reused.reused_from_arm_id == answered.id
+    assert all(arm.reused_from_arm_id is None for arm in edited.arms)
+
+
+async def test_a_version_run_that_asked_more_cases_than_the_check_is_not_reused(db) -> None:
+    """A reused arm's first answers are read whole, so the session's evidence cases
+    the version's run answered would land in the baseline."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    evidence = uuid.uuid4()
+    db.add(Conversation(id=evidence, organization_id=ctx.organization_id))
+    case = (
+        (await db.execute(select(DatasetCase).where(DatasetCase.dataset_id == dataset.id)))
+        .scalars()
+        .first()
+    )
+    assert case is not None
+    case.source_conversation_id = evidence
+    await db.flush()
+    service = EvalRunService(db)
+    published = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), published.id, ctx)
+
+    started = await service.start(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, paired_baseline=True),
+        candidate_spec=AgentSpec(name="Clerk", instructions="Attempt 1"),
+        baseline_spec=AgentSpec(name="Clerk", instructions="v7"),
+        exclude_conversations=[evidence],
+    )
+
+    assert started.excluded_case_ids == [case.case_id]
     assert all(arm.reused_from_arm_id is None for arm in started.arms)
 
 
@@ -3963,11 +4462,11 @@ async def test_comparison_scratch_work_leaves_the_event_loop_responsive(db, monk
     started, release, finished = Event(), Event(), Event()
     original = eval_service.compare_criteria
 
-    def blocked(cases: Iterable[PairedGrades]) -> CriterionComparison:
+    def blocked(cases: Iterable[PairedGrades], *, alpha: float) -> CriterionComparison:
         started.set()
         release.wait(timeout=5)
         finished.set()
-        return original(cases)
+        return original(cases, alpha=alpha)
 
     monkeypatch.setattr(eval_service, "compare_criteria", blocked)
     # An implementation blocking the event loop must fail instead of hanging the suite.
@@ -3984,3 +4483,32 @@ async def test_comparison_scratch_work_leaves_the_event_loop_responsive(db, monk
             await task
         finally:
             timer.join()
+
+
+async def test_an_automatically_reused_baseline_prices_confirmation_reruns(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=4)
+    service = EvalRunService(db)
+    earlier = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), earlier.id, ctx)
+    request = EvalRunRequest(dataset_id=dataset.id)
+    estimate = await service.estimate(ctx, agent.id, request)
+    assert any(arm.role.value == "baseline" for arm in estimate.arms)
+    assert estimate.expected_usd == estimate.total_usd + estimate.rerun_ceiling_usd / 2
+    current = await service.start(ctx, agent.id, request)
+    assert current.expected_usd == current.estimate_usd + current.rerun_ceiling_usd / 2
+
+
+async def test_a_current_incomplete_skill_verdict_is_not_a_legacy_result(db) -> None:
+    from app.db.models.skill_check import SKILL_CHECK_VERDICT_VERSION
+
+    ctx = await _owner(db)
+    check, _, _ = await _checked_run(db, ctx)
+    check.status = "done"
+    row = await db.scalar(select(SkillCheckAgent).where(SkillCheckAgent.check_id == check.id))
+    assert row is not None
+    row.state, row.unknown_reason, row.families = "unknown", "inconclusive", []
+    row.verdict_version = SKILL_CHECK_VERDICT_VERSION
+    await db.flush()
+    assert await skill_check_repo.judged_before_families(db, check_ids=[check.id]) == []

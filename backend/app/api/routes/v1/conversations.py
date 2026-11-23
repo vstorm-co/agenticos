@@ -826,6 +826,7 @@ async def list_workspace_files(
         # workspace is is a fact about now, not about what a turn cost.
         bytes_limit=stored_ceiling(row),
         unreadable_reason=contents.unreadable_reason,
+        unreadable_code=contents.unreadable_code,
         truncated=contents.truncated,
     )
 

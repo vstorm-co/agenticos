@@ -1,8 +1,12 @@
 ---
-source_sha: "3722119864ec"
+source_sha: "baecaa006c9c"
 ---
 
 # Konsola { #the-console }
+
+Nowe generowane propozycje Inbox zawierają gotową prośbę o konkretne działanie zamiast pytania z identyfikatorem wpisu. Powtarzalna praca zachowuje źródłowe prośby oraz ich lokalne daty, dni tygodnia i strefę czasową, dzięki czemu sugerowany harmonogram może wynikać z dowodów. Wybór propozycji przygotowuje edytowalny szkic i nigdy nie wysyła go automatycznie. Chat na telefonie pokazuje dwa startery; szersze ekrany zachowują cztery.
+
+Operator może sprawdzić plan odświeżenia przez `agenticos cmd refresh-inbox --organization-id UUID`, a następnie dodać `--queue`, aby je zakolejkować. Nadal obowiązują skonfigurowany model i dotychczasowe budżety. Tylko otwarte, generowane propozycje są zastępowane po poprawnym odczycie; błąd lub odmowa pozostawia je bez zmian. Zaakceptowane i odrzucone decyzje, findings, powiązane sprawy oraz approval pozostają nietknięte. Decyzja podjęta podczas generowania anuluje zastąpienie propozycji danej osoby.
 
 Domyślne motywy rozróżniają tło strony, sidebar, karty i panele pływające. Niebieski oznacza linki i fokus klawiatury, a włączone przełączniki są zielone. Nawigacja ma zwykłą grubość tekstu i mocniejszą etykietę aktywnej strony. Podsumowania sekcji Buildera pokazują bieżący model, zmienne, stan głosu i pierwsze wiadomości przed otwarciem edytorów. Logowanie i odzyskiwanie konta korzystają ze wspólnego, krótkiego nagłówka i statycznego panelu marki.
 
@@ -16,7 +20,9 @@ Inbox zachowuje tę samą ramę listy, odstępy wierszy, oznaczenia źródeł, t
 
 Pliki i Źródła używają tego samego zwartego panelu bocznego: początkowo 400px, z regulacją od 360 do 420px i ograniczeniem do 38% szerokości zadokowanego czatu. Na wąskim desktopie mogą tymczasowo zwinąć listę rozmów; zamknięcie przywraca poprzedni wybór, chyba że zmienisz go ręcznie. Przeglądarka zachowuje szerszy obszar pracy: początkowo 55%, z regulacją od 35% do 65%. Kliknięcie cytatu przewija wyłącznie listę Źródeł, pozostawiając konwersację na miejscu.
 
-Na początku czatu Inbox pokazuje najwyżej dwa priorytety, bez dat i osobnej ikony czatu. Kliknięcie wiersza wstawia pytanie do pola wiadomości do edycji; nie wysyła go. **Otwórz Inbox** prowadzi do pełnej listy. Domyślny układ listy rozmów to **Workspace — projects**; `?sidebar=compact` i `?sidebar=comfortable` pozostają dostępne do porównania.
+Komunikat Plików o obszarze roboczym, który jeszcze nie powstał lub nie jest już przechowywany, różni się od błędu połączenia i nie dowodzi, że pliki nigdy nie istniały. Załączniki rozmowy pozostają dostępne. Dołącz i wyślij plik przez pole wiadomości albo poproś agenta o utworzenie pliku, aby użyć obszaru roboczego; rzeczywiste błędy połączenia i archiwum pozostają jawne. W czacie link do pliku zgodnego z potwierdzonym zapisem narzędzia otwiera podgląd obszaru roboczego. Niezweryfikowane ścieżki pozostają zwykłymi linkami; niedostępne prywatne źródło pliku nie staje się linkiem.
+
+Na początku czatu Inbox pokazuje najwyżej dwa priorytety, bez dat i osobnej ikony czatu. Kliknięcie wiersza wstawia propozycję działania do pola wiadomości do edycji; nie wysyła go. **Otwórz Inbox** prowadzi do pełnej listy. Domyślny układ listy rozmów to **Workspace — projects**; `?sidebar=compact` i `?sidebar=comfortable` pozostają dostępne do porównania.
 
 Publiczny czat i osadzony widget obsługują wiadomości wielowierszowe: Enter wysyła, Shift+Enter dodaje wiersz, a składanie znaku przez IME nie wysyła przedwcześnie. W głównym czacie, publicznym czacie i widgecie czytanie wcześniejszych wiadomości wstrzymuje automatyczne przewijanie. Streaming i zmiana rozmiaru treści zachowują tę pozycję; powrót na dół lub świadome wysłanie nowej wiadomości wznawia podążanie. Ponowne połączenie i wczytanie historii nie przewijają czytelnika na dół.
 
@@ -278,7 +284,7 @@ migawkę, którą chciałeś zachować.
 
 ## Rutyny i obserwacje { #routines-and-watches }
 
-Nowe harmonogramy i wyzwalacze API są zapisywane jako wstrzymane. Następnie pojawia się **Sprawdź dostęp rutyny**. Sprawdź źródła i wybierz działania, które mogą wykonywać się bez pytania; **Włącz rutynę** zapisuje obie zgody i ją aktywuje. **Dokończ później** pozostawia ją wstrzymaną. Jawne wymagania zatwierdzenia ustawione w agencie nadal obowiązują. Wznowienie niedokończonej konfiguracji ponownie otwiera ten przegląd; aktywacja sprawdza aktualność źródeł.
+Nowe rutyny automatycznie korzystają z dostępnej konfiguracji agenta przy tworzeniu, w zatwierdzonej granicy dostępu i zachowania. Wstępny przegląd dostępu nie jest wymagany; brak opcjonalnego konta MCP nie blokuje niezwiązanej z nim pracy. Późniejsze rozszerzenia źródeł lub narzędzi oraz zmiany instrukcji, skills, kontekstu albo delegatów wymagają przeglądu twórcy przed uruchomieniem. Zmiany samego modelu i bezpieczne ograniczenia pozostają w zatwierdzonej granicy. Nadal obowiązują zgody agenta, obowiązkowe zgody platformy i zgoda na lokalny folder. Okno dostępu pozwala też zachować zatwierdzony snapshot; istniejące ograniczone rutyny zachowują swoją politykę do zmiany przez właściciela.
 
 Gdy **Skip this run** pomija termin z powodu trwającego uruchomienia, historia zapisuje przyczynę bez nowego uruchomienia ani opłat. Jeśli serwer przyznaje Ci prawo do zatrzymania oczekującego uruchomienia, możesz zrobić to bezpośrednio w historii. Zatrzymanie zachowuje naliczone koszty i odblokowuje kolejny termin harmonogramu. Kolejne pominięcia przez ten sam niedokończony przebieg mają jeden wspólny wpis w historii.
 
@@ -663,17 +669,30 @@ każdy agent, a rozmowa kończy się maksymalnie trzema kartami do ustawienia -
 rutyną, usługą do podłączenia, własnym agentem - każda na jedno kliknięcie.
 Pomiń pytanie albo poproś o coś konkretnego, a zamiast tego zrobi robotę.
 
-**Co zauważyła w nocy.** Tam, gdzie organizacja to włączyła, raz dziennie,
-wcześnie rano twojego czasu, platforma przegląda w zadaniu w tle twoje ostatnie
-rozmowy: prośba, którą powtarzasz,
-staje się propozycją rutyny, to, czego agent dowiedział się o twojej roli -
-propozycją profilu, a twój pusty czat z AgenticOS dostaje pierwsze wiadomości
-napisane pod twoją pracę. Propozycje czekają jako karty w tym pustym czacie, na
-twoim dashboardzie i w dzwonku, a **Ustawienia → Asystent** pokazują wszystkie -
-tam przywrócisz odrzuconą albo wyłączysz to dla siebie; przyjmij jedną, a zostanie ustawiona, odrzuć, a ta sama propozycja nie
-wróci. Nic się nie uruchamia, gdy nic nowego się nie wydarzyło, a to, ile może to
-kosztować, ma [limit na osobę](governance.md#proactive-work). Link do czatu z
-`?agent=<slug>` otwiera czat na tym agencie.
+**Osobista pomoc.** Gdy organizacja ją włączy, platforma łączy dostępne rozmowy
+z Twoją pamięcią, profilem, widocznymi projektami, prywatnymi lub przypisanymi
+zadaniami, aktualnymi rutynami, metadanymi widocznych tabel i wcześniejszymi decyzjami w Inboxie. Rekordy tabel są odczytywane tylko jako zadania o określonym schemacie. Istotne zmiany
+zlecają odświeżenie w tle; poranny przegląd pozostaje dodatkowym zabezpieczeniem.
+Historia jest indeksowana fragmentami z cytatami wskazującymi źródła. Niezmienione
+fragmenty korzystają z zapisanego indeksu, a niezmieniony odczyt nie wywołuje modelu.
+Duże historie są kontynuowane w kolejnych zadaniach, zamiast ograniczenia do siedmiu
+dni i pierwszych 400 znaków. Obowiązują uprawnienia, rezygnacja i limity wydatków.
+
+Propozycja musi wskazywać źródła i przejść osobną ocenę modelu. Może dotyczyć agenta
+na żądanie, pracy cyklicznej, istniejącego zadania lub przydatnej dostępnej funkcji.
+Uwierzytelniona odpowiedź na natywne pytanie jest wypowiedzią użytkownika; dowolny
+wynik zewnętrznego narzędzia nią nie jest. Brakujące ustalenia harmonogramu pozostają
+pytaniami. Propozycje trafiają do **Suggestions**, a ustalenia rutyn do **Routine
+results**. Otwarcie propozycji rozpoczyna konkretną rozmowę, bez uruchomienia pracy.
+Płatne działania, harmonogramy i publikowanie nadal wymagają odpowiednich zgód.
+Usunięta rutyna nie jest traktowana jako wstrzymana, a odrzucony pomysł nie wraca.
+Listy zadań i zasobów są ograniczone i w razie potrzeby oznaczane jako niepełne;
+brak pozycji na niepełnej liście nie dowodzi, że jej nie ma.
+
+Memory maintenance daje pierwszeństwo wypowiedziom użytkownika przy dopasowaniu
+do budżetu kontekstu i uwzględnia uwierzytelnione odpowiedzi na natywne pytania
+w kolejności czasowej. Zachowuje zasady trwałości i zakresu pamięci: tymczasowe
+zadanie nie staje się stałym stanowiskiem. Link `?agent=<slug>` otwiera danego agenta.
 
 **Godziny pracy** w **Settings → Profile** mówią agentom, kiedy pracujesz, więc
 rutyna, którą zaproponują, wypada w twoim dniu. Nic na nie nie czeka: to wiedza

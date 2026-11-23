@@ -31,6 +31,7 @@ import httpx
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.exceptions import AgentRunError
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.usage import RunUsage, UsageLimits
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -277,6 +278,7 @@ class ProactiveThinker:
                         RecordingModel(MeteredModel(request.build()), recorder),
                         output_type=output_type,
                         instructions=instructions,
+                        model_settings=ModelSettings(**request.params),
                         toolsets=toolsets,
                     )
                     if validate_output is not None:

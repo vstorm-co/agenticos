@@ -85,6 +85,10 @@ TENANT_REQUIRED = [
     (improvement_repo, "create_iteration"),
     (improvement_repo, "get_iteration"),
     (improvement_repo, "list_iterations"),
+    (improvement_repo, "add_variants"),
+    (improvement_repo, "list_variants"),
+    (improvement_repo, "get_variant"),
+    (improvement_repo, "next_pending_variant"),
     (conversation_repo, "question_of_run"),
     (channel_bot_repo, "get_for_org"),
     (channel_bot_repo, "get_by_platform"),
@@ -311,6 +315,8 @@ CROSS_TENANT_BY_DESIGN = [
     (skill_improvement_repo, "list_active"),
     (skill_improvement_repo, "list_resting"),
     (promotion_gate_repo, "guarded_followers"),
+    (skill_check_repo, "judged_before_families"),
+    (skill_improvement_repo, "checked_iterations"),
 ]
 
 

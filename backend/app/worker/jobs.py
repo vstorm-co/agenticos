@@ -267,6 +267,13 @@ class AdvanceImprovement(Payload):
     organization_id: UUID
 
 
+class SearchImprovement(Payload):
+    """One unit of a search attempt: a round of proposals, or scoring one variant."""
+
+    run_id: UUID
+    organization_id: UUID
+
+
 class AdvanceSkillImprovement(Payload):
     """One short, restartable step of a session on a skill line; paid work runs in a child."""
 
@@ -306,14 +313,16 @@ class ClassifyGaps(Payload):
     """Answers read for the knowledge gaps of these knowledge bases, as the person who asked.
 
     Without `message_ids`, a knowledge base's newest unread answers, as its
-    Knowledge gaps tab asks; with them, those answers alone, as an improvement
-    session sorts the answers it found bad.
+    Knowledge gaps tab asks; with them, and with `eval_run_ids`, those answers
+    alone, as an improvement session sorts the answers it found bad.
     """
 
     organization_id: UUID
     knowledge_base_ids: list[UUID] = Field(max_length=50)
     user_id: UUID
     message_ids: list[UUID] | None = Field(default=None, max_length=500)
+    eval_run_ids: list[UUID] | None = Field(default=None, max_length=500)
+    """A session's failed training answers from evals, by the run that gave each."""
     improvement_run_id: UUID | None = None
 
 
@@ -348,6 +357,7 @@ class ThinkForPerson(Payload):
 
     organization_id: UUID
     user_id: UUID
+    refresh_open: bool = False
 
 
 class ExtractMemory(Payload):
@@ -792,6 +802,16 @@ ADVANCE_IMPROVEMENT = Task(
     priority=Priority.INTERACTIVE,
 )
 SWEEP_IMPROVEMENTS = _sweep("sweep-improvements")
+# One attempt: its answers were paid for. A dead job's variant is scored once more
+# when the session next advances, then given up; one unit per organization at a time.
+SEARCH_IMPROVEMENT = Task(
+    kind="search-improvement",
+    payload_type=SearchImprovement,
+    pool=Pool.EVAL,
+    max_attempts=1,
+    timeout=timedelta(minutes=15),
+    priority=Priority.BULK,
+)
 ADVANCE_SKILL_IMPROVEMENT = Task(
     kind="advance-skill-improvement",
     payload_type=AdvanceSkillImprovement,
@@ -974,6 +994,7 @@ TASKS: dict[str, TaskKind] = {
         RUN_AUTHORING,
         ADVANCE_IMPROVEMENT,
         SWEEP_IMPROVEMENTS,
+        SEARCH_IMPROVEMENT,
         ADVANCE_SKILL_IMPROVEMENT,
         SWEEP_SKILL_IMPROVEMENTS,
         ADVANCE_SKILL_CHECK,

@@ -7,6 +7,7 @@ import { Badge, Card, CardContent, CardHeader, CardTitle } from "@/components/ui
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
 import type { CaseFlip, ComparisonSide, EvalComparison, Flip, Trend } from "@/types/eval-runs";
+import { CriteriaTable, familyRows } from "@/components/improvement/criteria";
 import { sideName, type SideCheck } from "./names";
 
 const TREND_TONE: Record<Trend, "success" | "destructive" | "secondary" | "outline"> = {
@@ -58,12 +59,14 @@ export function ComparisonCard({
   comparison,
   tag,
   check,
+  showCriteria = true,
 }: {
   agentId: string;
   comparison: EvalComparison;
   tag: string | null;
   /** The proposal the run checked, which names its sides. */
   check?: SideCheck | null;
+  showCriteria?: boolean;
 }) {
   const t = useTranslations("evals.comparison");
   const { baseline, efficiency } = comparison;
@@ -87,7 +90,7 @@ export function ComparisonCard({
           ["fixedUnconfirmed", counted(scope.cases, "fixed", false)],
         ] as const);
   return (
-    <Card>
+    <Card className={showCriteria ? undefined : "border-0 bg-transparent shadow-none"}>
       <CardHeader>
         <CardTitle>{t("title")}</CardTitle>
       </CardHeader>
@@ -122,6 +125,9 @@ export function ComparisonCard({
             : t("comparedTag", { compared: scope.cases.length, tag: scope.tag })}
         </p>
         <p className="text-muted-foreground text-xs">{t("glossary")}</p>
+        {showCriteria && scope === null && (
+          <CriteriaTable criteria={familyRows(comparison.families ?? [])} />
+        )}
         {efficiency && (
           <div className="flex flex-wrap gap-2">
             {(Object.keys(efficiency) as (keyof typeof efficiency)[]).map((metric) => (

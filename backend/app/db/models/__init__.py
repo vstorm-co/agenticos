@@ -5,6 +5,7 @@ from app.db.models.solution_installation import SolutionInstallation
 from app.db.models.task_board import TaskBoard, TaskLink
 from app.db.models.project_tracking import ProjectTracking
 from app.db.models.routine_delivery import RoutineDelivery
+from app.db.models.personal_context import PersonalContextCache
 from app.db.models.user import User
 from app.db.models.session import Session
 from app.db.models.conversation import Conversation, Message, ToolCall
@@ -75,10 +76,13 @@ from app.db.models.authoring import (
 )
 from app.db.models.improvement import (
     ImprovementIteration,
+    ImprovementMode,
     ImprovementRun,
+    ImprovementSearchVariant,
     ImprovementStage,
     ImprovementStatus,
     ImprovementVerdict,
+    SearchVariantStatus,
     StopReason,
 )
 from app.db.models.eval_run import (
@@ -172,6 +176,7 @@ from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
 from app.db.models.case_generation import CaseGeneration, CaseProposal
 from app.db.models.knowledge_gap import (
     KnowledgeGapClassification,
+    KnowledgeGapEvalClassification,
     KnowledgeGapMember,
     KnowledgeGapTopic,
     KnowledgeSearch,
@@ -225,6 +230,7 @@ __all__ = [
     "EventSource",
     "EventSourceCredential",
     "EventSubscription",
+    "PersonalContextCache",
     "SolutionInstallation",
     "TaskBoard",
     "TaskLink",
@@ -263,6 +269,7 @@ __all__ = [
     "DatasetCase",
     "DatasetVersion",
     "KnowledgeGapClassification",
+    "KnowledgeGapEvalClassification",
     "KnowledgeGapMember",
     "KnowledgeGapTopic",
     "KnowledgeSearch",
@@ -336,10 +343,13 @@ __all__ = [
     "SpecProposalBatch",
     "SpecProposalHunk",
     "ImprovementIteration",
+    "ImprovementMode",
     "ImprovementRun",
+    "ImprovementSearchVariant",
     "ImprovementStage",
     "ImprovementStatus",
     "ImprovementVerdict",
+    "SearchVariantStatus",
     "StopReason",
     "EvalRun",
     "EvalRunArm",

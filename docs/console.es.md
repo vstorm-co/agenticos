@@ -1,8 +1,12 @@
 ---
-source_sha: "3722119864ec"
+source_sha: "baecaa006c9c"
 ---
 
 # La consola { #the-console }
+
+Las nuevas propuestas generadas de Inbox incluyen una solicitud de acción lista para enviar, en lugar de una pregunta con el ID del elemento. El trabajo repetido conserva las solicitudes originales y sus fechas locales, días de la semana y zona horaria para basar el horario sugerido en pruebas. Seleccionar una propuesta prepara un borrador editable y nunca lo envía automáticamente. El chat del teléfono muestra dos mensajes iniciales; las pantallas más anchas conservan cuatro.
+
+Los operadores pueden consultar un plan con `agenticos cmd refresh-inbox --organization-id UUID` y añadir `--queue` para encolarlo. Se mantienen el modelo configurado y los presupuestos existentes. Solo se sustituyen propuestas generadas abiertas tras una lectura válida; un error o rechazo las conserva. No se modifican decisiones aceptadas o descartadas, hallazgos, casos vinculados ni aprobaciones. Una decisión tomada durante la generación cancela la sustitución para esa persona.
 
 Los temas predeterminados distinguen el fondo, la barra lateral, las tarjetas y los paneles flotantes. El azul identifica enlaces y foco del teclado; los interruptores activados son verdes. Las etiquetas de navegación usan peso normal y la activa un peso medio. Los resúmenes del Builder muestran modelo, variables, estado de voz y primeros mensajes antes de abrir sus editores. El acceso y la recuperación de cuenta comparten un estilo de título conciso y un panel de marca estático.
 
@@ -16,7 +20,9 @@ Inbox mantiene el mismo marco de lista, espaciado de filas, marcas de origen, ti
 
 Archivos y Fuentes usan el mismo panel lateral compacto: inicialmente 400px, ajustable entre 360 y 420px y limitado al 38% del ancho del chat acoplado. En un escritorio estrecho pueden contraer temporalmente la lista de conversaciones; al cerrarlo se recupera la elección anterior, salvo cambios manuales. El navegador conserva más espacio de trabajo: inicialmente el 55%, ajustable del 35% al 65%. Una cita desplaza solo la lista de Fuentes y conserva la posición de la conversación.
 
-Al empezar el chat, Inbox muestra hasta dos prioridades sin fechas ni otro icono de chat. Al seleccionar una fila, su pregunta pasa al cuadro de mensaje para editarla; no se envía. **Abrir Inbox** lleva a la lista completa. **Workspace — projects** es el diseño predeterminado de la lista de conversaciones; `?sidebar=compact` y `?sidebar=comfortable` siguen disponibles para compararlos.
+Si Archivos indica que el espacio de trabajo aún no se ha creado o ya no se conserva, lo distingue de un fallo de conexión y no demuestra que nunca hubiera archivos. Los adjuntos de la conversación siguen disponibles. Adjunte y envíe un archivo desde el cuadro de mensaje, o pida al agente que cree uno, para usar el espacio de trabajo; los fallos reales de conexión y archivo siguen siendo explícitos. En el chat, un enlace de archivo con un resultado satisfactorio coincidente de la herramienta abre el visor del espacio de trabajo. Las rutas no verificadas siguen como enlaces normales; un origen privado no disponible no se convierte en enlace.
+
+Al empezar el chat, Inbox muestra hasta dos prioridades sin fechas ni otro icono de chat. Al seleccionar una fila, su solicitud de acción pasa al cuadro de mensaje para editarla; no se envía. **Abrir Inbox** lleva a la lista completa. **Workspace — projects** es el diseño predeterminado de la lista de conversaciones; `?sidebar=compact` y `?sidebar=comfortable` siguen disponibles para compararlos.
 
 El chat público y el widget integrado aceptan mensajes multilínea: Enter envía, Mayús+Enter añade una línea y la composición IME no envía antes de tiempo. En el chat principal, el público y el widget, leer mensajes anteriores pausa el seguimiento automático. El streaming y los cambios de tamaño conservan esa posición; volver al final o enviar deliberadamente otro mensaje reanuda el seguimiento. Reconectar o cargar el historial no desplaza al lector hacia abajo.
 
@@ -285,7 +291,7 @@ instantánea que querías conservar.
 
 ## Rutinas y seguimientos { #routines-and-watches }
 
-Las programaciones y los disparadores de API nuevos se guardan en pausa y muestran **Review routine access**. Revisa las fuentes y selecciona las acciones que pueden ejecutarse sin preguntar; **Enable routine** guarda ambas decisiones y activa la rutina. **Finish later** la deja en pausa. Las aprobaciones explícitas del agente siguen siendo obligatorias. Reanudar una configuración pendiente vuelve a abrir esta revisión; la activación comprueba de nuevo las fuentes.
+Las rutinas nuevas usan automáticamente la configuración disponible del agente al crearlas, dentro de un límite aprobado de acceso y comportamiento. No requieren una revisión inicial; las cuentas MCP opcionales ausentes no bloquean trabajo independiente. Las ampliaciones posteriores de fuentes o herramientas y los cambios de instrucciones, skills, contexto o delegados requieren revisión del creador antes de ejecutarse. Los cambios solo de modelo y las reducciones seguras permanecen dentro del límite. Siguen vigentes las aprobaciones del agente, las obligatorias de la plataforma y el permiso de carpetas locales. El diálogo puede conservar un snapshot revisado; las rutinas restringidas existentes mantienen su política hasta que el propietario la cambie.
 
 Si **Skip this run** evita una ejecución simultánea, el historial registra el motivo sin iniciar ni cobrar otra ejecución. Puedes detener una ejecución en espera desde el historial cuando el servidor lo permita. Se conserva su coste acumulado y se desbloquea la siguiente ejecución programada. Las omisiones repetidas por la misma ejecución pendiente comparten una entrada del historial.
 
@@ -312,7 +318,7 @@ Las tarjetas del panel usan filas compactas coherentes, símbolos de servicios y
 
 Un chat nuevo saluda según la hora local y muestra un editor compacto. Los archivos están junto al agente; los ajustes y el escudo de permisos, junto al modelo. El uso de contexto permanece como icono hasta abrirlo.
 
-La cronología encima del editor muestra primero las entradas prioritarias de Inbox. Dentro de cada grupo, las más recientes aparecen primero. Cada entrada muestra su origen, sin fecha. Al seleccionar una fila se prepara una pregunta editable en el cuadro de mensaje; Abrir Inbox lleva a la lista completa. El contador de aprobaciones enlaza a su cola. La carga, los errores y la lista vacía tienen estados distintos. El dictado y las llamadas usan la misma superficie ligera que el editor. El widget de Architect comparte el botón principal y los controles de dictado.
+La cronología encima del editor muestra primero las entradas prioritarias de Inbox. Dentro de cada grupo, las más recientes aparecen primero. Cada entrada muestra su origen, sin fecha. Al seleccionar una fila se prepara una solicitud de acción editable en el cuadro de mensaje; Abrir Inbox lleva a la lista completa. El contador de aprobaciones enlaza a su cola. La carga, los errores y la lista vacía tienen estados distintos. El dictado y las llamadas usan la misma superficie ligera que el editor. El widget de Architect comparte el botón principal y los controles de dictado.
 
 Antes del primer mensaje, Archivos y uso de contexto permanecen visibles pero desactivados. El menú de adjuntos muestra directamente sus acciones disponibles. Los ajustes del chat usan secciones compactas para conexiones y aprobaciones recordadas; la vista previa de Inbox muestra origen y prioridad.
 
@@ -680,17 +686,33 @@ entonces lo sabe cada agent, y la entrevista termina con hasta tres tarjetas que
 configurar - una rutina, un servicio que conectar, un agent propio - cada una con
 un clic. Sáltate una pregunta, o pide algo real, y hará el trabajo en su lugar.
 
-**Lo que notó durante la noche.** Donde tu organización lo activó, una vez al
-día, temprano en tu mañana, la plataforma lee tus conversaciones recientes en una
-tarea en segundo plano: una
-petición que repites se convierte en una rutina propuesta, lo que un agent supo
-de tu rol en un perfil propuesto, y tu chat vacío de AgenticOS recibe primeros
-mensajes escritos para tu trabajo. Las propuestas esperan como tarjetas en ese
-chat vacío, en tu dashboard y en la campana, y **Ajustes → Asistente** las lista
-todas - ahí recuperas una descartada o te excluyes; acepta una y queda configurada, descártala y la misma
-propuesta no se vuelve a hacer. Nada se ejecuta cuando no pasó nada nuevo, y lo
-que esto puede gastar tiene un [límite por persona](governance.md#proactive-work).
-Un enlace de chat con `?agent=<slug>` abre el chat en ese agent.
+**Asistencia personal.** Cuando la organización la activa, la plataforma combina
+conversaciones accesibles con memoria del ámbito permitido, perfil, proyectos visibles,
+tareas privadas o asignadas, rutinas actuales, metadatos de tablas visibles y decisiones anteriores del Inbox. Los registros de tablas solo se leen como tareas con un esquema definido.
+Los cambios relevantes programan una actualización en segundo plano; la revisión
+matinal permanece como respaldo. El historial se indexa por fragmentos con citas
+vinculadas a sus fuentes. Los fragmentos sin cambios reutilizan sus puntos de control;
+una lectura sin cambios no llama al modelo. Los historiales grandes continúan en
+varios trabajos, sin recortarlos a siete días o a los primeros 400 caracteres.
+Se mantienen los permisos, la exclusión voluntaria y los límites de gasto.
+
+Cada propuesta necesita pruebas y una comprobación independiente del modelo. Puede
+ofrecer un agent bajo demanda, trabajo periódico, una tarea existente o una función
+disponible y relevante. Una respuesta autenticada a una pregunta nativa cuenta como
+evidencia humana; un resultado externo arbitrario no. Las decisiones de horario que
+faltan siguen siendo preguntas. Las propuestas aparecen en **Suggestions** y los
+hallazgos de rutinas en **Routine results**. Abrirlas inicia una conversación concreta,
+sin ejecutar ni activar trabajo. El trabajo de pago, los horarios y las publicaciones
+conservan sus aprobaciones. Una rutina eliminada no está pausada; una intención
+descartada no se vuelve a proponer.
+
+Las listas limitadas se marcan como incompletas
+cuando corresponde; la ausencia de un elemento no demuestra que no exista.
+
+El mantenimiento de memoria prioriza los mensajes humanos en el presupuesto de contexto
+e incluye cronológicamente las respuestas autenticadas a preguntas nativas. Mantiene
+las reglas de duración y ámbito: una tarea temporal no es un cargo permanente.
+Un enlace `?agent=<slug>` abre ese agent.
 
 **El horario laboral** en **Settings → Profile** dice a los agents cuándo
 trabajas, para que una rutina que propongan caiga dentro de tu día. Nada espera

@@ -54,7 +54,11 @@ from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation, Message
 from app.db.models.group import Group, GroupMember
 from app.db.models.intercepted_tool_call import InterceptedToolCall
-from app.db.models.knowledge_gap import KnowledgeGapClassification, KnowledgeGapTopic
+from app.db.models.knowledge_gap import (
+    KnowledgeGapClassification,
+    KnowledgeGapEvalClassification,
+    KnowledgeGapTopic,
+)
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.system_agent_profile import DAILY_BRIEFING
@@ -908,6 +912,19 @@ async def run_origins(
         .distinct()
     )
     for run_id, knowledge_base_id in classified.all():
+        found[run_id] = replace(found[run_id], knowledge_base_id=knowledge_base_id)
+    classified_evals = await db.execute(
+        select(
+            type_coerce(KnowledgeGapEvalClassification.classifier_run_id, run_id_of),
+            KnowledgeGapEvalClassification.knowledge_base_id,
+        )
+        .where(
+            KnowledgeGapEvalClassification.organization_id == organization_id,
+            KnowledgeGapEvalClassification.classifier_run_id.in_(ids),
+        )
+        .distinct()
+    )
+    for run_id, knowledge_base_id in classified_evals.all():
         found[run_id] = replace(found[run_id], knowledge_base_id=knowledge_base_id)
     generations = await db.execute(
         select(type_coerce(CaseGeneration.run_id, run_id_of), CaseGeneration.dataset_id).where(

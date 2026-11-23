@@ -1,8 +1,12 @@
 ---
-source_sha: "3722119864ec"
+source_sha: "baecaa006c9c"
 ---
 
 # Die Konsole { #the-console }
+
+Neue generierte Inbox-Vorschläge enthalten eine direkt verwendbare Handlungsanfrage statt einer Frage mit einer Eintrags-ID. Bei wiederkehrender Arbeit bleiben die zugrunde liegenden Anfragen mit lokalem Datum, Wochentag und Zeitzone erhalten, damit ein vorgeschlagener Zeitplan auf Belegen beruht. Die Auswahl erstellt einen bearbeitbaren Entwurf und sendet ihn niemals automatisch. Auf dem Telefon zeigt der Chat zwei Startvorschläge, auf breiteren Bildschirmen weiterhin vier.
+
+Betreiber können mit `agenticos cmd refresh-inbox --organization-id UUID` eine Aktualisierung planen und sie mit `--queue` einreihen. Das konfigurierte Modell und die bestehenden Budgets gelten weiterhin. Nur offene generierte Vorschläge werden nach einer gültigen Auswertung ersetzt; bei Fehlern oder Ablehnung bleiben sie erhalten. Angenommene oder verworfene Entscheidungen, Findings, verknüpfte Fälle und Freigaben bleiben unverändert. Eine während der Generierung getroffene Entscheidung bricht den Austausch für diese Person ab.
 
 Die Standarddesigns unterscheiden Seitenfläche, Seitenleiste, Karten und schwebende Panels. Blau kennzeichnet Links und Tastaturfokus; eingeschaltete Schalter sind grün. Navigationsbeschriftungen sind normal gewichtet, die aktive Beschriftung mittelstark. Zusammenfassungen im Builder zeigen Modell, Variablen, Sprachstatus und erste Nachrichten vor dem Öffnen der Editoren. Anmeldung und Kontowiederherstellung verwenden denselben knappen Überschriftenstil und ein statisches Markenpanel.
 
@@ -16,7 +20,9 @@ Der Posteingang verwendet in Alle, Dringend, Routinen-Ergebnisse, Vorschläge un
 
 Dateien und Quellen verwenden dasselbe kompakte Seitenpanel: anfangs 400px, verstellbar von 360 bis 420px und auf 38% der angedockten Chatbreite begrenzt. Auf schmalen Desktopfenstern können sie die Gesprächsliste vorübergehend einklappen. Beim Schließen wird die frühere Auswahl wiederhergestellt, sofern Sie sie nicht manuell geändert haben. Der Browser behält mehr Arbeitsfläche: anfangs 55%, verstellbar von 35% bis 65%. Ein Zitat scrollt nur die Quellenliste und lässt den Gesprächsverlauf an seiner Position.
 
-Beim Chatstart zeigt der Posteingang höchstens zwei Prioritäten ohne Datum oder zusätzliches Chatsymbol. Die Auswahl einer Zeile fügt ihre Frage zum Bearbeiten ins Eingabefeld ein, ohne sie zu senden. **Posteingang öffnen** führt zur vollständigen Liste. **Workspace — projects** ist das Standardlayout der Gesprächsliste; `?sidebar=compact` und `?sidebar=comfortable` bleiben zum Vergleichen verfügbar.
+Meldet Dateien einen noch nicht erstellten oder nicht mehr aufbewahrten Arbeitsbereich, ist das von einem Verbindungsfehler getrennt und beweist nicht, dass dort nie Dateien lagen. Gesprächsanhänge bleiben verfügbar. Hängen Sie eine Datei im Eingabefeld an und senden Sie sie, oder bitten Sie den Agenten, eine Datei zu erstellen. Echte Verbindungs- und Archivfehler bleiben ausdrücklich sichtbar. Im Chat öffnet ein Dateilink mit passendem erfolgreichem Werkzeugbeleg die Arbeitsbereichsvorschau. Unbestätigte Pfade bleiben gewöhnliche Links; ein nicht verfügbarer privater Dateiursprung wird nicht verlinkt.
+
+Beim Chatstart zeigt der Posteingang höchstens zwei Prioritäten ohne Datum oder zusätzliches Chatsymbol. Die Auswahl einer Zeile fügt ihre Handlungsanfrage zum Bearbeiten ins Eingabefeld ein, ohne sie zu senden. **Posteingang öffnen** führt zur vollständigen Liste. **Workspace — projects** ist das Standardlayout der Gesprächsliste; `?sidebar=compact` und `?sidebar=comfortable` bleiben zum Vergleichen verfügbar.
 
 Öffentlicher Chat und eingebettetes Widget unterstützen mehrzeilige Nachrichten: Enter sendet, Umschalt+Enter fügt eine Zeile ein, und eine laufende IME-Eingabe sendet nicht vorzeitig. Im Hauptchat, öffentlichen Chat und Widget pausiert das Lesen älterer Nachrichten das automatische Folgen. Streaming und Größenänderungen erhalten diese Position. Die Rückkehr zum Ende oder das bewusste Senden einer neuen Nachricht setzt das Folgen fort. Wiederverbinden und Laden des Verlaufs ziehen die Ansicht nicht nach unten.
 
@@ -286,7 +292,7 @@ statt still den Snapshot zu überschreiben, den Sie behalten wollten.
 
 ## Routinen und Beobachtungen { #routines-and-watches }
 
-Neue Zeitpläne und API-Trigger werden pausiert gespeichert. Danach erscheint **Zugriff der Routine prüfen**. Prüfen Sie die Quellen und wählen Sie Aktionen ohne Rückfrage aus; **Routine aktivieren** speichert beide Entscheidungen und aktiviert die Routine. **Später fortfahren** lässt sie pausiert. Explizite Freigaben des Agenten bleiben verbindlich. Beim Fortsetzen einer unvollständigen Einrichtung öffnet sich diese Prüfung erneut; die Aktivierung prüft die Quellen nochmals.
+Neue Routinen verwenden bei der Erstellung automatisch die verfügbare Agentenkonfiguration innerhalb einer genehmigten Grenze für Zugriff und Verhalten. Eine anfängliche Zugriffsprüfung ist nicht erforderlich; fehlende optionale MCP-Konten blockieren unabhängige Arbeit nicht. Spätere Erweiterungen von Quellen oder Werkzeugen und Änderungen an Anweisungen, Skills, Kontext oder Delegierten erfordern vor der Ausführung eine Prüfung durch den Ersteller. Reine Modelländerungen und sichere Einschränkungen bleiben innerhalb der Grenze. Agentenfreigaben, verbindliche Plattformfreigaben und die Zustimmung zu lokalen Ordnern gelten weiterhin. Der Zugriffsdialog kann stattdessen einen geprüften Snapshot behalten; bestehende eingeschränkte Routinen behalten ihre Richtlinie, bis der Eigentümer sie ändert.
 
 Verhindert **Skip this run** eine überlappende Ausführung, speichert der Verlauf den Grund ohne neue Ausführung oder Kosten. Sie können eine wartende Ausführung direkt im Verlauf stoppen, wenn der Server dies erlaubt. Ihre bisherigen Kosten bleiben erhalten; der nächste geplante Termin kann wieder starten. Wiederholte Auslassungen wegen desselben unfertigen Laufs teilen sich einen Verlaufseintrag.
 
@@ -313,7 +319,7 @@ Dashboard-Karten verwenden einheitliche kompakte Zeilen, Dienstsymbole und Statu
 
 Ein neuer Chat begrüßt nach lokaler Tageszeit und zeigt ein kompaktes Eingabefeld. Dateien stehen neben dem Agenten, Chat-Einstellungen und Berechtigungsschild neben dem Modell. Die Kontextnutzung bleibt bis zum Öffnen ein Symbol.
 
-Die Zeitleiste über dem Eingabefeld zeigt Einträge mit Priorität zuerst. Innerhalb jeder Gruppe stehen die neuesten Einträge oben. Jede Zeile zeigt die Quelle, ohne Datum. Ein Klick bereitet eine bearbeitbare Frage im Eingabefeld vor; Inbox öffnen führt zur vollständigen Liste. Der Genehmigungszähler führt zur Entscheidungswarteschlange. Laden, Fehler und leere Listen bleiben getrennte Zustände. Diktat und Anrufe verwenden dieselbe leichte Oberfläche wie das Eingabefeld. Beim Architect-Widget stehen dieselbe Hauptaktion und dieselben Diktierfunktionen zur Verfügung.
+Die Zeitleiste über dem Eingabefeld zeigt Einträge mit Priorität zuerst. Innerhalb jeder Gruppe stehen die neuesten Einträge oben. Jede Zeile zeigt die Quelle, ohne Datum. Ein Klick bereitet eine bearbeitbare Handlungsanfrage im Eingabefeld vor; Inbox öffnen führt zur vollständigen Liste. Der Genehmigungszähler führt zur Entscheidungswarteschlange. Laden, Fehler und leere Listen bleiben getrennte Zustände. Diktat und Anrufe verwenden dieselbe leichte Oberfläche wie das Eingabefeld. Beim Architect-Widget stehen dieselbe Hauptaktion und dieselben Diktierfunktionen zur Verfügung.
 
 Vor der ersten Nachricht bleiben Dateien und Kontextnutzung sichtbar, aber deaktiviert. Das Anhangsmenü zeigt verfügbare Aktionen direkt. Die Chat-Einstellungen verwenden kompakte Abschnitte für Verbindungen und gespeicherte Freigaben; die Inbox-Vorschau zeigt Quelle und Priorität.
 
@@ -704,19 +710,32 @@ zu drei Karten zum Einrichten - einer Routine, einem Dienst zum Verbinden, einem
 eigenen Agent - jede mit einem Klick. Überspringen Sie eine Frage oder bitten Sie
 um etwas Echtes, und er erledigt stattdessen die Arbeit.
 
-**Was über Nacht auffiel.** Wo Ihre Organisation es eingeschaltet hat, liest die
-Plattform einmal am Tag, früh an Ihrem Morgen, in einem Hintergrundjob Ihre
-letzten Unterhaltungen: Eine Anfrage, die
-Sie immer wiederholen, wird eine vorgeschlagene Routine, was ein Agent über Ihre
-Rolle erfahren hat, ein vorgeschlagenes Profil, und Ihr leerer AgenticOS-Chat
-bekommt erste Nachrichten, die für Ihre Arbeit geschrieben sind. Vorschläge
-warten als Karten in diesem leeren Chat, auf Ihrem Dashboard und in der Glocke,
-und **Einstellungen → Assistent** listet sie alle - dort holen Sie einen
-verworfenen zurück oder nehmen sich aus; nehmen Sie einen an,
-wird er eingerichtet, verwerfen Sie ihn, wird derselbe Vorschlag nie wieder
-gemacht. Nichts läuft, wenn nichts Neues passiert ist, und was das kosten darf,
-ist [pro Person begrenzt](governance.md#proactive-work). Ein Chat-Link mit
-`?agent=<slug>` öffnet den Chat auf diesem Agent.
+**Persönliche Unterstützung.** Wenn Ihre Organisation sie aktiviert, verbindet die
+Plattform zugängliche Gespräche mit Ihrer bereichsgebundenen Erinnerung, Ihrem Profil,
+sichtbaren Projekten, privaten oder zugewiesenen Aufgaben, aktuellen Routinen,
+Metadaten sichtbarer Tabellen und früheren Inbox-Entscheidungen. Tabelleninhalte
+werden nur als typisierte Aufgaben gelesen. Wichtige Änderungen lösen eine Aktualisierung im
+Hintergrund aus; der morgendliche Durchlauf bleibt als zusätzliche Absicherung.
+Die Historie wird abschnittsweise mit Quellenzitaten indexiert. Unveränderte Abschnitte
+verwenden gespeicherte Prüfpunkte; eine unveränderte Auswertung ruft kein Modell auf.
+Große Historien werden über mehrere Jobs fortgesetzt, statt sie auf sieben Tage oder
+die ersten 400 Zeichen zu kürzen. Berechtigungen, Abmeldung und Ausgabenlimits gelten.
+
+Jeder Vorschlag braucht Belege und eine unabhängige Modellprüfung. Er kann einen
+Agent auf Abruf, regelmäßige Arbeit, eine vorhandene Aufgabe oder eine passende
+verfügbare Funktion betreffen. Authentifizierte Antworten auf native Fragen zählen
+als menschliche Aussagen, beliebige externe Werkzeugergebnisse nicht. Fehlende
+Zeitplanentscheidungen bleiben Fragen. Vorschläge stehen unter **Suggestions**,
+Routine-Ergebnisse unter **Routine results**. Das Öffnen beginnt eine konkrete
+Unterhaltung und aktiviert nichts. Kostenpflichtige Arbeit, Zeitpläne und Veröffentlichungen
+behalten ihre Freigaben. Gelöschte Routinen gelten nicht als pausiert; verworfene
+Absichten bleiben ruhig. Begrenzte Ressourcenlisten sind gegebenenfalls als unvollständig
+markiert; ein fehlender Eintrag beweist dann nicht, dass die Ressource nicht existiert.
+
+Die Speicherpflege priorisiert menschliche Aussagen im Kontextbudget und berücksichtigt
+authentifizierte Antworten auf native Fragen chronologisch. Beständigkeit und
+Geltungsbereich bleiben maßgeblich: Eine vorübergehende Aufgabe ist keine dauerhafte
+Berufsbezeichnung. `?agent=<slug>` öffnet den betreffenden Agent.
 
 **Arbeitszeiten** unter **Settings → Profile** sagen Agents, wann Sie arbeiten,
 sodass eine Routine, die sie vorschlagen, in Ihren Tag fällt. Nichts wartet auf

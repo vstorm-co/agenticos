@@ -8,6 +8,7 @@ welcome that fails on one platform still greets on the next.
 """
 
 import asyncio
+import hashlib
 import json
 import uuid
 from contextlib import asynccontextmanager
@@ -24,6 +25,7 @@ from pydantic_ai.exceptions import ModelHTTPError, ModelRetry
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.profiles import ModelProfile
 from pydantic_ai.usage import RequestUsage, RunUsage
 
 from app.agents.capabilities.budget import BudgetScope, SpendLimit
@@ -515,6 +517,7 @@ class TestThinking:
             provider="anthropic",
             model="claude",
             secret_id=None,
+            params={},
         )
         resolve = (
             AsyncMock(side_effect=resolve_error)
@@ -535,6 +538,32 @@ class TestThinking:
             patch(f"{THINKER}.agent_run_repo.create_run", new=AsyncMock(return_value=run)),
             patch(f"{THINKER}.agent_run_repo.finish_run", new=AsyncMock()),
         )
+
+    async def test_background_requests_honor_the_configured_generation_parameters(self) -> None:
+        observed: list[AgentInfo] = []
+
+        def answer(_messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            observed.append(info)
+            return ModelResponse(parts=[TextPart("done")])
+
+        get_slug, limits, version, profiles, create, finish = self._patches(
+            FunctionModel(answer, profile=ModelProfile(supports_thinking=True))
+        )
+        with get_slug, limits, version, profiles as service, create, finish:
+            service.return_value.resolve.return_value.params = {
+                "thinking": "low",
+                "max_tokens": 6144,
+            }
+            assert (
+                await ProactiveThinker(_session()).think(
+                    _ctx(), feature="nightly", output_type=str, instructions="Read.", prompt="Read."
+                )
+                == "done"
+            )
+        assert len(observed) == 1
+        assert observed[0].model_settings is not None
+        assert observed[0].model_settings["max_tokens"] == 6144
+        assert observed[0].model_request_parameters.thinking == "low"
 
     async def test_an_answer_is_returned_and_the_run_is_written_down(self, recorded_manifest):
         get_slug, limits, version, profiles, create, finish = self._patches(TestModel())
@@ -865,6 +894,8 @@ class TestTheNightlyLook:
         claims=(),
         prior=(),
         connections=(),
+        open_proposals=(),
+        replace_succeeds=True,
     ):
         thinker = MagicMock()
         thinker.starter_agent = AsyncMock(return_value=_agent() if agent else None)
@@ -926,16 +957,24 @@ class TestTheNightlyLook:
                     f"{NIGHTLY}.audit_log_repo.memory_erased_since",
                     new=AsyncMock(return_value=erased_meanwhile),
                 ),
+                patch(
+                    f"{NIGHTLY}.suggestion_repo.list_open",
+                    new=AsyncMock(return_value=list(open_proposals)),
+                ),
+                patch(
+                    f"{NIGHTLY}.suggestion_repo.remove_open_generated",
+                    new=AsyncMock(return_value=replace_succeeds),
+                ),
             ],
         }
 
-    async def _look(self, **kwargs):
+    async def _look(self, *, refresh_open=False, **kwargs):
         setup = self._patches(**kwargs)
         look = NightlyLook(MagicMock())
         look.thinker = setup["thinker"]
         started = [p.start() for p in setup["patches"]]
         try:
-            made = await look.look(ORG, USER)
+            made = await look.look(ORG, USER, refresh_open=refresh_open)
         finally:
             for p in setup["patches"]:
                 p.stop()
@@ -958,6 +997,8 @@ class TestTheNightlyLook:
             "lock",
             "agent_lock",
             "erased_meanwhile",
+            "open_proposals",
+            "replace",
         ]
         return made, setup["thinker"], dict(zip(names, started, strict=True))
 
@@ -966,6 +1007,85 @@ class TestTheNightlyLook:
 
         assert made == 0
         thinker.think.assert_not_awaited()
+
+    @pytest.mark.parametrize("case", ["valid", "no-reading", "decided", "erased", "protected"])
+    async def test_refresh_keeps_old_proposals_until_a_valid_reading_and_unchanged_open_set(
+        self, case
+    ):
+        proposal = SimpleNamespace(
+            id=uuid.uuid4(),
+            kind="finding" if case == "protected" else "agent",
+            watch_id=None,
+            outcome_id=None,
+            title="Old",
+            status="open",
+            payload={"request": "Old"},
+        )
+        request = _request("New request")
+        request.message.nightly_read_by_user_id = USER
+        request.message.nightly_read_content_hash = hashlib.sha256(b"New request").hexdigest()
+        made, thinker, mocks = await self._look(
+            refresh_open=True,
+            starters=["Existing"],
+            requests=[request],
+            reading=None if case == "no-reading" else NightlyReading(),
+            prior=[proposal],
+            open_proposals=[proposal],
+            replace_succeeds=case != "decided",
+            erased_meanwhile=case == "erased",
+        )
+        assert made == 0
+        if case == "protected":
+            thinker.think.assert_not_awaited()
+        else:
+            material = json.loads(thinker.think.await_args.kwargs["prompt"])
+            assert material["prior_proposals"] == []
+        if case in {"valid", "decided"}:
+            assert mocks["replace"].await_args.kwargs["expected_ids"] == {proposal.id}
+        else:
+            mocks["replace"].assert_not_awaited()
+        if case == "valid":
+            mocks["mark_read"].assert_awaited_once()
+        else:
+            mocks["mark_read"].assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        ("time_zone", "weekday", "date"),
+        [("Europe/Warsaw", "Thursday", "2026-11-19"), (None, "Wednesday", "2026-11-18")],
+    )
+    async def test_proposal_keeps_local_timing_evidence_and_ready_action_prompt(
+        self, time_zone, weekday, date
+    ):
+        requests = [_request("Przygotuj agendę VstormPedia") for _ in range(3)]
+        for request in requests:
+            request.message.created_at = datetime(2026, 11, 18, 23, 30, tzinfo=UTC)
+        repeat = RepeatedRequest(
+            intent="prepare-vstormpedia-agenda",
+            evidence=[1, 2, 3],
+            as_agent=False,
+            cron="0 17 * * 4",
+            required_services=[],
+            title="Agenda VstormPedia",
+            why="Powtarzasz przygotowanie agendy.",
+            prompt="Przygotuj agendę VstormPedia.",
+            chat_prompt="Ustaw przygotowanie agendy na czwartek; potwierdź ze mną godzinę.",
+        )
+        _, thinker, mocks = await self._look(
+            user=_user(time_zone=time_zone),
+            requests=requests,
+            reading=NightlyReading(repeats=[repeat]),
+        )
+        material = json.loads(thinker.think.await_args.kwargs["prompt"])
+        first = material["requests_this_week"][0]
+        assert first["weekday_local"] == weekday
+        assert first["local_date"] == date
+        assert first["date_utc"] == "2026-11-18"
+        payload = mocks["propose"].await_args.kwargs["payload"]
+        assert payload["chat_prompt"] == repeat.chat_prompt
+        assert {item["message_id"] for item in payload["evidence"]} == {
+            str(request.message.id) for request in requests
+        }
+        assert all(item["weekday_local"] == weekday for item in payload["evidence"])
 
     @pytest.mark.parametrize("case", ["gone", "suspended", "not-a-member", "no-starter"])
     async def test_nobody_who_cannot_be_reached_is_read(self, case):
@@ -1074,6 +1194,7 @@ class TestTheNightlyLook:
                     title="Raport",
                     why="3x",
                     prompt="Raport sprzedaży",
+                    chat_prompt="  Ustaw raport sprzedaży z Notion w poniedziałki.  ",
                     cron="0 7 * * 1",
                     as_agent=False,
                 ),
@@ -1123,8 +1244,17 @@ class TestTheNightlyLook:
         assert [p["kind"] for p in proposed] == ["routine", "agent", "profile", "role_pack"]
         assert proposed[0]["payload"]["prompt"] == "Raport sprzedaży"
         assert proposed[0]["payload"]["cron"] == "0 7 * * 1"
+        assert (
+            proposed[0]["payload"]["chat_prompt"]
+            == "Ustaw raport sprzedaży z Notion w poniedziałki."
+        )
         assert len(proposed[0]["payload"]["evidence_ids"]) == 3
+        assert len(proposed[0]["payload"]["evidence"]) == 3
+        assert all(
+            item["time_zone"] == "Europe/Warsaw" for item in proposed[0]["payload"]["evidence"]
+        )
         assert proposed[1]["payload"]["request"] == "Odpowiadaj klientom"
+        assert "chat_prompt" not in proposed[1]["payload"]
         assert proposed[2]["payload"]["job_title"] == "Head of sales"
         assert "about" not in proposed[2]["payload"]
         assert proposed[3]["payload"] == {"pack": "sales"}
@@ -1186,6 +1316,7 @@ class TestTheNightlyLook:
             }
             prior = [
                 SimpleNamespace(
+                    id=uuid.uuid4(),
                     kind="routine",
                     status="dismissed",
                     title="Starsza propozycja",
@@ -1262,6 +1393,26 @@ class TestTheNightlyLook:
 
 
 class TestTheSweep:
+    async def test_refresh_jobs_are_scoped_deduplicated_and_serialized_with_the_persons_nightly_work(
+        self,
+    ):
+        another = uuid.uuid4()
+        job_id = uuid.uuid4()
+        with (
+            patch(
+                f"{FACADE}.suggestion_repo.open_generated_people",
+                new=AsyncMock(return_value={USER: 2, another: 1}),
+            ) as candidates,
+            patch(f"{FACADE}.enqueue", new=AsyncMock(side_effect=[job_id, None])) as enqueue,
+        ):
+            assert await ProactiveService(MagicMock()).queue_open_refresh(ORG) == [job_id]
+        assert candidates.await_args.kwargs == {"organization_id": ORG}
+        for call in enqueue.await_args_list:
+            payload = call.args[2]
+            assert payload.organization_id == ORG and payload.refresh_open is True
+            assert call.kwargs["concurrency_key"] == f"proactivity:{ORG}:{payload.user_id}"
+            assert call.kwargs["dedupe_active"] is True
+
     @pytest.mark.parametrize(
         ("local", "due"),
         [
@@ -1383,7 +1534,9 @@ class TestTheSweep:
     async def test_the_worker_side_hands_each_job_to_its_module(self):
         service = ProactiveService(MagicMock())
         with (
-            patch.object(NightlyLook, "look", new=AsyncMock(return_value=2)),
+            patch(
+                "app.services.proactive._personal.PersonalLook.look", new=AsyncMock(return_value=2)
+            ),
             patch(f"{PACK}.install", new=AsyncMock(return_value=3)),
             patch(f"{WELCOME}.welcome", new=AsyncMock(return_value=1)),
         ):
@@ -1632,6 +1785,7 @@ def test_suggestion_kinds_match_what_the_look_proposes():
         "profile",
         "role_pack",
         "finding",
+        "personal",
     }
 
 

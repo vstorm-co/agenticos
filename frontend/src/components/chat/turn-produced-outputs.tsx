@@ -4,6 +4,7 @@ import { memo, useMemo } from "react";
 import type { ToolCall, TurnFileSource } from "@/types/chat";
 import { useMediaSurface } from "@/lib/generated-media";
 import { toolLookupName } from "@/lib/tool-identity";
+import { failedWorkspaceWrite } from "@/lib/produced-workspace-files";
 import { pathArg } from "@/lib/tool-steps";
 import { CodingAgentResult, parseCodingReport } from "./tool-results/coding-agent";
 import { GeneratedImageResult, parseGeneratedImage } from "./tool-results/generated-image";
@@ -28,6 +29,7 @@ export function producedCalls(calls: readonly ToolCall[]): ToolCall[] {
   return calls.filter((call) => {
     if (call.status !== "completed" || !OUTPUT_TOOLS.has(toolLookupName(call))) return false;
     if (["write_file", "edit_file"].includes(toolLookupName(call))) {
+      if (failedWorkspaceWrite(call.result)) return false;
       const path = pathArg(call.args);
       if (path === null || files.has(path)) return false;
       files.add(path);

@@ -25,6 +25,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from pydantic import JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
@@ -32,6 +33,7 @@ from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.memory_keys import person_owner_key
 from app.db.locks import LockScope, hold_subject
+from app.repositories import personal_context as context_repo
 from app.repositories import personal_data_repo, user_repo
 from app.schemas.personal_data import (
     CodingTaskChangeExport,
@@ -204,6 +206,36 @@ class PersonalDataService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
+    async def _work_context(self, user_id: UUID) -> list[dict[str, JsonValue]]:
+        from pydantic import TypeAdapter
+
+        from app.services.access import member_context
+        from app.services.conversation import ConversationService
+
+        result: list[dict[str, JsonValue]] = []
+        for row in await context_repo.for_user(self.db, user_id=user_id):
+            ctx = await member_context(
+                self.db, organization_id=row.organization_id, user_id=user_id
+            )
+            if ctx is None:
+                continue
+            if row.source_key.startswith(("conversation:", "part:")):
+                conversation_id = UUID(row.source_key.split(":")[1])
+                if conversation_id not in await ConversationService(
+                    self.db
+                ).visible_conversation_ids(ctx, {conversation_id}):
+                    continue
+            result.append(
+                TypeAdapter(dict[str, JsonValue]).validate_python(
+                    {
+                        "organization_id": str(row.organization_id),
+                        "source_key": row.source_key,
+                        "payload": row.payload,
+                    }
+                )
+            )
+        return result
+
     async def export(
         self, user_id: UUID, *, actor_user_id: UUID, reason: str | None = None
     ) -> PersonalDataExport:
@@ -304,6 +336,7 @@ class PersonalDataService:
                 _TOOL_CALL_FIELDS,
             ),
             memberships=await personal_data_repo.memberships_of(self.db, user_id),
+            personal_work_context=await self._work_context(user_id),
             ratings=personal_data_repo.as_rows(
                 await personal_data_repo.ratings_of(self.db, user_id), _RATING_FIELDS
             ),

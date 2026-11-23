@@ -101,7 +101,9 @@ for (const theme of ["light", "dark"] as const) {
         await scroller.hover();
         await page.mouse.wheel(0, -10000);
         const earlier = scroller.getByText(/^History fixture 1\./);
-        await expect(earlier).toBeVisible();
+        // Visibility alone includes offscreen messages while the wheel is still settling.
+        await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBe(0);
+        await expect(earlier).toBeInViewport();
         const original = await earlier.boundingBox();
         const inputBefore = await composer.boundingBox();
         if (!original || !inputBefore)

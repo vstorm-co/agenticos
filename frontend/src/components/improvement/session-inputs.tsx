@@ -223,7 +223,13 @@ export function StartQuestionSet({ datasetId, heldOut }: { datasetId: string; he
   );
 }
 
-export function TestQuestions({ session }: { session: Improvement }) {
+export function TestQuestions({
+  session,
+  reviewInitiallyOpen = false,
+}: {
+  session: Improvement;
+  reviewInitiallyOpen?: boolean;
+}) {
   const t = useTranslations("improvement");
   const [skip, setSkip] = useState(0);
   const [writtenTo, setWrittenTo] = useState<string | null>(null);
@@ -275,7 +281,7 @@ export function TestQuestions({ session }: { session: Improvement }) {
           )}
         </div>
       )}
-      <Details summary={t("reviewQuestions")}>
+      <Details summary={t("reviewQuestions")} initiallyOpen={reviewInitiallyOpen}>
         <ul className="divide-y">
           {questions.cases.map((item) => (
             <li key={item.id} className="space-y-2 py-3 text-sm">

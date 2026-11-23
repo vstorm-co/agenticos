@@ -349,6 +349,19 @@ uv run agenticos cmd doctor --profile hipaa
 # call. Exits non-zero when it finds one, so a cron can gate on it.
 uv run agenticos cmd audit-skill-bindings
 
+# Judge again, from the runs they kept, the agents of finished skill checks that an
+# older rule judged: one kept before families of criteria shows no families, and
+# one kept before "too few questions" existed says its run could not grade every
+# answer. It also counts the judge's gradings in a skill session's attempt that
+# counted only its check's answers. No model is asked, and a decided check keeps its
+# decision. With no --check it sweeps every such check and attempt; repeat --check
+# to name some.
+# Tracks the stored verdict version, so current incomplete results are not swept
+# repeatedly. Only finished attempts are recounted. Missing original access is
+# reported as skipped rather than as a successful rejudgement.
+uv run agenticos cmd skill-checks-rejudge
+uv run agenticos cmd skill-checks-rejudge --check <check-id>
+
 # Recompute the app-admin audit trail's tamper-evidence hash chain and report any
 # break. Each entry links to the previous one's hash, so editing, reordering,
 # inserting or interior-deleting a row diverges every hash after it; a per-org
