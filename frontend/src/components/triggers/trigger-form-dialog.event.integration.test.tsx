@@ -350,14 +350,16 @@ describe("TriggerFormDialog custom-webhook event form", () => {
         source_id: "shared-source",
         prompt_mode: "template",
         prompt: "Triage {{issue.title}}",
+        source_mode: "follow_agent",
       }),
     );
     const request = vi
       .mocked(apiClient.post)
       .mock.calls.find(([path]) => path === `/agents/${AGENT_ID}/triggers`)?.[1];
     expect(request).not.toHaveProperty("event_secret");
-    await userEvent.click(await screen.findByRole("button", { name: "Enable routine" }));
+    expect(request).not.toHaveProperty("review_before_activation");
     const confirmation = within(await screen.findByRole("dialog", { name: "Trigger created" }));
+    expect(apiClient.patch).not.toHaveBeenCalled();
     expect(
       confirmation.getByText(/uses the event source’s existing URL and credentials/),
     ).toBeVisible();

@@ -20934,6 +20934,10 @@
       },
       "trigger_webhook": {
         "config": {
+          "require_source": {
+            "title": "Quelle erforderlich",
+            "description": "Vor der Veröffentlichung muss für den neuen Entwurf im Editor eine wiederverwendbare Quelle ausgewählt werden"
+          },
           "source_id": {
             "title": "Quellen-ID",
             "description": "Eine wiederverwendbare Ereignisquelle, die dieser Workflow bei der Veröffentlichung abonniert"

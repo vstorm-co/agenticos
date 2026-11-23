@@ -21021,6 +21021,10 @@
       },
       "trigger_webhook": {
         "config": {
+          "require_source": {
+            "title": "Wymagane źródło",
+            "description": "Przed opublikowaniem nowej wersji roboczej trzeba wybrać w edytorze źródło wielokrotnego użytku"
+          },
           "source_id": {
             "title": "Identyfikator źródła",
             "description": "Źródło zdarzeń wielokrotnego użytku subskrybowane po opublikowaniu tego workflow"

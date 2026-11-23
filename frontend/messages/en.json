@@ -21248,6 +21248,10 @@
       },
       "trigger_webhook": {
         "config": {
+          "require_source": {
+            "title": "Require Source",
+            "description": "A new editor draft awaits selection of a reusable source before publishing"
+          },
           "source_id": {
             "title": "Source Id",
             "description": "A reusable event source to subscribe to when this workflow is published"

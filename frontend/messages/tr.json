@@ -16739,6 +16739,10 @@
       },
       "trigger_webhook": {
         "config": {
+          "require_source": {
+            "title": "Kaynak gerekli",
+            "description": "Yeni bir düzenleyici taslağı yayımlanmadan önce yeniden kullanılabilir bir kaynak seçilmelidir"
+          },
           "source_id": {
             "title": "Kaynak kimliği",
             "description": "Bu workflow yayımlandığında abone olunacak yeniden kullanılabilir olay kaynağı"
