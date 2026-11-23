@@ -1,5 +1,5 @@
 ---
-source_sha: "1a0321736e6f"
+source_sha: "95f4a9123a2e"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -224,6 +224,8 @@ Wissens fehlgeschlagen sind, sollten jetzt bestehen.
 
 ## Den fehlenden Inhalt entwerfen { #drafting-the-missing-content }
 
+Auf einem breiten Bildschirm steht der Dokumententwurf neben seinen Belegen. Auf dem Smartphone wechseln Sie ohne Verlust Ihrer Änderungen zwischen **Dokumentvorschlag** und **Warum es benötigt wird**. **Speichern** sichert den Entwurf; **Zur Wissensbasis hinzufügen** fügt den Inhalt dem genannten Ziel hinzu. Eine neue Generierung ist bei ungespeicherten Änderungen gesperrt; vor dem Verwerfen beim Schließen wird nachgefragt. Während der Generierung ist der Editor gesperrt.
+
 **Entwerfen** (Draft) in einem geöffneten Thema bittet ein Modell, die
 Passage oder den FAQ-Eintrag zu schreiben, der der Wissensbasis fehlt. Die
 Schaltfläche zeigt, was ein Entwurf höchstens kostet. Das ist
@@ -256,9 +258,7 @@ versuchen** (Try again). Ein Entwurf aus den Fragen einer einzigen Person sagt
 das ebenfalls: Prüfe ihn im Wissen, dass er auf dem beruht, was eine Person
 gefragt hat.
 
-Der Entwurf füllt den Editor des Themas, mit einem Link zu seinem Run. Du
-kannst ihn als Markdown kopieren, und in die Wissensdatenbank kommt er erst,
-wenn ihn jemand hinzufügt. Der Entwerfer kennt
+Der Entwurf füllt den Editor des Themas, mit einem Link zu seinem Run. Die Erstellungszeit steht bei der Entwurfsüberschrift. In die Wissensdatenbank kommt er erst, wenn ihn jemand hinzufügt. Der Entwerfer kennt
 die Fakten deines Unternehmens nicht: Wo eine Antwort eine Zahl, ein Datum oder
 eine Regel braucht, schreibt er `{{what to fill in}}`, und der Editor listet
 jede solche Stelle auf, bis sie ersetzt ist.
@@ -381,3 +381,5 @@ gesagt hat, nicht auf die Bewertung.
 Namen werden weder aus dem entfernt, was der Lücken-Entwerfer liest, noch in Inhalten
 zum Hinzufügen markiert: Nichts hier erkennt einen Namen. Prüfe einen Entwurf
 darauf, bevor du ihn hinzufügst.
+
+Ein gespeicherter Entwurf öffnet als lesbares Dokument. Mit **Dokument bearbeiten** ändern Sie Titel oder Inhalt, mit **Dokument lesen** prüfen Sie die Änderungen ohne Verlust. Suchdetails stehen bei der Erklärung jeder Frage.

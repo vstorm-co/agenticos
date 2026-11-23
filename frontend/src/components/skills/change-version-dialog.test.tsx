@@ -325,7 +325,7 @@ describe("ChangeVersionDialog", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Start the check" }));
     await userEvent.click(await screen.findByRole("button", { name: "Back to Change version" }));
 
-    expect(await screen.findByText(/v12 was checked on HR bot .*: Unknown/)).toBeVisible();
+    expect(await screen.findByText(/v12 was checked on HR bot .*: Not verified/)).toBeVisible();
     expect(screen.getByRole("button", { name: "Change and publish" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Check first" })).toBeNull();
   });

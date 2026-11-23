@@ -18,6 +18,7 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.models.workflow_run import WorkflowRunStatus
+from app.services.rag.filters import TenantScope
 from app.services.rag.models import SearchResult
 from app.workflows.contracts.io import Binding, NodeOutputRef
 from app.workflows.graph.errors import GraphValidationError
@@ -35,9 +36,6 @@ class _Retrieval:
     def __init__(self, results: list[SearchResult] | Exception) -> None:
         self.results = results
         self.calls: list[tuple[str, dict[str, Any]]] = []
-
-    async def resolve_scope(self, name: str, organization_id: uuid.UUID) -> str:
-        return f"scope:{name}:{organization_id}"
 
     async def _answer(self, method: str, **kwargs: Any) -> list[SearchResult]:
         self.calls.append((method, kwargs))
@@ -161,7 +159,7 @@ async def test_passages_come_back_as_typed_sources_the_output_carries(
     assert run.status == WorkflowRunStatus.SUCCEEDED.value
     ((method, call),) = service.calls
     assert method == "retrieve" and call["query"] == "leave policy" and call["limit"] == 3
-    assert call["scope"] == f"scope:{call['collection_name']}:{member[1].id}"
+    assert call["scope"] == TenantScope(organization_id=member[1].id, knowledge_base_id=kb_id)
     assert run.output is not None
     first, second = run.output["sources"]
     assert first == {
@@ -399,9 +397,6 @@ async def test_search_stops_between_collections_at_the_organization_budget(
         return []
 
     store = MagicMock()
-    from app.db.vector_tables import VectorScope
-
-    store.resolve_scope = AsyncMock(return_value=VectorScope(tenant=member[1].id))
     store.search = AsyncMock(side_effect=paid_search)
     service = RetrievalService(store, MagicMock(enable_hybrid_search=False))
     monkeypatch.setattr(search_handler, "get_retrieval_service", lambda: service)

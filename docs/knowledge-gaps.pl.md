@@ -1,5 +1,5 @@
 ---
-source_sha: "1a0321736e6f"
+source_sha: "95f4a9123a2e"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -214,6 +214,8 @@ przejść.
 
 ## Szkic brakującej treści { #drafting-the-missing-content }
 
+Na szerokim ekranie edytor tematu pokazuje szkic dokumentu obok źródeł. Na telefonie przełączaj **Proponowany dokument** i **Dlaczego jest potrzebny** bez utraty zmian. **Zapisz** zachowuje szkic; **Dodaj do bazy wiedzy** dodaje treść do wskazanej bazy. Ponowne generowanie jest zablokowane przy niezapisanych zmianach, a zamknięcie okna wymaga potwierdzenia ich odrzucenia. Podczas generowania nowego szkicu edytor jest zablokowany.
+
 **Napisz szkic** (Draft) w otwartym temacie prosi model o napisanie
 fragmentu albo wpisu FAQ, którego brakuje w bazie wiedzy. Przycisk pokazuje
 najwyższy koszt jednego szkicu. To jeden run
@@ -242,9 +244,7 @@ wyczerpał albo model stał się niedostępny, mówi o tym, z przyciskiem
 **Spróbuj ponownie** (Try again). Szkic napisany z pytań jednej osoby też to
 mówi: sprawdź go, wiedząc, że opiera się na tym, o co pytała jedna osoba.
 
-Szkic wypełnia edytor tematu, z odnośnikiem do swojego runa. Możesz go
-skopiować jako Markdown, a do bazy wiedzy trafia dopiero wtedy, gdy ktoś go
-doda. Agent nie zna faktów twojej firmy: tam, gdzie odpowiedź wymaga
+Szkic wypełnia edytor tematu, z odnośnikiem do swojego runa. Czas utworzenia jest przy nagłówku szkicu. Do bazy wiedzy trafia dopiero wtedy, gdy ktoś go doda. Agent nie zna faktów twojej firmy: tam, gdzie odpowiedź wymaga
 liczby, daty albo reguły, wpisuje `{{what to fill in}}`, a edytor wymienia każde
 takie miejsce, dopóki nie zostanie zastąpione.
 
@@ -357,3 +357,5 @@ nie samej oceny.
 Imiona i nazwiska nie są usuwane z tego, co czyta autor szkiców luk, ani oznaczane w
 treści do dodania: nic tutaj nie rozpoznaje imion i nazwisk. Sprawdź pod tym
 kątem szkic, zanim go dodasz.
+
+Zapisany szkic otwiera się jako dokument do przeczytania. Wybierz **Edytuj dokument**, aby zmienić tytuł lub treść, a potem **Czytaj dokument**, aby obejrzeć zmiany bez ich utraty. Szczegóły wyszukiwania są dostępne pod wyjaśnieniem przy każdym pytaniu.
