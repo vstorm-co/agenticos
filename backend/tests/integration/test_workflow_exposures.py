@@ -1289,15 +1289,27 @@ class TestOverHttp:
         body = b'{"lead": 1}'
         url = f"{settings.API_V1_STR}/workflow-webhooks/{exposure['id']}"
 
-        # The run is driven by a worker claiming its jobs, as in production.
-        async with worker_running(factory):
-            first = await client.post(url, content=body, headers=_signed(secret, body))
-            again = await client.post(url, content=body, headers=_signed(secret, body))
+        # Immediate acknowledgement must commit admission without a worker. A worker
+        # here can be cancelled during its next PostgreSQL TLS connection attempt.
+        first = await client.post(url, content=body, headers=_signed(secret, body))
+        again = await client.post(url, content=body, headers=_signed(secret, body))
 
         assert (first.status_code, again.status_code) == (202, 202)
         assert again.json() == {"run_id": first.json()["run_id"], "duplicate": True}
         async with factory() as fresh:
             assert len((await fresh.execute(select(WorkflowRun))).scalars().all()) == 1
+            (dispatch,) = (
+                (
+                    await fresh.execute(
+                        select(BackgroundJob).where(BackgroundJob.kind == "workflow-dispatch-node")
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            assert dispatch.status == "queued"
+            assert dispatch.attempts == 0
+            assert dispatch.payload["workflow_run_id"] == first.json()["run_id"]
 
         base = f"{settings.API_V1_STR}/workflows/{workflow_id}"
         read = await client.get(f"{base}/exposure")
