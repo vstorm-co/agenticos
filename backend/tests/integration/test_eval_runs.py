@@ -1865,7 +1865,12 @@ async def test_with_no_history_an_answer_with_tools_is_priced_as_several_request
     dataset = await _dataset(db, ctx, cases=10)
     await db.flush()
     nano = await _profile(db, ctx, "gpt-4.1-nano")
-    priced = SimpleNamespace(label="nano", model="gpt-4.1-nano", provider="openai")
+    priced = SimpleNamespace(
+        label="nano",
+        model="gpt-4.1-nano",
+        provider="openai",
+        credential=SimpleNamespace(custom_pricing=None),
+    )
 
     with patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=priced)):
         estimate = await EvalRunService(db).estimate(
