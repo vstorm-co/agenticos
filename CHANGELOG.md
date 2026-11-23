@@ -31,6 +31,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Bound the entire memory extraction transcript, including source timestamps, identifiers and JSON escaping, so many short turns cannot exceed the configured input allowance.
+
 - Update the backend framework, MCP, authentication, channel and validation dependencies from #3235 and #3236. Retain croniter 6 so existing saved cron expressions keep their scheduling semantics.
 
 - Adapt skill catalog rendering, code-result serialization and the Stav client factory to the updated agent SDK contracts.

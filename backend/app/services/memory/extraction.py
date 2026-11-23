@@ -324,21 +324,21 @@ def transcript_for_extraction(
 
     Choose recent turns within each priority, then restore their chronological
     order. A long final answer must never evict the human fact being extracted.
+    The character bound includes serialized provenance, escaping and list separators.
     """
     source = list(messages)
     selected: dict[int, dict[str, str]] = {}
-    remaining = MAX_TRANSCRIPT_CHARS
+    remaining = MAX_TRANSCRIPT_CHARS - 2
     for wanted in ("user", "assistant"):
         for index in range(len(source) - 1, -1, -1):
             turn = source[index]
             role, raw_content = (turn.role, turn.text) if isinstance(turn, ExtractionTurn) else turn
             content = raw_content.strip()
-            if role != wanted or not content or remaining <= 32:
+            if role != wanted or not content:
                 continue
-            text = content[-(remaining - 32) :]
-            selected[index] = {
+            row = {
                 "role": role,
-                "text": text,
+                "text": content,
                 **(
                     {
                         "source_id": turn.source_id,
@@ -348,9 +348,27 @@ def transcript_for_extraction(
                     if isinstance(turn, ExtractionTurn)
                     else {}
                 ),
-                **({"excerpt": "tail"} if text != content else {}),
             }
-            remaining -= len(text) + 32
+            separator = 2 if selected else 0
+            size = len(json.dumps(row, ensure_ascii=False)) + separator
+            if size > remaining:
+                row.update(text="", excerpt="tail")
+                available = remaining - separator - len(json.dumps(row, ensure_ascii=False))
+                if available <= 0:
+                    continue
+                kept = 0
+                for character in reversed(content):
+                    cost = len(json.dumps(character, ensure_ascii=False)) - 2
+                    if cost > available:
+                        break
+                    available -= cost
+                    kept += 1
+                if not kept:
+                    continue
+                row["text"] = content[-kept:]
+                size = len(json.dumps(row, ensure_ascii=False)) + separator
+            selected[index] = row
+            remaining -= size
     return [selected[index] for index in sorted(selected)]
 
 
