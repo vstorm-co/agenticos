@@ -1012,6 +1012,47 @@ class TestEditingAProfileInPlace:
         assert audit.await_args.kwargs["details"] == {"fields": ["secret_id"]}
 
     @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize("binding", ["key", "endpoint", "keyless"])
+    @pytest.mark.parametrize("scoped_key", [False, True])
+    async def test_rebinding_a_priced_model_requires_budget_authority(
+        self, binding: str, scoped_key: bool
+    ) -> None:
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.OWNER if scoped_key else OrgRoleName.BUILDER,
+            key_scopes=frozenset({Perm.CONNECTIONS_MANAGE.value}) if scoped_key else None,
+        )
+        profile = _profile(ctx, api="chat", base_url="https://original.example/v1")
+        profile.custom_pricing = {"input": "0", "output": "0"}
+        secret = _vault_secret(ctx, purpose="openai")
+        if binding == "keyless":
+            profile.secret_id = None
+        changes = {
+            "key": {"secret_id": secret.id},
+            "endpoint": {"base_url": "https://other.example/v1"},
+            "keyless": {"secret_id": None},
+        }[binding]
+
+        with pytest.raises(AuthorizationError, match="requires budgets:manage"):
+            await self._update(ctx, profile, changes, secret=secret)
+
+        _, update, _, _ = await self._update(
+            ctx,
+            profile,
+            {"secret_id": profile.secret_id, "label": "New label"}
+            if binding != "keyless"
+            else {"label": "New label"},
+        )
+        assert update.await_args.kwargs["update_data"] == {"label": "New label"}
+
+        _, update, _, _ = await self._update(
+            _ctx(ctx.organization_id), profile, changes, secret=secret
+        )
+        assert "custom_pricing" not in update.await_args.kwargs["update_data"]
+
+    @pytest.mark.anyio
     async def test_a_profile_from_another_organization_is_not_found(self):
         with (
             patch(

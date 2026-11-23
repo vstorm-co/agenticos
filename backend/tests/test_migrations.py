@@ -3014,6 +3014,16 @@ def test_custom_pricing_upgrade_preserves_existing_profiles_and_downgrades_clean
         with engine.connect() as db:
             assert (
                 db.scalar(
+                    text(
+                        "SELECT numeric_precision FROM information_schema.columns "
+                        "WHERE table_schema = 'public' AND table_name = 'workflow_retained_spend' "
+                        "AND column_name = 'cost_usd'"
+                    )
+                )
+                == 13
+            )
+            assert (
+                db.scalar(
                     text("SELECT model FROM model_profiles WHERE id = :id"), {"id": profile_id}
                 )
                 == "alias"

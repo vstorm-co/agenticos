@@ -561,6 +561,10 @@ export function AddModel({
     provider?.id === selected.provider &&
     model.trim() === selected.model &&
     baseUrl.trim().replace(/\/+$/, "") !== (selected.base_url ?? "").replace(/\/+$/, "");
+  const rebindLocked =
+    !canManagePricing &&
+    selected?.custom_pricing != null &&
+    (endpointChanged || chosenKey !== (selected.secret_id ?? "") || selected.missing_key === true);
   const customEndpoint = acceptsEndpoint && baseUrl.trim() !== "";
   // Whether this model cannot run without an endpoint: a keyless provider with
   // no key to use. Only then is the field a question with an Ollama address for
@@ -1100,17 +1104,20 @@ export function AddModel({
 
       {/* Said before the button rather than after the save: the change reaches
           every agent on this model, not only the one being built. */}
-      {editing && selected !== undefined && !endpointChanged && (
+      {editing && rebindLocked && (
+        <p className="text-muted-foreground text-xs">{t("pricedModelConnectionLocked")}</p>
+      )}
+      {editing && !rebindLocked && selected !== undefined && !endpointChanged && (
         <p className="text-muted-foreground text-xs">
           {t("updateModelHint", { label: selected.label })}
         </p>
       )}
 
-      {editing && endpointChanged && (
+      {editing && !rebindLocked && endpointChanged && (
         <p className="text-muted-foreground text-xs">{t("separateEndpointHint")}</p>
       )}
       <div className="flex flex-wrap items-center gap-2 pt-1">
-        {editing && endpointChanged && (
+        {editing && (endpointChanged || rebindLocked) && (
           <Button
             type="button"
             size="sm"
@@ -1128,7 +1135,7 @@ export function AddModel({
             {t("modelInUse")}
           </span>
         )}
-        {editing && (
+        {editing && !rebindLocked && (
           <Button
             type="button"
             size="sm"

@@ -824,7 +824,7 @@ are optional and inherit the input rate when empty. An explicit zero is a price.
 The API exposes the same document as `custom_pricing`; omit it to keep the saved
 setting on update, or send `null` to restore automatic pricing.
 
-Changing or restoring prices requires `budgets:manage`, in addition to model connection management. Subscription profiles support the same optional token prices; these measure budget usage, not subscription allowance. Original provider bills remain available in usage metadata when custom rates override accounting.
+Changing or restoring prices requires `budgets:manage`, in addition to model connection management. That permission also applies when changing the key or endpoint of a profile with custom prices. Subscription profiles support the same optional token prices; these measure budget usage, not subscription allowance. Original provider bills remain available in usage metadata when custom rates override accounting.
 
 Custom rates take precedence over catalog prices and provider-reported bills.
 They follow the profile that actually answers, including fallbacks, delegates

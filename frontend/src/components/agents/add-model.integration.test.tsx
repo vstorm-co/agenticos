@@ -1573,6 +1573,29 @@ describe("the model the agent is already on", () => {
     });
   });
 
+  it("offers a separate model when the caller cannot rebind a model with custom prices", async () => {
+    state.permissions = [Perm.secretsEdit];
+    state.secrets = [
+      secret({ id: "s-1", purpose: "openrouter", name: "Router key" }),
+      secret({ id: "s-2", purpose: "openrouter", name: "Router key two" }),
+    ];
+    mount({
+      selected: inUse({ secret_id: "s-1", custom_pricing: { input: "0", output: "0" } }),
+    });
+
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(screen.getByRole("option", { name: /Router key two/ }));
+    expect(screen.queryByRole("button", { name: "Update model" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Changing the key or endpoint/)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Add separate model" }));
+
+    expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ secret_id: "s-2" }),
+    );
+    expect(state.createProfile.mutateAsync.mock.calls[0]?.[0]).not.toHaveProperty("custom_pricing");
+    expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+  });
+
   it("offers a model whose key was deleted the key the vault has", async () => {
     // `secret_id` went NULL with the key. "In use" above it would say nothing
     // needs doing, when nothing can run on it until it has a key again.

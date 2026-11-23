@@ -184,16 +184,17 @@ class TestTheMonthlyBudget:
             update(WorkflowRun)
             .where(WorkflowRun.id == run.id)
             .values(
-                spent_cost=Decimal("0.4"),
-                child_cost=Decimal("0.6"),
+                spent_cost=Decimal("4000000.000001"),
+                child_cost=Decimal("6000000.000002"),
                 status="succeeded",
                 ended_at=now - timedelta(days=2),
             )
         )
         assert await workflow_run_repo.take_expired_runs(db, now=now, limit=10) == [(run.id, [])]
         assert await workflow_run_repo.take_expired_runs(db, now=now, limit=10) == []
-        with pytest.raises(WorkflowBudgetReachedError):
+        with pytest.raises(WorkflowBudgetReachedError) as refused:
             await _start(db, owner, workflow)
+        assert refused.value.details["spent_usd"] == "10000000.000003"
 
     async def test_retained_spend_is_scoped_by_workflow_tenant_and_admission_month(self, db, owner):
         workflow = await _published(db, owner, monthly_budget_usd=1.0)

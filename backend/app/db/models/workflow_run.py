@@ -792,7 +792,7 @@ class WorkflowRetainedSpend(Base, TimestampMixin):
         PG_UUID(as_uuid=True), ForeignKey("workflows.id", ondelete="CASCADE"), nullable=False
     )
     admitted_at: Mapped[datetime] = mapped_column(SADateTime(timezone=True), nullable=False)
-    cost_usd: Mapped[Decimal] = mapped_column(Numeric(13, 6), nullable=False)
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
 
     def __repr__(self) -> str:
         return f"<WorkflowRetainedSpend(run={self.run_id}, cost={self.cost_usd})>"
