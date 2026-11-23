@@ -20,7 +20,13 @@ class TestTheSection:
         assert "Their preferred language is Turkish: answer in Turkish" in briefing
         assert "unless they explicitly request another language" in briefing
 
-    @pytest.mark.parametrize("locale", [None, "fr"])
+    def test_french_console_informs_the_agent_of_the_users_language(self):
+        briefing = person_briefing(Person(locale="fr"))
+        assert briefing is not None
+        assert "Their preferred language is French: answer in French" in briefing
+        assert "unless they explicitly request another language" in briefing
+
+    @pytest.mark.parametrize("locale", [None, "es"])
     def test_an_account_without_a_supported_preference_uses_english(self, locale):
         assert "preferred language is English" in person_briefing(Person(locale=locale))
 
