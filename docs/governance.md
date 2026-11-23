@@ -94,6 +94,12 @@ The built-in AgenticOS platform MCP server requires **Act as creator**, includin
 
 Routine history also lists blocked or failed attempts that ended before an agent run existed. Each shows its time, stage and a repair direction. They incur no model charges and never contain prompts, provider errors or credentials. Records remain until their routine or organization is deleted. Notification delivery failure does not remove this history. The fire-trigger worker job records a separate blocked or failed outcome; completing the queue job does not imply an agent ran successfully.
 
+The routine list also says, before the next activation, whether it would run. Each routine asks the checks a fire makes, evaluated as its creator and without side effects: the creator's active membership and run grant on the agent, a runnable version, the source review, the end date, the monthly budget, a previous run parked on an approval or an answer, and the actions that lack standing consent.
+
+A routine that would not start a run is outlined red; one with actions requiring approval if used is amber; a paused routine is greyed out and still says what resuming would meet. Each line names the reason, and its creator gets the control that fixes it. While a check is pending or unavailable, a neutral message says so instead of implying the routine is ready. A failed check offers Retry; Run now still performs its own admission checks.
+
+The Routines dashboard card puts a routine that would not run first and names the reason in its pill. `POST /triggers/readiness` returns the same reasons as bounded codes for up to 100 routines at once, leaving out any the caller cannot see, without naming a source, account or credential. Checks that only a provider can answer at run time are not predicted; their refusals stay in the history above.
+
 ## Budgets
 
 !!! abstract "Three levels, and they are not variations on one number"
@@ -1399,6 +1405,18 @@ measure of the miss, not of what was billed again, since a compaction can also
 shrink the prompt the cache held. The card is not shown while every cache held.
 
 ## Approvals
+
+In web chat, Activity → Approvals, or Inbox, choose **Reject with feedback** to
+say why you are blocking an action or what to try instead. The proposed action
+does not run, and the comment is saved with the rejection. In a chat batch, all
+listed calls are rejected, but each comment belongs only to its own call. Use
+**Reject** if you do not need to leave a comment.
+
+On a standard agent tool denial, the agent receives the comment when the run resumes.
+If a revised action needs approval, it asks again. In a workflow's **Ask for
+approval** step, the **Rejected** branch can read the comment as `note`, for
+example to redraft a proposal. Rejection does not retry a step automatically:
+a rejected **Call an MCP tool** step still fails without calling the tool.
 
 A gated tool parks the run and waits for a person. The Builder offers **Always ask**
 and **Never ask** for a capability; individual tools can also **Follow the capability**.

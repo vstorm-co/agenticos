@@ -1,5 +1,5 @@
 ---
-source_sha: "4c4d606984ca"
+source_sha: "4fce44b7cff8"
 ---
 
 # Governance { #governance }
@@ -100,6 +100,12 @@ Rutyna przed każdym narzędziem ponownie sprawdza twórcę, aktywne członkostw
 Wbudowany serwer MCP AgenticOS wymaga opcji **Działaj jako twórca**, również gdy używa go opublikowany delegat. Bez tożsamości użytkownika przegląd źródeł i tworzenie procedury odrzucają tę konfigurację z jasnym wyjaśnieniem. Włącz tę opcję albo usuń powiązanie platformowego MCP z agenta i jego delegatów. Platforma nigdy nie pożycza automatycznie tożsamości twórcy.
 
 Historia procedury pokazuje też zablokowane i nieudane próby zakończone przed utworzeniem runu agenta. Każda ma czas, etap i wskazówkę naprawy. Nie naliczają kosztów modelu ani nie zawierają promptów, błędów dostawcy lub poświadczeń. Rekordy pozostają do usunięcia procedury lub organizacji. Błąd dostarczenia powiadomienia nie usuwa historii. Zadanie workera fire-trigger zapisuje osobny wynik zablokowany lub nieudany; zakończenie zadania kolejki nie oznacza poprawnego uruchomienia agenta.
+
+Lista procedur mówi też, jeszcze przed kolejnym uruchomieniem, czy procedura się uruchomi. Każda procedura pyta te same mechanizmy sprawdzające co uruchomienie, ocenione w imieniu jej twórcy i bez skutków ubocznych: aktywne członkostwo twórcy i jego uprawnienie do uruchamiania agenta, wersję możliwą do uruchomienia, przegląd źródeł, datę zakończenia, miesięczny budżet, poprzedni run czekający na zatwierdzenie lub odpowiedź oraz akcje bez stałej zgody.
+
+Procedura, która nie uruchomi runu, ma czerwoną ramkę; taka z akcjami wymagającymi zatwierdzenia w razie użycia jest oznaczona na bursztynowo; wstrzymana procedura jest wyszarzona i nadal mówi, na co trafiłoby wznowienie. Każda linia podaje powód, a twórca dostaje przycisk naprawy. Gdy sprawdzanie trwa lub jego wynik jest niedostępny, neutralny komunikat informuje o tym zamiast sugerować gotowość. Po błędzie można ponowić sprawdzanie; Uruchom teraz nadal wykonuje własne kontrole dopuszczenia.
+
+Karta Routines na pulpicie pokazuje procedurę, która się nie uruchomi, na samej górze i podaje powód w jej etykiecie. `POST /triggers/readiness` zwraca te same powody jako ograniczone kody dla maksymalnie 100 procedur naraz, pomija te, których wywołujący nie widzi, i nie podaje nazw źródeł, kont ani poświadczeń. Mechanizmy, na które odpowiada dopiero dostawca w czasie runu, nie są przewidywane; ich odmowy zostają w historii opisanej wyżej.
 
 ## Budżety { #budgets }
 
@@ -1490,6 +1496,19 @@ w cache może też skrócić kompakcja.
 Karty nie ma, dopóki każdy cache trzymał.
 
 ## Zatwierdzenia { #approvals }
+
+W czacie w przeglądarce, w sekcji Aktywność → Zatwierdzenia lub w Skrzynce
+odbiorczej wybierz **Odrzuć z uwagami**, aby wyjaśnić decyzję lub zaproponować
+inne działanie. Proponowana akcja nie zostanie wykonana, a uwagi zostaną zapisane
+wraz z decyzją. Przy wielu wywołaniach w czacie odrzucane są wszystkie, ale każda
+uwaga dotyczy tylko swojego wywołania. Bez uwag wybierz **Odrzuć**.
+
+Po wznowieniu zwykłego uruchomienia agent otrzymuje uwagi do odrzuconego wywołania
+narzędzia. Jeśli zmieniona akcja wymaga zatwierdzenia, agent pyta ponownie. W kroku
+workflow **Poproś o zatwierdzenie** gałąź **Odrzucono** może odczytać uwagi z pola
+`note`, na przykład w celu poprawienia propozycji. Odrzucenie nie ponawia kroku
+automatycznie. Odrzucony krok narzędzia MCP nadal kończy się błędem bez wywołania
+narzędzia.
 
 Narzędzie objęte bramką parkuje run i czeka na osobę. Builder oferuje **Zawsze pytaj**
 i **Nigdy nie pytaj** dla capability; pojedyncze narzędzia mogą też dziedziczyć jej tryb.

@@ -19,6 +19,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Show why a routine cannot run, with source/access review actions, parked-run links and the same diagnostics on the dashboard.
+- Reject tool calls and workflow approvals with feedback in chat, Activity and Inbox. Preserve already saved decisions when retrying a partially failed batch.
+
+### Fixed
+
+- Restore the chat Files panel width, dragging and maximization without leaving a dark gap.
+- Register public PKCE clients when the MCP authorization server advertises `none` without `client_secret_post`.
+- Keep failed or unanswered routine checks visibly distinct from confirmed readiness, while leaving final run authorization to the server.
+- Use process-local keyed fingerprints for authenticated model-catalog caches instead of stable credential digests.
+
 ## [1.92.0] - 2026-11-23
 
 ### Added

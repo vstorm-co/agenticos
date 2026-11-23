@@ -1,5 +1,5 @@
 ---
-source_sha: "e679e735c63f"
+source_sha: "b6f4121de57e"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -401,12 +401,14 @@ Trzy tryby — i to jedyne, co naprawdę różni serwery między sobą.
 
     1. **Wykrycie** — odpytaj serwer, ustal jego authorization server, pobierz
        metadane RFC 8414.
-    2. **Rejestracja** — dynamiczna rejestracja klienta wg RFC 7591. Serwer,
-       który nie publikuje endpointu rejestracji — tak jest u HubSpota — odmawia
+    2. **Rejestracja** — dynamiczna rejestracja klienta wg RFC 7591. AgenticOS
+       rejestruje publicznego klienta z PKCE, jeśli serwer autoryzacji ogłasza
+       obsługę `none` i nie obsługuje `client_secret_post`. Serwer bez endpointu
+       rejestracji — tak jest u HubSpota — odmawia
        w tym miejscu i jedyna droga dalej to klient zarejestrowany u providera
-       ręcznie: dialog podłączania przyjmuje jego client ID i secret w sekcji
-       *Własny klient* i pokazuje redirect URL, który provider musi mieć wpisany
-       dokładnie w tej postaci.
+       ręcznie: dialog podłączania przyjmuje jego client ID i, jeśli jest
+       wymagany, secret w sekcji *Własny klient*. Zarejestruj u providera redirect
+       URL dokładnie w pokazanej postaci.
     3. **Zgoda** — URL autoryzacji z PKCE, ze `state` i wskaźnikiem zasobu wg
        RFC 8707; przeglądarka idzie pod ten adres.
     4. **Wymiana** — callback wymienia kod na tokeny, po czym przekierowuje

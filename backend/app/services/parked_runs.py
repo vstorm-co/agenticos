@@ -83,7 +83,7 @@ class ParkedRunService:
     ) -> DecidedApproval:
         """Approve or reject a parked call; on a chat run, continue it there when it was the last.
 
-        Errors are `ApprovalService.decide`'s, unchanged. A decision on a run
+        Decision conflicts also identify a server-owned chat continuation. A decision on a run
         that is not a chat's is exactly that call, with the flag false.
         """
         run = await self._claimed_chat_run(ctx, approval_id)
@@ -101,13 +101,18 @@ class ParkedRunService:
         await channel_prompt_repo.settle_open(
             self.db, run_id=run.id, approval_id=approval_id, by="decided"
         )
-        decided = await self.approvals.decide(
-            ctx,
-            approval_id,
-            approved=approved,
-            note=note,
-            remember_scope=remember_scope,
-        )
+        try:
+            decided = await self.approvals.decide(
+                ctx,
+                approval_id,
+                approved=approved,
+                note=note,
+                remember_scope=remember_scope,
+            )
+        except BadRequestError as error:
+            if error.details and "status" in error.details:
+                error.details["continues_in_chat"] = flag
+            raise
         destination = chat_destination(run)
         if flag and destination is not None and not await self._anything_pending(run):
             spawn_after_commit(

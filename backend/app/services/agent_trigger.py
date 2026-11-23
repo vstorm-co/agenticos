@@ -113,6 +113,7 @@ from app.schemas.change_event import ChangeEvent
 from app.schemas.local_target import LocalTarget
 from app.schemas.portal import PortalPresetRead, PortalRead
 from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
+from app.schemas.routine_readiness import TriggerReadiness
 from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceReview
 from app.services import (
     change_feed,
@@ -120,6 +121,7 @@ from app.services import (
     portal_catalog,
     portals,
     rate_limit,
+    routine_readiness,
     trigger_dedupe,
     trigger_events,
 )
@@ -616,6 +618,50 @@ class AgentTriggerService:
         return TriggerAttemptList(
             items=[TriggerAttemptRead.model_validate(row) for row in rows], total=total
         )
+
+    async def readiness(self, ctx: AuthContext, trigger_ids: list[UUID]) -> list[TriggerReadiness]:
+        """What would stop each named routine's next activation, for whoever can see it.
+
+        One read for every routine a screen shows. Visibility is the org listing's
+        own, and a one-shot routine is its creator's alone; an id the caller cannot
+        see is left out of the answer, not refused, so one hidden row does not
+        blank the rest.
+
+        Each routine is evaluated as its creator, because a fire runs as them: a
+        viewer learns that it is blocked and why, never the creator's sources or
+        accounts. Paused routines are evaluated too, so the console can say whether
+        resuming would work. The creator's context is resolved once per creator.
+        """
+        visible = await visible_resource_ids(
+            self.db, ctx, resource_type=AGENT, perm=Perm.AGENTS_VIEW
+        )
+        rows = await agent_trigger_repo.list_visible_by_ids(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            see_all=visible is None,
+            shared_ids=visible or [],
+            trigger_ids=trigger_ids,
+        )
+        reads = [TriggerRead.model_validate(row) for row in rows]
+        await self._mark_spend(list(zip(reads, rows, strict=True)))
+        creators: dict[UUID | None, AuthContext | None] = {}
+        answers: list[TriggerReadiness] = []
+        for read, trigger in zip(reads, rows, strict=True):
+            if trigger.created_by_user_id not in creators:
+                creators[trigger.created_by_user_id] = await self._creator_context(trigger)
+            answers.append(
+                TriggerReadiness(
+                    trigger_id=trigger.id,
+                    blockers=await routine_readiness.blockers(
+                        self.db,
+                        trigger,
+                        creator=creators[trigger.created_by_user_id],
+                        paused_for_budget=read.paused_for_budget,
+                    ),
+                )
+            )
+        return answers
 
     async def _record_attempt(
         self,

@@ -6,6 +6,7 @@ import { CheckCircle2, GitCompare, Undo2, UserCheck, XCircle } from "lucide-reac
 import { useLocale, useTranslations } from "next-intl";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
+import { RejectionFeedback } from "@/components/runs/rejection-feedback";
 import { Badge, Button, LineDiff, ListCard, MarkdownEditor, Textarea } from "@/components/ui";
 import { useWorkflowApprovals } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
@@ -39,8 +40,8 @@ export function WorkflowApprovalsCard() {
           key={approval.id}
           approval={approval}
           deciding={decide.isPending}
-          onDecide={(approved, final, choice) =>
-            decide.mutate({ id: approval.id, approved, final, choice })
+          onDecide={(approved, final, choice, note) =>
+            decide.mutate({ id: approval.id, approved, final, choice, note })
           }
         />
       ))}
@@ -62,7 +63,7 @@ export function StepApprovalRow({
   className?: string;
   approval: WorkflowApprovalRead;
   deciding: boolean;
-  onDecide: (approved: boolean, final?: string, choice?: string) => void;
+  onDecide: (approved: boolean, final?: string, choice?: string, note?: string) => void;
 }) {
   const t = useTranslations("pages.runs");
   const locale = useLocale();
@@ -144,6 +145,13 @@ export function StepApprovalRow({
             <XCircle className="h-4 w-4" />
             {t("reject")}
           </Button>
+          {!notYours && (
+            <RejectionFeedback
+              requests={[{ id: approval.id }]}
+              disabled={deciding}
+              onReject={([note]) => onDecide(false, undefined, undefined, note)}
+            />
+          )}
         </div>
       </div>
       {notYours && <p className="text-muted-foreground text-xs">{t("stepApprovalNotYours")}</p>}
@@ -271,7 +279,7 @@ export function DecidedWorkflowApproval({ approval }: { approval: WorkflowApprov
         {approval.edited && <Badge variant="outline">{t("stepApprovalEdited")}</Badge>}
       </div>
       {approval.note !== null && (
-        <p className="text-foreground/80 mt-1 truncate pl-8 text-sm" title={approval.note}>
+        <p className="text-foreground/80 mt-1 pl-8 text-sm break-words whitespace-pre-wrap">
           {approval.note}
         </p>
       )}

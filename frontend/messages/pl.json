@@ -5,6 +5,18 @@
     "description": "Twoje miejsce pracy z AI. Open source.",
     "ctaShort": "GitHub"
   },
+  "approvalFeedback": {
+    "savedApproval": "Już zatwierdzono: {action}",
+    "savedRejection": "Już odrzucono: {action}",
+    "retryResume": "Ponów wznowienie",
+    "trigger": "Odrzuć z uwagami",
+    "hint": "Proponowana akcja nie zostanie wykonana. Uwagi zostaną zapisane wraz z odrzuceniem.",
+    "batchHint": "Wszystkie wymienione wywołania zostaną odrzucone. Dodaj uwagi tylko do wybranych wywołań.",
+    "call": "Wywołanie {number}: {action}",
+    "comment": "Uwagi",
+    "submit": "Odrzuć i wyślij uwagi",
+    "rejectAll": "Odrzuć wszystkie i wyślij uwagi"
+  },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",
     "chooseSection": "Sekcja: {section}",
@@ -5353,6 +5365,20 @@
           "cancelled": "anulowana",
           "awaiting_approval": "czeka na zatwierdzenie"
         },
+        "reason": {
+          "creator_inactive": "brak twórcy",
+          "creator_cannot_run": "twórca bez dostępu",
+          "agent_unavailable": "brak wersji do uruchomienia",
+          "ended": "zakończona",
+          "sources_setup": "do przeglądu",
+          "sources_review": "do ponownego przeglądu",
+          "routine_changed": "do ponownego przeglądu",
+          "platform_identity": "wymaga twórcy",
+          "awaiting_approval": "czeka na akceptację",
+          "awaiting_answer": "czeka na odpowiedź",
+          "budget_exhausted": "budżet wyczerpany",
+          "actions_need_approval": "zatrzyma się na akceptacji"
+        },
         "empty": {
           "title": "Nic jeszcze nie działa samo",
           "description": "Harmonogram uruchamia agenta według zegara; wyzwalacz - gdy coś nadejdzie."
@@ -9255,7 +9281,6 @@
     "budgetCreatorOnly": "Tylko osoba, która utworzyła tę rutynę, może podnieść albo zdjąć jej limit, dopóki rutyna działa jako ona.",
     "budgetHint": "Ile ta rutyna może wydać w miesiącu. Po wykorzystaniu wstrzymuje się i rusza od pierwszego. Zawęża limity agenta i organizacji, nigdy ich nie podnosi.",
     "budgetPlaceholder": "Bez własnego limitu",
-    "pausedBudget": "Wstrzymana - budżet",
     "loadingRoutine": "Wczytywanie rutyny…",
     "routineLoadError": "Nie udało się wczytać rutyny.",
     "retryRoutine": "Spróbuj ponownie",
@@ -9301,7 +9326,8 @@
       "useAgent": "Użyj ustawień agenta",
       "useAgentHint": "Zaznacza dokładnie te działania, które agent już w czacie wykonuje bez pytania, i zastępuje obecne zaznaczenie. Zgoda tutaj może tylko zawęzić to, na co pozwalają ustawienia agenta, nigdy tego nie poszerza: działania, przed którym agent pyta, nie ma na liście. Nic się nie zapisuje, dopóki nie wybierzesz Zapisz zgody.",
       "allowHeading": "Pozwól tym działaniom działać bez pytania o zgodę",
-      "alwaysAsks": "Zawsze pyta: wymagane przez agenta lub platformę"
+      "alwaysAsks": "Zawsze pyta: wymagane przez agenta lub platformę",
+      "alwaysAsk": "{count, plural, one {1 akcja zawsze wymaga akceptacji, bo tak ustawiono w agencie lub połączeniu. Runy, które jej użyją, zatrzymają się na człowieku niezależnie od wyboru tutaj.} few {# akcje zawsze wymagają akceptacji, bo tak ustawiono w agencie lub połączeniu. Runy, które ich użyją, zatrzymają się na człowieku niezależnie od wyboru tutaj.} other {# akcji zawsze wymaga akceptacji, bo tak ustawiono w agencie lub połączeniu. Runy, które ich użyją, zatrzymają się na człowieku niezależnie od wyboru tutaj.}}"
     },
     "sourceConsents": {
       "title": "Źródła",
@@ -9335,9 +9361,6 @@
     "budgetInvalid": "Wpisz dodatnią kwotę albo zostaw puste pole, aby usunąć ten limit.",
     "clearSearch": "Wyczyść wyszukiwanie",
     "noRoutineMatchesHint": "Spróbuj nazwy agenta, tytułu rutyny lub słów z jej wiadomości.",
-    "setupRequired": "Wymaga konfiguracji",
-    "setupRequiredHint": "Zapisano i wstrzymano. Napraw źródła, sprawdź dostęp, a następnie włącz rutynę.",
-    "setupOwnerRequired": "Zapisana i wstrzymana. Jej twórca musi naprawić i sprawdzić źródła.",
     "filteredEventTitle": "Ostatnie odfiltrowane zdarzenie GitHub",
     "filteredEventHint": "Pokazujemy ostatnie zapisane odrzucenie przez filtr, aktualizowane najwyżej raz na minutę. Nie uruchomiło runa. Treść zdarzenia nie jest zapisywana.",
     "filteredEventEmpty": "Nie zapisano jeszcze odfiltrowanego zdarzenia. Nie potwierdza to otrzymania webhooka.",
@@ -9372,7 +9395,28 @@
       "per_run": "Po każdym uruchomieniu możesz kontynuować rozmowę. Wiadomości nie zmieniają rutyny.",
       "shared": "Wyniki trafiają do wspólnej historii tylko do odczytu. Zrób fork odpowiedzi, aby kontynuować w nowym chacie."
     },
-    "openExecutionChat": "Otwórz chat"
+    "openExecutionChat": "Otwórz chat",
+    "blockers": {
+      "label": "Gotowość rutyny",
+      "resumeBlocked": "Wznowienie nic nie da, dopóki tego nie naprawisz:",
+      "review": "Sprawdź dostęp",
+      "openRuns": "Otwórz runy",
+      "ownerOnly": "Naprawić to może tylko jej twórca.",
+      "creator_inactive": "Jej twórca nie jest już aktywnym członkiem, więc rutyna nie może się uruchomić.",
+      "creator_cannot_run": "Jej twórca nie może już uruchamiać tego agenta.",
+      "agent_unavailable": "Agent nie ma opublikowanej wersji, którą ta rutyna może uruchomić.",
+      "ended": "Minęła jej data zakończenia.",
+      "sources_setup": "Jej źródła nie zostały jeszcze sprawdzone.",
+      "sources_review": "Agent lub jego źródła zmieniły się od ostatniego przeglądu. Sprawdź je ponownie.",
+      "routine_changed": "Ustawienia rutyny zmieniły się od ostatniego przeglądu, na przykład w czyim imieniu działa albo skąd czyta i dokąd dostarcza. Przejrzyj jej dostęp ponownie.",
+      "platform_identity": "Serwer MCP platformy wymaga, by rutyna działała jako jej twórca.",
+      "awaiting_approval": "{held, select, yes {Poprzedni run czeka na zatwierdzenie. Nowy run nie wystartuje, dopóki ktoś nie podejmie decyzji.} other {Poprzedni run czeka na zatwierdzenie.}}",
+      "awaiting_answer": "{held, select, yes {Poprzedni run czeka na odpowiedź. Nowy run nie wystartuje, dopóki jej nie dostanie.} other {Poprzedni run czeka na odpowiedź.}}",
+      "budget_exhausted": "Budżet na ten miesiąc jest wyczerpany. Rutyna uruchomi się ponownie pierwszego dnia miesiąca.",
+      "actions_need_approval": "{count, plural, =1 {1 działanie nie ma stałej zgody i będzie wymagać zatwierdzenia, jeśli zostanie użyte.} few {# działania nie mają stałej zgody i będą wymagać zatwierdzenia, jeśli zostaną użyte.} other {# działań nie ma stałej zgody i będzie wymagać zatwierdzenia, jeśli zostaną użyte.}}",
+      "readiness_checking": "Sprawdzanie, czy rutyna może się uruchomić…",
+      "readiness_unavailable": "Nie udało się sprawdzić gotowości rutyny. Uruchom teraz nadal sprawdzi jej uprawnienia."
+    }
   },
   "portals": {
     "backToServices": "Wróć do usług",

@@ -2730,6 +2730,18 @@
     "routineHistoryReadOnly": "Dieser Routineverlauf ist schreibgeschützt. Verzweige eine Antwort, um in einem neuen Chat fortzufahren.",
     "routineContinueChat": "In neuem Chat fortfahren"
   },
+  "approvalFeedback": {
+    "savedApproval": "Bereits genehmigt: {action}",
+    "savedRejection": "Bereits abgelehnt: {action}",
+    "retryResume": "Fortsetzen erneut versuchen",
+    "trigger": "Mit Feedback ablehnen",
+    "hint": "Die vorgeschlagene Aktion wird nicht ausgeführt. Ihr Feedback wird mit der Ablehnung gespeichert.",
+    "batchHint": "Alle aufgeführten Aufrufe werden abgelehnt. Hinterlassen Sie nur bei den Aufrufen eine Notiz, zu denen Sie Feedback geben möchten.",
+    "call": "Aufruf {number}: {action}",
+    "comment": "Feedback",
+    "submit": "Ablehnen und Feedback senden",
+    "rejectAll": "Alle ablehnen und Feedback senden"
+  },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
     "chooseSection": "Bereich: {section}",
@@ -3287,6 +3299,20 @@
           "running": "läuft",
           "cancelled": "abgebrochen",
           "awaiting_approval": "wartet auf Freigabe"
+        },
+        "reason": {
+          "creator_inactive": "Ersteller fehlt",
+          "creator_cannot_run": "Ersteller ohne Zugriff",
+          "agent_unavailable": "keine ausführbare Version",
+          "ended": "beendet",
+          "sources_setup": "Prüfung nötig",
+          "sources_review": "erneut prüfen",
+          "routine_changed": "erneut prüfen",
+          "platform_identity": "braucht den Ersteller",
+          "awaiting_approval": "wartet auf Freigabe",
+          "awaiting_answer": "wartet auf Antwort",
+          "budget_exhausted": "Budget aufgebraucht",
+          "actions_need_approval": "hält zur Freigabe an"
         },
         "empty": {
           "title": "Noch läuft nichts von allein",
@@ -10449,7 +10475,6 @@
     "budgetCreatorOnly": "Nur die Person, die diese Routine angelegt hat, kann ihr Limit anheben oder entfernen, solange sie als diese Person läuft.",
     "budgetHint": "Was diese Routine pro Monat ausgeben darf. Ist es aufgebraucht, pausiert sie und startet am Ersten neu. Es verengt die Limits des Agenten und der Organisation, hebt sie nie an.",
     "budgetPlaceholder": "Kein eigenes Limit",
-    "pausedBudget": "Pausiert - Budget",
     "loadingRoutine": "Routine wird geladen…",
     "routineLoadError": "Die Routine konnte nicht geladen werden.",
     "retryRoutine": "Erneut versuchen",
@@ -10495,7 +10520,8 @@
       "useAgent": "Einstellungen des Agenten verwenden",
       "useAgentHint": "Wählt genau die Aktionen, die dieser Agent im Chat schon ohne Nachfrage ausführt, und ersetzt die aktuelle Auswahl. Eine Freigabe hier kann nur eingrenzen, was die Einstellungen des Agenten erlauben, nie erweitern: Eine Aktion, vor der der Agent fragt, wird nicht angeboten. Gespeichert wird erst mit Freigaben speichern.",
       "allowHeading": "Diese Aktionen ohne Bestätigung ausführen lassen",
-      "alwaysAsks": "Fragt immer: vom Agenten oder der Plattform vorgeschrieben"
+      "alwaysAsks": "Fragt immer: vom Agenten oder der Plattform vorgeschrieben",
+      "alwaysAsk": "{count, plural, =1 {1 Aktion fragt immer nach Freigabe, weil ihr Agent oder ihre Verbindung es verlangt. Runs, die sie nutzen, halten für eine Person an, egal was Sie hier wählen.} other {# Aktionen fragen immer nach Freigabe, weil ihr Agent oder ihre Verbindung es verlangt. Runs, die sie nutzen, halten für eine Person an, egal was Sie hier wählen.}}"
     },
     "sourceConsents": {
       "title": "Quellen",
@@ -10529,9 +10555,6 @@
     "budgetInvalid": "Gib einen positiven Betrag ein oder lasse das Feld leer, um dieses Limit zu entfernen.",
     "clearSearch": "Suche löschen",
     "noRoutineMatchesHint": "Suchen Sie nach dem Agentennamen, dem Routinentitel oder Wörtern aus ihrer Nachricht.",
-    "setupRequired": "Einrichtung erforderlich",
-    "setupRequiredHint": "Gespeichert und pausiert. Quellen reparieren, Zugriff prüfen und die Routine anschließend aktivieren.",
-    "setupOwnerRequired": "Gespeichert und pausiert. Der Ersteller muss die Quellen reparieren und prüfen.",
     "filteredEventTitle": "Zuletzt gefiltertes GitHub-Ereignis",
     "filteredEventHint": "Angezeigt wird die zuletzt gespeicherte Stichprobe verifizierter Filterablehnungen, höchstens einmal pro Minute aktualisiert. Sie hat keinen Run gestartet. Payload-Inhalte werden nicht gespeichert.",
     "filteredEventEmpty": "Noch kein gefiltertes Ereignis erfasst. Dies bestätigt keinen Webhook-Eingang.",
@@ -10566,7 +10589,28 @@
       "per_run": "Setze den Chat nach jeder Ausführung fort. Weitere Nachrichten ändern die Routine nicht.",
       "shared": "Ausführungen teilen einen schreibgeschützten Verlauf. Verzweige eine Antwort, um in einem neuen Chat fortzufahren."
     },
-    "openExecutionChat": "Chat öffnen"
+    "openExecutionChat": "Chat öffnen",
+    "blockers": {
+      "label": "Ausführbarkeit der Routine",
+      "resumeBlocked": "Fortsetzen hilft erst, wenn das behoben ist:",
+      "review": "Zugriff prüfen",
+      "openRuns": "Runs öffnen",
+      "ownerOnly": "Nur der Ersteller kann das beheben.",
+      "creator_inactive": "Der Ersteller ist kein aktives Mitglied mehr, daher kann sie nicht laufen.",
+      "creator_cannot_run": "Der Ersteller darf diesen Agent nicht mehr ausführen.",
+      "agent_unavailable": "Der Agent hat keine veröffentlichte Version, die diese Routine ausführen kann.",
+      "ended": "Ihr Enddatum ist überschritten.",
+      "sources_setup": "Ihre Quellen wurden noch nicht geprüft.",
+      "sources_review": "Der Agent oder seine Quellen haben sich seit der letzten Prüfung geändert. Prüfen Sie sie erneut.",
+      "routine_changed": "Die Einstellungen der Routine haben sich seit der letzten Prüfung geändert, etwa in wessen Namen sie läuft oder woher sie liest und wohin sie liefert. Prüfen Sie ihren Zugriff erneut.",
+      "platform_identity": "Der MCP-Server der Plattform verlangt, dass die Routine als ihr Ersteller handelt.",
+      "awaiting_approval": "{held, select, yes {Ein vorheriger Run wartet auf Freigabe. Bis zur Entscheidung startet kein neuer Run.} other {Ein vorheriger Run wartet auf Freigabe.}}",
+      "awaiting_answer": "{held, select, yes {Ein vorheriger Run wartet auf eine Antwort. Bis dahin startet kein neuer Run.} other {Ein vorheriger Run wartet auf eine Antwort.}}",
+      "budget_exhausted": "Das Budget dieses Monats ist aufgebraucht. Sie läuft am Monatsersten wieder.",
+      "actions_need_approval": "{count, plural, =1 {1 Aktion hat keine dauerhafte Zustimmung und erfordert bei Verwendung eine Genehmigung.} other {# Aktionen haben keine dauerhafte Zustimmung und erfordern bei Verwendung eine Genehmigung.}}",
+      "readiness_checking": "Es wird geprüft, ob diese Routine ausgeführt werden kann…",
+      "readiness_unavailable": "Die Ausführbarkeit konnte nicht geprüft werden. Jetzt ausführen prüft weiterhin die Berechtigungen."
+    }
   },
   "portals": {
     "backToServices": "Zurück zu den Diensten",

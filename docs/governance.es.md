@@ -1,5 +1,5 @@
 ---
-source_sha: "4c4d606984ca"
+source_sha: "4fce44b7cff8"
 ---
 
 # Governance { #governance }
@@ -103,6 +103,12 @@ Una rutina vuelve a comprobar su creador, membresía activa, rol y permisos de e
 El servidor MCP integrado de AgenticOS requiere **Actuar como creador**, también cuando lo vincula un delegado publicado. Sin una identidad de persona, la revisión de fuentes y la creación de la rutina rechazan esta configuración con una explicación concreta. Active la opción o quite la vinculación de plataforma del agente y sus delegados. La plataforma nunca adopta automáticamente la identidad del creador.
 
 El historial de la rutina también muestra intentos bloqueados o fallidos anteriores a un run del agente. Cada uno incluye la hora, la etapa y una indicación para solucionarlo. No generan cargos de modelo ni contienen prompts, errores del proveedor o credenciales. Los registros permanecen hasta eliminar la rutina o la organización; un fallo en la entrega de notificaciones no los elimina. El job fire-trigger guarda un resultado separado bloqueado o fallido. Completar el job de la cola no significa que el agente se haya ejecutado correctamente.
+
+La lista de rutinas indica además, antes de la siguiente activación, si se ejecutaría. Cada rutina consulta las mismas comprobaciones que hace un disparo, evaluadas como su creador y sin efectos secundarios: la membresía activa del creador y su permiso para ejecutar el agent, una versión ejecutable, la revisión de fuentes, la fecha de fin, el budget mensual, un run anterior en espera de aprobación o de respuesta, y las acciones sin consentimiento permanente.
+
+Una rutina que no iniciaría un run aparece con borde rojo; una con acciones que necesitarían aprobación si se usan, en ámbar; una rutina en pausa aparece atenuada y sigue indicando qué encontraría al reanudarla. Cada línea nombra el motivo y ofrece a su creador el control para resolverlo. Mientras la comprobación está pendiente o no hay un resultado disponible, un mensaje neutral lo indica sin dar a entender que la rutina está lista. Una comprobación fallida se puede reintentar; Ejecutar ahora sigue realizando sus propias comprobaciones de admisión.
+
+La tarjeta Routines del panel coloca primero una rutina que no se ejecutaría y nombra el motivo en su estado. `POST /triggers/readiness` devuelve los mismos motivos como códigos acotados para hasta 100 rutinas a la vez, omite las que quien llama no puede ver y no nombra fuentes, cuentas ni credenciales. Las comprobaciones que solo un proveedor puede responder durante el run no se predicen; sus rechazos quedan en el historial descrito arriba.
 
 ## Budgets { #budgets }
 
@@ -1499,6 +1505,19 @@ compactación también puede acortar el prompt que la caché guardaba.
 La tarjeta no aparece mientras todas las cachés aguantaron.
 
 ## Aprobaciones { #approvals }
+
+En el chat web, en Actividad → Aprobaciones o en la bandeja de entrada, elige
+**Rechazar con comentarios** para explicar el motivo o sugerir una alternativa.
+La acción propuesta no se ejecuta y el comentario se guarda con el rechazo.
+En un lote del chat se rechazan todas las llamadas de la lista, pero cada comentario
+solo se asocia con su llamada. Si no necesitas comentar, elige **Rechazar**.
+
+Si se rechaza una llamada normal a una herramienta del agente, este recibe el
+comentario al reanudar la ejecución. Si la acción revisada requiere aprobación,
+el agente vuelve a pedirla. En el paso **Pedir aprobación** de un workflow, la rama
+**Rechazado** puede leer el comentario como `note`, por ejemplo para revisar una
+propuesta. El rechazo no reintenta el paso automáticamente. Un paso de herramienta
+MCP rechazado sigue fallando sin invocar la herramienta.
 
 Una herramienta con aprobación aparca el run y espera a una persona. El Builder ofrece
 **Preguntar siempre** y **No preguntar nunca** para una capability; las herramientas

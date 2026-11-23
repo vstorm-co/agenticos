@@ -14,8 +14,11 @@ import { RoutineActionTooltip } from "@/components/triggers/routine-action-toolt
 import { TriggerSummary } from "@/components/triggers/trigger-summary";
 import { Badge, Button, ConfirmDialog, TooltipProvider } from "@/components/ui";
 import { ActionConsentsDialog } from "@/components/triggers/action-consents-dialog";
+import { RoutineBlockers } from "@/components/triggers/routine-blockers";
 import { useAuthStore } from "@/stores";
 import { useTriggers } from "@/hooks/use-triggers";
+import { listedBlockers, stopsRunNow, type RoutineBlocker } from "@/lib/routine-readiness-api";
+import { cn } from "@/lib/utils";
 import type { Trigger } from "@/types/triggers";
 
 /**
@@ -46,6 +49,11 @@ interface TriggerRowProps {
    * panel does not, because the agent is the page.
    */
   showAgent?: boolean;
+  /**
+   * Why its next activation would not run, from the list's one readiness read
+   * (`useRoutinesReadiness`). Without it, only what the listing itself proves.
+   */
+  blockers?: RoutineBlocker[];
 }
 
 /**
@@ -60,7 +68,7 @@ interface TriggerRowProps {
  * server, so a Viewer holding an explicit run grant on one agent manages that
  * agent's triggers here without a role-level check hiding them first.
  */
-export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
+export function TriggerRow({ trigger, showAgent = false, blockers: read }: TriggerRowProps) {
   const t = useTranslations("triggers");
   const me = useAuthStore((state) => state.user?.id);
   const [consenting, setConsenting] = useState(false);
@@ -73,8 +81,17 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [viewing, setViewing] = useState(false);
+  const blockers = read ?? listedBlockers(trigger);
+  const blocked = blockers.some((blocker) => blocker.severity === "blocked");
+  const attention = blockers.some((blocker) => blocker.severity === "attention");
+  const unknown = blockers.some((blocker) => blocker.severity === "unknown");
+  const isOwner = me != null && me === trigger.created_by_user_id && !impersonating;
+  // A parked previous run holds the schedule, not a manual run, so Run now stays.
   const runDisabled =
-    !trigger.is_active || runNow.isPending || (trigger.waiting_device_count ?? 0) > 0;
+    !trigger.is_active ||
+    blockers.some(stopsRunNow) ||
+    runNow.isPending ||
+    (trigger.waiting_device_count ?? 0) > 0;
   // Compare history identities rather than clocks from the browser and worker.
   const [activationId, setActivationId] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -97,12 +114,39 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
 
   return (
     // A chat result can be narrow on a wide screen: size the card by its own container.
-    <article className="border-foreground/8 bg-card hover:border-foreground/20 @container/routine flex w-full min-w-0 flex-wrap items-center gap-3 rounded-xl border p-3 transition-colors">
+    // Paused reads as greyed out whatever else is true; an active routine that will
+    // not run is red, and one whose runs will stop on a person is amber.
+    <article
+      data-state={
+        !trigger.is_active
+          ? "paused"
+          : blocked
+            ? "blocked"
+            : attention
+              ? "attention"
+              : unknown
+                ? "unknown"
+                : "ready"
+      }
+      className={cn(
+        "@container/routine flex w-full min-w-0 flex-wrap items-center gap-3 rounded-xl border p-3 transition-colors",
+        !trigger.is_active
+          ? "border-foreground/8 bg-muted/40 hover:border-foreground/20"
+          : blocked
+            ? "border-destructive/40 bg-destructive/5 hover:border-destructive/60"
+            : attention
+              ? "border-warning/40 bg-warning/5 hover:border-warning/60"
+              : "border-foreground/8 bg-card hover:border-foreground/20",
+      )}
+    >
       <button
         type="button"
         onClick={openRuns}
         aria-label={t("viewRuns")}
-        className="hover:bg-muted/40 -m-1 flex w-full min-w-0 flex-1 basis-full items-center gap-3 rounded-lg p-1 text-left transition-colors @min-[48rem]/routine:basis-0"
+        className={cn(
+          "hover:bg-muted/40 -m-1 flex w-full min-w-0 flex-1 basis-full items-center gap-3 rounded-lg p-1 text-left transition-colors @min-[48rem]/routine:basis-0",
+          !trigger.is_active && "opacity-60 grayscale",
+        )}
       >
         {/* The kind of routine in a tile, with the agent that runs it tucked into
             its corner - one mark to scan down the list rather than two loose icons. */}
@@ -147,25 +191,6 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
         <Badge variant="secondary">{t("deliveryUnavailable")}</Badge>
       )}
       <div className="flex min-w-0 basis-full flex-wrap items-center gap-2 empty:hidden @min-[48rem]/routine:max-w-[50%] @min-[48rem]/routine:basis-auto">
-        {trigger.setup_required &&
-          (trigger.can_manage &&
-          me != null &&
-          me === trigger.created_by_user_id &&
-          !impersonating ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setConsenting(true)}
-              title={t("setupRequiredHint")}
-            >
-              <ShieldCheck className="mr-1.5 size-3.5" />
-              {t("setupRequired")}
-            </Button>
-          ) : (
-            <Badge variant="secondary" title={t("setupOwnerRequired")}>
-              {t("setupRequired")}
-            </Badge>
-          ))}
         {trigger.runs_as_creator && <Badge variant="outline">{t("actsAsCreator")}</Badge>}
         {(trigger.waiting_device_count ?? 0) > 0 && (
           <Badge variant="secondary">
@@ -179,13 +204,10 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
         {!trigger.is_active && !trigger.auto_stopped_at && !trigger.setup_required && (
           <Badge variant="secondary">{t("paused")}</Badge>
         )}
-        {trigger.is_active && trigger.paused_for_budget && (
-          <Badge variant="secondary">{t("pausedBudget")}</Badge>
-        )}
         {trigger.can_manage && (
           <TooltipProvider>
             <div className="ml-auto flex shrink-0 flex-wrap items-center gap-0.5">
-              {me != null && me === trigger.created_by_user_id && !impersonating && (
+              {isOwner && (
                 <RoutineActionTooltip label={t("actionConsents.title")}>
                   <Button
                     variant="ghost"
@@ -261,6 +283,13 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
           </TooltipProvider>
         )}
       </div>
+      <RoutineBlockers
+        blockers={blockers}
+        paused={!trigger.is_active}
+        canReview={isOwner}
+        onReview={() => setConsenting(true)}
+        onOpenRuns={openRuns}
+      />
       {consenting && (
         <ActionConsentsDialog
           trigger={trigger}

@@ -2730,6 +2730,18 @@
     "routineHistoryReadOnly": "This is a read-only routine history. Fork an answer to continue in a new chat.",
     "routineContinueChat": "Continue in a new chat"
   },
+  "approvalFeedback": {
+    "savedApproval": "Already approved: {action}",
+    "savedRejection": "Already rejected: {action}",
+    "retryResume": "Retry resume",
+    "trigger": "Reject with feedback",
+    "hint": "The proposed action will not run. Your feedback is saved with the rejection.",
+    "batchHint": "All listed calls will be rejected. Leave a note only on the calls you want to give feedback on.",
+    "call": "Call {number}: {action}",
+    "comment": "Feedback",
+    "submit": "Reject and send feedback",
+    "rejectAll": "Reject all and send feedback"
+  },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
     "chooseSection": "Section: {section}",
@@ -3287,6 +3299,20 @@
           "running": "running",
           "cancelled": "cancelled",
           "awaiting_approval": "awaiting approval"
+        },
+        "reason": {
+          "creator_inactive": "creator gone",
+          "creator_cannot_run": "creator lacks access",
+          "agent_unavailable": "no runnable version",
+          "ended": "ended",
+          "sources_setup": "needs review",
+          "sources_review": "review again",
+          "routine_changed": "review again",
+          "platform_identity": "needs the creator",
+          "awaiting_approval": "held for approval",
+          "awaiting_answer": "held for an answer",
+          "budget_exhausted": "budget spent",
+          "actions_need_approval": "stops for approval"
         },
         "empty": {
           "title": "Nothing runs on its own yet",
@@ -10569,7 +10595,6 @@
     "budgetCreatorOnly": "Only the person who made this routine can raise or remove its limit while it runs as them.",
     "budgetHint": "What this routine may spend a month. Once spent it pauses and starts again on the first. It narrows the agent's and the organization's limits, never lifts them.",
     "budgetPlaceholder": "No limit of its own",
-    "pausedBudget": "Paused - budget",
     "loadingRoutine": "Loading routine…",
     "routineLoadError": "The routine could not be loaded.",
     "retryRoutine": "Try again",
@@ -10615,7 +10640,8 @@
       "useAgent": "Use the agent's settings",
       "useAgentHint": "Selects exactly the actions this agent already runs without asking in a chat, replacing the current selection. Consent here can only narrow what the agent's settings grant, never widen it: an action the agent asks before is not offered. Nothing is saved until you choose Save consent.",
       "allowHeading": "Allow these actions to run without asking for approval",
-      "alwaysAsks": "Always asks: required by the agent or platform"
+      "alwaysAsks": "Always asks: required by the agent or platform",
+      "alwaysAsk": "{count, plural, =1 {1 action always asks for approval, as its agent or connection requires. Runs that use it stop for a person whatever you choose here.} other {# actions always ask for approval, as their agent or connection requires. Runs that use them stop for a person whatever you choose here.}}"
     },
     "sourceConsents": {
       "title": "Sources",
@@ -10649,9 +10675,6 @@
     "budgetInvalid": "Enter a positive amount, or leave blank to remove this limit.",
     "clearSearch": "Clear search",
     "noRoutineMatchesHint": "Try an agent name, routine title or words from its message.",
-    "setupRequired": "Setup required",
-    "setupRequiredHint": "Saved and paused. Repair the sources, review access, then enable this routine.",
-    "setupOwnerRequired": "Saved and paused. Its creator must repair and review the sources.",
     "filteredEventTitle": "Latest filtered GitHub event",
     "filteredEventHint": "The latest retained sample of verified filter rejections is shown, updated at most once a minute. It did not start a run. Payload content is not stored.",
     "filteredEventEmpty": "No filtered event has been recorded yet. This does not confirm that a webhook has arrived.",
@@ -10686,7 +10709,28 @@
       "per_run": "Continue the conversation after each run. Follow-up messages do not change the routine.",
       "shared": "Keep runs in one read-only history. Fork an answer to continue in a new chat."
     },
-    "openExecutionChat": "Open chat"
+    "openExecutionChat": "Open chat",
+    "blockers": {
+      "label": "Routine readiness",
+      "resumeBlocked": "Resuming will not help until this is fixed:",
+      "review": "Review access",
+      "openRuns": "Open runs",
+      "ownerOnly": "Only its creator can fix this.",
+      "creator_inactive": "Its creator is no longer an active member, so it cannot run.",
+      "creator_cannot_run": "Its creator can no longer run this agent.",
+      "agent_unavailable": "The agent has no published version this routine can run.",
+      "ended": "Its end date has passed.",
+      "sources_setup": "Its sources have not been reviewed yet.",
+      "sources_review": "The agent or its sources changed since the last review. Review them again.",
+      "routine_changed": "The routine's settings changed since the last review, such as who it runs as or where it reads and delivers. Review its access again.",
+      "platform_identity": "The platform MCP server needs this routine to act as its creator.",
+      "awaiting_approval": "{held, select, yes {A previous run is waiting for approval. No new run starts until it is decided.} other {A previous run is waiting for approval.}}",
+      "awaiting_answer": "{held, select, yes {A previous run is waiting for an answer. No new run starts until it gets one.} other {A previous run is waiting for an answer.}}",
+      "budget_exhausted": "This month's budget is spent. It runs again on the first of the month.",
+      "actions_need_approval": "{count, plural, =1 {1 action has no standing consent and will need approval if used.} other {# actions have no standing consent and will need approval if used.}}",
+      "readiness_checking": "Checking whether this routine can run…",
+      "readiness_unavailable": "Could not check whether this routine can run. Run now will still check its permissions."
+    }
   },
   "portals": {
     "backToServices": "Back to services",

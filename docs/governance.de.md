@@ -1,5 +1,5 @@
 ---
-source_sha: "4c4d606984ca"
+source_sha: "4fce44b7cff8"
 ---
 
 # Governance { #governance }
@@ -105,6 +105,12 @@ Eine Routine prüft vor jedem Werkzeug ihren Ersteller, aktive Mitgliedschaft, R
 Der integrierte AgenticOS-MCP-Server erfordert **Als Ersteller handeln**, auch wenn ein veröffentlichter Delegat ihn einbindet. Ohne eine personenbezogene Identität lehnen die Quellenprüfung und das Erstellen der Routine diese Konfiguration mit einer konkreten Erklärung ab. Aktivieren Sie die Option oder entfernen Sie die Plattformbindung aus dem Agenten und seinen Delegaten. Die Plattform übernimmt niemals automatisch die Identität des Erstellers.
 
 Der Routinenverlauf zeigt auch blockierte oder fehlgeschlagene Versuche vor dem Erstellen eines Agentenlaufs. Jeder enthält Zeitpunkt, Phase und einen Reparaturhinweis. Es entstehen keine Modellkosten; Prompts, Anbieterfehler und Zugangsdaten werden nie gespeichert. Die Einträge bleiben bis zum Löschen der Routine oder Organisation erhalten, unabhängig von der Benachrichtigungszustellung. Der Worker-Job fire-trigger speichert ein separates blockiertes oder fehlgeschlagenes Ergebnis. Ein abgeschlossener Warteschlangenjob bedeutet nicht, dass ein Agent erfolgreich lief.
+
+Die Routinenliste zeigt außerdem schon vor der nächsten Aktivierung, ob sie laufen würde. Jede Routine stellt die Prüfungen, die ein Auslösen macht, im Namen ihres Erstellers und ohne Nebenwirkungen: die aktive Mitgliedschaft des Erstellers und seine Ausführungsberechtigung für den Agent, eine ausführbare Version, die Quellenprüfung, das Enddatum, das Monatsbudget, einen vorherigen Run, der auf Freigabe oder eine Antwort wartet, und Aktionen ohne dauerhafte Zustimmung.
+
+Eine Routine, die keinen Run starten würde, ist rot umrandet; eine mit Aktionen, die bei Verwendung eine Freigabe benötigen, ist bernsteinfarben; eine pausierte Routine ist ausgegraut und zeigt weiterhin, woran das Fortsetzen scheitern würde. Jede Zeile nennt den Grund und bietet dem Ersteller die passende Abhilfe. Während einer Prüfung oder bei fehlendem Ergebnis erscheint ein neutraler Hinweis statt einer vermeintlichen Bereitschaft. Eine fehlgeschlagene Prüfung lässt sich wiederholen; Jetzt ausführen prüft die Zulassung weiterhin selbst.
+
+Die Dashboard-Karte Routines stellt eine Routine, die nicht laufen würde, an den Anfang und nennt den Grund in ihrem Status. `POST /triggers/readiness` liefert dieselben Gründe als begrenzte Codes für bis zu 100 Routinen auf einmal, lässt Routinen aus, die der Aufrufer nicht sehen darf, und nennt keine Quellen, Konten oder Zugangsdaten. Prüfungen, die erst ein Anbieter zur Laufzeit beantworten kann, werden nicht vorhergesagt; ihre Ablehnungen bleiben im oben beschriebenen Verlauf.
 
 ## Budgets { #budgets }
 
@@ -1584,6 +1590,19 @@ wurden, im Zeitraum - ein Maß für den Fehlgriff, nicht für erneut Berechnetes
 auch eine Komprimierung den gecachten Prompt verkleinern kann. Solange jeder Cache gehalten hat, erscheint die Karte nicht.
 
 ## Freigaben { #approvals }
+
+Wählen Sie im Webchat, unter Aktivität → Freigaben oder im Posteingang
+**Mit Feedback ablehnen**, um den Grund oder eine Alternative anzugeben. Die
+vorgeschlagene Aktion wird nicht ausgeführt. Der Kommentar wird mit der Ablehnung
+gespeichert. Bei mehreren Aufrufen im Chat werden alle abgelehnt, aber jeder
+Kommentar gilt nur für den jeweiligen Aufruf. Ohne Kommentar wählen Sie **Ablehnen**.
+
+Bei einem normalen abgelehnten Agenten-Toolaufruf erhält der Agent den Kommentar,
+wenn der Lauf fortgesetzt wird. Benötigt die überarbeitete Aktion eine Freigabe,
+fragt er erneut. Beim Workflow-Schritt **Um Freigabe bitten** kann der Pfad
+**Abgelehnt** den Kommentar als `note` lesen, etwa um einen Entwurf zu überarbeiten.
+Eine Ablehnung startet keinen automatischen Wiederholungsversuch. Ein abgelehnter
+MCP-Tool-Schritt schlägt weiterhin fehl, ohne das Tool aufzurufen.
 
 Ein gesperrtes Tool parkt den Run und wartet auf eine Person. Der Builder bietet
 **Immer fragen** und **Nie fragen** für eine Capability; einzelne Tools können auch

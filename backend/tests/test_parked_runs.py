@@ -232,13 +232,19 @@ class TestDeciding:
         p.settle_open.assert_not_awaited()
         assert decided.continues_in_chat is False
 
-    async def test_a_refused_decision_raises_as_before_and_spawns_nothing(self) -> None:
+    @pytest.mark.parametrize("details", [None, {"status": "approved"}])
+    async def test_a_refused_decision_raises_as_before_and_spawns_nothing(
+        self, details: dict[str, str] | None
+    ) -> None:
         with _Patched() as p:
             p.approvals.decide.side_effect = BadRequestError(
-                message="This request was already approved"
+                message="This request was already approved", details=details
             )
-            with pytest.raises(BadRequestError):
+            with pytest.raises(BadRequestError) as caught:
                 await p.service.decide(_person(), APPROVAL, approved=True, note=None)
+        assert caught.value.details == (
+            {"status": "approved", "continues_in_chat": True} if details else None
+        )
         assert p.spawned == []
 
     async def test_a_console_decision_still_wakes_a_workflow_waiting_on_its_run(self) -> None:
