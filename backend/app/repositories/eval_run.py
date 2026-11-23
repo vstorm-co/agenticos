@@ -785,6 +785,76 @@ async def latest_arm(
     return (row[0], row[1]) if row is not None else None
 
 
+async def latest_draft_arm(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    dataset_id: UUID,
+    spec_hash: str,
+    dataset_version_id: UUID,
+    model_profile_id: UUID | None,
+    scoring_hash: str,
+    execution: RunExecution,
+    since: datetime,
+    excluded_case_ids: Collection[UUID],
+    skill_versions: Mapping[str, str] | None,
+) -> tuple[EvalRunArm, EvalRun] | None:
+    """The newest arm of a completed run that answered this exact draft.
+
+    The draft is matched by its fingerprint: a draft baseline that answered it,
+    or an arm of a published version whose spec the draft still is. The run must
+    have left out exactly `excluded_case_ids` - an improvement session's own
+    evidence, the same in every check it runs - because a reused arm's first
+    answers are read whole, so a run that asked more cases would put them in the
+    baseline. An arm that served a proposed body, or was itself reused, never
+    stands in.
+    """
+    excluded = sorted(excluded_case_ids)
+    conditions = [
+        EvalRunArm.organization_id == organization_id,
+        or_(
+            and_(
+                EvalRunArm.agent_version_id.is_(None),
+                EvalRunArm.role == ArmRole.BASELINE.value,
+            ),
+            EvalRunArm.agent_version_id.is_not(None),
+        ),
+        EvalRunArm.spec_hash == spec_hash,
+        EvalRunArm.reused_from_arm_id.is_(None),
+        EvalRunArm.skill_bodies.is_(None),
+        EvalRunArm.context_bodies.is_(None),
+        EvalRunArm.skill_versions.is_(None)
+        if skill_versions is None
+        else EvalRunArm.skill_versions == cast(dict(skill_versions), JSONB),
+        EvalRunArm.model_profile_id.is_not_distinct_from(model_profile_id),
+        EvalRun.agent_id == agent_id,
+        EvalRun.dataset_id == dataset_id,
+        EvalRun.dataset_version_id == dataset_version_id,
+        EvalRun.status == EvalRunStatus.COMPLETED.value,
+        EvalRun.scoring_hash == scoring_hash,
+        EvalRun.environment_id.is_not_distinct_from(execution.environment_id),
+        EvalRun.from_recordings.is_(execution.from_recordings),
+        EvalRun.live_reads.is_(execution.live_reads),
+        EvalRun.ended_at >= since,
+        func.cardinality(EvalRun.excluded_case_ids) == len(excluded),
+    ]
+    if excluded:
+        conditions += [
+            EvalRun.excluded_case_ids.contains(excluded),
+            EvalRun.excluded_case_ids.contained_by(excluded),
+        ]
+    result = await db.execute(
+        select(EvalRunArm, EvalRun)
+        .join(EvalRun, EvalRun.id == EvalRunArm.eval_run_id)
+        .where(*conditions)
+        .order_by(EvalRun.ended_at.desc(), EvalRunArm.position)
+        .limit(1)
+    )
+    row = result.first()
+    return (row[0], row[1]) if row is not None else None
+
+
 async def count_live_in_environment(
     db: AsyncSession, *, environment_id: UUID, organization_id: UUID
 ) -> int:

@@ -15,10 +15,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
-from app.api.deps import Auth, DatasetSvc, ScoringSvc, require
+from app.api.deps import Auth, CaseKeyDraftSvc, DatasetSvc, ScoringSvc, require
 from app.api.public_api import ASSISTANT
 from app.api.responses import csv_response, jsonl_response
 from app.core.permissions import Perm
+from app.schemas.case_key_draft import CaseKeyDraftRead
 from app.schemas.dataset import (
     DatasetCaseCreate,
     DatasetCaseFromMessage,
@@ -265,6 +266,44 @@ async def update_dataset_case(
 ) -> Any:
     """Edit a case in the newest version. The edit is a new version; the old one is kept."""
     return await service.update_case(ctx, dataset_id, case_id, data)
+
+
+@router.post(
+    "/{dataset_id}/cases/{case_id}/key-draft",
+    response_model=CaseKeyDraftRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def draft_case_keys(
+    dataset_id: UUID, case_id: UUID, service: CaseKeyDraftSvc, ctx: Auth
+) -> Any:
+    """List the facts the case's reference answer holds, for its keys check.
+
+    The key extractor runs as the caller, metered and in Activity, in a job; poll
+    the draft until it is `ready` or `failed`. The case's earlier draft is
+    replaced. Only a value the answer states as written is kept, and nothing
+    reaches the case until a person saves it into the keys check.
+    """
+    return await service.start(ctx, dataset_id, case_id)
+
+
+@router.get("/{dataset_id}/cases/{case_id}/key-draft", response_model=CaseKeyDraftRead)
+async def get_case_key_draft(
+    dataset_id: UUID, case_id: UUID, service: CaseKeyDraftSvc, ctx: Auth
+) -> Any:
+    """The keys drafted for the case, while they are listed and once they are."""
+    return await service.get(ctx, dataset_id, case_id)
+
+
+@router.delete(
+    "/{dataset_id}/cases/{case_id}/key-draft",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def dismiss_case_key_draft(
+    dataset_id: UUID, case_id: UUID, service: CaseKeyDraftSvc, ctx: Auth
+) -> None:
+    """Delete the case's drafted keys, once used or when they are not wanted."""
+    await service.dismiss(ctx, dataset_id, case_id)
 
 
 @router.delete(

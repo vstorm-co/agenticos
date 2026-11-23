@@ -1,5 +1,5 @@
 ---
-source_sha: "54b551bbe389"
+source_sha: "cbdc4136f927"
 ---
 
 # Skills { #skills }
@@ -294,7 +294,11 @@ valoraron bien. Creado a partir de respuestas recientes, cada pregunta se hace u
 vez: una respuesta que alguien valoró gana a una que solo falló, así que una
 pregunta nunca pide una respuesta y a la vez la prohíbe.
 
-Después, las preguntas del propio agent:
+Después, las preguntas del propio agent, del dataset con el que mide su
+[sesión de Improve](authoring.md#the-improve-wizard) más reciente cuando ese
+dataset lo prueba, y si no, del primer dataset que lo prueba. Así, un conjunto
+reservado para una medición final nunca lo pregunta una comprobación de skill
+mientras el agent mejora con otro.
 
 - **Quick**, por defecto: cuatro preguntas del dataset del agent - más cuando las
   preguntas held-out del propio skill no llegan a las cinco que necesita un
@@ -337,11 +341,17 @@ el paso se rechaza antes de empezar, con el dataset al que añadir otras pregunt
   criterios**; uno con un criterio confirmado peor está **peor en criterios**.
   Ninguno cambia la regla de arriba, que trata de preguntas enteras: en la barra
   cuentan con los agents mejores y peores, y los detalles del agent enumeran cada
-  criterio con sus aciertos antes y después.
+  [familia](evals.md#a-flip-is-confirmed-before-it-counts) de criterios con sus
+  aciertos antes y después - la comprobación de una cosa en cada caso en una
+  fila - o cada criterio, para un agent comprobado antes de que se guardaran las
+  familias.
 - Un agent que no se pudo comprobar - sin preguntas, con preguntas que nada
   califica o tomadas todas de las conversaciones del propio cambio, sin acceso,
   sin budget, sin versión publicada, con un run fallido, con la comprobación
-  detenida - es **desconocido**, y una persona lo reconoce antes de aplicar.
+  detenida - es **desconocido**, y una persona lo reconoce antes de aplicar. Lo
+  mismo uno cuyos runs calificaron cada respuesta en menos preguntas apartadas de
+  las que necesita un resultado: su fila dice cuántas salieron mejor y peor, y que
+  son demasiado pocas para estar seguros.
 
 Una comprobación en la que no se puede comprobar ningún agent empieza igualmente
 y termina enseguida, con todos los agents desconocidos, para que una persona lo
@@ -864,6 +874,13 @@ main, o el fork elegido en los chips - con los mismos cinco pasos que [mejorar u
 agent](authoring.md#the-improve-wizard): Entender, Cambios, Comprobación, Resultado y Aceptar. Se
 detiene para ti después de Entender, después de Cambios y en el resultado, y no
 cambia nada hasta que aceptas.
+
+Una sesión abierta desde el Improve de un agente empieza con los problemas que
+esa sesión informó. Solo un problema que cita una línea del skill con el valor o
+la regla equivocados se lleva los criterios del agente; cuando el skill solo
+calla, el problema es un consejo y el agente sigue respondiendo de esos
+criterios - consulta [Cuando el fallo está en un
+skill](authoring.md#when-the-fault-is-in-a-skill).
 
 Al empezar dice cuántas respuestas valoradas a la baja o fallidas lee, y a cuántos
 agents sirve la línea. También dice cuánto

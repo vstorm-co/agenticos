@@ -751,6 +751,7 @@ it("describes the start of an improvement on the page that starts one", () => {
   ).toEqual([
     "improvement-start",
     "improvement-quote",
+    "improvement-mode",
     "improvement-question-set",
     "improvement-details",
   ]);

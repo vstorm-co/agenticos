@@ -58,16 +58,7 @@ export function CheckSummary({
   if (agents.length === 0) return null;
   return (
     <div className="space-y-1.5">
-      <div className="bg-muted flex h-2.5 overflow-hidden rounded-full" aria-hidden>
-        {shown.map((bucket) => (
-          <div
-            key={bucket}
-            className={cn("h-full", FILL[bucket])}
-            style={{ width: `${(counts.get(bucket)! / agents.length) * 100}%` }}
-          />
-        ))}
-      </div>
-      <div role="group" aria-label={t("filter")} className="flex flex-wrap gap-1.5 text-xs">
+      <div role="group" aria-label={t("filter")} className="flex flex-wrap gap-2 text-sm">
         {shown.map((bucket) => (
           <button
             key={bucket}
@@ -76,7 +67,7 @@ export function CheckSummary({
             disabled={counts.get(bucket) === 0}
             onClick={() => onToggle(bucket)}
             className={cn(
-              "flex items-center gap-1.5 rounded-full border px-2 py-0.5 disabled:opacity-50",
+              "flex min-h-9 items-center gap-1.5 rounded-lg border px-3 py-1.5 disabled:opacity-50",
               active.has(bucket) ? "bg-muted border-foreground/30" : "border-transparent",
             )}
           >
@@ -85,25 +76,6 @@ export function CheckSummary({
           </button>
         ))}
       </div>
-    </div>
-  );
-}
-
-/** What one agent fixed against what it broke, on the scale of the agent with the most. */
-export function FixBreakBar({
-  fixed,
-  broken,
-  most,
-}: {
-  fixed: number;
-  broken: number;
-  most: number;
-}) {
-  if (most === 0) return null;
-  return (
-    <div className="bg-muted flex h-1.5 w-24 overflow-hidden rounded-full" aria-hidden>
-      <div className="bg-success h-full" style={{ width: `${(fixed / most) * 100}%` }} />
-      <div className="bg-destructive h-full" style={{ width: `${(broken / most) * 100}%` }} />
     </div>
   );
 }

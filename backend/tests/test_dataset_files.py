@@ -98,6 +98,15 @@ class TestRoundTrip:
         assert list(line["checks"][0]) == ["type", "path", "value"]
         assert parse(render([case], "jsonl").encode(), "jsonl")[0].tags == ["a"]
 
+    @pytest.mark.parametrize("fmt", ["csv", "jsonl"])
+    def test_a_keys_check_round_trips(self, fmt) -> None:
+        keys = {"type": "keys", "keys": [{"key": "Invoice", "value": "INV-7"}]}
+        case = _case(input="Write the invoice", reference_answer="Invoice INV-7", checks=[keys])
+
+        parsed = parse(render([case], fmt).encode(), fmt)[0]
+
+        assert [check.model_dump(exclude_none=True) for check in parsed.checks] == [keys]
+
     def test_a_byte_order_mark_and_missing_optional_columns_are_fine(self) -> None:
         parsed = parse(b'\xef\xbb\xbfinput,tags,reference_answer\nhello," a , b ",hi\n', "csv")
         assert parsed[0].input == "hello"

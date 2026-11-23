@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -15,7 +16,9 @@ export function SkillImprovementHeader({
   skillId,
   skillName,
   merge = null,
+  actions,
 }: {
+  actions?: ReactNode;
   skillId: string;
   skillName: string;
   merge?: { kind: MergeKind; forkId: string | null } | null;
@@ -23,16 +26,23 @@ export function SkillImprovementHeader({
   const t = useTranslations("skillImprovement");
   if (merge === null)
     return (
-      <Header skillId={skillId} skillName={skillName} title={t("title", { name: skillName })} />
+      <Header
+        skillId={skillId}
+        skillName={skillName}
+        title={t("title", { name: skillName })}
+        actions={actions}
+      />
     );
-  return <MergeHeader skillId={skillId} skillName={skillName} merge={merge} />;
+  return <MergeHeader skillId={skillId} skillName={skillName} merge={merge} actions={actions} />;
 }
 
 function MergeHeader({
   skillId,
   skillName,
   merge,
+  actions,
 }: {
+  actions?: ReactNode;
   skillId: string;
   skillName: string;
   merge: { kind: MergeKind; forkId: string | null };
@@ -46,6 +56,7 @@ function MergeHeader({
       skillName={skillName}
       title={fork ? t(`named.${merge.kind}`, { fork }) : t(`plain.${merge.kind}`)}
       crumb={t(`plain.${merge.kind}`)}
+      actions={actions}
     />
   );
 }
@@ -55,7 +66,9 @@ function Header({
   skillName,
   title,
   crumb,
+  actions,
 }: {
+  actions?: ReactNode;
   skillId: string;
   skillName: string;
   title: string;
@@ -65,6 +78,7 @@ function Header({
   return (
     <PageHeader
       title={title}
+      actions={actions}
       breadcrumbs={[
         { label: t("skills"), href: ROUTES.SKILLS },
         { label: skillName, href: ROUTES.SKILL_DETAIL(skillId) },

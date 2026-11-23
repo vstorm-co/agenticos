@@ -34,7 +34,11 @@ function context(run: AgentRun): Context | null {
       : { href: gaps, label: "openGaps" };
   }
   if (origin.dataset_id) {
-    return { href: `${ROUTES.DATASETS}/${origin.dataset_id}?tab=generated`, label: "openDataset" };
+    const dataset = `${ROUTES.DATASETS}/${origin.dataset_id}`;
+    return {
+      href: origin.kind === "key_drafts" ? dataset : `${dataset}?tab=generated`,
+      label: "openDataset",
+    };
   }
   return null;
 }

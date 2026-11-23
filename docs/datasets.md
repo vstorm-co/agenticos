@@ -370,6 +370,7 @@ read on the stored scale, and one above it is refused naming `judge.pass_at`.
 | `max_latency_ms` | `value` | The run took no longer than this |
 | `length` | `unit` (`characters` or `words`), `min` and/or `max`, optional `path` | The answer is at least `min` and at most `max` long |
 | `judge` | `criterion` | The eval judge grades the criterion at or above the pass mark |
+| `keys` | `keys`: pairs of `key` (a label) and `value`, at most 200 across a case's keys checks - and across the dataset's default checks; family `keys` unless named | The answer carries every value; the score is the share it carries |
 
 `path` reads into an answer that is JSON: `items.0.name` is the first item's
 name. Without it, a rule reads the whole answer. Text rules are not case
@@ -388,6 +389,39 @@ least one bound.
 A `judge` check is a criterion for one case only, graded in the same judge run
 as the dataset's rubric. Use it for what a rule cannot express, such as "refuses
 and does not reveal the customer's address".
+
+A `keys` check lists the facts a written document must carry - an invoice number,
+a total, a customer's name - each as a label and the value the document holds.
+The check passes when the answer carries every value; its score is the share it
+carries, and its reason names the labels it is missing.
+
+Each value is looked for in the answer:
+
+- as a whole token: `12` is not found in `120`, nor `INV-1` in `INV-10`;
+- not inside a longer number: `12` is not found in `12,50`, nor `234` in `1 234`,
+  nor `1 234` in `1 234 567`;
+- ignoring letter case, runs of whitespace and Unicode forms such as a ligature
+  or a no-break space;
+- with a space allowed to group the thousands of a number, so `1234` and
+  `1 234` find each other;
+- with a comma or a full stop left as it is, because it separates thousands in
+  one language and decimals in another: write the value the way the document
+  shows it.
+
+In the console, a saved case with a saved reference answer offers **List keys
+from the reference answer** beside its checks. The key extractor, a system
+agent, reads the answer in a job, as the person who asked, metered and in
+Activity, and lists the facts it states. Only a value the answer holds as
+written is kept. **Use these keys** fills the case's keys check for you to
+review and save; nothing is saved by itself, and the draft is deleted once
+used or dismissed, or 7 days after you asked for it.
+
+Every check takes an optional `family` (at most 80 characters): the thing it tests
+across the dataset, such as `total including VAT` on each case's regex for its own
+amount. A comparison counts the checks of one family together, case by case, so a
+change is judged on what moved across the dataset rather than on one case's
+pattern. A check without a family is a family of its own; one with a family
+scores, and fingerprints its scoring, exactly as before.
 
 ### Expected tool calls { #trajectory }
 
@@ -618,7 +652,8 @@ When the person who asked a case's question is erased, the text goes too. The
 question, the earlier turns, both answers and the note are replaced in every
 version that holds the case, and so are the answers and calls that eval runs
 recorded for it. The case keeps its id, its expected calls, its checks and its
-tags, and is marked **Anonymised after erasure**, so its curator can rewrite it
+tags - except a `keys` check, whose values came from the answer that goes - and
+is marked **Anonymised after erasure**, so its curator can rewrite it
 or remove it. Until then an eval run leaves it out, because an answer to the
 placeholder measures nothing.
 

@@ -589,7 +589,6 @@ export const qk = {
       skip: number;
       limit: number;
       editable: boolean;
-      judge: string;
       asksRun: string;
       agent: string;
     }) => ["datasets", "list", query] as const,
@@ -599,6 +598,7 @@ export const qk = {
       ["datasets", id, "cases", query] as const,
     case: (id: string, caseId: string) => ["datasets", id, "case", caseId] as const,
     generations: (id: string) => ["datasets", id, "generations"] as const,
+    keyDraft: (id: string, caseId: string) => ["datasets", id, "key-draft", caseId] as const,
     proposals: (id: string, query: { skip: number; limit: number }) =>
       ["datasets", id, "proposals", query] as const,
     allScores: (id: string) => ["datasets", id, "scores"] as const,
@@ -616,7 +616,6 @@ export const qk = {
       },
     ) => ["datasets", id, "scores", query] as const,
     allReviewQueue: () => ["datasets", "review-queue"] as const,
-    judgeAgreement: (judgeId: string) => ["datasets", "judge-agreement", judgeId] as const,
     judgeTemplate: (id: string) => ["datasets", id, "judge-template"] as const,
     reviewQueue: (query: { skip: number; limit: number }) =>
       ["datasets", "review-queue", query] as const,

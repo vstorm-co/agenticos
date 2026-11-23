@@ -2577,11 +2577,9 @@
       "identityHelp": "Zapisywane razem z wersją roboczą. Zmiana nazwy zachowuje handle @{slug}, więc delegacje i wzmianki, które na niego wskazują, działają dalej.",
       "draftAsTested": "Wersja robocza z chwili testu",
       "evals": "Ewaluacje",
-      "judgeDatasets": "Datasety",
       "improveSession": "Popraw",
       "setBaseline": "Wyznacz punkt odniesienia",
       "improveFromGaps": "Popraw tego agenta na podstawie tych braków",
-      "systemAgentReadOnly": "Agenta systemowego może zmienić tylko administrator organizacji. Tutaj możesz sprawdzić, jak działa.",
       "continueConversation": "Kontynuuj moją rozmowę",
       "modelCredentialMode": "Dostęp do modelu",
       "organizationModelKey": "Użyj klucza organizacji",
@@ -3322,7 +3320,8 @@
           "grader": "Oceniający",
           "improve": "Poprawianie",
           "knowledge_gaps": "Luki w wiedzy",
-          "test_questions": "Pytania testowe"
+          "test_questions": "Pytania testowe",
+          "key_drafts": "Szkice kluczy"
         },
         "open": {
           "openEvalRun": "Otwórz ewaluację",
@@ -7859,6 +7858,10 @@
       "agent-model-credentials": {
         "title": "Kto podaje klucz do modelu",
         "body": "Użyj klucza organizacji lub wymagaj prywatnego klucza w vaulcie od każdego zalogowanego użytkownika czatu. Model i endpoint pozostają stałe; kanały i automatyczne uruchomienia wymagają klucza organizacji."
+      },
+      "improvement-mode": {
+        "title": "Krok po kroku albo wyszukiwanie",
+        "body": "Wybierz, jak pomocnik szuka zmian: jedna propozycja na próbę albo wyszukiwanie wielu wariantów instrukcji ocenianych na pytaniach treningowych. Wyszukiwanie potrzebuje co najmniej dziesięciu pytań treningowych."
       }
     },
     "chooseLanguage": "Język",
@@ -10310,7 +10313,8 @@
       "drafter": "Autor szkiców luk",
       "generator": "Generator przypadków",
       "classifier": "Klasyfikator luk",
-      "improver": "Asystent tworzenia"
+      "improver": "Asystent tworzenia",
+      "extractor": "Ekstraktor kluczy"
     },
     "productionOn": "produkcja na v{version}",
     "productionWaiting": "produkcja na v{version} (czeka na ewaluacje)",
@@ -10338,20 +10342,10 @@
       "classifier": "Domyślny klasyfikator luk",
       "classifierHint": "Czyta odpowiedzi dla luk każdej bazy wiedzy.",
       "improver": "Domyślny asystent tworzenia",
-      "improverHint": "Proponuje ulepszenia oferowane każdemu agentowi."
+      "improverHint": "Proponuje ulepszenia oferowane każdemu agentowi.",
+      "extractor": "Domyślny ekstraktor kluczy",
+      "extractorHint": "Wypisuje fakty z odpowiedzi referencyjnych każdego datasetu do ich sprawdzeń kluczy."
     },
-    "judgeUnused": "Żaden dataset jeszcze nie używa tego sędziego.",
-    "judgeDatasets": "Datasety",
-    "judgeDatasetOpen": "Pokaż, co ten sędzia ocenił w {name}",
-    "judgeDatasetGradingOff": "Ocenianie wyłączone",
-    "judgeDatasetNothing": "Ten sędzia nie ocenił jeszcze niczego w tym datasecie.",
-    "judgeDatasetEvalRuns": "Runy ewaluacji, które ocenił",
-    "judgeDatasetGrades": "Jego ostatnie oceny",
-    "judgeDatasetAnswer": "Odpowiedź ↗",
-    "judgeDatasetSeeAll": "Zobacz wszystkie na zakładce Przegląd",
-    "judgeDatasetsHint": "Datasety, które wybrały tego sędziego, z włączonym ocenianiem albo bez. Dataset wybiera sędziego na zakładce Ocenianie; rozwiń go, żeby zobaczyć, co sędzia tam ocenił.",
-    "judgeAgreement": "Ludzie zgodzili się z tym sędzią w {agreed} z {decided, plural, one {# rozstrzygniętego wyniku} few {# rozstrzygniętych wyników} many {# rozstrzygniętych wyników} other {# rozstrzygniętego wyniku}}.",
-    "judgeAgreementNone": "Nikt jeszcze nie rozstrzygnął wyniku ocenionego przez tego sędziego, więc nie ma zgodności do pokazania.",
     "guardsSaved": "Strażnicy zapisani",
     "failedGuards": "Nie udało się zapisać strażników",
     "guardsStarted": "{count, plural, =0 {Nie ma czego uruchamiać - każdy strażnik przeszedł albo już sprawdza} one {Uruchomiono 1 suitę ewaluacji} few {Uruchomiono # suity ewaluacji} many {Uruchomiono # suit ewaluacji} other {Uruchomiono # suity ewaluacji}}",
@@ -10372,7 +10366,7 @@
       "cancel": "Anuluj"
     },
     "publishedSpec": "Opublikowany spec",
-    "systemAgentBadge": "{kind, select, judge {Agent systemowy · Sędzia} drafter {Agent systemowy · Autor szkiców luk} generator {Agent systemowy · Generator przypadków} classifier {Agent systemowy · Klasyfikator luk} improver {Agent systemowy · Asystent tworzenia} other {Agent systemowy}}",
+    "systemAgentBadge": "{kind, select, judge {Agent systemowy · Sędzia} drafter {Agent systemowy · Autor szkiców luk} generator {Agent systemowy · Generator przypadków} classifier {Agent systemowy · Klasyfikator luk} improver {Agent systemowy · Asystent tworzenia} extractor {Agent systemowy · Ekstraktor kluczy} other {Agent systemowy}}",
     "systemAgentBadgeHint": "Uruchamia go platforma dla całej organizacji; nikt z nim nie rozmawia.",
     "systemAgentSharedOnly": "Do wyboru jest tylko to, co udostępniono całej organizacji: platforma uruchamia tego agenta dla wszystkich.",
     "systemAgentSkillsUnused": "Klasyfikator nie korzysta ze skilli, więc nie można tu dodać żadnego. Odznacz te, które jeszcze ma, albo użyj jego przełącznika, żeby zdjąć wszystkie naraz.",
@@ -10383,7 +10377,6 @@
     "systemAgentKnowledgeHelp": "{kind, select, judge {Sprawdza fakty z odpowiedzi w bazach wiedzy ocenianego agenta, tam gdzie nie podaje ich odpowiedź wzorcowa.} generator {Przeszukuje bazy wiedzy, z których tworzysz przypadki, więc pytania trzymają się tego, co w nich naprawdę jest.} classifier {Zanim uzna pytanie za lukę, sprawdza, czy baza wiedzy już na nie odpowiada.} drafter {Przeszukuje bazę wiedzy luki, więc proponowana treść nie powtarza tego, co dokument już mówi.} improver {Czyta bazy wiedzy ulepszanego agenta, więc jego zmiany pasują do tego, co w nich jest.} other {Przeszukuje bazy wiedzy, które platforma wybiera dla każdego runu.}}",
     "systemAgentMaxSteps": "Maks. kroków",
     "systemAgentMaxStepsHint": "Każdy krok to płatne żądanie przy każdej odpowiedzi, którą czyta. Najwyżej {max}; puste pole oznacza {fallback}.",
-    "temperatureVariesVerdict": "{kind, select, judge {Powyżej 0 ta sama odpowiedź może za drugim razem dostać inną ocenę. 0 utrzymuje powtarzalne oceny.} other {Powyżej 0 ta sama odpowiedź może za drugim razem zostać inaczej sklasyfikowana. 0 utrzymuje powtarzalną klasyfikację.}}",
     "mapMoreItems": "+{count} więcej · otwórz pełną listę",
     "unavailableTitle": "Agent niedostępny",
     "loadFailedTitle": "Nie udało się wczytać agenta",
@@ -14957,7 +14950,6 @@
       "suggestReferenceAction": "Porównuj z wzorcem",
       "judgeChanged": "Wyniki ocenione przez poprzedniego sędziego albo model nie będą porównywalne z ocenianymi od teraz.",
       "cancel": "Anuluj",
-      "groupEvalRun": "Run ewaluacji · {when}",
       "agentGone": "Agent, którego już nie ma",
       "agentVersion": "{name} · v{version}",
       "answer": "Odpowiedź",
@@ -15272,7 +15264,8 @@
       "max_cost_usd": "Kosztuje najwyżej (USD)",
       "max_latency_ms": "Odpowiada w (ms)",
       "judge": "Kryterium sędziego",
-      "length": "Ma długość"
+      "length": "Ma długość",
+      "keys": "Pokryte klucze"
     },
     "checkPlaceholder": {
       "contains": "30 dni",
@@ -15334,6 +15327,30 @@
       "maxPlaceholder": "Najwyżej",
       "path": "Sprawdzenie {number}: gdzie w odpowiedzi JSON",
       "pathPlaceholder": "Gdzie w odpowiedzi JSON (opcjonalnie)"
+    },
+    "keysCheck": {
+      "key": "Klucz {row} w checku {number}",
+      "value": "Wartość klucza {row} w checku {number}",
+      "remove": "Usuń klucz {row} z checku {number}",
+      "add": "Dodaj klucz",
+      "keyPlaceholder": "Numer faktury",
+      "valuePlaceholder": "FV-2024-0042"
+    },
+    "keyDraft": {
+      "start": "Wypisz klucze z odpowiedzi referencyjnej",
+      "retry": "Spróbuj ponownie",
+      "running": "Wypisuję fakty z odpowiedzi referencyjnej…",
+      "none": "Odpowiedź referencyjna nie podaje faktów do sprawdzenia.",
+      "found": "Znaleziono {count, plural, one {1 klucz} few {# klucze} many {# kluczy} other {# klucza}}: {names}{more, plural, =0 {} one { i jeszcze 1} other { i jeszcze #}}.",
+      "use": "Użyj tych kluczy",
+      "dismiss": "Odrzuć",
+      "failed": "Nie udało się wypisać kluczy: {error}",
+      "noReference": "Zapisz odpowiedź referencyjną, aby wypisać jej klucze.",
+      "saveFirst": "Najpierw zapisz odpowiedź referencyjną: klucze są wypisywane z zapisanej.",
+      "failedToStart": "Nie udało się poprosić o klucze",
+      "failedToDismiss": "Nie udało się odrzucić wypisanych kluczy",
+      "loading": "Sprawdzanie szkicu kluczy…",
+      "unreadable": "Nie udało się odczytać szkicu kluczy."
     },
     "visibility": {
       "private": "Prywatna",
@@ -15473,8 +15490,11 @@
     "retry": "Spróbuj ponownie",
     "topic": "Temat",
     "topicSummary": "{count, plural, one {Zadane raz} few {Zadane # razy} many {Zadane # razy} other {Zadane # razy}} przez {askers, plural, one {jedną osobę} few {# osoby} many {# osób} other {# osoby}} w {knowledgeBase}",
+    "topicSummaryTests": "{count, plural, one {Pojawił się w # pytaniu testowym} few {Pojawił się w # pytaniach testowych} many {Pojawił się w # pytaniach testowych} other {Pojawił się w # pytania testowego}} w {knowledgeBase}",
+    "topicSummaryMixed": "{count, plural, one {Zadane raz} few {Zadane # razy} many {Zadane # razy} other {Zadane # razy}} przez {askers, plural, one {jedną osobę} few {# osoby} many {# osób} other {# osoby}} i w {tests, plural, one {# pytaniu testowym} few {# pytaniach testowych} many {# pytaniach testowych} other {# pytania testowego}} w {knowledgeBase}",
     "questions": "Pytania",
     "noConversation": "Dla tego runu nie zachowano rozmowy, więc znane jest tylko wyszukiwanie.",
+    "testQuestion": "Pytanie testowe",
     "searchedFor": "Szukano: {query}",
     "signalAnswer": "Agent odpowiedział, że nie wie",
     "signalRating": "Czytelnik napisał, że brakowało informacji",
@@ -15505,6 +15525,10 @@
     "openDraftRun": "Otwórz run",
     "hasDraft": "Szkic",
     "draftLabel": "Szkic — sprawdź przed dodaniem",
+    "addedLabel": "Dodano do {knowledgeBase}",
+    "addedNotice": "{author, select, person {Napisane przez człowieka i dodane do bazy wiedzy z tego tematu.} other {Napisane przez model na podstawie pytań powyżej, potem sprawdzone i dodane do bazy wiedzy z tego tematu.}}",
+    "personDraftLabel": "Napisane przez człowieka — jeszcze niedodane",
+    "personDraftNotice": "Doda je osoba, która może zmieniać tę bazę wiedzy.",
     "draftUnverified": "{count, plural, one {Jednego wskazanego źródła nie udało się zweryfikować i zostało pominięte.} few {# wskazanych źródeł nie udało się zweryfikować i zostały pominięte.} many {# wskazanych źródeł nie udało się zweryfikować i zostały pominięte.} other {# wskazanego źródła nie udało się zweryfikować i zostały pominięte.}}",
     "aiOff": "Wsparcie AI jest wyłączone w tej organizacji, więc nie da się napisać szkicu. Wykrywanie i grupowanie luk działa dalej.",
     "enableAi": "Włącz wsparcie AI",
@@ -15528,14 +15552,28 @@
       "phone": "numer telefonu"
     },
     "flagsConfirm": "Sprawdzone: nic z tego nie identyfikuje osoby albo powinno być w bazie wiedzy.",
-    "addToKnowledgeBase": "Dodaj do {knowledgeBase}",
     "saveContent": "Zapisz",
     "contentSaved": "Treść zapisana",
     "contentAdded": "Dodano do {knowledgeBase}. Dokument jest przetwarzany.",
     "coveredBy": "Uzupełnione dokumentem <link>{name}</link>, dodanym do bazy wiedzy z tego tematu.",
     "alreadyCoveredBy": "Autor szkiców luk uznał, że na te pytania odpowiada już {sources}. Jeśli tak, odrzuć temat zamiast dodawać treść.",
     "alreadyCovered": "Autor szkiców luk uznał, że na te pytania jest już odpowiedź. Jeśli tak, odrzuć temat zamiast dodawać treść.",
-    "draftAgainInSession": "Nowy szkic zastąpi ten, który przetestowano w tej sesji, więc tamten test przestanie go dotyczyć."
+    "draftAgainInSession": "Nowy szkic zastąpi ten, który przetestowano w tej sesji, więc tamten test przestanie go dotyczyć.",
+    "workspace": {
+      "draft": "Proponowany dokument",
+      "evidence": "Dlaczego jest potrzebny ({count})",
+      "unsaved": "Niezapisane zmiany. Zapisz szkic przed wygenerowaniem kolejnej wersji.",
+      "discardTitle": "Odrzucić niezapisane zmiany?",
+      "discardBody": "Zmiany w tym dokumencie nie zostały zapisane.",
+      "discard": "Odrzuć zmiany",
+      "keepEditing": "Kontynuuj edycję",
+      "add": "Dodaj do bazy wiedzy",
+      "target": "Docelowa baza: {name}",
+      "read": "Czytaj dokument",
+      "edit": "Edytuj dokument",
+      "searchDetails": "Dlaczego oznaczono to pytanie?"
+    },
+    "draftCreated": "Szkic utworzono {time}"
   },
   "evals": {
     "title": "Ewaluacje",
@@ -15553,8 +15591,8 @@
         "cachedAt": "odpowiedzi z runu z {date}, ten sam model - przypadek, który się zmieni, zadamy ponownie obu stronom"
       },
       "judge": "Sędzia ewaluacji",
-      "total": "Razem {count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
-      "reruns": "Przypadki, które się odwrócą, są powtarzane dla potwierdzenia, co może dodać do {amount}.",
+      "total": "{count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}, najpewniej",
+      "reruns": "Wliczone są przypadki, które zwykle się odwracają i są powtarzane dla potwierdzenia. Gdyby odwróciły się wszystkie, run kosztowałby najwyżej {amount}.",
       "budgetAgentAfter": "Budget agenta po tym runie",
       "budgetOrgAfter": "Budget organizacji po tym runie",
       "overBudget": "Przekroczenie o {amount}",
@@ -15574,7 +15612,7 @@
     },
     "runFor": "Uruchom za {amount}",
     "runTitle": "{dataset} v{version} · {candidate}",
-    "runMeta": "{date} · wydano {cost} z szacowanych {estimate}{ceiling, select, none {} other {, plus do {ceiling} na powtórki potwierdzające}}",
+    "runMeta": "{date} · wydano {cost} z oczekiwanych {estimate}{ceiling, select, none {} other {, najwyżej {ceiling}}}",
     "back": "Wróć do ewaluacji agenta",
     "cancelRun": "Zatrzymaj",
     "progress": "Odpowiedziane przypadki",
@@ -15696,22 +15734,24 @@
       "pending": "Oczekujące",
       "reusedFrom": "wynik z runu z {date}",
       "singleTitle": "Metryki runa",
-      "singleTitleTag": "Metryki dla #{tag}"
+      "singleTitleTag": "Metryki dla #{tag}",
+      "criteria": "Spełnione kryteria",
+      "criteriaHint": "Każde pytanie liczy udział kryteriów, które spełniła jego pierwsza odpowiedź: sześć z siedmiu to 6/7, podczas gdy w kolumnie Zaliczone liczy się jako niezaliczone."
     },
     "cases": {
-      "title": "{count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
+      "title": "{count, plural, one {# pytanie} few {# pytania} other {# pytań}}",
       "outcomeFilter": "Wynik",
       "tagFilter": "Tag",
       "allTags": "Wszystkie tagi",
       "outcome": {
-        "all": "Wszystkie wyniki",
+        "all": "Wszystkie odpowiedzi",
         "passed": "Zaliczone",
-        "failed": "Niezaliczone",
+        "failed": "Do sprawdzenia",
         "undecided": "Nierozstrzygnięte"
       },
       "flip": {
-        "regression": "{confirmed, select, true {Potwierdzona regresja} other {Regresja, niepotwierdzona}}",
-        "fixed": "{confirmed, select, true {Potwierdzona naprawa} other {Naprawione, niepotwierdzone}}",
+        "regression": "{confirmed, select, true {Pogorszona} other {Możliwe pogorszenie}}",
+        "fixed": "{confirmed, select, true {Poprawiona} other {Możliwa poprawa}}",
         "incomplete": "Bez oceny na {side}",
         "crashed": "{confirmed, select, true {Zepsute: agent się wysypał} other {Zepsute raz: agent się wysypał}}"
       },
@@ -15725,6 +15765,14 @@
         "train": "Pomaga pisać zmiany",
         "holdout": "Odłożone",
         "excluded": "Kopia dowodu"
+      },
+      "criteria": "{passed}/{graded}",
+      "answerState": {
+        "passed": "Poprawna",
+        "failed": "Do sprawdzenia",
+        "undecided": "Nie oceniono",
+        "incomplete": "Nie ukończono",
+        "pending": "Oczekuje"
       }
     },
     "case": {
@@ -15766,7 +15814,8 @@
           "judge": "Kryterium sędziego: {criterion}",
           "lengthAtMost": "{unit, select, words {Najwyżej {count, plural, one {# słowo} few {# słowa} many {# słów} other {# słowa}}} other {Najwyżej {count, plural, one {# znak} few {# znaki} many {# znaków} other {# znaku}}}}",
           "lengthAtLeast": "{unit, select, words {Co najmniej {count, plural, one {# słowo} few {# słowa} many {# słów} other {# słowa}}} other {Co najmniej {count, plural, one {# znak} few {# znaki} many {# znaków} other {# znaku}}}}",
-          "lengthBetween": "{unit, select, words {Od {min} do {max} słów} other {Od {min} do {max} znaków}}"
+          "lengthBetween": "{unit, select, words {Od {min} do {max} słów} other {Od {min} do {max} znaków}}",
+          "keys": "Zawiera {count, plural, one {swój 1 klucz} few {wszystkie # klucze} many {wszystkie # kluczy} other {wszystkie # klucza}}"
         }
       },
       "notGraded": "bez oceny: {reason}",
@@ -16117,7 +16166,50 @@
       "pooled": "Ten run jest jednym etapem sprawdzenia. Sprawdzenie ocenia każdego agenta na pytaniach kontrolnych ze wszystkich jego etapów razem, więc sam ten etap może powiedzieć mniej niż sprawdzenie."
     },
     "notAsked": "{count, plural, one {1 pytanie tego datasetu nie trafiło do próbki tego etapu, więc go nie zadano.} few {# pytania tego datasetu nie trafiły do próbki tego etapu, więc ich nie zadano.} many {# pytań tego datasetu nie trafiło do próbki tego etapu, więc ich nie zadano.} other {# pytania tego datasetu nie trafiło do próbki tego etapu, więc ich nie zadano.}}",
-    "runMetaStage": "{date} · wydano {cost}"
+    "runMetaStage": "{date} · wydano {cost}",
+    "resultTabs": {
+      "questions": "Odpowiedzi",
+      "criteria": "Co sprawdzono",
+      "performance": "Szczegóły",
+      "methodology": "Jak przeprowadzono pomiar"
+    },
+    "resultSummary": "Potwierdzone poprawki: {fixed} · Potwierdzone regresje: {broken}",
+    "resultSides": "{baseline} → {candidate}",
+    "resultReruns": "Powtórzenia potwierdzające ({count})",
+    "resultFailed": "Sprawdź odpowiedzi ({count})",
+    "resultNoCriteria": "Wyniki rodzin kryteriów nie są jeszcze dostępne dla tego przebiegu.",
+    "plain": {
+      "label": "Podsumowanie testu",
+      "single": "{passed} z {cases} odpowiedzi poprawnych",
+      "worse": "Część odpowiedzi się pogorszyła",
+      "incomplete": "Nie udało się ocenić części odpowiedzi",
+      "improved": "Agent odpowiada lepiej po zmianach",
+      "requirements": "Odpowiedzi spełniają więcej wymagań",
+      "unchanged": "Brak wyraźnej poprawy",
+      "invalid": "Nie możemy jeszcze porównać wyników",
+      "tooFew": "Dodaj więcej niezależnych pytań testowych, aby porównać wersje.",
+      "cannotCompare": "Tych testów nie można porównać. W szczegółach zobaczysz, co trzeba zmienić.",
+      "changes": "Poprawione odpowiedzi: {fixed} · Pogorszone: {broken}",
+      "singleBody": "{failed, plural, =0 {Nie znaleziono błędnych odpowiedzi.} one {Jedna odpowiedź wymaga sprawdzenia.} few {# odpowiedzi wymagają sprawdzenia.} many {# odpowiedzi wymaga sprawdzenia.} other {# odpowiedzi wymaga sprawdzenia.}}",
+      "undecided": "{count, plural, one {Nie udało się ocenić jednej odpowiedzi.} other {Nie udało się ocenić # odpowiedzi.}}",
+      "unstable": "Część odpowiedzi różniła się między testami. Ich poprawa nie jest potwierdzona.",
+      "details": "Szczegóły testu",
+      "actions": "Pozostałe działania",
+      "expectation": "Oczekiwana odpowiedź i zasady oceny",
+      "notCompared": "Porównanie nie jest jeszcze dostępne",
+      "before": "Przed",
+      "after": "Po",
+      "partial": "Sprawdź poniżej, które odpowiedzi udało się ocenić.",
+      "overallWorseBody": "Ogólna jakość spadła, choć żadna pojedyncza odpowiedź nie była stale gorsza.",
+      "requirementsBody": "Spełniono więcej wymagań, ale nie potwierdzono poprawy całych odpowiedzi.",
+      "reviewChanges": "Sprawdź zmiany",
+      "passedCount": "{passed} z {cases} odpowiedzi poprawnych"
+    },
+    "workspace": {
+      "details": "Jak przeprowadzono test · kryteria, koszt i szczegóły",
+      "answers": "Sprawdź odpowiedzi",
+      "answersHint": "Otwórz pytanie, aby przeczytać odpowiedź i dowiedzieć się, dlaczego jest poprawna lub wymaga uwagi."
+    }
   },
   "authoring": {
     "strip": {
@@ -16525,7 +16617,7 @@
     "evidenceSample": "Wybrano {count} przykładów, maksymalnie {limit}. Pomijamy źródła usunięte lub już niedostępne.",
     "unknownCauses": "Część odpowiedzi nie ma zapisanej przyczyny błędu. Pozostają niesklasyfikowane i są pokazane z przykładami agenta do przeglądu.",
     "cause": {
-      "agent": "Do poprawy w agencie",
+      "agent": "Do poprawy w agencie lub jego skillach",
       "missing_knowledge": "Braki w bazie wiedzy",
       "not_a_problem": "Nie wymaga poprawy",
       "knowledge_added": "Już w bazie wiedzy"
@@ -16601,12 +16693,12 @@
     "openAgent": "Otwórz agenta",
     "accept": "Zaakceptuj te zmiany",
     "resultDecision": {
-      "title": "Do czego doszła ta sesja",
+      "title": "Wynik",
       "options": "Co możesz zrobić",
-      "better": "Próba {number} poprawiła agenta {agent}: {fixed, plural, one {# pytanie naprawione} few {# pytania naprawione} many {# pytań naprawionych} other {# pytania naprawione}}, żadne nie zepsute.",
+      "better": "Po zmianach agent odpowiedział poprawnie na {fixed} pytań testowych więcej.",
       "chosen": "Wybrano próbę {number} do akceptacji.",
-      "published": "{version, select, unknown {Próba {number} została opublikowana.} other {Próba {number} została opublikowana jako wersja {version}.}}",
-      "acceptedDraft": "Próba {number} została zaakceptowana jako wersja robocza.",
+      "published": "{version, select, unknown {Opublikowano zmiany.} other {Opublikowano jako wersję {version}.}}",
+      "acceptedDraft": "Zapisano w szkicu agenta.",
       "failed": "Sesja zatrzymała się na błędzie, zanim się skończyła.",
       "noneBetter": "{count, plural, =0 {Żadna próba nie została zmierzona, więc nie wiadomo, czy agent {agent} się poprawił.} one {Próba nie poprawiła agenta {agent}.} few {Żadna z # prób nie poprawiła agenta {agent}.} many {Żadna z # prób nie poprawiła agenta {agent}.} other {Żadna z # prób nie poprawiła agenta {agent}.}}",
       "worse": "Próba {number} pogorszyła wynik: {broken, plural, one {# pytanie przestało działać} few {# pytania przestały działać} many {# pytań przestało działać} other {# pytania przestały działać}}.",
@@ -16651,7 +16743,9 @@
       "movedBroken": "{count} zepsute",
       "movedBoth": "+{fixed} naprawione · {broken} zepsute",
       "movedNone": "Brak",
-      "skill": "Przypisane do skilla „{skill}”"
+      "skill": "Przypisane do skilla „{skill}”",
+      "betterBeside": "Obok pytań, które zepsuła, próba {number} poprawiła {agent} w {count, plural, one {# kryterium} few {# kryteriach} many {# kryteriach} other {# kryterium}}: {list}. Zachowaj to, co pomogło: spróbuj ponownie z notatką.",
+      "skillWorse": "{agent} trzyma się teraz skilla wierniej i częściej nie spełnia {count, plural, one {# kryterium} few {# kryteriów} many {# kryteriów} other {# kryterium}}, które skill podaje błędnie: {list}. Popraw skill, a nie agenta."
     },
     "noise": {
       "headlineSpread": "Test nie odróżnia lepszej wersji od gorszej: dzisiejsza wersja agenta {agent} dostała {low} i {high} na pytaniach wspólnych dla jej prób.",
@@ -16702,6 +16796,7 @@
       "cancelled": "Anulowano",
       "stale": "Punkt wyjścia się zmienił",
       "accepted": "Zachowano w wersji roboczej",
+      "skillAccepted": "{outcome, select, applied {Zastosowana} applied_pinned {Zastosowana} forked {Utworzono fork} caught_up {Nadrobiono main} returned_to_main {Przeniesiono do main} other {Przyjęta}}",
       "published": "Opublikowano",
       "rejected": "Odrzucono",
       "waiting": "Czeka na Ciebie",
@@ -16725,7 +16820,8 @@
       "knowledge_only": "W bazie wiedzy brakuje niektórych tematów. Napisz szkice tych, których potrzebujesz, sprawdź każdy i dodaj go.",
       "draft": "Przygotowanie brakującej wiedzy się nie powiodło.",
       "expired": "Nikt nie poprowadził tej sesji dalej przez 7 dni, więc się zamknęła. Rozpocznij nową, aby spróbować ponownie.",
-      "criteria_worse": "Zmiany pogorszyły kryterium, według którego oceniane są odpowiedzi, choć żadne pytanie nie zostało zepsute."
+      "criteria_worse": "Zmiany pogorszyły kryterium, według którego oceniane są odpowiedzi, choć żadne pytanie nie zostało zepsute.",
+      "no_variant": "Wyszukiwanie nie znalazło wariantu, który na pytaniach treningowych wypadłby lepiej niż obecne instrukcje."
     },
     "before": "Przed",
     "after": "Po",
@@ -16815,7 +16911,8 @@
     "changesReplaced": "Te sugestie nie są już dostępne. Otwórz agenta, aby sprawdzić aktualną wersję roboczą.",
     "openVersion": "Otwórz wersję {version}",
     "publishVersion": "Opublikuj wersję {version}",
-    "problemsFound": "Znaleźliśmy {total, plural, one {# problem} few {# problemy} many {# problemów} other {# problemu}}: {agent} do poprawy w agencie{knowledge, plural, =0 {} other {, {knowledge} to informacje, których brakuje w bazie wiedzy}}{added, plural, =0 {} other {, przy {added} brakowało wiedzy, którą od tego czasu dodano do bazy wiedzy}}.",
+    "problemsFound": "Znaleźliśmy {total, plural, one {# problem} few {# problemy} many {# problemów} other {# problemu}}: {agent} do poprawy w agencie lub jego skillach{knowledge, plural, =0 {} other {, {knowledge} to informacje, których brakuje w bazie wiedzy}}{added, plural, =0 {} other {, przy {added} brakowało wiedzy, którą od tego czasu dodano do bazy wiedzy}}.",
+    "heldBySkillNote": "Pomocnik przypisał {count, plural, one {# niespełnione kryterium} few {# niespełnione kryteria} many {# niespełnionych kryteriów} other {# niespełnionego kryterium}} do {skills}: poprawia się je w skillu, nie w instrukcjach agenta.",
     "topicExamples": "Rozmowy na jeden temat: {count}",
     "otherExamples": "{count, plural, one {# inna rozmowa} few {# inne rozmowy} many {# innych rozmów} other {# innej rozmowy}} na ten temat",
     "questionSources": "{count, plural, one {# pytanie testowe} few {# pytania testowe} many {# pytań testowych} other {# pytania testowego}}: {down} z odpowiedzi ocenionych negatywnie, {liked} z odpowiedzi ocenionych pozytywnie, {written} napisanych dla tematów bez przykładu{other, plural, =0 {} other {, # dodanych ręcznie lub zaimportowanych}}.",
@@ -16847,10 +16944,8 @@
     "noChangesFound": "Nie znaleźliśmy zmiany pasującej do obecnych instrukcji. Oto, co próbowaliśmy:",
     "triedAttempt": "Próba {number}: {verdict, select, better {zmiany poprawiły wynik} criteria_better {zmiany poprawiły niektóre kryteria, żadne pytanie jeszcze się nie zmieniło} regression {zmiany zepsuły pytania, które działały} criteria_worse {zmiany pogorszyły niektóre kryteria} no_change {brak mierzalnej zmiany} inconclusive {nie udało się zmierzyć wyniku} unmeasured {zaproponowano zmiany, jeszcze nieprzetestowane} other {nie zaproponowano zmiany}}{dropped, plural, =0 {} one {; # zmiana nie pasowała do obecnych instrukcji} few {; # zmiany nie pasowały do obecnych instrukcji} many {; # zmian nie pasowało do obecnych instrukcji} other {; # zmiany nie pasowało do obecnych instrukcji}}.",
     "handledChange": "{before} → {after} z {total} pytań obsłużonych poprawnie.",
-    "newlyFixed": "Nowo naprawione",
-    "newlyBroken": "Nowo zepsute",
-    "possiblyBroken": "Być może zepsute",
-    "possiblyFixed": "Być może naprawione",
+    "newlyFixed": "Poprawione odpowiedzi",
+    "newlyBroken": "Pogorszone odpowiedzi",
     "notConfirmedMore": "+{count} niepotwierdzone",
     "notConfirmedHint": "Niepotwierdzone: odpowiedź zmieniła się raz, ale przy ponownym zadaniu już nie tak samo.",
     "notConfirmedYet": "Jeszcze niepotwierdzone ({count})",
@@ -16943,7 +17038,11 @@
       "alreadyAdded": "{count, plural, one {# już dodany} few {# już dodane} many {# już dodanych} other {# już dodanego}}",
       "partitionAbout": "Każda próba odkłada około {holdout, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}} do sprawdzenia wyniku; około {train, plural, one {# pomaga} few {# pomagają} many {# pomaga} other {# pomaga}} napisać zmiany. Pytanie zadane też w rozmowach, z których próba się uczy, pomaga pisać zmiany, więc odłożonych może być mniej.",
       "partitionAttempt": "Próba {attempt} odłożyła {holdout, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}} do sprawdzenia wyniku; {train, plural, one {# pomogło} few {# pomogły} many {# pomogło} other {# pomogło}} napisać zmiany.",
-      "partitionStart": "Pierwsza próba odkłada {holdout, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}} do sprawdzenia wyniku; {train, plural, one {# pomaga} few {# pomagają} many {# pomaga} other {# pomaga}} napisać zmiany, wliczając te zadane też w rozmowach, z których się uczy."
+      "partitionStart": "Pierwsza próba odkłada {holdout, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}} do sprawdzenia wyniku; {train, plural, one {# pomaga} few {# pomagają} many {# pomaga} other {# pomaga}} napisać zmiany, wliczając te zadane też w rozmowach, z których się uczy.",
+      "criteriaPassed": "Spełnione kryteria",
+      "criteriaMove": "{before} → {after}",
+      "criteriaBetter": "{count, plural, =0 {Żadne kryterium jeszcze lepsze} one {# kryterium lepsze} few {# kryteria lepsze} many {# kryteriów lepszych} other {# kryterium lepszego}}",
+      "heldBySkill": "Wciąż blokowane przez skill"
     },
     "sessionLine": "Sesja",
     "budgetUsed": "Wykorzystany limit wydatków",
@@ -17124,7 +17223,64 @@
       "addQuestions": "Dodaj pytania z innych rozmów"
     },
     "likedSignals": "Odpowiedzi ocenione pozytywnie",
-    "reviewedSignals": "Pozostałe sprawdzone odpowiedzi testowe"
+    "reviewedSignals": "Pozostałe sprawdzone odpowiedzi testowe",
+    "startSearch": {
+      "label": "Jak szukać zmian",
+      "steps": "Krok po kroku",
+      "stepsHint": "Pomocnik proponuje jeden zestaw zmian na próbę, a Ty sprawdzasz każdy z nich.",
+      "search": "Szukaj wariantów",
+      "searchHint": "Pomocnik pisze wiele wersji instrukcji i ocenia każdą na pytaniach treningowych. Najlepsza trafia do Zmian, a potem jest sprawdzana jak każda próba.",
+      "tooFew": "Wyszukiwanie potrzebuje co najmniej {needed} pytań treningowych; ten dataset ma {count, plural, =0 {zero} one {# pytanie} few {# pytania} many {# pytań} other {# pytania}}. Dodaj pytania albo ulepszaj krok po kroku.",
+      "budget": "Budget wyszukiwania (USD)",
+      "budgetHint": "Wyszukiwanie kończy się, gdy kolejny wariant by się nie zmieścił. Może przekroczyć budget najwyżej o jeden oceniany wariant.",
+      "gradingModel": "Model oceniający warianty",
+      "datasetJudge": "Model sędziego datasetu",
+      "gradingHint": "Tańszy albo lokalny model obniża koszt wyszukiwania. Sprawdzenie po Zmianach zawsze ocenia sędzia datasetu.",
+      "quote": "Obejmuje budget wyszukiwania ({search}) i sprawdzenie znalezionego wariantu ({check}).",
+      "unpriced": "Wyszukiwanie będzie dostępne, gdy wycena policzy pytania treningowe tego datasetu."
+    },
+    "search": {
+      "title": "Wyszukiwanie wariantów",
+      "progress": "Wypróbowano {tried} z maksymalnie {max} wariantów, każdy na tych samych {questions} pytaniach treningowych.",
+      "spent": "Wydano {cost} z budgetu wyszukiwania {budget}.",
+      "scores": "Obecne instrukcje: {seed} spełnionych wymaganych kryteriów · najlepszy wariant: {best}.",
+      "ended": {
+        "budget": "Wyszukiwanie zatrzymało się na budgecie.",
+        "max_variants": "Wyszukiwanie wypróbowało tyle wariantów, ile mogło.",
+        "patience": "Wyszukiwanie zatrzymało się po rundach, które nie znalazły nic lepszego.",
+        "proposal": "Wyszukiwanie zatrzymało się, bo pomocnik nie zdołał napisać kolejnych wariantów.",
+        "questions": "Wyszukiwanie zatrzymało się, bo na jego pytania treningowe nie da się już odpowiedzieć.",
+        "no_variant": "Nie dało się ocenić obecnych instrukcji, więc żaden wariant nie mógł okazać się lepszy."
+      },
+      "notVerdict": "Te wyniki pochodzą wyłącznie z pytań treningowych. Werdykt da sprawdzenie na pytaniach odłożonych na bok.",
+      "overshoot": "Wyszukiwanie może przekroczyć budget najwyżej o jeden oceniany wariant.",
+      "variant": "Wariant {number}: {score}",
+      "chosen": "Przeniesiony do Zmian",
+      "choose": "Przenieś do Zmian zamiast tego"
+    },
+    "searchWorking": "Szukamy lepszych instrukcji. Możesz zamknąć tę stronę — damy znać, gdy najlepszy wariant będzie gotowy do przejrzenia.",
+    "record": {
+      "result": "Wynik",
+      "changes": "Zmiany",
+      "check": "Pytania testowe",
+      "attempts": "Próby",
+      "understand": "Analiza",
+      "accept": "Decyzja",
+      "back": "Wróć do zasobu",
+      "spent": "Wydano {spent}",
+      "passRateScope": "Wszystkie pytania w ewaluacji",
+      "more": "Szczegóły sesji",
+      "answersPassed": "Poprawne odpowiedzi",
+      "answerCount": "{passed} z {cases}"
+    },
+    "workspace": {
+      "changes": "Co się zmieniło",
+      "evidence": "Czy odpowiedzi są lepsze?",
+      "change": "Zmiana {number}",
+      "exactChange": "Porównaj dokładną treść",
+      "invalid": "Test nie pozwala wiarygodnie porównać wersji. Sprawdź go przed wyciągnięciem wniosków.",
+      "noExamples": "Nie ma zmienionych odpowiedzi do pokazania. Otwórz pełny test, aby zobaczyć wszystkie pytania."
+    }
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",
@@ -17847,7 +18003,7 @@
         "criteria_worse": "Gorzej w kryteriach",
         "within_noise": "W granicach szumu",
         "worse": "Gorzej",
-        "unknown": "Nie wiadomo"
+        "unknown": "Nie potwierdzono"
       },
       "fixedBroken": "{fixed, plural, one {Naprawia # pytanie} few {Naprawia # pytania} many {Naprawia # pytań} other {Naprawia # pytania}}, {broken, plural, one {psuje #} few {psuje #} many {psuje #} other {psuje #}}.",
       "fixedBrokenUnconfirmed": "Przy pierwszej próbie {fixed, plural, one {# pytanie wyglądało na naprawione} few {# pytania wyglądały na naprawione} many {# pytań wyglądało na naprawione} other {# pytania wyglądało na naprawione}}, a {broken, plural, one {# na zepsute} few {# na zepsute} many {# na zepsute} other {# na zepsute}}, ale ponowne zapytania tego nie potwierdziły, więc agent liczy się jako bez zmian.",
@@ -17862,7 +18018,8 @@
         "unscorable": "Nie sprawdzono: nic nie oceni jego pytań - brak sprawdzeń, oczekiwanych wywołań narzędzi i sędziego.",
         "all_evidence": "Nie sprawdzono: każde pytanie pochodzi z rozmów, z których zmiana się uczyła.",
         "cancelled": "Nie sprawdzono: sprawdzenie zatrzymano, zanim jego runy się skończyły.",
-        "own_not_asked": "Nie sprawdzono: jego własnych pytań nie zadano, a teraz to one o nim decydują."
+        "own_not_asked": "Nie sprawdzono: jego własnych pytań nie zadano, a teraz to one o nim decydują.",
+        "too_few_questions": "Za mało pytań testowych, aby potwierdzić zmianę. Sprawdzono: {heldOut}."
       },
       "skillSetOnly": "Sprawdzony tylko na pytaniach skilla: nie miał własnych tam, gdzie wczytał skill.",
       "stage": {
@@ -17872,9 +18029,9 @@
       },
       "summary": {
         "worse": "Gorzej: {count}",
-        "unknown": "Nieznane: {count}",
+        "unknown": "{count} niepotwierdzonych",
         "same": "Bez zmian: {count}",
-        "better": "Lepiej: {count}",
+        "better": "{count} poprawionych",
         "pending": "W trakcie: {count}",
         "filter": "Pokaż tylko"
       },
@@ -18100,6 +18257,12 @@
         "catch_up": "Doganianie main",
         "to_main": "Przeniesienie na main"
       }
+    },
+    "workspace": {
+      "title": "Co ta zmiana oznacza dla Twoich agentów?",
+      "hint": "Skill jest współdzielony. Sprawdź każdego agenta poniżej — zastosowanie zmiany nie oznacza poprawy u wszystkich.",
+      "agents": "Wpływ na agentów",
+      "skillText": "Skill sprawdzony w tej sesji"
     }
   },
   "resourceAppearance": {

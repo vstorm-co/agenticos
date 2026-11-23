@@ -59,7 +59,7 @@ describe("CheckAgents", () => {
       "Details of Support",
     ]);
     await openAll();
-    expect(screen.getAllByText("Not checked: its budget is spent.")).toHaveLength(2);
+    expect(screen.getAllByText("Not checked: its budget is spent.")).toHaveLength(1);
   });
 
   it("keeps an agent unknown for a reason it does not know by name, and says so", async () => {
@@ -77,7 +77,7 @@ describe("CheckAgents", () => {
     );
 
     await openAll();
-    expect(screen.getAllByText("Not checked: the check could not measure it.")).toHaveLength(2);
+    expect(screen.getAllByText("Not checked: the check could not measure it.")).toHaveLength(1);
   });
 
   it("offers what lets each unknown agent be checked, and says when its own were not asked", async () => {
@@ -102,7 +102,36 @@ describe("CheckAgents", () => {
     expect(screen.getByText(/the skill's questions already showed it worse/)).toBeInTheDocument();
     expect(
       screen.getAllByText(/every question came from the conversations the change was learned/),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
+  });
+
+  it("says an agent had too few questions to be sure, with what they showed", async () => {
+    render(
+      <CheckAgents
+        check={skillCheck({
+          agents: [
+            checkAgent("Quotes", "unknown", {
+              unknown_reason: "too_few_questions",
+              fixed: 3,
+              broken: 0,
+              held_out: 4,
+            }),
+          ],
+        })}
+      />,
+    );
+
+    await openAll();
+    expect(
+      screen.getByText("Not enough test questions to verify the change. 4 questions were checked."),
+    ).toBeInTheDocument();
+    // The group above its agents says it once, with no agent's counts to fill in.
+    expect(
+      screen.queryByText(
+        "Too few questions to be sure: each agent below was asked fewer held-out questions than a result needs.",
+      ),
+    ).toBeNull();
+    expect(screen.queryByText(/\{fixed\}/)).toBeNull();
   });
 
   it("says what each agent fixed and broke, with a link to the run", async () => {
@@ -191,12 +220,57 @@ describe("CheckAgents", () => {
 
     expect(screen.getByText("Better on criteria")).toBeInTheDocument();
     expect(screen.getByText("Worse on criteria")).toBeInTheDocument();
-    expect(screen.getByText("1 better")).toBeVisible();
+    expect(screen.getByText("1 improved")).toBeVisible();
     expect(screen.getByText("1 worse")).toBeVisible();
     await openAll();
     const table = screen.getByRole("table");
     expect(within(table).getByText("validity")).toBeInTheDocument();
     expect(within(table).getByText("+10 fixed")).toBeInTheDocument();
+  });
+
+  it("tables an agent's families in place of the single criteria they count", async () => {
+    const helped = checkAgent("Quotes", "criteria_better");
+    helped.criteria = [
+      {
+        scorer: "judge",
+        name: "Names Aisha Khan",
+        graded: 2,
+        before: 0,
+        after: 2,
+        fixed: 2,
+        broken: 0,
+      },
+      {
+        scorer: "judge",
+        name: "Names Tom Ellery",
+        graded: 1,
+        before: 0,
+        after: 1,
+        fixed: 1,
+        broken: 0,
+      },
+    ];
+    helped.families = [
+      {
+        family: "account manager",
+        criteria: 2,
+        cases: 3,
+        before: 0,
+        after: 3,
+        fixed: 3,
+        broken: 0,
+        settled: false,
+        better: true,
+        worse: false,
+      },
+    ];
+    render(<CheckAgents check={skillCheck({ agents: [helped] })} />);
+
+    await openAll();
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("account manager")).toBeInTheDocument();
+    expect(within(table).queryByText("Names Aisha Khan")).not.toBeInTheDocument();
+    expect(within(table).getByText("+3 fixed")).toBeInTheDocument();
   });
 
   it("names an agent within the test's noise as no change, as its group and count do", () => {
@@ -227,7 +301,7 @@ describe("CheckAgents", () => {
         })}
       />,
     );
-    for (const count of ["1 worse", "1 not known", "2 no change", "1 better"]) {
+    for (const count of ["1 worse", "1 not verified", "2 no change", "1 improved"]) {
       expect(screen.getByText(count)).toBeVisible();
     }
     expect(screen.queryByText(/still checking/)).toBeNull();
@@ -395,20 +469,25 @@ describe("CheckAgents", () => {
         .queryAllByRole("button", { name: /^Details of / })
         .map((row) => row.getAttribute("aria-label")!.replace("Details of ", ""));
 
-    it("opens the worse and the unknown, counts the rest, and sorts each group", async () => {
+    it("keeps all agents in a flat list ordered by risk and filters through the summary", async () => {
       render(<CheckAgents check={many()} />);
-
-      expect(names()).toEqual(["Returns", "Refunds", "Wholesale", "Kiosk", "Store"]);
+      expect(names()).toEqual([
+        "Returns",
+        "Refunds",
+        "Kiosk",
+        "Store",
+        "Wholesale",
+        "Billing",
+        "Sales",
+        "Counter",
+        "Online",
+      ]);
       expect(screen.getByText("Left to look at: 5 of 5")).toBeVisible();
-      expect(screen.getByText("Add questions to k1")).toBeVisible();
-      expect(screen.getByRole("button", { name: "No change (2)" })).toHaveAttribute(
-        "aria-expanded",
-        "false",
-      );
-      await userEvent.click(screen.getByRole("button", { name: "Better (2)" }));
-      expect(names().slice(-2)).toEqual(["Counter", "Online"]);
-      await userEvent.click(screen.getByRole("button", { name: "Worse (2)" }));
-      expect(names()).not.toContain("Returns");
+      const filters = screen.getByRole("group", { name: "Show only" });
+      await userEvent.click(within(filters).getByRole("button", { name: "2 improved" }));
+      expect(names()).toEqual(["Counter", "Online"]);
+      await userEvent.click(within(filters).getByRole("button", { name: "2 improved" }));
+      expect(names()).toHaveLength(9);
     });
 
     it("filters by how they came out, by name, and to the ones not looked at", async () => {
@@ -419,16 +498,16 @@ describe("CheckAgents", () => {
       expect(names()).toEqual(["Billing", "Sales"]);
       await userEvent.click(within(filters).getByRole("button", { name: "2 no change" }));
 
-      await userEvent.type(screen.getByRole("searchbox", { name: "Find an agent" }), "count");
+      await userEvent.type(screen.getByRole("textbox", { name: "Find an agent" }), "count");
       expect(names()).toEqual(["Counter"]);
-      await userEvent.clear(screen.getByRole("searchbox", { name: "Find an agent" }));
+      await userEvent.clear(screen.getByRole("textbox", { name: "Find an agent" }));
 
       await userEvent.click(screen.getByRole("button", { name: "Details of Returns" }));
       await userEvent.click(screen.getByRole("checkbox", { name: "Only the ones not looked at" }));
       expect(names()).not.toContain("Returns");
       expect(screen.getByText("Left to look at: 4 of 5")).toBeVisible();
 
-      await userEvent.type(screen.getByRole("searchbox", { name: "Find an agent" }), "nobody");
+      await userEvent.type(screen.getByRole("textbox", { name: "Find an agent" }), "nobody");
       expect(screen.getByText("No agent matches.")).toBeVisible();
     });
 

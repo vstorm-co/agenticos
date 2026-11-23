@@ -49,12 +49,17 @@ from app.db.models.agent_run import (
 )
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.case_generation import CaseGeneration
+from app.db.models.case_key_draft import CaseKeyDraft
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation, Message
 from app.db.models.group import Group, GroupMember
 from app.db.models.intercepted_tool_call import InterceptedToolCall
-from app.db.models.knowledge_gap import KnowledgeGapClassification, KnowledgeGapTopic
+from app.db.models.knowledge_gap import (
+    KnowledgeGapClassification,
+    KnowledgeGapEvalClassification,
+    KnowledgeGapTopic,
+)
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.system_agent_profile import DAILY_BRIEFING
@@ -909,6 +914,19 @@ async def run_origins(
     )
     for run_id, knowledge_base_id in classified.all():
         found[run_id] = replace(found[run_id], knowledge_base_id=knowledge_base_id)
+    classified_evals = await db.execute(
+        select(
+            type_coerce(KnowledgeGapEvalClassification.classifier_run_id, run_id_of),
+            KnowledgeGapEvalClassification.knowledge_base_id,
+        )
+        .where(
+            KnowledgeGapEvalClassification.organization_id == organization_id,
+            KnowledgeGapEvalClassification.classifier_run_id.in_(ids),
+        )
+        .distinct()
+    )
+    for run_id, knowledge_base_id in classified_evals.all():
+        found[run_id] = replace(found[run_id], knowledge_base_id=knowledge_base_id)
     generations = await db.execute(
         select(type_coerce(CaseGeneration.run_id, run_id_of), CaseGeneration.dataset_id).where(
             CaseGeneration.organization_id == organization_id,
@@ -916,6 +934,14 @@ async def run_origins(
         )
     )
     for run_id, dataset_id in generations.all():
+        found[run_id] = replace(found[run_id], dataset_id=dataset_id)
+    drafts = await db.execute(
+        select(type_coerce(CaseKeyDraft.run_id, run_id_of), CaseKeyDraft.dataset_id).where(
+            CaseKeyDraft.organization_id == organization_id,
+            CaseKeyDraft.run_id.in_(ids),
+        )
+    )
+    for run_id, dataset_id in drafts.all():
         found[run_id] = replace(found[run_id], dataset_id=dataset_id)
     return found
 
