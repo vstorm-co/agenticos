@@ -25,6 +25,32 @@ Two things are versioned separately from this file and worth knowing about:
   own agents (judges, drafters, generators, classifiers and the improver), whose pages do not
   open; the link led to an unavailable page.
 
+## [1.91.0] - 2026-11-23
+
+### Upgrading
+
+- The bundled agent framework moves to Pydantic AI 2.71 and harness 0.71. Finish paused code executions before upgrading: saved code checkpoints are tied to the interpreter/runtime versions and are rejected after a runtime change rather than replaying completed effects.
+
+- The personal work extractor moves to `personal-work-v7` to retain concrete work needs and supply source-attributed temporal context. Existing authorized history is refreshed lazily in bounded jobs under the configured proactivity budget; select the intended background model before resuming a paused rollout. Saved Inbox decisions are retained.
+
+### Added
+
+- Configure model defaults for daily briefing, suggestions and memory maintenance: reasoning effort, sampling, output limits, request timeout and parallel tool calls. Reuse the agent builder controls, preserve provider defaults when unset, and save changes explicitly to the shared model profile.
+
+### Fixed
+
+- Bound the entire memory extraction transcript, including source timestamps, identifiers and JSON escaping, so many short turns cannot exceed the configured input allowance.
+
+- Update the backend framework, MCP, authentication, channel and validation dependencies from #3235 and #3236. Retain croniter 6 so existing saved cron expressions keep their scheduling semantics.
+
+- Adapt skill catalog rendering, code-result serialization and the Stav client factory to the updated agent SDK contracts. Keep tool-output limits restricted to the declared read-back tool rather than exposing new upstream tools implicitly.
+
+- Personal Inbox readers receive structured questions, linked authenticated answers, original timestamps and timezone-aware local dates throughout extraction and verification. Schedule wording is interpreted by the model rather than a weekday/time regex. Memory maintenance retains source timestamps and question/answer provenance; clipped transcript tails are marked explicitly.
+
+- Background model reads now honor their selected model profile's generation parameters, including thinking effort and output limits.
+
+- Preserve grounded personal Inbox opportunities across proposal and verification: recognize recurring requests across conversations, propose new setup when only a historical assistant claim says a missing routine exists, and introduce unused features when they directly help the person's work. Keep deletion, dismissal, current-resource and authenticated-answer checks. Interpret native scheduling answers from their linked questions and temporal context without language-specific weekday/time parsing.
+
 ## [1.90.1] - 2026-11-22
 
 ### Fixed
@@ -22494,7 +22520,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.91.0...HEAD
+[1.91.0]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...v1.91.0
 [1.90.1]: https://github.com/vstorm-co/agenticos/compare/v1.90.0...v1.90.1
 [1.90.0]: https://github.com/vstorm-co/agenticos/compare/v1.89.1...v1.90.0
 [1.89.1]: https://github.com/vstorm-co/agenticos/compare/v1.89.0...v1.89.1

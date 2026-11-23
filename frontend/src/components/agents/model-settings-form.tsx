@@ -14,6 +14,7 @@ import type { ModelSettingsSpec } from "@/types/agents";
 import { useTranslations } from "next-intl";
 
 interface ModelSettingsFormProps {
+  idPrefix?: string;
   value: ModelSettingsSpec;
   onChange: (value: ModelSettingsSpec) => void;
   disabled?: boolean;
@@ -46,7 +47,12 @@ const RESTING: Record<"temperature" | "top_p", number> = { temperature: 1, top_p
  * helpfully filled in `0.7` would break every agent pointed at one. Clearing a
  * control removes the key rather than writing `null`.
  */
-export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFormProps) {
+export function ModelSettingsForm({
+  idPrefix = "model",
+  value,
+  onChange,
+  disabled,
+}: ModelSettingsFormProps) {
   const t = useTranslations("agents");
   const tUi = useTranslations("ui");
   /** Remove the key rather than store an empty value - see the note above. */
@@ -64,7 +70,7 @@ export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFo
     <div className="space-y-6">
       <div className="space-y-2">
         <OptionalSlider
-          id="model-temperature"
+          id={`${idPrefix}-temperature`}
           label={t("temperature")}
           description={t("howVariedAnswerNear")}
           max={2}
@@ -76,7 +82,7 @@ export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFo
       </div>
 
       <OptionalSlider
-        id="model-top-p"
+        id={`${idPrefix}-top-p`}
         label={t("topP")}
         description={t("considerOnlyMostLikely")}
         max={1}
@@ -88,14 +94,14 @@ export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFo
 
       <div className="grid gap-6 sm:grid-cols-2">
         <OptionalSetting
-          htmlFor="model-max-tokens"
+          htmlFor={`${idPrefix}-max-tokens`}
           label={t("maxTokens")}
           description={t("longestAnswerModelMay")}
           onReset={value.max_tokens === undefined ? undefined : () => set("max_tokens", undefined)}
           disabled={disabled}
         >
           <Input
-            id="model-max-tokens"
+            id={`${idPrefix}-max-tokens`}
             type="number"
             min={1}
             max={200000}
@@ -108,14 +114,14 @@ export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFo
         </OptionalSetting>
 
         <OptionalSetting
-          htmlFor="model-timeout"
+          htmlFor={`${idPrefix}-timeout`}
           label={t("timeoutSeconds")}
           description={t("howLongOneModel")}
           onReset={value.timeout === undefined ? undefined : () => set("timeout", undefined)}
           disabled={disabled}
         >
           <Input
-            id="model-timeout"
+            id={`${idPrefix}-timeout`}
             type="number"
             min={1}
             max={600}
@@ -129,7 +135,7 @@ export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFo
       </div>
 
       <OptionalSetting
-        htmlFor="model-parallel-tool-calls"
+        htmlFor={`${idPrefix}-parallel-tool-calls`}
         label={t("toolCalls")}
         description={t("runningThemOneAt")}
         disabled={disabled}
@@ -147,7 +153,7 @@ export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFo
             set("parallel_tool_calls", next === "default" ? undefined : next === "parallel")
           }
         >
-          <SelectTrigger id="model-parallel-tool-calls">
+          <SelectTrigger id={`${idPrefix}-parallel-tool-calls`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

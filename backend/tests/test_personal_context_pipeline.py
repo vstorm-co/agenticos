@@ -19,13 +19,13 @@ from app.schemas.personal_context import (
 from app.services.proactive._context_pipeline import (
     CHUNK_CHARS,
     chunks,
-    clock_hours,
     evidence_sources,
     extract_context,
     fingerprint,
     propose_context,
     select_topics,
     source_excerpt,
+    source_metadata,
     supported,
     with_human_answers,
 )
@@ -869,45 +869,28 @@ async def test_proposal_receipt_retrieval_does_not_send_unrelated_answer_history
     )
 
 
-@pytest.mark.parametrize("verified", ["approved", "repaired", "human_hour"])
-async def test_a_model_cannot_promote_an_assistants_hour_to_a_human_choice(verified: str) -> None:
-    value = packet()
-    if verified == "human_hour":
-        turn = value.messages[0].model_copy(update={"text": value.messages[0].text + " At 18:00."})
-        value = value.model_copy(update={"messages": [turn]})
-    proposed = card(
-        chat_prompt="Set it up every Thursday at 18:00.", proposed_schedule="Thursday 18:00"
-    )
-    checked = (
-        VerifiedReading(corrections=[card()])
-        if verified == "repaired"
-        else VerifiedReading(approved_identities=[proposed.identity])
-    )
+async def test_verifier_receives_human_words_instead_of_a_clock_allowlist() -> None:
+    proposed = card(chat_prompt="Set it up Thursday at 18:00.")
+
+    class TemporalReader(Reader):
+        async def read[Result: BaseModel](
+            self, *, stage: str, instructions: str, material: object, output_type: type[Result]
+        ) -> Result | None:
+            if stage == "verify":
+                assert isinstance(material, dict)
+                assert "unconfirmed_local_hours" not in material
+                assert material["original_sources"]["message:m"] == (packet().messages[0].text,)
+                assert "Event timestamps establish when" in instructions
+            return await super().read(
+                stage=stage, instructions=instructions, material=material, output_type=output_type
+            )
+
     result = await propose_context(
-        Reader(propose=PersonalReading(opportunities=[proposed]), verify=checked),
-        value,
+        TemporalReader(propose=PersonalReading(opportunities=[proposed]), verify=VerifiedReading()),
+        packet(),
         [ContextDigest(topics=[topic()])],
     )
-    assert result is not None
-    assert len(result.opportunities) == (0 if verified == "approved" else 1)
-
-
-@pytest.mark.parametrize(
-    ("text", "short", "expected"),
-    [
-        ("Thu 18", True, {"18:00"}),
-        ("When: thu 18", True, {"18:00"}),
-        ("Thursday 17:30", True, {"17:30"}),
-        ("At 9:00", False, {"09:00"}),
-        ("At 09:00", False, {"09:00"}),
-        ("Thu 18", False, set()),
-        ("18 tasks", True, set()),
-    ],
-)
-def test_clock_evidence_preserves_short_native_answers_and_zero_padding(
-    text: str, short: bool, expected: set[str]
-) -> None:
-    assert clock_hours(text, short_answer=short) == expected
+    assert result is not None and result.opportunities == []
 
 
 async def test_a_short_native_answer_can_confirm_a_padded_clock_hour() -> None:
@@ -971,7 +954,7 @@ async def test_retrieval_includes_bounded_related_failed_operation_metadata() ->
 
 
 @pytest.mark.parametrize("hour", ["18:00", "09:00"])
-async def test_receipt_clock_confirmation_uses_submitted_values_not_unselected_options(
+async def test_verifier_can_distinguish_submitted_values_from_unselected_options(
     hour: str,
 ) -> None:
     native = receipt(thread_id="t", questions={"When": ["Monday 09:00", "Friday 15:00"]})
@@ -984,7 +967,9 @@ async def test_receipt_clock_confirmation_uses_submitted_values_not_unselected_o
     result = await propose_context(
         Reader(
             propose=PersonalReading(opportunities=[advice]),
-            verify=VerifiedReading(approved_identities=[advice.identity]),
+            verify=VerifiedReading(
+                approved_identities=[advice.identity] if hour == "18:00" else []
+            ),
         ),
         packet(tool_receipts=[native]),
         [ContextDigest(topics=[topic(evidence=[evidence().model_dump(), ref.model_dump()])])],
@@ -1040,7 +1025,7 @@ async def test_linked_answers_reach_proposal_and_verifier_without_index_citation
             if stage == "verify":
                 assert isinstance(material, dict)
                 assert material["original_sources"]["message:answer:answer"] == ("When: thu 18",)
-                assert material["unconfirmed_local_hours"] == []
+                assert "unconfirmed_local_hours" not in material
             return await super().read(
                 stage=stage, instructions=instructions, material=material, output_type=output_type
             )
@@ -1181,3 +1166,138 @@ def test_unknown_cached_answer_text_cannot_be_restored_as_human_evidence() -> No
         SourceEvidence(source_id="message:answer:answer", quote="Monday 09:00"),
         evidence_sources(restored),
     )
+
+
+@pytest.mark.parametrize(
+    "wording",
+    [
+        "nächsten Donnerstag um sechs abends",
+        "los jueves a las seis",
+        "co czwartek o osiemnastej",
+        "thu 18",
+        "次の木曜日18時",
+    ],
+)
+async def test_multilingual_native_answers_are_supplied_verbatim_not_parsed(wording: str) -> None:
+    questions = [{"header": "Schedule", "question": "Which day and local time should it run?"}]
+    native = receipt(thread_id="t", questions=questions, submitted_answers={"Schedule": [wording]})
+    advice = card(chat_prompt="Prepare it on Thursday at 18:00 for approval.")
+
+    class ContextReader(Reader):
+        async def read[Result: BaseModel](
+            self, *, stage: str, instructions: str, material: object, output_type: type[Result]
+        ) -> Result | None:
+            assert isinstance(material, dict)
+            if stage in {"propose", "verify"}:
+                assert material["tool_receipts"][0]["questions"] == questions
+                assert material["tool_receipts"][0]["submitted_answers"] == {"Schedule": [wording]}
+                facts = material["source_metadata"]["message:answer:answer"]
+                assert facts["thread_id"] == "t"
+                assert facts["receipt_source_id"] == "receipt:answer"
+                assert facts["role"] == "user" and facts["speaker_id"] == "a"
+            return await super().read(
+                stage=stage, instructions=instructions, material=material, output_type=output_type
+            )
+
+    result = await propose_context(
+        ContextReader(
+            propose=PersonalReading(opportunities=[advice]),
+            verify=VerifiedReading(approved_identities=[advice.identity]),
+        ),
+        packet(tool_receipts=[native]),
+        [ContextDigest(topics=[topic()])],
+    )
+    assert result is not None and result.opportunities == [advice]
+
+
+@pytest.mark.parametrize(
+    "instant,local,weekday",
+    [
+        ("2026-11-22T23:30:00+00:00", "2026-11-23T00:30:00+01:00", "Monday"),
+        ("2026-10-25T00:30:00+00:00", "2026-10-25T02:30:00+02:00", "Sunday"),
+        ("2026-10-25T01:30:00+00:00", "2026-10-25T02:30:00+01:00", "Sunday"),
+    ],
+)
+def test_event_metadata_retains_timezone_offset_at_midnight_and_dst(
+    instant: str, local: str, weekday: str
+) -> None:
+    value = packet(profile={"time_zone": "Europe/Warsaw"})
+    value.messages[0].occurred_at = datetime.fromisoformat(instant)
+    facts = source_metadata(value)["message:m"]
+    assert facts["occurred_at"] == instant
+    assert facts["local_datetime"] == local
+    assert facts["local_weekday"] == weekday
+    assert facts["time_zone"] == "Europe/Warsaw"
+
+
+def test_undated_tools_and_unknown_timezone_do_not_gain_invented_dates() -> None:
+    facts = source_metadata(packet(tool_receipts=[{}, receipt(submitted_at="invalid")]))
+    assert facts["message:m"]["local_datetime"] is None
+    assert facts["message:m"]["local_weekday"] is None
+    assert facts["receipt:answer"]["timestamp_invalid"] is True
+
+
+async def test_extraction_keeps_structured_questions_and_message_chronology() -> None:
+    questions = [{"header": "When", "question": "x" * 2500 + "Choose a local preparation time?"}]
+
+    class ExtractionReader(Reader):
+        async def read[Result: BaseModel](
+            self, *, stage: str, instructions: str, material: object, output_type: type[Result]
+        ) -> Result | None:
+            assert isinstance(material, dict)
+            assert material["as_of"] == NOW.isoformat()
+            assert material["time_zone"] == "Europe/Warsaw"
+            assert material["messages"][0]["local_datetime"] == "2026-11-22T01:00:00+01:00"
+            native = material["tool_receipts"][0]
+            assert native["questions"] == questions
+            assert native["answer_source_id"] == "message:answer:answer"
+            assert native["answered_by_user_id"] == "a"
+            assert native["occurred_at"] == NOW.isoformat()
+            return await super().read(
+                stage=stage, instructions=instructions, material=material, output_type=output_type
+            )
+
+    await extract_context(
+        ExtractionReader(extract=ContextDigest()),
+        packet(
+            profile={"time_zone": "Europe/Warsaw"},
+            tool_receipts=[receipt(thread_id="t", questions=questions)],
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("first", "last", "expected"),
+    [
+        ("2026-11-22T00:05:00+00:00", "2026-11-22T23:55:00+00:00", 1),
+        ("2026-11-21T23:55:00+00:00", "2026-11-22T00:05:00+00:00", 0),
+    ],
+)
+def test_topic_selection_groups_source_days_in_the_persons_timezone(
+    first: str, last: str, expected: int
+) -> None:
+    value = packet(profile={"time_zone": "Europe/Warsaw"})
+    value.messages = [
+        value.messages[0].model_copy(
+            update={"id": identifier, "occurred_at": datetime.fromisoformat(at)}
+        )
+        for identifier, at in [("first", first), ("last", last)]
+    ]
+    rows = [
+        ContextDigest(
+            topics=[
+                topic(
+                    state="completed",
+                    intent="one_off",
+                    evidence=[
+                        {
+                            "source_id": f"message:{identifier}",
+                            "quote": "team agenda every Thursday",
+                        }
+                    ],
+                )
+            ]
+        )
+        for identifier in ["first", "last"]
+    ]
+    assert len(select_topics(rows, value)) == expected
