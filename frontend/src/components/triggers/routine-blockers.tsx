@@ -37,6 +37,8 @@ export function RoutineBlockers({
 }) {
   const t = useTranslations("triggers.blockers");
   if (blockers.length === 0) return null;
+  // Every reviewed reason is fixed in the same dialog, so only the first offers it.
+  const reviewAt = blockers.find((blocker) => REVIEWED.has(blocker.code))?.code;
   return (
     <ul className="basis-full space-y-1" aria-label={t("label")}>
       {paused && blockers.some((blocker) => blocker.severity === "blocked") && (
@@ -57,7 +59,7 @@ export function RoutineBlockers({
             <span className="min-w-0 flex-1">
               {t(blocker.code, { count: blocker.count ?? 0, held: blocked ? "yes" : "no" })}
             </span>
-            {REVIEWED.has(blocker.code) &&
+            {blocker.code === reviewAt &&
               (canReview ? (
                 <Button variant="outline" size="sm" className="h-7" onClick={onReview}>
                   {t("review")}

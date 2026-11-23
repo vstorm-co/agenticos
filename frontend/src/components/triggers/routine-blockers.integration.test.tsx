@@ -99,6 +99,18 @@ it("marks an active routine that will not run red, says why and lets its creator
   expect(screen.getByRole("dialog", { name: "Access review" })).toBeInTheDocument();
 });
 
+it("offers the review once when several reasons are fixed in it", async () => {
+  serve([
+    blocker({ code: "sources_review" }),
+    blocker({ code: "actions_need_approval", severity: "attention", count: 2 }),
+  ]);
+  render(<TriggerRow trigger={trigger()} />, { wrapper });
+  expect(
+    await screen.findByText("2 actions have no standing consent, so each run stops for approval."),
+  ).toBeVisible();
+  expect(screen.getAllByRole("button", { name: "Review access" })).toHaveLength(1);
+});
+
 it("tells someone else that only the creator can fix it", async () => {
   useAuthStore.setState({ user: { id: "admin" } as never });
   serve([blocker({ code: "platform_identity" })]);
