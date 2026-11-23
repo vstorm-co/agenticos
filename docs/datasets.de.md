@@ -1,5 +1,5 @@
 ---
-source_sha: "491ffeeb06c4"
+source_sha: "d9ca2d821263"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -412,7 +412,7 @@ gelesen wird, und eine darüber wird mit Verweis auf `judge.pass_at` abgelehnt.
 | `max_latency_ms` | `value` | Der Run nicht länger als das gedauert hat |
 | `length` | `unit` (`characters` oder `words`), `min` und/oder `max`, optional `path` | Die Antwort mindestens `min` und höchstens `max` lang ist |
 | `judge` | `criterion` | Der Bewerter das Kriterium mit der Bestehensgrenze oder höher bewertet |
-| `keys` | `keys`: bis zu 200 Paare aus `key` (einer Bezeichnung) und `value` | Die Antwort jeden Wert enthält; die Punktzahl ist der Anteil, den sie enthält |
+| `keys` | `keys`: Paare aus `key` (einer Bezeichnung) und `value`, höchstens 200 zusammen in den Schlüssel-Prüfungen eines Falls - und in den Standardprüfungen des Datasets; Familie `keys`, sofern keine andere genannt ist | Die Antwort jeden Wert enthält; die Punktzahl ist der Anteil, den sie enthält |
 
 `path` liest in eine Antwort hinein, die JSON ist: `items.0.name` ist der Name
 des ersten Elements. Ohne ihn liest eine Regel die ganze Antwort. Textregeln

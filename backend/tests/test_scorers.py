@@ -13,9 +13,12 @@ import pytest
 from jsonschema import Draft202012Validator
 from pydantic import TypeAdapter, ValidationError
 
+from app.schemas.dataset import DatasetCaseCreate
 from app.schemas.scoring import (
     CHECK,
+    MAX_KEYS,
     CaseScoreRead,
+    ChecksScorer,
     DatasetScoring,
     JudgeCheck,
     JudgeScorer,
@@ -1285,6 +1288,19 @@ class TestKeysCheck:
     def test_its_family_is_carried_onto_the_result(self) -> None:
         result = _check(_keys(("Invoice", "INV-7"), family="invoice facts"), _answer("INV-7"))
         assert result.family == "invoice facts"
+
+    def test_a_keys_check_naming_no_family_is_in_the_keys_family(self) -> None:
+        assert _check(_keys(("Invoice", "INV-7")), _answer("INV-7")).family == "keys"
+
+    def test_the_keys_of_a_cases_checks_are_bounded_together(self) -> None:
+        half = [(f"k{n}", "v") for n in range(MAX_KEYS // 2 + 1)]
+        checks = [_keys(*half), _keys(*half, family="totals")]
+
+        with pytest.raises(ValidationError, match="keys together"):
+            DatasetCaseCreate(input="Write the invoice", checks=checks)
+        with pytest.raises(ValidationError, match="keys together"):
+            ChecksScorer(defaults=checks)
+        assert ChecksScorer(defaults=checks[:1]).defaults
 
     @pytest.mark.parametrize(
         "check",
