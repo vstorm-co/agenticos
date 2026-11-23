@@ -1,5 +1,5 @@
 ---
-source_sha: "dc722137c16b"
+source_sha: "cf07a5b19ce8"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -448,6 +448,42 @@ familia, caso por caso, así que un cambio se juzga por lo que se movió en todo
 dataset y no por el patrón de un caso. Una comprobación sin familia es una
 familia propia; una con familia puntúa, y calcula la huella de su puntuación,
 exactamente igual que antes.
+
+### Claves sin fuente { #key-coverage }
+
+Una comprobación `keys` dice qué datos debe contener un documento escrito; no
+dice si el agent podía conocerlos. **Resultados → Cobertura de claves** lo
+responde para un agent publicado que elijas. El agent de cobertura de fuentes,
+un agent de sistema, lee las etiquetas de las claves de las comprobaciones
+`keys` de la versión más reciente - las primeras 200 distintas - junto a lo que
+alcanza la versión publicada del agent, y dice para cada etiqueta que una
+fuente la contiene, que ninguna lo hace o que no puede saberse. De cada fuente
+lee:
+
+- de una base de conocimiento: una búsqueda de cada etiqueta;
+- de un archivo de contexto o un skill: los pasajes que nombran una etiqueta, de
+  un skill en la versión o el fork que indica el vínculo del agent;
+- de un servidor MCP de la organización que esté activado: sus herramientas,
+  según lo que cada una dice hacer.
+
+Ve etiquetas y nunca sus valores. Se ejecuta en un job, como la persona que lo
+pidió, que debe poder editar el agent, con coste medido y en Actividad. Cada
+agent y dataset conserva un informe, que sustituye el siguiente. Una fuente que
+la persona que lo pidió no puede ver no se lee, como tampoco un servidor MCP que
+funciona con la cuenta de cada persona o de la plataforma, y el informe dice
+cuántas se omitieron; quien no puede ver una fuente que el informe nombra la ve sin nombre, y quien
+no puede ver todas las fuentes que leyó el juez recibe veredictos sin motivos.
+
+Una clave sin fuente tiene que llegar al agent como conocimiento - un
+documento, un archivo de contexto, una herramienta -, porque ningún cambio en
+sus instrucciones puede aportarla.
+[Improve](authoring.md#background-improvement-sessions) la lee así, pero solo
+desde un informe completo - con cada fuente leída - hecho para la versión que el
+agent ejecuta ahora. Cuando el
+agent se publica de nuevo, el dataset gana una versión o cambia una fuente leída
+- un documento añadido a una base de conocimiento o quitado de ella, un archivo
+de contexto o un skill editado, las herramientas de un servidor cambiadas -, el
+informe aparece como desactualizado hasta que vuelvas a comprobarlo.
 
 ### Llamadas a herramientas esperadas { #trajectory }
 

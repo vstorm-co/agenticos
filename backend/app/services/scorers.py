@@ -333,6 +333,21 @@ def carries(text: str, value: str) -> bool:
     return _carries(_Haystack.of(text), value)
 
 
+def missing_keys(checks: Sequence[Mapping[str, Any]], answer: str) -> list[str]:
+    """The labels of the keys `answer` does not carry, across the readable `keys` checks."""
+    text = _Haystack.of(answer)
+    labels: list[str] = []
+    for raw in checks:
+        if raw.get("type") != "keys":
+            continue
+        try:
+            check = KeysCheck.model_validate(raw)
+        except PydanticValidationError:
+            continue
+        labels += [key.key for key in check.keys if not _carries(text, key.value)]
+    return labels
+
+
 def _keys_check(check: KeysCheck, answer: ScoredAnswer, *, required: bool) -> ScorerResult:
     haystack = _Haystack.of(_text(answer, None))
     missing = [entry.key for entry in check.keys if not _carries(haystack, entry.value)]

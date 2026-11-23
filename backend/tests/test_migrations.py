@@ -2993,7 +2993,7 @@ def test_event_source_downgrade_preserves_runnable_fire_jobs() -> None:
                     .where(BackgroundJob.id == structured)
                     .values(status=status, payload={**nullable, **extra})
                 )
-            refused = _alembic("downgrade", "0359_merge_search_key_drafts")
+            refused = _alembic("downgrade", "0360_merge_key_coverage")
             assert refused.returncode != 0 and "structured fire-trigger jobs" in refused.stderr
         with engine.begin() as connection:
             connection.execute(
@@ -3001,7 +3001,7 @@ def test_event_source_downgrade_preserves_runnable_fire_jobs() -> None:
                 .where(BackgroundJob.id == structured)
                 .values(status="cancelled")
             )
-        result = _alembic("downgrade", "0359_merge_search_key_drafts")
+        result = _alembic("downgrade", "0360_merge_key_coverage")
         assert result.returncode == 0, result.stderr
         with engine.connect() as connection:
             assert connection.scalars(
@@ -3097,7 +3097,7 @@ def test_event_source_downgrade_retires_only_obsolete_queue_work() -> None:
                 )
             )
             conn.execute(insert(BackgroundTaskKind).values(kind=retention))
-        blocked = _alembic("downgrade", "0359_merge_search_key_drafts")
+        blocked = _alembic("downgrade", "0360_merge_key_coverage")
         assert blocked.returncode != 0 and "settle pending source work" in blocked.stderr
         with engine.begin() as conn:
             # A refused downgrade must leave the accepted input and job intact.
@@ -3112,7 +3112,7 @@ def test_event_source_downgrade_retires_only_obsolete_queue_work() -> None:
                 .where(EventDispatch.id == dispatch)
                 .values(status="skipped", completed_at=datetime.now(UTC))
             )
-        blocked = _alembic("downgrade", "0359_merge_search_key_drafts")
+        blocked = _alembic("downgrade", "0360_merge_key_coverage")
         assert blocked.returncode != 0 and "running event source jobs" in blocked.stderr
         with engine.begin() as conn:
             conn.execute(
@@ -3120,7 +3120,7 @@ def test_event_source_downgrade_retires_only_obsolete_queue_work() -> None:
                 .where(BackgroundJob.id == sweep)
                 .values(status="dead", last_error="original failure")
             )
-        result = _alembic("downgrade", "0359_merge_search_key_drafts")
+        result = _alembic("downgrade", "0360_merge_key_coverage")
         assert result.returncode == 0, result.stderr
         with DatabaseSession(engine) as db:
             for retired in (job, sweep):

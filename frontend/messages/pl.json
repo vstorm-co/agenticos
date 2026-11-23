@@ -3322,7 +3322,8 @@
           "improve": "Poprawianie",
           "knowledge_gaps": "Luki w wiedzy",
           "test_questions": "Pytania testowe",
-          "key_drafts": "Szkice kluczy"
+          "key_drafts": "Szkice kluczy",
+          "key_coverage": "Pokrycie kluczy"
         },
         "open": {
           "openEvalRun": "Otwórz ewaluację",
@@ -7250,6 +7251,10 @@
         "title": "Przegląd",
         "body": "Tutaj są wszystkie ocenione odpowiedzi, również już przejrzane. Filtruj według rezultatu, agenta lub tagu, a potem otwórz odpowiedź, sprawdź dowody i zapisz decyzję."
       },
+      "dataset-key-coverage": {
+        "title": "Pokrycie kluczy",
+        "body": "Zobacz, których faktów wymaganych przez sprawdzenia kluczy nie zawiera żadne źródło agenta. Brakujący fakt trzeba dać agentowi jako wiedzę; żadna zmiana instrukcji go nie dostarczy."
+      },
       "agents-system": {
         "title": "Agenci systemowi",
         "body": "Agenci, których platforma uruchamia sama, pogrupowani według zadań: sędziowie oceniający odpowiedzi w ewaluacjach, generator przypadków, autor i klasyfikator luk oraz asystent autorski. Otwórz jednego, żeby zmienić instrukcje, model lub budżet; dataset wybiera sędziego na karcie Grading, a New agent dodaje kolejnego sędziego."
@@ -10312,7 +10317,8 @@
       "generator": "Generator przypadków",
       "classifier": "Klasyfikator luk",
       "improver": "Asystent tworzenia",
-      "extractor": "Ekstraktor kluczy"
+      "extractor": "Ekstraktor kluczy",
+      "coverage": "Pokrycie źródeł"
     },
     "productionOn": "produkcja na v{version}",
     "productionWaiting": "produkcja na v{version} (czeka na ewaluacje)",
@@ -10342,7 +10348,9 @@
       "improver": "Domyślny asystent tworzenia",
       "improverHint": "Proponuje ulepszenia oferowane każdemu agentowi.",
       "extractor": "Domyślny ekstraktor kluczy",
-      "extractorHint": "Wypisuje fakty z odpowiedzi referencyjnych każdego datasetu do ich sprawdzeń kluczy."
+      "extractorHint": "Wypisuje fakty z odpowiedzi referencyjnych każdego datasetu do ich sprawdzeń kluczy.",
+      "coverage": "Domyślne pokrycie źródeł",
+      "coverageHint": "Wskazuje, których kluczy datasetu nie zawiera żadne źródło agenta."
     },
     "guardsSaved": "Strażnicy zapisani",
     "failedGuards": "Nie udało się zapisać strażników",
@@ -10364,7 +10372,7 @@
       "cancel": "Anuluj"
     },
     "publishedSpec": "Opublikowany spec",
-    "systemAgentBadge": "{kind, select, judge {Agent systemowy · Sędzia} drafter {Agent systemowy · Autor szkiców luk} generator {Agent systemowy · Generator przypadków} classifier {Agent systemowy · Klasyfikator luk} improver {Agent systemowy · Asystent tworzenia} extractor {Agent systemowy · Ekstraktor kluczy} other {Agent systemowy}}",
+    "systemAgentBadge": "{kind, select, judge {Agent systemowy · Sędzia} drafter {Agent systemowy · Autor szkiców luk} generator {Agent systemowy · Generator przypadków} classifier {Agent systemowy · Klasyfikator luk} improver {Agent systemowy · Asystent tworzenia} extractor {Agent systemowy · Ekstraktor kluczy} coverage {Agent systemowy · Pokrycie źródeł} other {Agent systemowy}}",
     "systemAgentBadgeHint": "Uruchamia go platforma dla całej organizacji; nikt z nim nie rozmawia.",
     "systemAgentSharedOnly": "Do wyboru jest tylko to, co udostępniono całej organizacji: platforma uruchamia tego agenta dla wszystkich.",
     "systemAgentSkillsUnused": "Klasyfikator nie korzysta ze skilli, więc nie można tu dodać żadnego. Odznacz te, które jeszcze ma, albo użyj jego przełącznika, żeby zdjąć wszystkie naraz.",
@@ -15351,6 +15359,34 @@
       "loading": "Sprawdzanie szkicu kluczy…",
       "unreadable": "Nie udało się odczytać szkicu kluczy."
     },
+    "keyCoverage": {
+      "title": "Pokrycie kluczy",
+      "hint": "Których kluczy ze sprawdzeń kluczy tego datasetu nie zawiera żadne źródło agenta - bazy wiedzy, pliki kontekstu, skille i serwery MCP. Agent pokrycia źródeł czyta tylko etykiety kluczy, nigdy ich wartości.",
+      "agent": "Agent",
+      "chooseAgent": "Wybierz opublikowanego agenta",
+      "agentsFailed": "Nie udało się wczytać agentów",
+      "noAgents": "Brak opublikowanego agenta do sprawdzenia",
+      "noAgentsHint": "Najpierw opublikuj agenta: raport czyta wersję, którą agent uruchamia.",
+      "check": "Sprawdź pokrycie",
+      "recheck": "Sprawdź ponownie",
+      "none": "Ten agent nie był jeszcze sprawdzany.",
+      "noneReadOnly": "Ten agent nie był jeszcze sprawdzany. Może to zrobić osoba, która może go edytować.",
+      "running": "Sprawdzanie, które źródła zawierają każdy klucz…",
+      "failed": "Nie udało się ocenić pokrycia: {error}",
+      "summary": "{count, plural, one {# klucz} few {# klucze} many {# kluczy} other {# klucza}} w wersji {version}: ze źródłem {covered, plural, other {#}}, bez źródła {uncovered, plural, other {#}}, niepewne {unsure, plural, other {#}}.",
+      "outOfDate": "Raport dotyczy wcześniejszej wersji agenta albo datasetu, więc Improve już go nie czyta. Sprawdź ponownie, żeby go odświeżyć.",
+      "sourcesChanged": "Źródła zmieniły się od tego sprawdzenia, więc Improve już go nie czyta. Sprawdź ponownie, żeby go odświeżyć.",
+      "unseen": "{count, plural, one {# źródło tego agenta nie zostało przeczytane} few {# źródła tego agenta nie zostały przeczytane} many {# źródeł tego agenta nie zostało przeczytanych} other {# źródła tego agenta nie zostało przeczytane}} - takie, których zlecający nie widzi, albo serwery MCP działające przez konto każdej osoby - więc Improve nie korzysta z tego raportu.",
+      "from": "Źródła: {sources}",
+      "hiddenSource": "źródło, którego nie widzisz",
+      "verdict": {
+        "covered": "Pokryty",
+        "not_covered": "Brak źródła",
+        "unsure": "Niepewne"
+      },
+      "failedToStart": "Nie udało się rozpocząć sprawdzania pokrycia",
+      "unreadable": "Nie udało się odczytać raportu pokrycia."
+    },
     "visibility": {
       "private": "Prywatna",
       "team": "Zespół",
@@ -15446,6 +15482,7 @@
       "backToCases": "Wróć do przypadków",
       "testRuns": "Testy agentów",
       "reviewAnswers": "Przegląd odpowiedzi",
+      "keyCoverage": "Pokrycie kluczy",
       "helpers": "Generowanie i ulepszanie",
       "helpersHint": "Wybierz modele i instrukcje do tworzenia przypadków oraz proponowania ulepszeń."
     },

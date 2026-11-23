@@ -1,5 +1,5 @@
 ---
-source_sha: "9c6ab12370a2"
+source_sha: "81ca00765031"
 ---
 
 # Słownik { #glossary }
@@ -91,6 +91,7 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Przegląd | Wyniki czekające, aż człowiek je potwierdzi albo zmieni | `review_state` |
 | Generator przypadków | Agent systemowy, który przygotowuje przypadki z agenta, jego wiedzy, prawdziwych czatów i red teamingu | `kind: generator` |
 | Ekstraktor kluczy | Agent systemowy, który wypisuje fakty z odpowiedzi referencyjnej przypadku do jego sprawdzenia kluczy | `kind: extractor` |
+| Pokrycie źródeł | Agent systemowy, który wskazuje, których kluczy datasetu nie zawiera żadne źródło agenta | `kind: coverage` |
 | Proponowany przypadek | Przygotowany przypadek czekający w **Wygenerowane**, aż człowiek go zaakceptuje albo odrzuci | `case_proposal` |
 | Red teaming | Przypadki sprawdzające, czy agent odmawia tego, czego musi odmówić | tag `red-team` |
 

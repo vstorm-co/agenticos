@@ -44,6 +44,7 @@ from app.schemas.scoring import ScorerResult
 from app.services.access import AGENT, DATASET, accessible_ids
 from app.services.conversation import ConversationService
 from app.services.eval_comparison import Attempt, Outcome
+from app.services.scorers import MAX_MISSING_NAMED, missing_keys
 
 MAX_EVIDENCE_RUNS = 20
 """The most runs one request reads."""
@@ -95,6 +96,10 @@ class PackedRun:
         via_delegate: The skill was used by an agent this run delegated to.
         masked: Its text was withheld from a reader who may not open its
             conversation.
+        uncovered_keys: Keys a test answer is missing that no source of the agent
+            holds, by label, from the agent's source coverage report.
+        knowledge_only: Every check the answer failed is a keys check, and every key
+            it is missing is one of those - nothing the agent's instructions can fix.
     """
 
     run_id: UUID
@@ -113,6 +118,8 @@ class PackedRun:
     skill_use: Literal["used", "probable"] | None = None
     via_delegate: bool = False
     masked: bool = False
+    uncovered_keys: tuple[str, ...] = ()
+    knowledge_only: bool = False
 
     @property
     def grade_lines(self) -> list[str]:
@@ -146,6 +153,11 @@ class PackedRun:
             lines.append("Skill used by an agent this one delegated to")
         lines += [f"Reader comment: {comment}" for comment in self.comments]
         lines += [f"Graded: {line}" for line in self.grade_lines]
+        if self.uncovered_keys:
+            lines.append(
+                "No source of this agent holds these keys, so the user must supply them "
+                f"rather than the instructions: {', '.join(self.uncovered_keys)}"
+            )
         lines.append(
             f"Test question from the dataset: {self.prompt}"
             if self.evidence_kind == "train_eval"
@@ -403,6 +415,7 @@ class EvidenceService:
     ) -> tuple[list[PackedRun], str]:
         from app.repositories import eval_run_repo
         from app.services.eval_run import EvalRunService
+        from app.services.key_coverage import KeyCoverageService
 
         since = self._since(window_days, at)
         candidates = await authoring_repo.evaluated_datasets(
@@ -428,6 +441,9 @@ class EvidenceService:
             since=since,
             until=at,
             case_ids=case_ids,
+        )
+        uncovered = await KeyCoverageService(self.db).uncovered_labels(
+            ctx, agent_id, sorted(allowed)
         )
         packed: list[PackedRun] = []
         seen: set[UUID] = set()
@@ -518,10 +534,20 @@ class EvidenceService:
                 ]
                 if person is not None
             }
+            missing = missing_keys(row.case.checks or [], row.attempt.answer or "")
+            gaps = uncovered.get(row.case.dataset_id, frozenset())
+            unheld = tuple(label for label in missing if label.casefold() in gaps)
+            failed = [result for result in results if result.status == "fail"]
             packed.append(
                 PackedRun(
                     run_id=row.run.id,
                     conversation_id=None,
+                    uncovered_keys=unheld[:MAX_MISSING_NAMED],
+                    knowledge_only=bool(failed)
+                    and len(unheld) == len(missing) > 0
+                    and all(
+                        result.scorer == "check" and result.name == "keys" for result in failed
+                    ),
                     status="train_eval_failure" if settled is False else "train_eval_reviewed",
                     rating=0,
                     evidence_kind="train_eval",
