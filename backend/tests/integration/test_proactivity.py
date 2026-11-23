@@ -1488,7 +1488,7 @@ async def test_proactive_heartbeat_and_cancelled_usage_survive_the_job_rollback(
         return "unreachable"
 
     request = SimpleNamespace(
-        build=lambda: TestModel(),
+        build=TestModel,
         label="Test",
         model="test",
         provider="test",
