@@ -1,5 +1,5 @@
 ---
-source_sha: "fffabf99cb11"
+source_sha: "9c8256f7ca69"
 ---
 
 # Governance { #governance }
@@ -104,7 +104,9 @@ Wbudowany serwer MCP AgenticOS wymaga opcji **Działaj jako twórca**, również
 
 Historia procedury pokazuje też zablokowane i nieudane próby zakończone przed utworzeniem runu agenta. Każda ma czas, etap i wskazówkę naprawy. Nie naliczają kosztów modelu ani nie zawierają promptów, błędów dostawcy lub poświadczeń. Rekordy pozostają do usunięcia procedury lub organizacji. Błąd dostarczenia powiadomienia nie usuwa historii. Zadanie workera fire-trigger zapisuje osobny wynik zablokowany lub nieudany; zakończenie zadania kolejki nie oznacza poprawnego uruchomienia agenta.
 
-Lista procedur mówi też, jeszcze przed kolejnym uruchomieniem, czy procedura się uruchomi. Każda procedura pyta te same mechanizmy sprawdzające co uruchomienie, ocenione w imieniu jej twórcy i bez skutków ubocznych: aktywne członkostwo twórcy i jego uprawnienie do uruchamiania agenta, wersję możliwą do uruchomienia, przegląd źródeł, datę zakończenia, miesięczny budżet, poprzedni run czekający na zatwierdzenie lub odpowiedź oraz akcje bez stałej zgody. Procedura, która nie uruchomi runu, ma czerwoną ramkę; taka, której runy zatrzymają się na zatwierdzeniu, jest oznaczona na bursztynowo; wstrzymana procedura jest wyszarzona i nadal mówi, na co trafiłoby wznowienie. Każda linia podaje powód, a twórca dostaje przycisk, który go naprawia. `GET /agents/{agent_id}/triggers/{trigger_id}/readiness` zwraca te same powody jako ograniczone kody każdemu, kto widzi agenta, bez nazw źródeł, kont i poświadczeń. Mechanizmy, na które odpowiada dopiero dostawca w czasie runu, nie są przewidywane; ich odmowy zostają w historii opisanej wyżej.
+Lista procedur mówi też, jeszcze przed kolejnym uruchomieniem, czy procedura się uruchomi. Każda procedura pyta te same mechanizmy sprawdzające co uruchomienie, ocenione w imieniu jej twórcy i bez skutków ubocznych: aktywne członkostwo twórcy i jego uprawnienie do uruchamiania agenta, wersję możliwą do uruchomienia, przegląd źródeł, datę zakończenia, miesięczny budżet, poprzedni run czekający na zatwierdzenie lub odpowiedź oraz akcje bez stałej zgody.
+
+Procedura, która nie uruchomi runu, ma czerwoną ramkę; taka, której runy zatrzymają się na zatwierdzeniu, jest oznaczona na bursztynowo; wstrzymana procedura jest wyszarzona i nadal mówi, na co trafiłoby wznowienie. Każda linia podaje powód, a twórca dostaje przycisk, który go naprawia. `GET /agents/{agent_id}/triggers/{trigger_id}/readiness` zwraca te same powody jako ograniczone kody każdemu, kto widzi agenta, bez nazw źródeł, kont i poświadczeń. Mechanizmy, na które odpowiada dopiero dostawca w czasie runu, nie są przewidywane; ich odmowy zostają w historii opisanej wyżej.
 
 ## Budżety { #budgets }
 
