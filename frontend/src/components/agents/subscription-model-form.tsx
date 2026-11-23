@@ -108,13 +108,17 @@ export function SubscriptionModelForm({
         model: selectedModel,
       });
       if (!active.current || !actions.isCurrentScope()) return;
+      // Rates entered for a saved profile belong to its model and account.
+      const pricing =
+        customPricing !== undefined && initialModel && selected.model !== initialModel
+          ? null
+          : customPricing;
       const existing = profiles.find(
         (entry) =>
           entry.provider === "subscription_accounts" &&
           entry.model === selected.model &&
           runsAgents(entry) &&
-          (customPricing === undefined ||
-            sameTokenPricing(entry.custom_pricing ?? null, customPricing)),
+          (pricing === undefined || sameTokenPricing(entry.custom_pricing ?? null, pricing)),
       );
       const baseLabel = `${accountsCopy(`providers.${provider}`)} · ${selected.model}`.slice(
         0,
@@ -132,7 +136,7 @@ export function SubscriptionModelForm({
           model: selected.model,
           secret_id: null,
           label,
-          ...(customPricing != null ? { custom_pricing: customPricing } : {}),
+          ...(pricing != null ? { custom_pricing: pricing } : {}),
         }));
       if (!active.current || !actions.isCurrentScope()) return;
       if (!runsAgents(profile)) {

@@ -25,7 +25,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import secret_purposes
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import (
     ApiKeySecret,
@@ -43,9 +48,15 @@ from app.core.secret_kinds import (
 )
 from app.core.secret_purposes import CUSTOM
 from app.core.vault import VaultScope
+from app.db.locks import LockScope, hold_subject
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import Visibility
-from app.repositories import member_repo, organization_secret_repo, resource_grant_repo
+from app.repositories import (
+    credential_repo,
+    member_repo,
+    organization_secret_repo,
+    resource_grant_repo,
+)
 from app.schemas.resource_grant import as_visibility
 from app.schemas.secret import SecretSummary, SecretUsage
 from app.services.access import SECRET, accessible_ids, resolve_access, visible_resource_ids
@@ -156,6 +167,13 @@ class OrganizationSecretService:
         editable = await accessible_ids(
             self.db, ctx, secrets, Perm.SECRETS_EDIT, resource_type=SECRET
         )
+        protected = (
+            set()
+            if ctx.has(Perm.BUDGETS_MANAGE)
+            else await credential_repo.custom_priced_secret_ids(
+                self.db, organization_id=ctx.organization_id, secret_ids=editable
+            )
+        )
         rows: list[SecretSummary] = []
         for secret in secrets:
             owner = people.get(secret.owner_user_id) if secret.owner_user_id else None
@@ -167,6 +185,7 @@ class OrganizationSecretService:
                 SecretSummary(
                     id=secret.id,
                     can_edit=secret.id in editable,
+                    can_rotate=secret.id in editable and secret.id not in protected,
                     name=secret.name,
                     description=secret.description,
                     kind=SecretKind(secret.kind),
@@ -277,6 +296,8 @@ class OrganizationSecretService:
         Raises:
             NotFoundError: If no such secret exists in this organization.
             BadRequestError: If a rotation would change the secret's kind.
+            AuthorizationError: If a rotation would change the credential of a
+                custom-priced model without budget permission.
             AlreadyExistsError: If the new name is taken.
         """
         secret = await self._get(ctx, secret_id, perm=Perm.SECRETS_EDIT)
@@ -289,6 +310,17 @@ class OrganizationSecretService:
             update_data["description"] = description
         if value is not None:
             self._refuse_kind_change(secret, value)
+            if not ctx.has(Perm.BUDGETS_MANAGE):
+                # A pricing approval on this key and a credential replacement
+                # must observe each other's committed state.
+                await hold_subject(self.db, LockScope.MODEL_PRICING_PER_SECRET, secret_id)
+                if await credential_repo.custom_priced_secret_ids(
+                    self.db, organization_id=ctx.organization_id, secret_ids=[secret_id]
+                ):
+                    raise AuthorizationError(
+                        message="Rotating a key used by a custom-priced model requires budgets:manage",
+                        details={"permission": Perm.BUDGETS_MANAGE.value},
+                    )
             sealed = seal_secret(value, scope=VaultScope.organization(ctx.organization_id))
             update_data["authorization_generation"] = uuid4()
             update_data["sealed_secret"] = sealed.ciphertext

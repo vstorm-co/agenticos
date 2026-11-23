@@ -278,7 +278,6 @@ export function AddModel({
   const [customPricing, setCustomPricing] = useState<TokenPricing | null>(
     selected?.custom_pricing ?? null,
   );
-  const pricingChanged = !sameTokenPricing(customPricing, selected?.custom_pricing ?? null);
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   // Root, for the absolute keys `modelPlaceholder` answers with - see the note on
@@ -301,6 +300,9 @@ export function AddModel({
   // control.
   const canStoreKey = can(Perm.secretsEdit);
   const canManagePricing = can(Perm.budgetsManage);
+  const pricingChanged =
+    canManagePricing && !sameTokenPricing(customPricing, selected?.custom_pricing ?? null);
+  const canSubmitPricing = !canManagePricing || validTokenPricing(customPricing);
 
   // What somebody picked, which is not the same as what the field shows: a
   // `null` here means nobody has picked yet, and the answer below is what the
@@ -590,7 +592,7 @@ export function AddModel({
             : null;
   const canSubmit =
     provider !== undefined &&
-    validTokenPricing(customPricing) &&
+    canSubmitPricing &&
     model.trim() !== "" &&
     (chosenKey !== "" || keyOptional) &&
     modelIdIsWellFormed(provider.id, model.trim()) &&
@@ -726,7 +728,7 @@ export function AddModel({
           provider={subscription}
           customPricing={canManagePricing ? customPricing : undefined}
           initialModel={providerId === restoredProvider ? selected?.model : undefined}
-          disabled={disabled || !validTokenPricing(customPricing)}
+          disabled={disabled || !canSubmitPricing}
           onCreated={onCreated}
           onPendingChange={onCreationPendingChange}
           providerField={
@@ -744,26 +746,30 @@ export function AddModel({
             )
           }
         />
-        <ModelPricing
-          value={customPricing}
-          automatic={null}
-          disabled={disabled || !canManagePricing}
-          onChange={(value) => {
-            setCustomPricing(value);
-            setFailure(NO_FAILURE);
-          }}
-        />
-        {selected?.provider === "subscription_accounts" && pricingChanged && canManagePricing && (
-          <Button
-            type="button"
-            size="sm"
-            disabled={disabled || !validTokenPricing(customPricing) || updateProfile.isPending}
-            onClick={() => void saveSubscriptionPricing(selected.id)}
-          >
-            <Save className="h-4 w-4" />
-            {t("updateModel")}
-          </Button>
+        {canManagePricing && (
+          <ModelPricing
+            value={customPricing}
+            automatic={null}
+            disabled={disabled}
+            onChange={(value) => {
+              setCustomPricing(value);
+              setFailure(NO_FAILURE);
+            }}
+          />
         )}
+        {selected?.provider === "subscription_accounts" &&
+          providerId === restoredProvider &&
+          pricingChanged && (
+            <Button
+              type="button"
+              size="sm"
+              disabled={disabled || !canSubmitPricing || updateProfile.isPending}
+              onClick={() => void saveSubscriptionPricing(selected.id)}
+            >
+              <Save className="h-4 w-4" />
+              {t("updateModel")}
+            </Button>
+          )}
         {failure.toast !== null && <p className="text-destructive text-xs">{failure.toast}</p>}
       </div>
     );
@@ -1055,7 +1061,7 @@ export function AddModel({
         )}
       </ConnectionSettings>
 
-      {provider !== undefined && (
+      {provider !== undefined && canManagePricing && (
         <ModelPricing
           value={customPricing}
           automatic={
@@ -1064,7 +1070,7 @@ export function AddModel({
               ? selected.automatic_pricing
               : null)
           }
-          disabled={disabled || !canManagePricing}
+          disabled={disabled}
           onChange={(value) => {
             setCustomPricing(value);
             setFailure(NO_FAILURE);

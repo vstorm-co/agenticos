@@ -2272,12 +2272,15 @@ it("starts a different model with automatic pricing", async () => {
   );
 });
 
-it("requires budget authority to edit prices", async () => {
-  state.permissions = [Perm.secretsEdit];
-  mount({ fixedProviderId: "openai" });
-  expect(screen.getByRole("switch")).toBeDisabled();
-  expect(screen.queryByLabelText("Input tokens")).not.toBeInTheDocument();
-});
+it.each(["openai", "subscription:claude"])(
+  "hides %s price controls without budget authority",
+  (fixedProviderId) => {
+    state.permissions = [Perm.secretsEdit];
+    mount({ fixedProviderId });
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Input tokens")).not.toBeInTheDocument();
+  },
+);
 
 it("edits and restores pricing for an existing subscription model", async () => {
   const user = userEvent.setup();
