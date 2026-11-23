@@ -396,6 +396,49 @@ class TestJudging:
         assert '"value"' not in stored
         assert not [value for value in VALUES if value in stored]
 
+    async def test_a_search_reads_only_the_bound_base_under_a_shared_collection_name(
+        self, db, monkeypatch, searched
+    ) -> None:
+        owner = await _owner(db)
+        dataset = await _dataset(db, owner, INVOICE)
+        stranger = await _member(db, owner.organization_id)
+        bound = KnowledgeBase(
+            organization_id=owner.organization_id,
+            owner_user_id=owner.user_id,
+            name="invoices",
+            scope="org",
+            collection_name=f"kb_shared_{uuid.uuid4().hex[:8]}",
+            embedding_model="text-embedding-3-small",
+            embedding_dim=1536,
+            embedding_provider="openrouter",
+            visibility="org",
+        )
+        hidden = KnowledgeBase(
+            organization_id=owner.organization_id,
+            owner_user_id=stranger.user_id,
+            name="salaries",
+            scope="org",
+            collection_name=bound.collection_name,
+            embedding_model="text-embedding-3-small",
+            embedding_dim=1536,
+            embedding_provider="openrouter",
+            visibility="private",
+        )
+        db.add_all([hidden, bound])
+        await db.flush()
+        agent = await _agent(db, owner, collection_ids=[str(bound.id)])
+        report = await KeyCoverageService(db).start(owner, dataset.id, agent.id)
+        _answer(monkeypatch, JudgedCoverage(keys=[]), await _run(db, owner, agent))
+
+        await KeyCoverageService(db).judge(report.id, owner.organization_id)
+
+        scopes = [call.kwargs["kb_vector_scopes"] for call in searched.await_args_list]
+        assert scopes and all(
+            set(scope) == {bound.collection_name}
+            and scope[bound.collection_name].knowledge_base_id == bound.id
+            for scope in scopes
+        )
+
     async def test_a_refused_model_call_keeps_its_run(self, db, monkeypatch, searched) -> None:
         owner = await _owner(db)
         _, agent, report = await _started(db, owner)

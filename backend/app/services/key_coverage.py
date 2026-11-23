@@ -416,6 +416,8 @@ class KeyCoverageService:
     async def _searched(self, kb: KnowledgeBase, labels: list[str]) -> list[str]:
         """What a search of the knowledge base returns for each label.
 
+        Searched under the base's own scope: a collection name is not unique, and
+        resolved by name alone it could read another base the requester may not.
         A base that cannot be searched - no embedding key, a store that is down -
         is said to be, rather than failing the report: the rest still count.
         """
@@ -425,6 +427,7 @@ class KeyCoverageService:
                 found = await search_knowledge_base(
                     label,
                     kb_collection_names=[kb.collection_name],
+                    kb_vector_scopes={kb.collection_name: kb.vector_scope},
                     organization_id=kb.organization_id,
                     top_k=SEARCH_TOP_K,
                 )
