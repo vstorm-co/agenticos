@@ -5627,18 +5627,41 @@ class TestAPreRegisteredClientIsRefusedBeforeItIsStaged:
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
-    ("supported_methods", "expected_method", "client_secret"),
+    ("supported_methods", "expected_method", "response_metadata", "expected_secret"),
     [
-        pytest.param(["none"], "none", None, id="public-pkce"),
-        pytest.param(["none", "client_secret_post"], "client_secret_post", "secret", id="both"),
-        pytest.param(None, "client_secret_post", "secret", id="unadvertised"),
+        pytest.param(["none"], "none", {}, None, id="public-pkce"),
+        pytest.param(
+            ["none"],
+            "none",
+            {"client_secret": "secret"},
+            None,
+            id="unexpected-public-secret",
+        ),
+        pytest.param(
+            ["none", "client_secret_post"],
+            "client_secret_post",
+            {"token_endpoint_auth_method": "none", "client_secret": "secret"},
+            None,
+            id="registered-as-public",
+        ),
+        pytest.param(
+            ["none", "client_secret_post"],
+            "client_secret_post",
+            {"client_secret": "secret"},
+            "secret",
+            id="both",
+        ),
+        pytest.param(
+            None, "client_secret_post", {"client_secret": "secret"}, "secret", id="unadvertised"
+        ),
     ],
 )
 async def test_dynamic_registration_uses_public_pkce_when_required(
     monkeypatch: pytest.MonkeyPatch,
     supported_methods: list[str] | None,
     expected_method: str,
-    client_secret: str | None,
+    response_metadata: dict[str, str],
+    expected_secret: str | None,
 ) -> None:
     metadata = OAuthMetadata(
         issuer=AnyUrl("https://auth.example.com"),
@@ -5662,16 +5685,14 @@ async def test_dynamic_registration_uses_public_pkce_when_required(
         registration = json.loads(request.content)
         if registration["token_endpoint_auth_method"] != expected_method:
             return httpx2.Response(400, json={"error": "invalid_client_metadata"}, request=request)
-        registered = {**registration, "client_id": "cid"}
-        if client_secret is not None:
-            registered["client_secret"] = client_secret
+        registered = {**registration, "client_id": "cid", **response_metadata}
         return httpx2.Response(201, json=registered, request=request)
 
     monkeypatch.setattr(mcp_oauth, "_send", register)
 
     assert await mcp_oauth.register_client(server, "https://app.example.com/callback") == (
         "cid",
-        client_secret,
+        expected_secret,
     )
 
 

@@ -443,8 +443,8 @@ async def discover(server_url: str) -> DiscoveredServer:
 async def register_client(server: DiscoveredServer, redirect_uri: str) -> tuple[str, str | None]:
     """Dynamically register this app; return `(client_id, client_secret)`.
 
-    A public registration returns a client ID without a secret. The later
-    authorization code exchange still uses PKCE.
+    A public registration uses PKCE and discards any returned secret so the
+    subsequent token requests cannot send it.
     """
     if urlsplit(server.authorization_endpoint).hostname == "accounts.google.com":
         raise OAuthError(
@@ -486,6 +486,8 @@ async def register_client(server: DiscoveredServer, redirect_uri: str) -> tuple[
             ) from exc
     if not info.client_id:
         raise OAuthError("The server did not return a client_id during registration.")
+    if "none" in (metadata.token_endpoint_auth_method, info.token_endpoint_auth_method):
+        return info.client_id, None
     return info.client_id, info.client_secret
 
 
