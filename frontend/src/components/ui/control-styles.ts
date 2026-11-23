@@ -29,9 +29,16 @@ export const MENU_ITEM_FOCUS =
 export const COMMAND_ITEM_FOCUS =
   "aria-selected:bg-foreground/[0.09] aria-selected:text-foreground data-[selected=true]:bg-foreground/[0.09] data-[selected=true]:text-foreground aria-selected:[&_.text-muted-foreground]:text-foreground/80 data-[selected=true]:[&_.text-muted-foreground]:text-foreground/80";
 
-/** Floating surfaces share their appearance across routes, including portals. */
+/**
+ * Floating surfaces share their appearance across routes, including portals.
+ *
+ * They open and close with keyframes. `transition-none` stops the duration below
+ * from also transitioning every property: a panel sized from its trigger gets that
+ * width a frame after it mounts, and would otherwise shrink visibly into place from
+ * the width of the screen.
+ */
 export const FLOATING_PANEL =
-  "panel text-popover-foreground rounded-2xl duration-[var(--duration-panel)] data-[state=closed]:duration-120";
+  "panel text-popover-foreground rounded-2xl transition-none duration-[var(--duration-panel)] data-[state=closed]:duration-120";
 
 /** Geometry and states shared by menu actions, choices and command results. */
 export const MENU_ROW =
