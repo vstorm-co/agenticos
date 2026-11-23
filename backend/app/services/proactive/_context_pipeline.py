@@ -108,7 +108,12 @@ Use kind=routine for the new setup, not attention to a missing resource. Preserv
 known source, day, hour and delivery choices. An actual deletion or dismissal by
 the person still suppresses recreation unless a later human request renews it.
 Existing resources take precedence over creating duplicates. An incomplete list does
-not prove absence. Unknown current state is not a confirmed blocker or failure.
+not prove absence. When an explicit automation request remains open but routine
+coverage is partial, retain a routine proposal to inspect the remaining state and
+configure it only if no match exists. Its detail and chat_prompt must state this
+check, preserve known choices, and ask the agent to fetch the missing page rather
+than asking the person to check it. Never claim a routine is absent or create a
+duplicate from a partial page. Unknown state is not a confirmed blocker or failure.
 
 Kinds: agent for reusable on-demand work, routine for recurring work, task for a
 real owned commitment or useful structured storage, attention for a verified open
@@ -157,7 +162,9 @@ QA, stale/completed/deleted work, duplicates and already dismissed intent. Check
 scope and privacy, known human answers, local timing, required feature availability
 and the exact next action. Do not infer permission to execute. Unknown state permits
 an honest investigative next step only when there is a real personal reason now,
-not an invented failure. An existing on-demand job is not a scheduled one. Reject
+not an invented failure. An explicit unfulfilled automation request supports a
+conditional routine proposal to inspect incomplete routine coverage first, then
+configure only if absent. Preserve that prerequisite; it is not a claim of absence. An existing on-demand job is not a scheduled one. Reject
 invented time, a cadence demanded for an on-demand agent, or any repeated question
 already answered. Never add a new identity. When a grounded useful card merely asks again for an
 already answered choice or phrases an unknown as a fact, repair that card in
