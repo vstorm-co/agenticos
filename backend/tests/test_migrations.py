@@ -2979,6 +2979,36 @@ def test_custom_pricing_upgrade_preserves_existing_profiles_and_downgrades_clean
                 ),
                 {"id": profile_id, "rates": '{"input":"0","output":"2","cache_read":"0"}'},
             )
+            # A valid custom-priced request can exceed the former storage cap.
+            # Check every monetary column that terminal accounting may write.
+            from app.db.base import Base
+
+            monetary = [
+                (table.name, column.name)
+                for table in Base.metadata.sorted_tables
+                for column in table.columns
+                if getattr(column.type, "precision", None) == 38
+            ]
+            for table, column in monetary:
+                precision = db.scalar(
+                    text(
+                        "SELECT numeric_precision FROM information_schema.columns "
+                        "WHERE table_name = :table AND column_name = :column AND table_schema = 'public'"
+                    ),
+                    {"table": table, "column": column},
+                )
+                assert precision == 38, (table, column)
+            db.execute(
+                text("UPDATE organizations SET monthly_budget_usd = 1000000 WHERE id = :id"),
+                {"id": org_id},
+            )
+            assert db.scalar(
+                text("SELECT monthly_budget_usd FROM organizations WHERE id = :id"), {"id": org_id}
+            ) == Decimal("1000000")
+            db.execute(
+                text("UPDATE organizations SET monthly_budget_usd = NULL WHERE id = :id"),
+                {"id": org_id},
+            )
         result = _alembic("downgrade", "0351_merge_context_onboarding")
         assert result.returncode == 0, result.stderr
         with engine.connect() as db:

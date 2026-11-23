@@ -300,6 +300,7 @@ export function AddModel({
   // credential it runs on. Offering the form to them is a 403 dressed as a
   // control.
   const canStoreKey = can(Perm.secretsEdit);
+  const canManagePricing = can(Perm.budgetsManage);
 
   // What somebody picked, which is not the same as what the field shows: a
   // `null` here means nobody has picked yet, and the answer below is what the
@@ -656,7 +657,7 @@ export function AddModel({
             )
           : baseLabel;
       const profile = await createProfile.mutateAsync({
-        ...(customPricing !== null ? { custom_pricing: customPricing } : {}),
+        ...(canManagePricing && customPricing !== null ? { custom_pricing: customPricing } : {}),
         label: label.trim() || automaticLabel,
         provider: provider.id,
         model: model.trim(),
@@ -691,6 +692,22 @@ export function AddModel({
   };
 
   const subscription = subscriptionFromChoice(providerId);
+  const saveSubscriptionPricing = async () => {
+    if (selected === undefined) return;
+    onCreationPendingChange?.(true);
+    setFailure(NO_FAILURE);
+    try {
+      const profile = await updateProfile.mutateAsync({
+        id: selected.id,
+        changes: { custom_pricing: customPricing },
+      });
+      onCreated(profile);
+    } catch (error) {
+      setFailure(submitFailure(error, markable(false), tErrors));
+    } finally {
+      onCreationPendingChange?.(false);
+    }
+  };
   const showProvider = fixedProviderId === undefined || fixedProviderId === "subscription_accounts";
   if (subscription !== undefined)
     return (
@@ -704,8 +721,9 @@ export function AddModel({
         <SubscriptionModelForm
           key={subscription}
           provider={subscription}
+          customPricing={canManagePricing ? customPricing : undefined}
           initialModel={providerId === restoredProvider ? selected?.model : undefined}
-          disabled={disabled}
+          disabled={disabled || !validTokenPricing(customPricing)}
           onCreated={onCreated}
           onPendingChange={onCreationPendingChange}
           providerField={
@@ -723,6 +741,27 @@ export function AddModel({
             )
           }
         />
+        <ModelPricing
+          value={customPricing}
+          automatic={null}
+          disabled={disabled || !canManagePricing}
+          onChange={(value) => {
+            setCustomPricing(value);
+            setFailure(NO_FAILURE);
+          }}
+        />
+        {selected?.provider === "subscription_accounts" && pricingChanged && canManagePricing && (
+          <Button
+            type="button"
+            size="sm"
+            disabled={disabled || !validTokenPricing(customPricing) || updateProfile.isPending}
+            onClick={() => void saveSubscriptionPricing()}
+          >
+            <Save className="h-4 w-4" />
+            {t("updateModel")}
+          </Button>
+        )}
+        {failure.toast !== null && <p className="text-destructive text-xs">{failure.toast}</p>}
       </div>
     );
 
@@ -768,6 +807,7 @@ export function AddModel({
             value={model}
             onChange={(next) => {
               setModel(next);
+              if (next !== model) setCustomPricing(null);
               setFailure(NO_FAILURE);
             }}
             options={suggestions}
@@ -1021,7 +1061,7 @@ export function AddModel({
               ? selected.automatic_pricing
               : null)
           }
-          disabled={disabled}
+          disabled={disabled || !canManagePricing}
           onChange={(value) => {
             setCustomPricing(value);
             setFailure(NO_FAILURE);

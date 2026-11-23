@@ -27,6 +27,7 @@ from app.schemas.personal_model_key import (
     PersonalModelKeyCreate,
     PersonalModelKeyRead,
 )
+from app.schemas.token_pricing import TokenPricing
 from app.services.model_outputs import model_outputs
 
 
@@ -232,6 +233,10 @@ class PersonalModelKeyService:
             credential=ResolvedCredential(
                 provider=profile.provider,
                 secret=secret,
+                profile_id=profile.id,
+                custom_pricing=TokenPricing.model_validate(profile.custom_pricing)
+                if profile.custom_pricing is not None
+                else None,
                 credential_id=row.id,
                 token_source=PersonalCopilotToken(
                     ctx.organization_id, owner, row.id, sealed_fingerprint(row.sealed_secret)

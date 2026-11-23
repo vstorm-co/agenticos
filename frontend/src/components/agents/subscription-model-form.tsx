@@ -30,6 +30,8 @@ import { ProviderRow } from "@/components/vault/provider-row";
 import { useSubscriptionAccounts, useSubscriptionModels } from "@/hooks/use-subscription-accounts";
 import { useModelProviders } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
+import { sameTokenPricing } from "./model-pricing";
+import type { TokenPricing } from "@/types/providers";
 import { runsAgents } from "@/lib/model-profiles";
 import {
   SUBSCRIPTION_MARK,
@@ -51,9 +53,11 @@ export function SubscriptionModelForm({
   onPendingChange,
   libraryPane: LibraryPane,
   providerField,
+  customPricing,
 }: {
   provider: SubscriptionProvider;
   initialModel?: string;
+  customPricing?: TokenPricing | null;
   onCreated: (profile: ModelProfile) => void;
   disabled?: boolean;
   onPendingChange?: (pending: boolean) => void;
@@ -108,15 +112,27 @@ export function SubscriptionModelForm({
         (entry) =>
           entry.provider === "subscription_accounts" &&
           entry.model === selected.model &&
-          runsAgents(entry),
+          runsAgents(entry) &&
+          (customPricing === undefined ||
+            sameTokenPricing(entry.custom_pricing ?? null, customPricing)),
       );
+      const baseLabel = `${accountsCopy(`providers.${provider}`)} · ${selected.model}`.slice(
+        0,
+        128,
+      );
+      let label = baseLabel;
+      for (let index = 2; profiles.some((entry) => entry.label === label); index++) {
+        const suffix = ` (${index})`;
+        label = `${baseLabel.slice(0, 128 - suffix.length)}${suffix}`;
+      }
       const profile =
         existing ??
         (await createProfile.mutateAsync({
           provider: "subscription_accounts",
           model: selected.model,
           secret_id: null,
-          label: `${accountsCopy(`providers.${provider}`)} · ${selected.model}`.slice(0, 128),
+          label,
+          ...(customPricing != null ? { custom_pricing: customPricing } : {}),
         }));
       if (!active.current || !actions.isCurrentScope()) return;
       if (!runsAgents(profile)) {

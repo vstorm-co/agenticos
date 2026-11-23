@@ -362,6 +362,7 @@ class ModelProfileService:
         the platform to fall back on.
 
         Raises:
+            AuthorizationError: If custom prices are supplied without budgets:manage.
             BadRequestError: If the key is not this organization's, is not one the
                 caller can see in the vault, or is for a
                 different provider than the profile claims - a mismatch that
@@ -374,6 +375,11 @@ class ModelProfileService:
                 by this name, so a duplicate is an agent nobody can point at
                 the model they meant.
         """
+        if custom_pricing is not None and not ctx.has(Perm.BUDGETS_MANAGE):
+            raise AuthorizationError(
+                message="Changing model prices requires budgets:manage",
+                details={"permission": Perm.BUDGETS_MANAGE.value},
+            )
         spec = get_provider(provider)
         _validate_model_id(provider, model)
         if base_url is not None:
@@ -549,7 +555,13 @@ class ModelProfileService:
                 not this organization's, not the caller's to see, or for another
                 provider.
             AlreadyExistsError: If the new label is taken.
+            AuthorizationError: If prices are changed or reset without budgets:manage.
         """
+        if "custom_pricing" in changes.model_fields_set and not ctx.has(Perm.BUDGETS_MANAGE):
+            raise AuthorizationError(
+                message="Changing model prices requires budgets:manage",
+                details={"permission": Perm.BUDGETS_MANAGE.value},
+            )
         profile = await self._get_profile(ctx, profile_id)
         spec = get_provider(profile.provider)
         sent = changes.model_fields_set

@@ -30,7 +30,7 @@ from app.core.secret_kinds import NoSecret
 from app.schemas.model_profile import ModelProfileCreate, ModelProfileUpdate
 from app.schemas.token_pricing import TokenPricing
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 RATES = TokenPricing(
     input=Decimal("2"), output=Decimal("8"), cache_read=Decimal("0.5"), cache_write=Decimal("3")
 )
@@ -150,6 +150,21 @@ async def test_streamed_usage_is_priced_before_it_reaches_the_guard():
         await result.get_output()
     assert ledger.total_usd > 0
     assert not ledger.has_unpriced_models
+
+
+async def test_stream_failure_before_admission_does_not_invent_priced_usage(monkeypatch):
+    from unittest.mock import MagicMock
+
+    opening = MagicMock()
+    opening.__aenter__.side_effect = RuntimeError("provider offline")
+    wrapped = FunctionModel(answer)
+    monkeypatch.setattr(wrapped, "request_stream", lambda *args: opening)
+    ledger = SpendLedger()
+    model = ProfilePricingModel(wrapped, RATES, None)
+    with pytest.raises(RuntimeError, match="provider offline"):
+        async with Agent(model, capabilities=[BudgetGuard(ledger=ledger)]).run_stream("hi"):
+            pass
+    assert ledger.entries == []
 
 
 @pytest.mark.parametrize("rates", [RATES, TokenPricing(input=0, output=0)])

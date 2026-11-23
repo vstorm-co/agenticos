@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- Apply `0352_model_profile_pricing.py` before starting the API. Existing profiles retain automatic pricing.
+- Apply `0352_model_profile_pricing.py` and `0353_monetary_cost_capacity.py` before starting the API. Existing profiles retain automatic pricing. Monetary storage retains six fractional places and accepts high custom-priced costs; downgrading requires amounts to fit the former column range. Changing or restoring model prices requires `budgets:manage` as well as connection management.
 
 - Apply `0351_merge_personal_context_and_onboarding.py` to join the personal work index and provider/onboarding migration histories.
 

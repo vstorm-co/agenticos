@@ -140,7 +140,7 @@ class EvalSuite(Base, TimestampMixin):
     # twenty per cent more cost per passed case or p95 latency, and no more.
     max_cost_per_pass_rise: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True)
     max_p95_rise: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True)
-    max_run_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    max_run_usd: Mapped[Decimal | None] = mapped_column(Numeric(38, 6), nullable=True)
     on_publish: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     on_promotion: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     on_dependency_change: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

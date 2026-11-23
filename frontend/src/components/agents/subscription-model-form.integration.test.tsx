@@ -6,6 +6,7 @@ import { ChatModelPane } from "@/components/chat/chat-model-library";
 import { SubscriptionModelForm } from "./subscription-model-form";
 import { apiClient } from "@/lib/api-client";
 import type { SubscriptionAccount } from "@/lib/subscription-accounts-api";
+import type { TokenPricing } from "@/types/providers";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
@@ -46,7 +47,7 @@ const selected = vi.fn();
 const pending = vi.fn();
 const pinned = "account-" + "a".repeat(24) + "/claude-via-google";
 let models = ["claude-via-google"];
-function mount(initialModel?: string, library = false) {
+function mount(initialModel?: string, library = false, customPricing?: TokenPricing) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -56,6 +57,7 @@ function mount(initialModel?: string, library = false) {
         libraryPane={library ? ChatModelPane : undefined}
         provider="antigravity"
         initialModel={initialModel}
+        customPricing={customPricing}
         onCreated={selected}
         onPendingChange={pending}
       />
@@ -130,6 +132,26 @@ it("reuses a saved profile instead of creating duplicates", async () => {
   await choose();
   expect(create).not.toHaveBeenCalled();
   expect(selected).toHaveBeenCalledWith(profiles[0]);
+});
+
+it("creates a separately priced subscription profile instead of reusing automatic prices", async () => {
+  profiles = [
+    {
+      id: "saved",
+      provider: "subscription_accounts",
+      model: pinned,
+      label: `Google Antigravity · ${pinned}`,
+    },
+  ];
+  const rates = { input: "2", output: "5" };
+  mount(undefined, false, rates);
+  await choose();
+  expect(create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      custom_pricing: rates,
+      label: `Google Antigravity · ${pinned} (2)`,
+    }),
+  );
 });
 it("surfaces a failed creation and lets the user retry", async () => {
   create.mockRejectedValueOnce(new Error("refused"));

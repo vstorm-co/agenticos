@@ -163,7 +163,11 @@ async def test_resolution_requires_a_personal_key_and_never_reads_the_shared_sec
 
 @pytest.mark.security
 async def test_resolution_unseals_only_the_callers_key_at_the_fixed_destination() -> None:
+    from app.schemas.token_pricing import TokenPricing
+
     ctx, held = context(), profile()
+    rates = TokenPricing(input="2", output="5")
+    held.custom_pricing = rates.model_dump(mode="json")
     assert ctx.user_id is not None
     sealed = seal_secret(
         ApiKeySecret(api_key="personal-private"), scope=VaultScope.user(ctx.user_id)
@@ -175,6 +179,8 @@ async def test_resolution_unseals_only_the_callers_key_at_the_fixed_destination(
     assert resolved.credential.secret.api_key.get_secret_value() == "personal-private"
     assert resolved.credential.base_url == held.base_url and resolved.model == held.model
     assert resolved.fallbacks == [] and resolved.secret_id is None
+    assert resolved.credential.custom_pricing == rates
+    assert resolved.credential.profile_id == held.id
     assert "personal-private" not in repr(resolved)
     held.fallback_profile_ids = [str(uuid4())]
     with pytest.raises(BadRequestError, match="fallback"):

@@ -191,7 +191,7 @@ class WorkflowVersion(Base, TimestampMixin):
     # `None` means no workflow-level cap, only whatever each `agent.run` node's
     # own pinned agent enforces. Pinned per version like everything else here:
     # republishing to change the cap is the only way to change it.
-    budget_limit: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    budget_limit: Mapped[Decimal | None] = mapped_column(Numeric(38, 6), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("workflow_id", "version", name="uq_workflow_version_number"),

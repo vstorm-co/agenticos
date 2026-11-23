@@ -3082,3 +3082,35 @@ async def test_new_keyless_profiles_persist_custom_prices():
         )
     assert profile.custom_pricing == rates.model_dump(mode="json")
     assert profile.secret_id is None and profile.runs_without_key
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("scoped_key", [False, True])
+async def test_model_prices_require_budget_authority_even_when_connections_are_manageable(
+    scoped_key: bool,
+) -> None:
+    from app.schemas.token_pricing import TokenPricing
+
+    ctx = AuthContext(
+        user_id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        role=OrgRoleName.OWNER if scoped_key else OrgRoleName.BUILDER,
+        key_scopes=frozenset({Perm.CONNECTIONS_MANAGE.value}) if scoped_key else None,
+    )
+    rates = TokenPricing(input="0", output="0")
+    service = ModelProfileService(_db())
+    with pytest.raises(AuthorizationError, match="budgets:manage"):
+        await service.create_profile(
+            ctx,
+            label="Free",
+            provider="ollama",
+            model="alias",
+            secret_id=None,
+            custom_pricing=rates,
+        )
+    for pricing in (rates, None):
+        with pytest.raises(AuthorizationError, match="budgets:manage"):
+            await service.update_profile(
+                ctx, uuid.uuid4(), ModelProfileUpdate(custom_pricing=pricing)
+            )

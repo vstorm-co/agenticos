@@ -1,7 +1,7 @@
 """Bind accounting to the profile that actually answers, before SDK aggregation."""
 
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import ExitStack, asynccontextmanager
 from typing import Any
 from uuid import UUID
 
@@ -61,13 +61,14 @@ class ProfilePricingModel(WrapperModel):
         model_request_parameters: ModelRequestParameters,
         run_context: RunContext[Any] | None = None,
     ) -> AsyncGenerator[StreamedResponse]:
-        async with self.wrapped.request_stream(
-            messages, model_settings, model_request_parameters, run_context
-        ) as stream:
-            try:
+        # Provider wrappers finalize the original bill when their stream closes.
+        # Run our finalizer after theirs, including on interrupted streams.
+        with ExitStack() as finalizers:
+            async with self.wrapped.request_stream(
+                messages, model_settings, model_request_parameters, run_context
+            ) as stream:
+                finalizers.callback(lambda: self.apply(stream.usage))
                 yield stream
-            finally:
-                self.apply(stream.usage)
 
 
 def catalog_token_pricing(provider: str, model: str) -> TokenPricing | None:

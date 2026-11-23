@@ -54,6 +54,7 @@ describe("profile pricing", () => {
     await user.click(screen.getByRole("switch"));
     expect(screen.getByLabelText("Input tokens")).toHaveValue(2);
     expect(screen.getByLabelText("Output tokens")).toHaveValue(8);
+    expect(screen.getByLabelText("Cache read tokens")).toHaveValue(0.5);
   });
 
   it("preserves saved rates and disables every control when editing is unavailable", () => {

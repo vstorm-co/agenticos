@@ -1,5 +1,5 @@
 ---
-source_sha: "c0a7dc426e6a"
+source_sha: "c76dad1d56a6"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -872,6 +872,8 @@ de tokens. Indica entrada y salida en USD por millón de tokens. Las tarifas de
 lectura y escritura de caché son opcionales; si quedan vacías, usan la de entrada.
 Un cero explícito es un precio. La API utiliza `custom_pricing`: omitirlo en una
 actualización conserva el ajuste; enviar `null` restaura el precio automático.
+
+Cambiar o restablecer los precios requiere `budgets:manage`, además de gestionar las conexiones de modelos. Los perfiles de suscripción admiten los mismos precios opcionales por token: miden el consumo del presupuesto, no la cuota de la suscripción. Cuando las tarifas personalizadas sustituyen el coste contable, los importes originales del proveedor permanecen en los metadatos de uso.
 
 Las tarifas propias tienen prioridad sobre el catálogo y la factura del proveedor.
 Se aplican las del perfil que realmente responde, incluidos fallbacks, delegaciones

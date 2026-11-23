@@ -44,8 +44,8 @@ class PhoneEndpoint(Base, TimestampMixin):
     calls_per_hour: Mapped[int] = mapped_column(Integer, nullable=False)
     calls_per_day: Mapped[int] = mapped_column(Integer, nullable=False)
     max_concurrent: Mapped[int] = mapped_column(Integer, nullable=False)
-    daily_budget_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
-    price_per_minute_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    daily_budget_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
+    price_per_minute_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
     transfer_contact_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
 
 
@@ -141,8 +141,8 @@ class PhoneCall(Base, TimestampMixin):
     report_language: Mapped[str] = mapped_column(String(8), nullable=False, default="en-US")
     report: Mapped[str | None] = mapped_column(Text, nullable=True)
     cap_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
-    price_per_minute_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
-    estimated_cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    price_per_minute_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
+    estimated_cost_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
     )

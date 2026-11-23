@@ -232,6 +232,42 @@ async def test_only_convertible_valid_costs_are_treated_as_priced(
     assert _active.get() is None
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize("stream", [False, True])
+async def test_custom_prices_override_accounting_and_preserve_stavs_original_bill(
+    stream: bool,
+) -> None:
+    from app.schemas.token_pricing import TokenPricing
+
+    credential = ResolvedCredential(
+        provider="stav",
+        secret=ApiKeySecret(api_key="sk_stav_test"),
+        api="chat",
+        custom_pricing=TokenPricing(input="2", output="5"),
+    )
+    ledger = SpendLedger()
+    async with httpx2.AsyncClient(
+        transport=httpx2.MockTransport(
+            lambda _: _wire("chat", stream, {"cost": "0.5", "cost_currency": "USD"})
+        )
+    ) as transport:
+        with patch.object(_StavProvider, "_get_http_client", return_value=transport):
+            model = build_model(credential, MODEL)
+        async with Agent(model, capabilities=[BudgetGuard(ledger=ledger)]) as agent:
+            if stream:
+                async with agent.run_stream("hello") as run:
+                    await run.get_output()
+                response = run.all_messages()[-1]
+            else:
+                response = (await agent.run("hello")).response
+    entry = SpendLedger().record(MODEL, response.usage, "stav")
+    assert entry.cost_usd == Decimal("0.000101")
+    assert not entry.provider_reported
+    assert ledger.total_usd == entry.cost_usd
+    assert response.usage.provider_reported_cost["currency"] == "USD"
+    assert response.usage.provider_reported_cost["amount"] == "0.5"
+
+
 @pytest.mark.parametrize("rate", ["0", "-1", "NaN", "Infinity"])
 def test_stav_conversion_rate_must_be_finite_and_positive(rate: str) -> None:
     with pytest.raises(ValidationError):
