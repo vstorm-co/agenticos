@@ -3601,9 +3601,12 @@ def test_personal_work_context_upgrades_a_database_at_the_t3_head() -> None:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
                 "0349_personal_work_context"
             ]
-            assert connection.scalar(
-                text("SELECT count(*) FROM suggestions WHERE id = :id"), {"id": kept}
-            ) == 1
+            assert (
+                connection.scalar(
+                    text("SELECT count(*) FROM suggestions WHERE id = :id"), {"id": kept}
+                )
+                == 1
+            )
             connection.execute(text("SET LOCAL session_replication_role = replica"))
             connection.execute(
                 text(
