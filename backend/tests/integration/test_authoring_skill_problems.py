@@ -5,6 +5,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
+from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
@@ -19,6 +20,7 @@ from app.repositories import authoring_repo, skill_usage_repo
 from app.schemas.authoring import AuthoringStart, IdeaDecision
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_usage import SkillUseRecord
+from app.schemas.token_pricing import TokenPricing
 from app.services.authoring import AuthoringService
 from app.services.skills import SKILL_BODY_CHARS, SkillService
 from tests.integration.test_authoring import (
@@ -420,9 +422,19 @@ async def test_the_estimate_prices_the_skill_bodies_the_improver_will_read(db: A
     await _bound(db, agent, returns)
     service = AuthoringService(db)
 
+    def price_input(
+        usage: RunUsage,
+        _model: str,
+        _provider: str,
+        *,
+        custom_pricing: TokenPricing | None,
+    ) -> Decimal:
+        assert custom_pricing is None
+        return Decimal(usage.input_tokens) / 10_000
+
     with patch(
         "app.services.authoring.price_request",
-        side_effect=lambda usage, *_: usage.input_tokens / 10_000,
+        side_effect=price_input,
     ):
         unused = await service.estimate_agent(ctx, agent.id, AuthoringStart())
         await _used(db, ctx, run, _use(returns, agent))
