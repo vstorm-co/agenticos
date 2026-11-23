@@ -48,6 +48,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 
+SKILL_CHECK_VERDICT_VERSION = 1
+"""Stored verdicts older than this are eligible for the operator rejudge sweep."""
+
 
 class CheckMode(StrEnum):
     """How much of each agent's own questions a check asks."""
@@ -356,6 +359,9 @@ class SkillCheckAgent(Base):
     """Each criterion over the stages' held-out questions taken together: its `scorer`
     and `name`, how many `graded`, passed `before` and `after`, and the flips the
     re-asks confirmed, `fixed` and `broken`. Empty until judged."""
+    verdict_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     families: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
     )

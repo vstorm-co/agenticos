@@ -1737,7 +1737,9 @@ class EvalRunService:
                 total,
                 rerun_ceiling,
                 purpose=plan.purpose,
-                compared=plan.paired or plan.baseline_run_id is not None,
+                compared=plan.paired
+                or plan.baseline_run_id is not None
+                or any(arm.role is ArmRole.BASELINE for arm in plan.arms),
             ),
             agent_remaining_usd=agent_left,
             org_remaining_usd=org_left,
@@ -2428,7 +2430,9 @@ class EvalRunService:
                         run.estimate_usd,
                         run.rerun_ceiling_usd,
                         purpose=EvalRunPurpose(run.purpose),
-                        compared=run.paired or run.baseline_run_id is not None,
+                        compared=run.paired
+                        or run.baseline_run_id is not None
+                        or any(arm.role == ArmRole.BASELINE.value for arm in arms_by_run[run.id]),
                     ),
                     cost_usd=attempt_cost + judge_cost,
                     cost_is_partial=judge_partial or any(a.cost_is_partial for a in attempts),

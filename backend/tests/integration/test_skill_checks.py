@@ -114,6 +114,7 @@ class FakeEvals:
     """The details a refused start carries."""
     refuse_estimate: dict[uuid.UUID, str] = field(default_factory=dict)
     """The reason pricing a dataset's questions is refused with, by the dataset's id."""
+    quoted_checks: list[object] = field(default_factory=list)
     asked: int | None = None
     """How many questions a priced stage asks, when fewer than it names."""
     held_out: int = 5
@@ -125,7 +126,8 @@ class FakeEvals:
     def install(self, monkeypatch: pytest.MonkeyPatch) -> None:
         fake = self
 
-        async def estimate(_self, _ctx, agent_id, request, **_):
+        async def estimate(_self, _ctx, agent_id, request, **kwargs):
+            fake.quoted_checks.append(kwargs.get("proposal_check"))
             if request.dataset_id in fake.refuse_estimate:
                 raise BadRequestError(
                     message="Refused",
@@ -1775,3 +1777,19 @@ class TestASessionsCheckStops:
             assert run is not None
             await db.refresh(run)
             assert run.status == "cancelled"
+
+
+async def test_skill_check_preflight_uses_the_same_measurement_as_its_start(
+    db, monkeypatch
+) -> None:
+    from app.schemas.eval_run import ProposalCheckRecord
+
+    lab = await _lab(db)
+    evals = FakeEvals()
+    evals.install(monkeypatch)
+    await SkillCheckService(db).estimate(lab.ctx, lab.skill.id, _start())
+    assert evals.quoted_checks
+    assert all(
+        isinstance(record, ProposalCheckRecord) and record.kind == "skill"
+        for record in evals.quoted_checks
+    )
