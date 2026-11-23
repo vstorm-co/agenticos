@@ -2399,11 +2399,12 @@ class TestRoomThreadMigration:
             assert "Cannot remove room thread scopes" in refused.stderr
             with engine.begin() as connection:
                 # `0348_approval_expired_notice` validates in an autocommit block, which
-                # commits the room revisions already unwound above it, so the refused
-                # step leaves the database there rather than at head.
-                assert connection.scalars(
-                    text("SELECT version_num FROM alembic_version")
-                ).all() == ["0348_approval_expired_notice"]
+                # commits the revisions already unwound above it, so the refused step
+                # leaves the database there rather than at head. Upstream's
+                # `0343_bundled_context` branch is not yet unwound at that point.
+                assert sorted(
+                    connection.scalars(text("SELECT version_num FROM alembic_version")).all()
+                ) == ["0343_bundled_context", "0348_approval_expired_notice"]
                 assert (
                     connection.scalar(
                         text("SELECT thread_root_message_id FROM messages WHERE id=:id"),
