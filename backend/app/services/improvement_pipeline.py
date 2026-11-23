@@ -3020,6 +3020,7 @@ class ImprovementPipelineService:
         request = self._eval_request(inputs, run)
         scoring = DatasetScoring.model_validate(run.pinned_scoring)
         baseline = AgentSpec.model_validate(inputs.agent.draft_spec)
+        check_record = await self._check_record(ctx, run, iteration, batch, count)
         estimate = await self.evals.estimate(
             ctx,
             run.agent_id,
@@ -3030,6 +3031,7 @@ class ImprovementPipelineService:
             ),
             baseline_spec=baseline,
             scoring=scoring,
+            proposal_check=check_record,
             exclude_conversations=batch.evidence_conversation_ids,
             judge_version_id=run.judge_version_id,
             judge_pinned=True,
@@ -3061,7 +3063,7 @@ class ImprovementPipelineService:
             else EvalSuiteCheck(
                 suite_id=inputs.suite.id, name=inputs.suite.name, threshold=inputs.suite.threshold
             ),
-            proposal_check=await self._check_record(ctx, run, iteration, batch, count),
+            proposal_check=check_record,
         )
         await improvement_repo.update_iteration(
             self.db,
@@ -3781,6 +3783,7 @@ class ImprovementPipelineService:
             exclude_conversations=batch.evidence_conversation_ids,
             judge_version_id=run.judge_version_id,
             judge_pinned=True,
+            proposal_check=await self._check_record(ctx, run, iteration, batch, count),
         )
         total = (quote.total_usd + quote.rerun_ceiling_usd) * (1 + rules.INCONCLUSIVE_RERUNS)
         spent = await improvement_repo.spent(self.db, run.id, organization_id=ctx.organization_id)

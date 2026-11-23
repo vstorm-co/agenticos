@@ -191,7 +191,7 @@ topic's **…** menu, on its row and in the topic itself.
 |---|---|
 | **Add to** *knowledge base* | Adds the title and content to the topic's knowledge base as a Markdown document, through the same path as an upload, and marks the topic **covered** by it. Refused while a detail is still to fill in, or while something may identify a person and you have not confirmed it (see [Personal data](#personal-data)) |
 | **Save** | Keeps the title and content on the topic without adding them anywhere |
-| **Add to dataset** | Turns the topic's most recent questions (up to 200) into cases of a dataset you may change, as one new version. Each case is the person's question, with the agent's answer as the counter-example. A question asked over the HTTP API keeps no answer and is skipped |
+| **Add to dataset** | Turns the topic's most recent questions (up to 200) into cases of a dataset you may change, as one new version. Each case is the person's question, with the agent's answer as the counter-example. A question asked over the HTTP API keeps no answer and is skipped. Hidden when all the topic’s questions come from evals. |
 | **Dismiss** | Marks a topic as needing no content. A dismissed topic keeps the questions that belong to it, so it does not come back as a new topic. **Reopen** reverses it |
 
 A covered topic says which document covers it, keeps the questions that belong

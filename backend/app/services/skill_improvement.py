@@ -1961,6 +1961,14 @@ class SkillImprovementService:
         )
         if iteration is None:
             return False
+        await skill_improvement_repo.get_run(
+            self.db, iteration.run_id, organization_id=organization_id, lock=True
+        )
+        iteration = await skill_improvement_repo.get_iteration_by_id(
+            self.db, iteration_id, organization_id=organization_id
+        )
+        if iteration is None or iteration.ended_at is None:
+            return False
         parts = [
             await skill_improvement_repo.check_cost_parts(
                 self.db, check_id, organization_id=organization_id

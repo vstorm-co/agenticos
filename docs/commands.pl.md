@@ -1,5 +1,5 @@
 ---
-source_sha: "242644bd64d5"
+source_sha: "87d1c88b4414"
 ---
 
 # Polecenia { #commands }
@@ -367,6 +367,9 @@ uv run agenticos cmd audit-skill-bindings
 # tylko odpowiedzi swojego checka. Żaden model nie jest pytany, a rozstrzygnięty
 # check zachowuje decyzję. Bez --check przechodzi wszystkie takie checki i próby;
 # powtórz --check, by wskazać kilka.
+# Korzysta z zapisanej wersji reguły, więc nowe niekompletne wyniki nie są
+# ponownie przeliczane przy każdym uruchomieniu. Przelicza koszty tylko zakończonych
+# prób; brak pierwotnego dostępu zgłasza jako pominięcie, a nie sukces.
 uv run agenticos cmd skill-checks-rejudge
 uv run agenticos cmd skill-checks-rejudge --check <check-id>
 

@@ -1166,15 +1166,18 @@ async def eval_answer_candidates(
 async def eval_answers_kept(
     db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
 ) -> set[UUID]:
-    """The eval answers among these runs that no erasure has cleared since they were read."""
+    """Hold surviving answers through classification writes; case erasure takes the same locks."""
     if not run_ids:
         return set()
     result = await db.execute(
-        select(EvalRunCase.agent_run_id).where(
+        select(EvalRunCase.agent_run_id)
+        .where(
             EvalRunCase.organization_id == organization_id,
             EvalRunCase.agent_run_id.in_(list(run_ids)),
             EvalRunCase.answer.is_not(None),
         )
+        .order_by(EvalRunCase.id)
+        .with_for_update()
     )
     return {run_id for run_id in result.scalars() if run_id is not None}
 
@@ -1336,17 +1339,17 @@ async def record_eval_classifications(
     *,
     organization_id: UUID,
     run_id: UUID,
-) -> int:
+) -> tuple[int, int]:
     """Remember each eval answer as read for one knowledge base, and record its misses there.
 
     As :func:`record_classifications` does for chat answers, by the run that gave
     each. An eval records no searches, so a refusal has none to take out of a topic.
 
     Returns:
-        How many misses were recorded.
+        How many answers were newly classified, and how many misses were recorded.
     """
     if not verdicts:
-        return 0
+        return 0, 0
     statement = pg_insert(KnowledgeGapEvalClassification).values(
         [
             {
@@ -1360,24 +1363,24 @@ async def record_eval_classifications(
             for verdict in verdicts
         ]
     )
-    await db.execute(
-        statement.on_conflict_do_update(
-            index_elements=[
-                KnowledgeGapEvalClassification.run_id,
-                KnowledgeGapEvalClassification.knowledge_base_id,
-            ],
-            set_={
-                "signal": statement.excluded.signal,
-                "reason": statement.excluded.reason,
-                "classifier_run_id": statement.excluded.classifier_run_id,
-                "classified_at": func.now(),
-            },
+    inserted = set(
+        await db.scalars(
+            statement.on_conflict_do_nothing(
+                index_elements=[
+                    KnowledgeGapEvalClassification.run_id,
+                    KnowledgeGapEvalClassification.knowledge_base_id,
+                ],
+            ).returning(KnowledgeGapEvalClassification.run_id)
         )
     )
-    misses = [verdict for verdict in verdicts if verdict.signal is not None]
+    misses = [
+        verdict
+        for verdict in verdicts
+        if verdict.candidate.run_id in inserted and verdict.signal is not None
+    ]
     if not misses:
         await db.flush()
-        return 0
+        return len(inserted), 0
     result = await db.execute(
         pg_insert(KnowledgeSearch)
         .values(
@@ -1408,7 +1411,7 @@ async def record_eval_classifications(
         )
     )
     await db.flush()
-    return result.rowcount or 0  # ty: ignore[missing-attribute]
+    return len(inserted), result.rowcount or 0  # ty: ignore[missing-attribute]
 
 
 async def eval_classifications_of(

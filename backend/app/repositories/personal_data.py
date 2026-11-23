@@ -809,9 +809,10 @@ async def purge_case_copies(db: AsyncSession, revision_ids: list[UUID]) -> int:
     if not revision_ids:
         return 0
     answered = await db.execute(
-        select(EvalRunCase.agent_run_id).where(
-            EvalRunCase.case_revision_id.in_(revision_ids), EvalRunCase.agent_run_id.is_not(None)
-        )
+        select(EvalRunCase.agent_run_id)
+        .where(EvalRunCase.case_revision_id.in_(revision_ids))
+        .order_by(EvalRunCase.id)
+        .with_for_update()
     )
     runs = {run_id for run_id in answered.scalars() if run_id is not None}
     await db.execute(
@@ -821,11 +822,12 @@ async def purge_case_copies(db: AsyncSession, revision_ids: list[UUID]) -> int:
             KnowledgeSearch.signal != GapSignal.RETRIEVAL.value,
         )
     )
-    await db.execute(
-        sa_delete(KnowledgeGapEvalClassification).where(
-            KnowledgeGapEvalClassification.run_id.in_(runs)
-        )
+    classifiers = await db.scalars(
+        sa_delete(KnowledgeGapEvalClassification)
+        .where(KnowledgeGapEvalClassification.run_id.in_(runs))
+        .returning(KnowledgeGapEvalClassification.classifier_run_id)
     )
+    runs.update(classifier for classifier in classifiers if classifier is not None)
     attempts = await db.execute(
         update(EvalRunCase)
         .where(EvalRunCase.case_revision_id.in_(revision_ids))

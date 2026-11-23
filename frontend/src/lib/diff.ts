@@ -271,14 +271,14 @@ const CONTEXT_CHARS = 60;
  * word, after an ellipsis.
  */
 export function leadingContext(text: string): string {
-  if (text.length < CONTEXT_CHARS || /^\s/.test(text)) return text;
+  if (Array.from(text).length < CONTEXT_CHARS || /^\s/.test(text)) return text;
   const at = text.search(/\s/);
   return at === -1 ? `…${text}` : `…${text.slice(at).replace(/^[ \t]+/, "")}`;
 }
 
 /** A passage's trailing context, ending at its last whole word before an ellipsis. */
 export function trailingContext(text: string): string {
-  if (text.length < CONTEXT_CHARS || /\s$/.test(text)) return text;
+  if (Array.from(text).length < CONTEXT_CHARS || /\s$/.test(text)) return text;
   const at = Math.max(text.lastIndexOf(" "), text.lastIndexOf("\n"), text.lastIndexOf("\t"));
   return at === -1 ? `${text}…` : `${text.slice(0, at).replace(/[ \t]+$/, "")}…`;
 }

@@ -356,6 +356,9 @@ uv run agenticos cmd audit-skill-bindings
 # counted only its check's answers. No model is asked, and a decided check keeps its
 # decision. With no --check it sweeps every such check and attempt; repeat --check
 # to name some.
+# Tracks the stored verdict version, so current incomplete results are not swept
+# repeatedly. Only finished attempts are recounted. Missing original access is
+# reported as skipped rather than as a successful rejudgement.
 uv run agenticos cmd skill-checks-rejudge
 uv run agenticos cmd skill-checks-rejudge --check <check-id>
 

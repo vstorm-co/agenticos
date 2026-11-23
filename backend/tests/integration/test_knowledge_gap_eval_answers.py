@@ -124,6 +124,15 @@ async def test_an_answer_cleared_while_the_model_read_it_records_nothing(db) -> 
     agent, asked = await _answered(db, ctx)
     kb = await _knowledge_base(db, ctx)
     classifier = await _classifier_run(db, ctx, agent)
+    from app.db.models.run_manifest import RunManifest
+
+    manifest = RunManifest(
+        run_id=classifier.id,
+        organization_id=ctx.organization_id,
+        payload={"messages": ["erased while classifying"], "tools": []},
+    )
+    db.add(manifest)
+    await db.flush()
 
     async def classify(ctx: AuthContext, **kwargs: object) -> SystemAgentResult[Report]:
         await personal_data_repo.purge_case_copies(db, [asked["silent"].case_revision_id])
@@ -144,6 +153,10 @@ async def test_an_answer_cleared_while_the_model_read_it_records_nothing(db) -> 
     silent = asked["silent"].agent_run_id
     kept = (await db.scalars(select(KnowledgeGapEvalClassification.run_id))).all()
     assert silent not in kept and asked["wrong"].agent_run_id in kept
+
+    await db.refresh(manifest)
+    assert manifest.payload == {"tools": []}
+    assert manifest.truncated
 
 
 async def test_misses_the_classifier_named_alike_form_one_topic_named_for_what_is_missing(
@@ -186,3 +199,130 @@ async def test_misses_the_classifier_named_alike_form_one_topic_named_for_what_i
         ("Question 0", True),
         ("Question 1", True),
     ]
+
+
+@pytest.mark.parametrize("purge_first", [False, True])
+async def test_case_erasure_and_eval_classification_share_answer_locks(
+    db, engine, purge_first
+) -> None:
+    """The lock must also cover a case whose question came through history or a run,
+    with no asked_by_user_id for the classifier to lock."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.repositories import knowledge_gap_repo
+
+    ctx = await _owner(db)
+    _, asked = await _answered(db, ctx)
+    attempt = asked["silent"]
+    run_ids = _runs(asked)
+    revision = attempt.case_revision_id
+    await db.commit()
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    async with sessions() as other:
+        await other.execute(text("SET LOCAL lock_timeout = '100ms'"))
+        if purge_first:
+            await personal_data_repo.purge_case_copies(db, [revision])
+            with pytest.raises(DBAPIError, match="lock timeout"):
+                await knowledge_gap_repo.eval_answers_kept(
+                    other, run_ids, organization_id=ctx.organization_id
+                )
+        else:
+            assert attempt.agent_run_id in await knowledge_gap_repo.eval_answers_kept(
+                db, run_ids, organization_id=ctx.organization_id
+            )
+            with pytest.raises(DBAPIError, match="lock timeout"):
+                await personal_data_repo.purge_case_copies(other, [revision])
+        await other.rollback()
+        await db.commit()
+        await personal_data_repo.purge_case_copies(other, [revision])
+        await other.commit()
+        assert attempt.agent_run_id not in await knowledge_gap_repo.eval_answers_kept(
+            other, run_ids, organization_id=ctx.organization_id
+        )
+
+
+async def test_purging_eval_copies_also_forgets_the_classifiers_manifest(db) -> None:
+    from app.db.models.run_manifest import RunManifest
+
+    ctx = await _owner(db)
+    agent, asked = await _answered(db, ctx)
+    kb = await _knowledge_base(db, ctx)
+    classifier = await _classifier_run(db, ctx, agent)
+    manifest = RunManifest(
+        run_id=classifier.id,
+        organization_id=ctx.organization_id,
+        payload={"messages": ["private question and answer"], "tools": []},
+    )
+    db.add(manifest)
+    await db.flush()
+    with _classifier(classifier):
+        await KnowledgeGapService(db).classify_batch(
+            ctx, kb.id, message_ids=[], eval_run_ids=_runs(asked)
+        )
+    await personal_data_repo.purge_case_copies(db, [asked["silent"].case_revision_id])
+    await db.refresh(manifest)
+    assert manifest.payload == {"tools": []}
+    assert manifest.truncated
+
+
+async def test_competing_eval_verdicts_keep_the_miss_consistent_with_the_winner(db, engine) -> None:
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.db.models.knowledge_gap import GapSignal
+    from app.repositories import knowledge_gap_repo
+    from app.repositories.knowledge_gap import Verdict
+
+    ctx = await _owner(db)
+    agent, asked = await _answered(db, ctx)
+    kb = await _knowledge_base(db, ctx)
+    first = await _classifier_run(db, ctx, agent)
+    second = await _classifier_run(db, ctx, agent)
+    candidates = await knowledge_gap_repo.eval_answer_candidates(
+        db,
+        kb.id,
+        organization_id=ctx.organization_id,
+        run_ids=[asked["silent"].agent_run_id],
+        limit=1,
+    )
+    candidate = candidates[0]
+    await db.commit()
+    gate = asyncio.Barrier(2)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def write(miss: bool, classifier_id: UUID) -> tuple[int, int]:
+        async with sessions() as session:
+            await gate.wait()
+            result = await knowledge_gap_repo.record_eval_classifications(
+                session,
+                [
+                    Verdict(
+                        candidate=candidate,
+                        verdict="answer" if miss else "none",
+                        signal=GapSignal.ANSWER if miss else None,
+                        query="Lead times",
+                    )
+                ],
+                kb.id,
+                organization_id=ctx.organization_id,
+                run_id=classifier_id,
+            )
+            await session.commit()
+            return result
+
+    async with asyncio.timeout(5):
+        results = await asyncio.gather(write(True, first.id), write(False, second.id))
+    assert sum(count for count, _ in results) == 1
+    verdict = await db.scalar(
+        select(KnowledgeGapEvalClassification).where(
+            KnowledgeGapEvalClassification.run_id == candidate.run_id
+        )
+    )
+    assert verdict is not None
+    misses = (
+        await db.scalars(select(KnowledgeSearch).where(KnowledgeSearch.run_id == candidate.run_id))
+    ).all()
+    assert bool(misses) == (verdict.signal == "answer")
