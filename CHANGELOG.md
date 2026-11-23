@@ -40,6 +40,14 @@ Two things are versioned separately from this file and worth knowing about:
 - Release a failed scheduled fire's lease after rollback instead of leaving the
   next occurrence blocked until its lease expires.
 
+
+
+- Drafting a knowledge-gap passage and a workflow's knowledge search now search
+  exactly the knowledge base that was checked. Both looked the base up again by
+  its collection name, which several bases of one organization can share, so
+  they could read passages from a same-named base the person or the run's
+  principal had no access to.
+
 ### Upgrading
 
 - Migration `0351_routine_chat_modes.py` maps primary/specific-chat delivery to
