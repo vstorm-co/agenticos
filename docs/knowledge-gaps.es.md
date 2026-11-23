@@ -1,5 +1,5 @@
 ---
-source_sha: "d4710a3108db"
+source_sha: "1a0321736e6f"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -205,7 +205,7 @@ menú **…** de un tema, en su fila y en el propio tema.
 |---|---|
 | **Añadir a** *base de conocimiento* | Añade el título y el contenido a la base de conocimiento del tema como documento Markdown, por el mismo camino que una subida, y marca el tema como **cubierto** por él. Se deniega mientras quede un dato por completar, o mientras algo pueda identificar a una persona y no lo hayas confirmado (consulta [Datos personales](#personal-data)) |
 | **Guardar** | Guarda el título y el contenido en el tema sin añadirlos a ningún sitio |
-| **Añadir al dataset** | Convierte las preguntas más recientes del tema (hasta 200) en casos de un dataset que puedes cambiar, como una versión nueva. Cada caso es la pregunta de la persona, con la respuesta del agent como contraejemplo. Una pregunta hecha a través de la HTTP API no guarda respuesta y se omite |
+| **Añadir al dataset** | Convierte las preguntas más recientes del tema (hasta 200) en casos de un dataset que puedes cambiar, como una versión nueva. Cada caso es la pregunta de la persona, con la respuesta del agent como contraejemplo. Una pregunta hecha a través de la HTTP API no guarda respuesta y se omite. Se oculta cuando todas las preguntas del tema proceden de evaluaciones. |
 | **Descartar** | Marca un tema como uno que no necesita contenido. Un tema descartado conserva las preguntas que le pertenecen, así que no vuelve como tema nuevo. **Reabrir** lo deshace |
 
 Un tema cubierto dice qué documento lo cubre, conserva las preguntas que le

@@ -1,5 +1,5 @@
 ---
-source_sha: "d4710a3108db"
+source_sha: "1a0321736e6f"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -206,7 +206,7 @@ selbst.
 |---|---|
 | **Zu** *Wissensdatenbank* **hinzufügen** | Fügt Titel und Inhalt der Wissensdatenbank des Themas als Markdown-Dokument hinzu, auf demselben Weg wie ein Upload, und markiert das Thema als davon **abgedeckt**. Wird verweigert, solange eine Angabe noch auszufüllen ist oder solange etwas eine Person identifizieren könnte und du es nicht bestätigt hast (siehe [Personenbezogene Daten](#personal-data)) |
 | **Speichern** | Behält Titel und Inhalt am Thema, ohne sie irgendwo hinzuzufügen |
-| **Zum Dataset hinzufügen** | Wandelt die neuesten Fragen des Themas (bis zu 200) in Fälle eines Datasets um, das du ändern darfst, als eine neue Version. Jeder Fall ist die Frage der Person, mit der Antwort des Agents als Gegenbeispiel. Eine über die HTTP API gestellte Frage hat keine gespeicherte Antwort und wird übersprungen |
+| **Zum Dataset hinzufügen** | Wandelt die neuesten Fragen des Themas (bis zu 200) in Fälle eines Datasets um, das du ändern darfst, als eine neue Version. Jeder Fall ist die Frage der Person, mit der Antwort des Agents als Gegenbeispiel. Eine über die HTTP API gestellte Frage hat keine gespeicherte Antwort und wird übersprungen. Ausgeblendet, wenn alle Fragen des Themas aus Evaluationen stammen. |
 | **Verwerfen** | Markiert ein Thema als eines, das keinen Inhalt braucht. Ein verworfenes Thema behält die Fragen, die zu ihm gehören, und kommt deshalb nicht als neues Thema zurück. **Wieder öffnen** macht das rückgängig |
 
 Ein abgedecktes Thema sagt, welches Dokument es abdeckt, behält wie ein

@@ -220,3 +220,12 @@ describe("the context a passage is shown with", () => {
     expect(trailingContext(`${"w".repeat(59)} `)).toBe(`${"w".repeat(59)} `);
   });
 });
+
+it("does not truncate a complete context merely because emoji use surrogate pairs", () => {
+  const complete = `${"😀".repeat(30)} hello world`;
+  expect(leadingContext(complete)).toBe(complete);
+  expect(trailingContext(complete)).toBe(complete);
+  const truncated = `${"😀".repeat(50)} hello world`;
+  expect(leadingContext(truncated)).toBe("…hello world");
+  expect(trailingContext(truncated)).toBe(`${"😀".repeat(50)} hello…`);
+});

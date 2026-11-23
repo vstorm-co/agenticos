@@ -56,6 +56,7 @@ from app.db.models.dataset import Dataset
 from app.db.models.eval_run import EvalRunPurpose, EvalRunStatus
 from app.db.models.skill import Skill
 from app.db.models.skill_check import (
+    SKILL_CHECK_VERDICT_VERSION,
     AgentState,
     CheckMode,
     CheckOutcome,
@@ -90,6 +91,7 @@ from app.schemas.skill_check import (
     CandidateText,
     CheckStage,
     LineRef,
+    RejudgedChecks,
     SkillCheckAgentRead,
     SkillCheckApplied,
     SkillCheckApply,
@@ -463,6 +465,9 @@ class SkillCheckService:
                         purpose=EvalRunPurpose.GATE,
                         candidate_skills=body,
                         exclude_conversations=exclude_conversations,
+                        proposal_check=ProposalCheckRecord(
+                            kind="skill", base_version=user.agent_version, suggestions=1
+                        ),
                     )
                 except AuthorizationError, NotFoundError:
                     row.unknown = UnknownReason.NO_ACCESS
@@ -966,7 +971,11 @@ class SkillCheckService:
             await skill_check_repo.update_agent(
                 self.db,
                 row=row,
-                values={"state": AgentState.UNKNOWN.value, "unknown_reason": reason.value},
+                values={
+                    "state": AgentState.UNKNOWN.value,
+                    "unknown_reason": reason.value,
+                    "verdict_version": SKILL_CHECK_VERDICT_VERSION,
+                },
             )
             return
         column = "skill_set_run_id" if stage.kind == "skill_set" else "dataset_run_id"
@@ -1127,6 +1136,7 @@ class SkillCheckService:
                 "stages": counted,
                 "criteria": criterion_details(result.check.criteria, {}),
                 "families": family_details(result.check.families, {}),
+                "verdict_version": SKILL_CHECK_VERDICT_VERSION,
             },
         )
 
@@ -1155,7 +1165,11 @@ class SkillCheckService:
         await skill_check_repo.update_agent(
             self.db,
             row=row,
-            values={"state": AgentState.UNKNOWN.value, "unknown_reason": reason.value},
+            values={
+                "state": AgentState.UNKNOWN.value,
+                "unknown_reason": reason.value,
+                "verdict_version": SKILL_CHECK_VERDICT_VERSION,
+            },
         )
 
     async def _settle(self, check: SkillCheck, *, no_readers: bool = False) -> None:
@@ -1291,7 +1305,9 @@ class SkillCheckService:
                 dedupe_key=f"{row.check_id}:{eval_run_id}",
             )
 
-    async def recompute_after_review(self, organization_id: UUID, eval_run_ids: list[UUID]) -> None:
+    async def recompute_after_review(
+        self, organization_id: UUID, eval_run_ids: list[UUID]
+    ) -> RejudgedChecks:
         """Judge again the agents whose stage runs a person's verdict just changed.
 
         Each check is read as the person who started it, never with the reviewer's
@@ -1299,14 +1315,19 @@ class SkillCheckService:
         its decision and shows what its runs now say. A check still running gets its
         verdict when its last agent settles.
         """
+        result = RejudgedChecks()
         rows = await skill_check_repo.agents_for_runs(
             self.db, eval_run_ids, organization_id=organization_id
         )
         for check_id in sorted({row.check_id for row in rows}):
+            affected = [
+                row for row in rows if row.check_id == check_id and _rejudged(row, eval_run_ids)
+            ]
             check = await skill_check_repo.get(
                 self.db, check_id, organization_id=organization_id, lock=True
             )
             if check is None or check.status == CheckStatus.CANCELLED.value:
+                result.skipped += len(affected)
                 continue
             try:
                 ctx = await job_context(
@@ -1318,6 +1339,7 @@ class SkillCheckService:
             except AuthenticationError:
                 ctx = None
             if ctx is None:
+                result.skipped += len(affected)
                 continue
             agents = await skill_check_repo.list_agents(
                 self.db, [check.id], organization_id=organization_id
@@ -1327,7 +1349,9 @@ class SkillCheckService:
                     try:
                         await self._judge(ctx, check, row)
                     except AuthorizationError, NotFoundError:
+                        result.skipped += 1
                         continue
+                    result.judged += 1
             states = [AgentState(row.state) for row in agents]
             if check.status == CheckStatus.RUNNING.value or not all(s.settled for s in states):
                 continue
@@ -1339,6 +1363,8 @@ class SkillCheckService:
                 from app.services.skill_improvement import SkillImprovementService
 
                 await SkillImprovementService(self.db).refresh_check_verdict(check, verdict)
+
+        return result
 
     async def _check(
         self, ctx: AuthContext, skill_id: UUID, check_id: UUID, *, lock: bool = False

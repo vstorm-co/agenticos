@@ -40,10 +40,18 @@ async def _run(check_ids: Sequence[UUID]) -> None:
     async with get_db_context() as db:
         found = await skill_check_repo.judged_before_families(db, check_ids=check_ids)
         attempts = await skill_improvement_repo.checked_iterations(db, check_ids=check_ids)
+    judged = skipped = 0
     for organization_id, check_id, run_ids in found:
         async with get_db_context() as db:
-            await SkillCheckService(db).recompute_after_review(organization_id, run_ids)
-        info(f"Judged check {check_id} again from {len(run_ids)} stage run(s).")
+            result = await SkillCheckService(db).recompute_after_review(organization_id, run_ids)
+        if result.judged:
+            judged += 1
+            info(f"Judged check {check_id} again from {len(run_ids)} stage run(s).")
+        if result.skipped:
+            skipped += result.skipped
+            info(
+                f"Skipped {result.skipped} agent(s) of check {check_id}: original access is unavailable."
+            )
     recounted = 0
     for organization_id, iteration_id in attempts:
         async with get_db_context() as db:
@@ -53,4 +61,6 @@ async def _run(check_ids: Sequence[UUID]) -> None:
     if not found and not recounted:
         info("No finished check or session attempt was counted by an older rule.")
         return
-    success(f"{len(found)} check(s) judged again, {recounted} attempt(s) recounted.")
+    success(
+        f"{judged} check(s) judged again, {recounted} attempt(s) recounted, {skipped} agent(s) skipped."
+    )

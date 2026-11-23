@@ -1,5 +1,5 @@
 ---
-source_sha: "242644bd64d5"
+source_sha: "87d1c88b4414"
 ---
 
 # Comandos { #commands }
@@ -375,6 +375,9 @@ uv run agenticos cmd audit-skill-bindings
 # check. No se pregunta a ningún modelo, y un check decidido conserva su decisión.
 # Sin --check recorre todos esos checks e intentos; repite --check para nombrar
 # algunos.
+# Usa la versión guardada de la regla para no procesar repetidamente resultados
+# actuales incompletos. Solo recalcula intentos terminados; informa los casos
+# sin acceso original como omitidos, no como juzgados correctamente.
 uv run agenticos cmd skill-checks-rejudge
 uv run agenticos cmd skill-checks-rejudge --check <check-id>
 
