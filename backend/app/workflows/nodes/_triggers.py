@@ -38,12 +38,16 @@ class ChatTriggerOutput(_Frozen):
 
 
 class WebhookTriggerConfig(_Frozen):
-    """An optional reusable source; absent, keep this workflow's dedicated webhook."""
+    """A reusable source, or a dedicated webhook when no source is required."""
 
     source_id: UUID | None = Field(
         default=None,
         description="A reusable event source to subscribe to when this workflow is published",
         json_schema_extra={"x-resource": "event-source"},
+    )
+    require_source: bool = Field(
+        default=False,
+        description="A new editor draft awaits selection of a reusable source before publishing",
     )
 
 

@@ -4185,7 +4185,7 @@
         },
         "webhook": {
           "name": "Webhook",
-          "description": "Başka bir sistemden gelen imzalı HTTP isteği run başlatır."
+          "description": "Kimliği doğrulanmış bir olay çalıştırma başlatır. Düzenleyicide bir olay kaynağı seçin veya oluşturun."
         },
         "schedule": {
           "name": "Zamanlama",
@@ -16849,7 +16849,7 @@
     "legacy": "Eski zaman damgalı imza biçimini kullan",
     "standardHelp": "Kimlik, zaman damgası ve gövde üzerinde beş dakikalık zaman toleransı ile simetrik v1 imzaları.",
     "selectSource": "Olay kaynağı",
-    "dedicated": "Ayrı endpoint (mevcut davranış)",
+    "dedicated": "Ayrı uç nokta (eşzamanlı yanıt)",
     "chooseSource": "Mevcut bir kaynak seçin",
     "paused": "Duraklatıldı",
     "active": "Etkin",

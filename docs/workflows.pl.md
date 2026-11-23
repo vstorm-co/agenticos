@@ -1,5 +1,5 @@
 ---
-source_sha: "3377d104d23f"
+source_sha: "0157f8837925"
 ---
 
 # Workflows { #workflows }
@@ -1049,6 +1049,8 @@ uruchamia się dwa razy. Gniazdo ponownie sprawdza sesję i dostęp członka prz
 ramką i każdym odczytem strumienia. Ramki opisuje [HTTP API](api.md#following-a-run-over-a-websocket).
 
 ### Źródła webhooków wielokrotnego użytku { #reusable-webhook-sources }
+
+Nowe kroki **Webhook** w edytorze workflow zaczynają od wyboru lub utworzenia źródła zdarzeń. Przed wybraniem źródła możesz zapisać wersję roboczą i przetestować ją za pomocą wklejonego JSON-a. Publikacja wymaga wybrania źródła lub jawnego wybrania **dedykowanego endpointu**. Wybierz dedykowany endpoint, gdy nadawca potrzebuje odpowiedzi synchronicznej. Istniejące dedykowane kroki zachowują ustawienia i adresy URL.
 
 W wyzwalaczu **Webhook** wybierz istniejące **Źródło zdarzeń** lub utwórz nowe. Publikacja subskrybuje konkretne wejście workflow; kolejne publikacje zachowują subskrypcję, gdy źródło i wejście się nie zmieniają. Poświadczenia pozostają w źródle, poza definicją workflow. Pozostałe rutyny i workflow otrzymują te same uwierzytelnione zdarzenia niezależnie. [Źródła zdarzeń](triggers.md#reusable-event-sources) opisują dostawców, uwierzytelnianie, uprawnienia, pauzowanie i retencję.
 

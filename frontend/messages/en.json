@@ -6483,7 +6483,7 @@
         },
         "webhook": {
           "name": "Webhook",
-          "description": "A signed HTTP delivery from another system starts a run."
+          "description": "An authenticated event starts a run. Select or create an event source in the editor."
         },
         "schedule": {
           "name": "Schedule",
@@ -21338,7 +21338,7 @@
     "legacy": "Use legacy timestamp-signing format",
     "standardHelp": "Symmetric v1 signatures over ID, timestamp and body, with a five-minute timestamp tolerance.",
     "selectSource": "Event source",
-    "dedicated": "Dedicated endpoint (existing behavior)",
+    "dedicated": "Dedicated endpoint (synchronous response)",
     "chooseSource": "Select an existing source",
     "paused": "Paused",
     "active": "Active",

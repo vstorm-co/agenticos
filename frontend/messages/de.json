@@ -8232,7 +8232,7 @@
         },
         "webhook": {
           "name": "Webhook",
-          "description": "Eine signierte HTTP-Zustellung aus einem anderen System startet einen Run."
+          "description": "Ein authentifiziertes Ereignis startet einen Lauf. Wählen Sie im Editor eine Ereignisquelle aus oder erstellen Sie eine."
         },
         "schedule": {
           "name": "Zeitplan",
@@ -21024,7 +21024,7 @@
     "legacy": "Älteres Signaturformat mit Zeitstempel verwenden",
     "standardHelp": "Symmetrische v1-Signaturen über ID, Zeitstempel und Inhalt mit fünf Minuten Zeitstempeltoleranz.",
     "selectSource": "Ereignisquelle",
-    "dedicated": "Eigener Endpoint (bisheriges Verhalten)",
+    "dedicated": "Eigener Endpunkt (synchrone Antwort)",
     "chooseSource": "Vorhandene Quelle auswählen",
     "paused": "Pausiert",
     "active": "Aktiv",

@@ -80,15 +80,22 @@ beforeEach(() => {
   vi.mocked(apiClient.patch).mockResolvedValue(source);
 });
 
-it("binds and detaches a reusable source in the workflow webhook form", async () => {
+it.each([
+  { setup: "existing dedicated", config: {}, selected: /^Dedicated endpoint/ },
+  {
+    setup: "new reusable",
+    config: { require_source: true },
+    selected: /^Select an existing source$/,
+  },
+])("binds and detaches a reusable source from $setup setup", async ({ config, selected }) => {
   const user = userEvent.setup();
   const definition = makeDefinition({ id: "trigger.webhook", category: "triggers" });
   const catalog = makeCatalog([definition]);
   const update = vi.fn();
 
   function WebhookForm() {
-    const [config, setConfig] = useState<Record<string, unknown>>({});
-    const entry = node("webhook", definition.id, config);
+    const [currentConfig, setConfig] = useState<Record<string, unknown>>(config);
+    const entry = node("webhook", definition.id, currentConfig);
     return (
       <NodeForm
         definition={definition}
@@ -114,6 +121,8 @@ it("binds and detaches a reusable source in the workflow webhook form", async ()
   expect(warning).toHaveTextContent(/does not grant access to the source/);
   await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/event-sources"));
   await waitFor(() => expect(picker).toBeEnabled());
+  expect(picker).toHaveTextContent(selected);
+  expect(update).not.toHaveBeenCalled();
   await user.click(picker);
   await user.click(await screen.findByRole("option", { name: "Issues" }));
   expect(update).toHaveBeenLastCalledWith("webhook", { source_id: "s1" });
@@ -123,6 +132,26 @@ it("binds and detaches a reusable source in the workflow webhook form", async ()
   await user.click(screen.getByRole("option", { name: /^Dedicated endpoint/ }));
   expect(update).toHaveBeenLastCalledWith("webhook", { source_id: null });
   expect(screen.queryByDisplayValue(source.webhook_url)).toBeNull();
+});
+
+it("lets an unconfigured webhook explicitly choose a dedicated endpoint even if sources fail to load", async () => {
+  const onChange = vi.fn();
+  vi.mocked(apiClient.get).mockImplementation(async (path) => {
+    if (path === "/event-sources") throw new Error("Sources are unavailable");
+    return { permissions: [{ permission: "event_sources:view", scope: "all" }] };
+  });
+  render(<SourceSelector value={null} onChange={onChange} allowDedicated unconfigured />, {
+    wrapper,
+  });
+  await screen.findByRole("button", { name: "Retry" });
+  const picker = screen.getByRole("combobox", { name: "Event source" });
+  expect(picker).toHaveTextContent("Select an existing source");
+  await userEvent.click(picker);
+  await userEvent.click(
+    screen.getByRole("option", { name: "Dedicated endpoint (synchronous response)" }),
+  );
+  expect(onChange).toHaveBeenCalledOnce();
+  expect(onChange).toHaveBeenCalledWith(null);
 });
 
 describe("event source management", () => {

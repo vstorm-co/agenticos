@@ -1532,11 +1532,20 @@ class WorkflowRegistryService:
         # Take the source lock first, as source mutations and routine bindings do.
         for node in entry_nodes(graph):
             if node.definition_id == WEBHOOK:
-                source_id = WebhookTriggerConfig.model_validate(node.config).source_id
-                if source_id is not None:
+                config = WebhookTriggerConfig.model_validate(node.config)
+                if config.require_source and config.source_id is None:
+                    raise GraphValidationError(
+                        [
+                            (
+                                f"nodes.{node.id}.config.source_id",
+                                "Choose an event source or select Dedicated webhook before publishing",
+                            )
+                        ]
+                    )
+                if config.source_id is not None:
                     from app.services.event_sources import EventSourceService
 
-                    await EventSourceService(self.db).require_use(ctx, source_id, lock=True)
+                    await EventSourceService(self.db).require_use(ctx, config.source_id, lock=True)
         version_number = await workflow_repo.next_version_number(self.db, workflow_id=workflow.id)
         version = await workflow_repo.create_version(
             self.db,

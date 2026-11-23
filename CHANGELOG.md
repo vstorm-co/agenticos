@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Reusable webhook event sources with provider presets, private or organization visibility, vault-backed authentication and independent routine/workflow subscribers. Members who can use a source can inspect its next unfiltered event without a routine or workflow. Attaching it still requires edit and run access to the target. In a workflow editor, pin a captured event or paste example JSON for step tests. Routine template prompts insert selected `{{payload.fields}}`, preview without an agent call and report missing fields before execution. Existing dedicated endpoints and literal prompts retain their behavior.
+- Reusable webhook event sources with provider presets, private or organization visibility, vault-backed authentication and independent routine/workflow subscribers. Members who can use a source can inspect its next unfiltered event without a routine or workflow. Attaching it still requires edit and run access to the target. In a workflow editor, pin a captured event or paste example JSON for step tests. Routine template prompts insert selected `{{payload.fields}}`, preview without an agent call and report missing fields before execution. New workflow webhook steps default to choosing a reusable source; select a dedicated endpoint for synchronous responses. Existing dedicated endpoints and literal prompts retain their behavior.
 
 - Add an instruction-variant search mode to Improve. Try budgeted variants against training questions, keep the strongest candidate and require the existing held-out check and human acceptance before applying it (#3237).
 

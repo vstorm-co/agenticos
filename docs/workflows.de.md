@@ -1,5 +1,5 @@
 ---
-source_sha: "3377d104d23f"
+source_sha: "0157f8837925"
 ---
 
 # Workflows { #workflows }
@@ -1141,6 +1141,8 @@ prüft die Sitzung und den Zugriff des Mitglieds vor jedem Frame und jedem Lesen
 Streams erneut. Die Frames stehen in [Die HTTP-API](api.md#following-a-run-over-a-websocket).
 
 ### Wiederverwendbare Webhook-Quellen { #reusable-webhook-sources }
+
+Neue **Webhook**-Schritte im Workflow-Editor fragen zuerst nach einer vorhandenen oder neuen Ereignisquelle. Sie können den Entwurf speichern und mit eingefügtem JSON testen, auch bevor Sie eine Quelle ausgewählt haben. Zum Veröffentlichen müssen Sie eine Quelle oder ausdrücklich einen **dedizierten Endpunkt** wählen. Verwenden Sie einen dedizierten Endpunkt, wenn der Absender eine synchrone Antwort benötigt. Vorhandene dedizierte Schritte behalten ihre Einstellungen und URLs.
 
 Wählen Sie im **Webhook**-Trigger eine vorhandene **Ereignisquelle** oder erstellen Sie eine. Veröffentlichen abonniert diesen Workflow-Einstieg; bei unveränderter Quelle und unverändertem Einstieg bleibt das Abonnement bestehen. Die Quelle verwahrt Zugangsdaten außerhalb der Workflow-Definition. Andere verbundene Routinen und Workflows empfangen dieselben authentifizierten Ereignisse unabhängig. [Ereignisquellen](triggers.md#reusable-event-sources) erklärt Provider, Authentifizierung, Rechte, Pausen und Aufbewahrung.
 

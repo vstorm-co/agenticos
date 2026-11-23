@@ -3999,7 +3999,7 @@
         },
         "webhook": {
           "name": "Webhook",
-          "description": "Podpisane żądanie HTTP z innego systemu uruchamia run."
+          "description": "Uwierzytelnione zdarzenie uruchamia workflow. Wybierz lub utwórz źródło zdarzeń w edytorze."
         },
         "schedule": {
           "name": "Harmonogram",
@@ -21111,7 +21111,7 @@
     "legacy": "Użyj starszego formatu podpisu ze znacznikiem czasu",
     "standardHelp": "Symetryczne podpisy v1 obejmujące ID, znacznik czasu i treść, z pięciominutową tolerancją czasu.",
     "selectSource": "Źródło zdarzeń",
-    "dedicated": "Dedykowany endpoint (dotychczasowe działanie)",
+    "dedicated": "Dedykowany endpoint (odpowiedź synchroniczna)",
     "chooseSource": "Wybierz istniejące źródło",
     "paused": "Wstrzymane",
     "active": "Aktywne",

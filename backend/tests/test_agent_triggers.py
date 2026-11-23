@@ -5958,7 +5958,7 @@ async def test_routine_source_edit_retires_consent_only_when_the_source_changes(
     assert trigger.approved_sources == (
         prior_review
         if same_source or pending
-        else {"pending_review": True, "unavailable_sources": []}
+        else {"pending_review": True, "mode": "restricted", "unavailable_sources": []}
     )
 
 

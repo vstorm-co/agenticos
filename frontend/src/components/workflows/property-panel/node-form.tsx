@@ -1305,17 +1305,16 @@ function NodeFields({
     removeBinding,
   };
 
-  if (definition.id === "trigger.webhook") {
+  if (definition.id === WEBHOOK_TRIGGER) {
     return (
       <div className="space-y-3">
         <p className="text-muted-foreground text-sm">{t("webhookSourceAudience")}</p>
         <SourceSelector
           value={typeof node.config.source_id === "string" ? node.config.source_id : null}
           allowDedicated
+          unconfigured={node.config.require_source === true}
           disabled={disabled}
-          onChange={(source) =>
-            updateNodeConfig(node.id, { ...node.config, source_id: source?.id ?? null })
-          }
+          onChange={(source) => updateNodeConfig(node.id, { source_id: source?.id ?? null })}
         />
       </div>
     );

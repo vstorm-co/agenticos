@@ -373,6 +373,48 @@ class TestMultipleEntries:
 
 
 class TestPublishingSwitchesItOn:
+    @pytest.mark.parametrize("choice", ["source", "dedicated"])
+    async def test_new_webhook_requires_a_source_or_an_explicit_dedicated_choice(
+        self, db: AsyncSession, tenant: tuple[User, Organization, Workflow], choice: str
+    ) -> None:
+        from app.workflows.graph.errors import GraphValidationError
+
+        owner, org, workflow = tenant
+        ctx = _ctx(owner, org)
+        registry = WorkflowRegistryService(db)
+        graph = _graph("trigger.webhook", {"require_source": True})
+        draft = await registry.update_draft(
+            ctx,
+            workflow.id,
+            WorkflowDraftUpdate(
+                graph=graph.model_dump(mode="json"), expected_revision=workflow.draft_revision
+            ),
+        )
+        with pytest.raises(GraphValidationError, match="Choose an event source"):
+            await registry.publish(
+                ctx, workflow.id, WorkflowPublish(expected_revision=draft.draft_revision)
+            )
+        assert workflow.current_version_id is None
+        assert await WorkflowExposureService(db).list_for_workflow(ctx, workflow.id) == []
+        assert (await registry.check_draft(ctx, workflow.id)).graph_valid
+
+        source_id = None
+        if choice == "source":
+            source = await EventSourceService(db).create(ctx, EventSourceCreate(name="Events"))
+            source_id = source.id
+        edited = graph.model_dump(mode="json")
+        edited["nodes"][0]["config"] = {"source_id": str(source_id) if source_id else None}
+        saved = await registry.update_draft(
+            ctx,
+            workflow.id,
+            WorkflowDraftUpdate(graph=edited, expected_revision=draft.draft_revision),
+        )
+        published = await registry.publish(
+            ctx, workflow.id, WorkflowPublish(expected_revision=saved.draft_revision)
+        )
+        assert published.exposure is not None and published.exposure.source_id == source_id
+        assert (published.webhook_secret is None) is (choice == "source")
+
     @pytest.mark.security
     async def test_editor_can_replace_an_inaccessible_source_only_with_one_they_can_use(
         self, db, tenant

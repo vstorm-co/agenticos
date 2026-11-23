@@ -5,6 +5,7 @@ import { FlaskConical, Pencil, Pin, PinOff, Unplug } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { LiveSample, PasteSample } from "@/components/event-sources/live-sample";
 import {
   Badge,
   Button,
@@ -25,6 +26,7 @@ import {
   withTableDrift,
 } from "@/components/workflows/validation";
 import { useWorkflowRuns, useWorkflowTable } from "@/hooks";
+import type { EventSample } from "@/lib/event-sources-api";
 import {
   MAX_PINNED_BYTES,
   earlierSteps,
@@ -48,7 +50,6 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { ApprovalVerdict } from "./approval-verdict";
 import { DataView, DeclaredOutput } from "./data-view";
 import { StepTestRun } from "./step-test-run";
-import { LiveSample } from "@/components/event-sources/live-sample";
 import { WebhookListener } from "./webhook-listener";
 
 function Pane({
@@ -327,6 +328,12 @@ export function OutputPane({
     else test(sampleRunInput(branch));
   };
   const ask = () => (definition.effect_kind === "write" ? setConfirming(true) : begin());
+  const pinWebhookSample = (delivery: EventSample) => {
+    updateNodeDetails(node.id, {
+      pinned_output: { body: delivery.body, delivery_id: delivery.delivery_id },
+    });
+    toast.success(t("webhookTestCaught"));
+  };
 
   const save = () => {
     let parsed: unknown;
@@ -405,13 +412,10 @@ export function OutputPane({
               <LiveSample
                 key={`${node.id}:${node.config.source_id}`}
                 sourceId={node.config.source_id}
-                onSample={(delivery) => {
-                  updateNodeDetails(node.id, {
-                    pinned_output: { body: delivery.body, delivery_id: delivery.delivery_id },
-                  });
-                  toast.success(t("webhookTestCaught"));
-                }}
+                onSample={pinWebhookSample}
               />
+            ) : node.config.require_source === true ? (
+              <PasteSample onSample={pinWebhookSample} />
             ) : (
               <WebhookListener
                 workflowId={workflowId}

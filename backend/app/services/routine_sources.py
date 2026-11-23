@@ -692,6 +692,7 @@ class RoutineSourceService:
                 source = await EventSourceService(self.db).require_use(ctx, trigger.source_id)
             except NotFoundError:
                 unavailable.add("event source")
+                required_unavailable.add("event source")
             else:
                 resources.add(f"Event source · {source.name} · {source.id}")
                 items.append(

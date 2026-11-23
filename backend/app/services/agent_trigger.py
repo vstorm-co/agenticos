@@ -1451,6 +1451,7 @@ class AgentTriggerService:
                 if not trigger.setup_required:
                     changes["approved_sources"] = {
                         "pending_review": True,
+                        "mode": (trigger.approved_sources or {}).get("mode", "restricted"),
                         "unavailable_sources": [],
                     }
             changes["event_source"] = source.provider

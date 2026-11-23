@@ -23,11 +23,14 @@ export function SourceSelector({
   value,
   onChange,
   allowDedicated = false,
+  unconfigured = false,
   disabled = false,
 }: {
   value: string | null;
   onChange: (source: EventSource | null) => void;
   allowDedicated?: boolean;
+  /** The draft still needs a source choice, rather than already using a dedicated endpoint. */
+  unconfigured?: boolean;
   disabled?: boolean;
 }) {
   const t = useTranslations("eventSources");
@@ -36,49 +39,46 @@ export function SourceSelector({
   const sources = useEventSources(canViewSources);
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<EventSourceCreated | null>(null);
-  const available = canViewSources ? sources.data?.items : undefined;
+  const available = canViewSources && !sources.error ? sources.data?.items : undefined;
   const selected =
     available?.find((source) => source.id === value) ?? (created?.id === value ? created : null);
   return (
     <div className="space-y-3" data-tour="event-source-select">
       <Label htmlFor="event-source-select">{t("selectSource")}</Label>
-      {canViewSources && sources.error ? (
+      {canViewSources && sources.error && (
         <ErrorState
           description={t("loadError")}
           cta={{ label: t("retry"), onClick: () => void sources.refetch() }}
         />
-      ) : (
-        <Select
-          value={value ?? "dedicated"}
-          disabled={disabled || sources.isLoading}
-          onValueChange={(id) => {
-            setCreated(null);
-            onChange(available?.find((source) => source.id === id) ?? null);
-          }}
-        >
-          <SelectTrigger id="event-source-select">
-            <SelectValue placeholder={t("selectSource")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="dedicated" disabled={!allowDedicated}>
-              {allowDedicated ? t("dedicated") : t("chooseSource")}
-            </SelectItem>
-            {value && !selected && !sources.isLoading && (
-              <SelectItem value={value} disabled>
-                {t("sourceUnavailable")}
-              </SelectItem>
-            )}
-            {available
-              ?.filter((source) => source.can_use || source.id === value)
-              .map((source) => (
-                <SelectItem key={source.id} value={source.id} disabled={!source.can_use}>
-                  {source.name}
-                  {!source.is_active ? ` (${t("paused")})` : ""}
-                </SelectItem>
-              ))}
-          </SelectContent>
-        </Select>
       )}
+      <Select
+        value={value ?? (allowDedicated && !unconfigured ? "dedicated" : "")}
+        disabled={disabled || sources.isLoading}
+        onValueChange={(id) => {
+          setCreated(null);
+          onChange(available?.find((source) => source.id === id) ?? null);
+        }}
+      >
+        <SelectTrigger id="event-source-select">
+          <SelectValue placeholder={t("chooseSource")} />
+        </SelectTrigger>
+        <SelectContent>
+          {value && !selected && !sources.isLoading && (
+            <SelectItem value={value} disabled>
+              {t("sourceUnavailable")}
+            </SelectItem>
+          )}
+          {available
+            ?.filter((source) => source.can_use || source.id === value)
+            .map((source) => (
+              <SelectItem key={source.id} value={source.id} disabled={!source.can_use}>
+                {source.name}
+                {!source.is_active ? ` (${t("paused")})` : ""}
+              </SelectItem>
+            ))}
+          {allowDedicated && <SelectItem value="dedicated">{t("dedicated")}</SelectItem>}
+        </SelectContent>
+      </Select>
       {selected && (
         <CopyableValue id="source-live-url" label={t("liveUrl")} value={selected.webhook_url} />
       )}

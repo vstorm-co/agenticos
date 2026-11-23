@@ -32,7 +32,8 @@ vi.mock("./webhook-listener", () => ({
   ),
 }));
 
-vi.mock("@/components/event-sources/live-sample", () => ({
+vi.mock("@/components/event-sources/live-sample", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/event-sources/live-sample")>()),
   LiveSample: ({
     sourceId,
     onSample,
@@ -367,6 +368,29 @@ describe("OutputPane", () => {
     expect(store.getState().graph?.nodes[1]?.pinned_output).toEqual({
       body: { lead: 1 },
       delivery_id: "t-1",
+    });
+  });
+
+  it("allows a pasted sample before a reusable source is chosen without offering a dedicated URL", async () => {
+    const webhook = makeDefinition({
+      id: "trigger.webhook",
+      category: "triggers",
+      ports: [port("out", "output", null)],
+    });
+    seed(line({ config: { require_source: true } }));
+    renderOutput(webhook);
+
+    expect(screen.queryByRole("button", { name: "catch a call" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "capture source" })).toBeNull();
+    await userEvent.click(screen.getByText("Or paste example JSON"));
+    fireEvent.change(screen.getByRole("textbox", { name: "Example JSON object" }), {
+      target: { value: '{"lead": 1}' },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Use example" }));
+
+    expect(store.getState().graph?.nodes[1]?.pinned_output).toEqual({
+      body: { lead: 1 },
+      delivery_id: "example",
     });
   });
 

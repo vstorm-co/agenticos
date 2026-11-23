@@ -291,7 +291,8 @@ async def test_creator_must_be_able_to_use_the_replacement_source_to_review_and_
     await routines.update(editor, seed.agent_id, routine.id, TriggerUpdate(source_id=private.id))
     reviews = RoutineSourceService(db)
     blocked = await reviews.options(creator, routine)
-    assert not blocked.current and blocked.unavailable_sources == ["event source"]
+    assert not blocked.current and blocked.required_unavailable_sources == ["event source"]
+    assert blocked.mode == "follow_agent"
     assert private.name not in blocked.model_dump_json()
     with pytest.raises(ConflictError):
         await reviews.replace(
@@ -341,7 +342,9 @@ async def test_source_delivery_requires_the_same_valid_review_at_receipt_and_dis
     routine = await triggers.create(
         ctx,
         existing.agent_id,
-        TriggerCreate(trigger_type="event", source_id=source.id, prompt="Review"),
+        TriggerCreate(
+            trigger_type="event", source_id=source.id, prompt="Review", source_mode="restricted"
+        ),
     )
     policy_id = read_policy(routine.approved_sources).id
     reviews = RoutineSourceService(db)
