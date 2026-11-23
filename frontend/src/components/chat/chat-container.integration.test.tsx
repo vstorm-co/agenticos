@@ -2023,10 +2023,10 @@ describe("the chat container - a conversation shared with the reader", () => {
     });
     mount();
 
-    expect(
-      await screen.findByRole("button", { name: "Fork into a new conversation" }, SETTLE),
-    ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Earlier plan" })).toBeVisible();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Fork into a new conversation" })).toBeVisible();
+      expect(screen.getByRole("button", { name: "Earlier plan" })).toBeVisible();
+    }, SETTLE);
   });
 });
 
