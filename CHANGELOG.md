@@ -38,7 +38,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
 - Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
 - Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
-- Migration `backend/alembic/versions/0353_case_key_drafts.py` adds `case_key_drafts` and the `extractor` agent kind. A draft nobody uses or dismisses is deleted after 7 days by the daily `expire-case-key-drafts` job. Its downgrade drops the table and turns extractor agents into ordinary ones.
+- Migration `backend/alembic/versions/0354_case_key_drafts.py` adds `case_key_drafts` and the `extractor` agent kind. A draft nobody uses or dismisses is deleted after 7 days by the daily `expire-case-key-drafts` job. Its downgrade drops the table and turns extractor agents into ordinary ones.
 
 ### Added
 
