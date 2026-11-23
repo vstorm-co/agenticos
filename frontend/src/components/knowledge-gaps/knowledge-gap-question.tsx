@@ -26,6 +26,9 @@ export function KnowledgeGapQuestionItem({ question }: { question: KnowledgeGapQ
 
   return (
     <li className="border-border space-y-1.5 rounded-lg border px-3 py-2.5 text-sm">
+      {question.test_question && (
+        <p className="text-muted-foreground text-xs font-medium">{t("testQuestion")}</p>
+      )}
       <p className="text-foreground">{question.question ?? t("noConversation")}</p>
       <p className="text-muted-foreground">
         {question.signal === "answer"

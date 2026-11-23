@@ -78,7 +78,7 @@ not: an answer in which the agent did not know is often rated by nobody. A run
 whose search already missed
 is read too, so that a rightful refusal takes its miss out of the gaps;
 otherwise it is still counted once, as that miss. Runs over the HTTP API keep no answer, and eval
-runs, whose questions are replayed or generated, are never read. Nor are a
+runs, whose questions are replayed or generated, are not read by a check. Nor are a
 builder's tests of a draft, delegated runs, or runs whose starter's account is
 gone.
 
@@ -106,13 +106,20 @@ verdicts: missing knowledge where a knowledge base was missing content, no
 problem to fix where the agent rightly refused, and the agent's fault
 otherwise.
 
-The answers missing knowledge leave what the improver reads, and their misses
-are grouped into topics at once, before the session stops at **Understand** for a
-person to look. The session drafts none of them: it lists the topics missing from
-the knowledge base, and a person drafts the ones they want,
-as [below](#drafting-the-missing-content). Nothing is drafted unless a person
-asks, in a session or out of one. An eval's runs are never read, so no held-out
-case is.
+A session that learns from evals sorts the failed answers to its training
+questions too: the case's question and the answer the eval recorded. Their
+verdicts are kept by the run that answered, since an eval answer has no message.
+One the agent did not know becomes a question in the knowledge base's topics like
+a chat answer's, so a fact no document holds is listed for a person to add rather
+than left to an instruction that cannot supply it. A held-out case is never read.
+
+The chat answers missing knowledge leave what the improver reads. A training
+answer stays in it: it is graded on several criteria, and missing knowledge may
+explain only some of them. The misses are grouped into topics at once, before the
+session stops at **Understand** for a person to look. The session drafts none of
+them: it lists the topics missing from the knowledge base, and a person drafts the
+ones they want, as [below](#drafting-the-missing-content). Nothing is drafted
+unless a person asks, in a session or out of one.
 
 ## Topics { #topics }
 
@@ -122,6 +129,11 @@ with that knowledge base's own embedding model, and puts each in the closest top
 of that knowledge base, or starts a new one. A pass embeds at most 500 misses
 per knowledge base; the rest wait for the next one. A knowledge base with no
 new misses costs no embedding call.
+
+A question read from an answer is grouped instead by what the classifier named
+as missing, in a few words - "Lead times by product" - so different people's
+questions about one subject share a topic, and the topic is named for the
+subject rather than for its first question.
 
 A miss joins the closest topic only when it is at least as similar to it as
 `KNOWLEDGE_GAP_TOPIC_SIMILARITY`; otherwise it starts a new one.
@@ -157,13 +169,17 @@ knowledge base. There is no separate filter by department: a department sees
 the gaps of the knowledge bases shared with it.
 
 A topic shows how many times it was asked and by how many people, when it was
-last asked, which agents asked it, and up to three of its questions. People
+last asked, which agents asked it, and up to three of its questions. Test
+questions an eval answered are counted apart: nobody asked them. People
 who asked through a channel count by their chat account; everybody who asked
 anonymously, through a widget or with no person behind the run, counts as one. Open it to see the most
 recent questions: what the person asked, what the agent searched for, how
 close the closest passage was, and the comment of anyone who rated the answer
-down. A question read from an answer says whether the agent did not know or a
-reader said information was missing.
+down.
+
+A question read from an answer says whether the agent did not know or a
+reader said information was missing; one read from an eval's answer is the
+dataset case's question, marked as a test question.
 
 ## Acting on a gap { #acting-on-a-gap }
 
@@ -302,7 +318,9 @@ document stays when the topic, the person who added it or a person whose
 question shaped it is deleted: a person checked and confirmed what it says.
 
 A question read from an answer is kept the same way as a search: it holds the
-person's question and goes with its run and its conversation. Checking answers
+person's question and goes with its run and its conversation. One read from an
+eval answer holds the case's question, and goes, with its verdict, when the
+case's copies in eval results are erased. Checking answers
 sends questions, answers and thumbs-down comments to the classifier's model
 provider.
 
