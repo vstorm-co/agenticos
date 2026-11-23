@@ -90,6 +90,9 @@ async def test_the_transcript_is_served_with_its_run_and_turns() -> None:
     assert [(item["role"], item["content"]) for item in body["items"]] == [
         ("assistant", "two are open")
     ]
+    # `room_mentions` is a column whose default applies on flush, so this unflushed
+    # row reads None; the schema serves it as an empty list.
+    assert body["items"][0]["room_mentions"] == []
     # The caller and the id reached the service; the route decides nothing itself.
     assert service.get_run_transcript.await_args.args[1] == run.id
     # The default scope is the run's own turns, not the thread.

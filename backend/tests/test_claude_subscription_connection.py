@@ -35,6 +35,22 @@ from app.services.claude_subscription._client import ClaudeRuntimeError
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
+@pytest.mark.parametrize("body", [b"not-json", b"\xff"])
+async def test_unreadable_runtime_error_body_returns_a_safe_application_error(
+    configured,
+    body: bytes,
+) -> None:
+    runtime = ClaudeSubscriptionRuntime(
+        transport=httpx.MockTransport(lambda request: httpx.Response(502, content=body))
+    )
+    with pytest.raises(ExternalServiceError) as refused:
+        await runtime.status(subscription_owner(_ctx()))
+    assert refused.value.code == "CLAUDE_RUNTIME_FAILED"
+    assert refused.value.message == (
+        "The Claude subscription request did not complete; reconnect or try again shortly"
+    )
+
+
 def _ctx():
     return AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
 

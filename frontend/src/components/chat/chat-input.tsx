@@ -16,6 +16,7 @@ import { Send, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 
 import { uploadFile, type FileUploadResponse } from "@/lib/file-api";
+import { CHAT_FILE_ACCEPT } from "@/lib/chat-file-accept";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { createPortal } from "react-dom";
 
@@ -132,9 +133,6 @@ interface Attachment {
  * Archives included (#2479): an agent with a workspace unpacks one into it, and one
  * without says it cannot - the composer does not know which agent will answer.
  */
-const ACCEPTED =
-  "image/jpeg,image/png,image/gif,image/webp,image/tiff,.tiff,.tif,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.toml,.xml,.sql,.sh,.pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.odt,.ods,.odp,.msg,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-outlook,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.spreadsheet,application/vnd.oasis.opendocument.presentation,application/xml,.zip,.tar.gz,.tgz,application/zip,application/x-zip-compressed,application/gzip,application/x-gzip";
-
 interface ChatInputProps {
   /** Focus once the composer becomes writable on entry to the main chat. */
   autoFocus?: boolean;
@@ -246,6 +244,8 @@ interface ChatInputProps {
   onTyping?: () => void;
   /** Whether the box holds words of the person's own, as it changes. */
   onDraftChange?: (drafting: boolean) => void;
+  /** Keeps plain text available if this composer is replaced by a room composer. */
+  onTextDraftChange?: (content: string) => void;
   /**
    * Projects `@` offers beside what the agent reaches, before the first message;
    * picking one starts the chat in it rather than mentioning it.
@@ -304,6 +304,7 @@ export function ChatInput({
   hints = false,
   onTyping,
   onDraftChange,
+  onTextDraftChange,
   projects,
   onPickProject,
 }: ChatInputProps) {
@@ -320,6 +321,7 @@ export function ChatInput({
   const [editing, setEditing] = useState(false);
   const drafting = message.trim().length > 0;
   useEffect(() => onDraftChange?.(drafting), [drafting, onDraftChange]);
+  useEffect(() => onTextDraftChange?.(message), [message, onTextDraftChange]);
   const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([]);
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [isListening, setIsListening] = useState(false);
@@ -485,6 +487,7 @@ export function ChatInput({
 
   const typed = (text: string, at: number) => {
     setMessage(text);
+    onTextDraftChange?.(text);
     setMentionQuery(mentionAt(text, at));
     if (text.trim()) onTyping?.();
   };
@@ -835,7 +838,7 @@ export function ChatInput({
     if (!onPhone && input) {
       // One input, told each time what to offer: a phone's browser opens the
       // camera for `capture` and its photos for `image/*`.
-      input.accept = source === "files" ? ACCEPTED : "image/*";
+      input.accept = source === "files" ? CHAT_FILE_ACCEPT : "image/*";
       if (source === "camera") input.setAttribute("capture", "environment");
       else input.removeAttribute("capture");
       input.click();
@@ -1070,7 +1073,7 @@ export function ChatInput({
           ref={fileInputRef}
           type="file"
           onChange={handleFileSelect}
-          accept={ACCEPTED}
+          accept={CHAT_FILE_ACCEPT}
           multiple
           className="hidden"
         />

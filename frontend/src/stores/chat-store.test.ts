@@ -1147,3 +1147,83 @@ it("retains local live usage instead of replacing it with an earlier saved cost"
   ]);
   expect(store().messages[1]).toMatchObject({ id: "live", usage });
 });
+
+describe("transcript edge cases", () => {
+  it("extends a streamed part that has no content yet", () => {
+    store().addMessage(
+      message({
+        parts: [
+          { id: "t", type: "text" },
+          { id: "r", type: "thinking" },
+        ],
+      }),
+    );
+
+    store().appendThinkingDelta("m-1", "Reasoning.");
+    expect(timeline()).toEqual(["text:undefined", "thinking:Reasoning."]);
+    store().updateMessage("m-1", (msg) => ({ ...msg, parts: [{ id: "t", type: "text" }] }));
+    store().appendTextDelta("m-1", "Answer.");
+
+    expect(timeline()).toEqual(["text:Answer."]);
+  });
+
+  it("drops the row a renamed live bubble replaces", () => {
+    store().addMessage(message({ id: "live", content: "text" }));
+    store().addMessage(message({ id: "saved", content: "text" }));
+
+    store().updateMessage("live", (msg) => ({ ...msg, id: "saved" }));
+
+    expect(store().messages.map((msg) => msg.id)).toEqual(["saved"]);
+  });
+
+  it("drops a stale local row that sits before the persisted ones", () => {
+    store().addMessage(message({ id: "stale", role: "user", content: "gone" }));
+    store().addMessage(message({ id: "saved", content: "kept" }));
+
+    store().rereadMessages([message({ id: "saved", content: "kept" })]);
+
+    expect(store().messages.map((msg) => msg.id)).toEqual(["saved"]);
+  });
+
+  it("aliases a prompt's local answer to the saved reply before the next prompt", () => {
+    store().addMessage(message({ id: "q", role: "user", content: "first" }));
+    store().addMessage(message({ id: "local-a", content: "first answer", isTemporaryId: true }));
+
+    store().rereadMessages([
+      message({ id: "q", role: "user", content: "first" }),
+      message({ id: "a-1", content: "first answer" }),
+      message({ id: "q-2", role: "user", content: "second" }),
+      message({ id: "a-2", content: "second answer" }),
+    ]);
+
+    expect(store().messages.map((msg) => msg.id)).toEqual(["q", "a-1", "q-2", "a-2"]);
+    expect(store().messages[1]?.renderKey).toBe("local-a");
+  });
+
+  describe("a continuation whose saved rows carry no tool calls", () => {
+    const continuation = (overrides: Partial<ChatMessage> = {}) =>
+      message({ id: "resume", runId: "run", isLocalContinuation: true, ...overrides });
+
+    it("matches its text against saved rows without calls", () => {
+      store().addMessage(continuation({ content: "Done." }));
+      store().rereadMessages([message({ id: "saved", runId: "run", content: "Done." })]);
+      expect(store().messages.map((msg) => msg.id)).toEqual(["saved"]);
+    });
+
+    it("keeps a segment with neither text nor calls", () => {
+      store().addMessage(continuation());
+      store().rereadMessages([message({ id: "saved", runId: "run", content: "Done." })]);
+      expect(store().messages.map((msg) => msg.id)).toContain("resume");
+    });
+
+    it("finds its tool call past rows that have none", () => {
+      const call = toolCall({ id: "late-call", status: "completed" });
+      store().addMessage(continuation({ toolCalls: [call] }));
+      store().rereadMessages([
+        message({ id: "plain", runId: "run", content: "Intro" }),
+        message({ id: "with-call", runId: "run", toolCalls: [call] }),
+      ]);
+      expect(store().messages.map((msg) => msg.id)).toEqual(["plain", "with-call"]);
+    });
+  });
+});

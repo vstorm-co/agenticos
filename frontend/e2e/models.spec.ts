@@ -88,7 +88,9 @@ test.describe("Models", () => {
     // The model id is the missing requirement in this test. Supply the seeded
     // provider key first: with multiple keys, the form correctly asks which one
     // pays for the model instead of silently choosing an account.
-    const key = page.locator("#add-model-key");
+    // The control id is scoped to this form's generated field id; address it
+    // by its label so this contract survives harmless field-id changes.
+    const key = page.getByRole("combobox", { name: "Key", exact: true });
     const automaticKey = page.getByText(FAKE_KEY_LABEL, { exact: true });
     await expect(key.or(automaticKey).first()).toBeVisible();
     if (await key.isVisible()) {

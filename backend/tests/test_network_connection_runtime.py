@@ -254,6 +254,7 @@ async def test_login_status_is_sealed_and_never_copied_to_public_metadata(env):
     assert url not in repr(env.row)
 
 
+@pytest.mark.security
 async def test_device_approval_and_key_expiry_clear_the_login_link_without_claiming_readiness(env):
     env.row.login_payload = "old-encrypted-link"
     await env.node.observe(StatusFrame(type="status", backend_state="NeedsMachineAuth"))

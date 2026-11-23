@@ -409,6 +409,10 @@ class TestOrganizationService:
                 "app.repositories.telephony.organization_has_unfinished_calls",
                 new=AsyncMock(return_value=False),
             ),
+            patch(
+                "app.services.organization.NetworkConnectionService.prepare_organization_deletion",
+                new=AsyncMock(),
+            ),
             patch("app.services.organization.organization_repo.delete", new=AsyncMock()),
         ):
             await service.delete(uuid.uuid4(), uuid.uuid4())

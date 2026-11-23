@@ -2,7 +2,7 @@
 
 import asyncio
 import threading
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, ExitStack
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
@@ -27,7 +27,15 @@ def _lock_phase(
     """`_lock_account` patched to hold `user`: what it locks is tested on its own
     in `tests/test_account_delete_lock_order.py`."""
     locked = _LockedAccount(user=cast(User, user), heirs=frozenset(), app_admins=app_admins)
-    return patch.object(service, "_lock_account", new=AsyncMock(return_value=locked))
+    stack = ExitStack()
+    stack.enter_context(patch.object(service, "_lock_account", new=AsyncMock(return_value=locked)))
+    stack.enter_context(
+        patch(
+            "app.services.user.NetworkConnectionService.prepare_user_deletion",
+            new=AsyncMock(),
+        )
+    )
+    return stack
 
 
 class MockUser:

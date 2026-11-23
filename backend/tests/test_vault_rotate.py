@@ -29,6 +29,28 @@ from app.db.models.workflow_exposure import WorkflowExposure
 
 pytestmark = pytest.mark.anyio
 
+
+@pytest.mark.parametrize("label", ["coding_accounts", "personal_model_keys"])
+async def test_personal_account_rotation_preserves_the_users_envelope_scope(
+    monkeypatch: pytest.MonkeyPatch,
+    label: str,
+) -> None:
+    from app.db.models.coding_account import CodingAccount
+    from app.db.models.personal_model_key import PersonalModelKey
+
+    owner = uuid.uuid4()
+    scope = VaultScope.user(owner)
+    monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A, 2: KEY_B})
+    sealed = seal("synthetic-personal-token", scope=scope, key_version=1)
+    row_class = CodingAccount if label == "coding_accounts" else PersonalModelKey
+    row = row_class(id=uuid.uuid4(), user_id=owner, sealed_secret=sealed.ciphertext, key_version=1)
+    report = Report()
+    await _rotate_table(_db_returning([row]), _spec(label), target=2, dry_run=False, report=report)
+    assert report.rotated == 1 and report.failures == []
+    assert row.key_version == 2
+    assert unseal(row.sealed_secret, scope=scope, key_version=2) == "synthetic-personal-token"
+
+
 KEY_A = "vault-master-key-a-" + "a" * 32
 KEY_B = "vault-master-key-b-" + "b" * 32
 
@@ -419,7 +441,9 @@ class TestRun:
             hint="abcd",
             key_version=1,
         )
-        db = _db_returning([secret], *[[] for _ in SEALED_TABLES[1:]], [])
+        # Network connections were added before organization secrets; keep each
+        # fake result aligned with the table sweep order.
+        db = _db_returning([], [secret], *[[] for _ in SEALED_TABLES[2:]], [])
 
         with patch.object(sweep, "get_db_context", self._db_context(db)):
             report = await _run(dry_run=False)

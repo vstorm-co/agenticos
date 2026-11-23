@@ -221,6 +221,7 @@ export function useChat(options: UseChatOptions = {}) {
   // The scope's own stores, for reads made in a callback rather than a render.
   const chatApi = useChatStore.useApi();
   const conversationApi = useConversationStore.useApi();
+  const queryClient = useQueryClient();
   const selectionApi = useAgentSelectionStore.useApi();
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   const scoped = useInChatScope();
@@ -796,6 +797,7 @@ export function useChat(options: UseChatOptions = {}) {
       if (
         wsEvent.type !== "room_message" &&
         wsEvent.type !== "room_request" &&
+        wsEvent.type !== "room_thread" &&
         Object.prototype.hasOwnProperty.call(frame, "thread_root_message_id") &&
         frameConversation ===
           (conversationApi.getState().currentConversationId ?? activeConversationId)
@@ -966,6 +968,8 @@ export function useChat(options: UseChatOptions = {}) {
             sender: ChatPerson;
             reply_to?: WireReply | null;
             agent_id?: string;
+            room_mentions?: { kind: "user" | "agent"; id: string; name: string }[];
+            files?: ChatMessageFile[];
           };
           // Their message is here, so they are no longer writing it.
           setTyping((list) => list.filter((entry) => entry.person.user_id !== data.sender.user_id));
@@ -994,6 +998,8 @@ export function useChat(options: UseChatOptions = {}) {
               isTemporaryId: data.message_id === null,
               renderKey: message.renderKey ?? message.id,
               threadRootMessageId: turnThreadRootRef.current ?? undefined,
+              roomMentions: data.room_mentions ?? undefined,
+              files: data.files ?? message.files,
             }));
             break;
           }
@@ -1006,6 +1012,8 @@ export function useChat(options: UseChatOptions = {}) {
             timestamp: new Date(),
             conversationId: data.conversation_id,
             sender: data.sender,
+            roomMentions: data.room_mentions ?? undefined,
+            files: data.files,
             replyTo: replyFromWire(data.reply_to),
             threadRootMessageId: turnThreadRootRef.current ?? undefined,
           });
@@ -1015,8 +1023,10 @@ export function useChat(options: UseChatOptions = {}) {
         // Who has this conversation open now: its room says so whenever somebody
         // comes or goes.
         case "room_message":
-        case "room_request": {
-          const data = wsEvent.data as { conversation_id: string };
+        case "room_request":
+        case "room_reaction":
+        case "room_thread": {
+          const data = wsEvent.data as { conversation_id: string; message_id?: string | null };
           if (conversationApi.getState().currentConversationId === data.conversation_id) {
             announceRoomChange({
               conversationId: data.conversation_id,
@@ -1024,6 +1034,20 @@ export function useChat(options: UseChatOptions = {}) {
               organizationId: useOrgStore.getState().activeOrgId,
             });
           }
+          break;
+        }
+
+        case "room_participants": {
+          const data = wsEvent.data as { conversation_id: string };
+          if (conversationApi.getState().currentConversationId !== data.conversation_id) break;
+          void queryClient.invalidateQueries({
+            queryKey: qk.roomParticipants.all(
+              useAuthStore.getState().user?.id,
+              tenantId,
+              data.conversation_id,
+            ),
+          });
+          void queryClient.invalidateQueries({ queryKey: qk.conversations.all() });
           break;
         }
 
@@ -1893,6 +1917,7 @@ export function useChat(options: UseChatOptions = {}) {
     [
       chatApi,
       conversationApi,
+      queryClient,
       scoped,
       tenantId,
       // currentMessageId is read via currentMessageIdRef inside the handler,
@@ -2597,8 +2622,11 @@ export function useChat(options: UseChatOptions = {}) {
   }, [activeConversationId, closeBrowserPanel, sendMessage, abandonRunAnswer]);
 
   // The caller's permissions, for the restore effect below: rebuilding the
-  // approval panel reads an endpoint gated on `approvals:decide`, so a caller
-  // without it is not asked to 403 on every reopened conversation.
+  // approval panel reads an endpoint gated on deciding the run, so a caller
+  // without `approvals:decide` at all is not asked to 403 on every reopened
+  // conversation. A member holds the permission at `OWN`, so one reopening
+  // somebody else's run still fetches and is refused - and the failure is
+  // left alone by the effect below, as it always was.
   const { can, isLoaded: permissionsLoaded } = usePermissions();
   const { data: controlOrgs } = useOrganizationList();
   const savedControls = useSavedChatControls(
@@ -2828,6 +2856,7 @@ export function useChat(options: UseChatOptions = {}) {
               account: call.account,
               content_hidden: call.content_hidden,
               always_asks: call.always_asks,
+              can_decide: call.can_decide,
             })),
             reviewConfigs: actionable.map((call) => ({
               tool_name: call.tool_name,
@@ -2846,8 +2875,6 @@ export function useChat(options: UseChatOptions = {}) {
       disposed = true;
     };
   }, [messages, pendingApproval, canDecide, activeConversationId, rememberActionScope]);
-
-  const queryClient = useQueryClient();
 
   /** Record one decision on the `approvals` row it belongs to. */
   const decideApproval = useCallback(
@@ -3029,6 +3056,7 @@ export function useChat(options: UseChatOptions = {}) {
             account: call.account,
             content_hidden: call.content_hidden,
             always_asks: call.always_asks,
+            can_decide: call.can_decide,
           })),
           reviewConfigs: parkedAgain.map((call) => ({
             tool_name: call.tool_name,

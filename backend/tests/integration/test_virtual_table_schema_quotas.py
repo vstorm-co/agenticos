@@ -333,6 +333,7 @@ async def test_a_storage_waiter_does_not_hold_the_table_lock(
                         payload_hash=payload_hash(
                             {"table_id": source.id, **batch.model_dump(mode="json")}
                         ),
+                        table_id=source.id,
                     ),
                     timeout=5,
                 )

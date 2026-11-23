@@ -341,6 +341,7 @@ describe("room lead policy", () => {
       agent("private", { can_run: false }),
       agent("draft", { status: "draft" }),
       agent("desktop", { local_workspace: true }),
+      agent("coding", { local_coding_agent: { harness: "codex", access: "read_only" } }),
       agent("subscription", { personal_coding_harness: "codex" }),
     );
     const { interaction } = await openPanel();
@@ -349,7 +350,7 @@ describe("room lead policy", () => {
     await interaction.click(within(dialog).getByRole("combobox", { name: "Lead agent" }));
     expect(screen.getByRole("option", { name: "Writer" })).toBeVisible();
     expect(screen.getByRole("option", { name: "Analyst" })).toBeVisible();
-    for (const name of ["private", "draft", "desktop", "subscription"])
+    for (const name of ["private", "draft", "desktop", "coding", "subscription"])
       expect(screen.queryByRole("option", { name })).not.toBeInTheDocument();
   });
 

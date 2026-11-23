@@ -379,6 +379,11 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.PERSONAL_CONSENT: Scope.ALL,
         Perm.MCP_PERSONAL_USE: Scope.ALL,
         Perm.MEMBERS_VIEW: Scope.ALL,
+        # Their own runs only: a builder may decide an approval on a run they
+        # started, from a signed-in web/chat session. Cross-person approvals
+        # stay with the privileged deciders - the decide path enforces the
+        # ownership, this entry only lets the caller reach it.
+        Perm.APPROVALS_DECIDE: Scope.OWN,
     },
     # Operator keeps the running system healthy: approves, watches, reruns -
     # but does not build. `connections:view` without `connections:manage` is
@@ -449,6 +454,13 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.NETWORKS_VIEW: Scope.OWN,
         Perm.NETWORKS_MANAGE: Scope.OWN,
         Perm.NETWORKS_USE: Scope.OWN,
+        # Their own runs only, as the builder's: a member may decide an
+        # approval on a run they started, from a signed-in web/chat session.
+        # The default invite role is `member`, so this is the entry that
+        # unblocks the standard new teammate - ask an agent to send an email,
+        # approve it themselves - while cross-person approvals stay
+        # privileged. The decide path enforces the ownership.
+        Perm.APPROVALS_DECIDE: Scope.OWN,
     },
     OrgRoleName.VIEWER: {
         Perm.AGENTS_VIEW: Scope.SHARED,
@@ -475,6 +487,18 @@ def role_has(role: str, permission: Perm) -> bool:
     check.
     """
     return ROLE_PERMS.get(role, {}).get(permission, Scope.NONE) is not Scope.NONE
+
+
+def role_has_at(role: str, permission: Perm, scope: Scope) -> bool:
+    """Whether a role holds a permission at least as widely as `scope`.
+
+    The scope-aware half of :func:`role_has`: a permission a role holds only
+    at `OWN` - `approvals:decide` for a member deciding their own run - is not
+    the authority to decide somebody else's, and a check that cannot tell the
+    two apart widens the narrower one. Workflow approvers, routine consent and
+    the organization waiver switch all read this, not `role_has`.
+    """
+    return ROLE_PERMS.get(role, {}).get(permission, Scope.NONE) >= scope
 
 
 def _reaches(holder: dict[Perm, Scope], offered: dict[Perm, Scope]) -> bool:
@@ -800,3 +824,14 @@ class AuthContext:
         :func:`app.services.access.resolve_access`.
         """
         return self.scope_for(perm) is not Scope.NONE
+
+    def has_at(self, perm: Perm, scope: Scope) -> bool:
+        """Whether the permission is held at least as widely as `scope`.
+
+        The scope-aware half of :meth:`has`: a member holds
+        `approvals:decide` at `OWN` - their own runs only - and a check that
+        cannot tell that from `ALL` would let them decide, stop or waive
+        somebody else's run. Anything that means "may decide anyone's" reads
+        this with `Scope.ALL`.
+        """
+        return self.scope_for(perm) >= scope

@@ -160,7 +160,7 @@ function frame(nth = 0): Record<string, unknown> {
 }
 
 describe("room persistence events", () => {
-  it("announces only the selected room's message and request changes", () => {
+  it("announces only the selected room's message, request, reaction and thread changes", () => {
     useConversationStore.getState().setCurrentConversationId("c-1");
     renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
     const changed = vi.fn();
@@ -169,13 +169,38 @@ describe("room persistence events", () => {
     expect(changed).not.toHaveBeenCalled();
     receive("room_message", { conversation_id: "c-1", message_id: "saved-human" });
     receive("room_request", { conversation_id: "c-1", request_id: "request" });
-    expect(changed).toHaveBeenCalledTimes(2);
+    receive("room_reaction", { conversation_id: "c-1", message_id: "saved-human" });
+    receive("room_thread", { conversation_id: "c-1", thread_root_message_id: "root-1" });
+    expect(changed).toHaveBeenCalledTimes(4);
     expect(changed).toHaveBeenLastCalledWith({
       conversationId: "c-1",
       accountId: undefined,
       organizationId: null,
     });
     unsubscribe();
+  });
+
+  it("refreshes the selected room's participants and conversation list on a membership change", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(qk.organizations.list(), []);
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    renderHook(() => useChat({ conversationId: "c-1" }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    invalidate.mockClear();
+
+    receive("room_participants", { conversation_id: "c-other" });
+    expect(invalidate).not.toHaveBeenCalled();
+
+    receive("room_participants", { conversation_id: "c-1" });
+    const keys = invalidate.mock.calls.map(([filters]) => filters?.queryKey);
+    expect(keys).toContainEqual(qk.conversations.all());
+    expect(
+      keys.some((key) => key?.[0] === "room-participants" && key[3] === "c-1" && key.length === 4),
+    ).toBe(true);
   });
 
   it("reconciles a saved room prompt and streamed answer into one final answer", () => {
@@ -299,6 +324,17 @@ function prepareCompactionChat() {
 }
 
 describe("manual conversation compaction", () => {
+  it("keeps its availability when Strict Mode replays scope effects", async () => {
+    prepareCompactionChat();
+    get.mockResolvedValue({ available: true });
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), {
+      wrapper,
+      reactStrictMode: true,
+    });
+
+    await waitFor(() => expect(result.current.compactionAvailable).toBe(true));
+  });
+
   it("checks availability and correlates progress and terminal results", async () => {
     prepareCompactionChat();
     get.mockResolvedValue({ available: true });
@@ -322,11 +358,39 @@ describe("manual conversation compaction", () => {
     const requestId = request?.request_id as string;
     receive("compaction_started", {
       kind: "compaction_started",
+      request_id: "stale-request",
+      messages_before: 48,
+      messages_after: null,
+    });
+    expect(result.current.compactionProgress).toBeNull();
+    receive("compaction_impossible", {
+      kind: "compaction_impossible",
+      request_id: "stale-request",
+      messages_before: null,
+      messages_after: null,
+      overhead_tokens: 3_843,
+      window_tokens: 5_000,
+    });
+    expect(result.current.compactionProgress).toBeNull();
+    receive("compaction_started", {
+      kind: "compaction_started",
       request_id: requestId,
       messages_before: 48,
       messages_after: null,
     });
     expect(result.current.compactionProgress?.messages_before).toBe(48);
+    receive("compaction_impossible", {
+      kind: "compaction_impossible",
+      request_id: requestId,
+      messages_before: null,
+      messages_after: null,
+      overhead_tokens: 3_843,
+      window_tokens: 5_000,
+    });
+    expect(result.current.compactionProgress).toMatchObject({
+      request_id: requestId,
+      overhead_tokens: 3_843,
+    });
 
     receive("compact_now_result", {
       request_id: "another-request",
@@ -441,6 +505,55 @@ describe("manual conversation compaction", () => {
     expect(
       sent.mock.calls.some(([value]) => (value as Record<string, unknown>).type === "compact_now"),
     ).toBe(false);
+  });
+
+  it("refuses compaction while a tool call is still waiting", async () => {
+    prepareCompactionChat();
+    useChatStore.getState().addMessage({
+      id: "assistant-tool-call",
+      role: "assistant",
+      content: "",
+      timestamp: new Date(),
+      conversationId: "c-1",
+      toolCalls: [
+        { id: "tc-1", name: "send_email", args: {}, status: "awaiting_approval" as const },
+      ],
+    });
+    get.mockResolvedValue({ available: true });
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.compactionAvailable).toBe(true));
+    expect(result.current.compactConversation()).toBe(false);
+    expect(
+      sent.mock.calls.some(([value]) => (value as Record<string, unknown>).type === "compact_now"),
+    ).toBe(false);
+  });
+
+  it("marks availability false when the service cannot be reached", async () => {
+    prepareCompactionChat();
+    get.mockRejectedValue(new Error("offline"));
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+
+    await waitFor(() =>
+      expect(
+        get.mock.calls.some(([url]) =>
+          String(url).includes("/conversations/c-1/compaction-availability"),
+        ),
+      ).toBe(true),
+    );
+    await waitFor(() => expect(result.current.compactionAvailable).toBe(false));
+  });
+
+  it("restores readiness when the compact command cannot be sent", async () => {
+    prepareCompactionChat();
+    get.mockResolvedValue({ available: true });
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.compactionAvailable).toBe(true));
+    sent.mockReturnValueOnce(false);
+    act(() => expect(result.current.compactConversation()).toBe(false));
+    expect(result.current.compactionStatus).toBe("failed");
+    expect(result.current.compactionReady).toBe(true);
   });
 });
 
@@ -5727,6 +5840,8 @@ describe("useChat - adding to a running turn (#2087)", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("draft the report"));
     receive("model_request_start", {});
+
+    act(() => expect(result.current.sendSteerMessage("   ")).toBe(false));
 
     let accepted = false;
     act(() => {

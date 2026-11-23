@@ -8,6 +8,5 @@ export const contentType = "image/png";
 export const dynamic = "force-static";
 
 export default function Icon() {
-  // eslint-disable-next-line @next/next/no-img-element -- ImageResponse renders through Satori; next/image cannot run there, and the src is a data URI.
   return new ImageResponse(<img src={LOGO_DATA_URI} alt="" width={32} height={32} />, { ...size });
 }

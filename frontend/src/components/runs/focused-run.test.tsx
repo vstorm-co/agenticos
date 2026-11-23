@@ -31,7 +31,7 @@ const useRetryRunMock = vi.fn();
 vi.mock("@/hooks", () => ({
   useRun: (runId: string) => useRunMock(runId),
   useDelegatedRuns: () => ({ runs: [], total: 0, isLoading: false }),
-  usePermissions: () => ({ can: () => true, isLoading: false }),
+  usePermissions: () => ({ can: () => true, scopeOf: () => "all" as const, isLoading: false }),
   usePrefetchRuns: (ids: unknown[]) => prefetched(ids),
   useResumeRun: (options?: unknown) => useResumeRunMock(options),
   useRetryRun: (options?: unknown) => useRetryRunMock(options),

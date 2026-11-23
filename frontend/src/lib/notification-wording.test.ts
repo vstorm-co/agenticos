@@ -32,6 +32,9 @@ describe("wordedSummary", () => {
       "Clerk could not finish its answer: Timed out",
     );
     expect(say({ wording: "run_failed", agent_name: "Clerk" })).toBe("Clerk's run failed.");
+    expect(say({ wording: "run_failed", agent_name: "Clerk", error: "Out of budget" })).toBe(
+      "Clerk's run failed: Out of budget",
+    );
   });
 
   it("words a routine held on its budget, named or not", () => {
@@ -94,6 +97,15 @@ describe("wordedSummary", () => {
     expect(
       say({ wording: "conversation_shared", shared_by: "Ann", conversation_title: "Q3" }),
     ).toBe("Ann shared “Q3” with you.");
+  });
+
+  it("words a room mention and a thread reply", () => {
+    expect(say({ wording: "room_mention", sender: "Alex", title: "Design" })).toBe(
+      "Alex mentioned you in Design",
+    );
+    expect(say({ wording: "room_thread_reply", sender: "Alex", title: "Design" })).toBe(
+      "Alex replied in a thread in Design",
+    );
   });
 
   it("words ingestion and syncs", () => {
@@ -230,6 +242,9 @@ describe("wordedSummary", () => {
   });
 
   it("words administration notices, and an action it has no sentence for by its name", () => {
+    expect(say({ wording: "security_event", action: "secret.rotated" })).toBe(
+      "A vault secret was rotated.",
+    );
     expect(say({ wording: "security_event", action: "admin.unknown" })).toBe(
       "A privileged action was recorded: admin.unknown",
     );
@@ -262,6 +277,9 @@ describe("wordedSummary", () => {
 
   it("words a log alert over minutes or hours", () => {
     const alert = { wording: "workflow_log_alert", rule_name: "Errors", workflow_name: "Intake" };
+    expect(say({ ...alert, count: "3", window_minutes: "180" })).toBe(
+      "Errors: 3 occurrences in the log of Intake in the last 3 hours.",
+    );
     expect(say({ ...alert, count: "1", window_minutes: "15" })).toBe(
       "Errors: 1 occurrence in the log of Intake in the last 15 minutes.",
     );
@@ -280,6 +298,8 @@ describe("every sentence", () => {
     { wording: "briefing", count: "1" },
     { wording: "sync_failed", collection_name: "", error: "x" },
     { wording: "conversation_shared", shared_by: "Ann", conversation_title: "Q3" },
+    { wording: "room_mention", sender: "Alex", title: "Design" },
+    { wording: "room_thread_reply", sender: "Alex", title: "Design" },
     { wording: "shared_change_applied", kind: "context", name: "FAQ", agent_name: "Clerk" },
     { wording: "background_task_paused", kind: "k", organization_name: "Acme", reason: "r" },
     {

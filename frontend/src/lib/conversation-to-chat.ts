@@ -6,9 +6,12 @@ import type {
   ChatPerson,
   MessagePart,
   MessageReply,
+  RoomMessageMention,
+  RoomThreadSummary,
   ToolCall,
   TurnFileSource,
 } from "@/types";
+import type { RoomMessageReactionSummary } from "@/types/room-message-reaction";
 
 /**
  * Shape of a persisted message as returned by the backend (MessageRead).
@@ -59,6 +62,10 @@ export interface RawMessage {
   thread_root_message_id?: string | null;
   thread_reply_count?: number;
   thread_last_activity_at?: string | null;
+  thread_summary?: RoomThreadSummary | null;
+  /** Structured room recipients, separate from resource mention parts. */
+  room_mentions?: RoomMessageMention[] | null;
+  reactions?: RoomMessageReactionSummary[] | null;
   id: string;
   conversation_id: string;
   role: "user" | "assistant" | "system";
@@ -261,6 +268,9 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     threadRootMessageId: msg.thread_root_message_id ?? undefined,
     threadReplyCount: msg.thread_reply_count,
     threadLastActivityAt: msg.thread_last_activity_at,
+    threadSummary: msg.thread_summary ?? undefined,
+    roomMentions: msg.room_mentions ?? undefined,
+    reactions: msg.reactions ?? undefined,
     role: msg.role,
     content: msg.content,
     thinking: msg.thinking ?? undefined,

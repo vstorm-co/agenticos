@@ -98,6 +98,20 @@ describe("pageMetadata", () => {
     expect(meta.openGraph?.alternateLocale).toEqual([]);
   });
 
+  it("maps configured alternate locales to their Open Graph tags", () => {
+    const configured = SITE.locales as unknown as string[];
+    const localeTags = OG_LOCALE as unknown as Record<string, string>;
+    configured.push("pl");
+    localeTags.pl = "pl_PL";
+    try {
+      const meta = pageMetadata({ title: "Terms", description: "…", locale: "en" });
+      expect(meta.openGraph?.alternateLocale).toEqual(["pl_PL"]);
+    } finally {
+      configured.pop();
+      delete localeTags.pl;
+    }
+  });
+
   it("falls back to the dynamic OG image, and takes an override", () => {
     expect(pageMetadata({ title: "T", description: "…" }).twitter?.images).toEqual([
       `${siteOrigin()}/opengraph-image`,

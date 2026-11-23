@@ -25,6 +25,7 @@ import type { Project } from "@/types/projects";
 import type { ConversationCost, ConversationMessage } from "@/types";
 import type { ConversationForkRead } from "@/lib/conversation-forks-api";
 import type { ConversationMessageSearchTarget } from "@/lib/conversation-message-search-api";
+import type { RoomParticipantRead } from "@/types/room";
 import { qk } from "@/lib/query-keys";
 import { initialCall } from "@/lib/voice/call-reducer";
 import { useChatControlsStore, currentChatControlScope } from "@/stores/chat-controls-store";
@@ -38,6 +39,7 @@ import {
   useConversationStore,
   useOrgStore,
 } from "@/stores";
+import { TeamRoomComposer } from "./team-room-composer";
 
 /**
  * The chat as a person sees it, across a conversation switch.
@@ -48,15 +50,20 @@ import {
  * asserting on `delegations` proves the state; this proves what the reader gets.
  */
 
-const { get, upload } = vi.hoisted(() => ({
+const { get, upload, routerPush } = vi.hoisted(() => ({
   get: vi.fn(),
   upload: vi.fn(async () => ({ text: "hello" })),
+  routerPush: vi.fn(),
 }));
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get, post: vi.fn(), upload, patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
   ApiError: class extends Error {},
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/lib/locale-navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/locale-navigation")>()),
+  useRouter: () => ({ push: routerPush }),
+}));
 
 /**
  * The recording, as a phase this test sets; and the glow, as attributes. What is
@@ -284,6 +291,7 @@ beforeAll(() => configure({ asyncUtilTimeout: SETTLE.timeout }));
 beforeEach(() => {
   socket.isConnected = true;
   vi.clearAllMocks();
+  vi.mocked(apiClient.post).mockReset();
   // jsdom keeps the address between the tests of a file, and the container opens
   // whatever `?id=` names: a test that created a conversation left `?id=c-new`,
   // and the next one's thread was switched to it before its listing arrived -
@@ -509,6 +517,370 @@ describe("the chat container - project room workspace", () => {
     useConversationStore.getState().setCurrentConversationId(conversation.id);
   }
 
+  function roomAgent(id: string, name: string): RoomParticipantRead {
+    return {
+      kind: "agent",
+      id,
+      name,
+      avatar_url: null,
+      is_member: true,
+      can_add: false,
+      can_mention: true,
+      auto_reply: false,
+    };
+  }
+
+  function mountProjectRoomWithOpenThread(
+    mentionables: RoomParticipantRead[] = [roomAgent("agent-a", "Writer")],
+  ): void {
+    savedProjectRoom(true);
+    const root = {
+      id: "root-a",
+      conversation_id: "c-room",
+      role: "user" as const,
+      content: "Original room topic",
+      created_at: "2026-11-14T00:00:00Z",
+    };
+    loadTranscript([root]);
+    const fallback = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-room/room-mentionables"
+        ? Promise.resolve({
+            items: mentionables,
+          })
+        : url.startsWith("/conversations/c-room/room-threads/root-a?")
+          ? Promise.resolve({ root, items: [], total: 0, can_post: true })
+          : fallback(url),
+    );
+    render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <ChatContainer
+          requestedConversationId="c-room"
+          requestedThreadRootId="root-a"
+          onCloseThread={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("holds an unsent direct draft until the first project room has an id", async () => {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url === "/projects/p-room"
+        ? Promise.resolve({ id: "p-room", name: "Launch", can_use: true })
+        : url === "/conversations/c-room/room-requests"
+          ? Promise.resolve({ items: [], total: 0, can_post: true })
+          : url === "/conversations/c-room/room-mentionables"
+            ? Promise.resolve({ items: [] })
+            : base(url),
+    );
+    const initialContentRef = { current: "An unsent direct question" };
+    const consumeInitialContent = vi.fn(() => {
+      const content = initialContentRef.current;
+      initialContentRef.current = "";
+      return content;
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const roomComposer = (conversationId: string | null) => (
+      <TeamRoomComposer
+        key={conversationId ?? "new-room"}
+        conversationId={conversationId}
+        projectId="p-room"
+        readOnly={false}
+        onTyping={vi.fn()}
+        consumeInitialContent={consumeInitialContent}
+      />
+    );
+    const view = render(
+      <QueryClientProvider client={client}>{roomComposer(null)}</QueryClientProvider>,
+    );
+
+    expect(initialContentRef.current).toBe("An unsent direct question");
+    expect(consumeInitialContent).not.toHaveBeenCalled();
+
+    view.rerender(
+      <QueryClientProvider client={client}>{roomComposer("c-room")}</QueryClientProvider>,
+    );
+    const composer = await screen.findByRole("textbox", { name: "Message to the team" }, SETTLE);
+    expect(composer).toHaveValue("An unsent direct question");
+    expect(initialContentRef.current).toBe("");
+    expect(consumeInitialContent).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the draft when the same conversation becomes a project room", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const base = get.getMockImplementation()!;
+    const conversation = {
+      id: "c-room",
+      title: "Launch room",
+      user_id: SIGNED_IN.id,
+    };
+    const project: Project = {
+      id: "p-room",
+      name: "Launch",
+      description: null,
+      instructions: "",
+      default_agent_id: null,
+      default_agent_name: null,
+      owner_user_id: SIGNED_IN.id,
+      visibility: "private",
+      backend: "state",
+      runtime: null,
+      chat_count: 1,
+      last_active_at: null,
+      shared_groups: [],
+      can_use: true,
+      can_edit: true,
+      created_at: null,
+      updated_at: null,
+    };
+    let isRoom = false;
+    get.mockImplementation((url: string) =>
+      url.startsWith("/conversations?")
+        ? Promise.resolve({
+            items: [isRoom ? { ...conversation, project_id: "p-room" } : conversation],
+            total: 1,
+          })
+        : url === "/projects/p-room"
+          ? Promise.resolve(project)
+          : url === "/conversations/c-room/room-requests"
+            ? Promise.resolve({ items: [], total: 0, can_post: true })
+            : url === "/conversations/c-room/room-mentionables"
+              ? Promise.resolve({ items: [] })
+              : base(url),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-room");
+    mount(undefined, client);
+    const directComposer = await screen.findByRole(
+      "textbox",
+      { name: "Type a message..." },
+      SETTLE,
+    );
+    await userEvent.type(directComposer, "Keep this draft in its converted room");
+
+    isRoom = true;
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: qk.conversations.all() });
+    });
+    const roomComposer = await screen.findByRole(
+      "textbox",
+      { name: "Message to the team" },
+      SETTLE,
+    );
+    expect(roomComposer).toHaveValue("Keep this draft in its converted room");
+  });
+
+  it("hands a new-chat draft to the exact project room created from that selection", async () => {
+    const base = get.getMockImplementation()!;
+    const conversation = {
+      id: "c-room",
+      title: "Launch room",
+      user_id: SIGNED_IN.id,
+      project_id: "p-room",
+    };
+    const project: Project = {
+      id: "p-room",
+      name: "Launch",
+      description: null,
+      instructions: "",
+      default_agent_id: null,
+      default_agent_name: null,
+      owner_user_id: SIGNED_IN.id,
+      visibility: "private",
+      backend: "state",
+      runtime: null,
+      chat_count: 1,
+      last_active_at: null,
+      shared_groups: [],
+      can_use: true,
+      can_edit: true,
+      created_at: null,
+      updated_at: null,
+    };
+    get.mockImplementation((url: string) =>
+      url.startsWith("/conversations?")
+        ? Promise.resolve({ items: [conversation], total: 1 })
+        : url === "/projects/p-room"
+          ? Promise.resolve(project)
+          : url === "/conversations/c-room/room-requests"
+            ? Promise.resolve({ items: [], total: 0, can_post: true })
+            : url === "/conversations/c-room/room-mentionables"
+              ? Promise.resolve({ items: [] })
+              : base(url),
+    );
+    vi.mocked(apiClient.post).mockResolvedValue({
+      id: "c-room",
+      project_id: "p-room",
+    } as never);
+    mount();
+    const directComposer = await screen.findByRole(
+      "textbox",
+      { name: "Type a message..." },
+      SETTLE,
+    );
+    await userEvent.type(directComposer, "Keep this question in the new room");
+
+    act(() => useConversationStore.getState().setPendingProjectId("p-room"));
+    await userEvent.click(await screen.findByRole("button", { name: "New team room" }, SETTLE));
+    await waitFor(
+      () =>
+        expect(apiClient.post).toHaveBeenCalledWith("/conversations", {
+          project_id: "p-room",
+          title: expect.any(String),
+        }),
+      SETTLE,
+    );
+    await waitFor(
+      () => expect(routerPush).toHaveBeenCalledExactlyOnceWith("/chat?id=c-room"),
+      SETTLE,
+    );
+
+    act(() => useConversationStore.getState().setCurrentConversationId("c-room"));
+    const roomComposer = await screen.findByRole(
+      "textbox",
+      { name: "Message to the team" },
+      SETTLE,
+    );
+    expect(roomComposer).toHaveValue("Keep this question in the new room");
+  });
+
+  it("refuses a room-create handoff after the selection generation changes", async () => {
+    const base = get.getMockImplementation()!;
+    const room = {
+      id: "c-room",
+      title: "Launch room",
+      user_id: SIGNED_IN.id,
+      project_id: "p-room",
+    };
+    get.mockImplementation((url: string) =>
+      url.startsWith("/conversations?")
+        ? Promise.resolve({ items: [room], total: 1 })
+        : url === "/projects/p-room"
+          ? Promise.resolve({ id: "p-room", name: "Launch", can_use: true })
+          : url === "/conversations/c-room/room-requests"
+            ? Promise.resolve({ items: [], total: 0, can_post: true })
+            : url === "/conversations/c-room/room-mentionables"
+              ? Promise.resolve({ items: [] })
+              : base(url),
+    );
+    let finishCreation!: (value: { id: string; project_id: string }) => void;
+    const creation = new Promise<{ id: string; project_id: string }>((resolve) => {
+      finishCreation = resolve;
+    });
+    vi.mocked(apiClient.post).mockReturnValueOnce(creation as never);
+    mount();
+    const directComposer = await screen.findByRole(
+      "textbox",
+      { name: "Type a message..." },
+      SETTLE,
+    );
+    await userEvent.type(directComposer, "Draft from the selection that left");
+    act(() => useConversationStore.getState().setPendingProjectId("p-room"));
+    await userEvent.click(await screen.findByRole("button", { name: "New team room" }, SETTLE));
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledTimes(1), SETTLE);
+
+    // The empty chat stays mounted, but this visit to it has been superseded.
+    act(() => useConversationStore.getState().setCurrentConversationId(null));
+    await act(async () => finishCreation({ id: "c-room", project_id: "p-room" }));
+    expect(routerPush).not.toHaveBeenCalled();
+
+    // Even if the created room is opened later, the old generation cannot seed it.
+    act(() => useConversationStore.getState().setCurrentConversationId("c-room"));
+    const roomComposer = await screen.findByRole(
+      "textbox",
+      { name: "Message to the team" },
+      SETTLE,
+    );
+    expect(roomComposer).toHaveValue("");
+  });
+
+  it("does not transfer a private conversation draft into a different project room", async () => {
+    const base = get.getMockImplementation()!;
+    const directConversation = {
+      id: "c-private",
+      title: "Private chat",
+      user_id: SIGNED_IN.id,
+    };
+    const roomConversation = {
+      id: "c-room-b",
+      title: "Launch room",
+      user_id: SIGNED_IN.id,
+      project_id: "p-room",
+    };
+    const project: Project = {
+      id: "p-room",
+      name: "Launch",
+      description: null,
+      instructions: "",
+      default_agent_id: null,
+      default_agent_name: null,
+      owner_user_id: SIGNED_IN.id,
+      visibility: "private",
+      backend: "state",
+      runtime: null,
+      chat_count: 1,
+      last_active_at: null,
+      shared_groups: [],
+      can_use: true,
+      can_edit: true,
+      created_at: null,
+      updated_at: null,
+    };
+    get.mockImplementation((url: string) =>
+      url.startsWith("/conversations?")
+        ? Promise.resolve({ items: [directConversation, roomConversation], total: 2 })
+        : url === "/projects/p-room"
+          ? Promise.resolve(project)
+          : url === "/conversations/c-room-b/room-requests"
+            ? Promise.resolve({ items: [], total: 0, can_post: true })
+            : url === "/conversations/c-room-b/room-mentionables"
+              ? Promise.resolve({ items: [] })
+              : base(url),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-private");
+    mount();
+    const directComposer = await screen.findByRole(
+      "textbox",
+      { name: "Type a message..." },
+      SETTLE,
+    );
+    await userEvent.type(directComposer, "Private draft for A");
+
+    act(() => useConversationStore.getState().setCurrentConversationId("c-room-b"));
+    const roomComposer = await screen.findByRole(
+      "textbox",
+      { name: "Message to the team" },
+      SETTLE,
+    );
+    expect(roomComposer).toHaveValue("");
+  });
+
+  it.each(["account", "organization"] as const)(
+    "resets a new-chat draft when its %s owner changes",
+    async (boundary) => {
+      mount();
+      const before = await screen.findByRole("textbox", { name: "Type a message..." }, SETTLE);
+      await userEvent.type(before, "Only the original identity can see this");
+
+      act(() => {
+        if (boundary === "account") {
+          useAuthStore.setState({
+            user: { ...SIGNED_IN, id: "u-2", email: "other@example.test" } as never,
+            sessionOwnerId: "u-2",
+          });
+        } else {
+          useOrgStore.getState().setActiveOrgId("org-2");
+        }
+      });
+
+      const after = await screen.findByRole("textbox", { name: "Type a message..." }, SETTLE);
+      expect(after).not.toBe(before);
+      expect(messageOf(after)).toBe("");
+    },
+  );
+
   it("keeps tagged replies out of the main view while room metadata and thread authorization are pending", async () => {
     savedProjectRoom(true);
     const root = {
@@ -597,6 +969,113 @@ describe("the chat container - project room workspace", () => {
     expect(screen.getAllByRole("button", { name: "Open thread" })).toHaveLength(1);
     await userEvent.click(jump);
     expect(openThread).toHaveBeenCalledWith("root-b");
+  });
+
+  it("keeps the main and thread mention listboxes and active options uniquely addressable", async () => {
+    mountProjectRoomWithOpenThread();
+    const mainComposer = await screen.findByRole(
+      "textbox",
+      { name: "Message to the team" },
+      SETTLE,
+    );
+    const panel = await screen.findByRole("complementary", { name: "Thread" }, SETTLE);
+    const threadComposer = await within(panel).findByRole(
+      "textbox",
+      { name: "Reply to thread" },
+      SETTLE,
+    );
+
+    await userEvent.type(mainComposer, "@Wri");
+    await userEvent.type(threadComposer, "@Wri");
+
+    const options = await screen.findAllByRole("option", undefined, SETTLE);
+    expect(options).toHaveLength(2);
+    const listboxIds = [
+      mainComposer.getAttribute("aria-controls"),
+      threadComposer.getAttribute("aria-controls"),
+    ];
+    const controls = listboxIds.filter((id): id is string => id !== null);
+    expect(controls).toHaveLength(2);
+    expect(new Set(controls).size).toBe(2);
+    const listboxes = screen.getAllByRole("listbox");
+    expect(listboxes).toHaveLength(2);
+    expect(new Set(listboxes.map((listbox) => listbox.id))).toEqual(new Set(controls));
+
+    const activeOptionIds = [
+      mainComposer.getAttribute("aria-activedescendant"),
+      threadComposer.getAttribute("aria-activedescendant"),
+    ];
+    const activeOptions = activeOptionIds.filter((id): id is string => id !== null);
+    expect(activeOptions).toHaveLength(2);
+    expect(new Set(activeOptions).size).toBe(2);
+    expect(activeOptions.every((id) => options.some((option) => option.id === id))).toBe(true);
+  });
+
+  it("resets keyboard mention selection when a query cycles through a different match set", async () => {
+    mountProjectRoomWithOpenThread([
+      roomAgent("agent-writer", "Writer"),
+      roomAgent("agent-willow", "Willow"),
+      roomAgent("agent-warden", "Warden"),
+    ]);
+    const composer = await screen.findByRole("textbox", { name: "Message to the team" }, SETTLE);
+    await userEvent.type(composer, "@W");
+    const listbox = await screen.findByRole("listbox", undefined, SETTLE);
+    expect(composer).toHaveAttribute("aria-activedescendant", `${listbox.id}-0`);
+
+    await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+    expect(composer).toHaveAttribute("aria-activedescendant", `${listbox.id}-2`);
+
+    await userEvent.clear(composer);
+    await userEvent.type(composer, "@Wi");
+    expect(composer).toHaveAttribute("aria-activedescendant", `${listbox.id}-0`);
+
+    await userEvent.clear(composer);
+    await userEvent.type(composer, "@W");
+    expect(composer).toHaveAttribute("aria-activedescendant", `${listbox.id}-0`);
+  });
+
+  it("closes the mention palette after an accepted post and keeps unpicked text literal", async () => {
+    mountProjectRoomWithOpenThread();
+    const submitRoomPost = vi
+      .fn<(input: unknown) => Promise<unknown>>()
+      .mockRejectedValueOnce(new TypeError("Network lost"))
+      .mockResolvedValueOnce({
+        message: {
+          id: "saved-room-message",
+          conversation_id: "c-room",
+          role: "user",
+          content: "@Wri",
+          created_at: "2026-11-14T00:00:00Z",
+        },
+        request: null,
+      } as never);
+    vi.mocked(apiClient.post).mockImplementation(async (path, input) =>
+      path === "/conversations/c-room/room-messages" ? submitRoomPost(input) : {},
+    );
+    const composer = await screen.findByRole("textbox", { name: "Message to the team" }, SETTLE);
+    await userEvent.type(composer, "@Wri");
+    expect(await screen.findByRole("listbox", undefined, SETTLE)).toBeVisible();
+
+    const form = composer.closest("form")!;
+    fireEvent.submit(form);
+    await waitFor(
+      () => expect(within(form).getByRole("button", { name: /retry/i })).toBeEnabled(),
+      SETTLE,
+    );
+    expect(composer).toHaveValue("@Wri");
+    expect(screen.getByRole("listbox")).toBeVisible();
+    const frozen = submitRoomPost.mock.calls[0]![0];
+
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(submitRoomPost).toHaveBeenCalledTimes(2), SETTLE);
+    expect(submitRoomPost.mock.calls[1]![0]).toEqual(frozen);
+    await waitFor(() => expect(composer).toHaveValue(""), SETTLE);
+    await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull(), SETTLE);
+    expect(submitRoomPost).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ content: "@Wri", mentions: [] }),
+    );
   });
 
   it("opens retained thread history read-only after its project is detached", async () => {
@@ -709,7 +1188,7 @@ describe("the chat container - project room workspace", () => {
       ]) {
         await userEvent.click(screen.getByRole("button", { name: opener }));
         const guidance = canPost
-          ? "Choose a responder in the room composer and ask them to open the browser or computer."
+          ? "Mention the agent you want in the room composer and ask them to open the browser or computer."
           : "You can view this conversation, but cannot start a session here.";
         expect(screen.getByText(guidance)).toBeVisible();
         if (canPost) {
@@ -728,7 +1207,7 @@ describe("the chat container - project room workspace", () => {
         screen.queryByText(
           canPost
             ? "You can view this conversation, but cannot start a session here."
-            : "Choose a responder in the room composer and ask them to open the browser or computer.",
+            : "Mention the agent you want in the room composer and ask them to open the browser or computer.",
         ),
       ).toBeNull();
       await userEvent.click(screen.getByRole("button", { name: "Close workspace panel" }));
@@ -3298,7 +3777,31 @@ it("keeps the same composer when the first turn learns its new conversation id",
   );
   mount();
   const composer = await screen.findByRole("textbox");
+  await userEvent.type(composer, "A follow-up typed before the id arrives");
   receive("conversation_created", { conversation_id: "c-created" });
   expect(screen.queryByText("Checking conversation access…")).toBeNull();
   expect(screen.getByRole("textbox")).toBe(composer);
+  expect(messageOf(composer)).toBe("A follow-up typed before the id arrives");
+});
+
+it("starts with an empty composer after leaving a first-created chat for New chat", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  mount(undefined, client);
+  const conversations = renderHook(() => useConversations(), { wrapper });
+  const composer = await screen.findByRole("textbox");
+  receive("conversation_created", { conversation_id: "c-created" });
+  expect(screen.getByRole("textbox")).toBe(composer);
+  await userEvent.type(composer, "Unsaved text in the created chat");
+
+  await act(async () => {
+    await conversations.result.current.startNewChat();
+  });
+  const freshComposer = await screen.findByRole("textbox");
+  expect(freshComposer).not.toBe(composer);
+  expect(messageOf(freshComposer)).toBe("");
+  conversations.unmount();
+  client.clear();
 });

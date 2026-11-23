@@ -200,6 +200,7 @@ _UNSAVED_REPLY_NOTICE = (
     "The assistant's reply could not be saved. "
     "Copy any text you need before leaving this conversation."
 )
+_ROOM_COMPOSER_REQUIRED = "Use the room composer and @mentions to message in a shared room."
 
 
 class _Outcome(NamedTuple):
@@ -1121,6 +1122,29 @@ class AgentSession:
         # still continues the session's conversation.
         if "conversation_id" in data and data["conversation_id"] is None:
             self.current_conversation_id = None
+        conversation_ref = data.get("conversation_id", self.current_conversation_id)
+        if conversation_ref is not None:
+            try:
+                requested_conversation_id = UUID(str(conversation_ref))
+            except ValueError:
+                requested_conversation_id = None
+            if requested_conversation_id is not None:
+                try:
+                    async with get_db_context() as db:
+                        ctx = await self._chat_context(db)
+                        conversation = await ConversationService(db).get_conversation(
+                            requested_conversation_id,
+                            organization_id=self.organization_id,
+                            user_id=self.user.id,
+                            include_favourite=False,
+                            ctx=ctx,
+                        )
+                except AppException as exc:
+                    await self._emit("error", {"message": exc.message})
+                    return
+                if conversation.room_visibility is not None:
+                    await self._emit("error", {"message": _ROOM_COMPOSER_REQUIRED})
+                    return
         try:
             async with get_db_context() as db:
                 await ChatAgentRunner(db).refuse_system_agent(
@@ -2083,6 +2107,10 @@ class AgentSession:
         """Pass on the room's news until it ends or this person may no longer read it."""
         await self._send_presence(conversation_id)
         async for event in chat_room.events(conversation_id):
+            if event["type"] == chat_room.ROOM_PARTICIPANTS:
+                # A removal must invalidate a recent successful access check,
+                # including the live follower sharing this session's cache.
+                self._reads_until = float("-inf")
             if not await self._reads_lately(conversation_id):
                 await self._stop_following()
                 self._room = self._room_task = None
@@ -2102,8 +2130,24 @@ class AgentSession:
                 )
             elif event["type"] == chat_room.TYPING:
                 await self._send_typing(conversation_id, event.get("by"))
-            elif event["type"] in (chat_room.ROOM_MESSAGE, chat_room.ROOM_REQUEST):
-                field = "message_id" if event["type"] == chat_room.ROOM_MESSAGE else "request_id"
+            elif event["type"] == chat_room.ROOM_PARTICIPANTS:
+                await send_event(
+                    self.websocket,
+                    chat_room.ROOM_PARTICIPANTS,
+                    {"conversation_id": conversation_id},
+                )
+            elif event["type"] in (
+                chat_room.ROOM_MESSAGE,
+                chat_room.ROOM_REQUEST,
+                chat_room.ROOM_REACTION,
+                chat_room.ROOM_THREAD,
+            ):
+                field = {
+                    chat_room.ROOM_MESSAGE: "message_id",
+                    chat_room.ROOM_REQUEST: "request_id",
+                    chat_room.ROOM_REACTION: "message_id",
+                    chat_room.ROOM_THREAD: "thread_root_message_id",
+                }[event["type"]]
                 await send_event(
                     self.websocket,
                     event["type"],

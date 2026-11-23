@@ -55,6 +55,10 @@ class TestConversationTenantIsolation:
                 "app.services.conversation.channel_membership.confirmed_participant_threads",
                 new=AsyncMock(return_value=set()),
             ),
+            patch(
+                "app.services.conversation.room_participant_repo.user_conversation_ids",
+                new=AsyncMock(return_value=set()),
+            ),
         ):
             svc = ConversationService(mock_db)
             await svc.list_conversations(user_id=user_id, organization_id=org_id)
@@ -110,6 +114,10 @@ class TestConversationTenantIsolation:
                 "app.services.conversation.channel_membership.confirmed_participant_threads",
                 new=AsyncMock(return_value=set()),
             ),
+            patch(
+                "app.services.conversation.room_participant_repo.user_conversation_ids",
+                new=AsyncMock(return_value=set()),
+            ),
         ):
             svc = ConversationService(mock_db)
             items, total = await svc.list_conversations(user_id=user_a, organization_id=org_a)
@@ -137,6 +145,10 @@ class TestConversationTenantIsolation:
             ),
             patch(
                 "app.services.conversation.channel_membership.confirmed_participant_threads",
+                new=AsyncMock(return_value=set()),
+            ),
+            patch(
+                "app.services.conversation.room_participant_repo.user_conversation_ids",
                 new=AsyncMock(return_value=set()),
             ),
         ):

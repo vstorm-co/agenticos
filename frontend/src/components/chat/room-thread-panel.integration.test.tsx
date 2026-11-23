@@ -14,7 +14,9 @@ import { RoomThreadPanel } from "./room-thread-panel";
 import type { MessagePinActions } from "./message-list";
 import type { PinnedMessageTarget } from "./pinned-messages";
 
-vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), post: vi.fn() } }));
+vi.mock("@/lib/api-client", () => ({
+  apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
+}));
 vi.mock("@/hooks/use-agents", () => ({
   useAgents: () => ({
     agents: [
@@ -161,6 +163,19 @@ function deferred<T>() {
   });
   return { promise, resolve, reject };
 }
+function bounds(top: number, bottom: number): DOMRect {
+  return {
+    x: 0,
+    y: top,
+    top,
+    bottom,
+    left: 0,
+    right: 500,
+    width: 500,
+    height: bottom - top,
+    toJSON: () => ({}),
+  };
+}
 function changed() {
   act(() =>
     announceRoomChange({ conversationId: "room-a", accountId: "me", organizationId: "org-a" }),
@@ -213,6 +228,8 @@ beforeEach(() => {
   };
   vi.mocked(apiClient.get).mockImplementation(async (path) => serve(String(path)));
   vi.mocked(apiClient.post).mockResolvedValue({ message: page.items[0], request: null });
+  vi.mocked(apiClient.put).mockResolvedValue(undefined);
+  vi.mocked(apiClient.delete).mockResolvedValue(undefined);
 });
 afterEach(() => {
   client.clear();
@@ -355,7 +372,7 @@ describe("RoomThreadPanel", () => {
     await userEvent.click(background);
     await userEvent.keyboard("{Escape}");
     expect(close).not.toHaveBeenCalled();
-    act(() => screen.getByRole("button", { name: "Close thread" }).focus());
+    act(() => screen.getByRole("button", { name: "Close thread panel" }).focus());
     await userEvent.keyboard("{Escape}");
     expect(close).toHaveBeenCalledOnce();
   });
@@ -459,7 +476,7 @@ describe("RoomThreadPanel", () => {
       ),
     );
     expect(useChatStore.getState().replyTo).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Close thread" }));
+    await userEvent.click(screen.getByRole("button", { name: "Close thread panel" }));
     expect(close).toHaveBeenCalledOnce();
   });
 
@@ -471,7 +488,7 @@ describe("RoomThreadPanel", () => {
       expect(screen.queryByRole("textbox", { name: "Reply to thread" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Quote original" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Quote reply-a" })).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Close thread" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Close thread panel" })).toBeEnabled();
     },
   );
 
@@ -669,5 +686,259 @@ describe("RoomThreadPanel", () => {
     mounted.rerender(view());
     await screen.findByText("Original topic");
     expect(await screen.findByRole("textbox", { name: "Reply to thread" })).toHaveValue("A stays");
+  });
+
+  it("follows a thread and exposes all manager lifecycle actions with the unread count", async () => {
+    page = {
+      ...page,
+      state: "open",
+      can_manage: true,
+      following: false,
+      unread: 3,
+    };
+    const user = userEvent.setup();
+    render(view(), { wrapper });
+    await screen.findByText("3 unread replies");
+
+    await user.click(screen.getByRole("button", { name: "Follow thread" }));
+    await waitFor(() =>
+      expect(apiClient.put).toHaveBeenCalledWith(
+        "/conversations/room-a/room-threads/root-a/follow",
+        {},
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "Close thread" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/conversations/room-a/room-threads/root-a/close",
+        {},
+      ),
+    );
+
+    page = { ...page, state: "closed", following: true };
+    changed();
+    await user.click(await screen.findByRole("button", { name: "Unfollow thread" }));
+    await waitFor(() =>
+      expect(apiClient.delete).toHaveBeenCalledWith(
+        "/conversations/room-a/room-threads/root-a/follow",
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "Reopen thread" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/conversations/room-a/room-threads/root-a/reopen",
+        {},
+      ),
+    );
+
+    page = { ...page, state: "open" };
+    changed();
+    await user.click(await screen.findByRole("button", { name: "Archive thread" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/conversations/room-a/room-threads/root-a/archive",
+        {},
+      ),
+    );
+
+    page = { ...page, state: "archived", can_post: false };
+    changed();
+    expect(await screen.findByRole("button", { name: "Unarchive thread" })).toBeEnabled();
+    expect(screen.queryByRole("textbox", { name: "Reply to thread" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Unarchive thread" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/conversations/room-a/room-threads/root-a/unarchive",
+        {},
+      ),
+    );
+  });
+
+  it("marks only the latest visible persisted reply and ignores a hidden-panel read", async () => {
+    page = {
+      ...page,
+      items: [
+        page.items[0]!,
+        {
+          ...page.items[0]!,
+          id: "reply-b",
+          content: "Latest but outside the visible page",
+        },
+      ],
+      total: 2,
+      can_post: true,
+      unread: 2,
+    };
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    const { container } = render(view(), { wrapper });
+    await screen.findByText("Latest but outside the visible page");
+    const scroller = container.querySelector<HTMLDivElement>(".overflow-y-auto")!;
+    Object.defineProperties(scroller, {
+      scrollHeight: { configurable: true, get: () => 600 },
+      clientHeight: { configurable: true, value: 200 },
+    });
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(bounds(100, 300));
+    vi.spyOn(
+      scroller.querySelector<HTMLElement>("[data-thread-root='root-a']")!,
+      "getBoundingClientRect",
+    ).mockReturnValue(bounds(110, 150));
+    vi.spyOn(
+      scroller.querySelector<HTMLElement>("[data-message-id='reply-a']")!,
+      "getBoundingClientRect",
+    ).mockReturnValue(bounds(160, 210));
+    vi.spyOn(
+      scroller.querySelector<HTMLElement>("[data-message-id='reply-b']")!,
+      "getBoundingClientRect",
+    ).mockReturnValue(bounds(410, 460));
+    scroller.scrollTop = 0;
+    fireEvent.scroll(scroller);
+    expect(apiClient.post).not.toHaveBeenCalledWith(
+      "/conversations/room-a/room-threads/root-a/read",
+      expect.anything(),
+    );
+
+    visibility.mockReturnValue("visible");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/conversations/room-a/room-threads/root-a/read",
+        { through_message_id: "reply-a" },
+      ),
+    );
+    expect(apiClient.post).not.toHaveBeenCalledWith(
+      "/conversations/room-a/room-threads/root-a/read",
+      { through_message_id: "reply-b" },
+    );
+  });
+
+  function trackVisibility(container: HTMLElement) {
+    const scroller = container.querySelector<HTMLDivElement>(".overflow-y-auto")!;
+    const shown = new Set<string>();
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(bounds(100, 300));
+    for (const node of scroller.querySelectorAll<HTMLElement>(
+      "[data-message-id], [data-thread-root]",
+    )) {
+      const id = node.dataset.messageId ?? node.dataset.threadRoot!;
+      vi.spyOn(node, "getBoundingClientRect").mockImplementation(() =>
+        shown.has(id) ? bounds(150, 200) : bounds(500, 550),
+      );
+    }
+    return (...ids: string[]) => {
+      shown.clear();
+      for (const id of ids) shown.add(id);
+      fireEvent.scroll(scroller);
+    };
+  }
+  const readPath = "/conversations/room-a/room-threads/root-a/read";
+  const readCalls = () =>
+    vi
+      .mocked(apiClient.post)
+      .mock.calls.filter(([path]) => path === readPath)
+      .map(([, body]) => (body as { through_message_id: string }).through_message_id);
+
+  it("reads forward only: root, then each later reply, never backwards", async () => {
+    page = {
+      ...page,
+      items: [page.items[0]!, { ...page.items[0]!, id: "reply-b", content: "Reply B" }],
+      total: 2,
+      unread: 2,
+    };
+    const { container } = render(view(), { wrapper });
+    await screen.findByText("Reply B");
+    const show = trackVisibility(container);
+
+    show("root-a");
+    await waitFor(() => expect(readCalls()).toEqual(["root-a"]));
+    show("reply-a");
+    await waitFor(() => expect(readCalls()).toEqual(["root-a", "reply-a"]));
+    show("reply-b");
+    await waitFor(() => expect(readCalls()).toEqual(["root-a", "reply-a", "reply-b"]));
+    show("reply-a");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    show("root-a");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    show("reply-b");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(readCalls()).toEqual(["root-a", "reply-a", "reply-b"]);
+  });
+
+  it("skips a read for a row the transcript no longer holds", async () => {
+    const { container } = render(view(), { wrapper });
+    await screen.findByText("Saved reply A");
+    const show = trackVisibility(container);
+    act(() => useChatStore.setState({ messages: [] }));
+    show("reply-a");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(readCalls()).toEqual([]);
+  });
+
+  it("skips a read for a row that left the transcript in the same update that made it visible", async () => {
+    const { container } = render(view(), { wrapper });
+    await screen.findByText("Saved reply A");
+    const show = trackVisibility(container);
+    // One batch: the scroll reads reply-a from the DOM, the transcript then drops it, so the
+    // read effect sees a visible cursor the current transcript no longer holds.
+    act(() => {
+      show("reply-a");
+      useChatStore.setState({ messages: [] });
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(readCalls()).toEqual([]);
+  });
+
+  it("reports a failed read and does not mark the thread read", async () => {
+    const { container } = render(view(), { wrapper });
+    await screen.findByText("Saved reply A");
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new ApiError(500, "Read failed"));
+    trackVisibility(container)("reply-a");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Read failed");
+  });
+
+  it("does not mark a read the reader left behind", async () => {
+    const { container } = render(view(), { wrapper });
+    await screen.findByText("Saved reply A");
+    const pending = deferred<unknown>();
+    vi.mocked(apiClient.post).mockReturnValueOnce(pending.promise as never);
+    trackVisibility(container)("reply-a");
+    await waitFor(() => expect(readCalls()).toEqual(["reply-a"]));
+    act(() => useConversationStore.setState({ currentConversationId: "room-b" }));
+    await act(async () => pending.resolve(undefined));
+    expect(readCalls()).toEqual(["reply-a"]);
+  });
+
+  it("shows why a lifecycle action failed", async () => {
+    page = { ...page, state: "open", can_manage: true, following: false, unread: 0 };
+    vi.mocked(apiClient.put).mockRejectedValueOnce(new ApiError(500, "Follow failed"));
+    const user = userEvent.setup();
+    render(view(), { wrapper });
+    await user.click(await screen.findByRole("button", { name: "Follow thread" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Follow failed");
+  });
+
+  it("ignores the tab being hidden", async () => {
+    const { container } = render(view(), { wrapper });
+    await screen.findByText("Saved reply A");
+    const show = trackVisibility(container);
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    show("reply-a");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(readCalls()).toEqual([]);
+    visibility.mockRestore();
+  });
+
+  it("does not read again for a row that left the transcript while a read was running", async () => {
+    const { container } = render(view(), { wrapper });
+    await screen.findByText("Saved reply A");
+    const pending = deferred<unknown>();
+    vi.mocked(apiClient.post).mockReturnValueOnce(pending.promise as never);
+    trackVisibility(container)("reply-a");
+    await waitFor(() => expect(readCalls()).toEqual(["reply-a"]));
+    act(() => useChatStore.setState({ messages: [] }));
+    await act(async () => pending.resolve(undefined));
+    await act(async () => changed());
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(readCalls()).toEqual(["reply-a"]);
   });
 });

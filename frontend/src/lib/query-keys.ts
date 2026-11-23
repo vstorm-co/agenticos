@@ -66,6 +66,21 @@ export const qk = {
     list: (account: string | undefined, tenant: string | null, conversation: string | null) =>
       ["room-requests", account, tenant, conversation] as const,
   },
+  roomParticipants: {
+    all: (account: string | undefined, tenant: string | null, conversation: string | null) =>
+      ["room-participants", account, tenant, conversation] as const,
+    list: (account: string | undefined, tenant: string | null, conversation: string | null) =>
+      ["room-participants", account, tenant, conversation, "list"] as const,
+    mentionables: (
+      account: string | undefined,
+      tenant: string | null,
+      conversation: string | null,
+    ) => ["room-participants", account, tenant, conversation, "mentionables"] as const,
+  },
+  roomDirectory: {
+    list: (account: string | undefined, tenant: string | null, skip = 0, limit = 50) =>
+      ["room-directory", account, tenant, skip, limit] as const,
+  },
   personalSubscriptions: {
     claude: (scope: string) => ["personal-subscriptions", "claude", scope] as const,
   },

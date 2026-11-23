@@ -44,7 +44,6 @@ export default async function OpengraphImage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           {/* The same mark as the favicon and the sidebar, from the same data URI. */}
-          {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse renders through Satori; next/image cannot run there, and the src is a data URI. */}
           <img src={LOGO_DATA_URI} alt="" width={44} height={44} />
           <span style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.01em" }}>{appName}</span>
         </div>
@@ -84,7 +83,6 @@ export default async function OpengraphImage() {
           })}
         </div>
         {/* The mark, large: what the link is a link to, before anybody reads it. */}
-        {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse renders through Satori; next/image cannot run there, and the src is a data URI. */}
         <img src={LOGO_DATA_URI} alt="" width={210} height={210} />
       </div>
 

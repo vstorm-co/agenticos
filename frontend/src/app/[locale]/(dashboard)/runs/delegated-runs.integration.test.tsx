@@ -29,7 +29,9 @@ vi.mock("@/lib/api-client", async () => {
   return { ...actual, apiClient: { ...actual.apiClient, get: vi.fn(), post: vi.fn() } };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => true, scopeOf: () => "all" as const }),
+}));
 
 /**
  * The run detail, which is a column beside the list rather than a dialog over it

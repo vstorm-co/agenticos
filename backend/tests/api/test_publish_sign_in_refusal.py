@@ -61,6 +61,11 @@ def client(
         AsyncMock(return_value={profile.id: profile}),
     )
     monkeypatch.setattr(
+        agent_registry.credential_repo,
+        "get_profile",
+        AsyncMock(return_value=profile),
+    )
+    monkeypatch.setattr(
         agent_registry.organization_secret_repo,
         "get_many",
         AsyncMock(return_value={sign_in.id: sign_in}),

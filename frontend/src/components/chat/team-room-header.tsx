@@ -7,15 +7,18 @@ import { ShareResourceButton } from "@/components/sharing/share-resource-button"
 import { useProject } from "@/hooks/use-projects";
 import { ROUTES } from "@/lib/constants";
 import { useAuthStore } from "@/stores";
-import type { ChatPerson } from "@/types/conversation";
+import type { ChatPerson, Conversation } from "@/types/conversation";
 import { PersonFace } from "./person-face";
+import { RoomParticipantsButton } from "./room-participants-button";
 
 export function TeamRoomHeader({
   projectId,
   present,
+  conversation = null,
 }: {
   projectId: string;
   present: ChatPerson[];
+  conversation?: Conversation | null;
 }) {
   const t = useTranslations("chat.teamRoom");
   const { project } = useProject(projectId);
@@ -50,6 +53,9 @@ export function TeamRoomHeader({
           />
         ))}
       </span>
+      {conversation && (
+        <RoomParticipantsButton conversationId={conversation.id} conversation={conversation} />
+      )}
       {project && (
         <ShareResourceButton
           resourceType="project"

@@ -809,6 +809,10 @@ async def test_default_metadata_replays_legacy_table_receipts_without_changing_t
         operation_key="before-link-limit",
     )
     legacy = body.model_dump(mode="json")
+    # These audience fields did not exist on the receipts this test models.
+    # The service omits empty defaults when it fingerprints the request.
+    legacy.pop("group_ids", None)
+    legacy.pop("user_ids", None)
     for field in legacy["columns"]:
         field.pop("link_limit")
     if icon_field:

@@ -177,12 +177,20 @@ class _Sweep:
         # own exception handler - which is what "passing" would have meant.
         self._transcript = patch("app.services.approvals.TranscriptService")
         self.record = self._transcript.start().return_value.record = AsyncMock()
+        # The web-run owner's notice reads the agent for its name; what it writes
+        # is the notification service's own, covered against Postgres.
+        self._agent = patch("app.services.approvals.agent_repo.get", new=AsyncMock())
+        self.agent = self._agent.start()
+        self._notifications = patch("app.services.approvals.NotificationService")
+        self.notify = self._notifications.start().return_value.approval_expired = AsyncMock()
         self.expired = await ApprovalService(_db()).expire_stale()
         return self
 
     async def __aexit__(self, *exc_info: object) -> bool:
         for call in self.spawned.call_args_list:
             call.args[1].close()
+        self._notifications.stop()
+        self._agent.stop()
         self._post.stop()
         self._settle.stop()
         self._spawn.stop()
@@ -290,6 +298,8 @@ class TestTheRunBehindIt:
         assert notice.run_id == run.id
         assert notice.organization_id == run.organization_id
         assert notice.destination.platform_chat_id == "C1"
+        # It heard the expiry in the chat already: no second notice in the centre.
+        sweep.notify.assert_not_awaited()
 
     async def test_an_expired_run_outside_a_chat_posts_nothing(self):
         async with _Sweep([_approval()], run=_parked_run()) as sweep:
@@ -297,6 +307,19 @@ class TestTheRunBehindIt:
 
         assert not [n for n in _spawned_names(sweep.spawned) if n == "channel-expiry-notices"]
         sweep.settle.assert_not_awaited()
+
+    async def test_an_expired_web_run_tells_its_owner_through_the_centre(self):
+        run = _parked_run()
+
+        async with _Sweep([_approval()], run=run) as sweep:
+            pass
+
+        sweep.notify.assert_awaited_once()
+        assert sweep.notify.await_args.args == (run,)
+        assert sweep.notify.await_args.kwargs["agent"] is sweep.agent.return_value
+        expired = sweep.notify.await_args.kwargs["approvals"]
+        assert expired
+        assert all(a.status == ApprovalStatus.EXPIRED.value for a in expired)
 
     async def test_a_workflow_node_waiting_on_the_ended_run_is_woken(self):
         """The node must see the run ended and fail, not wait on it for ever."""
@@ -422,6 +445,10 @@ class TestASweptRowIsDecided:
             patch(
                 "app.services.approvals.agent_run_repo.get_approval",
                 new=AsyncMock(return_value=expired),
+            ),
+            patch(
+                "app.services.approvals.agent_run_repo.get_run",
+                new=AsyncMock(return_value=_parked_run()),
             ),
             patch(
                 "app.services.approvals.agent_run_repo.decide_approval", new=AsyncMock()
@@ -825,6 +852,10 @@ class TestALiveCallsApproval:
             patch(
                 "app.services.approvals.agent_run_repo.get_approval",
                 new=AsyncMock(return_value=approval),
+            ),
+            patch(
+                "app.services.approvals.agent_run_repo.get_run",
+                new=AsyncMock(return_value=_parked_run()),
             ),
             patch(
                 "app.services.approvals.voice_call_repo.is_live_run",

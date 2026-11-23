@@ -9,6 +9,7 @@ import pytest
 
 from app.agents.spec import AgentSpec
 from app.core.browser_fill import BrowserFillReason, BrowserFillRefused
+from app.core.browser_session import CredentialGeneration
 from app.core.config import settings
 from app.core.permissions import AuthContext
 from app.services.browser_credentials import _access
@@ -370,3 +371,27 @@ async def test_personal_and_explicit_shared_credentials_are_returned_only_after_
         await _access.credential(a.db, a.ctx, secret_id=a.secret.id, agent_id=a.agent.id)
         is a.secret
     )
+
+
+async def test_an_inherited_credential_is_rechecked_at_its_own_generation(access) -> None:
+    a = access
+    contributor = CredentialGeneration(
+        secret_id=a.secret.id, authorization_generation=a.secret.authorization_generation
+    )
+    inherited = a.identity.model_copy(update={"inherited_credentials": (contributor,)})
+    assert await _access.private_run(a.db, a.ctx, inherited) == (a.ctx, a.run)
+    stale = CredentialGeneration(secret_id=a.secret.id, authorization_generation=uuid4())
+    with pytest.raises(BrowserFillRefused):
+        await _access.private_run(
+            a.db, a.ctx, a.identity.model_copy(update={"inherited_credentials": (stale,)})
+        )
+
+
+async def test_an_inherited_credential_outside_the_frozen_binding_is_refused(access) -> None:
+    a = access
+    outsider = CredentialGeneration(secret_id=uuid4(), authorization_generation=uuid4())
+    inherited = a.identity.model_copy(update={"inherited_credentials": (outsider,)})
+    with pytest.raises(BrowserFillRefused) as refused:
+        await _access.private_run(a.db, a.ctx, inherited)
+    assert refused.value.reason == BrowserFillReason.AUTHORITY_CHANGED
+    _access.repo.secret.assert_not_awaited()

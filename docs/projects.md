@@ -253,7 +253,8 @@ the **Chats** tab each row says whose the chat is, which agents answer in it, wh
 it last moved or who is at work in it right now, and who has had it open - the
 latest faces, with every name on hover; whoever has it open right now comes
 first, with a green dot. A chat
-outside any project stays its author's own, as everywhere else in the console.
+outside any project starts private. Its owner can explicitly add people or agents
+and turn the existing conversation into a shared room without losing its history.
 
 A project's chat is not shared on its own, by link or with a person: it is read
 through the project, so share the project instead.
@@ -266,11 +267,23 @@ project audience and presence even when you are the only person there. **Share**
 manages access to the project; a read-only participant can follow the transcript
 but cannot post.
 
-The composer starts with **Team only** selected. Posting saves a human message
-without asking a model to answer. Choose a published cloud agent in the recipient
-picker to request its response explicitly. Typing an agent's name in the message
-does not select the responder. Posts and answers carry the sender's identity;
-**Reply** includes a quote in the message and the agent's context.
+Type `@` and select a person or agent to mention them. People receive a
+notification; every selected agent gets its own queued response to the same human
+message. Similar display names remain separate choices. Typing a name without
+selecting a candidate does not select a responder. Posts and answers carry the
+sender's identity; **Reply** includes a quote in the message and the agent's context.
+
+Open the participant list to add an eligible agent before mentioning it. Project
+sharing still determines which people may read or post; the room roster cannot
+grant somebody project access. Agents are mention-only by default. A manager may
+enable automatic replies for selected agents; an unmentioned post can then reach
+up to four opted-in responders. Human-only mentions do not summon those agents.
+
+The chat sidebar also offers rooms outside a project. Create a private room or a
+room visible to your organization, or join an existing public room before posting.
+Adding a colleague to an existing agent chat converts it in place. The confirmation
+explains that the new participant can read its saved history. Private work already
+in progress must finish or be cancelled before that conversion.
 
 Agent requests enter one durable queue for the room. A run waiting for approval
 or an answer keeps its place until resolved. You can cancel your own request
@@ -283,11 +296,16 @@ posting has an uncertain result, retry the pending post to reuse its identity.
 An interrupted agent request is not restarted automatically; inspect the saved
 run before making a new request.
 
-This composer supports text, quoted replies and side threads. Upload reference files through
-the project's **Files** tab; room agents use that shared workspace. Local desktop
-agents and per-message attachments are outside this room interface.
-Personal chats and the floating assistant keep their existing
-composers.
+Attach up to ten files directly to a room message, with or without a caption.
+The existing upload type and size limits apply. The same attachments reach each
+selected responder, and retrying a post does not attach them again. The project's
+**Files** tab remains the shared workspace for longer-lived reference material.
+Room responders use published cloud-compatible agents; desktop and personal
+sandbox agents still require their device-specific chat workflow.
+
+Use the reaction control on a saved human or agent message to add or remove your
+emoji. Counts combine everyone's reactions, while your own selections stay marked.
+Up to twenty different emoji can appear on one message.
 
 ### Side threads
 
@@ -298,8 +316,8 @@ reload returns to the same discussion. On a narrow screen, the thread takes the
 available width. **Reply** still adds a quote within the current discussion.
 
 A thread has the same audience and posting permissions as its room. Opening it
-does not request an agent response. Keep **Team only** selected to talk with
-people, or choose **Ask @agent** explicitly. The answer, including a run resumed
+does not request an agent response. Select an agent with `@` to request an answer,
+or mention only people to talk with them. The answer, including a run resumed
 after a question or approval, belongs to that thread. The main room and its
 threads share one agent-request queue; a waiting run keeps later requests queued.
 
@@ -312,15 +330,25 @@ Quoted replies inside a thread refer to its original message or one of its repli
 Plans and pending steps belong to each run. Resuming a run keeps them; a separate
 agent request in the thread starts a fresh plan.
 
+The thread starter and people who reply follow the thread by default. Follow or
+unfollow explicitly to control reply notifications; a direct `@` mention still
+notifies you. Reading the main room does not clear a thread's unread replies.
+The room shows unread counts beside its thread summaries, and opening a thread
+marks only replies actually viewed as read.
+
+The starter or a room manager can close or archive a thread. A reply reopens a
+closed thread. An archived thread is read-only; unarchiving restores its earlier
+open or closed state. These actions preserve the original messages and replies.
+
 Each discussion keeps its own draft and pending retry while you move between
 threads in the current session. Return to the original discussion to retry an
 uncertain post with the same identity; selecting another thread does not redirect
 that pending post. Changing account or organization clears these drafts.
 
 If the chat is removed from its project, its existing threads remain readable by
-people who can still access that chat. Thread replies become read-only until the
-chat belongs to a project again; former project membership alone no longer grants
-access.
+people who can still access that chat. Thread replies become read-only unless the
+owner explicitly converts it into a standalone room. Former project membership
+alone no longer grants access.
 
 ## Deleting a project
 

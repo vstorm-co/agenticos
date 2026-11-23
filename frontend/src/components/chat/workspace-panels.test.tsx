@@ -337,7 +337,10 @@ describe("manual workspace launchers", () => {
   });
 
   it.each([
-    [{ teamRoom: true, agentId: null, canRun: false }, /Choose a responder in the room composer/],
+    [
+      { teamRoom: true, agentId: null, canRun: false },
+      /Mention the agent you want in the room composer/,
+    ],
     [{ hostedCapabilities: null }, /configuration is not available/],
     [{ hostedCapabilities: [] }, /not configured for hosted computer/],
     [{ agentId: null }, /Select an agent/],

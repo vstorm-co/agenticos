@@ -3,7 +3,7 @@
 import { toolLookupName } from "@/lib/tool-identity";
 
 import { memo } from "react";
-import { ChevronRight, Lightbulb, MessageCircleQuestion } from "lucide-react";
+import { Bot, ChevronRight, Lightbulb, MessageCircleQuestion, UserRound } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
@@ -19,6 +19,8 @@ import { toolStep, type McpServerRef } from "@/lib/tool-steps";
 import type { MessagePart, MessageReply, ToolCall } from "@/types";
 import type { TurnFileSource } from "@/types/chat";
 import type { Mentionable } from "@/types/mention";
+import type { RoomMessageMention } from "@/types/conversation";
+import { roomMentionSegments } from "@/lib/room-mentions";
 import { AgentSteps } from "./agent-step";
 import { TurnDrafts } from "./draft-card";
 import { TurnBrowses } from "./browser-card";
@@ -394,6 +396,7 @@ export function TextBubble({
   isUser,
   onCiteClick,
   mentions,
+  roomMentions,
   afterWork = false,
   replyTo,
   replyAgents = [],
@@ -412,6 +415,8 @@ export function TextBubble({
   onCiteClick?: (index: number) => void;
   /** What the person picked with `@`, shown where it sits in their text. */
   mentions?: readonly Mentionable[];
+  /** Structured room recipients, kept distinct from resource mentions. */
+  roomMentions?: readonly RoomMessageMention[];
   /** It follows the turn's steps or thoughts, so it opens the answer. */
   afterWork?: boolean;
 }) {
@@ -449,7 +454,11 @@ export function TextBubble({
             compact ? "text-[13px]" : "text-sm",
           )}
         >
-          <RichText text={text} mentions={mentions ?? []} />
+          {roomMentions && roomMentions.length > 0 ? (
+            <RoomMentionText text={text} mentions={roomMentions} />
+          ) : (
+            <RichText text={text} mentions={mentions ?? []} />
+          )}
         </p>
       </div>
     );
@@ -478,6 +487,34 @@ export function TextBubble({
         <span className="stream-cursor ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-current" />
       )}
     </div>
+  );
+}
+
+function RoomMentionText({
+  text,
+  mentions,
+}: {
+  text: string;
+  mentions: readonly RoomMessageMention[];
+}) {
+  return (
+    <>
+      {roomMentionSegments(text, mentions).map((segment, index) => {
+        if (!segment.mention) return <span key={index}>{segment.text}</span>;
+        const Icon = segment.mention.kind === "agent" ? Bot : UserRound;
+        return (
+          <span
+            key={`${segment.mention.kind}:${segment.mention.id}:${index}`}
+            title={segment.mention.name}
+            data-room-mention={`${segment.mention.kind}:${segment.mention.id}`}
+            className="bg-foreground/[0.08] text-foreground inline-flex items-center gap-1 rounded-md px-1.5 align-bottom font-medium"
+          >
+            <Icon className="size-3.5" aria-hidden />
+            {segment.text}
+          </span>
+        );
+      })}
+    </>
   );
 }
 

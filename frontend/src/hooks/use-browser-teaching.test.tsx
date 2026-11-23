@@ -9,11 +9,39 @@ import type { BrowserTeaching } from "@/lib/browser-teaching-api";
 import { useAuthStore, useOrgStore } from "@/stores";
 import { useBrowserTeaching } from "./use-browser-teaching";
 
+const storeState = vi.hoisted(() => ({
+  user: { id: "user-1" } as { id: string } | null,
+  orgId: "org-1" as string | null,
+}));
+
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), patch: vi.fn(), post: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("@/stores", () => {
+  const useAuthStore = Object.assign(
+    (selector: (state: { user: typeof storeState.user }) => unknown) =>
+      selector({ user: storeState.user }),
+    {
+      getState: () => ({ user: storeState.user }),
+      setState: (next: { user?: typeof storeState.user }) => {
+        if ("user" in next) storeState.user = next.user ?? null;
+      },
+    },
+  );
+  const useOrgStore = Object.assign(
+    (selector: (state: { activeOrgId: typeof storeState.orgId }) => unknown) =>
+      selector({ activeOrgId: storeState.orgId }),
+    {
+      getState: () => ({ activeOrgId: storeState.orgId }),
+      setState: (next: { activeOrgId?: typeof storeState.orgId }) => {
+        if ("activeOrgId" in next) storeState.orgId = next.activeOrgId ?? null;
+      },
+    },
+  );
+  return { useAuthStore, useOrgStore };
+});
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -50,6 +78,8 @@ const STEP = { sequence: 1, label: "Invoice number", parameter: "invoice_number"
 
 beforeEach(() => {
   vi.clearAllMocks();
+  storeState.user = { id: "user-1" };
+  storeState.orgId = "org-1";
   useOrgStore.setState({ activeOrgId: "org-1" });
   useAuthStore.setState({ user: { id: "user-1" } as never });
   vi.mocked(apiClient.get).mockResolvedValue(TEACHING);
@@ -62,6 +92,15 @@ describe("reviewing a taught task", () => {
     await waitFor(() => expect(result.current.teaching).toEqual(TEACHING));
     expect(apiClient.get).toHaveBeenCalledWith("/browser-teachings/t1");
     expect(result.current.identity).toBe("org-1:user-1");
+  });
+
+  it("uses an anonymous cache identity before the reader's scope loads", async () => {
+    useOrgStore.setState({ activeOrgId: null });
+    useAuthStore.setState({ user: null });
+    const { result } = renderHook(() => useBrowserTeaching("t1"), { wrapper });
+
+    expect(result.current.identity).toBe("current:anonymous");
+    await waitFor(() => expect(result.current.teaching).toEqual(TEACHING));
   });
 
   it("saves a review against the revision it read", async () => {
@@ -98,6 +137,19 @@ describe("reviewing a taught task", () => {
       { name: "download-invoice" },
       { headers: { "If-Match": "5" } },
     );
+  });
+
+  it("returns quietly when a proposal is refused and refreshes its source", async () => {
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("409"));
+    const { result } = renderHook(() => useBrowserTeaching("t1"), { wrapper });
+    await waitFor(() => expect(result.current.teaching).toBeDefined());
+
+    await act(async () => {
+      await result.current.propose("download-invoice");
+    });
+
+    expect(toast.error).toHaveBeenCalled();
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
   });
 
   it("says so when a stale edit is refused and reads the session again", async () => {

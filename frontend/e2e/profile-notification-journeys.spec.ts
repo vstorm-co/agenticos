@@ -198,7 +198,7 @@ for (const device of [
         ).toBeEnabled();
         await panel.getByRole("button", { name: "Next page", exact: true }).click();
         await expect(
-          panel.getByRole("heading", { name: "MCP server answering again", exact: true }),
+          panel.getByRole("heading", { name: "Department budget at 80%", exact: true }),
         ).toBeInViewport({ ratio: 1 });
         await expect(
           panel.getByRole("switch", { name: "Run completed - Email", exact: true }),

@@ -219,6 +219,13 @@ def _spec(name: str = "Support", **overrides) -> AgentSpec:
     return AgentSpec(name=name, **overrides)
 
 
+def _profile_lookup_with_missing(missing_id: uuid.UUID) -> AsyncMock:
+    async def lookup(_db, profile_id, **_kwargs):
+        return None if profile_id == missing_id else MagicMock()
+
+    return AsyncMock(side_effect=lookup)
+
+
 def _agent(ctx: AuthContext, **overrides):
     """An agent row owned by the caller, so role scope alone reaches it."""
     agent = MagicMock()
@@ -1917,13 +1924,14 @@ class TestValidateSpec:
     @pytest.mark.anyio
     async def test_a_reviewer_on_a_profile_from_nowhere_is_refused_at_publish(self):
         """A reviewer's model is a reference to a profile, like the agent's own (#2106)."""
+        missing_id = uuid.uuid4()
         spec = _spec(
             model_profile_id=uuid.uuid4(),
             reviewers=[
-                {"name": "sources", "model_profile_id": str(uuid.uuid4()), "instructions": "x"}
+                {"name": "sources", "model_profile_id": str(missing_id), "instructions": "x"}
             ],
         )
-        found = AsyncMock(side_effect=[MagicMock(), None])
+        found = _profile_lookup_with_missing(missing_id)
 
         with (
             patch(f"{REGISTRY_PATH}.credential_repo.get_profile", new=found),
@@ -1936,11 +1944,12 @@ class TestValidateSpec:
     @pytest.mark.anyio
     async def test_a_next_steps_model_from_nowhere_is_refused_at_publish(self):
         """A reference to a profile, like the browser's step model (#2301)."""
+        missing_id = uuid.uuid4()
         spec = _spec(
-            capabilities=[{"id": "follow_ups", "config": {"model_profile_id": str(uuid.uuid4())}}],
+            capabilities=[{"id": "follow_ups", "config": {"model_profile_id": str(missing_id)}}],
             model_profile_id=uuid.uuid4(),
         )
-        found = AsyncMock(side_effect=[MagicMock(), None])
+        found = _profile_lookup_with_missing(missing_id)
 
         with (
             patch(f"{REGISTRY_PATH}.credential_repo.get_profile", new=found),
@@ -1955,19 +1964,20 @@ class TestValidateSpec:
         """The step model is a reference to a profile, like the agent's own - one
         deleted since, or another organization's, would fail every browse."""
         monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["browser"])
+        missing_id = uuid.uuid4()
         spec = _spec(
             capabilities=[
                 {
                     "id": "browser_use",
                     "config": {
                         "cdp_url": "http://browser:9222",
-                        "step_model_profile_id": str(uuid.uuid4()),
+                        "step_model_profile_id": str(missing_id),
                     },
                 }
             ],
             model_profile_id=uuid.uuid4(),
         )
-        found = AsyncMock(side_effect=[MagicMock(), None])
+        found = _profile_lookup_with_missing(missing_id)
 
         with (
             patch(f"{REGISTRY_PATH}.credential_repo.get_profile", new=found),

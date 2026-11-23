@@ -585,8 +585,10 @@ async def visible(db: AsyncSession, ctx: AuthContext, event: ChangeEvent) -> boo
     if event.resource == "notification":
         return event.actor_user_id == ctx.user_id
     if event.resource == "run":
-        # The approvals inbox lists parked runs to whoever decides them.
-        return ctx.has(Perm.RUNS_VIEW) or ctx.has(Perm.APPROVALS_DECIDE)
+        # The approvals inbox lists parked runs to whoever decides them - and
+        # only a privileged decider decides anyone's: `approvals:decide` at
+        # `OWN` is the run's own person, whose runs the feed does not name.
+        return ctx.has(Perm.RUNS_VIEW) or ctx.has_at(Perm.APPROVALS_DECIDE, PermScope.ALL)
     if event.resource == "knowledge_gap":
         # Gaps are people's questions, read with the whole run history or not at all.
         return ctx.scope_for(Perm.RUNS_VIEW) is PermScope.ALL

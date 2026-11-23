@@ -102,14 +102,15 @@ describe("the palette's destinations", () => {
     expect(screen.getByRole("option", { name: "agents" })).toBeInTheDocument();
   });
 
-  it("hides Connectors from a role that holds none of its three areas", async () => {
-    // Connectors shows to any holder of agents, secrets or connections view.
+  it("hides Connectors from a role that holds none of its four areas", async () => {
+    // Connectors shows to any holder of agents, secrets, connections or networks view.
     // The palette must follow the sidebar, not the single `permission` field.
     can.mockImplementation(
       (permission) =>
         permission !== "agents:view" &&
         permission !== "secrets:view" &&
-        permission !== "connections:view",
+        permission !== "connections:view" &&
+        permission !== "networks:view",
     );
 
     await openPalette();

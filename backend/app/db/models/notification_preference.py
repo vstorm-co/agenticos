@@ -42,7 +42,7 @@ class NotificationChannelPreference(Base, TimestampMixin):
     __table_args__ = (
         CheckConstraint(
             "event_type IN ("
-            "'budget_exceeded', 'approval_requested', 'run_completed', 'run_failed', "
+            "'budget_exceeded', 'approval_requested', 'approval_expired', 'run_completed', 'run_failed', "
             "'ingestion_completed', 'ingestion_failed', 'usage_report', "
             "'agent_usage_report', 'security_event', 'configuration_changed', "
             "'announcement', 'artifact_version_published', 'resource_shared', "
@@ -52,7 +52,7 @@ class NotificationChannelPreference(Base, TimestampMixin):
             "'artifact_owner_changed', 'artifact_share_requested', "
             "'capability_requested', 'suggestion', 'finding', 'improvement_finished', "
             "'eval_suite_reevaluated', 'eval_run_finished', 'case_generation_finished', "
-            "'workflow_log_alert')",
+            "'workflow_log_alert', 'room_mention', 'room_thread_reply')",
             name="ck_notification_preferences_event_type",
         ),
         CheckConstraint(

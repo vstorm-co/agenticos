@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import {
   AlertCircle,
+  AtSign,
   BarChart3,
   Bell,
   Check,
@@ -14,6 +15,7 @@ import {
   ShieldAlert,
   Lightbulb,
   Megaphone,
+  MessageCircle,
   Plug,
   Unplug,
   Radar,
@@ -39,6 +41,7 @@ const KINDS: Record<string, { icon: LucideIcon; attention?: "error" | "warning" 
   run_completed: { icon: Check },
   run_failed: { icon: AlertCircle, attention: "error" },
   approval_requested: { icon: ShieldCheck, attention: "warning" },
+  approval_expired: { icon: ShieldAlert, attention: "warning" },
   budget_warning: { icon: Wallet, attention: "warning" },
   budget_exceeded: { icon: Wallet, attention: "error" },
   ingestion_completed: { icon: KnowledgeIcon },
@@ -50,6 +53,8 @@ const KINDS: Record<string, { icon: LucideIcon; attention?: "error" | "warning" 
   announcement: { icon: Megaphone },
   artifact_version_published: { icon: PanelsTopLeft },
   resource_shared: { icon: Share2 },
+  room_mention: { icon: AtSign },
+  room_thread_reply: { icon: MessageCircle },
   mcp_server_down: { icon: Unplug, attention: "error" },
   mcp_server_recovered: { icon: Plug },
   background_task_paused: { icon: BackgroundIcon, attention: "error" },

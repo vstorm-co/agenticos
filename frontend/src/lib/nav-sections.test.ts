@@ -52,13 +52,13 @@ describe("the Connectors nav entry", () => {
     (permission: Permission) =>
       granted.includes(permission);
 
-  it("is the one entry in the connections group, opening to any of the three areas", () => {
+  it("is the one entry in the connections group, opening to any of its four areas", () => {
     const group = NAV_GROUPS.find((g) => g.labelKey === "connections");
     expect(group?.items).toEqual([
       expect.objectContaining({
         labelKey: "connectors",
         href: ROUTES.CONNECTORS,
-        permissions: [Perm.agentsView, Perm.secretsView, Perm.connectionsView],
+        permissions: [Perm.agentsView, Perm.secretsView, Perm.connectionsView, Perm.networksView],
       }),
     ]);
   });
@@ -73,6 +73,10 @@ describe("the Connectors nav entry", () => {
 
   it("shows to a role that can see only agents", () => {
     expect(navItemVisible(connectors()!, holding(Perm.agentsView))).toBe(true);
+  });
+
+  it("shows to a role that can see only networks", () => {
+    expect(navItemVisible(connectors()!, holding(Perm.networksView))).toBe(true);
   });
 
   it("stays hidden from a role with none of the three", () => {

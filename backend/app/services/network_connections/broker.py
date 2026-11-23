@@ -18,7 +18,6 @@ from app.services.network_connections.protocol import (
     HEARTBEAT_SECONDS,
     MAX_FRAME_BYTES,
     CompleteFrame,
-    ErrorFrame,
     NodeState,
     StateFrame,
     StatusFrame,
@@ -157,7 +156,7 @@ class TailscaleBroker:
                 await self._bounded(partial(callbacks.observe, frame))
             elif isinstance(frame, CompleteFrame):
                 return frame.reason
-            elif isinstance(frame, ErrorFrame):
+            else:
                 # Only our fixed code crosses the boundary, never a child-supplied message.
                 raise BrokerFailure("runtime_failed")
         raise BrokerFailure("runtime_timeout")
