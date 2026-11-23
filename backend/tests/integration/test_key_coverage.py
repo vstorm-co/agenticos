@@ -33,10 +33,12 @@ from app.db.models.key_coverage_report import KeyCoverageReport
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
 from app.db.models.user import User
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.key_coverage import JudgedCoverage, JudgedKey
+from app.schemas.skill import SkillUpdate
 from app.services import key_coverage as coverage_module
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import KEY_GONE
@@ -51,6 +53,7 @@ from app.services.key_coverage import (
     UNCHECKED_SERVER,
     KeyCoverageService,
 )
+from app.services.skills import SkillService
 from app.services.system_agent_runner import SystemAgentResult, SystemAgentRunner
 
 pytestmark = pytest.mark.anyio
@@ -259,6 +262,14 @@ async def _started(db, ctx: AuthContext):
     return dataset, agent, report
 
 
+async def _complete(db, ctx: AuthContext, **spec):
+    """A report on an agent whose every source the requester can read."""
+    dataset = await _dataset(db, ctx, INVOICE, TOTALS)
+    agent = await _agent(db, ctx, **spec)
+    report = await KeyCoverageService(db).start(ctx, dataset.id, agent.id)
+    return dataset, agent, report
+
+
 class TestAsking:
     async def test_a_start_queues_a_running_report_as_a_job_and_audits_it(self, db) -> None:
         owner = await _owner(db)
@@ -439,6 +450,71 @@ class TestJudging:
             and scope[bound.collection_name].knowledge_base_id == bound.id
             for scope in scopes
         )
+
+    async def test_a_server_reached_through_each_persons_account_is_left_unread(
+        self, db, monkeypatch
+    ) -> None:
+        owner = await _owner(db)
+        _, agent, report = await _complete(
+            db, owner, mcp_servers=[{"account": "personal", "catalog_key": "notion"}]
+        )
+        _answer(monkeypatch, JudgedCoverage(keys=[]), await _run(db, owner, agent))
+
+        await KeyCoverageService(db).judge(report.id, owner.organization_id)
+
+        row = await db.get(KeyCoverageReport, report.id, populate_existing=True)
+        assert row is not None
+        assert (row.status, row.unseen_sources) == ("ready", 1)
+
+    async def test_a_disabled_server_is_no_source(self, db, monkeypatch) -> None:
+        owner = await _owner(db)
+        off = McpConnection(
+            organization_id=owner.organization_id,
+            scope="org",
+            purpose="mcp",
+            name="retired",
+            url="https://retired.example/mcp",
+            is_enabled=False,
+            last_tools=[{"name": "find_customer", "description": "Look a customer up"}],
+        )
+        db.add(off)
+        await db.flush()
+        _, agent, report = await _complete(
+            db, owner, mcp_servers=[{"account": "organization", "connection_id": str(off.id)}]
+        )
+        calls = _answer(monkeypatch, JudgedCoverage(keys=[]), await _run(db, owner, agent))
+
+        await KeyCoverageService(db).judge(report.id, owner.organization_id)
+
+        assert "retired" not in calls.await_args.kwargs["prompt"]
+        row = await db.get(KeyCoverageReport, report.id, populate_existing=True)
+        assert row is not None
+        assert (row.unseen_sources, row.judged_sources) == (0, [])
+
+    async def test_a_skill_is_read_at_the_version_its_binding_names(self, db, monkeypatch) -> None:
+        owner = await _owner(db)
+        skills = SkillService(db)
+        skill = await skills.create(
+            owner,
+            name="billing",
+            description="How to bill",
+            content="Put the due date under the total.",
+            visibility=Visibility.ORG,
+        )
+        await skills.update(owner, skill.id, SkillUpdate(content="Bill monthly."))
+        _, agent, report = await _complete(
+            db,
+            owner,
+            skill_ids=[str(skill.id)],
+            skill_bindings=[{"skill_id": str(skill.id), "version": 1}],
+        )
+        calls = _answer(monkeypatch, JudgedCoverage(keys=[]), await _run(db, owner, agent))
+
+        await KeyCoverageService(db).judge(report.id, owner.organization_id)
+
+        prompt = calls.await_args.kwargs["prompt"]
+        assert "Mentions 'Due date': Put the due date under the total." in prompt
+        assert "Bill monthly" not in prompt
 
     async def test_a_refused_model_call_keeps_its_run(self, db, monkeypatch, searched) -> None:
         owner = await _owner(db)
@@ -657,7 +733,7 @@ class TestReading:
         self, db, monkeypatch, searched
     ) -> None:
         owner = await _owner(db)
-        dataset, agent, report = await _started(db, owner)
+        dataset, agent, report = await _complete(db, owner)
         _answer(
             monkeypatch,
             JudgedCoverage(keys=[JudgedKey(key="Due date", verdict="not_covered")]),
@@ -672,11 +748,29 @@ class TestReading:
         assert await service.uncovered_labels(owner, agent.id, []) == {}
         assert (await service.get(owner, dataset.id, agent.id)).current
 
-    async def test_a_report_on_an_earlier_version_or_dataset_is_out_of_date(
+    async def test_an_incomplete_report_gives_improve_nothing(
         self, db, monkeypatch, searched
     ) -> None:
         owner = await _owner(db)
         dataset, agent, report = await _started(db, owner)
+        _answer(
+            monkeypatch,
+            JudgedCoverage(keys=[JudgedKey(key="Due date", verdict="not_covered")]),
+            await _run(db, owner, agent),
+        )
+        service = KeyCoverageService(db)
+        await service.judge(report.id, owner.organization_id)
+
+        read = await service.get(owner, dataset.id, agent.id)
+        assert read.unseen_sources == 1
+        assert {item.key: item.verdict for item in read.items}["Due date"] == "not_covered"
+        assert await service.uncovered_labels(owner, agent.id, [dataset.id]) == {}
+
+    async def test_a_report_on_an_earlier_version_or_dataset_is_out_of_date(
+        self, db, monkeypatch, searched
+    ) -> None:
+        owner = await _owner(db)
+        dataset, agent, report = await _complete(db, owner)
         _answer(
             monkeypatch,
             JudgedCoverage(keys=[JudgedKey(key="Due date", verdict="not_covered")]),

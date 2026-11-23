@@ -12,6 +12,7 @@ nor named; a reader who may not see a source the report names gets it unnamed.
 """
 
 import logging
+from collections.abc import Set
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -37,7 +38,6 @@ from app.repositories import (
     key_coverage_report_repo,
     knowledge_base_repo,
     mcp_connection_repo,
-    skill_repo,
 )
 from app.schemas.agent import KnowledgeSource
 from app.schemas.dataset_helpers import DatasetHelpers
@@ -57,6 +57,7 @@ from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
 from app.services.knowledge_reach import KnowledgeReachService
 from app.services.mcp_connection import presented_tool_names
+from app.services.skills import SkillService
 from app.services.system_agent_runner import SystemAgentRunner
 from app.worker.jobs import REPORT_KEY_COVERAGE, ReportKeyCoverage
 
@@ -164,12 +165,19 @@ def settled_items(
     return items
 
 
-def _bound(spec: AgentSpec) -> int:
+def _bound(spec: AgentSpec, *, disabled: Set[UUID]) -> int:
+    """The sources the published version reaches: every binding but a disabled server.
+
+    A personal or platform MCP server counts too: its tools depend on who is asking,
+    so a report never reads them, and they keep it from being complete.
+    """
+    servers = {ref.connection_id for ref in spec.mcp_servers if isinstance(ref, OrgMcpServerRef)}
     return (
         len(set(spec.collection_ids))
         + len(set(spec.skill_ids))
         + len(set(spec.context_ids))
-        + len({ref.connection_id for ref in spec.mcp_servers if isinstance(ref, OrgMcpServerRef)})
+        + len(servers - disabled)
+        + sum(not isinstance(ref, OrgMcpServerRef) for ref in spec.mcp_servers)
     )
 
 
@@ -302,10 +310,13 @@ class KeyCoverageService:
             await self._fail(report_id, organization_id, exc.message)
             return
         reach = await KnowledgeReachService(self.db).for_spec(ctx, agent, spec)
-        sources = {f"S{number}": source for number, source in enumerate(reach.sources, start=1)}
+        disabled = await self._disabled_servers(ctx, spec)
+        reachable = [s for s in reach.sources if not (s.kind == "mcp" and s.id in disabled)]
+        sources = {f"S{number}": source for number, source in enumerate(reachable, start=1)}
+        runner = SystemAgentRunner(self.db)
         try:
             material = await self._material(ctx, spec, sources, labels)
-            result = await SystemAgentRunner(self.db).run(
+            result = await runner.run(
                 ctx,
                 key=SOURCE_COVERAGE.key,
                 model_profile_id=_model_of(dataset),
@@ -320,7 +331,7 @@ class KeyCoverageService:
         except Exception:
             logger.exception("key_coverage_failed", extra={"report_id": str(report_id)})
             await self.db.rollback()
-            await self._fail(report_id, organization_id, FAILED)
+            await self._fail(report_id, organization_id, FAILED, run_id=runner.failed_run_id)
             return
         await key_coverage_report_repo.finish(
             self.db,
@@ -332,10 +343,21 @@ class KeyCoverageService:
                 item.model_dump(mode="json")
                 for item in settled_items(labels, result.output.keys, sources)
             ],
-            unseen_sources=max(_bound(spec) - len(sources), 0),
+            unseen_sources=max(_bound(spec, disabled=disabled) - len(sources), 0),
             judged_sources=[source.id for source in sources.values()],
             run_id=result.run.id,
         )
+
+    async def _disabled_servers(self, ctx: AuthContext, spec: AgentSpec) -> set[UUID]:
+        """The organization MCP servers the version binds that are switched off: no source."""
+        servers = await mcp_connection_repo.get_org_scoped_by_ids(
+            self.db,
+            connection_ids=[
+                ref.connection_id for ref in spec.mcp_servers if isinstance(ref, OrgMcpServerRef)
+            ],
+            organization_id=ctx.organization_id,
+        )
+        return {server_id for server_id, server in servers.items() if not server.is_enabled}
 
     async def _editable_agent(self, ctx: AuthContext, agent_id: UUID) -> Agent:
         return await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
@@ -390,7 +412,15 @@ class KeyCoverageService:
                 self.db, ids["collection"], organization_id=org
             )
         }
-        skills = await skill_repo.get_many(self.db, ids["skill"], organization_id=org)
+        # As the run reads them: the main version or fork each binding names.
+        skills = {
+            skill.id: skill
+            for skill in await SkillService(self.db).resolve_for_agent(
+                ctx,
+                [skill_id for skill_id in spec.skill_ids if skill_id in ids["skill"]],
+                bindings=spec.skill_bindings,
+            )
+        }
         contexts = await context_repo.get_many(self.db, ids["context"], organization_id=org)
         servers = await mcp_connection_repo.get_org_scoped_by_ids(
             self.db, connection_ids=ids["mcp"], organization_id=org

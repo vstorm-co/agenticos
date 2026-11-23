@@ -116,7 +116,9 @@ async def finish(
 async def ready_for_agent(
     db: AsyncSession, *, organization_id: UUID, agent_id: UUID, dataset_ids: Sequence[UUID]
 ) -> list[KeyCoverageReport]:
-    """The agent's ready reports over these datasets, made for the versions current now.
+    """The agent's complete ready reports over these datasets, for the versions current now.
+
+    A report with a source it could not read cannot say that no source holds a key.
 
     A report on an earlier agent version judged sources the agent may since have
     gained, and one on an earlier dataset version keys the dataset may since have changed.
@@ -136,6 +138,7 @@ async def ready_for_agent(
             KeyCoverageReport.agent_id == agent_id,
             KeyCoverageReport.dataset_id.in_(dataset_ids),
             KeyCoverageReport.status == CoverageStatus.READY.value,
+            KeyCoverageReport.unseen_sources == 0,
             Agent.id == agent_id,
         )
     )
