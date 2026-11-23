@@ -29,6 +29,8 @@ _COLUMNS = (
     ("improvement_runs", "budget_usd"),
     ("improvement_runs", "estimate_usd"),
     ("improvement_runs", "spent_usd"),
+    ("improvement_search_variants", "cost_usd"),
+    ("improvement_search_variants", "estimate_usd"),
     ("ingestion_spend", "cost_usd"),
     ("messages", "cost_usd"),
     ("node_attempts", "cost"),

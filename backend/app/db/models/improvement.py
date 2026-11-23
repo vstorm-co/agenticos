@@ -615,9 +615,9 @@ class ImprovementSearchVariant(Base):
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     """How often scoring this variant began; one that never finishes is given up on."""
     estimate_usd: Mapped[Decimal] = mapped_column(
-        Numeric(12, 6), nullable=False, default=Decimal(0)
+        Numeric(38, 6), nullable=False, default=Decimal(0)
     )
-    cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False, default=Decimal(0))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
