@@ -17117,7 +17117,8 @@
       "gradingModel": "Model oceniający warianty",
       "datasetJudge": "Model sędziego datasetu",
       "gradingHint": "Tańszy albo lokalny model obniża koszt wyszukiwania. Sprawdzenie po Zmianach zawsze ocenia sędzia datasetu.",
-      "quote": "Obejmuje budget wyszukiwania ({search}) i sprawdzenie znalezionego wariantu ({check})."
+      "quote": "Obejmuje budget wyszukiwania ({search}) i sprawdzenie znalezionego wariantu ({check}).",
+      "unpriced": "Wyszukiwanie będzie dostępne, gdy wycena policzy pytania treningowe tego datasetu."
     },
     "search": {
       "title": "Wyszukiwanie wariantów",

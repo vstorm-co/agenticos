@@ -17344,7 +17344,8 @@
       "gradingModel": "Model that grades variants",
       "datasetJudge": "The dataset's judge model",
       "gradingHint": "A cheaper or local model keeps the search cheap. The check after Changes always grades with the dataset's own judge.",
-      "quote": "Includes the search budget ({search}) and the check of the variant it finds ({check})."
+      "quote": "Includes the search budget ({search}) and the check of the variant it finds ({check}).",
+      "unpriced": "Search becomes available once the estimate has counted this dataset's training questions."
     },
     "search": {
       "title": "Variant search",

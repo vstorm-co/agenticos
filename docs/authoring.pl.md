@@ -1,5 +1,5 @@
 ---
-source_sha: "1ef937cc9b3f"
+source_sha: "81162d86c5b6"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -528,6 +528,13 @@ Wariant startuje tylko wtedy, gdy jego wycena mieści się w tym, co zostało.
 Każda odpowiedź ma limit dwukrotności swojej części wyceny, więc wyszukiwanie
 może przekroczyć budget najwyżej o jeden oceniany wariant. Sesja pokazuje
 wydatki wyszukiwania osobno od reszty.
+
+Treść wariantów, pisaną na podstawie pytań datasetu, czyta tylko ktoś, kto
+mógłby uruchomić sesję - z prawem edycji agenta, `runs:view` i prawem
+uruchamiania datasetu; pozostali widzą liczby. Pytanie, na które wariant nie
+odpowiedział albo którego nie dało się ocenić, liczy się jako niezaliczone.
+Wyszukiwanie bez postępu przez godzinę kończy się błędem `stalled` i można je
+ponowić.
 
 Domyślnie warianty ocenia sędzia datasetu na własnym modelu;
 `grading_model_profile_id` ocenia je zamiast tego na tańszym albo lokalnym

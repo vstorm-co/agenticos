@@ -42,7 +42,9 @@ export function StartMode({
       value: "search",
       hint: tooFew
         ? t("tooFew", { count: trainQuestions, needed: MIN_SEARCH_QUESTIONS })
-        : t("searchHint"),
+        : unpriced
+          ? t("unpriced")
+          : t("searchHint"),
       disabled: tooFew || unpriced,
     },
   ];

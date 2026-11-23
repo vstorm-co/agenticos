@@ -17030,7 +17030,8 @@
       "gradingModel": "Modell, das die Varianten bewertet",
       "datasetJudge": "Das Modell des Bewerters im Dataset",
       "gradingHint": "Ein günstigeres oder lokales Modell hält die Suche günstig. Die Prüfung nach den Änderungen bewertet immer der Bewerter des Datasets.",
-      "quote": "Enthält das Budget der Suche ({search}) und die Prüfung der gefundenen Variante ({check})."
+      "quote": "Enthält das Budget der Suche ({search}) und die Prüfung der gefundenen Variante ({check}).",
+      "unpriced": "Die Suche ist verfügbar, sobald die Schätzung die Trainingsfragen dieses Datasets gezählt hat."
     },
     "search": {
       "title": "Variantensuche",

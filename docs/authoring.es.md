@@ -1,5 +1,5 @@
 ---
-source_sha: "1ef937cc9b3f"
+source_sha: "81162d86c5b6"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -544,6 +544,13 @@ lo que queda. Cada respuesta tiene un tope del doble de su parte de esa
 estimación, así que la búsqueda puede superar su budget como mucho en la
 variante que estaba calificando. La sesión muestra lo que gastó la búsqueda
 aparte del resto.
+
+Solo quien podría iniciar la sesión - con permiso de edición del agente,
+`runs:view` y permiso para ejecutar el dataset - lee el texto de las variantes,
+escrito a partir de las preguntas del dataset; los demás ven las cifras. Una
+pregunta que una variante no pudo responder o que no se pudo calificar cuenta
+como fallida. Una búsqueda sin avances durante una hora falla como `stalled` y
+se puede reintentar.
 
 Por defecto, el juez del dataset califica las variantes con su propio modelo;
 `grading_model_profile_id` las califica en su lugar con un modelo más barato o

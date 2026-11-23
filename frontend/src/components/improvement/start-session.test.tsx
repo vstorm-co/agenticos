@@ -503,6 +503,7 @@ it("offers search only once the first quote has priced the dataset", async () =>
   render(<StartSession agentId="a1" onClose={vi.fn()} />);
 
   expect(await screen.findByRole("radio", { name: /Search variants/ })).toBeDisabled();
+  expect(screen.getByText(/once the estimate has counted/)).toBeInTheDocument();
   price({ ...QUOTE, train_questions: 12 });
 
   await waitFor(() => expect(screen.getByRole("radio", { name: /Search variants/ })).toBeEnabled());

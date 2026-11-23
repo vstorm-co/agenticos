@@ -513,6 +513,12 @@ is capped at twice its share of that estimate, so the search can go over its
 budget by at most the one variant it was scoring. The session shows what the
 search spent apart from the rest.
 
+Only someone who could start the session - with edit access to the agent,
+`runs:view` and the right to run the dataset - reads the variants' text, which
+is written from the dataset's questions; anyone else sees the counts. A question
+a variant could not answer or have graded counts as failed. A search with no
+progress for an hour fails as stalled and can be retried.
+
 By default the dataset's judge grades the variants on its own model;
 `grading_model_profile_id` grades them on a cheaper or local model instead. The
 check after **Changes** always grades with the dataset's judge. A variant's

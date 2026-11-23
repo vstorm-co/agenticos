@@ -1,5 +1,5 @@
 ---
-source_sha: "1ef937cc9b3f"
+source_sha: "81162d86c5b6"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -561,6 +561,13 @@ Rest passt. Jede Antwort ist auf das Doppelte ihres Anteils an dieser Schätzung
 begrenzt, daher kann die Suche ihr Budget höchstens um die eine gerade bewertete
 Variante überschreiten. Die Sitzung zeigt die Ausgaben der Suche getrennt vom
 Rest.
+
+Den Text der Varianten, geschrieben aus den Fragen des Datasets, liest nur, wer
+die Sitzung starten könnte - mit Bearbeitungsrecht am Agenten, `runs:view` und
+dem Recht, das Dataset auszuführen; alle anderen sehen die Zahlen. Eine Frage,
+die eine Variante nicht beantworten oder nicht bewerten lassen konnte, gilt als
+nicht bestanden. Eine Suche ohne Fortschritt über eine Stunde schlägt als
+`stalled` fehl und kann erneut versucht werden.
 
 Standardmäßig bewertet der Bewerter des Datasets die Varianten auf seinem eigenen
 Modell; `grading_model_profile_id` bewertet sie stattdessen auf einem günstigeren
