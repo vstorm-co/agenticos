@@ -119,8 +119,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Z.AI model profiles accept explicit GLM Coding Plan endpoints, with authenticated model catalogs isolated from the ordinary API and other accounts.
 
-- Find unanswered web-chat questions in Inbox and return to their original question cards, including older conversations.
-
 - Default to one read-only shared routine history with creator-owned forks
   for follow-up work, or choose an editable private chat per execution.
 
