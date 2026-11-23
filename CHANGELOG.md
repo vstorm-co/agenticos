@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **The chat's files panel no longer says it is empty above a folder.** "Nothing yet" shows only when the workspace lists nothing, folders included, and no attachment is shown beside it. A folder name the panel cuts short shows in full on hover, as a file name already did.
+
 ## [1.92.0] - 2026-11-23
 
 ### Added
