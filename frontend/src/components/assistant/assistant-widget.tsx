@@ -236,6 +236,10 @@ function ReadyWidget({
       const { request, answered } = useArchitectAskStore.getState();
       if (!request) return;
       answered(request.id);
+      if (request.openOnly) {
+        openWindow();
+        return;
+      }
       if (
         architectAskMatchesScope(request, {
           userId: useAuthStore.getState().user?.id ?? null,
@@ -250,7 +254,7 @@ function ReadyWidget({
       active = false;
       unsubscribe();
     };
-  }, [ask]);
+  }, [ask, openWindow]);
 
   const followLink = (link: ConsoleLink) => {
     // On a phone the full-screen window steps aside so the page can be seen.

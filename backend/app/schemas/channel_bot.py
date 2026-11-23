@@ -8,6 +8,7 @@ from pydantic import Field, computed_field, model_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.urls import ServiceAddress
+from app.services.channels.identity_scope import canonical_matrix_server
 from app.services.channels.webhooks import STREAM_ONLY, inbound_command_url, inbound_webhook_url
 from app.services.speech_to_text import is_offered
 
@@ -73,6 +74,9 @@ StepDisplay = Literal["timeline", "plan"]
 """How a streamed answer shows its tool calls: one row each, or one plan."""
 
 
+SELF_HOSTED = frozenset({"mattermost", "matrix", "imessage"})
+"""Platforms whose every deployment is somebody's own server, so a bot carries its URL."""
+
 TEAMS_ID_PATTERN = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 """An Entra app id or tenant id: a GUID."""
 
@@ -89,8 +93,8 @@ class ChannelBotCreate(BaseSchema):
         default=None,
         max_length=500,
         description=(
-            "The bot's own Mattermost or BlueBubbles server URL. "
-            "Required for Mattermost/iMessage and refused for platforms with one "
+            "The bot's own Mattermost, Matrix homeserver or BlueBubbles server URL. "
+            "Required for Mattermost/Matrix/iMessage and refused for platforms with one "
             "address for everybody."
         ),
     )
@@ -162,7 +166,7 @@ class ChannelBotCreate(BaseSchema):
         pattern=ACK_REACTION_PATTERN,
         description=(
             "The emoji the bot reacts to a question with as it arrives, by the "
-            "platform's name for it (`eyes`). Defaults to eyes on Slack, Telegram and Mattermost, or emphasize on iMessage; explicit null disables it."
+            "platform's name for it (`eyes`). Defaults to eyes on Slack, Telegram, Mattermost and Matrix, or emphasize on iMessage; explicit null disables it."
         ),
     )
     transcribe_voice_notes: bool = Field(
@@ -199,7 +203,7 @@ class ChannelBotCreate(BaseSchema):
     def _default_acknowledgement(self) -> ChannelBotCreate:
         """Choose a supported reaction only when creation omitted the setting."""
         if "ack_reaction" not in self.model_fields_set:
-            if self.platform in {"slack", "telegram", "mattermost"}:
+            if self.platform in {"slack", "telegram", "mattermost", "matrix"}:
                 self.ack_reaction = "eyes"
             elif self.platform == "imessage":
                 self.ack_reaction = "emphasize"
@@ -255,10 +259,10 @@ class ChannelBotCreate(BaseSchema):
 
     @model_validator(mode="after")
     def _a_gateway_bot_has_no_webhook(self) -> ChannelBotCreate:
-        """A Discord bot is reached over its Gateway connection, never a webhook (#2079)."""
+        """A Discord or Matrix bot is reached over its own connection, never a webhook (#2079, #2081)."""
         if self.platform in STREAM_ONLY and (self.webhook_mode or self.webhook_secret is not None):
             raise ValueError(
-                f"A {self.platform} bot connects over its own Gateway connection and takes no webhook"
+                f"A {self.platform} bot connects over its own connection and takes no webhook"
             )
         return self
 
@@ -279,12 +283,14 @@ class ChannelBotCreate(BaseSchema):
         Telegram and Slack have one address for everybody, so a server URL on
         one of those is a value nothing will ever read.
         """
-        if self.platform in {"mattermost", "imessage"} and self.api_base_url is None:
+        if self.platform == "matrix" and self.api_base_url is not None:
+            canonical_matrix_server(self.api_base_url)
+        if self.platform in SELF_HOSTED and self.api_base_url is None:
             raise ValueError(
                 "A self-hosted bot needs its server's URL - "
                 "there is no default address to fall back to"
             )
-        if self.platform not in {"mattermost", "imessage"} and self.api_base_url is not None:
+        if self.platform not in SELF_HOSTED and self.api_base_url is not None:
             raise ValueError(
                 f"A server URL is for a self-hosted platform - a {self.platform} bot "
                 "has one address for everybody"
@@ -499,6 +505,8 @@ class ChannelLinkRequestRead(BaseSchema):
     """
 
     platform: str
+    server_url: str | None = None
+    """The Matrix homeserver whose identity claim was confirmed."""
     platform_username: str | None = None
     platform_display_name: str | None = None
     expires_at: datetime
@@ -551,6 +559,8 @@ class ChannelIdentityRead(BaseSchema):
     id: UUID
     user_id: UUID | None = None
     platform: str
+    server_url: str | None = None
+    """The Matrix homeserver whose identity claim was confirmed."""
     platform_user_id: str
     platform_username: str | None = None
     platform_display_name: str | None = None

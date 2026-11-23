@@ -1,5 +1,13 @@
 "use client";
 
+import { ModelLabel } from "@/components/icons/model-icon";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useId } from "react";
 import { useTranslations } from "next-intl";
@@ -46,6 +54,7 @@ export function LocalCodingSettings({ harness }: { harness: LocalAgent["id"] }) 
       </div>
     );
   const data = state.data;
+  const maker = harness === "codex" ? "openai" : "anthropic";
   const { models } = data;
   const selected = models.find(
     (model) => model.value === (preferences.model ?? data.current_model),
@@ -64,12 +73,10 @@ export function LocalCodingSettings({ harness }: { harness: LocalAgent["id"] }) 
         <Label htmlFor={`${id}-model`} className="text-muted-foreground text-xs">
           {t("model")}
         </Label>
-        <NativeSelect
-          id={`${id}-model`}
-          value={preferences.model ?? ""}
-          className="h-8 px-2 text-xs"
-          onChange={(event) => {
-            const model = event.target.value || null;
+        <Select
+          value={preferences.model === null ? "inherit" : `model:${preferences.model}`}
+          onValueChange={(value) => {
+            const model = value === "inherit" ? null : value.slice("model:".length);
             const next = models.find((entry) => entry.value === (model ?? data.current_model));
             save({
               model,
@@ -79,18 +86,32 @@ export function LocalCodingSettings({ harness }: { harness: LocalAgent["id"] }) 
             });
           }}
         >
-          <option value="">{t("ownModel")}</option>
-          {missingModel && (
-            <option value={preferences.model ?? ""}>
-              {t("unavailableOption", { value: preferences.model ?? "" })}
-            </option>
-          )}
-          {models.map((model) => (
-            <option key={model.value} value={model.value}>
-              {model.name}
-            </option>
-          ))}
-        </NativeSelect>
+          <SelectTrigger id={`${id}-model`} className="h-8 px-2 py-0 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="inherit" textValue={t("ownModel")}>
+              <ModelLabel model="" provider={maker} label={t("ownModel")} />
+            </SelectItem>
+            {missingModel && (
+              <SelectItem
+                value={`model:${preferences.model}`}
+                textValue={t("unavailableOption", { value: preferences.model ?? "" })}
+              >
+                <ModelLabel
+                  model={preferences.model ?? ""}
+                  provider={maker}
+                  label={t("unavailableOption", { value: preferences.model ?? "" })}
+                />
+              </SelectItem>
+            )}
+            {models.map((model) => (
+              <SelectItem key={model.value} value={`model:${model.value}`} textValue={model.name}>
+                <ModelLabel model={model.value} provider={maker} label={model.name} />
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div className="min-w-0 space-y-1">
         <Label htmlFor={`${id}-effort`} className="text-muted-foreground text-xs">

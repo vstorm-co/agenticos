@@ -1,5 +1,5 @@
 ---
-source_sha: "40e46eb28642"
+source_sha: "51712be94fdc"
 ---
 
 # Wdrożenie na Kubernetes { #deploy-on-kubernetes }
@@ -208,11 +208,11 @@ oc -n agenticos get pods -o 'custom-columns=NAME:.metadata.name,SCC:.metadata.an
 
 Sprawdź, czy przyjęty SCC odpowiada zamierzonej restrykcyjnej polityce. Nie naprawiaj
 uprawnień przez `anyuid`, uprzywilejowane SCC lub zapisywalny główny system plików.
-Frontend montuje zapisywalne `emptyDir` w `/tmp` i `/app/.next/cache`; mounty backendu
-są w `templates/_helpers.tpl`. Zgłoszenie błędu `router-cache` wymaga **dokładnej
-ścieżki absolutnej**, tagu/digestu obrazu, wersji OpenShift, przyjętego SCC i logu
-bez danych poufnych. Cache poza tymi mountami nie jest objęty obecnym chartem.
-Nie montuj wolumenu nad całym `/app/.next`, bo ukryje zbudowaną aplikację.
+Frontend montuje zapisywalne `emptyDir` w `/tmp`, `/app/.next/cache` i
+`/app/.next/server/route-cache`, gdzie Next.js kopiuje każdą prerenderowaną stronę
+przy pierwszym jej serwowaniu (chart `0.1.2`; starszy chart przy read-only root nie
+może tego zapisać). Mounty backendu są w `templates/_helpers.tpl`. Nie montuj
+wolumenu nad całym `/app/.next` ani `/app/.next/server`, bo ukryje zbudowaną aplikację.
 
 Przy `ingress.enabled: false` zapewnij dwie Routes HTTPS do Services API i frontendu,
 obie z nazwanym portem `http`. Ustaw `public.siteUrl`, `public.apiUrl` i
@@ -444,8 +444,8 @@ Keycloak 26.8.2 przeszedł discovery, PKCE, walidację podpisanego tokena, jedno
 wymianę kodu konsoli, dostęp do organizacji i unieważnienie refresh po wylogowaniu
 przez Routes z TLS. Odrzucono niezweryfikowany email, niedozwoloną domenę i rejestrację
 bez zaproszenia. To walidacja generycznego OIDC, nie Microsoft Entra ani Azure.
-Testy renderowania serwerowego nie odtwarzają zgłoszonej ścieżki `router-cache`
-i nie zastępują interaktywnego przejścia przez wszystkie ekrany.
+Testy renderowania serwerowego nie zastępują interaktywnego przejścia przez
+wszystkie ekrany.
 
 Bazowy run potrzebował **6 CPU, 13 GiB RAM maszyny wirtualnej i dysku wirtualnego 45 GB**.
 Przy minimum CRC 10.5 GB pody migracji tych fixtures nie mogły dostać zasobów.

@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import MembersPage from "./page";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
+import { DEFAULT_CHAT_HOME, type ConsoleExperience } from "@/lib/console-experience-api";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore, useOrgStore } from "@/stores";
 import { permissionsOf, ROLE_CATALOG } from "@/test-utils/role-catalog";
@@ -50,6 +51,19 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   permanentRedirect: vi.fn(),
 }));
+
+const CONSOLE_EXPERIENCE: ConsoleExperience = {
+  availability: DEFAULT_CHAT_HOME,
+  organization_defaults: {},
+  preferences: {},
+  effective: DEFAULT_CHAT_HOME,
+  reminders: {
+    availability: true,
+    organization_defaults: {},
+    preferences: {},
+    effective: { enabled: true, snooze_days: 1 },
+  },
+};
 
 const ME = "user-me";
 
@@ -100,6 +114,7 @@ function serve(
   configuration: Partial<Organization> = {},
 ) {
   vi.mocked(apiClient.get).mockImplementation((url: string) => {
+    if (url === "/users/me/console-experience") return Promise.resolve(CONSOLE_EXPERIENCE);
     if (url === "/roles/catalog") return Promise.resolve(ROLE_CATALOG);
     if (url.startsWith("/me/permissions"))
       return Promise.resolve({
@@ -241,6 +256,7 @@ describe("the members table's role control", () => {
     path.mockReturnValue(`/orgs/${URL_ORG}/members`);
     useOrgStore.setState({ activeOrgId: "org-1", refusedOrgIds: [] });
     vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === "/users/me/console-experience") return Promise.resolve(CONSOLE_EXPERIENCE);
       if (url === "/roles/catalog") return Promise.resolve(ROLE_CATALOG);
       if (url.startsWith("/me/permissions")) {
         const asked = useOrgStore.getState().activeOrgId;
@@ -303,6 +319,7 @@ describe("the members table's role control", () => {
     // Offering nothing and being unable to answer are the same pixels and a
     // different fact.
     vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === "/users/me/console-experience") return Promise.resolve(CONSOLE_EXPERIENCE);
       if (url === "/roles/catalog") return Promise.reject(new Error("nope"));
       if (url.startsWith("/me/permissions")) return Promise.resolve(permissionsOf("admin"));
       if (url === "/system-agents")
@@ -502,6 +519,7 @@ describe("organization settings tabs", () => {
     );
     const original = vi.mocked(apiClient.get).getMockImplementation()!;
     vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === "/users/me/console-experience") return Promise.resolve(CONSOLE_EXPERIENCE);
       if (url === "/assistant")
         return Promise.resolve({
           status: "ready",
@@ -537,6 +555,12 @@ describe("organization settings tabs", () => {
       expect(header).not.toBeNull();
       headers.push(header!);
       expect(header!.querySelector('[data-slot="service-icon"] > svg')).not.toBeNull();
+      if (title === "AI Architect") {
+        expect(within(header!).getByRole("link", { name: "Open in Agent Builder" })).toBeVisible();
+        expect(within(header!).queryByRole("button", { name: title })).toBeNull();
+        expect(within(header!).getByRole("switch")).toBeVisible();
+        continue;
+      }
       const trigger = within(header!).getByRole("button", { name: title });
       const toggle = within(header!).getByRole("switch");
       expect(trigger).not.toContainElement(toggle);
@@ -552,11 +576,14 @@ describe("organization settings tabs", () => {
     expect(document.querySelectorAll('[data-slot="service-card"]')).toHaveLength(7);
   });
 
-  it("shows individual service cards to budget managers without parent groups", async () => {
+  it("groups background services without adding a second interactive disclosure", async () => {
     serve("viewer", [{ permission: Perm.budgetsManage, scope: "all" }]);
     await mount();
     await userEvent.click(await screen.findByRole("tab", { name: "AI & services" }));
-    expect(screen.getAllByRole("heading", { level: 2 })[0]).toHaveTextContent("Memory maintenance");
+    expect(screen.getByRole("heading", { name: "Background services", level: 2 })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Assistant and conversations", level: 2 }),
+    ).toBeVisible();
     expect(screen.queryByRole("button", { name: "Background services" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /Memory maintenance/ }));
     expect(await screen.findByRole("region", { name: "Memory maintenance" })).toBeVisible();

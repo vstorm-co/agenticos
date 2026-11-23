@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
+import { StartActions } from "./start-navigation";
 import { useStart } from "@/hooks/use-start";
 import { useRouter } from "@/lib/locale-navigation";
 
@@ -19,24 +20,26 @@ export function StartFinish() {
     };
   }, []);
   return (
-    <div className="flex flex-wrap items-center gap-3 border-t pt-5">
-      <Button
-        variant="outline"
-        disabled={state.save.isPending}
-        onClick={() =>
-          state.save.mutate(
-            { completed: true },
-            {
-              onSuccess: () => {
-                if (active.current) router.push("/chat");
+    <>
+      <StartActions>
+        <Button
+          variant="outline"
+          disabled={state.save.isPending}
+          onClick={() =>
+            state.save.mutate(
+              { completed: true },
+              {
+                onSuccess: () => {
+                  if (active.current) router.push("/chat");
+                },
               },
-            },
-          )
-        }
-      >
-        {t("administration.finishSetup")}
-      </Button>
+            )
+          }
+        >
+          {t("administration.finishSetup")}
+        </Button>
+      </StartActions>
       {state.save.error && <p role="alert">{t("loadFailed")}</p>}
-    </div>
+    </>
   );
 }

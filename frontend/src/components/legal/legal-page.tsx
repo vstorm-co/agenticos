@@ -32,7 +32,7 @@ export async function LegalPage({ title, summary, lastUpdated, locale, children 
   ];
 
   return (
-    <div className="theme-light bg-background text-foreground min-h-screen">
+    <div className="bg-background text-foreground min-h-dvh">
       <header className="border-foreground/10 border-b">
         <div className="mx-auto flex h-16 max-w-3xl items-center px-6">
           <Link
@@ -47,13 +47,17 @@ export async function LegalPage({ title, summary, lastUpdated, locale, children 
 
       <main id="main" className="mx-auto max-w-3xl px-6 pt-16 pb-24">
         <span className="eyebrow-badge mb-6">{t("eyebrow")}</span>
-        <h1 className="text-display-lg mb-5">{title}</h1>
-        {summary && <p className="text-foreground/70 text-lg leading-relaxed">{summary}</p>}
+        <h1 className="mb-5 text-3xl leading-tight font-medium tracking-tight wrap-anywhere sm:text-4xl">
+          {title}
+        </h1>
+        {summary && (
+          <p className="text-muted-foreground text-base leading-relaxed wrap-anywhere">{summary}</p>
+        )}
         <p className="text-muted-foreground mt-6 font-mono text-xs tracking-wider uppercase">
           {t("lastUpdated", { date: formatDate(lastUpdated, locale) })}
         </p>
 
-        <article className="prose-legal mt-16">{children}</article>
+        <article className="prose-legal mt-12 wrap-anywhere">{children}</article>
 
         <nav className="border-foreground/10 mt-16 flex flex-wrap items-center gap-3 border-t pt-8">
           <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">

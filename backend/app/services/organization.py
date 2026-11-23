@@ -27,6 +27,7 @@ from app.repositories import (
     member_repo,
     organization_repo,
 )
+from app.schemas.console_experience import ChatHomeOverrides, OnboardingReminderOverrides
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationList,
@@ -88,6 +89,12 @@ def _org_read(
     """
     return OrganizationRead(
         id=org.id,
+        onboarding_reminders=OnboardingReminderOverrides.model_validate(org.onboarding_reminders)
+        if org.onboarding_reminders is not None
+        else None,
+        chat_home_defaults=ChatHomeOverrides.model_validate(org.chat_home_defaults)
+        if org.chat_home_defaults is not None
+        else None,
         name=org.name,
         slug=org.slug,
         is_personal=org.is_personal,
@@ -523,6 +530,24 @@ class OrganizationService:
                 )
             )
 
+        if "onboarding_reminders" in data.model_fields_set:
+            org = await organization_repo.set_onboarding_reminders(
+                self.db,
+                org,
+                changes=data.onboarding_reminders.changes()
+                if data.onboarding_reminders is not None
+                else None,
+            )
+
+        if "chat_home_defaults" in data.model_fields_set:
+            org = await organization_repo.set_chat_home_defaults(
+                self.db,
+                org,
+                changes=data.chat_home_defaults.changes()
+                if data.chat_home_defaults is not None
+                else None,
+            )
+
         if wants_budget:
             # Keyed on the field being named, not on its value: an explicit
             # `null` lifts the ceiling, and every other PATCH must leave it
@@ -873,6 +898,9 @@ class OrganizationService:
         if self._vector_store is not None:
             restamp_orphans = await knowledge_base_repo.list_personal_carrying_org(self.db, org.id)
 
+        from app.services.sandbox_workspace import SandboxWorkspaceService
+
+        await SandboxWorkspaceService(self.db).purge_personal_coding(organization_id=org.id)
         await organization_repo.delete(self.db, org)
 
         restamps = [

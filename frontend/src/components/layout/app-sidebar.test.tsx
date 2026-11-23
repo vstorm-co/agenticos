@@ -49,6 +49,10 @@ const approvals = vi.fn<() => number>(() => 0);
 vi.mock("@/hooks/use-pending-approvals", () => ({
   usePendingApprovals: () => ({ count: approvals() }),
 }));
+const questions = vi.fn<() => number>(() => 0);
+vi.mock("@/hooks/use-waiting-chat-questions", () => ({
+  useWaitingChatQuestions: () => ({ count: questions() }),
+}));
 const sidebar = {
   openGroups: [] as string[],
   closedGroups: [] as string[],
@@ -64,6 +68,7 @@ beforeEach(() => {
   approvals.mockReturnValue(0);
   navigation.hiddenItems = [];
   navigation.isLoaded = true;
+  questions.mockReturnValue(0);
 });
 
 function renderNav() {
@@ -230,10 +235,7 @@ describe("SidebarNav", () => {
     expect(screen.getByRole("link", { name: "dashboard" })).toBeInTheDocument();
   });
 
-  it("keeps the admin group for platform admins only", () => {
-    // The flag, and only the flag. There used to be a `role === "admin"`
-    // fallback in `isAppAdmin`; while it existed this group appeared for
-    // accounts whose every request behind it was refused.
+  it("leaves deployment administration in the account menu for every account", () => {
     can.mockReturnValue(true);
     currentUser.mockReturnValue({ is_app_admin: false });
 
@@ -243,7 +245,7 @@ describe("SidebarNav", () => {
 
     currentUser.mockReturnValue({ is_app_admin: true });
     renderNav();
-    expect(screen.getByRole("link", { name: "adminOverview" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "adminOverview" })).not.toBeInTheDocument();
   });
 
   it("marks the current page for assistive technology", () => {
@@ -442,12 +444,13 @@ describe("the inbox count (#2301)", () => {
     expect(screen.getByLabelText("inboxCount")).toBeEmptyDOMElement();
   });
 
-  it("counts the approvals waiting on the reader with everything else", () => {
+  it("counts questions and approvals waiting on the reader with everything else", () => {
     can.mockReturnValue(true);
     waiting.mockReturnValue([{ id: "s1" }]);
     approvals.mockReturnValue(2);
+    questions.mockReturnValue(1);
     const { unmount } = render(<SidebarNav />);
-    expect(screen.getByLabelText("inboxCount")).toHaveTextContent("3");
+    expect(screen.getByLabelText("inboxCount")).toHaveTextContent("4");
     unmount();
 
     waiting.mockReturnValue([]);

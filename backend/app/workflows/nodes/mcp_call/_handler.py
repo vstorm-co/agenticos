@@ -353,7 +353,10 @@ async def _call(
     read_only = recorded_read_only
     called = False
     try:
-        async with asyncio.timeout(config.timeout_seconds), mcp_session(url, headers) as session:
+        async with (
+            asyncio.timeout(config.timeout_seconds),
+            mcp_session(url, headers, timeout=config.timeout_seconds) as session,
+        ):
             if ask_first or key_argument is not None:
                 listed = await session.list_tools()
                 tool = next((tool for tool in listed.tools if tool.name == config.tool), None)
@@ -386,7 +389,10 @@ async def _call(
                 detail="The tool was called and no answer came back; it may have acted"
             )
         return _failed(
-            "MCP_CALL_FAILED", probe_error_message(exc), retryable=True, tool=config.tool
+            "MCP_CALL_FAILED",
+            probe_error_message(exc, timeout=config.timeout_seconds),
+            retryable=True,
+            tool=config.tool,
         )
     if not isinstance(result, CallToolResult):
         return _failed(

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 
 import { Spinner } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";

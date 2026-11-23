@@ -40,7 +40,9 @@ interface WorkspacePanelsProps {
 }
 
 /** User-opened surfaces; starting one is an explicit, ordinary chat turn. */
-export function WorkspacePanels(props: WorkspacePanelsProps) {
+export function WorkspacePanels(
+  props: WorkspacePanelsProps & { filesButtonSlot?: HTMLElement | null },
+) {
   const t = useTranslations("chat.workspace");
   const chat = useTranslations("chat");
   const account = useAuthStore((state) => state.user?.id);
@@ -159,7 +161,7 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
         conversationId={props.conversationId}
         revision={props.revision}
         attachments={props.attachments}
-        buttonSlot={filesSlot}
+        buttonSlot={props.filesButtonSlot ?? filesSlot}
         open={surface === "files"}
         onOpenChange={(shown) => (shown ? open("files") : close())}
         responsive

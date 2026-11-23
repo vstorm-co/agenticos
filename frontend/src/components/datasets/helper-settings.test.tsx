@@ -149,7 +149,7 @@ it("refreshes untouched settings and keeps actual unsaved instructions during a 
   expect(screen.getByRole("button", { name: "server-model" })).toBeInTheDocument();
   const instructions = screen.getByRole("textbox", { name: "Instructions" });
   expect(instructions).toHaveValue("New server instructions.");
-  expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   await userEvent.clear(instructions);
   await userEvent.type(instructions, "My unsaved instructions.");
   const next = {
@@ -181,5 +181,22 @@ it("shows the instructions normalized by the server after saving", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(instructions).toHaveValue("Normalized instructions."));
   rerender(<HelperSettings dataset={saved} kind="generator" />);
-  expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+});
+
+it("keeps the same action footer and help text mounted when the model changes", async () => {
+  render(<HelperSettings dataset={configured()} kind="generator" />);
+  const save = screen.getByRole("button", { name: "Save" });
+  const cancel = screen.getByRole("button", { name: "Cancel" });
+  const guidance = screen.getByText(/Without a selected model/);
+  expect(save).toBeDisabled();
+  expect(cancel).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: "old-model" }));
+  expect(screen.getByRole("button", { name: "Save" })).toBe(save);
+  expect(screen.getByRole("button", { name: "Cancel" })).toBe(cancel);
+  expect(guidance).toBeVisible();
+  expect(save).toBeEnabled();
+  await userEvent.click(cancel);
+  expect(save).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Save" })).toBe(save);
 });

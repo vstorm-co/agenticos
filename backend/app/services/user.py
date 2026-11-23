@@ -4,7 +4,7 @@ import logging
 import secrets
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from uuid import UUID
 
 from sqlalchemy.exc import DBAPIError, IntegrityError
@@ -19,7 +19,9 @@ from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
+    ConfigurationError,
     ConflictError,
+    ExternalServiceError,
     NotFoundError,
     RateLimitError,
 )
@@ -269,18 +271,23 @@ class UserService:
             sort_by=sort_by,
             sort_dir=sort_dir,
         )
-        items = [
-            AdminUserRead(
-                id=user.id,
-                email=user.email,
-                full_name=user.full_name,
-                is_active=user.is_active,
-                is_app_admin=user.is_app_admin,
-                conversation_count=conv_count,
-                created_at=user.created_at,
+        activity = await session_repo.admin_activity_for(self.db, [user.id for user, _ in rows])
+        items = []
+        for user, conv_count in rows:
+            last_seen, sessions = activity.get(user.id, (None, 0))
+            items.append(
+                AdminUserRead(
+                    id=user.id,
+                    email=user.email,
+                    full_name=user.full_name,
+                    is_active=user.is_active,
+                    is_app_admin=user.is_app_admin,
+                    conversation_count=conv_count,
+                    created_at=user.created_at,
+                    last_seen_at=last_seen,
+                    active_sessions=sessions,
+                )
             )
-            for user, conv_count in rows
-        ]
         return AdminUserList(items=items, total=total)
 
     async def register(self, user_in: UserCreate) -> User:
@@ -415,7 +422,9 @@ class UserService:
         stored = user.hashed_password if user and user.hashed_password else _DUMMY_HASH
         ok = await asyncio.to_thread(verify_password, password, stored)
         if not user or not user.hashed_password or not ok:
-            raise AuthenticationError(message="Invalid email or password")
+            raise AuthenticationError(
+                message="Invalid email or password", details={"reason": "invalid_credentials"}
+            )
         if not user.is_active:
             raise AuthenticationError(message="User account is disabled")
         return user
@@ -1179,8 +1188,54 @@ class UserService:
         user = await user_repo.get_by_email(self.db, email)
         if user is None or not user.is_active:
             return None
-        token = create_password_reset_token(subject=str(user.id))
+        token = create_password_reset_token(
+            subject=str(user.id), credential_version=user.credential_version
+        )
         return user, token
+
+    @staticmethod
+    def password_reset_url(token: str) -> str:
+        return f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?token={token}"
+
+    async def admin_password_reset(
+        self,
+        user_id: UUID,
+        *,
+        actor_id: UUID,
+        delivery: Literal["email", "link"],
+        ip_address: str | None,
+    ) -> str | None:
+        """Issue recovery for an active account and record the administrator's action."""
+        user = await self.get_by_id(user_id)
+        if not user.is_active:
+            raise ConflictError(message="Reactivate this account before issuing a reset link.")
+        url = self.password_reset_url(
+            create_password_reset_token(
+                subject=str(user.id), credential_version=user.credential_version
+            )
+        )
+        if delivery == "email":
+            mail = get_email_service()
+            if not mail.delivers:
+                raise ConfigurationError(message="Email delivery is unavailable. Use a reset link.")
+            app_name = await DeploymentSettingsService(self.db).effective_app_name()
+            result = await mail.send_password_reset(
+                to=user.email, name=user.full_name or user.email, reset_url=url, app_name=app_name
+            )
+            if not result.accepted:
+                raise ExternalServiceError(
+                    message="Reset email was not accepted. Use a reset link."
+                )
+        await record_audit(
+            self.db,
+            actor_user_id=actor_id,
+            action="admin.user.password_reset",
+            target_type="user",
+            target_id=str(user.id),
+            details={"delivery": delivery},
+            ip_address=ip_address,
+        )
+        return url if delivery == "link" else None
 
     async def confirm_password_reset(self, token: str, new_password: str) -> User:
         payload = verify_special_token(token, expected_type="password_reset")
@@ -1191,7 +1246,9 @@ class UserService:
         except (TypeError, ValueError) as exc:
             raise AuthenticationError(message="Reset link is invalid or has expired") from exc
 
-        user = await self.get_by_id(user_id)
+        user = await user_repo.get_by_id_for_update(self.db, user_id)
+        if user is None or payload.get("cv") != user.credential_version:
+            raise AuthenticationError(message="Reset link is invalid or has expired")
         if not user.is_active:
             raise AuthenticationError(message="Account is disabled")
 

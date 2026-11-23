@@ -1,6 +1,7 @@
 """Password-reset and magic-link request/confirm schemas."""
 
 import re
+from typing import Literal
 
 from pydantic import EmailStr, Field, field_validator
 
@@ -21,6 +22,14 @@ class PasswordResetRequest(BaseSchema):
     """Step 1 - user submits their email; we email a reset link."""
 
     email: EmailStr
+
+
+class AdminPasswordResetRequest(BaseSchema):
+    delivery: Literal["email", "link"]
+
+
+class AdminPasswordResetRead(BaseSchema):
+    reset_url: str | None = None
 
 
 class PasswordResetConfirm(BaseSchema):

@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "name": "onboarding",
+  "contexts": [
+    {
+      "key": "policy",
+      "data": {
+        "name": "onboarding-policy",
+        "content": "An account owner must approve access. New joiners never inherit another employee's credentials.",
+        "mode": "inject",
+        "visibility": "private"
+      }
+    }
+  ],
+  "skills": [
+    {
+      "key": "procedure",
+      "data": {
+        "name": "onboarding-procedure",
+        "description": "Employee onboarding procedure",
+        "content": "List the role, required resources and account owner. Prepare a checklist; ask the owner before granting access.",
+        "visibility": "private"
+      }
+    }
+  ],
+  "datasets": [
+    {
+      "key": "questions",
+      "data": {
+        "name": "Employee onboarding questions",
+        "visibility": "private"
+      },
+      "cases": [
+        {
+          "input": "Who approves my account access?",
+          "reference_answer": "An account owner must approve access. New joiners never inherit another employee's credentials.",
+          "checks": [
+            {
+              "type": "contains",
+              "value": "owner"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "agents": [
+    {
+      "key": "assistant",
+      "spec": {
+        "name": "Employee onboarding",
+        "instructions": "List the role, required resources and account owner. Prepare a checklist; ask the owner before granting access.",
+        "capabilities": [
+          {
+            "id": "skills"
+          }
+        ]
+      },
+      "context_keys": [
+        "policy"
+      ],
+      "skill_keys": [
+        "procedure"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "key": "intake",
+      "data": {
+        "name": "Employee onboarding intake",
+        "graph": {
+          "entry_node_id": "2c35b44d-d50a-5f5a-95e6-fbc9d8c1d7df",
+          "nodes": [
+            {
+              "id": "2c35b44d-d50a-5f5a-95e6-fbc9d8c1d7df",
+              "definition_id": "trigger.manual",
+              "definition_version": 1,
+              "config": {
+                "input_schema": {
+                  "type": "object",
+                  "properties": {
+                    "external_id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "external_id",
+                    "title"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "layout": {
+                "x": 0,
+                "y": 0
+              },
+              "label": "Manual"
+            },
+            {
+              "id": "d4d39787-3e51-5f49-a31e-cba546cf7ffd",
+              "definition_id": "table.record.upsert",
+              "definition_version": 1,
+              "config": {
+                "table": {
+                  "kind": "table",
+                  "table_id": "cff5777c-3ff6-50ea-9d4e-b4f909552b97",
+                  "schema_version": 1
+                }
+              },
+              "layout": {
+                "x": 300,
+                "y": 0
+              },
+              "label": "Save"
+            },
+            {
+              "id": "bd8ee1bd-84c1-51e1-a62f-d7bc402f3cbb",
+              "definition_id": "core.output",
+              "definition_version": 1,
+              "config": {},
+              "layout": {
+                "x": 600,
+                "y": 0
+              },
+              "label": "Output"
+            }
+          ],
+          "edges": [
+            {
+              "id": "6063ea00-6ea9-55bf-8481-0e9d48245dc9",
+              "source_node_id": "2c35b44d-d50a-5f5a-95e6-fbc9d8c1d7df",
+              "source_port": "out",
+              "target_node_id": "d4d39787-3e51-5f49-a31e-cba546cf7ffd",
+              "target_port": "in"
+            },
+            {
+              "id": "3732e826-8a93-5039-bf6a-d1ccacf6cfb8",
+              "source_node_id": "d4d39787-3e51-5f49-a31e-cba546cf7ffd",
+              "source_port": "out",
+              "target_node_id": "bd8ee1bd-84c1-51e1-a62f-d7bc402f3cbb",
+              "target_port": "in"
+            }
+          ],
+          "bindings": [
+            {
+              "target_node_id": "d4d39787-3e51-5f49-a31e-cba546cf7ffd",
+              "target_field": "external_id",
+              "source": {
+                "kind": "node_output",
+                "node_id": "2c35b44d-d50a-5f5a-95e6-fbc9d8c1d7df",
+                "port": "out",
+                "field_path": [
+                  "payload",
+                  "external_id"
+                ]
+              }
+            },
+            {
+              "target_node_id": "d4d39787-3e51-5f49-a31e-cba546cf7ffd",
+              "target_field": "values/Title",
+              "source": {
+                "kind": "node_output",
+                "node_id": "2c35b44d-d50a-5f5a-95e6-fbc9d8c1d7df",
+                "port": "out",
+                "field_path": [
+                  "payload",
+                  "title"
+                ]
+              }
+            }
+          ]
+        },
+        "table_placeholder_id": "cff5777c-3ff6-50ea-9d4e-b4f909552b97",
+        "table": {
+          "name": "Employee onboarding records",
+          "columns": [
+            {
+              "label": "Title",
+              "type": "text",
+              "nullable": false
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

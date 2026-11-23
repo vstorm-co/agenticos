@@ -46,7 +46,12 @@ function scopeKey(scope: KnowledgeGapScope): string {
 /** A page of topics, the most asked first, and how many misses wait to be grouped. */
 export function useKnowledgeGaps(
   scope: KnowledgeGapScope,
-  { status = "open", skip = 0, limit = PAGE_SIZE }: KnowledgeGapQuery = {},
+  {
+    status = "open",
+    skip = 0,
+    limit = PAGE_SIZE,
+    enabled = true,
+  }: KnowledgeGapQuery & { enabled?: boolean } = {},
 ) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.knowledgeGaps.list(scopeKey(scope), { status, skip, limit }),
@@ -54,6 +59,7 @@ export function useKnowledgeGaps(
       const params = new URLSearchParams({ status, skip: String(skip), limit: String(limit) });
       return apiClient.get<KnowledgeGapTopicList>(`${scopePath(scope)}?${params}`);
     },
+    enabled,
     placeholderData: (previous) => previous,
     refetchInterval: (query) =>
       query.state.data?.items.some((topic) => topic.drafting) ? DRAFTING_POLL_MS : false,

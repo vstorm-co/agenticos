@@ -100,8 +100,8 @@ export function WizardSteps({
                   <span
                     aria-hidden
                     className={cn(
-                      "block h-1.5 rounded-full transition-all duration-300 ease-[var(--ease-out)]",
-                      active ? "w-5" : "w-1.5",
+                      "block h-1.5 w-5 rounded-full transition-[transform,background-color] duration-300 ease-[var(--ease-out)]",
+                      active ? "scale-x-100" : "scale-x-[0.3]",
                       step.status
                         ? ["done", "running", "needs_you"].includes(step.status)
                           ? "bg-foreground"

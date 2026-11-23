@@ -543,6 +543,10 @@ class TestList:
         with (
             patch(f"{REGISTRY_PATH}.agent_repo.published_starters", new=AsyncMock(return_value={})),
             patch(
+                f"{REGISTRY_PATH}.agent_repo.published_hidden_starters",
+                new=AsyncMock(return_value=set()),
+            ),
+            patch(
                 f"{REGISTRY_PATH}.agent_repo.published_starter_titles",
                 new=AsyncMock(return_value={}),
             ),
@@ -619,6 +623,10 @@ class TestList:
                 new=AsyncMock(return_value={version_id: ["What can you do?"]}),
             ) as starters,
             patch(
+                f"{REGISTRY_PATH}.agent_repo.published_hidden_starters",
+                new=AsyncMock(return_value={version_id}),
+            ),
+            patch(
                 f"{REGISTRY_PATH}.agent_repo.published_starter_titles",
                 new=AsyncMock(
                     return_value={version_id: {"What can you do?": "Explore possibilities"}}
@@ -664,6 +672,8 @@ class TestList:
         assert rows[0].personal_coding_harness is None
         assert starters.call_args.kwargs["version_ids"] == [version_id]
         assert rows[0].starters == ["What can you do?"]
+        assert rows[0].show_starters is False
+        assert rows[1].show_starters is True
         assert rows[1].is_starter is (template == "general/agenticos")
         assert rows[1].setup_required is (template is not None and enabled)
         assert rows[0].setup_required is False
@@ -3664,6 +3674,10 @@ class TestArchiveAndDelete:
             patch("app.services.agent_trigger.AgentTriggerService") as triggers_cls,
             patch("app.repositories.task.has_agent_execution", new=AsyncMock(return_value=False)),
             patch("app.services.tasks.TaskService.purge_scope", new=AsyncMock()) as purge_board,
+            patch(
+                "app.services.sandbox_workspace.SandboxWorkspaceService.purge_personal_coding",
+                new=AsyncMock(return_value=0),
+            ) as purge_sessions,
         ):
             triggers = triggers_cls.return_value
             triggers.deregister_agent_webhooks = AsyncMock()
@@ -3678,6 +3692,9 @@ class TestArchiveAndDelete:
         # stored webhook ids the hooks are removable by are gone for good.
         triggers.deregister_agent_webhooks.assert_awaited_once_with(ctx, agent.id)
         purge_board.assert_awaited_once_with("agent", agent.id, organization_id=ctx.organization_id)
+        purge_sessions.assert_awaited_once_with(
+            organization_id=ctx.organization_id, agent_id=agent.id
+        )
 
 
 class TestGetVersion:
@@ -4927,8 +4944,21 @@ class TestBrowserRefusedAtPublish:
         return problems
 
     @pytest.mark.anyio
-    async def test_an_agent_with_no_endpoint_is_refused_in_words(self):
-        assert any("needs a cdp_url" in problem for problem in await self._problems({}))
+    async def test_a_builtin_browser_without_an_endpoint_does_not_prevent_publish(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(settings, "BROWSER_SIGN_IN_CDP_URL", "")
+        spec = _spec(
+            capabilities=[{"id": "browser_use", "config": {}}], model_profile_id=uuid.uuid4()
+        )
+        await _publishes(spec)
+
+    @pytest.mark.anyio
+    async def test_a_proxy_browser_still_requires_its_cdp_endpoint(self):
+        assert any(
+            "needs a cdp_url" in problem
+            for problem in await self._problems({"connection": "proxy"})
+        )
 
     @pytest.mark.anyio
     async def test_a_host_the_operator_has_not_vetted_is_refused(self):
@@ -5238,9 +5268,11 @@ class TestAgentTemplates:
         first.key, first.name, first.description = "healthcare/a", "Procedure Assistant", "d"
         first.capabilities, first.skills, first.mcp, first.attach = ({"id": "clock"},), (), (), ()
         first.budget_usd = None
+        first.avatar.read_bytes.return_value = b"art"
         second.key, second.name, second.description = "healthcare/b", "Front Desk", "d"
         second.capabilities, second.skills, second.mcp, second.attach = (), (), (), ()
         second.budget_usd = 40.0
+        second.avatar = None
         industry.templates = [first, second]
 
         with (
@@ -5256,6 +5288,12 @@ class TestAgentTemplates:
             ("Procedure Assistant", True),
             ("Front Desk", False),
         ]
+
+        installed, available = catalog.industries[0].templates
+        assert installed.slug == "procedure-assistant"
+        assert installed.avatar_url == "data:image/png;base64,YXJ0"
+        assert available.slug == "front-desk"
+        assert available.avatar_url is None
 
     @pytest.mark.anyio
     async def test_installing_a_template_leaves_a_draft_with_no_model(self):
@@ -5990,7 +6028,15 @@ class TestUndoingADraft:
         )
         purge = AsyncMock()
         monkeypatch.setattr("app.services.tasks.TaskService.purge_scope", purge)
+        purge_sessions = AsyncMock(return_value=0)
+        monkeypatch.setattr(
+            "app.services.sandbox_workspace.SandboxWorkspaceService.purge_personal_coding",
+            purge_sessions,
+        )
         await AgentRegistryService(db).delete(ctx, agent.id, draft_only=True)
+        purge_sessions.assert_awaited_once_with(
+            organization_id=ctx.organization_id, agent_id=agent.id
+        )
 
         purge.assert_awaited_once_with("agent", agent.id, organization_id=ctx.organization_id)
         delete.assert_awaited_once_with(db, agent)

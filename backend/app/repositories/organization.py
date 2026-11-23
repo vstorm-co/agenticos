@@ -5,9 +5,9 @@ import uuid
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Select, func, select
+from sqlalchemy import ColumnElement, Select, cast, func, null, select
 from sqlalchemy import update as sql_update
-from sqlalchemy.dialects.postgresql import distinct_on
+from sqlalchemy.dialects.postgresql import JSONB, distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import OrgRoleName
@@ -660,3 +660,57 @@ async def admin_get_with_counts(db: AsyncSession, org_id: UUID) -> AdminOrganiza
         return None
     organization, members, agents, owner_id, owner_email, owner_name = row
     return organization, int(members), int(agents), owner_id, owner_email, owner_name
+
+
+async def set_chat_home_defaults(
+    db: AsyncSession,
+    org: Organization,
+    *,
+    changes: dict[str, bool | None] | None,
+) -> Organization:
+    """Patch only named console defaults without overwriting concurrent choices."""
+    value = (
+        null()
+        if changes is None
+        else func.jsonb_strip_nulls(
+            func.coalesce(Organization.chat_home_defaults, cast({}, JSONB)).op("||")(
+                cast(changes, JSONB)
+            )
+        )
+    )
+    result = await db.execute(
+        sql_update(Organization)
+        .where(Organization.id == org.id)
+        .values(chat_home_defaults=value)
+        .returning(Organization)
+        .execution_options(populate_existing=True)
+    )
+    await db.flush()
+    return result.scalar_one()
+
+
+async def set_onboarding_reminders(
+    db: AsyncSession,
+    org: Organization,
+    *,
+    changes: dict[str, bool | int | None] | None,
+) -> Organization:
+    """Patch only named console defaults without overwriting concurrent choices."""
+    value = (
+        null()
+        if changes is None
+        else func.jsonb_strip_nulls(
+            func.coalesce(Organization.onboarding_reminders, cast({}, JSONB)).op("||")(
+                cast(changes, JSONB)
+            )
+        )
+    )
+    result = await db.execute(
+        sql_update(Organization)
+        .where(Organization.id == org.id)
+        .values(onboarding_reminders=value)
+        .returning(Organization)
+        .execution_options(populate_existing=True)
+    )
+    await db.flush()
+    return result.scalar_one()

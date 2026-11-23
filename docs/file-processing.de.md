@@ -1,5 +1,5 @@
 ---
-source_sha: "1f9d4ae97fcd"
+source_sha: "8e0da94ccb26"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -135,6 +135,8 @@ bekommt die Datei statt des Textes:
 | Bild | `BinaryContent` | `BinaryContent` **und** geschrieben; die Referenz nennt den Pfad |
 | tiff | PNG-Seite(n) als `BinaryContent`, Seitengrenze vermerkt | Original-`.tiff` geschrieben; PNG-Seite(n) angezeigt, Seitengrenze vermerkt |
 | Archiv (`.zip`, `.tar.gz`) | abgelehnt: dem Modell wird gesagt, dass der Agent keinen Workspace hat, in den er es entpacken könnte, und nichts davon kommt in den Prompt | nach `uploads/<id>-<name>/` entpackt; der Verweis nennt den Ordner und den Anfang des Baums |
+
+Ist der Arbeitsbereich beim Anhängen eines Bildes nicht verfügbar, erhält das Modell das Bild direkt innerhalb der Bytegrenzen pro Bild und Anfrage. Der Prompt weist auf den nicht verfügbaren Arbeitsbereich hin.
 
 ### Archive { #archives }
 

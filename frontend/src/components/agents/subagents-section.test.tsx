@@ -67,6 +67,7 @@ const CONFIG_SCHEMA: JsonSchema = {
   type: "object",
   properties: {
     inline: { type: "array", title: "Inline specialists" },
+    allow_any_agent: { type: "boolean", default: false, title: "Use other accessible agents" },
     mode: { enum: ["sync", "async", "auto"], default: "sync", title: "Delegation mode" },
     allow_dynamic: { type: "boolean", default: false, title: "Let the agent create specialists" },
     max_depth: { type: "integer", default: 1, minimum: 1, maximum: 3, title: "Delegation depth" },
@@ -153,6 +154,7 @@ function mount({
   subagents = [] as SubagentRef[],
   externalAgents = [] as ExternalAgentRef[],
   disabled = false,
+  readOnly = false,
   onChange = vi.fn(),
   onSubagentsChange = vi.fn(),
   onExternalAgentsChange = vi.fn(),
@@ -164,6 +166,7 @@ function mount({
   subagents?: SubagentRef[];
   externalAgents?: ExternalAgentRef[];
   disabled?: boolean;
+  readOnly?: boolean;
   onChange?: (binding: CapabilityBindingSpec) => void;
   onSubagentsChange?: (subagents: SubagentRef[]) => void;
   onExternalAgentsChange?: (externalAgents: ExternalAgentRef[]) => void;
@@ -181,6 +184,7 @@ function mount({
       externalAgents={externalAgents}
       onExternalAgentsChange={onExternalAgentsChange}
       disabled={disabled}
+      readOnly={readOnly}
     />,
   );
   return { ...view, onChange, onSubagentsChange, onExternalAgentsChange };
@@ -470,5 +474,54 @@ describe("editing a binding that does not exist yet", () => {
 
     expect(DEFAULT_SUBAGENTS_CONFIG.mode).toBe("sync");
     expect(screen.getByText("Inline specialists")).toBeVisible();
+  });
+});
+
+describe("the accessible published-agent catalog", () => {
+  it("is opt in and changes only the discovery flag, preserving explicit delegates", async () => {
+    const user = userEvent.setup();
+    const pinned = [{ agent_id: "a1", agent_version_id: "v1" }];
+    const { onChange, onSubagentsChange } = mount({ subagents: pinned });
+    const toggle = screen.getByRole("switch", { name: "All accessible published agents" });
+    expect(toggle).not.toBeChecked();
+    expect(screen.queryByLabelText("Use other accessible agents")).toBeNull();
+    await user.click(toggle);
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({ allow_any_agent: true }),
+      }),
+    );
+    expect(onSubagentsChange).not.toHaveBeenCalled();
+  });
+
+  it("reads an enabled flag from a saved binding and lets it be disabled", async () => {
+    const user = userEvent.setup();
+    const { onChange } = mount({ bound: binding({ config: { allow_any_agent: true } }) });
+    const toggle = screen.getByRole("switch", { name: "All accessible published agents" });
+    expect(toggle).toBeChecked();
+    await user.click(toggle);
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        config: { allow_any_agent: false },
+      }),
+    );
+  });
+
+  it("does not let a read-only builder enable discovery", async () => {
+    const user = userEvent.setup();
+    const { onChange } = mount({ readOnly: true });
+    const toggle = screen.getByRole("switch", { name: "All accessible published agents" });
+    expect(toggle).toBeDisabled();
+    await user.click(toggle);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("cannot change a disabled control", async () => {
+    const user = userEvent.setup();
+    const { onChange } = mount({ disabled: true });
+    const toggle = screen.getByRole("switch", { name: "All accessible published agents" });
+    expect(toggle).toBeDisabled();
+    await user.click(toggle);
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

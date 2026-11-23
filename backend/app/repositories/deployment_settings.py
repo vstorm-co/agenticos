@@ -10,8 +10,8 @@ and the loser gets an `IntegrityError` no handler translates.
 
 from typing import Any
 
-from sqlalchemy import func, select
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import cast, func, select
+from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.deployment_settings import SIGNUP_CONSTRAINT, DeploymentSettings
@@ -44,12 +44,19 @@ async def upsert(db: AsyncSession, *, update_data: dict[str, Any]) -> Deployment
     bytes of. No unit test could see it, because they all mock this module;
     `tests/integration/test_deployment_settings_row.py` is what holds it shut.
     """
+    changes = dict(update_data)
+    if "chat_home_available" in changes and changes["chat_home_available"] is not None:
+        changes["chat_home_available"] = func.jsonb_strip_nulls(
+            func.coalesce(DeploymentSettings.chat_home_available, cast({}, JSONB)).op("||")(
+                cast(changes["chat_home_available"], JSONB)
+            )
+        )
     stmt = (
         insert(DeploymentSettings)
         .values(singleton=True, **update_data)
         .on_conflict_do_update(
             constraint=SIGNUP_CONSTRAINT,
-            set_={**update_data, "updated_at": func.now()},
+            set_={**changes, "updated_at": func.now()},
         )
         .returning(DeploymentSettings)
         .execution_options(populate_existing=True)

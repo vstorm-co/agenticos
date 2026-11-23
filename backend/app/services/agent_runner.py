@@ -4815,6 +4815,14 @@ class AgentRunnerService:
             ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=own_bodies or None
         )
         skills = _skills_with_content_overrides(skills, skill_content_overrides)
+        context_files = await self.context.resolve_for_agent(
+            ctx,
+            spec.context_ids,
+            projected=context_bodies,
+            config=context_config(spec.capabilities),
+        )
+        if routine is not None:
+            routine.require_materialized(skills, context_files)
         skill_log = SkillUseLog(
             agent_id=agent.id,
             served=served_skills(skills, own_bodies),
@@ -4825,17 +4833,15 @@ class AgentRunnerService:
             KNOWLEDGE_SEARCH_LOG_RESOURCE: search_log,
             SKILL_USE_LOG_RESOURCE: skill_log,
             "skills": skills,
-            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
-                ctx,
-                spec.context_ids,
-                projected=context_bodies,
-                config=context_config(spec.capabilities),
-            ),
+            CONTEXT_FILES_RESOURCE: context_files,
             SKILL_BODIES_RESOURCE: own_bodies,
             RUN_SKILL_BODIES_RESOURCE: dict(skill_bodies or {}),
             CONTEXT_BODIES_RESOURCE: dict(context_bodies or {}),
             SPECIALIST_SKILLS_RESOURCE: [],
         }
+        if routine is not None:
+            resources["routine_authority"] = routine
+            resources["routine_behavior_namespace"] = "root"
         # What an earlier turn of this thread wrote down. Read here rather than
         # beside the build below, because one of the three is a resource.
         recorded = await self._recorded_conversation_state(
@@ -5069,8 +5075,12 @@ class AgentRunnerService:
         if routine is not None and routine.routine_kind == "trigger":
             assert routine.source_policy is not None
             if (
-                set(resolved.sources) != set(routine.source_policy.root_mcp_ids)
-                or resolved.unavailable
+                (
+                    not set(resolved.sources).issubset(routine.source_policy.root_mcp_ids)
+                    if routine.source_policy.mode == "follow_agent"
+                    else set(resolved.sources) != set(routine.source_policy.root_mcp_ids)
+                )
+                or (resolved.unavailable and routine.source_policy.mode == "restricted")
                 or any(
                     identity != (routine.mcp_sources or {}).get(identifier)
                     for identifier, identity in resolved.sources.items()
@@ -6485,6 +6495,7 @@ class AgentRunnerService:
             agent_id=None,
             shared=shared,
             parent_resources=resources,
+            behavior_namespace=f"{resources.get('routine_behavior_namespace', 'root')}:inline:{specialist.name}",
             person_id=delegation.personal_mcp_user_id if delegation.personal_mcp is None else None,
             authorities=delegation.stash.mirage_authorities,
             restoring=delegation.stash.restoring_mirage,
@@ -6622,6 +6633,7 @@ class AgentRunnerService:
             agent_id=ref.agent_id,
             shared=shared,
             parent_resources=resources,
+            behavior_namespace=f"delegate:{ref.agent_version_id}",
             person_id=delegation.personal_mcp_user_id if delegation.personal_mcp is None else None,
             authorities=delegation.stash.mirage_authorities,
             restoring=delegation.stash.restoring_mirage,
@@ -6769,6 +6781,7 @@ class AgentRunnerService:
         person_id: UUID | None,
         authorities: dict[str, str] | None = None,
         restoring: bool = False,
+        behavior_namespace: str | None = None,
     ) -> dict[str, Any]:
         """A resource dict of the delegate's own, resolved from the delegate's spec.
 
@@ -6808,15 +6821,24 @@ class AgentRunnerService:
         skills = await self.skills.resolve_for_agent(
             ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=projected or None
         )
+        context_files = await self.context.resolve_for_agent(
+            ctx, spec.context_ids, config=context_config(spec.capabilities)
+        )
+        routine = parent_resources.get("routine_authority")
+        if isinstance(routine, RoutineAuthority):
+            if behavior_namespace is None:
+                raise RoutineSourcesRequired()
+            routine.require_materialized(skills, context_files, namespace=behavior_namespace)
         resources: dict[str, Any] = {
             **bound,
             "skills": skills,
-            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
-                ctx, spec.context_ids, config=context_config(spec.capabilities)
-            ),
+            CONTEXT_FILES_RESOURCE: context_files,
             SKILL_BODIES_RESOURCE: projected,
             RUN_SKILL_BODIES_RESOURCE: run_bodies,
         }
+        if isinstance(routine, RoutineAuthority):
+            resources["routine_authority"] = routine
+            resources["routine_behavior_namespace"] = behavior_namespace
         gathered = parent_resources.get(SPECIALIST_SKILLS_RESOURCE)
         if agent_id is None and isinstance(gathered, list):
             gathered.extend(skills)
@@ -7639,6 +7661,28 @@ class AgentRunnerService:
         await self._record_manifest(prepared)
         await RoutineHealthService(self.db).run_result(finished)
         await self._queue_memory_extraction(finished, prepared)
+        if (
+            finished.user_id is not None
+            and finished.surface in {RunSurface.WEB, *CHANNEL_SURFACES}
+            and not finished.initiated_by_publisher_fallback
+            and not finished.is_test
+            and finished.parent_run_id is None
+            and finished.key_scopes is None
+            and prepared.built.deps.audience is not None
+            and prepared.built.deps.audience.user_id == finished.user_id
+            and not prepared.built.deps.impersonated
+        ):
+            from app.services.proactive import ProactiveService
+
+            try:
+                async with self.db.begin_nested():
+                    await ProactiveService(self.db).queue_context_change(
+                        finished.organization_id, finished.user_id
+                    )
+            except Exception:
+                logger.exception(
+                    "personal_context_queue_failed", extra={"run_id": str(finished.id)}
+                )
 
         from app.services.conversation_tasks import ConversationTaskService
 

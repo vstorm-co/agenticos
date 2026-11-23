@@ -43,7 +43,12 @@ from app.repositories import (
     skill_repo,
 )
 from app.repositories.agent_run import ApprovalFilters, RunFilters
-from app.schemas.assistant import AssistantRead, AssistantSignals, AssistantUpdate
+from app.schemas.assistant import (
+    AssistantConfigurationRead,
+    AssistantRead,
+    AssistantSignals,
+    AssistantUpdate,
+)
 from app.services import agent_templates, skill_library
 from app.services.agent_registry import AgentRegistryService, slugify
 from app.services.model_profile import choosable_for_others
@@ -53,9 +58,6 @@ from app.services.skills import LibraryRefresh, SkillService
 logger = logging.getLogger(__name__)
 
 TEMPLATE_KEY = agent_templates.ARCHITECT_KEY
-# Its mark, worn as an ordinary agent picture so every place an agent's face is
-# drawn - the catalog, a picker, the transcript, Slack - draws the Architect's.
-AVATAR = agent_templates.TEMPLATES_ROOT / TEMPLATE_KEY / "avatar.png"
 """The shipped template every organization's assistant is installed from."""
 RECENT_FAILURE = timedelta(days=1)
 """How far back a failed run is still worth the bubble raising."""
@@ -80,6 +82,19 @@ class AssistantService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.registry = AgentRegistryService(db)
+
+    async def configuration(self, ctx: AuthContext) -> AssistantConfigurationRead:
+        """Read only an existing row; install and refresh are separate explicit changes."""
+        if not ctx.has(Perm.ORG_SETTINGS):
+            raise AuthorizationError(
+                message="Reading assistant configuration requires org:settings"
+            )
+        row = await organization_assistant_repo.get(self.db, ctx.organization_id)
+        if row is None:
+            return AssistantConfigurationRead(installed=False)
+        return AssistantConfigurationRead(
+            installed=True, agent_id=row.agent_id, enabled=row.enabled, greeting=row.greeting
+        )
 
     async def state(self, ctx: AuthContext) -> AssistantRead:
         """The organization's assistant as the widget needs it, installing it first.
@@ -444,9 +459,7 @@ class AssistantService:
                 ),
             },
         )
-        return await self.registry.set_avatar(
-            installer, agent.id, file_data=AVATAR.read_bytes(), content_type="image/png"
-        )
+        return agent
 
     async def _publish_when_possible(self, organization_id: UUID, agent: Agent) -> Agent:
         """Publish the draft on the organization's first chat model, once it has one.

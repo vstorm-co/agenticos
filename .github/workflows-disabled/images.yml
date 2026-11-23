@@ -69,7 +69,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  IMAGE_PREFIX: ghcr.io/vstorm-co/agenticos
+  IMAGE_PREFIX: ${{ vars.AGENTICOS_IMAGE_PREFIX || format('ghcr.io/{0}', github.repository) }}
 
 jobs:
   # Which commit, which tags, and whether anything needs building. Deliberately
@@ -84,6 +84,7 @@ jobs:
       contents: read
       packages: read
     outputs:
+      image_prefix: ${{ steps.pin.outputs.image_prefix }}
       sha: ${{ steps.pin.outputs.sha }}
       short: ${{ steps.pin.outputs.short }}
       tags: ${{ steps.pin.outputs.tags }}
@@ -120,6 +121,12 @@ jobs:
           BACKFILL: ${{ inputs.sha }}
         run: |
           set -euo pipefail
+          IMAGE_PREFIX=$(printf '%s' "$IMAGE_PREFIX" | tr '[:upper:]' '[:lower:]')
+          if ! [[ "$IMAGE_PREFIX" =~ ^ghcr\.io/[a-z0-9][a-z0-9._/-]+$ ]]; then
+            echo "::error::AGENTICOS_IMAGE_PREFIX must be a GHCR repository prefix without a tag" >&2
+            exit 1
+          fi
+          echo "image_prefix=$IMAGE_PREFIX" >> "$GITHUB_OUTPUT"
           sha=$(git rev-parse --verify "$REF^{commit}")
           if ! git merge-base --is-ancestor "$sha" origin/main; then
             echo "::error::$REF ($sha) is not on main - only merged commits are published" >&2
@@ -183,6 +190,8 @@ jobs:
   build:
     name: build ${{ matrix.image }} for ${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
+    env:
+      IMAGE_PREFIX: ${{ needs.resolve.outputs.image_prefix }}
     needs: resolve
     if: needs.resolve.outputs.build == 'true'
     # The backend's arm64 build installs LibreOffice and Tesseract from Debian's
@@ -267,6 +276,8 @@ jobs:
     name: publish ${{ matrix.image }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      IMAGE_PREFIX: ${{ needs.resolve.outputs.image_prefix }}
     needs: [resolve, build]
     # Runs when `build` succeeded *or was skipped* because the commit's images
     # already exist; never when it failed, so a tag is never given half a
@@ -357,6 +368,8 @@ jobs:
     name: scan ${{ matrix.image }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      IMAGE_PREFIX: ${{ needs.resolve.outputs.image_prefix }}
     needs: [resolve, publish]
     # Override implicit success(): build may legitimately have been skipped.
     if: ${{ !cancelled() && needs.resolve.result == 'success' && needs.publish.result == 'success' }}
@@ -423,6 +436,7 @@ jobs:
         image: [backend, frontend, browser]
         arch: [amd64, arm64]
     env:
+      IMAGE_PREFIX: ${{ needs.resolve.outputs.image_prefix }}
       # `api` rather than `backend` in the file name, because that is what a
       # release asset is read as - the API image and the console.
       NAME: sbom-${{ matrix.image == 'backend' && 'api' || matrix.image }}-${{ matrix.arch }}.cdx.json

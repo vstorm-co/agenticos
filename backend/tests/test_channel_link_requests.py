@@ -957,3 +957,20 @@ class TestCommandsGateOnLinkAdmission:
 
         assert "New conversation started" in reply
         assert create_conv.await_args.kwargs["user_id"] is None
+
+
+@pytest.mark.parametrize("platform", [None, "slack"])
+async def test_a_matrix_link_requires_a_live_matrix_bot(platform):
+    from app.core.exceptions import NotFoundError
+
+    bot = None if platform is None else SimpleNamespace(platform=platform)
+    incoming = _incoming()
+    incoming.platform = "matrix"
+    with (
+        patch(
+            "app.services.channel_link.channel_bot_repo.get_for_inbound",
+            AsyncMock(return_value=bot),
+        ),
+        pytest.raises(NotFoundError),
+    ):
+        await ChannelLinkService(_db()).request(incoming)

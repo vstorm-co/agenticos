@@ -33,8 +33,16 @@ interface ChatWelcomeProps {
   compact?: boolean;
   quiet?: boolean;
   loading?: boolean;
-  /** The main chat places its hints below the composer. Undefined keeps them inline. */
+  /** The main chat places hints in its home carousel. Undefined keeps them inline. */
   suggestionsSlot?: HTMLElement | null;
+  /** Keep the composer in place while hiding prompts from sight and keyboard. */
+  showSuggestions?: boolean;
+  /** Reserve the heading slot while hiding optional home greeting copy. */
+  showGreeting?: boolean;
+  /** Main chat shows two opening prompts on phones, four from the small breakpoint. */
+  limitMobileSuggestions?: boolean;
+  /** Generic discovery copy can be hidden without moving the composer. */
+  showLead?: boolean;
 }
 
 /**
@@ -55,18 +63,28 @@ export function ChatWelcome({
   quiet = false,
   loading = false,
   suggestionsSlot,
+  showSuggestions = true,
+  showGreeting = true,
+  showLead = true,
+  limitMobileSuggestions = false,
 }: ChatWelcomeProps) {
   const t = useTranslations("chat.empty");
+  const docked = quiet && suggestionsSlot !== undefined;
   // The centered composer must stay put when agent metadata replaces skeletons.
-  // Reserve four two-line suggestions and the same header slots in both states.
+  // Reserve the same suggestion and header slots in both states.
   const hints = (
     <>
       <div
+        data-chat-welcome-hints
+        data-suggestions-hidden={!showSuggestions || undefined}
+        inert={!showSuggestions}
+        aria-hidden={!showSuggestions || undefined}
         aria-busy={loading}
         className={cn(
-          "grid",
+          "chat-welcome-suggestions grid",
+          limitMobileSuggestions && "max-sm:[&>*:nth-child(n+3)]:hidden",
           quiet
-            ? "mt-4 auto-rows-[3.5rem] gap-1 sm:grid-cols-2"
+            ? "mt-4 auto-rows-fr gap-2 sm:grid-cols-2"
             : compact
               ? "mt-4 auto-rows-fr gap-1.5"
               : "mt-6 auto-rows-fr gap-2 sm:grid-cols-2",
@@ -83,13 +101,26 @@ export function ChatWelcome({
               <div key={suggestion.key} className="relative h-full">
                 <button
                   type="button"
+                  // Preserve the dock's geometry until click if the editor is focused.
+                  onMouseDown={(event) => {
+                    if (
+                      docked &&
+                      event.button === 0 &&
+                      document.activeElement?.getAttribute("contenteditable") === "true"
+                    )
+                      event.preventDefault();
+                  }}
                   onClick={() => onPick(suggestion.prompt)}
                   // A filled card rather than a hairline box: four outlines on a
                   // blank page read as a form to fill in, not as places to start.
                   className={cn(
                     "group hover:bg-muted focus-visible:ring-ring flex h-full w-full items-start gap-3 rounded-lg text-left transition-colors outline-none focus-visible:ring-2",
-                    quiet ? "text-muted-foreground px-2 py-2" : "bg-muted/60",
-                    quiet ? "px-2 py-2" : compact ? "px-3 py-2.5" : "px-3 py-3",
+                    docked
+                      ? "text-muted-foreground hover:text-foreground"
+                      : quiet
+                        ? "bg-transparent"
+                        : "bg-muted/60",
+                    quiet ? "px-3 py-3" : compact ? "px-3 py-2.5" : "px-3 py-3",
                   )}
                 >
                   {/* Off in a narrow column, where it took a third of a card's
@@ -97,26 +128,28 @@ export function ChatWelcome({
                   <span
                     className={
                       quiet
-                        ? "text-muted-foreground flex size-5 shrink-0 items-center justify-center"
+                        ? cn(
+                            "flex size-5 shrink-0 items-center justify-center",
+                            !docked && "text-muted-foreground",
+                          )
                         : "bg-foreground/[0.045] text-foreground/80 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl @max-xl:hidden"
                     }
                   >
-                    <suggestion.icon className="h-4 w-4" />
+                    <suggestion.icon className="size-4" aria-hidden />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span
                       className={cn(
-                        "block text-sm",
-                        quiet ? "line-clamp-2" : "text-foreground font-medium",
+                        "line-clamp-2 block text-sm",
+                        !docked && "text-foreground font-medium",
                       )}
                     >
                       {suggestion.title}
                     </span>
-                    {suggestion.description !== "" && (
+                    {suggestionsSlot === undefined && suggestion.description !== "" && (
                       <span
                         className={cn(
                           "text-muted-foreground mt-0.5 block text-[13px] leading-relaxed",
-                          quiet && "sr-only",
                           // A narrow window shows four cards and a composer at once only
                           // when each says its prompt in a line.
                           compact ? "line-clamp-1" : "line-clamp-1 md:line-clamp-2",
@@ -129,9 +162,9 @@ export function ChatWelcome({
                   {suggestion.onRemove ? (
                     // Room for the × that sits over this corner.
                     <span className="h-4 w-4 shrink-0" />
-                  ) : (
+                  ) : !docked ? (
                     <ArrowUpRight className="text-muted-foreground group-hover:text-foreground mt-0.5 h-4 w-4 shrink-0 opacity-0 transition-[opacity,color] group-hover:opacity-100 group-focus-visible:opacity-100" />
-                  )}
+                  ) : null}
                 </button>
                 {suggestion.onRemove && (
                   <button
@@ -160,20 +193,25 @@ export function ChatWelcome({
     <div className={cn("@container mx-auto w-full", compact ? "px-3 py-2" : "py-6 md:py-8")}>
       <div className={compact ? "text-center" : "text-left"}>
         <div
+          data-chat-welcome-mark
           className={cn(
             "flex",
             compact
               ? "mb-3 justify-center"
               : "relative mb-4 min-h-36 w-full items-center justify-start",
-            quiet && !compact && "min-h-36",
+            quiet && !compact && "min-h-0",
           )}
         >
-          {!compact && <RotatingWorkspaceArt />}
-          <span className="relative">{mark}</span>
+          {!compact && !quiet && <RotatingWorkspaceArt />}
+          <span className="relative" data-chat-welcome-avatar={quiet && !compact ? "" : undefined}>
+            {mark}
+          </span>
         </div>
         <h2
+          aria-hidden={!showGreeting || undefined}
           className={cn(
             "text-foreground min-h-9 font-medium tracking-tight",
+            !showGreeting && "invisible",
             quiet && "min-h-[2lh] md:min-h-9",
             compact ? "text-lg" : "text-2xl md:text-3xl",
           )}
@@ -181,8 +219,10 @@ export function ChatWelcome({
           {title}
         </h2>
         <p
+          aria-hidden={!showLead || undefined}
           className={cn(
             "text-muted-foreground line-clamp-2 max-w-xl leading-relaxed",
+            !showLead && "invisible",
             quiet && "min-h-[2lh]",
             compact ? "mt-1 text-[13px]" : "mt-2 text-sm",
           )}

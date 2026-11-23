@@ -8,6 +8,8 @@ welcome that fails on one platform still greets on the next.
 """
 
 import asyncio
+import hashlib
+import json
 import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
@@ -17,11 +19,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from pydantic_ai.exceptions import ModelHTTPError
+from pydantic import ValidationError
+from pydantic_ai import RunContext
+from pydantic_ai.exceptions import ModelHTTPError, ModelRetry
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
-from pydantic_ai.usage import RequestUsage
+from pydantic_ai.usage import RequestUsage, RunUsage
 
 from app.agents.capabilities.budget import BudgetScope, SpendLimit
 from app.core.exceptions import BadRequestError
@@ -31,12 +35,15 @@ from app.db.models.suggestion import SuggestionKind
 from app.repositories.conversation import PersonRequest
 from app.repositories.member import SweepCandidate
 from app.schemas.user import WorkingHours
+from app.services.memory import extraction
 from app.services.proactive import _role_pack, _thinker, _welcome
 from app.services.proactive._nightly import (
     NightlyLook,
     NightlyReading,
     ProfileUpdate,
     RepeatedRequest,
+    repair_missing_schedule,
+    select_repeats,
 )
 from app.services.proactive._thinker import ProactiveThinker
 from app.services.proactive.facade import _STARTER_SLUG, ProactiveService, _its_time
@@ -546,9 +553,13 @@ class TestThinking:
                 output_type=NightlyReading,
                 instructions="Read.",
                 prompt="{}",
+                validate_output=lambda _ctx, output: output.model_copy(
+                    update={"starters": ["Validated"]}
+                ),
             )
 
         assert isinstance(answer, NightlyReading)
+        assert answer.starters == ["Validated"]
         # On the model the organization chose for it, not the agent's own.
         assert service.return_value.resolve.await_args.kwargs == {"profile_id": MODEL}
         assert create_run.await_args.kwargs["surface"] == RunSurface.PROACTIVE.value
@@ -800,8 +811,44 @@ def _user(**overrides):
     return SimpleNamespace(**values)
 
 
-def _request(content: str) -> PersonRequest:
-    return PersonRequest(MagicMock(content=content, created_at=datetime.now(UTC)), None)
+def _request(content: str, *, thread=None) -> PersonRequest:
+    message = MagicMock(
+        content=content,
+        id=uuid.uuid4(),
+        conversation_id=thread or uuid.uuid4(),
+        created_at=datetime.now(UTC),
+    )
+    return PersonRequest(message, None)
+
+
+def test_maintenance_output_rejects_two_values_for_one_normalized_subject() -> None:
+    with pytest.raises(ValidationError, match="one claim per subject"):
+        extraction._Extraction.model_validate(
+            {
+                "claims": [
+                    {"subject": "Team role", "statement": "Reviewer", "evidence": "Reviewer"},
+                    {"subject": "team_role", "statement": "Editor", "evidence": "Editor"},
+                ]
+            }
+        )
+
+
+@pytest.mark.parametrize("evidence", ["I am a reviewer", "I am", "    ", " rev ", "I am reviewer"])
+def test_memory_extraction_requires_one_verbatim_user_quote(evidence: str) -> None:
+    found = extraction._Extraction.model_validate(
+        {"claims": [{"statement": "Works as a reviewer", "evidence": evidence}]}
+    )
+    utterances = ["I am a reviewer", "The reviewer approved this"]
+    if evidence in {"I am a reviewer", "I am"}:
+        assert extraction.require_grounded_claims(found, utterances) is found
+    else:
+        with pytest.raises(ModelRetry, match="Copy evidence exactly"):
+            extraction.require_grounded_claims(found, utterances)
+
+
+def test_memory_extraction_accepts_an_empty_result() -> None:
+    found = extraction._Extraction()
+    assert extraction.require_grounded_claims(found, []) is found
 
 
 class TestTheNightlyLook:
@@ -816,6 +863,11 @@ class TestTheNightlyLook:
         starters=None,
         erased=None,
         erased_meanwhile=False,
+        claims=(),
+        prior=(),
+        connections=(),
+        open_proposals=(),
+        replace_succeeds=True,
     ):
         thinker = MagicMock()
         thinker.starter_agent = AsyncMock(return_value=_agent() if agent else None)
@@ -840,12 +892,18 @@ class TestTheNightlyLook:
                 ),
                 patch(f"{NIGHTLY}.memory_repo.list_for_owner", new=AsyncMock(return_value=[])),
                 patch(
+                    f"{NIGHTLY}.claim_repo.list_in_scopes", new=AsyncMock(return_value=list(claims))
+                ),
+                patch(
+                    f"{NIGHTLY}.suggestion_repo.list_all", new=AsyncMock(return_value=list(prior))
+                ),
+                patch(
                     f"{NIGHTLY}.agent_trigger_repo.routine_prompts_for_screening",
                     new=AsyncMock(return_value=[]),
                 ),
                 patch(
                     f"{NIGHTLY}.mcp_connection_repo.list_for_user",
-                    new=AsyncMock(return_value=([], 0)),
+                    new=AsyncMock(return_value=(list(connections), len(connections))),
                 ),
                 patch(f"{NIGHTLY}.user_repo.update", new=AsyncMock()),
                 patch(f"{NIGHTLY}.member_repo.set_personal_starters", new=AsyncMock()),
@@ -871,16 +929,24 @@ class TestTheNightlyLook:
                     f"{NIGHTLY}.audit_log_repo.memory_erased_since",
                     new=AsyncMock(return_value=erased_meanwhile),
                 ),
+                patch(
+                    f"{NIGHTLY}.suggestion_repo.list_open",
+                    new=AsyncMock(return_value=list(open_proposals)),
+                ),
+                patch(
+                    f"{NIGHTLY}.suggestion_repo.remove_open_generated",
+                    new=AsyncMock(return_value=replace_succeeds),
+                ),
             ],
         }
 
-    async def _look(self, **kwargs):
+    async def _look(self, *, refresh_open=False, **kwargs):
         setup = self._patches(**kwargs)
         look = NightlyLook(MagicMock())
         look.thinker = setup["thinker"]
         started = [p.start() for p in setup["patches"]]
         try:
-            made = await look.look(ORG, USER)
+            made = await look.look(ORG, USER, refresh_open=refresh_open)
         finally:
             for p in setup["patches"]:
                 p.stop()
@@ -889,6 +955,8 @@ class TestTheNightlyLook:
             "member",
             "requests",
             "notes",
+            "claims",
+            "prior",
             "routines",
             "connections",
             "update",
@@ -901,6 +969,8 @@ class TestTheNightlyLook:
             "lock",
             "agent_lock",
             "erased_meanwhile",
+            "open_proposals",
+            "replace",
         ]
         return made, setup["thinker"], dict(zip(names, started, strict=True))
 
@@ -909,6 +979,85 @@ class TestTheNightlyLook:
 
         assert made == 0
         thinker.think.assert_not_awaited()
+
+    @pytest.mark.parametrize("case", ["valid", "no-reading", "decided", "erased", "protected"])
+    async def test_refresh_keeps_old_proposals_until_a_valid_reading_and_unchanged_open_set(
+        self, case
+    ):
+        proposal = SimpleNamespace(
+            id=uuid.uuid4(),
+            kind="finding" if case == "protected" else "agent",
+            watch_id=None,
+            outcome_id=None,
+            title="Old",
+            status="open",
+            payload={"request": "Old"},
+        )
+        request = _request("New request")
+        request.message.nightly_read_by_user_id = USER
+        request.message.nightly_read_content_hash = hashlib.sha256(b"New request").hexdigest()
+        made, thinker, mocks = await self._look(
+            refresh_open=True,
+            starters=["Existing"],
+            requests=[request],
+            reading=None if case == "no-reading" else NightlyReading(),
+            prior=[proposal],
+            open_proposals=[proposal],
+            replace_succeeds=case != "decided",
+            erased_meanwhile=case == "erased",
+        )
+        assert made == 0
+        if case == "protected":
+            thinker.think.assert_not_awaited()
+        else:
+            material = json.loads(thinker.think.await_args.kwargs["prompt"])
+            assert material["prior_proposals"] == []
+        if case in {"valid", "decided"}:
+            assert mocks["replace"].await_args.kwargs["expected_ids"] == {proposal.id}
+        else:
+            mocks["replace"].assert_not_awaited()
+        if case == "valid":
+            mocks["mark_read"].assert_awaited_once()
+        else:
+            mocks["mark_read"].assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        ("time_zone", "weekday", "date"),
+        [("Europe/Warsaw", "Thursday", "2026-11-19"), (None, "Wednesday", "2026-11-18")],
+    )
+    async def test_proposal_keeps_local_timing_evidence_and_ready_action_prompt(
+        self, time_zone, weekday, date
+    ):
+        requests = [_request("Przygotuj agendę VstormPedia") for _ in range(3)]
+        for request in requests:
+            request.message.created_at = datetime(2026, 11, 18, 23, 30, tzinfo=UTC)
+        repeat = RepeatedRequest(
+            intent="prepare-vstormpedia-agenda",
+            evidence=[1, 2, 3],
+            as_agent=False,
+            cron="0 17 * * 4",
+            required_services=[],
+            title="Agenda VstormPedia",
+            why="Powtarzasz przygotowanie agendy.",
+            prompt="Przygotuj agendę VstormPedia.",
+            chat_prompt="Ustaw przygotowanie agendy na czwartek; potwierdź ze mną godzinę.",
+        )
+        _, thinker, mocks = await self._look(
+            user=_user(time_zone=time_zone),
+            requests=requests,
+            reading=NightlyReading(repeats=[repeat]),
+        )
+        material = json.loads(thinker.think.await_args.kwargs["prompt"])
+        first = material["requests_this_week"][0]
+        assert first["weekday_local"] == weekday
+        assert first["local_date"] == date
+        assert first["date_utc"] == "2026-11-18"
+        payload = mocks["propose"].await_args.kwargs["payload"]
+        assert payload["chat_prompt"] == repeat.chat_prompt
+        assert {item["message_id"] for item in payload["evidence"]} == {
+            str(request.message.id) for request in requests
+        }
+        assert all(item["weekday_local"] == weekday for item in payload["evidence"])
 
     @pytest.mark.parametrize("case", ["gone", "suspended", "not-a-member", "no-starter"])
     async def test_nobody_who_cannot_be_reached_is_read(self, case):
@@ -972,18 +1121,64 @@ class TestTheNightlyLook:
         assert made == 0
         mocks["propose"].assert_not_awaited()
 
+    def test_selection_prefers_a_routine_and_skips_unusable_proposals(self) -> None:
+        repeat = RepeatedRequest(
+            intent="check-atlas-specs",
+            evidence=[1, 3, 4],
+            title="Atlas",
+            why="Repeated three times",
+            prompt="Review Atlas specs",
+            cron="0 16 * * *",
+            as_agent=False,
+            required_services=[],
+        )
+        duplicate = repeat.model_copy(update={"as_agent": True, "cron": None})
+        renamed = duplicate.model_copy(
+            update={"intent": "read-atlas-specs", "prompt": "Check for meaningful Atlas changes"}
+        )
+        assert select_repeats([duplicate, repeat], []) == [repeat]
+        assert select_repeats([renamed, repeat], []) == [repeat]
+        for unusable in (
+            repeat.model_copy(update={"cron": None}),
+            repeat.model_copy(update={"cron": "invalid"}),
+            repeat.model_copy(update={"as_agent": True}),
+            repeat.model_copy(update={"prompt": " "}),
+            repeat.model_copy(update={"evidence": [1, 1, 1]}),
+        ):
+            assert select_repeats([unusable, renamed], []) == [renamed]
+        same_wording = duplicate.model_copy(update={"intent": "check-specs", "evidence": [4, 5, 6]})
+        assert select_repeats([same_wording, repeat], []) == [repeat]
+        incomplete = NightlyReading(repeats=[repeat.model_copy(update={"cron": None})])
+        ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage())
+        with pytest.raises(ModelRetry, match="five-field UTC cron"):
+            repair_missing_schedule(ctx, incomplete)
+        assert repair_missing_schedule(ctx, NightlyReading(repeats=[repeat])).repeats == [repeat]
+        ctx.retry = 1
+        assert repair_missing_schedule(ctx, incomplete) is incomplete
+
     async def test_what_it_read_becomes_first_messages_and_proposals_in_their_language(self):
         reading = NightlyReading(
             repeats=[
                 RepeatedRequest(
+                    intent="write-sales-report",
+                    evidence=[1, 2, 3],
+                    required_services=["Notion"],
                     title="Raport",
                     why="3x",
                     prompt="Raport sprzedaży",
+                    chat_prompt="  Ustaw raport sprzedaży z Notion w poniedziałki.  ",
                     cron="0 7 * * 1",
                     as_agent=False,
                 ),
                 RepeatedRequest(
-                    title="Agent", why="2x", prompt="Odpowiadaj klientom", as_agent=True
+                    intent="answer-customers",
+                    evidence=[4, 5, 6],
+                    title="Agent",
+                    why="3x",
+                    prompt="Odpowiadaj klientom",
+                    as_agent=True,
+                    cron=None,
+                    required_services=[],
                 ),
             ],
             profile=ProfileUpdate(
@@ -997,7 +1192,19 @@ class TestTheNightlyLook:
             role_pack="sales",
             role_pack_title="Pakiet sprzedaży",
         )
-        made, _, mocks = await self._look(reading=reading, requests=[_request("Raport")])
+        made, _, mocks = await self._look(
+            reading=reading,
+            connections=[SimpleNamespace(name="Notion")],
+            claims=[
+                SimpleNamespace(
+                    agent_id=None, kind="fact", statement="Head of sales, 09:00 to 17:00"
+                )
+            ],
+            requests=[
+                _request(text)
+                for text in ("Raport", "Raport", "Raport", "Odpowiedź", "Odpowiedź", "Odpowiedź")
+            ],
+        )
 
         assert made == 4
         # Kept on the membership: they come from this organization's week (Codex on #2324).
@@ -1007,26 +1214,128 @@ class TestTheNightlyLook:
         ]
         proposed = [call.kwargs for call in mocks["propose"].await_args_list]
         assert [p["kind"] for p in proposed] == ["routine", "agent", "profile", "role_pack"]
-        assert proposed[0]["payload"] == {"prompt": "Raport sprzedaży", "cron": "0 7 * * 1"}
-        assert proposed[1]["payload"] == {"request": "Odpowiadaj klientom"}
+        assert proposed[0]["payload"]["prompt"] == "Raport sprzedaży"
+        assert proposed[0]["payload"]["cron"] == "0 7 * * 1"
+        assert (
+            proposed[0]["payload"]["chat_prompt"]
+            == "Ustaw raport sprzedaży z Notion w poniedziałki."
+        )
+        assert len(proposed[0]["payload"]["evidence_ids"]) == 3
+        assert len(proposed[0]["payload"]["evidence"]) == 3
+        assert all(
+            item["time_zone"] == "Europe/Warsaw" for item in proposed[0]["payload"]["evidence"]
+        )
+        assert proposed[1]["payload"]["request"] == "Odpowiadaj klientom"
+        assert "chat_prompt" not in proposed[1]["payload"]
         assert proposed[2]["payload"]["job_title"] == "Head of sales"
         assert "about" not in proposed[2]["payload"]
         assert proposed[3]["payload"] == {"pack": "sales"}
         # Keys are stable per proposal, so the same one tomorrow is the same key.
-        assert proposed[0]["dedupe_key"].startswith("routine:")
+        assert proposed[0]["dedupe_key"].startswith("repeat:")
         mocks["notify"].return_value.suggestions_ready.assert_awaited_once()
+
+    async def test_reads_only_current_profile_and_matching_starter_claims(self):
+        claim = SimpleNamespace(
+            agent_id=None, kind="preference", statement="Woli zwięzłe odpowiedzi"
+        )
+        made, thinker, mocks = await self._look(claims=[claim], requests=[_request("Hej")])
+
+        assert made == 0
+        lookup = mocks["claims"].await_args.kwargs
+        assert lookup["organization_id"] == ORG
+        assert lookup["in_effect"] is True
+        assert len(lookup["scopes"]) == 2
+        assert all(scope.scope_key == f"person:{USER}" for scope in lookup["scopes"])
+        assert lookup["scopes"][0].agent_id is None and lookup["scopes"][1].agent_id is not None
+        prompt = json.loads(thinker.think.await_args.kwargs["prompt"])
+        assert prompt["current_memory"] == [
+            {"scope": "profile", "kind": "preference", "statement": "Woli zwięzłe odpowiedzi"}
+        ]
+
+    @pytest.mark.parametrize(
+        "duplicate",
+        [
+            "intent",
+            "evidence",
+            "wording",
+            "same-thread",
+            "unknown-evidence",
+            "no-service",
+        ],
+    )
+    async def test_repeat_requires_independent_evidence_and_unseen_work(self, duplicate):
+        thread = uuid.uuid4() if duplicate == "same-thread" else None
+        requests = [_request("Podsumuj aktualizacje", thread=thread) for _ in range(3)]
+        prior = []
+        repeat = RepeatedRequest(
+            title="Podsumowanie",
+            why="Powtarza się",
+            prompt="Podsumuj aktualizacje!",
+            as_agent=True,
+            cron=None,
+            intent="summarize-updates",
+            evidence=[1, 2, 4] if duplicate == "unknown-evidence" else [1, 2, 3],
+            required_services=["Notion"] if duplicate == "no-service" else [],
+        )
+        if duplicate in {"intent", "evidence", "wording"}:
+            metadata = {
+                "intent": {"intent": repeat.intent, "prompt": "Inny opis"},
+                "evidence": {
+                    "evidence_ids": [str(request.message.id) for request in requests[:2]],
+                    "prompt": "Inny opis",
+                },
+                "wording": {"prompt": "Podsumuj aktualizacje"},
+            }
+            prior = [
+                SimpleNamespace(
+                    id=uuid.uuid4(),
+                    kind="routine",
+                    status="dismissed",
+                    title="Starsza propozycja",
+                    payload=metadata[duplicate],
+                )
+            ]
+        made, thinker, mocks = await self._look(
+            requests=requests, reading=NightlyReading(repeats=[repeat]), prior=prior
+        )
+        assert made == 0
+        mocks["propose"].assert_not_awaited()
+        if prior:
+            prompt = json.loads(thinker.think.await_args.kwargs["prompt"])
+            assert prompt["prior_proposals"][0]["status"] == "dismissed"
 
     async def test_a_profile_it_already_has_and_an_unknown_pack_propose_nothing(self):
         reading = NightlyReading(
-            profile=ProfileUpdate(job_title="CFO", title="t", why="w"),
+            profile=ProfileUpdate(job_title="Head of support", title="t", why="w"),
             role_pack="astronaut",
         )
-        made, _, mocks = await self._look(user=_user(job_title="CFO"), reading=reading)
+        made, _, mocks = await self._look(
+            user=_user(job_title="CFO"),
+            reading=reading,
+            claims=[SimpleNamespace(agent_id=None, kind="fact", statement="I lead support")],
+        )
 
         assert made == 0
         mocks["propose"].assert_not_awaited()
         mocks["update"].assert_not_awaited()
         mocks["notify"].return_value.suggestions_ready.assert_not_awaited()
+
+    async def test_a_starter_claim_cannot_fill_a_profile_field(self):
+        reading = NightlyReading(
+            profile=ProfileUpdate(job_title="Migration lead", title="Save role?", why="From chat")
+        )
+        made, _, mocks = await self._look(
+            reading=reading,
+            requests=[_request("Draft a handoff")],
+            claims=[
+                SimpleNamespace(
+                    agent_id=uuid.uuid4(), kind="fact", statement="I lead the migration here"
+                )
+            ],
+        )
+
+        assert made == 0
+        mocks["propose"].assert_not_awaited()
 
     async def test_a_proposal_already_made_does_not_count_as_new(self):
         reading = NightlyReading(role_pack="sales")
@@ -1056,6 +1365,26 @@ class TestTheNightlyLook:
 
 
 class TestTheSweep:
+    async def test_refresh_jobs_are_scoped_deduplicated_and_serialized_with_the_persons_nightly_work(
+        self,
+    ):
+        another = uuid.uuid4()
+        job_id = uuid.uuid4()
+        with (
+            patch(
+                f"{FACADE}.suggestion_repo.open_generated_people",
+                new=AsyncMock(return_value={USER: 2, another: 1}),
+            ) as candidates,
+            patch(f"{FACADE}.enqueue", new=AsyncMock(side_effect=[job_id, None])) as enqueue,
+        ):
+            assert await ProactiveService(MagicMock()).queue_open_refresh(ORG) == [job_id]
+        assert candidates.await_args.kwargs == {"organization_id": ORG}
+        for call in enqueue.await_args_list:
+            payload = call.args[2]
+            assert payload.organization_id == ORG and payload.refresh_open is True
+            assert call.kwargs["concurrency_key"] == f"proactivity:{ORG}:{payload.user_id}"
+            assert call.kwargs["dedupe_active"] is True
+
     @pytest.mark.parametrize(
         ("local", "due"),
         [
@@ -1177,7 +1506,9 @@ class TestTheSweep:
     async def test_the_worker_side_hands_each_job_to_its_module(self):
         service = ProactiveService(MagicMock())
         with (
-            patch.object(NightlyLook, "look", new=AsyncMock(return_value=2)),
+            patch(
+                "app.services.proactive._personal.PersonalLook.look", new=AsyncMock(return_value=2)
+            ),
             patch(f"{PACK}.install", new=AsyncMock(return_value=3)),
             patch(f"{WELCOME}.welcome", new=AsyncMock(return_value=1)),
         ):
@@ -1426,6 +1757,7 @@ def test_suggestion_kinds_match_what_the_look_proposes():
         "profile",
         "role_pack",
         "finding",
+        "personal",
     }
 
 

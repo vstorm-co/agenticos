@@ -104,8 +104,16 @@ test.describe("Authentication", () => {
       // credentials, not the frontend reporting that it could not reach it. The
       // two read almost identically to a user and mean opposite things to
       // whoever is on call.
-      expect((await refusal).status()).toBe(401);
-      await expect(page.getByText("Login failed").first()).toBeVisible();
+      const response = await refusal;
+      expect(response.status()).toBe(401);
+      expect(await response.json()).toMatchObject({
+        error: { code: "AUTHENTICATION_ERROR", details: { reason: "invalid_credentials" } },
+      });
+      await expect(page.getByRole("main").getByRole("alert")).toHaveText(
+        "Invalid email or password",
+      );
+      await expect(page.getByLabel("Password")).toHaveAttribute("aria-invalid", "true");
+      await expect(page.getByLabel("Password")).toHaveValue("wrongpassword");
       await expect(page).toHaveURL(/\/login$/);
     });
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "9fe09e5e598b"
+source_sha: "2738919b34a2"
 ---
 
 # Gałęzie i to, co je chroni { #branches-and-what-protects-them }
@@ -201,7 +201,8 @@ job, opisano niżej.
 | `Security Scan` | 10 | 14s |
 | `docs` | 15 | 4m34s |
 | `test-frontend` | 45 | 20m07s |
-| `test` | 90 | 22m25s |
+| `test-shard` | 45 | — |
+| `test` | 15 | — |
 | `e2e` | 25 | 8m01s |
 
 Większość czasów pochodzi z przebiegu 31116003994, pełnej macierzy na `main`.
@@ -373,6 +374,22 @@ kosztuje kliknięcie, a nie esej.
   przebieg na `main` nie anuluje innego.
 
 ## Cut i wspólne wydanie kilku zmian { #release-cuts-and-release-trains }
+
+Zachowaj osobne PR-y i przygotowuj **jeden ręczny release dziennie**, jeśli są
+zmiany w Unreleased. Nie ma harmonogramu cutów ani automatycznej publikacji.
+Proces zespołu:
+
+1. Podczas pracy korzystaj z draftów, lokalnych testów zmienionego obszaru i lekkich kontroli CI.
+2. Oznacz PR jako Ready for review, aby uruchomić pełne odpowiednie CI i CodeQL.
+3. Scalaj każdy sprawdzony PR z zielonymi kontrolami osobno. Nie czekaj na wydanie poprzedniego PR-a.
+4. Raz dziennie przygotuj jeden cut ze wszystkich scalonych zmian w Unreleased. Funkcje i zmiany niekompatybilne wymagają minor, a same poprawki patch.
+5. Przed publikacją wymagaj udanego CI i CodeQL dla SHA scalenia cuta, z dozwolonym ponownym użyciem sprawdzonych wyników. Opublikuj release i tag razem. Wdrożenie produkcyjne nadal wymaga osobnej akceptacji.
+6. Pilne hotfixy wydawaj od razu, poza dziennym rytmem, z tym samym review, kontrolami, cutem i akceptacją.
+
+Stacked PR-y scalaj w kolejności zależności; mogą trafić do wspólnego wydania.
+Nie trzeba łączyć niezależnych zmian w jeden duży PR. Każdy gotowy PR i każde
+scalenie kodu nadal uruchamia odpowiednie CI: wspólne wydania ograniczają obsługę
+release'ów, a nie weryfikację należną każdej zmianie.
 
 Najpierw scal PR-y funkcjonalne, potem przygotuj jeden cut dla całej grupy.
 Wybierz największą dostarczaną zmianę: `make release-cut BUMP=patch` lub

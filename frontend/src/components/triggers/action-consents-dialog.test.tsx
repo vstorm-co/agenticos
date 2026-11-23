@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useOrgStore } from "@/stores";
@@ -6,7 +6,16 @@ import { ActionConsentsDialog } from "./action-consents-dialog";
 import type { RoutineActionOptions } from "@/lib/routine-actions-api";
 import type { Trigger } from "@/types/triggers";
 
-vi.mock("./source-consents-panel", () => ({ SourceConsentsPanel: () => null }));
+vi.mock("./source-consents-panel", () => ({
+  SourceConsentsPanel: ({
+    onModeChange,
+  }: {
+    onModeChange: (mode: "follow_agent" | "restricted") => void;
+  }) => <button onClick={() => onModeChange("follow_agent")}>Follow source settings</button>,
+}));
+vi.mock("@/components/branding/branding-provider", () => ({
+  useBranding: () => ({ appName: "AgenticOS", logoUrl: null }),
+}));
 
 const state = vi.hoisted(() => ({
   data: {
@@ -35,8 +44,10 @@ const state = vi.hoisted(() => ({
   save: vi.fn(),
   sourcesSave: vi.fn(),
   sourceCurrent: true,
+  sourceMode: undefined as "follow_agent" | "restricted" | undefined,
   sourceError: null as Error | null,
   sourceUnavailable: [] as string[],
+  requiredUnavailable: [] as string[] | undefined,
   retry: vi.fn(),
 }));
 vi.mock("@/hooks/use-routine-actions", () => ({
@@ -52,8 +63,10 @@ vi.mock("@/hooks/use-routine-sources", () => ({
   useRoutineSources: () => ({
     data: {
       current: state.sourceCurrent,
+      mode: state.sourceMode,
       review_token: "source-review",
       unavailable_sources: state.sourceUnavailable,
+      required_unavailable_sources: state.requiredUnavailable,
     },
     error: state.sourceError,
     isLoading: false,
@@ -68,8 +81,10 @@ describe("routine action consent", () => {
     state.save.mockReset();
     state.sourcesSave.mockReset();
     state.sourceCurrent = true;
+    state.sourceMode = undefined;
     state.sourceError = null;
     state.sourceUnavailable = [];
+    state.requiredUnavailable = [];
     state.error = null;
     state.loading = false;
     state.data.can_waive = true;
@@ -82,7 +97,8 @@ describe("routine action consent", () => {
   });
   it("submits only explicitly selected action identities and preserves required gates", async () => {
     render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
-    expect(screen.getByRole("checkbox", { name: "publish" })).toBeDisabled();
+    // An action the agent asks before cannot be consented to, so it is not offered.
+    expect(screen.queryByRole("checkbox", { name: "publish" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("checkbox", { name: "execute" }));
     await userEvent.click(screen.getByRole("button", { name: "Save consent" }));
     expect(state.save).toHaveBeenCalledWith([{ capability_id: "sandbox", tool_id: "execute" }]);
@@ -174,6 +190,45 @@ describe("routine action consent", () => {
       },
     ]);
   });
+  it("groups the platform's own tools as the Builder does and keeps the agent's approvals", async () => {
+    state.data.items.push(
+      {
+        kind: "platform",
+        tool_id: "add_virtual_table_record",
+        name: "add_virtual_table_record",
+        group: "tables",
+        consented: false,
+        waivable: true,
+      },
+      {
+        kind: "platform",
+        tool_id: "delete_virtual_table_record",
+        name: "delete_virtual_table_record",
+        group: "tables",
+        consented: false,
+        waivable: false,
+      },
+    );
+    render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+    const platform = screen.getByRole("region", { name: "AgenticOS" });
+    expect(within(platform).getByRole("group", { name: "Tables" })).toBeVisible();
+    expect(
+      screen.queryByRole("checkbox", { name: "delete_virtual_table_record" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "add_virtual_table_record",
+        description: "AgenticOS Tables",
+      }),
+    ).not.toBeChecked();
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "Select eligible actions in Tables" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save consent" }));
+    expect(state.save).toHaveBeenCalledWith([
+      { kind: "platform", tool_id: "add_virtual_table_record" },
+    ]);
+  });
   it("explains unavailable connection inventory and still allows revocation", async () => {
     state.data.unavailable_sources = ["Work mailbox"];
     render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
@@ -182,6 +237,33 @@ describe("routine action consent", () => {
     ).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Revoke all" }));
     expect(state.save).toHaveBeenCalledWith([], expect.any(Object));
+  });
+  it("copies the agent's settings over a narrower choice and names capabilities", async () => {
+    state.data.items = ["execute", "write_file"].map((tool) => ({
+      capability_id: "sandbox",
+      capability_name: "Sandbox",
+      tool_id: tool,
+      name: tool,
+      consented: false,
+      waivable: true,
+    }));
+    render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+    expect(screen.getByRole("group", { name: "Sandbox" })).toBeVisible();
+    await userEvent.click(screen.getByRole("checkbox", { name: "write_file" }));
+    await userEvent.click(screen.getByRole("button", { name: "Use the agent's settings" }));
+    expect(screen.getByRole("checkbox", { name: "execute" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "write_file" })).toBeChecked();
+  });
+  it("says there is nothing to consent to when the agent asks before every action", () => {
+    state.data.items = state.data.items.map((item) => ({ ...item, waivable: false }));
+    render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+    expect(
+      screen.getByText("This version has no eligible actions to authorize here."),
+    ).toBeVisible();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Use the agent's settings" }),
+    ).not.toBeInTheDocument();
   });
   it("distinguishes an empty review from a failed connection check", () => {
     state.data.items = [];
@@ -208,8 +290,10 @@ beforeEach(() => {
   state.save.mockReset();
   state.sourcesSave.mockReset();
   state.sourceCurrent = true;
+  state.sourceMode = undefined;
   state.sourceError = null;
   state.sourceUnavailable = [];
+  state.requiredUnavailable = [];
   state.error = null;
   state.loading = false;
   state.data.can_waive = true;
@@ -230,12 +314,13 @@ it("bulk selects a large inventory with individual exclusions and keeps mandator
   }));
   state.data.max_actions = 1000;
   render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
-  await userEvent.click(screen.getByRole("checkbox", { name: "Select all eligible actions" }));
-  expect(screen.getByRole("checkbox", { name: "Action 100" })).not.toBeChecked();
+  await userEvent.click(screen.getByRole("button", { name: "Use the agent's settings" }));
+  expect(screen.queryByRole("checkbox", { name: "Action 100" })).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("checkbox", { name: "Action 4" }));
   expect(
-    screen.getByRole("checkbox", { name: "Select all eligible actions" }),
+    screen.getByRole("checkbox", { name: "Select eligible actions in Capabilities" }),
   ).toBePartiallyChecked();
+  expect(screen.getAllByText("99 of 100")).toHaveLength(2);
   await userEvent.click(screen.getByRole("button", { name: "Save consent" }));
   const [keys] = state.save.mock.calls.at(-1) ?? [];
   expect(keys).toHaveLength(99);
@@ -289,7 +374,7 @@ it("refuses an oversized selection visibly without dropping its items", async ()
   }));
   state.data.max_actions = 100;
   render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
-  await userEvent.click(screen.getByRole("checkbox", { name: "Select all eligible actions" }));
+  await userEvent.click(screen.getByRole("button", { name: "Use the agent's settings" }));
   expect(screen.getByRole("alert")).toHaveTextContent("101 actions selected; the limit is 100");
   expect(screen.getByRole("button", { name: "Save consent" })).toBeDisabled();
   await userEvent.click(screen.getByRole("checkbox", { name: "Action 100" }));
@@ -313,7 +398,10 @@ it("saves the displayed sources and selected actions once before enabling a new 
   render(<ActionConsentsDialog trigger={trigger} onClose={close} onSaved={enabled} />);
   await userEvent.click(screen.getByRole("checkbox", { name: "execute" }));
   await userEvent.click(screen.getByRole("button", { name: "Enable routine" }));
-  expect(state.sourcesSave).toHaveBeenCalledWith("source-review");
+  expect(state.sourcesSave).toHaveBeenCalledWith({
+    review_token: "source-review",
+    mode: "restricted",
+  });
   expect(state.save).toHaveBeenCalledWith([{ capability_id: "sandbox", tool_id: "execute" }]);
   expect(state.sourcesSave.mock.invocationCallOrder[0]).toBeLessThan(
     state.save.mock.invocationCallOrder[0]!,
@@ -396,7 +484,10 @@ it("can review sources without standing-consent permission or changing stored ac
   const close = vi.fn();
   render(<ActionConsentsDialog trigger={trigger} onClose={close} />);
   await userEvent.click(screen.getByRole("button", { name: "Save consent" }));
-  expect(state.sourcesSave).toHaveBeenCalledWith("source-review");
+  expect(state.sourcesSave).toHaveBeenCalledWith({
+    review_token: "source-review",
+    mode: "restricted",
+  });
   expect(state.save).not.toHaveBeenCalled();
   expect(close).toHaveBeenCalledOnce();
 });
@@ -423,8 +514,106 @@ it("waits for the action inventory instead of presenting an empty selection", ()
   expect(screen.queryByRole("checkbox", { name: "execute" })).toBeNull();
 });
 
-it("uses the compatibility selection limit when the server omits it", () => {
+it("uses the compatibility selection limit when the server omits it", async () => {
   delete state.data.max_actions;
+  state.data.items = Array.from({ length: 101 }, (_, index) => ({
+    capability_id: "sandbox",
+    tool_id: `action_${index}`,
+    name: `Action ${index}`,
+    consented: false,
+    waivable: true,
+  }));
   render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
-  expect(screen.getByRole("status")).toHaveTextContent("0 actions selected · limit 100");
+  // Nothing about the count is said until it is over the limit.
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Use the agent's settings" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("101 actions selected; the limit is 100");
+});
+
+it("explains the agent's settings on hover and heads the actions it allows", async () => {
+  render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+  expect(
+    screen.getByRole("heading", { name: "Allow these actions to run without asking for approval" }),
+  ).toBeVisible();
+  await userEvent.hover(screen.getByRole("button", { name: "Use the agent's settings" }));
+  expect(await screen.findByRole("tooltip")).toHaveTextContent("only narrow");
+});
+
+it("can change source inheritance without permission to preapprove actions", async () => {
+  state.data.can_waive = false;
+  state.sourceUnavailable = ["Optional mailbox"];
+  const close = vi.fn();
+  render(<ActionConsentsDialog trigger={trigger} onClose={close} />);
+  await userEvent.click(screen.getByRole("button", { name: "Follow source settings" }));
+  const save = screen.getByRole("button", { name: "Save access mode" });
+  expect(save).toBeEnabled();
+  await userEvent.click(save);
+  expect(state.sourcesSave).toHaveBeenCalledWith({
+    review_token: "source-review",
+    mode: "follow_agent",
+  });
+  expect(state.save).not.toHaveBeenCalled();
+  expect(close).toHaveBeenCalledOnce();
+});
+
+it("shows inherited approval rules without editable routine exceptions", () => {
+  state.sourceMode = "follow_agent";
+  state.sourceUnavailable = ["Optional mailbox"];
+  state.error = new Error("Unused action catalog unavailable");
+  render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+  expect(screen.getByText(/Uses the agent’s approval rules/)).toBeVisible();
+  expect(screen.queryByRole("checkbox", { name: "execute" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Revoke all" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Save access mode" })).toBeDisabled();
+});
+
+it("enables explicit follow mode without writing a routine action snapshot", async () => {
+  state.sourceMode = "follow_agent";
+  state.sourceCurrent = false;
+  state.error = new Error("Unused action catalog unavailable");
+  const enabled = vi.fn();
+  render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} onSaved={enabled} />);
+  await userEvent.click(screen.getByRole("button", { name: "Enable routine" }));
+  expect(state.sourcesSave).toHaveBeenCalledWith({
+    review_token: "source-review",
+    mode: "follow_agent",
+  });
+  expect(state.save).not.toHaveBeenCalled();
+  expect(enabled).toHaveBeenCalledOnce();
+});
+
+it.each(["required", "legacy-unclassified"])(
+  "does not save or enable follow mode with %s unavailable sources",
+  async (classification) => {
+    state.sourceMode = "follow_agent";
+    state.sourceCurrent = false;
+    state.sourceUnavailable = ["Creator identity"];
+    state.requiredUnavailable = classification === "required" ? ["Creator identity"] : undefined;
+    const enabled = vi.fn();
+    const close = vi.fn();
+    render(<ActionConsentsDialog trigger={trigger} onClose={close} onSaved={enabled} />);
+    const save = screen.getByRole("button", { name: "Enable routine" });
+    expect(save).toBeDisabled();
+    await userEvent.click(save);
+    expect(state.sourcesSave).not.toHaveBeenCalled();
+    expect(state.save).not.toHaveBeenCalled();
+    expect(enabled).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+  },
+);
+
+it("allows explicit optional gaps while enabling follow mode", async () => {
+  state.sourceMode = "follow_agent";
+  state.sourceCurrent = false;
+  state.sourceUnavailable = ["Optional mailbox"];
+  state.requiredUnavailable = [];
+  const enabled = vi.fn();
+  render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} onSaved={enabled} />);
+  await userEvent.click(screen.getByRole("button", { name: "Enable routine" }));
+  expect(state.sourcesSave).toHaveBeenCalledWith({
+    review_token: "source-review",
+    mode: "follow_agent",
+  });
+  expect(state.save).not.toHaveBeenCalled();
+  expect(enabled).toHaveBeenCalledOnce();
 });

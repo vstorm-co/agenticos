@@ -1148,6 +1148,29 @@ it("retains local live usage instead of replacing it with an earlier saved cost"
   expect(store().messages[1]).toMatchObject({ id: "live", usage });
 });
 
+it("uses authoritative saved question corrections while keeping receipts scoped to invocation identity", () => {
+  const question = toolCall({
+    id: "question-call",
+    name: "ask_user_question",
+    status: "completed",
+    args: { questions: [{ header: "Day", question: "Which day?" }] },
+    result: JSON.stringify({ Day: ["Thursday"] }),
+  });
+  store().addMessage(message({ toolCalls: [question] }));
+  store().rereadMessages([
+    message({ toolCalls: [{ ...question, result: JSON.stringify({ Day: ["Friday"] }) }] }),
+  ]);
+  expect(store().messages[0]?.toolCalls?.[0]?.result).toBe(JSON.stringify({ Day: ["Friday"] }));
+  store().rereadMessages([
+    message({ toolCalls: [{ ...question, result: JSON.stringify({ cancelled: true }) }] }),
+  ]);
+  expect(store().messages[0]?.toolCalls?.[0]?.result).toBe(JSON.stringify({ cancelled: true }));
+  store().rereadMessages([
+    message({ toolCalls: [{ ...question, id: "different-call", result: "{}" }] }),
+  ]);
+  expect(store().messages[0]?.toolCalls?.[0]?.result).toBe("{}");
+});
+
 describe("transcript edge cases", () => {
   it("extends a streamed part that has no content yet", () => {
     store().addMessage(

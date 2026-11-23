@@ -783,7 +783,13 @@ class TestWhatCanBeDoneNow:
 
         listing = await _call(server, "list_improvements", agent_id=AGENT)
 
-        assert listing == {"current_published_version": 8, "items": [], "earlier_sessions": 0}
+        assert listing == {
+            "current_published_version": 8,
+            "items": [],
+            "earlier_sessions": 0,
+            "total": 0,
+            "next_skip": None,
+        }
 
     @pytest.mark.parametrize(
         ("changes", "actions"),
@@ -1287,7 +1293,12 @@ class TestFindingSessionsWithoutAnId:
         api.request = _responder(
             {
                 ("GET", "/improvements"): [
-                    {"id": str(SESSION), "agent_id": str(AGENT), "agent_name": "Refund desk"}
+                    {
+                        "id": str(SESSION),
+                        "agent_id": str(AGENT),
+                        "agent_name": "Refund desk",
+                        "status": "waiting",
+                    }
                 ],
                 ("GET", f"/agents/{AGENT}/improvements"): [published, waiting],
                 ("POST", f"/agents/{AGENT}/improvements/{SESSION}/continue/estimate"): quote,
@@ -1302,8 +1313,8 @@ class TestFindingSessionsWithoutAnId:
             "Refund desk",
             "waiting",
         )
-        assert found["next_actions"] == ["Next step: propose changes", "End the session"]
-        assert found["waiting_for"]["price"]["total_usd"] == "0.01"
+        assert "next_actions" not in found
+        assert api.request.await_count == 1
         assert api.request.await_args_list[0].kwargs == {"params": {"open": "true"}}
 
     @pytest.mark.parametrize("name", ["refund desk", "  Refund Desk ", "refund"])
@@ -1416,7 +1427,7 @@ class TestEstimatingAndDatasets:
 
         await _call(server, "list_datasets")
 
-        assert api.request.await_args.kwargs == {"params": {"limit": 50, "skip": 0}}
+        assert api.request.await_args.kwargs == {"params": {"limit": 10, "skip": 0}}
 
     async def test_datasets_are_listed_by_name_size_and_whether_they_can_run(
         self, server: FastMCP, api: MagicMock
@@ -1440,7 +1451,7 @@ class TestEstimatingAndDatasets:
         listing = await _call(server, "list_datasets", agent_id=AGENT)
 
         assert api.request.await_args.kwargs == {
-            "params": {"limit": 50, "skip": 0, "agent": str(AGENT)}
+            "params": {"limit": 10, "skip": 0, "agent": str(AGENT)}
         }
         assert listing["items"] == [
             {

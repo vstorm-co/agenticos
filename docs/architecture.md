@@ -203,6 +203,8 @@ work in the same place — which has nothing to do with a response.
 
 Channel admission also commits before run preparation: `ChannelMessageRouter._route_inner` saves the admitted identity, session and conversation after access and rate-limit checks. Platform MCP credentials use an independent transaction and reference that conversation; a flush alone is not visible there. If admission cannot commit, preparation does not start.
 
+Personal coding sessions also cross external-effect boundaries: `PersonalCodingSessionFactory` commits private workspace ownership before opening credential-bearing work, then commits the initial source and admission audit before the native task. Shielded terminal cleanup commits retention or queued remote teardown even when a task raises or is cancelled. Account consent changes and owner deletion queue container cleanup in their own transaction before account/workspace rows cascade. A rollback retains both the session metadata and its remote-cleanup obligation.
+
 ### The run path's two commits
 
 One path deliberately commits earlier than "on the way out": **an agent run.**

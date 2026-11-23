@@ -1183,7 +1183,13 @@ class WorkflowExecutionService:
         return WorkflowRunGraph(graph=graph.model_dump(mode="json"))
 
     async def node_runs(
-        self, ctx: AuthContext, run_id: UUID, *, skip: int = 0, limit: int = 200
+        self,
+        ctx: AuthContext,
+        run_id: UUID,
+        *,
+        skip: int = 0,
+        limit: int = 200,
+        node_run_id: UUID | None = None,
     ) -> WorkflowNodeRunList:
         """Every step of a run, loop iterations included, with its tries, cost and error."""
         run = await self._load(ctx, run_id, Perm.WORKFLOWS_VIEW)
@@ -1193,6 +1199,7 @@ class WorkflowExecutionService:
             organization_id=ctx.organization_id,
             skip=skip,
             limit=limit,
+            **({"node_run_id": node_run_id} if node_run_id is not None else {}),
         )
         attempts = await workflow_run_repo.list_attempts_of(
             self.db, node_run_ids=[row.id for row in rows]

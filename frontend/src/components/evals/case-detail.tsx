@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { MarkdownContent } from "@/components/chat/markdown-content";
 
 import Link from "next/link";
@@ -98,7 +100,7 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
               const tone = SCORER_TONE[result.status];
               return (
                 <li key={index}>
-                  <details className="group">
+                  <NativeDisclosure className="group">
                     <summary className="hover:bg-muted/40 flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2">
                       <VerdictIcon tone={tone} />
                       <span className="text-foreground min-w-0 flex-1 font-semibold">
@@ -120,7 +122,7 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
                       {result.rule && <p>{tScoring("rule", { rule: result.rule })}</p>}
                       <KnowledgeFindings findings={result.knowledge} />
                     </div>
-                  </details>
+                  </NativeDisclosure>
                 </li>
               );
             })}

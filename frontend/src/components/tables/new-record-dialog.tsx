@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
   Label,
+  MoreOptions,
 } from "@/components/ui";
 import { useRecordMutation } from "@/hooks/use-record-mutation";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
@@ -88,6 +89,17 @@ export function NewRecordDialog({
   const [tried, setTried] = useState(false);
 
   const missing = live.filter((column) => isRequired(column) && isEmpty(values[column.id]));
+  // Large schemas should not require a scroll past every empty optional property.
+  // Required fields, document bodies and values supplied by the grid stay visible.
+  const primary = live.filter(
+    (column, index) =>
+      live.length <= 6 ||
+      index < 3 ||
+      isRequired(column) ||
+      column.type === "rich_text" ||
+      !isEmpty(initial?.[column.id]),
+  );
+  const optional = live.filter((column) => !primary.includes(column));
 
   const close = (next: boolean) => {
     if (!next) {
@@ -116,6 +128,35 @@ export function NewRecordDialog({
     }
   };
 
+  const field = (column: ColumnDef): ReactNode => {
+    const needed = isRequired(column);
+    return (
+      <div
+        key={column.id}
+        className={
+          column.type === "long_text" ||
+          column.type === "rich_text" ||
+          column.type === "link" ||
+          column.type === "multi_select"
+            ? "space-y-1.5 sm:col-span-2"
+            : "space-y-1.5"
+        }
+      >
+        <Label htmlFor={`cell-${column.id}`}>
+          {column.label}
+          {needed && <span className="text-muted-foreground"> *</span>}
+        </Label>
+        <RecordCellEditor
+          column={column}
+          value={values[column.id] ?? null}
+          onChange={(value) => setValues({ ...values, [column.id]: value })}
+          disabled={create.isPending}
+          error={tried && needed && isEmpty(values[column.id]) ? t("required") : undefined}
+        />
+      </div>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className={`${DIALOG_COLUMN} ${DIALOG_FORM}`}>
@@ -124,34 +165,14 @@ export function NewRecordDialog({
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
         <div className={`${DIALOG_BODY} grid grid-cols-1 gap-5 sm:grid-cols-2`}>
-          {live.map((column) => {
-            const needed = isRequired(column);
-            return (
-              <div
-                key={column.id}
-                className={
-                  column.type === "long_text" ||
-                  column.type === "rich_text" ||
-                  column.type === "link" ||
-                  column.type === "multi_select"
-                    ? "space-y-1.5 sm:col-span-2"
-                    : "space-y-1.5"
-                }
-              >
-                <Label htmlFor={`cell-${column.id}`}>
-                  {column.label}
-                  {needed && <span className="text-muted-foreground"> *</span>}
-                </Label>
-                <RecordCellEditor
-                  column={column}
-                  value={values[column.id] ?? null}
-                  onChange={(value) => setValues({ ...values, [column.id]: value })}
-                  disabled={create.isPending}
-                  error={tried && needed && isEmpty(values[column.id]) ? t("required") : undefined}
-                />
-              </div>
-            );
-          })}
+          {primary.map(field)}
+          {optional.length > 0 && (
+            <div className="sm:col-span-2">
+              <MoreOptions label={t("optionalFields", { count: optional.length })}>
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">{optional.map(field)}</div>
+              </MoreOptions>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => close(false)}>

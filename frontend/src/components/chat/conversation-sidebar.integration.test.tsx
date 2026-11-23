@@ -630,7 +630,7 @@ describe("what the sidebar says about the list", () => {
     mount();
 
     await userEvent.click(within(list()).getByRole("button", { name: "Filter and sort" }));
-    await userEvent.click(screen.getByRole("button", { name: "Archived" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Archived" }));
 
     expect((await screen.findAllByText("No archived conversations"))[0]).toBeVisible();
     await waitFor(() => expect(listRequests().at(-1)).toContain("archived_only=true"));
@@ -711,7 +711,7 @@ describe("the collapsed rail", () => {
     const rail = await collapse();
 
     await userEvent.click(within(rail).getByRole("button", { name: "Filter and sort" }));
-    await userEvent.click(await screen.findByRole("button", { name: "Archived" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Archived" }));
 
     await waitFor(() => expect(listRequests().at(-1)).toContain("archived_only=true"));
     expect(await within(rail).findByRole("img", { name: "Archived" })).toBeVisible();

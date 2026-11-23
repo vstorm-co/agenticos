@@ -96,6 +96,7 @@ class _Server:
     asked: list[dict[str, Any]] = field(default_factory=list)
     notified: list[dict[str, Any]] = field(default_factory=list)
     opened_with: list[tuple[str, dict[str, str] | None]] = field(default_factory=list)
+    timeouts: list[float] = field(default_factory=list)
 
 
 @pytest.fixture
@@ -120,8 +121,9 @@ def server(monkeypatch: pytest.MonkeyPatch) -> _Server:
             return state.result
 
     @asynccontextmanager
-    async def mcp_session(url: str, headers: dict[str, str] | None):
+    async def mcp_session(url: str, headers: dict[str, str] | None, *, timeout: float):
         state.opened_with.append((url, headers))
+        state.timeouts.append(timeout)
         if state.connect_failure is not None:
             raise state.connect_failure
         yield _Session()
@@ -405,7 +407,9 @@ async def test_a_timeout_after_the_call_is_classified_like_a_break(server):
     read = _config().model_copy(update={"timeout_seconds": 0.01})
 
     assert isinstance(await _run(unkeyed), Uncertain)
-    assert _failure(await _run(read)).error.retryable is True
+    failed = _failure(await _run(read))
+    assert failed.error.retryable is True
+    assert failed.error.message == "The server timed out after 0.01s"
 
 
 async def test_cancellation_inside_the_call_is_not_swallowed(server):
@@ -833,3 +837,9 @@ class TestPublishingAKeyArgument:
             _config("drop_tables", idempotency_key_argument="request_id")
         )
         assert [field for field, _ in problems] == ["tool"]
+
+
+async def test_the_configured_tool_deadline_reaches_the_transport_session(server):
+    result = await _run(_config(timeout_seconds=90))
+    assert isinstance(result, Completed)
+    assert server.timeouts == [90]

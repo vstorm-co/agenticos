@@ -1,10 +1,11 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "sonner";
 
 import { messageOf } from "./composer-editor";
+import { MainChatContext } from "./main-chat-context";
 import { ChatInput, type ComposerDictation } from "./chat-input";
 import type { DictationState } from "@/hooks/use-dictation";
 import { useChatStore } from "@/stores";
@@ -47,7 +48,12 @@ function uploaded(overrides: Partial<FileUploadResponse> = {}): FileUploadRespon
 const LONG = "x".repeat(50_000);
 const CHAT_MAX_UPLOAD_SIZE_MB = DEFAULT_PUBLIC_CONFIG.chatMaxUploadSizeMb;
 
+afterEach(() => vi.restoreAllMocks());
+
 beforeEach(() => {
+  // jsdom Files cannot be read by Node's object-URL implementation.
+  vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:pending-image");
+  vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
   state.upload.mockReset();
   state.upload.mockResolvedValue(uploaded());
   useChatStore.getState().setReplyTo(null);
@@ -1261,4 +1267,86 @@ it("distinguishes an empty focus from writing so mobile welcome stays visible", 
   expect(form).toHaveAttribute("data-drafting", "true");
   await userEvent.click(screen.getByRole("button", { name: "Send message" }));
   expect(form).not.toHaveAttribute("data-drafting");
+});
+
+describe("clean composer draft actions", () => {
+  it("promotes dictation only for an empty main-chat composer", async () => {
+    const send = vi.fn();
+    render(
+      <MainChatContext.Provider value={true}>
+        <ChatInput onSend={send} idleSlot={<button>Call</button>} />
+      </MainChatContext.Provider>,
+    );
+    const mic = screen.getByRole("button", { name: "Voice input" });
+    expect(mic).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Send message" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Call" })).toBeNull();
+    await userEvent.type(screen.getByRole("textbox"), "Hello");
+    expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Send message" })).toBe(mic);
+    expect(screen.queryByRole("button", { name: "Voice input" })).toBeNull();
+    await userEvent.clear(screen.getByRole("textbox"));
+    expect(screen.getByRole("button", { name: "Voice input" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Send message" })).toBeNull();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("preserves Stop when the turn is waiting rather than streaming", async () => {
+    const stop = vi.fn();
+    render(
+      <MainChatContext.Provider value={true}>
+        <ChatInput onSend={vi.fn()} canStop onStop={stop} />
+      </MainChatContext.Provider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Stop generating" }));
+    expect(stop).toHaveBeenCalledOnce();
+  });
+});
+
+it("releases pending image previews when upload fails or the composer unmounts", async () => {
+  let rejectUpload: (reason: Error) => void = () => {};
+  state.upload.mockImplementation(
+    () =>
+      new Promise((_, reject) => {
+        rejectUpload = reject;
+      }),
+  );
+  const view = render(<ChatInput onSend={vi.fn()} />);
+  const file = new File(["png"], "photo.png", { type: "image/png" });
+  await userEvent.upload(
+    view.container.querySelector<HTMLInputElement>('input[type="file"]')!,
+    file,
+  );
+  expect(screen.getByRole("img", { name: file.name })).toHaveAttribute("src", "blob:pending-image");
+  rejectUpload(new Error("Unavailable"));
+  await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledOnce());
+  expect(toast.error).toHaveBeenCalled();
+  await userEvent.upload(
+    view.container.querySelector<HTMLInputElement>('input[type="file"]')!,
+    file,
+  );
+  view.unmount();
+  expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
+  rejectUpload(new Error("Unmounted"));
+  await act(async () => {});
+  expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
+});
+
+it("does not move focus from a reader's control when a reply finishes", () => {
+  const onSend = vi.fn();
+  const view = render(
+    <>
+      <button>Inspect source</button>
+      <ChatInput onSend={onSend} isProcessing />
+    </>,
+  );
+  const control = screen.getByRole("button", { name: "Inspect source" });
+  control.focus();
+  view.rerender(
+    <>
+      <button>Inspect source</button>
+      <ChatInput onSend={onSend} isProcessing={false} />
+    </>,
+  );
+  expect(control).toHaveFocus();
 });

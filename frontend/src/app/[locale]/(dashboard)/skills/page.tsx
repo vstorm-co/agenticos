@@ -169,125 +169,111 @@ export default function SkillsPage() {
     );
   }
 
-  // The same card the page renders, with card skeletons inside it. A skeleton
-  // that draws a different shape from what follows is a layout jump on load.
-  if (isBusy) {
-    return (
-      <div className="flex flex-1 flex-col space-y-4">
-        {header}
-        <ListCard layout="grid" fill namedByPage title={t("skills")} counted={null}>
-          <CatalogLoading kind="document" />
-        </ListCard>
-      </div>
-    );
-  }
-
   // Rendered even on an empty result, unlike the grid: a search or a chip that
   // matched nothing has to leave the reader something to clear.
-  const controls =
-    isFiltering || total > 0 || categories.length > 0 ? (
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <SearchInput
-          value={query}
-          onChange={(next) => {
-            setQuery(next);
-            setPage(0);
-          }}
-          placeholder={t("searchSkills")}
-          className="min-w-0 flex-1 sm:w-56 sm:flex-none"
-        />
-        <ListFilters
-          compact
-          active={selectedCategories.length + Number(groupId !== null) + Number(sort !== "name")}
-        >
-          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-            {/* A menu of checkboxes rather than a chip row: shelves are
+  const controls = (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <SearchInput
+        value={query}
+        onChange={(next) => {
+          setQuery(next);
+          setPage(0);
+        }}
+        placeholder={t("searchSkills")}
+        className="min-w-0 flex-1 sm:w-56 sm:flex-none"
+      />
+      <ListFilters
+        compact
+        active={selectedCategories.length + Number(groupId !== null) + Number(sort !== "name")}
+      >
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          {/* A menu of checkboxes rather than a chip row: shelves are
                   additive - "devops or data" is a sensible question - and a
                   row of twenty chips is a wall where a count is a summary.
                   It appears only once somebody has categorized something -
                   a filter over one shelf filters nothing. */}
-            <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center max-sm:[&>button]:w-full max-sm:[&>button]:justify-between">
-              {categories.length > 0 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    {/* Drawn like every other filter in the console - the
+          <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center max-sm:[&>button]:w-full max-sm:[&>button]:justify-between">
+            {categories.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  {/* Drawn like every other filter in the console - the
                           agents' label filters and the selects beside them. */}
-                    <Button variant="outline" className={FILTER_CONTROL}>
-                      <ListFilter
-                        className="size-3.5 shrink-0 opacity-70"
-                        strokeWidth={1.75}
-                        aria-hidden
-                      />
-                      {selectedCategories.length === 0
-                        ? t("allCategories")
-                        : selectedCategories.length === 1
-                          ? categoryLabel(selectedCategories[0]!)
-                          : t("categoryCount", { count: selectedCategories.length })}
-                      <ChevronDown className="h-4 w-4 opacity-60" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    {categories.map((entry) => (
-                      <DropdownMenuCheckboxItem
-                        key={entry}
-                        checked={selectedCategories.includes(entry)}
-                        onCheckedChange={() => toggleCategory(entry)}
-                        // Picking several is the point; the menu staying open
-                        // is what makes it a multi-select rather than a detour.
-                        onSelect={(event) => event.preventDefault()}
+                  <Button variant="outline" className={FILTER_CONTROL}>
+                    <ListFilter
+                      className="size-3.5 shrink-0 opacity-70"
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
+                    {selectedCategories.length === 0
+                      ? t("allCategories")
+                      : selectedCategories.length === 1
+                        ? categoryLabel(selectedCategories[0]!)
+                        : t("categoryCount", { count: selectedCategories.length })}
+                    <ChevronDown className="h-4 w-4 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {categories.map((entry) => (
+                    <DropdownMenuCheckboxItem
+                      key={entry}
+                      checked={selectedCategories.includes(entry)}
+                      onCheckedChange={() => toggleCategory(entry)}
+                      // Picking several is the point; the menu staying open
+                      // is what makes it a multi-select rather than a detour.
+                      onSelect={(event) => event.preventDefault()}
+                    >
+                      {categoryLabel(entry)}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {selectedCategories.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          setSelectedCategories([]);
+                          setPage(0);
+                        }}
                       >
-                        {categoryLabel(entry)}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                    {selectedCategories.length > 0 && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            setSelectedCategories([]);
-                            setPage(0);
-                          }}
-                        >
-                          {t("clearFilter")}
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-              <GroupFilter
-                value={groupId}
-                onChange={(next) => {
-                  setGroupId(next);
-                  setPage(0);
-                }}
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-muted-foreground text-xs">{t("sort")}</span>
-              <Chip
-                active={sort === "name"}
-                onClick={() => {
-                  setSort("name");
-                  setPage(0);
-                }}
-              >
-                {t("name")}
-              </Chip>
-              <Chip
-                active={sort === "updated"}
-                onClick={() => {
-                  setSort("updated");
-                  setPage(0);
-                }}
-              >
-                {t("recentlyUpdated")}
-              </Chip>
-            </div>
+                        {t("clearFilter")}
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <GroupFilter
+              value={groupId}
+              onChange={(next) => {
+                setGroupId(next);
+                setPage(0);
+              }}
+            />
           </div>
-        </ListFilters>
-      </div>
-    ) : undefined;
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-muted-foreground text-xs">{t("sort")}</span>
+            <Chip
+              active={sort === "name"}
+              onClick={() => {
+                setSort("name");
+                setPage(0);
+              }}
+            >
+              {t("name")}
+            </Chip>
+            <Chip
+              active={sort === "updated"}
+              onClick={() => {
+                setSort("updated");
+                setPage(0);
+              }}
+            >
+              {t("recentlyUpdated")}
+            </Chip>
+          </div>
+        </div>
+      </ListFilters>
+    </div>
+  );
 
   return (
     <div className="flex flex-1 flex-col space-y-4">
@@ -305,12 +291,13 @@ export default function SkillsPage() {
         title={t("skills")}
         // The count is a claim about the organization, and a failed request has
         // made none - so an error draws the skeleton, not "0 skills".
-        counted={error ? null : t("skillCount", { count: total })}
+        counted={isBusy || error ? null : t("skillCount", { count: total })}
         controls={controls}
-        empty={!error && !isFiltering && total === 0 && categories.length === 0}
       >
         <div className="space-y-4">
-          {error ? (
+          {isBusy ? (
+            <CatalogLoading kind="document" />
+          ) : error ? (
             // Not the empty state: "no skills yet" and "the request failed" are
             // different facts, and only one of them offers a create button.
             <ErrorState

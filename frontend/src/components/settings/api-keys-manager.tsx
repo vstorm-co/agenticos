@@ -177,7 +177,7 @@ export function ApiKeysManager() {
             className="flex-1 border-0 bg-transparent"
           />
         ) : (
-          <div className="space-y-4 p-4 sm:p-6">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 sm:p-6">
             {(isLoading || keys.length > 0) && !error && (
               <SearchInput
                 value={list.query}
@@ -194,7 +194,8 @@ export function ApiKeysManager() {
             ) : isLoading ? (
               <>
                 <DataTable
-                  className="hidden rounded-none border-0 md:block"
+                  fillHeight
+                  className="hidden rounded-none border-0 md:flex"
                   columns={columns}
                   rows={[]}
                   getRowKey={apiKeyRowId}
@@ -228,12 +229,13 @@ export function ApiKeysManager() {
             ) : (
               <>
                 <DataTable
-                  className="hidden rounded-none border-0 md:block"
+                  fillHeight
+                  className="hidden rounded-none border-0 md:flex"
                   columns={columns}
                   rows={list.visible}
                   getRowKey={apiKeyRowId}
                 />
-                <div className="md:hidden">
+                <div className="min-h-0 flex-1 overflow-auto md:hidden">
                   <ul className="space-y-3">
                     {list.visible.map((key) => (
                       <ApiKeyCard
@@ -246,6 +248,7 @@ export function ApiKeysManager() {
                   </ul>
                 </div>
                 <Pager
+                  showSinglePage
                   page={list.page}
                   pageCount={list.pageCount}
                   matched={list.matched}

@@ -1709,8 +1709,9 @@ class TestTheGalleryOnDisk:
         names = [s.name for i in skill_library.gallery() for s in i.skills]
         names += [entry.name for entry in skill_library.library()]
         # The shipped names include the opt-in accounting/finance, council, proof,
-        # burst, babysit-pr, sol-loop and eval-tool-tuning skills.
-        assert len(names) == 146
+        # burst, babysit-pr, sol-loop and eval-tool-tuning skills, plus the named
+        # personal coding sessions method.
+        assert len(names) == 147
         for name in names:
             assert SKILL_NAME_PATTERN.fullmatch(name), name
             SkillCreate(name=name, description="d")

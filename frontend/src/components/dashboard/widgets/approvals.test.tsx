@@ -16,7 +16,6 @@ vi.mock("@/hooks", () => ({
     agents: [{ id: "a1", name: "Architect", slug: "architect", has_avatar: false }],
   }),
 }));
-vi.mock("@/stores", () => ({ useArchitectMarkStore: () => false }));
 
 const PERIOD: Period = { preset: "30d", from: "2026-09-14", to: "2026-10-13" };
 

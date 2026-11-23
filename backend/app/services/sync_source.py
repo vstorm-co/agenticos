@@ -242,11 +242,11 @@ class SyncSourceService:
         return source
 
     async def list_logs(
-        self, source_id: UUID, *, scope: SyncLogScope, limit: int = 20
+        self, source_id: UUID, *, scope: SyncLogScope, limit: int = 20, skip: int = 0
     ) -> RAGSyncLogList:
         """One source's history within its runs' immutable authorized base scope."""
         logs = await sync_log_repo.get_all(
-            self.db, scope=scope, sync_source_id=source_id, limit=limit
+            self.db, scope=scope, sync_source_id=source_id, limit=limit, skip=skip
         )
         items = [
             RAGSyncLogItem(
@@ -267,7 +267,10 @@ class SyncSourceService:
             )
             for log in logs
         ]
-        return RAGSyncLogList(items=items, total=len(items))
+        return RAGSyncLogList(
+            items=items,
+            total=await sync_log_repo.count_all(self.db, scope=scope, sync_source_id=source_id),
+        )
 
     async def create_source(
         self,

@@ -12,6 +12,12 @@ from app.db.models.organization import OrganizationMember
 from app.db.models.user import User
 
 
+def require_identity_scope(platform: str, server_url: str) -> None:
+    """Refuse an unscoped Matrix lookup rather than trusting legacy global links."""
+    if platform == "matrix" and not server_url:
+        raise ValueError("Matrix identities require a homeserver scope")
+
+
 async def get_by_id(
     db: AsyncSession, identity_id: UUID, *, fresh: bool = False
 ) -> ChannelIdentity | None:
@@ -23,12 +29,16 @@ async def get_by_platform_user(
     db: AsyncSession,
     platform: str,
     platform_user_id: str,
+    *,
+    server_url: str = "",
 ) -> ChannelIdentity | None:
-    """Get identity by platform + platform_user_id."""
+    """Get an account within its platform and asserting homeserver."""
+    require_identity_scope(platform, server_url)
     result = await db.execute(
         select(ChannelIdentity).where(
             ChannelIdentity.platform == platform,
             ChannelIdentity.platform_user_id == platform_user_id,
+            ChannelIdentity.server_url == server_url,
         )
     )
     return result.scalar_one_or_none()
@@ -57,11 +67,14 @@ async def create(
     platform_username: str | None = None,
     platform_display_name: str | None = None,
     user_id: UUID | None = None,
+    server_url: str = "",
 ) -> ChannelIdentity:
     """Create a new channel identity."""
+    require_identity_scope(platform, server_url)
     identity = ChannelIdentity(
         platform=platform,
         platform_user_id=platform_user_id,
+        server_url=server_url,
         platform_username=platform_username,
         platform_display_name=platform_display_name,
         user_id=user_id,
@@ -80,6 +93,7 @@ async def get_or_create(
     platform_username: str | None = None,
     platform_display_name: str | None = None,
     user_id: UUID | None = None,
+    server_url: str = "",
 ) -> ChannelIdentity:
     """The identity for this platform user, inserted once under contention.
 
@@ -108,24 +122,28 @@ async def get_or_create(
     lost to - so `scalar_one` cannot come up empty, and an existing `user_id`,
     username or display name is left untouched.
     """
-    existing = await get_by_platform_user(db, platform, platform_user_id)
+    existing = await get_by_platform_user(db, platform, platform_user_id, server_url=server_url)
     if existing is not None:
         return existing
 
     insert_stmt = pg_insert(ChannelIdentity).values(
         platform=platform,
         platform_user_id=platform_user_id,
+        server_url=server_url,
         platform_username=platform_username,
         platform_display_name=platform_display_name,
         user_id=user_id,
     )
     await db.execute(
-        insert_stmt.on_conflict_do_nothing(index_elements=["platform", "platform_user_id"])
+        insert_stmt.on_conflict_do_nothing(
+            index_elements=["platform", "platform_user_id", "server_url"]
+        )
     )
     result = await db.execute(
         select(ChannelIdentity).where(
             ChannelIdentity.platform == platform,
             ChannelIdentity.platform_user_id == platform_user_id,
+            ChannelIdentity.server_url == server_url,
         )
     )
     return result.scalar_one()
@@ -154,6 +172,7 @@ async def linked_active_platform_user_ids(
     platform: str,
     platform_user_ids: Collection[str],
     organization_id: UUID,
+    server_url: str = "",
 ) -> set[str]:
     """Which of these platform accounts are linked to an active member of the org.
 
@@ -163,6 +182,7 @@ async def linked_active_platform_user_ids(
     through `User.is_active` like `member_repo.get_active`, so a linked account
     whose member is deactivated is absent from the set, not admitted.
     """
+    require_identity_scope(platform, server_url)
     if not platform_user_ids:
         return set()
     result = await db.execute(
@@ -172,6 +192,7 @@ async def linked_active_platform_user_ids(
         .where(
             ChannelIdentity.platform == platform,
             ChannelIdentity.platform_user_id.in_(list(platform_user_ids)),
+            ChannelIdentity.server_url == server_url,
             ChannelIdentity.user_id.is_not(None),
             OrganizationMember.organization_id == organization_id,
             User.is_active.is_(True),

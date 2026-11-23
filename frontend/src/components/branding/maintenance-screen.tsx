@@ -1,8 +1,9 @@
 "use client";
 
 import { Wrench } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 
+import styles from "./deployment-notice.module.css";
 import { useBranding } from "@/components/branding/branding-provider";
 
 /**
@@ -17,19 +18,41 @@ import { useBranding } from "@/components/branding/branding-provider";
  * turn the window off, and hiding the console from them is how a maintenance mode
  * becomes an outage.
  */
-export function MaintenanceScreen() {
+export function MaintenanceScreen({
+  message,
+  plannedEnd,
+}: {
+  message?: string | null;
+  plannedEnd?: string | null;
+}) {
   const t = useTranslations("pages.maintenance");
-  const { appName, maintenanceMessage } = useBranding();
+  const format = useFormatter();
+  const timing = useTranslations("consoleExperience");
+  const { appName, maintenanceMessage, maintenancePlannedEndAt } = useBranding();
+  // Undefined means the authenticated poll has not answered; null clears an old custom message.
+  const currentMessage = message === undefined ? maintenanceMessage : message;
+  const currentEnd = plannedEnd === undefined ? maintenancePlannedEndAt : plannedEnd;
 
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
-      <span className="bg-muted text-foreground mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl">
-        <Wrench className="h-6 w-6" aria-hidden />
-      </span>
-      <h1 className="text-display-md text-foreground mb-3">{t("heading", { app: appName })}</h1>
-      <p className="text-muted-foreground max-w-md text-sm leading-relaxed">
-        {maintenanceMessage || t("body")}
-      </p>
+    <div className={styles.maintenance}>
+      <section className={styles.maintenanceCard}>
+        <span className={styles.maintenanceMark} aria-hidden>
+          <Wrench className="size-6" />
+        </span>
+        <p className={styles.eyebrow}>{t("status")}</p>
+        <h1>{t("heading", { app: appName })}</h1>
+        <p className={styles.maintenanceMessage}>{currentMessage || t("body")}</p>
+        {currentEnd && (
+          <p className="text-muted-foreground mt-4 text-sm">
+            {timing("maintenanceEnd")}
+            {": "}
+            <time dateTime={currentEnd}>
+              {format.dateTime(new Date(currentEnd), { dateStyle: "medium", timeStyle: "short" })}
+            </time>
+            <span className="mt-1 block text-xs">{timing("maintenanceEndInformational")}</span>
+          </p>
+        )}
+      </section>
     </div>
   );
 }

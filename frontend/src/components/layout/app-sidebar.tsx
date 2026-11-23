@@ -38,9 +38,10 @@ import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { useMounted } from "@/hooks/use-mounted";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePendingApprovals } from "@/hooks/use-pending-approvals";
+import { useWaitingChatQuestions } from "@/hooks/use-waiting-chat-questions";
 import { usePermissions } from "@/hooks/use-permissions";
-import { cn, isAppAdmin } from "@/lib/utils";
-import { useAuthStore, useSidebarStore } from "@/stores";
+import { cn } from "@/lib/utils";
+import { useSidebarStore } from "@/stores";
 import {
   NAV_GROUPS,
   isActive,
@@ -77,7 +78,7 @@ function NavLink({
       title={collapsed ? label : undefined}
       aria-label={collapsed ? label : undefined}
       className={cn(
-        "sidebar-nav-link touch:min-h-11 focus-visible:ring-ring relative flex shrink-0 items-center rounded-lg text-sm font-medium transition-colors duration-[var(--duration-fast)] outline-none focus-visible:ring-2 focus-visible:ring-inset",
+        "sidebar-nav-link touch:min-h-11 focus-visible:ring-ring relative flex shrink-0 items-center rounded-lg text-sm font-normal transition-colors duration-[var(--duration-fast)] outline-none focus-visible:ring-2 focus-visible:ring-inset",
         // One row height in both states, so collapsing the column moves no icon
         // up or down - the rail is the same list with its words taken away.
         collapsed ? "touch:min-w-11 h-9 w-9 justify-center" : "h-9 gap-2.5 px-2.5",
@@ -85,7 +86,7 @@ function NavLink({
         // on the page's own tile, not here: a column of coloured pills competed
         // with the content it points at.
         active
-          ? "bg-accent text-foreground"
+          ? "bg-accent text-foreground font-medium"
           : "text-foreground/80 hover:bg-foreground/5 hover:text-foreground",
       )}
     >
@@ -101,7 +102,8 @@ function InboxCount({ collapsed }: { collapsed: boolean }) {
   const t = useTranslations("nav");
   const { suggestions } = useSuggestions();
   const approvals = usePendingApprovals();
-  const waiting = suggestions.length + approvals.count;
+  const questions = useWaitingChatQuestions();
+  const waiting = suggestions.length + approvals.count + questions.count;
   if (waiting === 0) return null;
   const label = t("inboxCount", { count: waiting });
   return collapsed ? (
@@ -150,16 +152,12 @@ export function SidebarNav({
     if (active) scrollWithin(active, "nearest", "instant");
   }, [collapsed, pathname]);
   const { can, hiddenNavigationItems, isLoaded } = usePermissions();
-  const { user } = useAuthStore();
   const t = useTranslations("nav");
-  const admin = isAppAdmin(user);
 
   const groups = NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter((item) => navItemVisible(item, can, hiddenNavigationItems, isLoaded)),
-  })).filter(
-    (group) => !group.switcherOnly && group.items.length > 0 && (!group.adminOnly || admin),
-  );
+  })).filter((group) => !group.switcherOnly && !group.adminOnly && group.items.length > 0);
 
   return (
     <nav

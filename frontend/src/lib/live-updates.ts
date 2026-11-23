@@ -55,10 +55,17 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   // list reads its running, unread and order state off runs too - a run started
   // by the API, a routine or another tab would otherwise leave it stale. The
   // lists only: refetching an open thread's messages under a stream is not this.
-  run: () => [qk.runs.all(), qk.conversations.list(), qk.outcomes.all(), qk.projects.all()],
+  // A failed run is also what marks an agent as needing attention.
+  run: () => [
+    qk.runs.all(),
+    qk.conversations.list(),
+    qk.outcomes.all(),
+    qk.projects.all(),
+    qk.stats.attentionAll(),
+  ],
   conversation: () => [qk.conversations.all(), qk.projects.all()],
   // A suite's result names the eval run behind it, so the runs move with it.
-  eval_suite: () => [qk.evalSuites.all(), qk.evalRuns.all()],
+  eval_suite: () => [qk.evalSuites.all(), qk.evalRuns.all(), qk.stats.attentionAll()],
   eval_run: () => [qk.evalRuns.all(), qk.datasets.all(), qk.improvements.all()],
   // A dataset's cases, versions, grading, scores and drafts all live under it.
   dataset: () => [
