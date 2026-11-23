@@ -1084,8 +1084,16 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
             // WKWebView drops new-window requests by default, including link context menu actions.
             .on_new_window(move |url, _| {
                 if let Some(url) = console_popup_web_url(&url) {
-                    if app.opener().open_url(url, None::<&str>).is_err() {
-                        eprintln!("Could not open the link in your browser.");
+                    if let Err(error) = app.opener().open_url(url, None::<&str>) {
+                        // The launcher error can include the command line and its full URL.
+                        match error {
+                            tauri_plugin_opener::Error::Io(error) => eprintln!(
+                                "Could not open the link in your browser: {} (OS code: {:?}).",
+                                error.kind(),
+                                error.raw_os_error()
+                            ),
+                            _ => eprintln!("Could not open the link in your browser: opener failed."),
+                        }
                     }
                 }
                 tauri::webview::NewWindowResponse::Deny
