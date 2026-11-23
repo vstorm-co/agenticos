@@ -71,6 +71,7 @@ def upgrade() -> None:
         sa.Column("items", postgresql.JSONB(), nullable=False, server_default="[]"),
         sa.Column("unseen_sources", sa.Integer(), nullable=False),
         sa.Column("judged_sources", postgresql.JSONB(), nullable=False, server_default="[]"),
+        sa.Column("source_marks", postgresql.JSONB(), nullable=False, server_default="{}"),
         sa.Column("error", sa.String(500), nullable=True),
         sa.Column(
             "run_id",

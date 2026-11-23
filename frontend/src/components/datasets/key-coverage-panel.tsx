@@ -131,7 +131,11 @@ function Report({ report }: { report: KeyCoverageReport }) {
           unsure: counted("unsure"),
         })}
       </p>
-      {!report.current && <p className="text-muted-foreground text-sm">{t("outOfDate")}</p>}
+      {!report.current && (
+        <p className="text-muted-foreground text-sm">
+          {t(report.sources_changed ? "sourcesChanged" : "outOfDate")}
+        </p>
+      )}
       {report.unseen_sources > 0 && (
         <p className="text-muted-foreground text-sm">
           {t("unseen", { count: report.unseen_sources })}

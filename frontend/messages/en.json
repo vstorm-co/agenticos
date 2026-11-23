@@ -15580,6 +15580,7 @@
       "failed": "The coverage could not be judged: {error}",
       "summary": "{count, plural, =1 {1 key} other {# keys}} in version {version}: {covered, plural, other {#}} with a source, {uncovered, plural, other {#}} with none, {unsure, plural, other {#}} unsure.",
       "outOfDate": "Made for an earlier version of the agent or the dataset, so Improve no longer reads it. Check again to bring it up to date.",
+      "sourcesChanged": "Sources changed since this check, so Improve no longer reads it. Check again to bring it up to date.",
       "unseen": "{count, plural, =1 {1 source of this agent was} other {# sources of this agent were}} not read - ones the person who asked may not see, or MCP servers reached through each person's own account - so Improve does not use this report.",
       "from": "From: {sources}",
       "hiddenSource": "a source you cannot see",

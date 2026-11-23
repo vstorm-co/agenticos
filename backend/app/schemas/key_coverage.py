@@ -80,8 +80,9 @@ class KeyCoverageReportRead(BaseSchema):
     Labels and source names only: a key's value never reaches a report.
     `unseen_sources` counts the sources the agent binds that the person who asked
     could not see, so none of them was read. `current` is false once the agent was
-    published again or the dataset gained a version since: the report judged other
-    sources or other keys, and Improve no longer reads it.
+    published again, the dataset gained a version, or a source it read changed since
+    - `sources_changed` says which: the report judged other sources or other keys,
+    and Improve no longer reads it.
     """
 
     id: UUID
@@ -92,6 +93,7 @@ class KeyCoverageReportRead(BaseSchema):
     items: list[CoverageItem]
     unseen_sources: int
     current: bool
+    sources_changed: bool
     error: str | None
     created_at: datetime
     finished_at: datetime | None

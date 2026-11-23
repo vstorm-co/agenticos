@@ -1,5 +1,5 @@
 ---
-source_sha: "37ff2249cbf3"
+source_sha: "cf07a5b19ce8"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -480,8 +480,10 @@ sus instrucciones puede aportarla.
 [Improve](authoring.md#background-improvement-sessions) la lee así, pero solo
 desde un informe completo - con cada fuente leída - hecho para la versión que el
 agent ejecuta ahora. Cuando el
-agent se publica de nuevo o el dataset gana una versión, el informe aparece
-como desactualizado hasta que vuelvas a comprobarlo.
+agent se publica de nuevo, el dataset gana una versión o cambia una fuente leída
+- un documento añadido a una base de conocimiento o quitado de ella, un archivo
+de contexto o un skill editado, las herramientas de un servidor cambiadas -, el
+informe aparece como desactualizado hasta que vuelvas a comprobarlo.
 
 ### Llamadas a herramientas esperadas { #trajectory }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "37ff2249cbf3"
+source_sha: "cf07a5b19ce8"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -503,8 +503,10 @@ eine Kontextdatei, ein Tool -, denn keine Änderung seiner Anweisungen kann ihn
 liefern. [Improve](authoring.md#background-improvement-sessions) liest ihn so, aber nur
 aus einem vollständigen Bericht - jede Quelle gelesen - für die Version, die der
 Agent jetzt ausführt. Sobald der
-Agent erneut veröffentlicht wird oder das Dataset eine Version hinzugewinnt,
-gilt der Bericht als veraltet, bis Sie erneut prüfen.
+Agent erneut veröffentlicht wird, das Dataset eine Version hinzugewinnt oder sich
+eine gelesene Quelle ändert - ein Dokument einer Wissensbasis hinzugefügt oder
+entfernt, eine Kontextdatei oder ein Skill bearbeitet, die Tools eines Servers
+geändert -, gilt der Bericht als veraltet, bis Sie erneut prüfen.
 
 ### Erwartete Tool-Aufrufe { #trajectory }
 

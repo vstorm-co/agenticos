@@ -38,6 +38,7 @@ _REPORT = KeyCoverageReportRead(
     ],
     unseen_sources=1,
     current=True,
+    sources_changed=False,
     error=None,
     created_at=datetime(2026, 11, 20, tzinfo=UTC),
     finished_at=datetime(2026, 11, 20, tzinfo=UTC),

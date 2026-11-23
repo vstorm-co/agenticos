@@ -203,6 +203,8 @@ export interface KeyCoverageReport {
   unseen_sources: number;
   /** False once the agent was published again or the dataset gained a version since. */
   current: boolean;
+  /** A source the report read holds something else now. */
+  sources_changed: boolean;
   error: string | null;
   created_at: string;
   finished_at: string | null;

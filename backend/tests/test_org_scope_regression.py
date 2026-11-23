@@ -173,6 +173,7 @@ TENANT_REQUIRED = [
     (key_coverage_report_repo, "replace"),
     (key_coverage_report_repo, "ready_for_agent"),
     (key_coverage_report_repo, "finish"),
+    (key_coverage_report_repo, "source_marks"),
     (case_generation_repo, "create_generation"),
     (case_generation_repo, "get_generation"),
     (case_generation_repo, "list_generations"),

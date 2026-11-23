@@ -28,6 +28,7 @@ const report = (status: "running" | "ready" | "failed") => ({
   items: [],
   unseen_sources: 0,
   current: true,
+  sources_changed: false,
   error: null,
   created_at: "2026-11-20T00:00:00Z",
   finished_at: null,

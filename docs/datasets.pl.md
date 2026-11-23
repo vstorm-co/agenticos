@@ -1,5 +1,5 @@
 ---
-source_sha: "37ff2249cbf3"
+source_sha: "cf07a5b19ce8"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -472,9 +472,10 @@ Klucz bez źródła musi trafić do agenta jako wiedza - dokument, plik kontekst
 narzędzie - bo żadna zmiana instrukcji go nie dostarczy.
 [Improve](authoring.md#background-improvement-sessions) traktuje go właśnie tak,
 ale tylko z pełnego raportu - z przeczytanym każdym źródłem - zrobionego dla
-wersji, którą agent uruchamia teraz. Po
-ponownej publikacji agenta albo nowej wersji datasetu raport jest oznaczony jako
-nieaktualny, dopóki nie sprawdzisz ponownie.
+wersji, którą agent uruchamia teraz. Po ponownej publikacji agenta, nowej wersji datasetu albo zmianie przeczytanego
+źródła - dodaniu lub usunięciu dokumentu z bazy wiedzy, edycji pliku kontekstu
+lub skilla, zmianie narzędzi serwera - raport jest oznaczony jako nieaktualny,
+dopóki nie sprawdzisz ponownie.
 
 ### Oczekiwane wywołania narzędzi { #trajectory }
 

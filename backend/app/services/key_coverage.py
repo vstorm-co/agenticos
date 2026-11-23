@@ -12,7 +12,7 @@ nor named; a reader who may not see a source the report names gets it unnamed.
 """
 
 import logging
-from collections.abc import Set
+from collections.abc import Sequence, Set
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -261,10 +261,15 @@ class KeyCoverageService:
     async def uncovered_labels(
         self, ctx: AuthContext, agent_id: UUID, dataset_ids: list[UUID]
     ) -> dict[UUID, frozenset[str]]:
-        """The labels the agent's ready reports found no source for, by dataset, without case."""
+        """The labels the agent's ready reports found no source for, by dataset, without case.
+
+        A report whose sources changed since it was judged is left out with the rest
+        that no longer describe what the agent reaches.
+        """
         reports = await key_coverage_report_repo.ready_for_agent(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id, dataset_ids=dataset_ids
         )
+        changed = await self._changed(ctx.organization_id, reports)
         return {
             report.dataset_id: frozenset(
                 str(item["key"]).casefold()
@@ -272,6 +277,25 @@ class KeyCoverageService:
                 if item.get("verdict") == "not_covered"
             )
             for report in reports
+            if report.id not in changed
+        }
+
+    async def _changed(
+        self, organization_id: UUID, reports: Sequence[KeyCoverageReport]
+    ) -> set[UUID]:
+        """The reports whose sources hold something else now than when they were judged."""
+        now = await key_coverage_report_repo.source_marks(
+            self.db,
+            organization_id=organization_id,
+            source_ids={UUID(source) for report in reports for source in report.judged_sources},
+        )
+        return {
+            report.id
+            for report in reports
+            if any(
+                report.source_marks.get(source) != now.get(UUID(source))
+                for source in report.judged_sources
+            )
         }
 
     async def judge(self, report_id: UUID, organization_id: UUID) -> None:
@@ -316,6 +340,11 @@ class KeyCoverageService:
         runner = SystemAgentRunner(self.db)
         try:
             material = await self._material(ctx, spec, sources, labels)
+            marks = await key_coverage_report_repo.source_marks(
+                self.db,
+                organization_id=organization_id,
+                source_ids=[source.id for source in sources.values()],
+            )
             result = await runner.run(
                 ctx,
                 key=SOURCE_COVERAGE.key,
@@ -345,6 +374,7 @@ class KeyCoverageService:
             ],
             unseen_sources=max(_bound(spec, disabled=disabled) - len(sources), 0),
             judged_sources=[source.id for source in sources.values()],
+            source_marks=marks,
             run_id=result.run.id,
         )
 
@@ -473,6 +503,7 @@ class KeyCoverageService:
         self, ctx: AuthContext, agent: Agent, report: KeyCoverageReport, dataset: Dataset
     ) -> KeyCoverageReportRead:
         visible = await self._visible_sources(ctx, agent, report)
+        changed = bool(await self._changed(ctx.organization_id, [report]))
         reasons = all(UUID(source) in visible for source in report.judged_sources)
         items: list[CoverageItem] = []
         for raw in report.items:
@@ -500,7 +531,9 @@ class KeyCoverageService:
                 "items": items,
                 "unseen_sources": report.unseen_sources,
                 "current": report.agent_version_id == agent.current_version_id
-                and report.dataset_version == dataset.latest_version,
+                and report.dataset_version == dataset.latest_version
+                and not changed,
+                "sources_changed": changed,
                 "error": report.error,
                 "created_at": report.created_at,
                 "finished_at": report.finished_at,

@@ -92,6 +92,11 @@ class KeyCoverageReport(Base):
     judged_sources: Mapped[list[str]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
+    # What each source read held then, by id: a later read compares, so a report on
+    # sources that changed since is out of date.
+    source_marks: Mapped[dict[str, str]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
     # Written by this platform, never a provider's message: everyone who may view
     # the report reads it.
     error: Mapped[str | None] = mapped_column(String(500), nullable=True)

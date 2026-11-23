@@ -33,6 +33,7 @@ from app.db.models.key_coverage_report import KeyCoverageReport
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.rag_document import RAGDocument
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
 from app.db.models.user import User
@@ -632,6 +633,105 @@ class TestJudging:
         assert row is not None
         await db.refresh(row)
         assert (row.status, row.error) == ("failed", STOPPED)
+
+
+def _kb(ctx: AuthContext, name: str) -> KnowledgeBase:
+    return KnowledgeBase(
+        organization_id=ctx.organization_id,
+        owner_user_id=ctx.user_id,
+        name=name,
+        scope="org",
+        collection_name=f"kb_{name}_{uuid.uuid4().hex[:8]}",
+        embedding_model="text-embedding-3-small",
+        embedding_dim=1536,
+        embedding_provider="openrouter",
+        visibility="org",
+    )
+
+
+def _document(ctx: AuthContext, kb: KnowledgeBase) -> RAGDocument:
+    return RAGDocument(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        collection_name=kb.collection_name,
+        filename=f"{uuid.uuid4().hex[:6]}.md",
+        filesize=4,
+        filetype="md",
+        storage_path="",
+        status="done",
+        chunk_count=1,
+        ingestion_config={},
+        knowledge_base_id=kb.id,
+    )
+
+
+class TestSourcesChanging:
+    async def _judged(self, db, monkeypatch, owner, **spec):
+        dataset, agent, report = await _complete(db, owner, **spec)
+        _answer(
+            monkeypatch,
+            JudgedCoverage(keys=[JudgedKey(key="Due date", verdict="not_covered")]),
+            await _run(db, owner, agent),
+        )
+        service = KeyCoverageService(db)
+        await service.judge(report.id, owner.organization_id)
+        return service, dataset, agent
+
+    async def test_a_document_added_since_puts_the_report_out_of_date(
+        self, db, monkeypatch, searched
+    ) -> None:
+        owner = await _owner(db)
+        bound, other = _kb(owner, "invoices"), _kb(owner, "archive")
+        db.add_all([bound, other])
+        await db.flush()
+        db.add_all([_document(owner, bound), _document(owner, other)])
+        await db.flush()
+        service, dataset, agent = await self._judged(
+            db, monkeypatch, owner, collection_ids=[str(bound.id)]
+        )
+
+        db.add(_document(owner, other))
+        await db.flush()
+        read = await service.get(owner, dataset.id, agent.id)
+        assert (read.current, read.sources_changed) == (True, False)
+        assert await service.uncovered_labels(owner, agent.id, [dataset.id]) == {
+            dataset.id: frozenset({"due date"})
+        }
+
+        db.add(_document(owner, bound))
+        await db.flush()
+        read = await service.get(owner, dataset.id, agent.id)
+        assert (read.current, read.sources_changed) == (False, True)
+        assert await service.uncovered_labels(owner, agent.id, [dataset.id]) == {}
+
+    async def test_a_probe_that_lists_the_same_tools_leaves_the_report_current(
+        self, db, monkeypatch
+    ) -> None:
+        owner = await _owner(db)
+        crm = McpConnection(
+            organization_id=owner.organization_id,
+            scope="org",
+            purpose="mcp",
+            name="crm",
+            url="https://crm.example/mcp",
+            last_tools=[{"name": "find_customer", "description": "Look a customer up"}],
+        )
+        db.add(crm)
+        await db.flush()
+        service, dataset, agent = await self._judged(
+            db,
+            monkeypatch,
+            owner,
+            mcp_servers=[{"account": "organization", "connection_id": str(crm.id)}],
+        )
+
+        crm.last_checked_at = datetime.now(UTC)
+        await db.flush()
+        assert (await service.get(owner, dataset.id, agent.id)).current
+
+        crm.last_tools = [*crm.last_tools, {"name": "find_invoice", "description": "By number"}]
+        await db.flush()
+        assert (await service.get(owner, dataset.id, agent.id)).sources_changed
 
 
 class TestActivity:

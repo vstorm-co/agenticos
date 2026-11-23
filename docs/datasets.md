@@ -451,9 +451,10 @@ A key no source holds has to reach the agent as knowledge - a document, a
 context file, a tool - since no change to its instructions can supply it.
 [Improve](authoring.md#background-improvement-sessions) reads it that way,
 but only from a complete report - every source read - made for the version the
-agent runs now. Once the agent
-is published again or the dataset gains a version, the report shows as out of
-date until you check again.
+agent runs now. Once the agent is published again, the dataset gains a version, or a source it
+read changes - a document added to or removed from a knowledge base, a context
+file or skill edited, a server's tools changed - the report shows as out of date
+until you check again.
 
 ### Expected tool calls { #trajectory }
 

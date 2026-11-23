@@ -15266,6 +15266,7 @@
       "failed": "Die Abdeckung konnte nicht beurteilt werden: {error}",
       "summary": "{count, plural, one {# Schlüssel} other {# Schlüssel}} in Version {version}: {covered, plural, other {#}} mit Quelle, {uncovered, plural, other {#}} ohne, {unsure, plural, other {#}} unsicher.",
       "outOfDate": "Für eine frühere Version des Agenten oder des Datasets erstellt, daher liest Improve ihn nicht mehr. Prüfen Sie erneut, um ihn zu aktualisieren.",
+      "sourcesChanged": "Die Quellen haben sich seit dieser Prüfung geändert, daher liest Improve den Bericht nicht mehr. Prüfen Sie erneut, um ihn zu aktualisieren.",
       "unseen": "{count, plural, one {# Quelle dieses Agenten wurde} other {# Quellen dieses Agenten wurden}} nicht gelesen - solche, die die fragende Person nicht sehen darf, oder MCP-Server, die über das Konto jeder Person laufen -, daher nutzt Improve diesen Bericht nicht.",
       "from": "Aus: {sources}",
       "hiddenSource": "eine Quelle, die Sie nicht sehen dürfen",

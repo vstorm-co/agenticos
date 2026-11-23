@@ -58,6 +58,7 @@ function report(overrides: Partial<KeyCoverageReport> = {}): KeyCoverageReport {
     ],
     unseen_sources: 0,
     current: true,
+    sources_changed: false,
     error: null,
     created_at: "2026-11-20T00:00:00Z",
     finished_at: null,
@@ -166,6 +167,14 @@ describe("KeyCoveragePanel", () => {
     expect(
       screen.getByText("1 key in version 3: 0 with a source, 0 with none, 1 unsure."),
     ).toBeInTheDocument();
+  });
+
+  it("says a report whose sources changed since is out of date", async () => {
+    coverage.report = report({ current: false, sources_changed: true });
+    await choose("Writer");
+
+    expect(screen.getByText(/Sources changed since this check/)).toBeInTheDocument();
+    expect(screen.queryByText(/Made for an earlier version/)).not.toBeInTheDocument();
   });
 
   it("says a report made for an earlier version is out of date", async () => {
