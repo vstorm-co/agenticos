@@ -232,7 +232,7 @@ it("marks a confirmed change newly fixed or broken and an unconfirmed one only p
       attributions={{}}
     />,
   );
-  expect(screen.getByText("Answers that got worse")).toBeInTheDocument();
+  expect(screen.getByText("Got worse")).toBeInTheDocument();
   expect(screen.queryByText(/Not confirmed yet/)).not.toBeInTheDocument();
   view.rerender(
     <ChangedAnswers
@@ -246,8 +246,8 @@ it("marks a confirmed change newly fixed or broken and an unconfirmed one only p
   );
   const group = screen.getByText("Not confirmed yet (1)").closest("details")!;
   expect(group).not.toHaveAttribute("open");
-  expect(group).toHaveTextContent("Possibly fixed");
-  expect(group).not.toHaveTextContent("Improved answers");
+  expect(group).toHaveTextContent("May have improved");
+  expect(group).not.toHaveTextContent("Improved");
   view.rerender(
     <ChangedAnswers
       runId="r1"
@@ -258,8 +258,8 @@ it("marks a confirmed change newly fixed or broken and an unconfirmed one only p
       attributions={{}}
     />,
   );
-  expect(screen.getByText("Possibly broken")).toBeInTheDocument();
-  expect(screen.queryByText("Answers that got worse")).not.toBeInTheDocument();
+  expect(screen.getByText("May be worse")).toBeInTheDocument();
+  expect(screen.queryByText("Got worse")).not.toBeInTheDocument();
 });
 
 it("loads a reused baseline from its own run and opens the first answer for review", () => {
@@ -278,7 +278,7 @@ it("loads a reused baseline from its own run and opens the first answer for revi
   );
   expect(screen.getByText("90 days")).toBeVisible();
   expect(screen.getByText("30 days")).toBeVisible();
-  expect(screen.getByText("Which change caused it").closest("details")).not.toHaveAttribute("open");
+  expect(screen.queryByText("Which change caused it")).toBeNull();
   state.cachedLoading = true;
   view.rerender(
     <ChangedAnswers

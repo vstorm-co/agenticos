@@ -1,17 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, ListChecks } from "lucide-react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ErrorState, LoadingState } from "@/components/states";
 import {
   Badge,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
+  ListCard,
   PaginationBar,
   Select,
   SelectContent,
@@ -21,6 +18,7 @@ import {
 } from "@/components/ui";
 import { isLive, useEvalCases } from "@/hooks/use-eval-runs";
 import { getErrorMessage } from "@/lib/api-error";
+import { FILTER_CONTROL } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 import type {
   EvalComparison,
@@ -51,7 +49,7 @@ export function FilterSelect({
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger aria-label={label} className="h-8 w-44">
+      <SelectTrigger aria-label={label} className={cn(FILTER_CONTROL, "w-44")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -181,7 +179,9 @@ export function CaseTable({
   onShowAll,
   outcome,
   onOutcomeChange,
+  controls,
 }: {
+  controls?: ReactNode;
   run: EvalRun;
   outcome: CaseOutcomeFilter | null;
   onOutcomeChange: (outcome: CaseOutcomeFilter | null) => void;
@@ -246,122 +246,124 @@ export function CaseTable({
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
-        <CardTitle className="flex items-center gap-2">
-          <ListChecks className="text-muted-foreground size-4" aria-hidden />
-          {t("title", { count: total })}
-        </CardTitle>
-        <FilterSelect
-          label={t("outcomeFilter")}
-          value={outcome ?? ALL}
-          onChange={(value) => {
-            onOutcomeChange(OUTCOMES.find((item) => item === value) ?? null);
-            setSkip(0);
-          }}
-          options={[ALL, ...OUTCOMES].map((value) => ({ value, label: t(`outcome.${value}`) }))}
-        />
-      </CardHeader>
-      <CardContent className="space-y-3 border-t pt-3">
-        {caseIds !== null && (
-          <p className="text-muted-foreground mb-2 flex flex-wrap items-center gap-2 text-sm">
-            {opened !== null && caseIds[0] === opened
-              ? t("askedOnly")
-              : brokenTotal !== undefined && brokenTotal > caseIds.length
-                ? t("brokenFirst", { count: caseIds.length, total: brokenTotal })
-                : t("brokenOnly", { count: caseIds.length })}
-            <Button size="sm" variant="ghost" onClick={onShowAll}>
-              {t("showAll")}
-            </Button>
-          </p>
-        )}
-        {isLoading ? (
-          <LoadingState variant="skeleton-list" rows={4} />
-        ) : error ? (
-          <ErrorState description={getErrorMessage(error, tErrors)} />
-        ) : (
-          <ul className="divide-border divide-y">
-            {cases.map((item) => {
-              const flip = flipOf.get(item.case_id);
-              const expanded = open === item.case_id;
-              return (
-                <li key={item.case_id} className="py-1.5">
-                  <button
-                    type="button"
-                    aria-expanded={expanded}
-                    onClick={() => setOpen(expanded ? null : item.case_id)}
-                    className="hover:bg-accent/40 flex min-h-14 w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-lg px-3 py-3 text-left transition-colors"
-                  >
-                    {expanded ? (
-                      <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
-                    )}
-                    {trainIds.has(item.case_id) && (
-                      <Badge variant="outline">{t("partition.train")}</Badge>
-                    )}
-                    {holdoutIds.has(item.case_id) && (
-                      <Badge variant="secondary">{t("partition.holdout")}</Badge>
-                    )}
-                    {excludedIds.has(item.case_id) && (
-                      <Badge variant="outline">{t("partition.excluded")}</Badge>
-                    )}
-                    <span className="line-clamp-2 min-w-0 flex-1 text-sm font-medium break-words">
-                      {item.input}
-                    </span>
-                    <span className="order-2 basis-full pl-7 sm:order-none sm:basis-auto sm:pl-0">
-                      <AnswerStates
-                        comparison={comparison}
-                        flip={flip}
-                        attempts={item.attempts}
-                        arms={[...run.arms].sort(
-                          (a, b) => Number(b.role === "baseline") - Number(a.role === "baseline"),
-                        )}
-                        check={run.proposal_check}
-                      />
-                    </span>
-                    {item.attempts.some(corrected) && (
-                      <Badge variant="outline">{t("corrected")}</Badge>
-                    )}
-                    {flip && flip.flip !== "unchanged" && (
-                      <VerdictBadge
-                        tone={FLIP_TONE[flip.flip]}
-                        title={flip.candidate_error ?? undefined}
-                      >
-                        {flip.flip === "regression" && flip.candidate_error !== null
-                          ? t("flip.crashed", { confirmed: String(flip.confirmed) })
-                          : t(`flip.${flip.flip}`, {
-                              confirmed: String(flip.confirmed),
-                              side: flip.side,
-                            })}
-                      </VerdictBadge>
-                    )}
-                  </button>
-                  {expanded && (
-                    <div className="bg-background/40 mt-2 rounded-xl border p-3 sm:p-4">
-                      <CaseDetail
-                        attempts={item.attempts}
-                        arms={run.arms}
-                        check={run.proposal_check}
-                        expectation={item.expectation}
-                        datasetId={run.dataset_id}
-                        caseId={item.case_id}
-                      />
-                    </div>
+    <ListCard
+      namedByPage
+      title={t("title", { count: total })}
+      counted={isLoading || error ? null : t("title", { count: total })}
+      contentClassName="space-y-3 p-3 sm:p-5"
+      controls={
+        <>
+          <FilterSelect
+            label={t("outcomeFilter")}
+            value={outcome ?? ALL}
+            onChange={(value) => {
+              onOutcomeChange(OUTCOMES.find((item) => item === value) ?? null);
+              setSkip(0);
+            }}
+            options={[ALL, ...OUTCOMES].map((value) => ({ value, label: t(`outcome.${value}`) }))}
+          />
+          {controls}
+        </>
+      }
+    >
+      {caseIds !== null && (
+        <p className="text-muted-foreground mb-2 flex flex-wrap items-center gap-2 text-sm">
+          {opened !== null && caseIds[0] === opened
+            ? t("askedOnly")
+            : brokenTotal !== undefined && brokenTotal > caseIds.length
+              ? t("brokenFirst", { count: caseIds.length, total: brokenTotal })
+              : t("brokenOnly", { count: caseIds.length })}
+          <Button size="sm" variant="ghost" onClick={onShowAll}>
+            {t("showAll")}
+          </Button>
+        </p>
+      )}
+      {isLoading ? (
+        <LoadingState variant="skeleton-list" rows={4} />
+      ) : error ? (
+        <ErrorState description={getErrorMessage(error, tErrors)} />
+      ) : (
+        <ul className="divide-border divide-y">
+          {cases.map((item) => {
+            const flip = flipOf.get(item.case_id);
+            const expanded = open === item.case_id;
+            return (
+              <li key={item.case_id} className="py-1.5">
+                <button
+                  type="button"
+                  aria-expanded={expanded}
+                  onClick={() => setOpen(expanded ? null : item.case_id)}
+                  className="hover:bg-accent/40 flex min-h-14 w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-lg px-3 py-3 text-left transition-colors"
+                >
+                  {expanded ? (
+                    <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
                   )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        <PaginationBar
-          showSinglePage
-          page={skip / PAGE}
-          pageSize={PAGE}
-          total={total}
-          onPage={(page) => setSkip(page * PAGE)}
-        />
-      </CardContent>
-    </Card>
+                  {trainIds.has(item.case_id) && (
+                    <Badge variant="outline">{t("partition.train")}</Badge>
+                  )}
+                  {holdoutIds.has(item.case_id) && (
+                    <Badge variant="secondary">{t("partition.holdout")}</Badge>
+                  )}
+                  {excludedIds.has(item.case_id) && (
+                    <Badge variant="outline">{t("partition.excluded")}</Badge>
+                  )}
+                  <span className="line-clamp-2 min-w-0 flex-1 text-sm font-medium break-words">
+                    {item.input}
+                  </span>
+                  <span className="order-2 basis-full pl-7 sm:order-none sm:basis-auto sm:pl-0">
+                    <AnswerStates
+                      comparison={comparison}
+                      flip={flip}
+                      attempts={item.attempts}
+                      arms={[...run.arms].sort(
+                        (a, b) => Number(b.role === "baseline") - Number(a.role === "baseline"),
+                      )}
+                      check={run.proposal_check}
+                    />
+                  </span>
+                  {item.attempts.some(corrected) && (
+                    <Badge variant="outline">{t("corrected")}</Badge>
+                  )}
+                  {flip && flip.flip !== "unchanged" && (
+                    <VerdictBadge
+                      tone={FLIP_TONE[flip.flip]}
+                      title={flip.candidate_error ?? undefined}
+                    >
+                      {flip.flip === "regression" && flip.candidate_error !== null
+                        ? t("flip.crashed", { confirmed: String(flip.confirmed) })
+                        : t(`flip.${flip.flip}`, {
+                            confirmed: String(flip.confirmed),
+                            side: flip.side,
+                          })}
+                    </VerdictBadge>
+                  )}
+                </button>
+                {expanded && (
+                  <div className="bg-background/40 mt-2 rounded-xl border p-3 sm:p-4">
+                    <CaseDetail
+                      attempts={item.attempts}
+                      arms={run.arms}
+                      check={run.proposal_check}
+                      expectation={item.expectation}
+                      datasetId={run.dataset_id}
+                      caseId={item.case_id}
+                    />
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <PaginationBar
+        showSinglePage
+        page={skip / PAGE}
+        pageSize={PAGE}
+        total={total}
+        onPage={(page) => setSkip(page * PAGE)}
+      />
+    </ListCard>
   );
 }

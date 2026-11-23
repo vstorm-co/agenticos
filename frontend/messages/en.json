@@ -15749,8 +15749,6 @@
       "keepEditing": "Keep editing",
       "add": "Add to knowledge base",
       "target": "Target: {name}",
-      "hint": "Review the text, then add it to the knowledge base so your agents can use it.",
-      "reviewDocument": "Review the document, then add it to the knowledge base",
       "read": "Read document",
       "edit": "Edit document",
       "searchDetails": "Why was this question flagged?"
@@ -17125,8 +17123,6 @@
     "handledChange": "{before} → {after} of {total} questions handled well.",
     "newlyFixed": "Improved answers",
     "newlyBroken": "Answers that got worse",
-    "possiblyBroken": "Possibly broken",
-    "possiblyFixed": "Possibly fixed",
     "notConfirmedMore": "+{count} not confirmed",
     "notConfirmedHint": "Not confirmed: the answer changed once, but not the same way when asked again.",
     "notConfirmedYet": "Not confirmed yet ({count})",

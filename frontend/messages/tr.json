@@ -16941,8 +16941,6 @@
       "keepEditing": "Düzenlemeye devam et",
       "add": "Bilgi tabanına ekle",
       "target": "Hedef: {name}",
-      "hint": "Metni inceleyin, ardından ajanlarınızın kullanabilmesi için bilgi tabanına ekleyin.",
-      "reviewDocument": "Belgeyi inceleyin ve bilgi tabanına ekleyin",
       "read": "Belgeyi oku",
       "edit": "Belgeyi düzenle",
       "searchDetails": "Bu soru neden işaretlendi?"

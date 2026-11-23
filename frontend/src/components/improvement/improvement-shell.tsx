@@ -342,7 +342,7 @@ export function ImprovementShell({
             )}
           </div>
         )}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 empty:hidden">
           {(active || session.status === "failed") && readOnly === null && (
             <Button
               variant="outline"
@@ -360,9 +360,11 @@ export function ImprovementShell({
             ["waiting", "ready", "stopped"].includes(session.status) &&
             step !== "result" &&
             session.stop_reason !== "budget" && <EndSession session={session} />}
-          <Link className="text-sm underline" href={closeHref}>
-            {t(finished ? "record.back" : "close")}
-          </Link>
+          {!finished && (
+            <Link className="text-sm underline" href={closeHref}>
+              {t("close")}
+            </Link>
+          )}
         </div>
         {error && (
           <p role="alert" className="text-destructive-ink text-sm">

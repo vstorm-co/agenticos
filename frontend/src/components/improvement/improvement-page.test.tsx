@@ -1068,3 +1068,14 @@ it("keeps the full test link on a finished session's question tab", async () => 
     "/agents/a1/evals/run-final",
   );
 });
+
+it("keeps the agent reachable from a published result for a reader without edit access", () => {
+  state.session!.status = "published";
+  state.edit = false;
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("link", { name: "Open the agent" })).toHaveAttribute(
+    "href",
+    "/agents/a1",
+  );
+  expect(screen.queryByRole("button", { name: "Publish" })).toBeNull();
+});

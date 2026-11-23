@@ -15435,8 +15435,6 @@
       "keepEditing": "Weiter bearbeiten",
       "add": "Zur Wissensbasis hinzufügen",
       "target": "Ziel: {name}",
-      "hint": "Prüfen Sie den Text und fügen Sie ihn der Wissensbasis hinzu, damit Ihre Agenten ihn nutzen können.",
-      "reviewDocument": "Dokument prüfen und zur Wissensbasis hinzufügen",
       "read": "Dokument lesen",
       "edit": "Dokument bearbeiten",
       "searchDetails": "Warum wurde diese Frage markiert?"
@@ -16811,8 +16809,6 @@
     "handledChange": "{before} → {after} von {total} Fragen gut beantwortet.",
     "newlyFixed": "Verbesserte Antworten",
     "newlyBroken": "Verschlechterte Antworten",
-    "possiblyBroken": "Möglicherweise verschlechtert",
-    "possiblyFixed": "Möglicherweise behoben",
     "notConfirmedMore": "+{count} nicht bestätigt",
     "notConfirmedHint": "Nicht bestätigt: Die Antwort hat sich einmal geändert, beim erneuten Stellen aber nicht auf dieselbe Weise.",
     "notConfirmedYet": "Noch nicht bestätigt ({count})",

@@ -64,17 +64,6 @@ export function KnowledgeGapEditor({
 
   return (
     <fieldset disabled={topic.drafting} className="min-w-0 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-medium">{t("workspace.reviewDocument")}</p>
-        <Button type="button" variant="outline" size="sm" onClick={() => setEditing(!editing)}>
-          {editing ? (
-            <Eye className="size-3.5" aria-hidden />
-          ) : (
-            <Pencil className="size-3.5" aria-hidden />
-          )}
-          {t(editing ? "workspace.read" : "workspace.edit")}
-        </Button>
-      </div>
       {editing ? (
         <div className="space-y-1.5">
           <Label htmlFor="knowledge-gap-title">{t("contentTitle")}</Label>
@@ -89,6 +78,16 @@ export function KnowledgeGapEditor({
         <h3 className="text-lg font-medium break-words">{title || t("contentTitle")}</h3>
       )}
       <MarkdownEditor
+        toolbar={
+          <Button type="button" variant="outline" size="sm" onClick={() => setEditing(!editing)}>
+            {editing ? (
+              <Eye className="size-3.5" aria-hidden />
+            ) : (
+              <Pencil className="size-3.5" aria-hidden />
+            )}
+            {t(editing ? "workspace.read" : "workspace.edit")}
+          </Button>
+        }
         label={t("contentBody")}
         placeholder={t("contentPlaceholder")}
         value={content}

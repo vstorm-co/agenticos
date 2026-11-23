@@ -65,11 +65,12 @@ export function ChangedAnswers({
       candidateId={candidateId}
       attributions={attributions}
       initiallyOpen={preview && index === 0}
+      preview={preview}
     />
   );
   return (
     <div className="space-y-3">
-      {confirmed.map(row)}
+      <div className={preview ? "divide-border divide-y" : "space-y-3"}>{confirmed.map(row)}</div>
       {pending.length > 0 && (
         <NativeDisclosure className="rounded-lg border p-3">
           <summary className="cursor-pointer text-sm font-medium">
@@ -93,7 +94,9 @@ function ChangedRow({
   candidateId,
   attributions,
   initiallyOpen,
+  preview,
 }: {
+  preview: boolean;
   initiallyOpen: boolean;
   item: EvalCase;
   flip: CaseFlip["flip"];
@@ -103,24 +106,26 @@ function ChangedRow({
   attributions: Record<string, string>;
 }) {
   const t = useTranslations("improvement");
+  const tStatus = useTranslations("evals.cases.flip");
   const before = item.attempts.find((a) => a.arm_id === baselineId && a.attempt === 0);
   const after = item.attempts.find((a) => a.arm_id === candidateId && a.attempt === 0);
   return (
     <Details
       initiallyOpen={initiallyOpen}
+      row={preview}
       className="@container"
       summary={
-        <span className="flex flex-wrap items-center gap-2">
+        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <span className="min-w-0 flex-1 basis-64 break-words">{item.input}</span>
           {confirmed ? (
             <StateBadge tone={flip === "regression" ? "bad" : "good"}>
-              {t(flip === "regression" ? "newlyBroken" : "newlyFixed")}
+              {tStatus(flip === "regression" ? "regression" : "fixed", { confirmed: "true" })}
             </StateBadge>
           ) : (
             <StateBadge tone="neutral" className="bg-transparent">
-              {t(flip === "regression" ? "possiblyBroken" : "possiblyFixed")}
+              {tStatus(flip === "regression" ? "regression" : "fixed", { confirmed: "false" })}
             </StateBadge>
           )}
-          <span className="break-words">{item.input}</span>
         </span>
       }
     >
@@ -129,7 +134,7 @@ function ChangedRow({
           { label: t("before"), value: before?.answer },
           { label: t("after"), value: after?.answer },
         ].map((v) => (
-          <div key={v.label} className="min-w-0 rounded-lg border p-4">
+          <div key={v.label} className="bg-background/50 min-w-0 rounded-lg p-4">
             <p className="text-muted-foreground text-xs">{v.label}</p>
             <div className="prose-sm mt-2 text-sm leading-relaxed wrap-anywhere">
               <MarkdownContent content={v.value ?? t("unavailableAnswer")} inertImages />
@@ -147,16 +152,18 @@ function ChangedRow({
           ))}
         </div>
       </NativeDisclosure>
-      <NativeDisclosure className="text-muted-foreground text-sm">
-        <summary className="cursor-pointer">{t("whichChange")}</summary>
-        {Object.keys(attributions).length === 0 ? (
-          <p className="text-muted-foreground">{t("notAttributed")}</p>
-        ) : (
-          Object.values(attributions).map((id, index) => (
-            <ChangeCause key={id} caseId={item.case_id} runId={id} number={index + 1} />
-          ))
-        )}
-      </NativeDisclosure>
+      {(!preview || Object.keys(attributions).length > 0) && (
+        <NativeDisclosure className="text-muted-foreground text-sm">
+          <summary className="cursor-pointer">{t("whichChange")}</summary>
+          {Object.keys(attributions).length === 0 ? (
+            <p className="text-muted-foreground">{t("notAttributed")}</p>
+          ) : (
+            Object.values(attributions).map((id, index) => (
+              <ChangeCause key={id} caseId={item.case_id} runId={id} number={index + 1} />
+            ))
+          )}
+        </NativeDisclosure>
+      )}
     </Details>
   );
 }

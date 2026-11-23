@@ -66,6 +66,11 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
     <div className="w-full min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
       <PageHeader
         title={t("title", { name: agent.name })}
+        actions={
+          <Button variant="outline" asChild>
+            <Link href={`/agents/${agentId}`}>{t("openAgent")}</Link>
+          </Button>
+        }
         breadcrumbs={[{ label: agent.name, href: `/agents/${agentId}` }, { label: t("heading") }]}
       />
       <Session

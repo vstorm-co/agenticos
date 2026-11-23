@@ -498,16 +498,16 @@ describe("CheckAgents", () => {
       expect(names()).toEqual(["Billing", "Sales"]);
       await userEvent.click(within(filters).getByRole("button", { name: "2 no change" }));
 
-      await userEvent.type(screen.getByRole("searchbox", { name: "Find an agent" }), "count");
+      await userEvent.type(screen.getByRole("textbox", { name: "Find an agent" }), "count");
       expect(names()).toEqual(["Counter"]);
-      await userEvent.clear(screen.getByRole("searchbox", { name: "Find an agent" }));
+      await userEvent.clear(screen.getByRole("textbox", { name: "Find an agent" }));
 
       await userEvent.click(screen.getByRole("button", { name: "Details of Returns" }));
       await userEvent.click(screen.getByRole("checkbox", { name: "Only the ones not looked at" }));
       expect(names()).not.toContain("Returns");
       expect(screen.getByText("Left to look at: 4 of 5")).toBeVisible();
 
-      await userEvent.type(screen.getByRole("searchbox", { name: "Find an agent" }), "nobody");
+      await userEvent.type(screen.getByRole("textbox", { name: "Find an agent" }), "nobody");
       expect(screen.getByText("No agent matches.")).toBeVisible();
     });
 

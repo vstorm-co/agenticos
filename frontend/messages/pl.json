@@ -15522,8 +15522,6 @@
       "keepEditing": "Kontynuuj edycję",
       "add": "Dodaj do bazy wiedzy",
       "target": "Docelowa baza: {name}",
-      "hint": "Sprawdź treść, a następnie dodaj ją do bazy wiedzy, aby agenci mogli z niej korzystać.",
-      "reviewDocument": "Sprawdź dokument, a następnie dodaj go do bazy wiedzy",
       "read": "Czytaj dokument",
       "edit": "Edytuj dokument",
       "searchDetails": "Dlaczego oznaczono to pytanie?"
@@ -16898,8 +16896,6 @@
     "handledChange": "{before} → {after} z {total} pytań obsłużonych poprawnie.",
     "newlyFixed": "Poprawione odpowiedzi",
     "newlyBroken": "Pogorszone odpowiedzi",
-    "possiblyBroken": "Być może zepsute",
-    "possiblyFixed": "Być może naprawione",
     "notConfirmedMore": "+{count} niepotwierdzone",
     "notConfirmedHint": "Niepotwierdzone: odpowiedź zmieniła się raz, ale przy ponownym zadaniu już nie tak samo.",
     "notConfirmedYet": "Jeszcze niepotwierdzone ({count})",

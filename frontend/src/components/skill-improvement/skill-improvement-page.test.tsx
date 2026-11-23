@@ -354,10 +354,19 @@ it("shows the exact checked skill content even when no suggestion batch was stor
   };
   state.session = session;
   mount();
-  expect(
-    await screen.findByRole("heading", { name: "Skill checked in this session" }),
-  ).toBeVisible();
+  expect(await screen.findByText("Skill checked in this session")).toBeVisible();
   expect(screen.getByText("Returns are accepted within 30 days.")).toBeVisible();
   expect(screen.getByText("Reviewed service policy")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Decide what to do" })).toBeNull();
+});
+
+it("keeps the skill reachable from a completed result without offering edit actions", async () => {
+  state.session = skillSession({ status: "accepted", outcome: "applied" });
+  state.canEdit = false;
+  mount();
+  expect(await screen.findByRole("link", { name: "Open the skill" })).toHaveAttribute(
+    "href",
+    "/skills/k1",
+  );
   expect(screen.queryByRole("button", { name: "Decide what to do" })).toBeNull();
 });

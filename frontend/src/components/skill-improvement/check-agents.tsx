@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import { CriteriaTable, verdictRows } from "@/components/improvement/criteria";
 import { useReadOnly } from "@/components/improvement/read-only";
 import { StateBadge, type Tone } from "@/components/improvement/widgets";
-import { Checkbox, Input, Label } from "@/components/ui";
+import { Checkbox, SearchInput, Label } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { SkillCheck, SkillCheckAgent, UnknownReason } from "@/types/skill-checks";
@@ -154,13 +154,12 @@ export function CheckAgents({ check }: { check: SkillCheck }) {
               {t("onlyUnseen")}
             </Label>
           </span>
-          <Input
-            type="search"
+          <SearchInput
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            aria-label={t("search")}
+            onChange={setQuery}
+            label={t("search")}
             placeholder={t("search")}
-            className="h-9 w-full sm:w-64"
+            className="sm:w-64"
           />
         </div>
       )}

@@ -285,33 +285,6 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
             </section>
           </TabsContent>
         </NativeDisclosure>
-        <div className="flex flex-wrap gap-2 pt-4">
-          {candidates.length > 1 && (
-            <Select value={focus ?? ""} onValueChange={setArm}>
-              <SelectTrigger aria-label={t("compareArm")} className="w-64">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {candidates.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {t("sideModel", { name: sideName(item, t, check), model: item.model_label })}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {tags.length > 0 && (
-            <FilterSelect
-              label={tCases("tagFilter")}
-              value={tag ?? ALL}
-              onChange={(value) => setTag(value === ALL ? null : value)}
-              options={[
-                { value: ALL, label: tCases("allTags") },
-                ...tags.map((value) => ({ value, label: `#${value}` })),
-              ]}
-            />
-          )}
-        </div>
         {testingAgain && (
           <StartEvalDialog
             agentId={agentId}
@@ -328,6 +301,38 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
           <div ref={cases}>
             <CaseTable
               run={named}
+              controls={
+                <div className="flex flex-wrap items-center gap-2">
+                  {candidates.length > 1 && (
+                    <Select value={focus ?? ""} onValueChange={setArm}>
+                      <SelectTrigger aria-label={t("compareArm")} className="w-64">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {candidates.map((item) => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {t("sideModel", {
+                              name: sideName(item, t, check),
+                              model: item.model_label,
+                            })}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {tags.length > 0 && (
+                    <FilterSelect
+                      label={tCases("tagFilter")}
+                      value={tag ?? ALL}
+                      onChange={(value) => setTag(value === ALL ? null : value)}
+                      options={[
+                        { value: ALL, label: tCases("allTags") },
+                        ...tags.map((value) => ({ value, label: `#${value}` })),
+                      ]}
+                    />
+                  )}
+                </div>
+              }
               outcome={
                 outcomeParam === "passed" ||
                 outcomeParam === "failed" ||

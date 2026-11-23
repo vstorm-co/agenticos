@@ -12,7 +12,7 @@ import { ImprovementShell, WorkingNote } from "@/components/improvement/improvem
 import { type ReadOnlyReason } from "@/components/improvement/read-only";
 import { AcceptedChanges, TriedChanges } from "@/components/improvement/tried-changes";
 import { ErrorState, LoadingState } from "@/components/states";
-import { Button } from "@/components/ui";
+import { Button, Card, ListCard } from "@/components/ui";
 import { useSkill } from "@/hooks";
 import { useImprovement } from "@/hooks/use-improvements";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -183,6 +183,11 @@ function SkillSession({
       <SkillImprovementHeader
         skillId={skillId}
         skillName={skillName}
+        actions={
+          <Button variant="outline" asChild>
+            <Link href={ROUTES.SKILL_DETAIL(skillId)}>{t("openSkill")}</Link>
+          </Button>
+        }
         merge={
           session.purpose === "catch_up"
             ? { kind: "catch_up", forkId: session.fork_id }
@@ -298,7 +303,7 @@ function SkillSession({
             )}
             {step === "result" && (
               <section className="space-y-4">
-                <div className="bg-muted/30 space-y-2 rounded-xl border p-4 sm:p-6">
+                <Card className="space-y-2 p-4 sm:p-5">
                   <h2 className="text-lg font-medium">{t("workspace.title")}</h2>
                   <p className="text-muted-foreground text-sm">{t("workspace.hint")}</p>
                   <p className="text-sm font-medium">
@@ -307,15 +312,14 @@ function SkillSession({
                       { outcome: session.outcome ?? "other" },
                     )}
                   </p>
-                </div>
-                <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+                </Card>
+                <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
                   <section className="min-w-0 space-y-4">
                     <h2 className="text-base font-medium">{t("workspace.agents")}</h2>
                     {measured}
                   </section>
                   {(check || chosen?.batch_id) && (
-                    <section className="min-w-0 space-y-4 rounded-xl border p-4 sm:p-6">
-                      <h2 className="text-base font-medium">{t("workspace.skillText")}</h2>
+                    <ListCard title={t("workspace.skillText")}>
                       {chosen?.batch_id ? (
                         <AcceptedChanges session={session} round={chosen} report />
                       ) : (
@@ -326,7 +330,7 @@ function SkillSession({
                           </div>
                         )
                       )}
-                    </section>
+                    </ListCard>
                   )}
                 </div>
                 <MainAloneResult session={session} />

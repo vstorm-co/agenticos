@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { Button } from "@/components/ui";
+import { Button, Card, ListCard } from "@/components/ui";
 import { isClosed } from "@/lib/improvement-steps";
 import { usd } from "@/components/evals/format";
 import type { Improvement } from "@/types/improvement";
@@ -49,7 +49,7 @@ export function ResultStep({
   const host = chosen ?? session.iterations.at(-1);
   return (
     <section className="space-y-4" data-tour="improvement-results">
-      <div className="bg-muted/30 grid min-w-0 gap-6 rounded-xl border p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,1fr)]">
+      <Card className="grid min-w-0 gap-6 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,1fr)]">
         <ResultDecision
           session={session}
           agent={agent}
@@ -60,26 +60,22 @@ export function ResultStep({
           onStarted={onStarted}
         />
         <ResultSummary session={session} round={chosen} />
-      </div>
+      </Card>
       {(changes || evidence) && (
-        <div className="grid min-w-0 items-start gap-6 xl:grid-cols-2">
+        <div
+          className={
+            changes && evidence ? "grid min-w-0 items-start gap-4 xl:grid-cols-2" : "min-w-0"
+          }
+        >
           {changes && (
-            <section className="min-w-0 space-y-4 rounded-xl border p-4 sm:p-6">
-              <div className="space-y-1">
-                <h2 className="text-base font-medium">{t("workspace.changes")}</h2>
-                <p className="text-muted-foreground text-sm">{t("workspace.changesHint")}</p>
-              </div>
+            <ListCard title={t("workspace.changes")} counted={t("workspace.changesHint")}>
               {changes}
-            </section>
+            </ListCard>
           )}
           {evidence && (
-            <section className="min-w-0 space-y-4 rounded-xl border p-4 sm:p-6">
-              <div className="space-y-1">
-                <h2 className="text-base font-medium">{t("workspace.evidence")}</h2>
-                <p className="text-muted-foreground text-sm">{t("workspace.evidenceHint")}</p>
-              </div>
+            <ListCard title={t("workspace.evidence")} counted={t("workspace.evidenceHint")}>
               {evidence}
-            </section>
+            </ListCard>
           )}
         </div>
       )}

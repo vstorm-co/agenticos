@@ -54,9 +54,6 @@ export function KnowledgeGapDialog({ topicId, onClose, wizard = false }: Knowled
             </DialogDescription>
           </DialogHeader>
           <div className={cn(DIALOG_BODY, "space-y-4")}>
-            {topic?.can_edit && topic.status === "open" && (
-              <p className="text-muted-foreground max-w-2xl text-sm">{t("workspace.hint")}</p>
-            )}
             {isLoading ? (
               <LoadingState variant="skeleton-list" rows={3} />
             ) : error || !topic ? (
