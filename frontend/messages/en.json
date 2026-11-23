@@ -1022,7 +1022,8 @@
       "drafter": "Gap drafter",
       "generator": "Case generator",
       "classifier": "Gap classifier",
-      "improver": "Authoring assistant"
+      "improver": "Authoring assistant",
+      "extractor": "Key extractor"
     },
     "productionOn": "production on v{version}",
     "productionWaiting": "production on v{version} (waiting for evals)",
@@ -1050,7 +1051,9 @@
       "classifier": "Default gap classifier",
       "classifierHint": "Reads the answers for every knowledge base's gaps.",
       "improver": "Default authoring assistant",
-      "improverHint": "Proposes the improvements every agent is offered."
+      "improverHint": "Proposes the improvements every agent is offered.",
+      "extractor": "Default key extractor",
+      "extractorHint": "Lists the facts of every dataset's reference answers for their keys checks."
     },
     "guardsSaved": "Guards saved",
     "failedGuards": "Failed to save the guards",
@@ -1072,7 +1075,7 @@
       "cancel": "Cancel"
     },
     "publishedSpec": "Published specification",
-    "systemAgentBadge": "{kind, select, judge {System agent · Judge} drafter {System agent · Gap drafter} generator {System agent · Case generator} classifier {System agent · Gap classifier} improver {System agent · Authoring assistant} other {System agent}}",
+    "systemAgentBadge": "{kind, select, judge {System agent · Judge} drafter {System agent · Gap drafter} generator {System agent · Case generator} classifier {System agent · Gap classifier} improver {System agent · Authoring assistant} extractor {System agent · Key extractor} other {System agent}}",
     "systemAgentBadgeHint": "The platform runs it for the whole organization; nobody chats with it.",
     "systemAgentSharedOnly": "Only what is shared with the whole organization is offered: the platform runs this agent for everyone.",
     "systemAgentSkillsUnused": "A classifier reads no skills, so none can be added here. Unpick the ones it still holds, or use its switch to take them all off.",
@@ -8052,7 +8055,8 @@
           "grader": "Grader",
           "improve": "Improve",
           "knowledge_gaps": "Knowledge gaps",
-          "test_questions": "Test questions"
+          "test_questions": "Test questions",
+          "key_drafts": "Key drafts"
         },
         "open": {
           "openEvalRun": "Open the eval run",
@@ -15528,6 +15532,22 @@
       "add": "Add key",
       "keyPlaceholder": "Invoice number",
       "valuePlaceholder": "INV-2024-0042"
+    },
+    "keyDraft": {
+      "start": "List keys from the reference answer",
+      "retry": "Try again",
+      "running": "Listing the facts of the reference answer…",
+      "none": "The reference answer states no facts to check.",
+      "found": "Found {count, plural, =1 {1 key} other {# keys}}: {names}{more, plural, =0 {} other { and # more}}.",
+      "use": "Use these keys",
+      "dismiss": "Dismiss",
+      "failed": "The keys could not be listed: {error}",
+      "noReference": "Save a reference answer to list its keys.",
+      "saveFirst": "Save the reference answer first: keys are listed from the saved one.",
+      "failedToStart": "The keys could not be asked for",
+      "failedToDismiss": "The drafted keys could not be dismissed",
+      "loading": "Checking for drafted keys…",
+      "unreadable": "The drafted keys could not be read."
     },
     "visibility": {
       "private": "Private",

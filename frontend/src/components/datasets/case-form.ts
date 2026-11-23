@@ -149,6 +149,19 @@ export function keyRows(check: CheckDraft): KeyRow[] {
   }));
 }
 
+/**
+ * The checks with `keys` as the facts of their keys check: the first one's facts
+ * are replaced, its other fields kept, or a keys check is added after the rest.
+ */
+export function withKeys(checks: CheckDraft[], keys: KeyRow[]): CheckDraft[] {
+  const rows = keys.map(({ key, value }) => ({ key, value }));
+  const at = checks.findIndex((check) => check.type === "keys");
+  if (at === -1) return [...checks, { type: "keys", value: "", rest: { keys: rows } }];
+  return checks.map((check, index) =>
+    index === at ? { ...check, rest: { ...check.rest, keys: rows } } : check,
+  );
+}
+
 export type CheckType = keyof typeof CHECK_KINDS;
 
 export const CHECK_TYPES = Object.keys(CHECK_KINDS) as CheckType[];

@@ -3320,7 +3320,8 @@
           "grader": "Oceniający",
           "improve": "Poprawianie",
           "knowledge_gaps": "Luki w wiedzy",
-          "test_questions": "Pytania testowe"
+          "test_questions": "Pytania testowe",
+          "key_drafts": "Szkice kluczy"
         },
         "open": {
           "openEvalRun": "Otwórz ewaluację",
@@ -10282,7 +10283,8 @@
       "drafter": "Autor szkiców luk",
       "generator": "Generator przypadków",
       "classifier": "Klasyfikator luk",
-      "improver": "Asystent tworzenia"
+      "improver": "Asystent tworzenia",
+      "extractor": "Ekstraktor kluczy"
     },
     "productionOn": "produkcja na v{version}",
     "productionWaiting": "produkcja na v{version} (czeka na ewaluacje)",
@@ -10310,7 +10312,9 @@
       "classifier": "Domyślny klasyfikator luk",
       "classifierHint": "Czyta odpowiedzi dla luk każdej bazy wiedzy.",
       "improver": "Domyślny asystent tworzenia",
-      "improverHint": "Proponuje ulepszenia oferowane każdemu agentowi."
+      "improverHint": "Proponuje ulepszenia oferowane każdemu agentowi.",
+      "extractor": "Domyślny ekstraktor kluczy",
+      "extractorHint": "Wypisuje fakty z odpowiedzi referencyjnych każdego datasetu do ich sprawdzeń kluczy."
     },
     "guardsSaved": "Strażnicy zapisani",
     "failedGuards": "Nie udało się zapisać strażników",
@@ -10332,7 +10336,7 @@
       "cancel": "Anuluj"
     },
     "publishedSpec": "Opublikowany spec",
-    "systemAgentBadge": "{kind, select, judge {Agent systemowy · Sędzia} drafter {Agent systemowy · Autor szkiców luk} generator {Agent systemowy · Generator przypadków} classifier {Agent systemowy · Klasyfikator luk} improver {Agent systemowy · Asystent tworzenia} other {Agent systemowy}}",
+    "systemAgentBadge": "{kind, select, judge {Agent systemowy · Sędzia} drafter {Agent systemowy · Autor szkiców luk} generator {Agent systemowy · Generator przypadków} classifier {Agent systemowy · Klasyfikator luk} improver {Agent systemowy · Asystent tworzenia} extractor {Agent systemowy · Ekstraktor kluczy} other {Agent systemowy}}",
     "systemAgentBadgeHint": "Uruchamia go platforma dla całej organizacji; nikt z nim nie rozmawia.",
     "systemAgentSharedOnly": "Do wyboru jest tylko to, co udostępniono całej organizacji: platforma uruchamia tego agenta dla wszystkich.",
     "systemAgentSkillsUnused": "Klasyfikator nie korzysta ze skilli, więc nie można tu dodać żadnego. Odznacz te, które jeszcze ma, albo użyj jego przełącznika, żeby zdjąć wszystkie naraz.",
@@ -15301,6 +15305,22 @@
       "add": "Dodaj klucz",
       "keyPlaceholder": "Numer faktury",
       "valuePlaceholder": "FV-2024-0042"
+    },
+    "keyDraft": {
+      "start": "Wypisz klucze z odpowiedzi referencyjnej",
+      "retry": "Spróbuj ponownie",
+      "running": "Wypisuję fakty z odpowiedzi referencyjnej…",
+      "none": "Odpowiedź referencyjna nie podaje faktów do sprawdzenia.",
+      "found": "Znaleziono {count, plural, one {1 klucz} few {# klucze} many {# kluczy} other {# klucza}}: {names}{more, plural, =0 {} one { i jeszcze 1} other { i jeszcze #}}.",
+      "use": "Użyj tych kluczy",
+      "dismiss": "Odrzuć",
+      "failed": "Nie udało się wypisać kluczy: {error}",
+      "noReference": "Zapisz odpowiedź referencyjną, aby wypisać jej klucze.",
+      "saveFirst": "Najpierw zapisz odpowiedź referencyjną: klucze są wypisywane z zapisanej.",
+      "failedToStart": "Nie udało się poprosić o klucze",
+      "failedToDismiss": "Nie udało się odrzucić wypisanych kluczy",
+      "loading": "Sprawdzanie szkicu kluczy…",
+      "unreadable": "Nie udało się odczytać szkicu kluczy."
     },
     "visibility": {
       "private": "Prywatna",
