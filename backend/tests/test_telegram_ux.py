@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from aiogram.exceptions import TelegramBadRequest
 
+from app.agents.capabilities.channel_tools import ChannelDirectoryUnsupported
 from app.services.channels.base import CHANNEL_COMMANDS, OutgoingAttachment, OutgoingMessage
 from app.services.channels.router import ChannelMessageRouter
 from app.services.channels.telegram import TelegramAdapter
@@ -231,3 +232,62 @@ def test_bot_messages_do_not_start_a_new_channel_observation():
         )
         is None
     )
+
+
+class TestAnEditThatChangesNothing:
+    """Telegram answers 400 "message is not modified" to an edit with identical text.
+
+    That is success: the message already says what was asked. Raising it made
+    the router re-post an answer already on screen.
+    """
+
+    async def test_an_unmodified_message_is_not_an_error(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+        bot.edit_message_text.side_effect = TelegramBadRequest(
+            MagicMock(), "Bad Request: message is not modified: specified new message content"
+        )
+
+        await TelegramAdapter().update_reply(
+            "t", OutgoingMessage(platform_chat_id="42", text="Hi"), "5"
+        )
+
+    async def test_any_other_refused_edit_still_raises(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+        bot.edit_message_text.side_effect = TelegramBadRequest(
+            MagicMock(), "Bad Request: message to edit not found"
+        )
+
+        with pytest.raises(TelegramBadRequest):
+            await TelegramAdapter().update_reply(
+                "t", OutgoingMessage(platform_chat_id="42", text="Hi"), "5"
+            )
+
+
+class TestMembersOfAPrivateChat:
+    """A private chat is this person and the bot: there is no list to ask Telegram for."""
+
+    @pytest.mark.parametrize("channel_id", ["42", "42:7"])
+    async def test_a_private_chat_lists_nobody_without_asking_telegram(
+        self, monkeypatch: pytest.MonkeyPatch, channel_id: str
+    ):
+        bot = _telegram(monkeypatch)
+        bot.get_chat_administrators = AsyncMock()
+
+        with pytest.raises(ChannelDirectoryUnsupported, match="private chat"):
+            await TelegramAdapter().channel_members("t", channel_id, api_base_url=None, limit=10)
+
+        bot.get_chat_administrators.assert_not_awaited()
+
+    @pytest.mark.parametrize("channel_id", ["-100123", "@team", "0"])
+    async def test_groups_usernames_and_non_chat_ids_still_ask_for_administrators(
+        self, monkeypatch: pytest.MonkeyPatch, channel_id: str
+    ):
+        bot = _telegram(monkeypatch)
+        bot.get_chat_administrators = AsyncMock(return_value=[])
+
+        assert (
+            await TelegramAdapter().channel_members("t", channel_id, api_base_url=None, limit=10)
+            == []
+        )
+
+        bot.get_chat_administrators.assert_awaited_once_with(chat_id=channel_id)

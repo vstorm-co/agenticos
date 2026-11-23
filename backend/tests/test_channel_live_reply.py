@@ -260,6 +260,41 @@ class TestTheFinalEditNeverLosesTheAnswer:
         send_reply.assert_awaited_once()
         assert send_reply.await_args.args[2] == "the whole answer"
 
+    async def test_telegram_saying_the_message_is_not_modified_does_not_repost(self, monkeypatch):
+        """The streamed text already equals the answer, so Telegram refuses the
+        identical edit with a 400. The answer is on screen; posting it again doubles it."""
+        import contextlib
+
+        from aiogram.exceptions import TelegramBadRequest
+
+        from app.services.channels.telegram import TelegramAdapter
+
+        bot = MagicMock()
+        bot.edit_message_text = AsyncMock(
+            side_effect=TelegramBadRequest(
+                MagicMock(), "Bad Request: message is not modified: specified new message content"
+            )
+        )
+
+        @contextlib.asynccontextmanager
+        async def fake_bot(token: str, **_: Any):
+            yield bot
+
+        monkeypatch.setattr(TelegramAdapter, "_bot", staticmethod(fake_bot))
+        router, send_reply = self._router()
+        incoming = MagicMock(platform="telegram", platform_chat_id="42")
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=TelegramAdapter()),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        ):
+            await router._deliver(
+                MagicMock(api_base_url=None), incoming, "the whole answer", self._answered(), "5"
+            )
+
+        bot.edit_message_text.assert_awaited_once()
+        send_reply.assert_not_awaited()
+
     async def test_a_successful_edit_with_no_extra_posts_nothing_further(self):
         router, send_reply = self._router()
         adapter = MagicMock(update_reply=AsyncMock())

@@ -5,6 +5,7 @@ import contextlib
 import hashlib
 import hmac
 import logging
+import re
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Any
@@ -174,6 +175,16 @@ def _where(platform_chat_id: str) -> dict[str, Any]:
     return where
 
 
+def _is_private_chat(channel_id: str) -> bool:
+    """Whether a channel id names a private chat.
+
+    Telegram numbers private chats with positive ids and groups, supergroups and
+    channels with negative ones; an `@username` is not numeric. Any topic suffix
+    is dropped first.
+    """
+    return re.fullmatch(r"[1-9][0-9]*", split_thread(channel_id)[0]) is not None
+
+
 class TelegramAdapter(ChannelAdapter):
     """Concrete Telegram adapter using aiogram v3."""
 
@@ -257,14 +268,20 @@ class TelegramAdapter(ChannelAdapter):
 
         No parse mode: half-written Markdown is the normal state of a message
         being streamed, and Telegram rejects an unclosed `**` with a 400. The
-        final send formats it, once the text is whole.
+        final send formats it, once the text is whole. An edit to text the
+        message already holds counts as done: Telegram refuses it with a 400,
+        and treating that as a failure would post the answer a second time.
         """
         async with self._bot(bot_token) as bot:
-            await bot.edit_message_text(
-                chat_id=_where(msg.platform_chat_id)["chat_id"],
-                message_id=int(handle),
-                text=msg.text,
-            )
+            try:
+                await bot.edit_message_text(
+                    chat_id=_where(msg.platform_chat_id)["chat_id"],
+                    message_id=int(handle),
+                    text=msg.text,
+                )
+            except TelegramBadRequest as exc:
+                if "message is not modified" not in exc.message.casefold():
+                    raise
 
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to Telegram.
@@ -367,7 +384,14 @@ class TelegramAdapter(ChannelAdapter):
         `admin` in its role: a list that quietly stopped at the administrators
         while reading as "everybody here" would have the model tell somebody
         their colleague is not in the chat.
+
+        A private chat has no administrators to list, so it is refused as
+        unsupported without a call to Telegram.
         """
+        if _is_private_chat(channel_id):
+            raise ChannelDirectoryUnsupported(
+                "Telegram has no member list for a private chat: it is this person and the bot."
+            )
         async with self._bot(bot_token) as bot:
             administrators = await bot.get_chat_administrators(chat_id=channel_id)
 
