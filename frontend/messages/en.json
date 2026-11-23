@@ -10581,6 +10581,7 @@
       "ended": "Its end date has passed.",
       "sources_setup": "Its sources have not been reviewed yet.",
       "sources_review": "The agent or its sources changed since the last review. Review them again.",
+      "routine_changed": "The routine's settings changed since the last review, such as who it runs as or where it reads and delivers. Review its access again.",
       "platform_identity": "The platform MCP server needs this routine to act as its creator.",
       "awaiting_approval": "{held, select, yes {A previous run is waiting for approval. No new run starts until it is decided.} other {A previous run is waiting for approval.}}",
       "awaiting_answer": "{held, select, yes {A previous run is waiting for an answer. No new run starts until it gets one.} other {A previous run is waiting for an answer.}}",

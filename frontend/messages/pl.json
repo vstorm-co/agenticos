@@ -9261,6 +9261,7 @@
       "ended": "Minęła jej data zakończenia.",
       "sources_setup": "Jej źródła nie zostały jeszcze sprawdzone.",
       "sources_review": "Agent lub jego źródła zmieniły się od ostatniego przeglądu. Sprawdź je ponownie.",
+      "routine_changed": "Ustawienia rutyny zmieniły się od ostatniego przeglądu, na przykład w czyim imieniu działa albo skąd czyta i dokąd dostarcza. Przejrzyj jej dostęp ponownie.",
       "platform_identity": "Serwer MCP platformy wymaga, by rutyna działała jako jej twórca.",
       "awaiting_approval": "{held, select, yes {Poprzedni run czeka na zatwierdzenie. Nowy run nie wystartuje, dopóki ktoś nie podejmie decyzji.} other {Poprzedni run czeka na zatwierdzenie.}}",
       "awaiting_answer": "{held, select, yes {Poprzedni run czeka na odpowiedź. Nowy run nie wystartuje, dopóki jej nie dostanie.} other {Poprzedni run czeka na odpowiedź.}}",

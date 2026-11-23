@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 const REVIEWED = new Set<RoutineBlockerCode>([
   "sources_setup",
   "sources_review",
+  "routine_changed",
   "platform_identity",
   "actions_need_approval",
 ]);

@@ -9,6 +9,7 @@ export type RoutineBlockerCode =
   | "ended"
   | "sources_setup"
   | "sources_review"
+  | "routine_changed"
   | "platform_identity"
   | "awaiting_approval"
   | "awaiting_answer"

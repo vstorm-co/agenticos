@@ -26,6 +26,7 @@ from app.services.routine_sources import (
     PlatformRoutineIdentityRequired,
     RoutineSourceService,
     read_policy,
+    source_scope,
 )
 
 _PARKED = frozenset({RunStatus.AWAITING_APPROVAL.value, RunStatus.AWAITING_ANSWER.value})
@@ -68,6 +69,7 @@ async def blockers(
         found.append(RoutineBlocker(code="agent_unavailable", severity="blocked"))
         return found
     following = False
+    scope_changed = False
     if trigger.setup_required:
         found.append(RoutineBlocker(code="sources_setup", severity="blocked"))
     else:
@@ -76,12 +78,20 @@ async def blockers(
             # A stale review still says how the routine is reviewed: re-reviewing a
             # following routine does not make standing consent apply to it.
             following = policy.mode == "follow_agent"
+            # Who it acts as, where it reads from or delivers to is part of what was
+            # reviewed, so editing the routine itself is a reason of its own.
+            scope_changed = policy.scope_hash != source_scope(trigger)
             await RoutineSourceService(db).current(creator, trigger, expected_id=policy.id)
         except PlatformRoutineIdentityRequired:
             found.append(RoutineBlocker(code="platform_identity", severity="blocked"))
         except AuthorizationError, NotFoundError, BadRequestError:
             # The fire path reads every one of these as a source review to redo.
-            found.append(RoutineBlocker(code="sources_review", severity="blocked"))
+            found.append(
+                RoutineBlocker(
+                    code="routine_changed" if scope_changed else "sources_review",
+                    severity="blocked",
+                )
+            )
     parked = await _parked_run(db, trigger)
     if parked is not None:
         found.append(parked)

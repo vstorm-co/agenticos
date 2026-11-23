@@ -65,6 +65,7 @@ def _trigger(**overrides: object) -> MagicMock:
         "trigger_type": "schedule",
         "overlap": "skip",
         "one_shot": False,
+        "scope": "a" * 64,
     }
     fields.update(overrides)
     return MagicMock(**fields)
@@ -84,6 +85,7 @@ def engine(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     monkeypatch.setattr(routine_readiness, "RoutineSourceService", lambda db: checks.sources)
     monkeypatch.setattr(routine_readiness, "RoutineActionService", lambda db: checks.actions)
     monkeypatch.setattr(routine_readiness, "agent_run_repo", checks.runs)
+    monkeypatch.setattr(routine_readiness, "source_scope", lambda trigger: trigger.scope)
     return checks
 
 
@@ -162,6 +164,14 @@ async def test_a_source_review_the_fire_would_refuse_is_named(
 ) -> None:
     engine.sources.current.side_effect = refusal
     assert await _codes(_trigger()) == [code]
+
+
+async def test_editing_the_routine_itself_is_named_apart_from_a_changed_agent(
+    engine: MagicMock,
+) -> None:
+    """Switching who it runs as is what the person did, not something the agent did."""
+    engine.sources.current.side_effect = RoutineSourcesRequired()
+    assert await _codes(_trigger(scope="c" * 64)) == ["routine_changed"]
 
 
 async def test_a_stored_review_that_does_not_parse_needs_reviewing(engine: MagicMock) -> None:

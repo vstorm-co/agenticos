@@ -10461,6 +10461,7 @@
       "ended": "Ihr Enddatum ist überschritten.",
       "sources_setup": "Ihre Quellen wurden noch nicht geprüft.",
       "sources_review": "Der Agent oder seine Quellen haben sich seit der letzten Prüfung geändert. Prüfen Sie sie erneut.",
+      "routine_changed": "Die Einstellungen der Routine haben sich seit der letzten Prüfung geändert, etwa in wessen Namen sie läuft oder woher sie liest und wohin sie liefert. Prüfen Sie ihren Zugriff erneut.",
       "platform_identity": "Der MCP-Server der Plattform verlangt, dass die Routine als ihr Ersteller handelt.",
       "awaiting_approval": "{held, select, yes {Ein vorheriger Run wartet auf Freigabe. Bis zur Entscheidung startet kein neuer Run.} other {Ein vorheriger Run wartet auf Freigabe.}}",
       "awaiting_answer": "{held, select, yes {Ein vorheriger Run wartet auf eine Antwort. Bis dahin startet kein neuer Run.} other {Ein vorheriger Run wartet auf eine Antwort.}}",
