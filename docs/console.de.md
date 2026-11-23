@@ -1,5 +1,5 @@
 ---
-source_sha: "7e61615defb6"
+source_sha: "412c83b8757b"
 ---
 
 # Die Konsole { #the-console }
@@ -727,19 +727,32 @@ zu drei Karten zum Einrichten - einer Routine, einem Dienst zum Verbinden, einem
 eigenen Agent - jede mit einem Klick. Überspringen Sie eine Frage oder bitten Sie
 um etwas Echtes, und er erledigt stattdessen die Arbeit.
 
-**Was über Nacht auffiel.** Wo Ihre Organisation es eingeschaltet hat, liest die
-Plattform einmal am Tag, früh an Ihrem Morgen, in einem Hintergrundjob Ihre
-letzten Unterhaltungen: Eine Anfrage, die
-Sie immer wiederholen, wird eine vorgeschlagene Routine, was ein Agent über Ihre
-Rolle erfahren hat, ein vorgeschlagenes Profil, und Ihr leerer AgenticOS-Chat
-bekommt erste Nachrichten, die für Ihre Arbeit geschrieben sind. Vorschläge
-warten als Karten in diesem leeren Chat, auf Ihrem Dashboard und in der Glocke,
-und **Einstellungen → Assistent** listet sie alle - dort holen Sie einen
-verworfenen zurück oder nehmen sich aus; nehmen Sie einen an,
-wird er eingerichtet, verwerfen Sie ihn, wird derselbe Vorschlag nie wieder
-gemacht. Nichts läuft, wenn nichts Neues passiert ist, und was das kosten darf,
-ist [pro Person begrenzt](governance.md#proactive-work). Ein Chat-Link mit
-`?agent=<slug>` öffnet den Chat auf diesem Agent.
+**Persönliche Unterstützung.** Wenn Ihre Organisation sie aktiviert, verbindet die
+Plattform zugängliche Gespräche mit Ihrer bereichsgebundenen Erinnerung, Ihrem Profil,
+sichtbaren Projekten, privaten oder zugewiesenen Aufgaben, aktuellen Routinen,
+Metadaten sichtbarer Tabellen und früheren Inbox-Entscheidungen. Tabelleninhalte
+werden nur als typisierte Aufgaben gelesen. Wichtige Änderungen lösen eine Aktualisierung im
+Hintergrund aus; der morgendliche Durchlauf bleibt als zusätzliche Absicherung.
+Die Historie wird abschnittsweise mit Quellenzitaten indexiert. Unveränderte Abschnitte
+verwenden gespeicherte Prüfpunkte; eine unveränderte Auswertung ruft kein Modell auf.
+Große Historien werden über mehrere Jobs fortgesetzt, statt sie auf sieben Tage oder
+die ersten 400 Zeichen zu kürzen. Berechtigungen, Abmeldung und Ausgabenlimits gelten.
+
+Jeder Vorschlag braucht Belege und eine unabhängige Modellprüfung. Er kann einen
+Agent auf Abruf, regelmäßige Arbeit, eine vorhandene Aufgabe oder eine passende
+verfügbare Funktion betreffen. Authentifizierte Antworten auf native Fragen zählen
+als menschliche Aussagen, beliebige externe Werkzeugergebnisse nicht. Fehlende
+Zeitplanentscheidungen bleiben Fragen. Vorschläge stehen unter **Suggestions**,
+Routine-Ergebnisse unter **Routine results**. Das Öffnen beginnt eine konkrete
+Unterhaltung und aktiviert nichts. Kostenpflichtige Arbeit, Zeitpläne und Veröffentlichungen
+behalten ihre Freigaben. Gelöschte Routinen gelten nicht als pausiert; verworfene
+Absichten bleiben ruhig. Begrenzte Ressourcenlisten sind gegebenenfalls als unvollständig
+markiert; ein fehlender Eintrag beweist dann nicht, dass die Ressource nicht existiert.
+
+Die Speicherpflege priorisiert menschliche Aussagen im Kontextbudget und berücksichtigt
+authentifizierte Antworten auf native Fragen chronologisch. Beständigkeit und
+Geltungsbereich bleiben maßgeblich: Eine vorübergehende Aufgabe ist keine dauerhafte
+Berufsbezeichnung. `?agent=<slug>` öffnet den betreffenden Agent.
 
 **Arbeitszeiten** unter **Settings → Profile** sagen Agents, wann Sie arbeiten,
 sodass eine Routine, die sie vorschlagen, in Ihren Tag fällt. Nichts wartet auf

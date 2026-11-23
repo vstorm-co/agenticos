@@ -9,7 +9,7 @@ from pydantic import Field
 from app.db.models.outcome import OutcomeStatus
 from app.schemas.base import BaseSchema
 
-SuggestionKindName = Literal["routine", "agent", "profile", "role_pack", "finding"]
+SuggestionKindName = Literal["routine", "agent", "profile", "role_pack", "finding", "personal"]
 SuggestionStatusName = Literal["open", "accepted", "dismissed"]
 
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "7e61615defb6"
+source_sha: "412c83b8757b"
 ---
 
 # La consola { #the-console }
@@ -703,17 +703,33 @@ entonces lo sabe cada agent, y la entrevista termina con hasta tres tarjetas que
 configurar - una rutina, un servicio que conectar, un agent propio - cada una con
 un clic. Sáltate una pregunta, o pide algo real, y hará el trabajo en su lugar.
 
-**Lo que notó durante la noche.** Donde tu organización lo activó, una vez al
-día, temprano en tu mañana, la plataforma lee tus conversaciones recientes en una
-tarea en segundo plano: una
-petición que repites se convierte en una rutina propuesta, lo que un agent supo
-de tu rol en un perfil propuesto, y tu chat vacío de AgenticOS recibe primeros
-mensajes escritos para tu trabajo. Las propuestas esperan como tarjetas en ese
-chat vacío, en tu dashboard y en la campana, y **Ajustes → Asistente** las lista
-todas - ahí recuperas una descartada o te excluyes; acepta una y queda configurada, descártala y la misma
-propuesta no se vuelve a hacer. Nada se ejecuta cuando no pasó nada nuevo, y lo
-que esto puede gastar tiene un [límite por persona](governance.md#proactive-work).
-Un enlace de chat con `?agent=<slug>` abre el chat en ese agent.
+**Asistencia personal.** Cuando la organización la activa, la plataforma combina
+conversaciones accesibles con memoria del ámbito permitido, perfil, proyectos visibles,
+tareas privadas o asignadas, rutinas actuales, metadatos de tablas visibles y decisiones anteriores del Inbox. Los registros de tablas solo se leen como tareas con un esquema definido.
+Los cambios relevantes programan una actualización en segundo plano; la revisión
+matinal permanece como respaldo. El historial se indexa por fragmentos con citas
+vinculadas a sus fuentes. Los fragmentos sin cambios reutilizan sus puntos de control;
+una lectura sin cambios no llama al modelo. Los historiales grandes continúan en
+varios trabajos, sin recortarlos a siete días o a los primeros 400 caracteres.
+Se mantienen los permisos, la exclusión voluntaria y los límites de gasto.
+
+Cada propuesta necesita pruebas y una comprobación independiente del modelo. Puede
+ofrecer un agent bajo demanda, trabajo periódico, una tarea existente o una función
+disponible y relevante. Una respuesta autenticada a una pregunta nativa cuenta como
+evidencia humana; un resultado externo arbitrario no. Las decisiones de horario que
+faltan siguen siendo preguntas. Las propuestas aparecen en **Suggestions** y los
+hallazgos de rutinas en **Routine results**. Abrirlas inicia una conversación concreta,
+sin ejecutar ni activar trabajo. El trabajo de pago, los horarios y las publicaciones
+conservan sus aprobaciones. Una rutina eliminada no está pausada; una intención
+descartada no se vuelve a proponer.
+
+Las listas limitadas se marcan como incompletas
+cuando corresponde; la ausencia de un elemento no demuestra que no exista.
+
+El mantenimiento de memoria prioriza los mensajes humanos en el presupuesto de contexto
+e incluye cronológicamente las respuestas autenticadas a preguntas nativas. Mantiene
+las reglas de duración y ámbito: una tarea temporal no es un cargo permanente.
+Un enlace `?agent=<slug>` abre ese agent.
 
 **El horario laboral** en **Settings → Profile** dice a los agents cuándo
 trabajas, para que una rutina que propongan caiga dentro de tu día. Nada espera
