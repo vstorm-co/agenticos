@@ -1,5 +1,5 @@
 ---
-source_sha: "7e61615defb6"
+source_sha: "412c83b8757b"
 ---
 
 # Konsola { #the-console }
@@ -684,17 +684,30 @@ każdy agent, a rozmowa kończy się maksymalnie trzema kartami do ustawienia -
 rutyną, usługą do podłączenia, własnym agentem - każda na jedno kliknięcie.
 Pomiń pytanie albo poproś o coś konkretnego, a zamiast tego zrobi robotę.
 
-**Co zauważyła w nocy.** Tam, gdzie organizacja to włączyła, raz dziennie,
-wcześnie rano twojego czasu, platforma przegląda w zadaniu w tle twoje ostatnie
-rozmowy: prośba, którą powtarzasz,
-staje się propozycją rutyny, to, czego agent dowiedział się o twojej roli -
-propozycją profilu, a twój pusty czat z AgenticOS dostaje pierwsze wiadomości
-napisane pod twoją pracę. Propozycje czekają jako karty w tym pustym czacie, na
-twoim dashboardzie i w dzwonku, a **Ustawienia → Asystent** pokazują wszystkie -
-tam przywrócisz odrzuconą albo wyłączysz to dla siebie; przyjmij jedną, a zostanie ustawiona, odrzuć, a ta sama propozycja nie
-wróci. Nic się nie uruchamia, gdy nic nowego się nie wydarzyło, a to, ile może to
-kosztować, ma [limit na osobę](governance.md#proactive-work). Link do czatu z
-`?agent=<slug>` otwiera czat na tym agencie.
+**Osobista pomoc.** Gdy organizacja ją włączy, platforma łączy dostępne rozmowy
+z Twoją pamięcią, profilem, widocznymi projektami, prywatnymi lub przypisanymi
+zadaniami, aktualnymi rutynami, metadanymi widocznych tabel i wcześniejszymi decyzjami w Inboxie. Rekordy tabel są odczytywane tylko jako zadania o określonym schemacie. Istotne zmiany
+zlecają odświeżenie w tle; poranny przegląd pozostaje dodatkowym zabezpieczeniem.
+Historia jest indeksowana fragmentami z cytatami wskazującymi źródła. Niezmienione
+fragmenty korzystają z zapisanego indeksu, a niezmieniony odczyt nie wywołuje modelu.
+Duże historie są kontynuowane w kolejnych zadaniach, zamiast ograniczenia do siedmiu
+dni i pierwszych 400 znaków. Obowiązują uprawnienia, rezygnacja i limity wydatków.
+
+Propozycja musi wskazywać źródła i przejść osobną ocenę modelu. Może dotyczyć agenta
+na żądanie, pracy cyklicznej, istniejącego zadania lub przydatnej dostępnej funkcji.
+Uwierzytelniona odpowiedź na natywne pytanie jest wypowiedzią użytkownika; dowolny
+wynik zewnętrznego narzędzia nią nie jest. Brakujące ustalenia harmonogramu pozostają
+pytaniami. Propozycje trafiają do **Suggestions**, a ustalenia rutyn do **Routine
+results**. Otwarcie propozycji rozpoczyna konkretną rozmowę, bez uruchomienia pracy.
+Płatne działania, harmonogramy i publikowanie nadal wymagają odpowiednich zgód.
+Usunięta rutyna nie jest traktowana jako wstrzymana, a odrzucony pomysł nie wraca.
+Listy zadań i zasobów są ograniczone i w razie potrzeby oznaczane jako niepełne;
+brak pozycji na niepełnej liście nie dowodzi, że jej nie ma.
+
+Memory maintenance daje pierwszeństwo wypowiedziom użytkownika przy dopasowaniu
+do budżetu kontekstu i uwzględnia uwierzytelnione odpowiedzi na natywne pytania
+w kolejności czasowej. Zachowuje zasady trwałości i zakresu pamięci: tymczasowe
+zadanie nie staje się stałym stanowiskiem. Link `?agent=<slug>` otwiera danego agenta.
 
 **Godziny pracy** w **Settings → Profile** mówią agentom, kiedy pracujesz, więc
 rutyna, którą zaproponują, wypada w twoim dniu. Nic na nie nie czeka: to wiedza

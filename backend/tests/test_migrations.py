@@ -2228,7 +2228,7 @@ def test_published_thread_chain_preserves_saved_profiles_and_matches_models(prev
         assert upgraded.returncode == 0, upgraded.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0354_drop_user_theme_look"
+                "0349_personal_work_context"
             ]
             row = connection.execute(
                 text(
@@ -2308,7 +2308,7 @@ class TestRoomThreadMigration:
         continuation = script.get_revision("0345_credential_continuations")
         assert continuation is not None
         assert continuation.down_revision == "0344_browser_procedure_teaching"
-        assert script.get_heads() == ["0354_drop_user_theme_look"]
+        assert script.get_heads() == ["0349_personal_work_context"]
 
     def test_existing_quotes_survive_roundtrip_and_models_match_head(self) -> None:
         reset = _alembic("downgrade", "base")
@@ -2336,7 +2336,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0354_drop_user_theme_look"]
+                ).all() == ["0349_personal_work_context"]
                 rows = connection.execute(
                     text(
                         "SELECT id,reply_to_message_id,thread_root_message_id FROM messages "
@@ -2438,7 +2438,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0354_drop_user_theme_look"]
+                ).all() == ["0349_personal_work_context"]
             check = _alembic("check")
             assert check.returncode == 0, check.stderr
         finally:
@@ -2641,7 +2641,7 @@ class TestRoomThreadMigration:
         assert resumed.returncode == 0, resumed.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0354_drop_user_theme_look"
+                "0349_personal_work_context"
             ]
             assert connection.execute(
                 text("SELECT content, thread_root_message_id FROM messages WHERE id = :id"),
@@ -3568,6 +3568,60 @@ def test_account_appearance_migration_keeps_one_appearance_document() -> None:
         assert {"appearance", "theme", "look"} <= columns
         result = _alembic("upgrade", "head")
         assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()
+
+
+def test_personal_work_context_upgrades_a_database_at_the_t3_head() -> None:
+    reset = _alembic("downgrade", "base")
+    assert reset.returncode == 0, reset.stderr
+    at_t3_head = _alembic("upgrade", "0354_drop_user_theme_look")
+    assert at_t3_head.returncode == 0, at_t3_head.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    kept = uuid4()
+    try:
+        with engine.begin() as connection:
+            assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
+                "0354_drop_user_theme_look"
+            ]
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(
+                text(
+                    "INSERT INTO suggestions (id, organization_id, user_id, kind, title, "
+                    "payload, dedupe_key, status) VALUES (:id, :org, :user, 'finding', "
+                    "'Kept', '{}', 'kept', 'open')"
+                ),
+                {"id": kept, "org": uuid4(), "user": uuid4()},
+            )
+        upgraded = _alembic("upgrade", "head")
+        assert upgraded.returncode == 0, upgraded.stderr
+        inspector = inspect(engine)
+        assert "personal_context_cache" in inspector.get_table_names()
+        with engine.begin() as connection:
+            assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
+                "0349_personal_work_context"
+            ]
+            assert connection.scalar(
+                text("SELECT count(*) FROM suggestions WHERE id = :id"), {"id": kept}
+            ) == 1
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(
+                text(
+                    "INSERT INTO suggestions (id, organization_id, user_id, kind, title, "
+                    "payload, dedupe_key, status) VALUES (:id, :org, :user, 'personal', "
+                    "'Rebuildable', '{}', 'personal', 'open')"
+                ),
+                {"id": uuid4(), "org": uuid4(), "user": uuid4()},
+            )
+        checked = _alembic("check")
+        assert checked.returncode == 0, checked.stderr + checked.stdout
+        downgraded = _alembic("downgrade", "0354_drop_user_theme_look")
+        assert downgraded.returncode == 0, downgraded.stderr
+        with engine.connect() as connection:
+            assert "personal_context_cache" not in inspect(connection).get_table_names()
+            assert connection.scalars(text("SELECT kind FROM suggestions")).all() == ["finding"]
+        again = _alembic("upgrade", "head")
+        assert again.returncode == 0, again.stderr
     finally:
         engine.dispose()
 

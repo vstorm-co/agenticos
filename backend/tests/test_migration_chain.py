@@ -269,7 +269,7 @@ def test_openbot_features_apply_after_the_published_t3_teaching_chain(
 
 def test_openbot_features_extend_the_published_chain_without_rewriting_it() -> None:
     chain = _chain()
-    assert chain.get_heads() == ["0354_drop_user_theme_look"]
+    assert chain.get_heads() == ["0349_personal_work_context"]
     expected = {
         "0339_browser_teaching_capture": "0338_message_reply_excerpt",
         "0340_browser_teaching_review": "0339_browser_teaching_capture",
@@ -280,6 +280,21 @@ def test_openbot_features_extend_the_published_chain_without_rewriting_it() -> N
         "0345_credential_continuations": "0344_browser_procedure_teaching",
     }
     for revision, parent in expected.items():
+        script = chain.get_revision(revision)
+        assert script is not None and script.down_revision == parent
+
+
+def test_personal_work_context_chains_after_the_deployed_t3_head() -> None:
+    # Upstream numbered this 0349 on its own line; T3 already shipped
+    # 0349_room_participants, so it sits after T3's 0354 head, which stays put.
+    chain = _chain()
+    personal = chain.get_revision("0349_personal_work_context")
+    assert personal is not None
+    assert personal.down_revision == "0354_drop_user_theme_look"
+    for revision, parent in {
+        "0349_room_participants": "0348_approval_expired_notice",
+        "0354_drop_user_theme_look": "0348_architect_generated_avatar",
+    }.items():
         script = chain.get_revision(revision)
         assert script is not None and script.down_revision == parent
 

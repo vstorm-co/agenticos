@@ -21,6 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- Upstream v1.90.1 sync chains upstream `0349_personal_work_context` after T3 `0354_drop_user_theme_look` (its `down_revision` changes; T3's `0349_room_participants` and every other released revision keep their ids), leaving one head. It replaces `ck_suggestion_kind` (a brief `ACCESS EXCLUSIVE` lock on `suggestions` while the constraint is revalidated) and creates `personal_context_cache`; no model calls. Downgrade deletes rebuildable `personal` suggestions. Deploy API and workers together.
 - Upstream v1.89.1 sync chains upstream revisions `0343_solution_installations` through `0348_architect_generated_avatar` after T3 `0352_room_thread_state` (only `0343`'s `down_revision` changes; no T3 revision is renumbered), then adds `0354_drop_user_theme_look`, which removes upstream's `users.theme` and `users.look` columns in favor of the T3 `users.appearance` contract. Deployed T3 databases at `0352_room_thread_state` apply the upstream revisions in order; no released revision is rewritten.
 - Tailscale enrollment adds migration `0347_network_connections` after `0346_merge_t3_v1850`, a connection vault table and the `network` background-worker pool. The feature remains disabled unless `TAILSCALE_ENABLED=true`; custom worker pool lists must include `network` and retain a `system` worker for cleanup. Downgrade refuses retained network connections or jobs. See the [deployment and cleanup contract](docs/design/tailscale-enrollment-implementation.md).
 - Sync upstream to v1.85.0 while preserving the T3 overlay. Merge revision `0346_merge_t3_v1850` joins `0342_criterion_verdicts` and `0345_credential_continuations` without schema changes; `alembic upgrade head` applies whichever side a deployment lacks.
@@ -177,6 +178,28 @@ Two things are versioned separately from this file and worth knowing about:
 - Table links expose only readable destination IDs and labels, including exports and projected reads. Link filters and counts use the same visible destinations, and legacy array replacements retain hidden existing links. Invalid stored row policies block record access with a repairable `ROW_POLICY_INVALID` error instead of disabling restrictions.
 - Chat followers recover saved-answer acknowledgements and final outcomes when a turn finishes during replay or a quiet interval. Sequence checks keep recovered frames in order without duplicating earlier output.
 - Room workers carry the persisted assistant message ID through their completion callback so connected participants receive a save acknowledgement before the turn ends. The acknowledgement still requires a separately committed message from the same run.
+
+## [1.90.1] - 2026-11-22
+
+### Fixed
+
+- Preserve authenticated value-only question-answer citations when restoring labelled answer context, so a confirmed multi-question automation request is not dropped before proposal generation.
+
+- Initialize channel adapters before personal Inbox workers verify current channel membership, so authorized Slack and Mattermost conversations are not omitted when the API lifespan has not run. Unavailable or revoked membership still refuses access.
+
+## [1.90.0] - 2026-11-22
+
+### Upgrading
+
+- Migration `0349_personal_work_context.py` adds a rebuildable, membership-private work index. Existing authorized history is indexed lazily within the configured proactivity budget; the migration makes no model calls. Deploy API and workers together. The migration also adds the `personal` proposal kind; downgrading removes these rebuildable proposals. Export them first if their decisions must be retained.
+
+### Added
+
+- Build personal Inbox proposals from source-linked conversation history, memory, profile, projects, private tasks, current routines and prior decisions. Reuse unchanged source checkpoints, continue large histories across bounded jobs, and independently verify proposed actions before delivery. Keep paid execution, scheduling and publication behind their established approvals.
+
+### Fixed
+
+- Memory maintenance preserves human statements before long assistant answers and reads authenticated native question answers without treating remote tool text as human evidence.
 
 ## [1.89.1] - 2026-11-22
 
@@ -22636,7 +22659,9 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.89.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...HEAD
+[1.90.1]: https://github.com/vstorm-co/agenticos/compare/v1.90.0...v1.90.1
+[1.90.0]: https://github.com/vstorm-co/agenticos/compare/v1.89.1...v1.90.0
 [1.89.1]: https://github.com/vstorm-co/agenticos/compare/v1.89.0...v1.89.1
 [1.89.0]: https://github.com/vstorm-co/agenticos/compare/v1.88.0...v1.89.0
 [1.88.0]: https://github.com/vstorm-co/agenticos/compare/v1.87.1...v1.88.0

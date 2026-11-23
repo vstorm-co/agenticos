@@ -3,8 +3,8 @@
   "upstream": {
     "repository": "https://github.com/vstorm-co/agenticos",
     "branch": "main",
-    "release": "v1.89.1",
-    "commit": "a8c16d6b30571c636462e99a7221cf3724861057"
+    "release": "v1.90.1",
+    "commit": "87c8f272fd6769f0b5dc6b42a8eba5a0d7cd809c"
   },
   "fork": {
     "repository": "https://github.com/t3grp/agenticos",
@@ -15,7 +15,7 @@
   "timezone": "Asia/Singapore",
   "compatibility": {
     "status": "not_tested",
-    "reason": "v1.89.1 sync candidate; full current-source CI, migration rehearsal and downstream acceptance remain required.",
+    "reason": "v1.90.1 sync candidate; full current-source CI, migration rehearsal and downstream acceptance remain required.",
     "evidence": []
   }
 }

@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.89.1"
+version = "1.90.1"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -1591,6 +1591,9 @@ include = [
     # What the platform does for people on its own initiative, all of it in
     # background jobs, and the suggestions it leaves them (#2301).
     "app/services/proactive/**",
+    "app/repositories/personal_context.py",
+    "app/db/models/personal_context.py",
+    "app/schemas/personal_context.py",
     "app/services/suggestions.py",
     "app/services/role_packs.py",
     "app/repositories/suggestion.py",
@@ -2641,6 +2644,9 @@ include = [
     # What the platform does for people on its own initiative, all of it in
     # background jobs, and the suggestions it leaves them (#2301).
     "app/services/proactive/**",
+    "app/repositories/personal_context.py",
+    "app/db/models/personal_context.py",
+    "app/schemas/personal_context.py",
     "app/services/suggestions.py",
     "app/services/role_packs.py",
     "app/repositories/suggestion.py",
