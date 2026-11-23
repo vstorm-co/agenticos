@@ -19,6 +19,31 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- One-page schedule creation with independent tool approval choices and visible,
+  locked explanations for tools that always require approval.
+- Run-bound `publish_inbox_finding` MCP reporting, automatically available to
+  routines and read-only monitors without granting general platform access.
+
+### Fixed
+
+- Recognize historical routine source fingerprints across chat starter visibility
+  changes without accepting changed accounts or permissions.
+- Release a failed scheduled fire's lease after rollback instead of leaving the
+  next occurrence blocked until its lease expires.
+
+### Upgrading
+
+- Drain workers and update API/workers together with migration
+  `0350_run_reporting_credential.py`. Routine and monitor Inbox publication now
+  uses MCP only; final answers are not parsed into cards. Existing `result_mode`
+  values remain readable. New routine instructions request MCP reporting; amend
+  custom reporting instructions if they require a particular card policy.
+- New routines default to acting as their creator. Existing identity settings and
+  explicit approval floors remain unchanged; legacy identity-free routines need
+  the owner's consent before using personal accounts or general platform tools.
+
 ## [1.91.0] - 2026-11-23
 
 ### Upgrading

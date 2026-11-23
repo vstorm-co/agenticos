@@ -34,6 +34,7 @@ import contextlib
 import json
 import logging
 import secrets
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -113,7 +114,6 @@ from app.schemas.change_event import ChangeEvent
 from app.schemas.local_target import LocalTarget
 from app.schemas.portal import PortalPresetRead, PortalRead
 from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
-from app.schemas.routine_notifications import ROUTINE_RESULT_INSTRUCTIONS, RoutineReading
 from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceReview
 from app.services import (
     change_feed,
@@ -138,7 +138,6 @@ from app.services.portals.github_app import GitHubAppPortalAdapter
 from app.services.primary_conversation import PrimaryConversationService
 from app.services.project import ProjectService
 from app.services.routine_actions import RoutineActionService, activation_intent
-from app.services.routine_delivery import RoutineFindingService
 from app.services.routine_devices import (
     RoutineActivationObsolete,
     RoutineDeviceOffline,
@@ -374,6 +373,7 @@ _WHAT_IT_DOES = (
     "teams_conversation_id",
     "answer_to",
     "result_mode",
+    "action_mode",
     "delivery_conversation_id",
 )
 """The edits that change what a fire does or who reads its answer, and so end its acting as the creator."""
@@ -1061,6 +1061,7 @@ class AgentTriggerService:
             overlap=data.overlap or TriggerOverlap.SKIP.value,
             teams_conversation_id=data.teams_conversation_id,
             result_mode=data.result_mode,
+            action_mode=data.action_mode,
             answer_to=data.answer_to,
             delivery_conversation_id=data.delivery_conversation_id,
             ends_at=data.ends_at,
@@ -1337,6 +1338,14 @@ class AgentTriggerService:
         """
         trigger = await self._owned(ctx, agent_id, trigger_id, for_update=True)
         changes = writable(data, over=AgentTrigger)
+        if (
+            "action_mode" in changes
+            and changes["action_mode"] != trigger.action_mode
+            and not _acts_as_themselves(ctx, trigger.created_by_user_id)
+        ):
+            raise AuthorizationError(
+                message="Only the routine's creator may change its tool approval policy"
+            )
         if changes.get("is_active", trigger.is_active):
             await require_organization_agent(
                 self.db,
@@ -2858,9 +2867,18 @@ class AgentTriggerService:
             # on the instance loaded when this fire began: a fire that outran
             # the lease may find a newer claim's marker there, and only the
             # database can judge that freshly (`clear_fire_marker`).
-            await agent_trigger_repo.clear_fire_marker(
-                self.db, trigger_id=trigger_id, claimed_at=ticket[-1]
-            )
+            if sys.exception() is not None:
+                # The worker will roll this transaction back. Release its row
+                # locks before clearing the lease in an independent transaction.
+                await self.db.rollback()
+                async with get_db_context() as cleanup_db:
+                    await agent_trigger_repo.clear_fire_marker(
+                        cleanup_db, trigger_id=trigger_id, claimed_at=ticket[-1]
+                    )
+            else:
+                await agent_trigger_repo.clear_fire_marker(
+                    self.db, trigger_id=trigger_id, claimed_at=ticket[-1]
+                )
 
     async def _keep_lease_alive(self, trigger_id: UUID, ticket: list[datetime]) -> None:
         """Re-stamp the fire's in-flight marker for as long as the run executes.
@@ -3067,8 +3085,6 @@ class AgentTriggerService:
         message = (
             trigger.prompt if event_context is None else _with_event(trigger.prompt, event_context)
         )
-        if trigger.result_mode == "inbox":
-            message += "\n\n" + ROUTINE_RESULT_INSTRUCTIONS
         # This trigger's tail before the fire opens a run of its own. Every fire ends
         # by stamping `last_run_id` against the run it created, so the run named here
         # is exactly the newest row in the trigger's run-log conversation. It is how
@@ -3098,9 +3114,6 @@ class AgentTriggerService:
                 trigger.agent_id,
                 message,
                 surface=RunSurface.SCHEDULE,
-                output_schema=RoutineReading.model_json_schema()
-                if trigger.result_mode == "inbox"
-                else None,
                 conversation_id=conversation_id,
                 environment_id=trigger.environment_id,
                 version_id=trigger.pinned_version_id,
@@ -3760,7 +3773,7 @@ class AgentTriggerService:
         access loss and database delivery failures are isolated in a savepoint so
         recording the completed fire remains possible.
         """
-        if trigger.answer_to == "run_log" and trigger.result_mode != "inbox":
+        if trigger.answer_to == "run_log" or trigger.result_mode == "inbox":
             return AnswerDelivery(TriggerDeliveryStatus.RUN_LOG)
         if trigger.created_by_user_id is None:
             return AnswerDelivery(TriggerDeliveryStatus.UNAVAILABLE)
@@ -3793,26 +3806,6 @@ class AgentTriggerService:
                 accessible_agent = await self.agents.get(ctx, agent.id, perm=Perm.AGENTS_RUN)
                 if accessible_agent.status == AgentStatus.ARCHIVED.value:
                     return AnswerDelivery(TriggerDeliveryStatus.UNAVAILABLE)
-                if trigger.result_mode == "inbox":
-                    reading = RoutineReading.model_validate_json(answer)
-                    target = None
-                    for item in reading.findings:
-                        target = (
-                            await RoutineFindingService(self.db).publish(
-                                run=run,
-                                user_id=trigger.created_by_user_id,
-                                origin_id=trigger.id,
-                                origin_kind="trigger",
-                                item=item,
-                            )
-                            or target
-                        )
-                    return AnswerDelivery(
-                        TriggerDeliveryStatus.DELIVERED
-                        if target is not None
-                        else TriggerDeliveryStatus.NO_ANSWER,
-                        target,
-                    )
                 target = trigger.delivery_conversation_id
                 if trigger.answer_to == "primary":
                     target = await PrimaryConversationService(self.db).ensure(

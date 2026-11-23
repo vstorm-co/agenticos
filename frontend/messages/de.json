@@ -10042,7 +10042,6 @@
   },
   "triggers": {
     "setupReviewTitle": "Zugriff der Routine prüfen",
-    "setupReviewDescription": "Die Routine ist gespeichert und pausiert. Prüfen Sie die Quellen und wählen Sie Aktionen, die ohne Rückfrage ausgeführt werden dürfen. Speichern aktiviert die Routine; später fortfahren lässt sie pausiert.",
     "enableRoutine": "Routine aktivieren",
     "finishLater": "Später fortfahren",
     "stopWaitingRun": "Wartende Ausführung stoppen",
@@ -10393,7 +10392,8 @@
       "groupCount": "{selected} von {total}",
       "useAgent": "Einstellungen des Agenten verwenden",
       "useAgentHint": "Wählt genau die Aktionen, die dieser Agent im Chat schon ohne Nachfrage ausführt, und ersetzt die aktuelle Auswahl. Eine Freigabe hier kann nur eingrenzen, was die Einstellungen des Agenten erlauben, nie erweitern: Eine Aktion, vor der der Agent fragt, wird nicht angeboten. Gespeichert wird erst mit Freigaben speichern.",
-      "allowHeading": "Diese Aktionen ohne Bestätigung ausführen lassen"
+      "allowHeading": "Diese Aktionen ohne Bestätigung ausführen lassen",
+      "alwaysAsks": "Fragt immer: vom Agenten oder der Plattform vorgeschrieben"
     },
     "sourceConsents": {
       "title": "Quellen",
@@ -10420,17 +10420,11 @@
       "reviewBeforeActivationHint": "Optional: pausiert speichern, den Quellenstand des Agents prüfen und die Routine anschließend aktivieren.",
       "runsAsYou": "Wird als Sie ausgeführt. Ihre Berechtigungen und Pflichtfreigaben gelten weiterhin.",
       "agentIdentity": "Nutzt den eigenen Zugriff des Agents. Persönliche Konten sind ausgeschlossen.",
-      "requiredUnavailable": "Erforderliche Quellen sind nicht verfügbar: {names}. Stellen Sie den Zugriff wieder her, bevor Sie diese Routine speichern oder aktivieren.",
-      "followApprovals": "Nutzt die Freigaberegeln des Agents innerhalb des genehmigten Zugriffs und Verhaltens dieser Routine. Spätere Erweiterungen oder Verhaltensänderungen muss die erstellende Person prüfen; Pflichtbestätigungen gelten weiterhin. Wählen Sie Geprüfter Stand für routinenspezifische Freigaben."
+      "requiredUnavailable": "Erforderliche Quellen sind nicht verfügbar: {names}. Stellen Sie den Zugriff wieder her, bevor Sie diese Routine speichern oder aktivieren."
     },
     "advancedOptions": "Erweiterte Optionen",
     "advancedOptionsHint": "Standard: aktuelle veröffentlichte Version, Fehlerschutz und deine Benachrichtigungseinstellungen.",
     "budgetInvalid": "Gib einen positiven Betrag ein oder lasse das Feld leer, um dieses Limit zu entfernen.",
-    "resultMode": "Wann Ergebnisse melden",
-    "resultReport": "Nach jeder abgeschlossenen Ausführung",
-    "resultInbox": "Nur wenn etwas Aufmerksamkeit braucht",
-    "resultReportHint": "Nach jeder Ausführung einen Bericht im gewählten Chat ablegen.",
-    "resultInboxHint": "Pro Quellelement einen Inbox-Vorgang und Arbeitschat erstellen. Angeforderte Entwürfe stehen dort; unveränderte Prüfungen bleiben still. Versand benötigt weiterhin Berechtigung und Freigabe.",
     "clearSearch": "Suche löschen",
     "noRoutineMatchesHint": "Suchen Sie nach dem Agentennamen, dem Routinentitel oder Wörtern aus ihrer Nachricht.",
     "setupRequired": "Einrichtung erforderlich",
@@ -10452,6 +10446,14 @@
       "mention": "Der Kommentar enthielt die erforderliche Erwähnung nicht.",
       "conclusion": "Das Workflow-Ergebnis passte nicht.",
       "not_branch": "Der Push löschte einen Branch oder war kein Branch-Push."
+    },
+    "approvalMode": {
+      "label": "Werkzeugfreigaben",
+      "hint": "Inbox-Meldungen sind enthalten. Vorgeschriebene Agenten- und Plattformfreigaben gelten weiterhin.",
+      "automatic": "Zulässige Werkzeuge automatisch ausführen",
+      "manual": "Vor Aktionen fragen",
+      "custom": "Freigaben je Werkzeug wählen",
+      "existing": "Aktuelle Freigaben beibehalten"
     }
   },
   "portals": {

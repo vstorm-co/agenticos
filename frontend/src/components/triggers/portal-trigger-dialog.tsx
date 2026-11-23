@@ -2,8 +2,6 @@
 
 import { RoutineDialogFrame } from "./routine-dialog-frame";
 
-import { ResultModeField, type RoutineResultMode } from "./result-mode-field";
-
 import { useState } from "react";
 import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -158,7 +156,6 @@ export function PortalTriggerDialog({
   // Which seeded template the message started from, or null for "from scratch".
   // Only tracked to light the picked card; the prompt stays freely editable.
   const [templateKey, setTemplateKey] = useState<string | null>(null);
-  const [resultMode, setResultMode] = useState<RoutineResultMode>("report");
   const [created, setCreated] = useState<TriggerCreated | null>(null);
 
   const eventSource = portal.event_source as EventSource;
@@ -183,7 +180,6 @@ export function PortalTriggerDialog({
     const eventConfig = { ...extraConfig, ...eventFilterConfig(eventSource, [filterA, filterB]) };
     const payload: TriggerCreate = {
       prompt,
-      ...(resultMode === "inbox" ? { result_mode: resultMode } : {}),
       name: name.trim() || null,
       trigger_type: "event",
       portal_key: portal.key,
@@ -369,7 +365,6 @@ export function PortalTriggerDialog({
               </Select>
             </FormField>
 
-            <ResultModeField value={resultMode} onChange={setResultMode} />
             <FormField label={tt("nameLabel")} htmlFor="portal-name" description={tt("nameHelp")}>
               <Input
                 id="portal-name"

@@ -144,7 +144,8 @@ async def test_only_a_current_snapshotted_consent_waives_its_action(
     execute = next(item for item in options.items if item.tool_id == WRITE.tool_id)
     assert isinstance(execute, RoutineActionOption)
     assert execute.consented and execute.capability_name == "Sandbox"
-    assert (await before.action_policy(world.agent.id, world.spec, tool())).consented_by is None
+    with pytest.raises(AuthorizationError):
+        await before.action_policy(world.agent.id, world.spec, tool())
     authority = await capture(db, world)
     assert (
         await authority.action_policy(world.agent.id, world.spec, tool())
@@ -261,6 +262,7 @@ async def test_a_resumed_run_cannot_adopt_newly_granted_consent(
         routine_policy={
             "approved_sources": world.trigger.approved_sources,
             "action_consents": admitted,
+            "action_mode": "per_tool",
         },
     )
     await service.replace(world.ctx, world.trigger, RoutineActions())

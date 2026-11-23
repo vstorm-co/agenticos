@@ -135,3 +135,13 @@ Large run receipts preserve `parked` approval identities. When
 `approval_details_omitted` is true, the arguments and possibly some calls are
 missing: open `approval_review_url` for full console inspection. Never approve
 from an abbreviated receipt or repeat the run to recover its pending calls.
+
+### Report a routine finding
+
+A routine or monitor uses `agenticos:publish_inbox_finding` for actionable Inbox
+items. The runtime supplies it even when the published agent has no platform
+binding. Use stable source item and revision identifiers and include evidence
+and the requested complete draft. An unchanged revision stays quiet; publishing
+a draft does not send it. Do not call it from a normal external MCP session: its
+credential must name the live originating run. The final answer is only a run
+summary, never an automatic source of Inbox cards.

@@ -1,5 +1,5 @@
 ---
-source_sha: "4a5506769583"
+source_sha: "871bbe3da872"
 ---
 
 # Governance { #governance }
@@ -883,7 +883,11 @@ Identitäten; erst das Speichern des aktuellen Reviews erteilt Zustimmung. Neue 
 und geänderte Konten werden nicht automatisch ausgewählt. Verbindliche Freigaben,
 Widerruf und die Prüfung auf veraltete Reviews gelten weiterhin.
 
-Folgende Routinen verwenden die Aktionsfreigaben des Agenten ohne zusätzliche routinenweite Freigabepflicht. Eingeschränkte Routinen fragen zusätzlich vor Capability-Aktionen, lokalen Dateiänderungen und Delegation sowie vor externen MCP-Aufrufen ohne Nur-Lesen-Kennzeichnung. Explizite Agenten- oder Verbindungsvorgaben und verbindliche Freigaben gelten in beiden Modi. Der Codemodus bleibt für Routinen ausgeschaltet, damit Sammelskripte keine einzelnen Werkzeugkontrollen umgehen.
+Neue Routinen handeln standardmäßig als ihre erstellende Person mit deren aktuellen Berechtigungen. Ein Formular enthält Name, Anweisungen, Agent, Zeitplan und Werkzeugfreigaben; Quellenprüfung und Limits stehen unter den erweiterten Optionen. Identität und Freigabe sind unabhängig.
+
+**Zulässige Werkzeuge automatisch ausführen** nutzt die Agentenregeln. **Vor Aktionen fragen** ergänzt eine Routinenfreigabe für Auswirkungen. **Freigaben je Werkzeug wählen** erlaubt einmalige dauerhafte Freigaben ausgewählter zulässiger Aktionen dieser Routine. Die Wahl gilt für beide Quellenmodi (`action_mode: agent` oder `per_tool`).
+
+Bestehende Routinen ohne Aktionsmodus behalten ihre bisherige Richtlinie. Explizite Agenten-/Verbindungsvorgaben und verbindliche Plattform-/Gerätefreigaben bleiben bestehen. Der Codemodus bleibt für Routinen ausgeschaltet.
 
 Schreibzugriffe auf AgenticOS Virtual Tables laufen innerhalb ihrer aktuellen Tabellen- und Operationsfreigaben ohne Ausnahme für die Routine. Eine ausdrücklich konfigurierte Freigaberichtlinie des Agenten gilt weiterhin für diese internen Schreibzugriffe.
 
@@ -891,7 +895,7 @@ Die erstellende Person öffnet **Aktionsfreigaben** ihrer Routine und wählt Fä
 
 Eine MCP-Ausnahme benennt das konkrete Konto, den Adresshash, die Autorisierungsgeneration und den ursprünglichen Aktionsnamen. E-Mail-Versand erlaubt weder Löschen noch Schreibzugriffe auf ein anderes Konto. Persönliche Konten stehen nur Routinen zur Verfügung, die als ihre erstellende Person handeln. Die Auswahl verwendet die gespeicherte Werkzeugliste; prüfe die Verbindung oder bitte deren Administration, wenn sie fehlt. Alle Freigaben lassen sich auch ohne funktionierende Werkzeugliste widerrufen.
 
-Die Prüfung zeigt die Capabilities des Agenten, AgenticOS und jedes andere MCP-Konto als eigene Abschnitte, jeweils mit ihren Gruppen. Es erscheinen nur Aktionen, die der Agent schon ohne Nachfrage ausführt: Einer Aktion, vor der er fragt, lässt sich hier nicht zustimmen, also fehlt sie. **Einstellungen des Agenten verwenden** wählt genau diese Aktionen und ersetzt die aktuelle Auswahl; gespeichert wird erst mit **Freigaben speichern**.
+Die Prüfung zeigt Capabilities, AgenticOS und jedes MCP-Konto getrennt. Werkzeuge mit vorgeschriebener Freigabe bleiben sichtbar, sind jedoch mit Erklärung gesperrt. Sammelauswahl umfasst nur zulässige Aktionen. Speichern aktiviert die Freigabe je Werkzeug; nicht ausgewählte Auswirkungen fragen bei Verwendung. Quellenvererbung versteckt oder umgeht diese Entscheidungen nicht.
 
 Das Feld **Geprüfte Quellen** darüber listet die Quellen der Routine nach Art - Capabilities, Skills, Wissensdatenbanken, Tabellen, Konten -, jede Art auf eine Anzahl eingeklappt und jede Quelle mit ihrem Namen. Eine Quelle, die es nicht mehr gibt, erscheint als nicht mehr verfügbar; ihre Kennung steht im Tooltip.
 
@@ -2693,15 +2697,11 @@ Vorlagen zur lesenden Überwachung gemeinsam. Ein Trigger bestimmt, _wann_ eine
 Routine läuft; die Überwachungsvorlage begrenzt, _was_ sie tun darf. Für eine
 Verantwortung genügt eine Routine, statt Watch und Zeitplan für dasselbe Postfach.
 
-Wählen Sie **Nach jeder abgeschlossenen Ausführung** (`result_mode: report`, der
-bisherige Standard) für Berichte oder **Nur wenn etwas Aufmerksamkeit braucht**
-(`result_mode: inbox`) für stille Prüfungen. Der Agent liefert relevante
-Quellelemente mit stabilen Element- und Revisionskennungen, Kontext und dem
-vollständigen angeforderten Entwurf. Ein leeres Ergebnis erzeugt weder Gespräch
-noch Abschlussmeldung. Jedes Element erhält ein privates Arbeitsgespräch und
-einen Inbox-Vorgang. Wiederholte Revisionen werden dauerhaft dedupliziert, auch
-nach Erledigung. Eine neue Revision aktualisiert dasselbe Gespräch und öffnet den
-Vorgang erneut; stummgeschaltete Elemente bleiben stumm.
+Inbox-Ergebnisse werden ausschließlich über das AgenticOS-MCP-Werkzeug `publish_inbox_finding` veröffentlicht. Jede Routine und jeder Monitor erhält es automatisch, auch ohne Plattformbindung. Ein impliziter Berichtsschlüssel hat keine allgemeinen Plattformrechte: Er ist an einen laufenden Run gebunden und veröffentlicht nur für die besitzende Person. Andere Empfänger, private Inbox-Lesezugriffe und Organisationsverwaltung sind damit nicht möglich. Jede Veröffentlichung prüft Mitgliedschaft, Quellenfreigabe, Pause und Ablauf erneut. Monitore müssen ihre Quelle zuerst erfolgreich lesen; ungelöste Lesefehler verhindern die Meldung. Dringlichkeit respektiert die Einstellung der besitzenden Person.
+
+Der Agent übergibt stabile Element- und Revisionskennungen, Kontext und angeforderte vollständige Entwürfe. Unveränderte Revisionen bleiben still; neue aktualisieren denselben Arbeitschat und öffnen den Fall erneut, stummgeschaltete Elemente bleiben stumm. Ein Run kann höchstens acht Ergebnisse veröffentlichen. Endantworten bleiben im Protokoll oder ausdrücklich gewählten Chat und werden nie in Inbox-Karten geparst. Das alte Feld `result_mode` bleibt lesbar, aktiviert aber keine automatische strukturierte Zustellung mehr. Ohne Änderungen wird nichts veröffentlicht, außer ein Monitor soll jede Prüfung melden.
+
+Veröffentlichte Ergebnisse werden beim MCP-Aufruf gespeichert. Ein späterer Run-Fehler löscht sie nicht; der fehlgeschlagene Versuch bleibt sichtbar und Wiederholungen deduplizieren Quellenrevisionen.
 
 Öffnen Sie das Gespräch aus der Inbox, um den Entwurf zu ändern oder den nächsten
 Schritt zu beauftragen. Lesen und Bearbeiten versenden nichts und erledigen den

@@ -8838,7 +8838,6 @@
   },
   "triggers": {
     "setupReviewTitle": "Sprawdź dostęp rutyny",
-    "setupReviewDescription": "Rutyna jest zapisana i wstrzymana. Sprawdź źródła i wybierz działania, które mogą wykonywać się bez pytania. Zapisz, aby ją włączyć, lub dokończ później.",
     "enableRoutine": "Włącz rutynę",
     "finishLater": "Dokończ później",
     "stopWaitingRun": "Zatrzymaj oczekujące uruchomienie",
@@ -9193,7 +9192,8 @@
       "groupCount": "{selected} z {total}",
       "useAgent": "Użyj ustawień agenta",
       "useAgentHint": "Zaznacza dokładnie te działania, które agent już w czacie wykonuje bez pytania, i zastępuje obecne zaznaczenie. Zgoda tutaj może tylko zawęzić to, na co pozwalają ustawienia agenta, nigdy tego nie poszerza: działania, przed którym agent pyta, nie ma na liście. Nic się nie zapisuje, dopóki nie wybierzesz Zapisz zgody.",
-      "allowHeading": "Pozwól tym działaniom działać bez pytania o zgodę"
+      "allowHeading": "Pozwól tym działaniom działać bez pytania o zgodę",
+      "alwaysAsks": "Zawsze pyta: wymagane przez agenta lub platformę"
     },
     "sourceConsents": {
       "title": "Źródła",
@@ -9220,17 +9220,11 @@
       "reviewBeforeActivationHint": "Opcjonalnie: zapisz wstrzymaną rutynę, sprawdź zestaw źródeł agenta, a następnie włącz rutynę.",
       "runsAsYou": "Działa jako Ty. Nadal obowiązują Twoje uprawnienia i wymagane zgody.",
       "agentIdentity": "Korzysta z dostępu agenta. Dostęp do kont osobistych jest wyłączony.",
-      "requiredUnavailable": "Wymagane źródła są niedostępne: {names}. Przywróć dostęp przed zapisaniem lub włączeniem rutyny.",
-      "followApprovals": "Korzysta z reguł zatwierdzania agenta w granicach zatwierdzonego dostępu i zachowania rutyny. Twórca musi sprawdzić późniejsze rozszerzenia lub zmiany zachowania; wymagane zgody nadal obowiązują. Wybierz Sprawdzony zestaw, aby ustawić zgody dla tej rutyny."
+      "requiredUnavailable": "Wymagane źródła są niedostępne: {names}. Przywróć dostęp przed zapisaniem lub włączeniem rutyny."
     },
     "advancedOptions": "Opcje zaawansowane",
     "advancedOptionsHint": "Domyślnie: bieżąca opublikowana wersja, ochrona przed błędami i Twoje preferencje powiadomień.",
     "budgetInvalid": "Wpisz dodatnią kwotę albo zostaw puste pole, aby usunąć ten limit.",
-    "resultMode": "Kiedy przekazywać wyniki",
-    "resultReport": "Po każdym zakończonym wykonaniu",
-    "resultInbox": "Tylko gdy coś wymaga uwagi",
-    "resultReportHint": "Po każdym wykonaniu przekaż raport do wybranej rozmowy.",
-    "resultInboxHint": "Utwórz jedną sprawę w Inbox i rozmowę na element źródłowy. Umieść tam zamówioną wersję roboczą; sprawdzenia bez zmian pozostają ciche. Wysyłka nadal wymaga odpowiednich uprawnień i zgody.",
     "clearSearch": "Wyczyść wyszukiwanie",
     "noRoutineMatchesHint": "Spróbuj nazwy agenta, tytułu rutyny lub słów z jej wiadomości.",
     "setupRequired": "Wymaga konfiguracji",
@@ -9252,6 +9246,14 @@
       "mention": "Komentarz nie zawierał wymaganej wzmianki.",
       "conclusion": "Wynik workflow nie pasował.",
       "not_branch": "Push usuwał gałąź lub nie dotyczył gałęzi."
+    },
+    "approvalMode": {
+      "label": "Zatwierdzanie narzędzi",
+      "hint": "Publikowanie do Inboxu jest dostępne od razu. Obowiązkowe zgody agenta i platformy nadal obowiązują.",
+      "automatic": "Uruchamiaj dozwolone narzędzia automatycznie",
+      "manual": "Pytaj przed działaniami",
+      "custom": "Wybierz zgody dla każdego narzędzia",
+      "existing": "Zachowaj obecne zgody"
     }
   },
   "portals": {

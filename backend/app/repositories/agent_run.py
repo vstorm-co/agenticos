@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import (
     BigInteger,
@@ -95,8 +95,10 @@ async def create_run(
     routine_kind: str = "trigger",
     routine_policy: dict[str, object] | None = None,
     routine_activation_at: datetime | None = None,
+    run_id: UUID | None = None,
 ) -> AgentRun:
     run = AgentRun(
+        id=run_id or uuid4(),
         trigger_id=trigger_id,
         routine_origin_id=routine_origin_id or trigger_id,
         routine_kind=routine_kind,
@@ -352,10 +354,15 @@ async def record_delegated_run(
     return run
 
 
-async def get_run(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> AgentRun | None:
-    result = await db.execute(
-        select(AgentRun).where(AgentRun.id == run_id, AgentRun.organization_id == organization_id)
+async def get_run(
+    db: AsyncSession, run_id: UUID, *, organization_id: UUID, for_update: bool = False
+) -> AgentRun | None:
+    statement = select(AgentRun).where(
+        AgentRun.id == run_id, AgentRun.organization_id == organization_id
     )
+    if for_update:
+        statement = statement.with_for_update().execution_options(populate_existing=True)
+    result = await db.execute(statement)
     return result.scalar_one_or_none()
 
 

@@ -7,7 +7,7 @@ import { ZoneField, isTimeZone } from "./zone-field";
 import { RoutineDialogFrame } from "./routine-dialog-frame";
 import { ActionConsentsDialog } from "./action-consents-dialog";
 
-import { ResultModeField, type RoutineResultMode } from "./result-mode-field";
+import type { RoutineResultMode } from "@/types/triggers";
 import { RoutineOptions } from "./routine-options";
 import { EventOptions, eventOptionsValid } from "./event-options";
 import { WebhookSignatureFields, webhookSignatureValid } from "./webhook-signature-fields";
@@ -293,9 +293,7 @@ export function TriggerFormDialog({
     const instant = endInstant(value);
     setInvalidEnd(instant === undefined || (instant !== null && Date.parse(instant) <= Date.now()));
   };
-  const [resultMode, setResultMode] = useState<RoutineResultMode>(
-    trigger?.result_mode ?? initialResultMode,
-  );
+  const resultMode = trigger?.result_mode ?? initialResultMode;
   const [answerTo, setAnswerTo] = useState<TriggerAnswerTo>(
     trigger ? (trigger.answer_to ?? "run_log") : originConversationId ? "conversation" : "primary",
   );
@@ -384,7 +382,11 @@ export function TriggerFormDialog({
   // losing it here is losing it forever (no read ever returns it).
   const [created, setCreated] = useState<TriggerCreated | null>(null);
   const [reviewBeforeActivation, setReviewBeforeActivation] = useState(false);
-  const [reviewing, setReviewing] = useState<TriggerCreated | null>(null);
+  const [approvalChoice, setApprovalChoice] = useState<"automatic" | "manual" | "custom" | null>(
+    null,
+  );
+  const [reviewing, setReviewing] = useState<Trigger | null>(null);
+  const [activateAfterReview, setActivateAfterReview] = useState(false);
 
   const pending = create.isPending || update.isPending || savingLocal;
 
@@ -535,10 +537,18 @@ export function TriggerFormDialog({
       ...(end ? { ends_at: end } : {}),
       // The console defaults to the consenting creator; other callers retain
       // the API's identity-free default.
-      ...(runsAsCreator ? { runs_as_creator: true } : {}),
+      runs_as_creator: runsAsCreator,
+      action_mode:
+        approvalChoice === "manual" || approvalChoice === "custom"
+          ? ("per_tool" as const)
+          : ("agent" as const),
       source_mode: reviewBeforeActivation ? ("restricted" as const) : ("follow_agent" as const),
-      ...(reviewBeforeActivation || (runsAsCreator && localTarget) ? { is_active: false } : {}),
-      ...(reviewBeforeActivation ? { review_before_activation: true } : {}),
+      ...(reviewBeforeActivation || approvalChoice === "custom" || (runsAsCreator && localTarget)
+        ? { is_active: false }
+        : {}),
+      ...(reviewBeforeActivation || approvalChoice === "custom"
+        ? { review_before_activation: true }
+        : {}),
       ...(teamsPost !== NO_TEAMS_POST ? { teams_conversation_id: teamsPost } : {}),
       // Only when it is not the server's default, so a plain create says nothing new.
       ...(answerTo !== "primary" ? { answer_to: answerTo } : {}),
@@ -630,6 +640,8 @@ export function TriggerFormDialog({
         // it is sent, so echoing `environment_id` back on a prompt-only edit
         // would overwrite an environment somebody rebound in between.
         const patch: TriggerUpdate = {};
+        if (approvalChoice !== null)
+          patch.action_mode = approvalChoice === "automatic" ? "agent" : "per_tool";
         if (maxFailures !== (trigger.max_failures === undefined ? 3 : trigger.max_failures))
           patch.max_failures = maxFailures;
         if (prompt !== trigger.prompt) patch.prompt = prompt;
@@ -700,7 +712,10 @@ export function TriggerFormDialog({
           }
         }
         await update.mutateAsync({ triggerId: trigger.id, patch });
-        onOpenChange(false);
+        if (approvalChoice === "custom") {
+          setActivateAfterReview(false);
+          setReviewing({ ...trigger, ...patch });
+        } else onOpenChange(false);
       } else {
         let result = preparedLocal ?? (await create.mutateAsync(buildCreate()));
         if (runsAsCreator && localTarget) {
@@ -721,7 +736,12 @@ export function TriggerFormDialog({
           result = { ...result, ...updated };
         }
         if (!stillHere()) return;
-        if (runsAsCreator && localTarget && !reviewBeforeActivation) {
+        if (
+          runsAsCreator &&
+          localTarget &&
+          !reviewBeforeActivation &&
+          approvalChoice !== "custom"
+        ) {
           const activated = await update.mutateAsync({
             triggerId: result.id,
             patch: { is_active: true },
@@ -730,8 +750,11 @@ export function TriggerFormDialog({
           if (!stillHere()) return;
         }
         onCreated?.(result);
-        if (reviewBeforeActivation) setReviewing(result);
-        else if (result.trigger_type === "event") setCreated(result);
+        if (reviewBeforeActivation || approvalChoice === "custom") {
+          setActivateAfterReview(true);
+          if (result.trigger_type === "event") setCreated(result);
+          setReviewing(result);
+        } else if (result.trigger_type === "event") setCreated(result);
         else onOpenChange(false);
       }
     } catch (error) {
@@ -769,11 +792,7 @@ export function TriggerFormDialog({
 
   const steps: WizardStep[] =
     type === "schedule"
-      ? [
-          { id: "configure", label: t("stepConfigure") },
-          { id: "message", label: t("stepMessage") },
-          { id: "schedule", label: t("stepSchedule") },
-        ]
+      ? [{ id: "configure", label: t("stepConfigure") }]
       : [
           { id: "event", label: t("stepEvent") },
           { id: "configure", label: t("stepConfigure") },
@@ -785,7 +804,11 @@ export function TriggerFormDialog({
   // final Create would refuse.
   const canAdvance =
     step === "configure"
-      ? effectiveAgentId !== null && versionValid && !invalidEnd && budgetLimit !== undefined
+      ? effectiveAgentId !== null &&
+        versionValid &&
+        !invalidEnd &&
+        budgetLimit !== undefined &&
+        (type !== "schedule" || (prompt.trim().length > 0 && scheduleValid))
       : step === "message"
         ? prompt.trim().length > 0
         : step === "schedule"
@@ -807,16 +830,57 @@ export function TriggerFormDialog({
     if (stepIdx > 0) setStep(steps[stepIdx - 1]!.id as WizardStepId);
   }
 
+  const approvalField = (
+    <FormField
+      label={t("approvalMode.label")}
+      htmlFor="routine-approval-mode"
+      description={t("approvalMode.hint")}
+    >
+      <Select
+        disabled={!isCreator}
+        value={
+          approvalChoice ??
+          (trigger
+            ? trigger.action_mode === "agent"
+              ? "automatic"
+              : trigger.action_mode === "per_tool"
+                ? "custom"
+                : "existing"
+            : "automatic")
+        }
+        onValueChange={(value) => {
+          if (value === "automatic" || value === "manual" || value === "custom")
+            setApprovalChoice(value);
+        }}
+      >
+        <SelectTrigger id="routine-approval-mode">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {trigger && !trigger.action_mode && (
+            <SelectItem value="existing">{t("approvalMode.existing")}</SelectItem>
+          )}
+          <SelectItem value="automatic">{t("approvalMode.automatic")}</SelectItem>
+          <SelectItem value="manual">{t("approvalMode.manual")}</SelectItem>
+          <SelectItem value="custom">{t("approvalMode.custom")}</SelectItem>
+        </SelectContent>
+      </Select>
+    </FormField>
+  );
+
   if (reviewing !== null) {
     return (
       <ActionConsentsDialog
         trigger={reviewing}
-        onSaved={async () => {
-          await update.mutateAsync({ triggerId: reviewing.id, patch: { is_active: true } });
-        }}
+        onSaved={
+          activateAfterReview
+            ? async () => {
+                await update.mutateAsync({ triggerId: reviewing.id, patch: { is_active: true } });
+              }
+            : undefined
+        }
         onClose={() => {
-          if (reviewing.trigger_type === "event") setCreated(reviewing);
-          else onOpenChange(false);
+          if (!created) onOpenChange(false);
           setReviewing(null);
         }}
       />
@@ -969,7 +1033,7 @@ export function TriggerFormDialog({
                 <p className="text-muted-foreground text-xs">{t("linearSecretRotation")}</p>
               )}
 
-              <ResultModeField value={resultMode} onChange={setResultMode} />
+              {approvalField}
               <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
                 {namedEnvironments.length > 0 && (
                   <EnvironmentField
@@ -1075,7 +1139,7 @@ export function TriggerFormDialog({
       <RoutineDialogFrame
         title={type === "event" ? t("newEvent") : t("newSchedule")}
         description={t("createDescription")}
-        progress={{ steps, current: step }}
+        progress={type === "schedule" ? undefined : { steps, current: step }}
         pending={pending}
         disabled={preparedLocal !== null || pending}
         bodyKey={step}
@@ -1149,11 +1213,23 @@ export function TriggerFormDialog({
 
             <NameField value={name} onChange={setName} />
 
-            <ResultModeField value={resultMode} onChange={setResultMode} />
+            {type === "schedule" && (
+              <PromptField value={prompt} onChange={setPrompt} rows={5} disabled={pending} />
+            )}
+            {approvalField}
+            {type === "schedule" && scheduleFields}
             <p role="note" className="text-muted-foreground text-sm">
               {t(runsAsCreator ? "sourceConsents.runsAsYou" : "sourceConsents.agentIdentity")}
             </p>
             <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
+              {type === "schedule" && (
+                <TriggerTemplateSelector
+                  triggerType={type}
+                  selectedKey={templateKey}
+                  onPick={applyTemplate}
+                  onScratch={scratchTemplate}
+                />
+              )}
               <div className="flex items-start gap-3 text-sm">
                 <Checkbox
                   id="routine-review-before-activation"

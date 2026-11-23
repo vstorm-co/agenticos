@@ -257,6 +257,9 @@ class AgentTrigger(Base, TimestampMixin):
         value = (self.approved_sources or {}).get("unavailable_sources", [])
         return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
 
+    action_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    """Null retains the historical source-mode policy; new routines choose explicitly."""
+
     action_consents: Mapped[list[dict[str, object]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
@@ -464,6 +467,10 @@ class AgentTrigger(Base, TimestampMixin):
     # schema from the models, so a constraint stated only in the migration would
     # be absent from exactly the tests written to prove it rejects a row.
     __table_args__ = (
+        CheckConstraint(
+            "action_mode IS NULL OR action_mode IN ('agent', 'per_tool')",
+            name="ck_trigger_action_mode",
+        ),
         CheckConstraint("result_mode IN ('report', 'inbox')", name="ck_trigger_result_mode"),
         CheckConstraint(
             "max_failures IS NULL OR max_failures BETWEEN 1 AND 20", name="ck_routine_max_failures"

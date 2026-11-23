@@ -10162,7 +10162,6 @@
   },
   "triggers": {
     "setupReviewTitle": "Review routine access",
-    "setupReviewDescription": "The routine is saved and paused. Review its sources and choose which actions may run without asking. Save once to enable it, or finish later to leave it paused.",
     "enableRoutine": "Enable routine",
     "finishLater": "Finish later",
     "stopWaitingRun": "Stop waiting run",
@@ -10513,7 +10512,8 @@
       "groupCount": "{selected} of {total}",
       "useAgent": "Use the agent's settings",
       "useAgentHint": "Selects exactly the actions this agent already runs without asking in a chat, replacing the current selection. Consent here can only narrow what the agent's settings grant, never widen it: an action the agent asks before is not offered. Nothing is saved until you choose Save consent.",
-      "allowHeading": "Allow these actions to run without asking for approval"
+      "allowHeading": "Allow these actions to run without asking for approval",
+      "alwaysAsks": "Always asks: required by the agent or platform"
     },
     "sourceConsents": {
       "title": "Sources",
@@ -10540,17 +10540,11 @@
       "reviewBeforeActivationHint": "Optional: save paused, inspect a snapshot of the agent’s sources, then enable the routine.",
       "runsAsYou": "Runs as you. Your permissions and required approvals still apply.",
       "agentIdentity": "Uses the agent’s own access. Personal account access is off.",
-      "requiredUnavailable": "Required sources unavailable: {names}. Restore access before saving or enabling this routine.",
-      "followApprovals": "Uses the agent’s approval rules within this routine’s approved access and behavior. The creator must review later expansions or behavior changes; required confirmations still apply. Choose Reviewed snapshot for routine-specific approvals."
+      "requiredUnavailable": "Required sources unavailable: {names}. Restore access before saving or enabling this routine."
     },
     "advancedOptions": "Advanced options",
     "advancedOptionsHint": "Defaults: current published version, standard failure protection and your notification preferences.",
     "budgetInvalid": "Enter a positive amount, or leave blank to remove this limit.",
-    "resultMode": "When to bring results",
-    "resultReport": "After every completed run",
-    "resultInbox": "Only when something needs attention",
-    "resultReportHint": "Deliver a report to the chosen conversation after each run.",
-    "resultInboxHint": "Create one Inbox case and working chat per source item. Include requested drafts there; unchanged checks stay quiet. Sending still requires the appropriate permission and approval.",
     "clearSearch": "Clear search",
     "noRoutineMatchesHint": "Try an agent name, routine title or words from its message.",
     "setupRequired": "Setup required",
@@ -10572,6 +10566,14 @@
       "mention": "The comment did not contain the required mention.",
       "conclusion": "The workflow conclusion did not match.",
       "not_branch": "The push deleted a branch or was not a branch push."
+    },
+    "approvalMode": {
+      "label": "Tool approvals",
+      "hint": "Inbox reporting is included. Required agent and platform approvals always apply.",
+      "automatic": "Run eligible tools automatically",
+      "manual": "Ask before actions",
+      "custom": "Choose permissions for each tool",
+      "existing": "Keep current permissions"
     }
   },
   "portals": {

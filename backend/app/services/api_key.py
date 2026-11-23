@@ -282,7 +282,13 @@ class ApiKeyService:
         return key
 
     async def issue_for_run(
-        self, ctx: AuthContext, *, agent_id: UUID | None = None, conversation_id: UUID | None = None
+        self,
+        ctx: AuthContext,
+        *,
+        agent_id: UUID | None = None,
+        conversation_id: UUID | None = None,
+        run_id: UUID | None = None,
+        reporting_only: bool = False,
     ) -> str | None:
         """A short-lived credential carrying `ctx`, for the in-app assistant (#1798).
 
@@ -306,12 +312,14 @@ class ApiKeyService:
             organization_id=ctx.organization_id,
             user_id=ctx.user_id,
             name="Platform assistant",
-            scopes=[perm.value for perm in self._grantable(ctx)],
+            scopes=[] if reporting_only else [perm.value for perm in self._grantable(ctx)],
             expires_at=now + _RUN_CREDENTIAL_LIFETIME,
             oauth_grant_id=None,
             internal=True,
         )
         provenance: dict[str, UUID] = {}
+        if run_id is not None:
+            provenance["source_run_id"] = run_id
         if agent_id is not None:
             provenance["source_agent_id"] = agent_id
         if (
@@ -455,6 +463,7 @@ class ApiKeyService:
                 api_key_id=key.id,
                 key_scopes=frozenset(Perm(scope) for scope in key.scopes if scope in Perm),
                 key_internal=key.internal,
+                source_run_id=key.source_run_id if key.internal else None,
                 source_conversation_id=key.source_conversation_id if key.internal else None,
             ),
         )
@@ -513,7 +522,12 @@ async def job_context(
 
 
 async def mint_for_run(
-    ctx: AuthContext, *, agent_id: UUID | None = None, conversation_id: UUID | None = None
+    ctx: AuthContext,
+    *,
+    agent_id: UUID | None = None,
+    conversation_id: UUID | None = None,
+    run_id: UUID | None = None,
+    reporting_only: bool = False,
 ) -> str | None:
     """:meth:`ApiKeyService.issue_for_run`, committed before it returns.
 
@@ -524,5 +538,9 @@ async def mint_for_run(
     """
     async with get_db_context() as db:
         return await ApiKeyService(db).issue_for_run(
-            ctx, agent_id=agent_id, conversation_id=conversation_id
+            ctx,
+            agent_id=agent_id,
+            conversation_id=conversation_id,
+            run_id=run_id,
+            reporting_only=reporting_only,
         )
