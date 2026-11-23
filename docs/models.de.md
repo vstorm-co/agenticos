@@ -1,5 +1,5 @@
 ---
-source_sha: "0fb71853e2ff"
+source_sha: "e1f4fee1c6a8"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -928,8 +928,10 @@ Oberflächensprache. Administratoren pflegen manuelle Kurse unter **Währungen u
 Wechselkurse**. Ein Kurs bedeutet Währungseinheiten pro USD: Bei EUR `0.9` werden
 `9 EUR` als `10 USD` erfasst. Die Nutzung behält ursprünglichen Betrag, Währung und
 angewendeten Kurs; spätere Änderungen überschreiben diese USD-Kosten nicht.
-Fehlende Umrechnung bleibt unbepreist; begrenzte Anfragen werden vor der Inferenz
-abgelehnt.
+Kosten von null werden auch ohne Wechselkurs als `0 USD` erfasst. Bei einem
+Ausgabenlimit ist vor der Inferenz ein Wechselkurs erforderlich, sobald einer
+der Tokenpreise des Profils Kosten verursachen kann. Das gilt auch für
+Lese- und Schreibzugriffe auf den Cache.
 
 Dashboard-Ausgaben, Run-Verlauf, Unterhaltungskosten und verbleibende Budgets
 werden in der effektiven Organisationswährung angezeigt. Die Ansicht verwendet

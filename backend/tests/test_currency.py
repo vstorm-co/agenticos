@@ -60,20 +60,42 @@ def test_cross_currency_pricing_is_correct_even_when_the_organization_uses_usd()
 @pytest.mark.parametrize(
     "rates", [{}, {"EUR": Decimal(0)}, {"EUR": Decimal(-1)}, {"EUR": Decimal("NaN")}]
 )
-def test_a_missing_or_invalid_rate_is_not_one_to_one_or_free(rates):
+def test_a_missing_or_invalid_exchange_rate_leaves_only_nonzero_amounts_unknown(rates):
     assert to_usd(Decimal("9"), "EUR", rates) is None
+    assert to_usd(Decimal(0), "EUR", rates) == 0
 
 
-async def test_a_capped_request_is_refused_before_inference_when_its_currency_cannot_be_converted():
+async def test_an_explicitly_free_profile_can_run_under_a_cap_without_its_exchange_rate() -> None:
+    model = ProfilePricingModel(
+        FunctionModel(answer), TokenPricing(input=0, output=0, currency="EUR"), uuid4()
+    )
+    ledger = SpendLedger()
+    guard = BudgetGuard(
+        ledger=ledger, limits=[SpendLimit(scope=BudgetScope.RUN, limit_usd=Decimal("10"))]
+    )
+    await Agent(model, capabilities=[guard]).run("hello")
+    (entry,) = ledger.entries
+    assert entry.priced and entry.cost_usd == 0
+
+
+@pytest.mark.parametrize(
+    "pricing",
+    [
+        TokenPricing(input=9, output=0, currency="EUR"),
+        TokenPricing(input=0, output=0, cache_read=9, currency="EUR"),
+        TokenPricing(input=0, output=0, cache_write=9, currency="EUR"),
+    ],
+)
+async def test_a_capped_request_is_refused_before_inference_when_its_currency_cannot_be_converted(
+    pricing: TokenPricing,
+) -> None:
     calls = []
 
     def respond(messages, info):
         calls.append(True)
         return answer(messages, info)
 
-    model = ProfilePricingModel(
-        FunctionModel(respond), TokenPricing(input="9", output="0", currency="EUR"), uuid4()
-    )
+    model = ProfilePricingModel(FunctionModel(respond), pricing, uuid4())
     guard = BudgetGuard(limits=[SpendLimit(scope=BudgetScope.RUN, limit_usd=Decimal("10"))])
     with pytest.raises(BadRequestError, match="price is unknown"):
         await Agent(model, capabilities=[guard]).run("hello")

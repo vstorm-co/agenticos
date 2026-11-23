@@ -675,10 +675,16 @@ def require_ambient_price(
     guard = _active_guard.get()
     if guard is None or not guard.limits:
         return
+    probe = RequestUsage(input_tokens=1, output_tokens=1)
+    if custom_pricing is not None:
+        # Input includes cached tokens. Probe one token in each billing category.
+        probe = RequestUsage(
+            input_tokens=3, output_tokens=1, cache_read_tokens=1, cache_write_tokens=1
+        )
     if (
         guard.ledger.has_unpriced_models
         or price_request(
-            RequestUsage(input_tokens=1, output_tokens=1),
+            probe,
             model_name,
             provider,
             custom_pricing=custom_pricing,

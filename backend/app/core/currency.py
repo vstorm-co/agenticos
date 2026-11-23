@@ -37,7 +37,9 @@ class CurrencySettings(BaseModel):
 
 
 def to_usd(amount: Decimal, currency: str, rates: Mapping[str, Decimal]) -> Decimal | None:
-    """Convert using a supplied snapshot; a missing rate is unknown, never 1:1."""
+    """Convert a nonzero amount using a rate snapshot. Zero needs no exchange rate."""
+    if amount.is_zero():
+        return amount
     rate = rates.get(currency)
     if rate is None or not rate.is_finite() or rate <= 0:
         return None

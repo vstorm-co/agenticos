@@ -1,5 +1,5 @@
 ---
-source_sha: "0fb71853e2ff"
+source_sha: "e1f4fee1c6a8"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -874,8 +874,10 @@ Własny cennik zawiera kod `currency`, niezależny od organizacji i języka inte
 Administrator wdrożenia ustawia ręczne kursy w sekcji **Waluty i kursy wymiany**
 ustawień administracyjnych. Kurs oznacza jednostki waluty za USD: przy EUR równym
 `0.9` koszt `9 EUR` zapisuje się jako `10 USD`. Zużycie zachowuje pierwotną kwotę,
-walutę i zastosowany kurs; późniejsze zmiany nie nadpisują kosztu w USD. Brak kursu
-pozostawia koszt nieznany, a wywołania z limitem są odrzucane przed inferencją.
+walutę i zastosowany kurs; późniejsze zmiany nie nadpisują kosztu w USD. Koszt
+zerowy jest zapisywany jako `0 USD` nawet bez kursu. Jeśli obowiązuje limit
+wydatków, przed inferencją wymagany jest kurs wymiany, gdy dowolna stawka
+profilu może naliczyć opłatę za tokeny. Dotyczy to też odczytów i zapisów cache.
 
 Wydatki na pulpicie, historia uruchomień, koszty rozmów i pozostały budżet są
 wyświetlane w efektywnej walucie organizacji. Widoki używają bieżącego ręcznego

@@ -1,5 +1,5 @@
 ---
-source_sha: "0fb71853e2ff"
+source_sha: "e1f4fee1c6a8"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -899,8 +899,10 @@ Los precios propios incluyen un código `currency`, independiente de la organiza
 y del idioma. Los administradores mantienen tipos manuales en **Monedas y tipos de
 cambio**. Son unidades de moneda por USD: con EUR a `0.9`, `9 EUR` se registran como
 `10 USD`. El uso conserva importe, moneda y tipo aplicados; los cambios posteriores
-no sobrescriben ese coste en USD. Una conversión ausente queda sin tarifar y las
-peticiones con límite se rechazan antes de la inferencia.
+no sobrescriben ese coste en USD. Los costes de cero se registran como `0 USD`
+aunque falte el tipo de cambio. Si hay un límite de gasto, se requiere un tipo
+de cambio antes de la inferencia cuando alguna tarifa por token del perfil puede
+generar un cargo. Esto incluye las lecturas y escrituras de caché.
 
 El gasto del panel, el historial de ejecuciones, los costes de conversación y el
 presupuesto restante se muestran en la moneda efectiva de la organización. Estas

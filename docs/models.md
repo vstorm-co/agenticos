@@ -850,8 +850,9 @@ UI language. Deployment administrators configure manual rates in **Currencies an
 exchange rates** under administration settings. Rates are currency units per USD:
 with EUR at `0.9`, a `9 EUR` cost records `10 USD`. Usage retains the original
 amount, currency and applied rate; later changes do not rewrite that USD cost.
-A missing conversion remains unpriced, and capped model calls are refused before
-inference.
+Zero costs record as `0 USD` even if the currency's rate is unavailable. A
+spending cap requires a configured exchange rate before inference if any of the
+profile's token prices can incur a charge, including cache reads and writes.
 
 Dashboard spending, run history, conversation costs and budget headroom display the
 organization's effective currency. These views use the current manual rate; a rate
