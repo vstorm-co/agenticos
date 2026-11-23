@@ -1,5 +1,5 @@
 ---
-source_sha: "dfdf522eec90"
+source_sha: "37ff2249cbf3"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -461,21 +461,25 @@ fuente la contiene, que ninguna lo hace o que no puede saberse. De cada fuente
 lee:
 
 - de una base de conocimiento: una búsqueda de cada etiqueta;
-- de un archivo de contexto o un skill: los pasajes que nombran una etiqueta;
-- de un servidor MCP: sus herramientas, según lo que cada una dice hacer.
+- de un archivo de contexto o un skill: los pasajes que nombran una etiqueta, de
+  un skill en la versión o el fork que indica el vínculo del agent;
+- de un servidor MCP de la organización que esté activado: sus herramientas,
+  según lo que cada una dice hacer.
 
 Ve etiquetas y nunca sus valores. Se ejecuta en un job, como la persona que lo
 pidió, que debe poder editar el agent, con coste medido y en Actividad. Cada
 agent y dataset conserva un informe, que sustituye el siguiente. Una fuente que
-la persona que lo pidió no puede ver no se lee, y el informe dice cuántas se
-omitieron; quien no puede ver una fuente que el informe nombra la ve sin nombre, y quien
+la persona que lo pidió no puede ver no se lee, como tampoco un servidor MCP que
+funciona con la cuenta de cada persona o de la plataforma, y el informe dice
+cuántas se omitieron; quien no puede ver una fuente que el informe nombra la ve sin nombre, y quien
 no puede ver todas las fuentes que leyó el juez recibe veredictos sin motivos.
 
 Una clave sin fuente tiene que llegar al agent como conocimiento - un
 documento, un archivo de contexto, una herramienta -, porque ningún cambio en
 sus instrucciones puede aportarla.
 [Improve](authoring.md#background-improvement-sessions) la lee así, pero solo
-desde un informe hecho para la versión que el agent ejecuta ahora. Cuando el
+desde un informe completo - con cada fuente leída - hecho para la versión que el
+agent ejecuta ahora. Cuando el
 agent se publica de nuevo o el dataset gana una versión, el informe aparece
 como desactualizado hasta que vuelvas a comprobarlo.
 

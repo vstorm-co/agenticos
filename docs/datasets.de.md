@@ -1,5 +1,5 @@
 ---
-source_sha: "dfdf522eec90"
+source_sha: "37ff2249cbf3"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -483,21 +483,26 @@ und sagt für jede Bezeichnung, dass eine Quelle sie enthält, dass keine es tut
 oder dass es sich nicht sagen lässt. Aus jeder Quelle liest er:
 
 - aus einer Wissensbasis: eine Suche nach jeder Bezeichnung;
-- aus einer Kontextdatei oder einem Skill: die Stellen, die eine Bezeichnung nennen;
-- aus einem MCP-Server: seine Tools, nach dem, was jedes laut Beschreibung tut.
+- aus einer Kontextdatei oder einem Skill: die Stellen, die eine Bezeichnung
+  nennen, aus einem Skill in der Version oder dem Fork, den die Bindung des
+  Agenten nennt;
+- aus einem eingeschalteten MCP-Server der Organisation: seine Tools, nach dem,
+  was jedes laut Beschreibung tut.
 
 Er sieht Bezeichnungen, nie die Werte. Er läuft in einem Job, als die Person,
 die gefragt hat und den Agenten bearbeiten können muss, abgerechnet und in der
 Aktivität. Jedes Paar aus Agent und Dataset behält einen Bericht, den der
 nächste ersetzt. Eine Quelle, die die fragende Person nicht sehen darf, wird
-nicht gelesen, und der Bericht sagt, wie viele ausgelassen wurden; wer eine im
+nicht gelesen, ebenso wenig ein MCP-Server, der über das Konto jeder Person
+oder der Plattform läuft, und der Bericht sagt, wie viele ausgelassen wurden; wer eine im
 Bericht genannte Quelle nicht sehen darf, sieht sie ohne Namen, und wer nicht
 jede vom Urteilenden gelesene Quelle sehen darf, erhält Urteile ohne Begründung.
 
 Ein Schlüssel ohne Quelle muss den Agenten als Wissen erreichen - ein Dokument,
 eine Kontextdatei, ein Tool -, denn keine Änderung seiner Anweisungen kann ihn
 liefern. [Improve](authoring.md#background-improvement-sessions) liest ihn so, aber nur
-aus einem Bericht für die Version, die der Agent jetzt ausführt. Sobald der
+aus einem vollständigen Bericht - jede Quelle gelesen - für die Version, die der
+Agent jetzt ausführt. Sobald der
 Agent erneut veröffentlicht wird oder das Dataset eine Version hinzugewinnt,
 gilt der Bericht als veraltet, bis Sie erneut prüfen.
 

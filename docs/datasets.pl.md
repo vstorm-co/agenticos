@@ -1,5 +1,5 @@
 ---
-source_sha: "dfdf522eec90"
+source_sha: "37ff2249cbf3"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -454,21 +454,25 @@ mówi, że ma ją jakieś źródło, że nie ma jej żadne, albo że nie da się
 ocenić. Z każdego źródła czyta:
 
 - z bazy wiedzy: wyszukiwanie każdej etykiety;
-- z pliku kontekstu lub skilla: fragmenty, w których pada etykieta;
-- z serwera MCP: jego narzędzia i to, co według opisu robią.
+- z pliku kontekstu lub skilla: fragmenty, w których pada etykieta, ze skilla w
+  wersji lub forku wskazanym w powiązaniu agenta;
+- z włączonego serwera MCP organizacji: jego narzędzia i to, co według opisu
+  robią.
 
 Widzi etykiety kluczy, nigdy ich wartości. Działa w jobie, jako osoba, która
 zleciła sprawdzenie i musi móc edytować agenta, z naliczaniem kosztu i wpisem w
 Aktywności. Każda para agenta i datasetu ma jeden raport, który zastępuje
-następny. Źródło, którego zlecający nie widzi, nie jest czytane, a raport podaje,
-ile ich pominięto; czytelnik, który nie widzi źródła wskazanego w raporcie,
+następny. Źródło, którego zlecający nie widzi, nie jest czytane, podobnie jak serwer MCP
+działający przez konto każdej osoby albo platformy, a raport podaje, ile ich
+pominięto; czytelnik, który nie widzi źródła wskazanego w raporcie,
 widzi je bez nazwy, a ten, kto nie widzi każdego źródła przeczytanego przez
 agenta oceniającego, dostaje oceny bez uzasadnień.
 
 Klucz bez źródła musi trafić do agenta jako wiedza - dokument, plik kontekstu,
 narzędzie - bo żadna zmiana instrukcji go nie dostarczy.
 [Improve](authoring.md#background-improvement-sessions) traktuje go właśnie tak,
-ale tylko z raportu zrobionego dla wersji, którą agent uruchamia teraz. Po
+ale tylko z pełnego raportu - z przeczytanym każdym źródłem - zrobionego dla
+wersji, którą agent uruchamia teraz. Po
 ponownej publikacji agenta albo nowej wersji datasetu raport jest oznaczony jako
 nieaktualny, dopóki nie sprawdzisz ponownie.
 
