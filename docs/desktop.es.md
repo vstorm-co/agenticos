@@ -1,5 +1,5 @@
 ---
-source_sha: "e2a19cf6c8da"
+source_sha: "72d9af272f9d"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -280,6 +280,8 @@ Las flechas y Enter o Tab seleccionan; Escape cierra primero las sugerencias.
 Eliminar una mención quita su vínculo al recurso del siguiente mensaje.
 
 ## Una aplicación, no una pestaña { #an-application-not-a-tab }
+
+En macOS, los enlaces que solicitan una ventana nueva, también mediante **Abrir en una ventana nueva**, se abren en el navegador predeterminado. Solo se reenvían direcciones HTTP(S) sin credenciales incorporadas; no se crean ventanas emergentes integradas. El navegador tiene su propia sesión, por lo que un enlace privado a la consola puede pedir que se inicie sesión de nuevo.
 
 En macOS la barra lateral de la consola lleva los botones de la ventana y la
 arrastra, la ventana recuerda su tamaño y posición, y cerrarla deja la app en la

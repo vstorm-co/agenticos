@@ -264,6 +264,8 @@ Deleting a mention removes its resource binding from the next message.
 
 ## An application, not a tab
 
+On macOS, links that request a new window, including **Open in a New Window**, open in the default browser. Only HTTP(S) addresses without embedded credentials are forwarded; embedded popup windows are not created. The browser has its own sign-in session, so a private console link may ask you to sign in again.
+
 On macOS the console's sidebar holds the traffic lights and drags the window, the
 window remembers its size and place, and closing it keeps the app in the menu bar.
 The menu bar has File, Edit, View, Go (`⌘1`-`⌘5`, `⌘[` and `⌘]`) and Window; a tray

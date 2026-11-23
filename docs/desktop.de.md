@@ -1,5 +1,5 @@
 ---
-source_sha: "e2a19cf6c8da"
+source_sha: "72d9af272f9d"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -277,6 +277,8 @@ Pfeiltasten und Enter oder Tab wählen aus; Escape schließt zuerst die Vorschl�
 Das Löschen einer Erwähnung entfernt ihre Ressourcenbindung aus der nächsten Nachricht.
 
 ## Eine Anwendung, kein Tab { #an-application-not-a-tab }
+
+Unter macOS öffnen Links, die ein neues Fenster anfordern, einschließlich **In neuem Fenster öffnen**, im Standardbrowser. Weitergeleitet werden nur HTTP(S)-Adressen ohne eingebettete Zugangsdaten; eingebettete Popup-Fenster werden nicht erstellt. Der Browser verwendet eine eigene Anmeldesitzung, sodass ein privater Konsolenlink eine erneute Anmeldung verlangen kann.
 
 Auf macOS trägt die Seitenleiste der Konsole die Fensterknöpfe und zieht das
 Fenster, das Fenster merkt sich Größe und Position, und Schließen lässt die App in

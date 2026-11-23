@@ -1,5 +1,5 @@
 ---
-source_sha: "e2a19cf6c8da"
+source_sha: "72d9af272f9d"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -267,6 +267,8 @@ Strzałki i Enter lub Tab wybierają zasób, a Escape najpierw zamyka podpowiedz
 Usunięcie wzmianki usuwa powiązanie zasobu z następnej wiadomości.
 
 ## Aplikacja, nie karta { #an-application-not-a-tab }
+
+Na macOS linki żądające nowego okna, także przez **Otwórz w nowym oknie**, otwierają się w domyślnej przeglądarce. Przekazywane są tylko adresy HTTP(S) bez osadzonych poświadczeń; aplikacja nie tworzy okien popup. Przeglądarka ma osobną sesję logowania, więc prywatny link do konsoli może wymagać ponownego zalogowania.
 
 Na macOS pasek boczny konsoli trzyma przyciski okna i przeciąga okno, okno
 pamięta swój rozmiar i miejsce, a zamknięcie go zostawia aplikację w pasku menu.
