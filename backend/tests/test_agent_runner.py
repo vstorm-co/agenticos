@@ -632,6 +632,36 @@ class TestPrepare:
         assert scope.additional_knowledge_base_ids == (ids[1],)
 
     @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_same_named_base_of_another_scope_is_left_out(self):
+        """Two scopes cannot be read as one union, so the second base stays out
+        rather than being read under the first one's tenant."""
+        ctx = _ctx()
+        ids = [uuid.uuid4(), uuid.uuid4()]
+        scopes = [
+            VectorScope(tenant=ctx.organization_id, knowledge_base_id=ids[0]),
+            VectorScope(tenant=None, knowledge_base_id=ids[1], operator_unfiled_only=True),
+        ]
+        collections = {
+            cid: SimpleNamespace(
+                id=cid,
+                organization_id=ctx.organization_id,
+                collection_name="shared",
+                vector_scope=scope,
+            )
+            for cid, scope in zip(ids, scopes, strict=True)
+        }
+        with patch(
+            "app.services.agent_runner.knowledge_base_repo.get_by_ids",
+            new=AsyncMock(return_value=collections),
+        ):
+            resources = await AgentRunnerService(_db())._bound_collections(
+                AgentSpec(name="Both", collection_ids=ids), ctx
+            )
+        assert resources["kb_collection_names"] == ["shared"]
+        assert resources["kb_vector_scopes"]["shared"] == scopes[0]
+
+    @pytest.mark.anyio
     async def test_preparing_a_run_resolves_every_collection_in_one_query(self):
         """`_collections` runs on every turn, so five bound collections cost
         one round trip rather than five serial reads at the front of it (#954)."""

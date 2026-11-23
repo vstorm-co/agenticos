@@ -138,6 +138,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- A workflow's knowledge search now reads every collection it names when two of
+  them share a collection name, as an agent bound to both already did; one of
+  them was silently left out. Two that share a name but belong to different
+  scopes - an app-wide collection and an organization's - are refused with
+  `COLLECTIONS_SHARE_STORAGE`, when publishing and at run time, rather than
+  searched as one.
+
 - Drafting a knowledge-gap passage and a workflow's knowledge search now search
   exactly the knowledge base that was checked. Both looked the base up again by
   its collection name, which several bases of one organization can share, so

@@ -2,11 +2,14 @@
 
 A collection name is not unique (#2537): an organization holds bases that share
 one, and bases of other organizations do too. Looked up by name alone, the store
-answers with the base it prefers for the organization. These seed three bases
-called `handbook` - the one being searched, a private sibling in the same
-organization and one in another organization - and point the name lookup at the
-sibling, then drive the knowledge-gap draft search and the workflow knowledge
+answers with the base it prefers for the organization. These seed bases called
+`handbook` - the member's own, one the organization shares with the member, a
+private sibling in the same organization, one in another organization and an
+app-wide one - and point the name lookup at the sibling, then drive the
+knowledge-gap draft search, an agent's bound search and the workflow knowledge
 search through the real store and its SQL.
+
+Searched together, two readable bases sharing the name are both read (#3249).
 """
 
 import uuid
@@ -18,6 +21,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.agents.capabilities.knowledge import _search
+from app.agents.spec import AgentSpec
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.knowledge_gap import KnowledgeSearch
@@ -26,13 +30,16 @@ from app.db.models.user import User
 from app.db.models.workflow_run import WorkflowRunStatus
 from app.repositories import knowledge_base_repo
 from app.repositories.knowledge_gap import DraftingRow
+from app.services.agent_runner import AgentRunnerService
 from app.services.knowledge_gaps import KnowledgeGapService
 from app.services.rag.config import RAGSettings
 from app.services.rag.models import Document, DocumentMetadata, DocumentPage, DocumentPageChunk
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import PgVectorStore
 from app.workflows.contracts.io import Binding, NodeOutputRef
+from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
+from app.workflows.graph.validate import validate_graph
 from app.workflows.nodes.knowledge_search import _handler as search_handler
 from tests.integration.workflow_run_support import drive, seed_member, seed_run
 
@@ -43,7 +50,11 @@ TABLE = f"rag_{COLLECTION}"
 
 
 def _kb(
-    org: Organization, owner: User, *, scope: KBScope, visibility: str | None = None
+    org: Organization | None,
+    owner: User | None,
+    *,
+    scope: KBScope,
+    visibility: str | None = None,
 ) -> KnowledgeBase:
     return KnowledgeBase(
         id=uuid.uuid4(),
@@ -53,8 +64,8 @@ def _kb(
         embedding_model="m",
         embedding_dim=3,
         embedding_provider="openrouter",
-        organization_id=org.id,
-        owner_user_id=owner.id,
+        organization_id=None if org is None else org.id,
+        owner_user_id=None if owner is None else owner.id,
         visibility=visibility,
     )
 
@@ -83,7 +94,7 @@ def _document(content: str) -> Document:
 
 
 class World:
-    """Three bases called `handbook`, a chunk in each, and a store that prefers the sibling."""
+    """Bases called `handbook`, a chunk in each, and a store that prefers the sibling."""
 
     def __init__(self, engine: AsyncEngine) -> None:
         self.engine = engine
@@ -106,12 +117,15 @@ class World:
             self.colleague = await self._colleague(db)
             self.foreign_owner, self.foreign_org = await seed_member(db)
             self.own = _kb(self.org, self.member, scope=KBScope.PERSONAL)
+            self.shared = _kb(self.org, self.colleague, scope=KBScope.ORG, visibility="org")
             self.sibling = _kb(self.org, self.colleague, scope=KBScope.ORG, visibility="private")
             self.foreign = _kb(self.foreign_org, self.foreign_owner, scope=KBScope.ORG)
-            db.add_all([self.own, self.sibling, self.foreign])
+            self.app_wide = _kb(None, None, scope=KBScope.APP)
+            db.add_all([self.own, self.shared, self.sibling, self.foreign, self.app_wide])
             await db.commit()
         for kb, content in (
             (self.own, "own chunk"),
+            (self.shared, "shared chunk"),
             (self.sibling, "sibling chunk"),
             (self.foreign, "foreign chunk"),
         ):
@@ -214,9 +228,11 @@ def _edge(source: NodeInstance, target: NodeInstance) -> Edge:
     )
 
 
-def _graph(collection_id: uuid.UUID) -> WorkflowGraph:
+def _graph(*collection_ids: uuid.UUID) -> WorkflowGraph:
     entry = _node("core.input")
-    search = _node("knowledge.search", {"collection_ids": [str(collection_id)], "top_k": 10})
+    search = _node(
+        "knowledge.search", {"collection_ids": [str(c) for c in collection_ids], "top_k": 10}
+    )
     output = _node("core.output")
     return WorkflowGraph(
         entry_node_id=entry.id,
@@ -269,3 +285,70 @@ async def test_another_organization_s_base_is_never_searched(
 
     assert run.status == WorkflowRunStatus.FAILED.value
     assert run.error is not None and run.error["code"] == "COLLECTION_NOT_ACCESSIBLE"
+
+
+async def test_a_workflow_search_reads_every_same_named_base_it_checked(
+    world: World, engine: AsyncEngine
+) -> None:
+    seeded = await seed_run(
+        engine,
+        _graph(world.own.id, world.shared.id),
+        run_input={"q": "leave policy"},
+        member=(world.member, world.org),
+    )
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert run.output is not None
+    found = {source["content"] for source in run.output["sources"]}
+    assert found == {"own chunk", "shared chunk"}
+
+
+async def test_an_agent_reads_every_same_named_base_it_is_bound_to(
+    world: World, engine: AsyncEngine
+) -> None:
+    """Already true before #3249: the runner joins same-named bases into one scope."""
+    ctx = AuthContext(
+        user_id=world.member.id, organization_id=world.org.id, role=OrgRoleName.MEMBER
+    )
+    async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+        bound = await AgentRunnerService(db)._bound_collections(
+            AgentSpec(name="Handbook", collection_ids=[world.own.id, world.shared.id]), ctx
+        )
+
+    found = await _search.search_knowledge_base(
+        "leave policy",
+        kb_collection_names=bound["kb_collection_names"],
+        kb_vector_scopes=bound["kb_vector_scopes"],
+        organization_id=world.org.id,
+        top_k=10,
+    )
+
+    assert "own chunk" in found
+    assert "shared chunk" in found
+    assert "sibling chunk" not in found
+    assert "foreign chunk" not in found
+
+
+async def test_an_app_wide_base_sharing_the_name_cannot_be_searched_with_an_org_one(
+    world: World, engine: AsyncEngine
+) -> None:
+    """One scope per name cannot hold two tenants, so the step is refused, not narrowed."""
+    graph = _graph(world.own.id, world.app_wide.id)
+    seeded = await seed_run(
+        engine, graph, run_input={"q": "leave policy"}, member=(world.member, world.org)
+    )
+    search = graph.nodes[1]
+
+    with pytest.raises(GraphValidationError) as refused:
+        async with async_sessionmaker(engine)() as db:
+            await validate_graph(db, seeded.ctx, graph)
+    run = await drive(seeded)
+
+    problems = {p["field"]: p["message"] for p in refused.value.details["fields"]}
+    message = problems[f"nodes.{search.id}.config.collection_ids.1"]
+    assert "separate Knowledge search steps" in message
+    assert run.status == WorkflowRunStatus.FAILED.value
+    assert run.error is not None and run.error["code"] == "COLLECTIONS_SHARE_STORAGE"
+    assert run.error["details"]["collection_ids"] == [str(world.app_wide.id)]

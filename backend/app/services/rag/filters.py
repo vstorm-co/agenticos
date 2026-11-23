@@ -24,6 +24,7 @@ gate (unlike the template-inherited rest of `app/services/rag/*`).
 """
 
 import re
+from dataclasses import replace
 from datetime import date
 from enum import StrEnum
 from typing import Annotated, Literal
@@ -355,6 +356,53 @@ def resolve_legacy_filter(
     return filters.model_copy(update={"parent_doc_id": doc_id})
 
 
+def _without_bases(scope: VectorScope) -> VectorScope:
+    return replace(scope, knowledge_base_id=None, additional_knowledge_base_ids=())
+
+
+def can_union(bound: VectorScope, other: VectorScope) -> bool:
+    """Whether a base of `other`'s scope can be read in one search with `bound`'s.
+
+    A collection name is not unique (#2537), and one search reads one scope per
+    name. Two bases sharing a name read as one only when everything but the
+    bases themselves agrees - the tenant, and which unfiled chunks they take -
+    since the store applies that once to the whole union.
+    """
+    return _without_bases(bound) == _without_bases(other)
+
+
+def bind_collection(
+    names: list[str], scopes: dict[str, VectorScope], name: str, scope: VectorScope
+) -> None:
+    """Add a base to the collections one search reads, joining one already bound to `name`.
+
+    `names` lists each collection once; `scopes` gives each name the union of
+    its bases, so two bases sharing a name are both read and their same-named
+    siblings are not.
+
+    Raises:
+        ValueError: The name is bound to a base `can_union` cannot join this
+            one with, or `scope` names no base to join. The caller checks for
+            the first and only binds bases; reaching here is a bug.
+    """
+    bound = scopes.get(name)
+    if bound is None:
+        names.append(name)
+        scopes[name] = scope
+        return
+    joined = scope.knowledge_base_id
+    if joined is None or not can_union(bound, scope):
+        raise ValueError(f"collection {name!r} is already bound under another scope")
+    scopes[name] = replace(
+        bound,
+        additional_knowledge_base_ids=(
+            *bound.additional_knowledge_base_ids,
+            joined,
+            *scope.additional_knowledge_base_ids,
+        ),
+    )
+
+
 __all__ = [
     "DOCUMENT_TYPE_VOCABULARY",
     "SOURCE_VOCABULARY",
@@ -366,6 +414,8 @@ __all__ = [
     "Source",
     "TenantScope",
     "UnscopedScope",
+    "bind_collection",
+    "can_union",
     "compose",
     "resolve_legacy_filter",
     "scope_for",

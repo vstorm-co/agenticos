@@ -428,6 +428,7 @@ from app.services.personal_model_policy import (
     require_personal_model_run,
 )
 from app.services.project import ProjectService
+from app.services.rag.filters import bind_collection, can_union
 from app.services.rag.overlay import with_overlay
 from app.services.routine_authority import MCP_SOURCES, RoutineAuthority
 from app.services.routine_health import RoutineHealthService
@@ -2610,21 +2611,21 @@ _DEFERRED_SKILLS_BRIEFING = (
 Said before the writes can have succeeded, so it does not claim they did."""
 
 
-def _add_collection(names: list[str], scopes: dict[str, VectorScope], base: KnowledgeBase) -> None:
-    """Add a base to the collections an agent searches, merging one that shares a name.
+def _bind_base(names: list[str], scopes: dict[str, VectorScope], base: KnowledgeBase) -> None:
+    """Add a base to the collections an agent searches, joining one that shares its name.
 
-    Bases that passed the organization check share a vector tenant, so two with
-    one collection name are read as a union without widening to their siblings.
+    A base whose name is already bound under a scope it cannot be read with -
+    another tenant's - is left out with a warning, as a collection gone since
+    publish is: the agent's reach narrows, the run goes on.
     """
-    name = base.collection_name
-    if previous := scopes.get(name):
-        scopes[name] = replace(
-            previous,
-            additional_knowledge_base_ids=(*previous.additional_knowledge_base_ids, base.id),
+    bound = scopes.get(base.collection_name)
+    if bound is not None and not can_union(bound, base.vector_scope):
+        logger.warning(
+            "Agent's collection %s shares its name with a bound base of another scope",
+            base.id,
         )
-    else:
-        names.append(name)
-        scopes[name] = base.vector_scope
+        return
+    bind_collection(names, scopes, base.collection_name, base.vector_scope)
 
 
 def _searched_bases(resources: Mapping[str, Any]) -> dict[str, tuple[UUID, ...]]:
@@ -3829,7 +3830,7 @@ class AgentRunnerService:
                     ctx.organization_id,
                 )
                 continue
-            _add_collection(names, scopes, collection)
+            _bind_base(names, scopes, collection)
         return {"kb_collection_names": names, "kb_vector_scopes": scopes}
 
     async def _run_collections(
@@ -3853,7 +3854,7 @@ class AgentRunnerService:
                 and base.organization_id == ctx.organization_id
                 and await readable_kb(self.db, ctx, base)
             ):
-                _add_collection(names, scopes, base)
+                _bind_base(names, scopes, base)
         return {"kb_collection_names": names, "kb_vector_scopes": scopes}
 
     async def _recorded_conversation_state(self, conversation_id: UUID | None) -> _RecordedState:

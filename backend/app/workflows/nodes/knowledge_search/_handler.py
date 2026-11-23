@@ -14,6 +14,7 @@ collections than the graph names.
 """
 
 import logging
+from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
@@ -30,12 +31,12 @@ from app.agents.capabilities.budget import (
 from app.agents.capabilities.knowledge._search import get_retrieval_service
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
-from app.db.models.knowledge_base import KnowledgeBase
 from app.db.session import get_worker_db_context
+from app.db.vector_tables import VectorScope
 from app.repositories import knowledge_base_repo
 from app.services.collection_access import readable_kb
 from app.services.rag.citation import cited_page
-from app.services.rag.filters import RetrievalScope, scope_for
+from app.services.rag.filters import RetrievalScope, bind_collection, can_union, scope_for
 from app.services.rag.models import SearchResult
 from app.services.spend import assert_organization_within_budget
 from app.services.workflow_execution import budget, context
@@ -76,33 +77,56 @@ class KnowledgeSearchOutput(BaseModel):
     sources: tuple[SourceRef, ...] = ()
 
 
-async def _readable(
+_SHARES_STORAGE = (
+    "This collection shares its storage name with another one in this step that "
+    "belongs to a different scope, so the two cannot be searched together. Search "
+    "them in separate Knowledge search steps."
+)
+
+
+@dataclass
+class _Collections:
+    """What one search reads: each collection name once, under the union of its bases."""
+
+    names: list[str] = field(default_factory=list)
+    scopes: dict[str, VectorScope] = field(default_factory=dict)
+    refused: list[int] = field(default_factory=list)
+    """Indexes of the collections `auth` may not read."""
+    clashing: list[int] = field(default_factory=list)
+    """Indexes of collections whose name an earlier one holds under a scope they
+    cannot be read with: an app-wide base and an organization's, say."""
+
+
+async def _collections(
     db: AsyncSession, auth: AuthContext, collection_ids: tuple[UUID, ...]
-) -> tuple[list[KnowledgeBase], list[int]]:
-    """The knowledge bases `auth` may read, and the indexes of those it may not."""
+) -> _Collections:
+    """The collections `auth` may read, bound per name as one search reads them."""
     found = await knowledge_base_repo.get_by_ids(db, collection_ids)
-    bases: list[KnowledgeBase] = []
-    refused: list[int] = []
+    out = _Collections()
     for index, collection_id in enumerate(collection_ids):
         kb = found.get(collection_id)
         if kb is None or not await readable_kb(db, auth, kb):
-            refused.append(index)
-        else:
-            bases.append(kb)
-    return bases, refused
+            out.refused.append(index)
+            continue
+        bound = out.scopes.get(kb.collection_name)
+        if bound is not None and not can_union(bound, kb.vector_scope):
+            out.clashing.append(index)
+            continue
+        bind_collection(out.names, out.scopes, kb.collection_name, kb.vector_scope)
+    return out
 
 
 async def check_resources(
     db: AsyncSession, ctx: AuthContext, config: BaseModel
 ) -> list[tuple[str, str]]:
-    """Refuse a collection the graph's author cannot read."""
+    """Refuse a collection the graph's author cannot read, or cannot search with the rest."""
     if not isinstance(config, KnowledgeSearchConfig):
         return []
-    _bases, refused = await _readable(db, ctx, config.collection_ids)
+    found = await _collections(db, ctx, config.collection_ids)
     return [
         (f"collection_ids.{index}", "This collection does not exist or is not accessible")
-        for index in refused
-    ]
+        for index in found.refused
+    ] + [(f"collection_ids.{index}", _SHARES_STORAGE) for index in found.clashing]
 
 
 def _source(result: SearchResult, fallback_collection: str) -> SourceRef:
@@ -136,13 +160,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     current = context.current()
     try:
         async with get_worker_db_context() as db:
-            bases, refused = await _readable(db, current.auth, config.collection_ids)
-            names = [kb.collection_name for kb in bases]
-            # Each checked base's own scope: resolving its name again could pick a
-            # same-named base of the organization that the run's principal cannot read.
-            scopes: dict[str, RetrievalScope] = {
-                kb.collection_name: scope_for(kb.vector_scope) for kb in bases
-            }
+            found = await _collections(db, current.auth, config.collection_ids)
             await assert_organization_within_budget(db, current.organization_id)
             limits = await budget.provider_limits(
                 db, organization_id=current.organization_id, remaining=current.budget_remaining
@@ -155,16 +173,31 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 bypassable=False,
             )
         )
-    if refused:
+    if found.refused:
         return Failed(
             error=WorkflowError(
                 code="COLLECTION_NOT_ACCESSIBLE",
                 message="A collection this search names is gone or no longer accessible",
-                details={"collection_ids": [str(config.collection_ids[i]) for i in refused]},
+                details={"collection_ids": [str(config.collection_ids[i]) for i in found.refused]},
                 # Access revoked since publishing: not a failure to route around.
                 bypassable=False,
             )
         )
+    if found.clashing:
+        return Failed(
+            error=WorkflowError(
+                code="COLLECTIONS_SHARE_STORAGE",
+                message=_SHARES_STORAGE,
+                details={"collection_ids": [str(config.collection_ids[i]) for i in found.clashing]},
+                bypassable=False,
+            )
+        )
+    names = found.names
+    # Each name's checked bases, never the name resolved again: that could pick a
+    # same-named base the run's principal cannot read.
+    scopes: dict[str, RetrievalScope] = {
+        name: scope_for(scope) for name, scope in found.scopes.items()
+    }
     service = get_retrieval_service()
     ledger = SpendLedger()
     try:

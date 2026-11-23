@@ -13,6 +13,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.exceptions import BadRequestError
+from app.db.vector_tables import VectorScope
 from app.services.rag.filters import (
     DOCUMENT_TYPE_VOCABULARY,
     SOURCE_VOCABULARY,
@@ -22,6 +23,8 @@ from app.services.rag.filters import (
     Source,
     TenantScope,
     UnscopedScope,
+    bind_collection,
+    can_union,
     compose,
     resolve_legacy_filter,
 )
@@ -157,3 +160,57 @@ class TestLegacyFilterShim:
     def test_both_sources_supplied_is_a_conflict(self):
         with pytest.raises(BadRequestError):
             resolve_legacy_filter('parent_doc_id == "a"', RetrievalFilters(parent_doc_id="b"))
+
+
+class TestBindingSameNamedBases:
+    """A collection name is not unique; one search reads one scope per name (#2537)."""
+
+    def test_a_second_base_of_the_same_tenant_joins_the_first(self):
+        tenant, first, second = uuid4(), uuid4(), uuid4()
+        names: list[str] = []
+        scopes: dict[str, VectorScope] = {}
+
+        bind_collection(names, scopes, "handbook", VectorScope(tenant, knowledge_base_id=first))
+        bind_collection(names, scopes, "handbook", VectorScope(tenant, knowledge_base_id=second))
+
+        assert names == ["handbook"]
+        assert scopes["handbook"] == VectorScope(
+            tenant, knowledge_base_id=first, additional_knowledge_base_ids=(second,)
+        )
+
+    def test_differently_named_bases_are_bound_apart(self):
+        tenant = uuid4()
+        names: list[str] = []
+        scopes: dict[str, VectorScope] = {}
+
+        bind_collection(names, scopes, "a", VectorScope(tenant, knowledge_base_id=uuid4()))
+        bind_collection(names, scopes, "b", VectorScope(tenant, knowledge_base_id=uuid4()))
+
+        assert names == ["a", "b"]
+
+    def test_bases_of_another_tenant_or_unfiled_rule_cannot_join(self):
+        org = uuid4()
+        bound = VectorScope(org, knowledge_base_id=uuid4())
+
+        assert can_union(bound, VectorScope(org, knowledge_base_id=uuid4()))
+        assert not can_union(bound, VectorScope(uuid4(), knowledge_base_id=uuid4()))
+        assert not can_union(
+            bound, VectorScope(None, knowledge_base_id=uuid4(), operator_unfiled_only=True)
+        )
+        assert not can_union(
+            bound, VectorScope(org, knowledge_base_id=uuid4(), takes_unfiled=False)
+        )
+
+    def test_joining_a_scope_it_cannot_union_with_is_refused(self):
+        names: list[str] = []
+        scopes = {"handbook": VectorScope(uuid4(), knowledge_base_id=uuid4())}
+
+        with pytest.raises(ValueError, match="another scope"):
+            bind_collection(names, scopes, "handbook", VectorScope(None, knowledge_base_id=uuid4()))
+
+    def test_joining_a_scope_naming_no_base_is_refused(self):
+        tenant = uuid4()
+        scopes = {"handbook": VectorScope(tenant, knowledge_base_id=uuid4())}
+
+        with pytest.raises(ValueError, match="another scope"):
+            bind_collection([], scopes, "handbook", VectorScope(tenant))
