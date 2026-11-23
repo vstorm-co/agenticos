@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Needs attention** on the dashboard and the agent list's badge no longer name the platform's
+  own agents (judges, drafters, generators, classifiers and the improver), whose pages do not
+  open; the link led to an unavailable page.
+
 ## [1.90.1] - 2026-11-22
 
 ### Fixed
