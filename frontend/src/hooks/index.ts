@@ -60,6 +60,7 @@ export {
   useSendAgentMessage,
 } from "./use-agent-messages";
 export { useDashboardLayout } from "./use-dashboard-layout";
+export { useNavPins } from "./use-nav-pins";
 export { useDashboardPresets } from "./use-dashboard-presets";
 export { useReusableIntegrations } from "./use-reusable-integrations";
 export { useLocalServices } from "./use-local-services";

@@ -302,7 +302,7 @@ describe("OnboardingCoach", () => {
     const back = step({
       id: "flow-agent-knowledge-return-nav",
       page: undefined,
-      target: "nav-agents",
+      target: "nav-more",
     });
     flow.state = makeState({ step: back, steps: [back] });
     render(<OnboardingCoach />);

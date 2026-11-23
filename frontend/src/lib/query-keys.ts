@@ -577,6 +577,10 @@ export const qk = {
     summary: (scope: string, from: string, to: string) =>
       ["ratings", "summary", scope, from, to] as const,
   },
+  nav: {
+    /** The caller's pinned sidebar items, keyed on the organization: pins are per user and per org. */
+    pins: (orgId: string) => ["nav", "pins", orgId] as const,
+  },
   dashboard: {
     /** One card, one query: the three shared_with_me counts travel together. */
     sharedWithMe: () => ["dashboard", "shared-with-me"] as const,

@@ -72,16 +72,11 @@ export type NavGroup = {
   domain: NavDomain;
   items: NavItem[];
   adminOnly?: boolean;
-  /**
-   * Folded to its heading until somebody opens it, or until the page they are
-   * on is inside it. For the groups set up once and visited rarely - the
-   * connections an organization holds, its people - so the column a person
-   * reads every day is the part they use every day.
-   */
-  collapsible?: boolean;
 };
 
 export const NAV_GROUPS: NavGroup[] = [
+  // The fixed group: always shown, never pinned or unpinned. Everything below
+  // it is reached through a person's pins or the More panel.
   {
     labelKey: null,
     domain: "use",
@@ -149,6 +144,16 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: FlaskConical,
         permission: Perm.datasetsView,
       },
+      // What was the Monitoring group. It shared Build's hue, so folding it in
+      // changes a heading and no page colour.
+      { labelKey: "activity", href: ROUTES.RUNS, icon: Activity, permission: Perm.runsView },
+      {
+        labelKey: "failureLearning",
+        href: ROUTES.FAILURE_LEARNING,
+        icon: Bug,
+        permission: Perm.runsView,
+      },
+      { labelKey: "backgroundWork", href: ROUTES.WORK, icon: BackgroundIcon },
     ],
   },
   {
@@ -168,7 +173,6 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     labelKey: "knowledge",
     domain: "knowledge",
-    collapsible: true,
     items: [
       {
         labelKey: "knowledgeBases",
@@ -193,21 +197,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { labelKey: "documents", href: ROUTES.DOCUMENTS, icon: Files },
     ],
   },
-  {
-    labelKey: "monitoring",
-    domain: "build",
-    collapsible: true,
-    items: [
-      { labelKey: "activity", href: ROUTES.RUNS, icon: Activity, permission: Perm.runsView },
-      {
-        labelKey: "failureLearning",
-        href: ROUTES.FAILURE_LEARNING,
-        icon: Bug,
-        permission: Perm.runsView,
-      },
-      { labelKey: "backgroundWork", href: ROUTES.WORK, icon: BackgroundIcon },
-    ],
-  },
   // What the organization is connected to, in one place: the apps agents use,
   // with the lower-level channels, remote agents, vault and sandboxes behind an
   // Advanced tab (#connectors). Set up once, revisited rarely, so folded until
@@ -215,7 +204,6 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     labelKey: "connections",
     domain: "workspace",
-    collapsible: true,
     items: [
       {
         labelKey: "connectors",
@@ -231,7 +219,6 @@ export const NAV_GROUPS: NavGroup[] = [
     labelKey: "organization",
     switcherOnly: true,
     domain: "workspace",
-    collapsible: true,
     items: [
       { labelKey: "organizations", href: ROUTES.ORGS, icon: Building2 },
       // A company's departments, with their people and what they were given

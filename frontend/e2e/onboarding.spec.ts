@@ -131,11 +131,11 @@ test.describe("Onboarding", () => {
     const reachedPage = () =>
       page.evaluate(() => (window as Window & { reached?: string[] }).reached);
 
-    const agents = page.getByRole("navigation", { name: "Primary" }).getByRole("link", {
-      name: "Agents",
+    const chat = page.getByRole("navigation", { name: "Primary" }).getByRole("link", {
+      name: "Chat",
     });
-    const link = await agents.boundingBox();
-    expect(link, "the sidebar's Agents link is on screen").not.toBeNull();
+    const link = await chat.boundingBox();
+    expect(link, "the sidebar's Chat link is on screen").not.toBeNull();
     await page.mouse.click(link!.x + link!.width / 2, link!.y + link!.height / 2);
     expect(await reachedPage(), "a click on the sidebar reached the page").toEqual([]);
 

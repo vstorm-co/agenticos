@@ -21,6 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- Pinned sidebar items add migration `0353_nav_pins` after `0352_room_thread_state`: one new table, `nav_pins`, keyed on user and organization, created under a 5 second lock timeout. Every account starts with the four fixed items and no pins; nothing is migrated from older layouts. Downgrade drops the table and the pins with it.
 - Tailscale enrollment adds migration `0347_network_connections` after `0346_merge_t3_v1850`, a connection vault table and the `network` background-worker pool. The feature remains disabled unless `TAILSCALE_ENABLED=true`; custom worker pool lists must include `network` and retain a `system` worker for cleanup. Downgrade refuses retained network connections or jobs. See the [deployment and cleanup contract](docs/design/tailscale-enrollment-implementation.md).
 - Sync upstream to v1.85.0 while preserving the T3 overlay. Merge revision `0346_merge_t3_v1850` joins `0342_criterion_verdicts` and `0345_credential_continuations` without schema changes; `alembic upgrade head` applies whichever side a deployment lacks.
 - Shared human/agent chat continues the migration chain after `0348_approval_expired_notice` through `0349_room_participants`, `0350_room_mention_requests`, `0351_room_message_reactions` and `0352_room_thread_state`. Existing personal chats keep their audience until explicitly converted; existing project chats keep project access. Downgrade refuses to discard used room, mention, reaction or thread state. These schema changes require the matching API and worker release; no production migration or deployment is included in the feature PR.
@@ -45,6 +46,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- The sidebar is Home, Chat, Inbox and Agent messages, then the items each person pins, then a More panel listing everything they may see by group. Entries have plain names (Home, Automations, Schedules, Notes, Files, Test data, Background tasks, What went wrong); the Monitoring heading is gone and its entries sit under Build; Admin is one admin-only entry at the end of More. Pins are saved per user and organization through `GET`/`PUT /api/v1/me/nav-pins`, which accepts a signed-in web session only. The sidebar's favourite-apps and recent-projects rows are removed.
 - Workflow image generation excludes GPT Image 2 until its provider documents a hard output-cost bound. Existing agent bindings remain available. The admitted Image 1.5 and 1 Mini output ceilings are checked against their documented token counts; unresolved native-tool input remains a separate hold rather than an invented charge.
 - Sync upstream to v1.73.0 while preserving the T3 overlay; migration histories join at `0324_merge_t3_upstream_v173` and `0325_merge_t3_rooms_v173`.
 

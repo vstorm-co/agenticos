@@ -55,10 +55,10 @@ test.describe("Sidebar section marking", () => {
     // rendered its empty state because the request behind it failed.
     await expect(page.getByText(SEEDED_KB_NAME, { exact: true }).first()).toBeVisible();
 
-    await expectMarked(page, "Knowledge bases");
+    await expectMarked(page, "Knowledge");
   });
 
-  test("a knowledge base detail page keeps Knowledge bases marked", async ({ page }) => {
+  test("a knowledge base detail page keeps Knowledge marked", async ({ page }) => {
     // The reported case, reached the way a user reaches it: the id in the URL is
     // a real one, so a rule that only works on paths a test made up fails here.
     await page.goto("/rag");
@@ -73,7 +73,7 @@ test.describe("Sidebar section marking", () => {
     await expect(page).toHaveURL(/\/rag\/[0-9a-f-]{36}$/);
     await expect(pageHeading(page, SEEDED_KB_NAME)).toBeVisible();
 
-    await expectMarked(page, "Knowledge bases");
+    await expectMarked(page, "Knowledge");
   });
 
   test("an agent detail page keeps Agents marked", async ({ page }) => {

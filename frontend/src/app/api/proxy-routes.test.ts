@@ -55,6 +55,7 @@ import * as channelLink from "./me/channel-link/[[...path]]/route";
 import * as notifications from "./notifications/[[...path]]/route";
 import * as permissions from "./me/permissions/route";
 import * as dashboardLayout from "./me/dashboard-layout/route";
+import * as navPins from "./me/nav-pins/route";
 import * as dashboardPresets from "./me/dashboard-layout/presets/route";
 import * as dashboardPreset from "./me/dashboard-layout/presets/[presetId]/route";
 import * as myMcpConnections from "./me/mcp-connections/route";
@@ -228,6 +229,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["voice", voice],
   ["me/permissions", permissions],
   ["me/dashboard-layout", dashboardLayout],
+  ["me/nav-pins", navPins],
   ["me/dashboard-layout/presets", dashboardPresets],
   ["me/dashboard-layout/presets/[presetId]", dashboardPreset],
   ["me/suggestions", mySuggestions],

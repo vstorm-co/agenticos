@@ -80,6 +80,7 @@ function backendRefusing(refusedOrgId: string) {
         permissions: GRANTED,
       });
     }
+    if (endpoint === "/me/nav-pins") return Promise.resolve({ item_ids: [] });
     throw new Error(`unexpected request to ${endpoint}`);
   });
 }
@@ -134,12 +135,12 @@ describe("a stale organization does not permanently empty the navigation", () =>
     );
 
     await waitFor(() => expect(screen.getByText("dashboard")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
     expect(screen.queryByText("agents")).not.toBeInTheDocument();
 
     // What the fix adds: the refusal is recognised, the selection moves to an
     // organization the caller belongs to, and the nav comes back on its own.
     await waitFor(() => expect(screen.getByText("agents")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "monitoring" }));
     for (const entry of ["skills", "activity", "knowledgeBases"]) {
       expect(screen.getByText(entry)).toBeInTheDocument();
     }
