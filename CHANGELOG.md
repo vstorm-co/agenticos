@@ -84,6 +84,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
 - Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
 - Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+- Migration `backend/alembic/versions/0356_improvement_search.py` adds `improvement_runs.mode` (existing sessions read `steps`), the `searching` stage, the `no_variant` stop reason, `improvement_iterations.search` and the `improvement_search_variants` table. Its downgrade drops them, reads a searching session as `proposing` and `no_variant` as `no_proposal`.
 
 ## [1.91.0] - 2026-11-23
 
@@ -95,6 +96,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Search many variants of an agent's instructions in Improve. **Search variants** in the start dialog (`mode: "search"`) has the helper write complete versions of the instructions a few at a time and grade each on the same draw of the attempt's training questions; held-out questions are never read. The best variant that beats the current instructions comes to **Changes**, and its check, result and acceptance are unchanged; another of the three best can be brought there instead (`PUT /{run_id}/search/choice`). The search has its own budget inside the session's limit and goes over it by at most the variant in flight, an optional cheaper or local grading model, and needs ten training questions (`422` below that). A session that finds nothing better stops with `no_variant`.
 - Configure model defaults for daily briefing, suggestions and memory maintenance: reasoning effort, sampling, output limits, request timeout and parallel tool calls. Reuse the agent builder controls, preserve provider defaults when unset, and save changes explicitly to the shared model profile.
 
 ### Fixed

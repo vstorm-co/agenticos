@@ -6199,6 +6199,10 @@
       "agent-model-credentials": {
         "title": "Who supplies the model key",
         "body": "Use the organization key, or require each signed-in chat user to connect a private vault key. The model and endpoint stay fixed; channels and automatic runs require the organization key."
+      },
+      "improvement-mode": {
+        "title": "Step by step or search",
+        "body": "Choose how the helper finds changes: one proposal per attempt, or a search of many variants of the instructions scored on training questions. Search needs at least ten training questions."
       }
     },
     "chooseLanguage": "Language",
@@ -16993,7 +16997,8 @@
       "knowledge_only": "Some topics are missing from the knowledge base. Draft the ones you want, check each draft and add it.",
       "draft": "Drafting knowledge failed.",
       "expired": "Nobody took this session further for 7 days, so it closed. Start a new one to try again.",
-      "criteria_worse": "The changes made a criterion the answers are graded on worse, though no question broke."
+      "criteria_worse": "The changes made a criterion the answers are graded on worse, though no question broke.",
+      "no_variant": "The search found no variant that did better than the current instructions on the training questions."
     },
     "before": "Before",
     "after": "After",
@@ -17396,6 +17401,41 @@
     },
     "likedSignals": "Answers rated up",
     "reviewedSignals": "Other reviewed test answers",
+    "startSearch": {
+      "label": "How to find changes",
+      "steps": "Step by step",
+      "stepsHint": "The helper proposes one set of changes per attempt, and you check each one.",
+      "search": "Search variants",
+      "searchHint": "The helper writes many versions of the instructions and scores each on the training questions. The best one comes to Changes and is then checked like any attempt.",
+      "tooFew": "Search needs at least {needed} training questions; this dataset has {count, plural, =0 {none} =1 {1} other {#}}. Add questions or improve step by step.",
+      "budget": "Search budget (USD)",
+      "budgetHint": "The search stops once its next variant would not fit. It can go over by at most the one variant it is scoring.",
+      "gradingModel": "Model that grades variants",
+      "datasetJudge": "The dataset's judge model",
+      "gradingHint": "A cheaper or local model keeps the search cheap. The check after Changes always grades with the dataset's own judge.",
+      "quote": "Includes the search budget ({search}) and the check of the variant it finds ({check}).",
+      "unpriced": "Search becomes available once the estimate has counted this dataset's training questions."
+    },
+    "search": {
+      "title": "Variant search",
+      "progress": "{tried} of up to {max} variants tried, each on the same {questions} training questions.",
+      "spent": "Spent {cost} of the {budget} search budget.",
+      "scores": "Current instructions: {seed} of required checks passed · best variant: {best}.",
+      "ended": {
+        "budget": "The search stopped at its budget.",
+        "max_variants": "The search tried as many variants as it was allowed.",
+        "patience": "The search stopped after rounds that found nothing better.",
+        "proposal": "The search stopped because the helper could not write more variants.",
+        "questions": "The search stopped because its training questions can no longer be answered.",
+        "no_variant": "The current instructions could not be graded, so no variant could be shown to be better."
+      },
+      "notVerdict": "These scores come from training questions only. The verdict comes from the check on the questions kept aside.",
+      "overshoot": "A search can go over its budget by at most the one variant it was scoring.",
+      "variant": "Variant {number}: {score}",
+      "chosen": "Brought to Changes",
+      "choose": "Bring to Changes instead"
+    },
+    "searchWorking": "Searching for better instructions. You can close this page — we'll let you know when the best variant is ready to review.",
     "record": {
       "result": "Result",
       "changes": "Changes",

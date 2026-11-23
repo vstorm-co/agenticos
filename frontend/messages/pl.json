@@ -7843,6 +7843,10 @@
       "agent-model-credentials": {
         "title": "Kto podaje klucz do modelu",
         "body": "Użyj klucza organizacji lub wymagaj prywatnego klucza w vaulcie od każdego zalogowanego użytkownika czatu. Model i endpoint pozostają stałe; kanały i automatyczne uruchomienia wymagają klucza organizacji."
+      },
+      "improvement-mode": {
+        "title": "Krok po kroku albo wyszukiwanie",
+        "body": "Wybierz, jak pomocnik szuka zmian: jedna propozycja na próbę albo wyszukiwanie wielu wariantów instrukcji ocenianych na pytaniach treningowych. Wyszukiwanie potrzebuje co najmniej dziesięciu pytań treningowych."
       }
     },
     "chooseLanguage": "Język",
@@ -16766,7 +16770,8 @@
       "knowledge_only": "W bazie wiedzy brakuje niektórych tematów. Napisz szkice tych, których potrzebujesz, sprawdź każdy i dodaj go.",
       "draft": "Przygotowanie brakującej wiedzy się nie powiodło.",
       "expired": "Nikt nie poprowadził tej sesji dalej przez 7 dni, więc się zamknęła. Rozpocznij nową, aby spróbować ponownie.",
-      "criteria_worse": "Zmiany pogorszyły kryterium, według którego oceniane są odpowiedzi, choć żadne pytanie nie zostało zepsute."
+      "criteria_worse": "Zmiany pogorszyły kryterium, według którego oceniane są odpowiedzi, choć żadne pytanie nie zostało zepsute.",
+      "no_variant": "Wyszukiwanie nie znalazło wariantu, który na pytaniach treningowych wypadłby lepiej niż obecne instrukcje."
     },
     "before": "Przed",
     "after": "Po",
@@ -17169,6 +17174,41 @@
     },
     "likedSignals": "Odpowiedzi ocenione pozytywnie",
     "reviewedSignals": "Pozostałe sprawdzone odpowiedzi testowe",
+    "startSearch": {
+      "label": "Jak szukać zmian",
+      "steps": "Krok po kroku",
+      "stepsHint": "Pomocnik proponuje jeden zestaw zmian na próbę, a Ty sprawdzasz każdy z nich.",
+      "search": "Szukaj wariantów",
+      "searchHint": "Pomocnik pisze wiele wersji instrukcji i ocenia każdą na pytaniach treningowych. Najlepsza trafia do Zmian, a potem jest sprawdzana jak każda próba.",
+      "tooFew": "Wyszukiwanie potrzebuje co najmniej {needed} pytań treningowych; ten dataset ma {count, plural, =0 {zero} one {# pytanie} few {# pytania} many {# pytań} other {# pytania}}. Dodaj pytania albo ulepszaj krok po kroku.",
+      "budget": "Budget wyszukiwania (USD)",
+      "budgetHint": "Wyszukiwanie kończy się, gdy kolejny wariant by się nie zmieścił. Może przekroczyć budget najwyżej o jeden oceniany wariant.",
+      "gradingModel": "Model oceniający warianty",
+      "datasetJudge": "Model sędziego datasetu",
+      "gradingHint": "Tańszy albo lokalny model obniża koszt wyszukiwania. Sprawdzenie po Zmianach zawsze ocenia sędzia datasetu.",
+      "quote": "Obejmuje budget wyszukiwania ({search}) i sprawdzenie znalezionego wariantu ({check}).",
+      "unpriced": "Wyszukiwanie będzie dostępne, gdy wycena policzy pytania treningowe tego datasetu."
+    },
+    "search": {
+      "title": "Wyszukiwanie wariantów",
+      "progress": "Wypróbowano {tried} z maksymalnie {max} wariantów, każdy na tych samych {questions} pytaniach treningowych.",
+      "spent": "Wydano {cost} z budgetu wyszukiwania {budget}.",
+      "scores": "Obecne instrukcje: {seed} spełnionych wymaganych kryteriów · najlepszy wariant: {best}.",
+      "ended": {
+        "budget": "Wyszukiwanie zatrzymało się na budgecie.",
+        "max_variants": "Wyszukiwanie wypróbowało tyle wariantów, ile mogło.",
+        "patience": "Wyszukiwanie zatrzymało się po rundach, które nie znalazły nic lepszego.",
+        "proposal": "Wyszukiwanie zatrzymało się, bo pomocnik nie zdołał napisać kolejnych wariantów.",
+        "questions": "Wyszukiwanie zatrzymało się, bo na jego pytania treningowe nie da się już odpowiedzieć.",
+        "no_variant": "Nie dało się ocenić obecnych instrukcji, więc żaden wariant nie mógł okazać się lepszy."
+      },
+      "notVerdict": "Te wyniki pochodzą wyłącznie z pytań treningowych. Werdykt da sprawdzenie na pytaniach odłożonych na bok.",
+      "overshoot": "Wyszukiwanie może przekroczyć budget najwyżej o jeden oceniany wariant.",
+      "variant": "Wariant {number}: {score}",
+      "chosen": "Przeniesiony do Zmian",
+      "choose": "Przenieś do Zmian zamiast tego"
+    },
+    "searchWorking": "Szukamy lepszych instrukcji. Możesz zamknąć tę stronę — damy znać, gdy najlepszy wariant będzie gotowy do przejrzenia.",
     "record": {
       "result": "Wynik",
       "changes": "Zmiany",
