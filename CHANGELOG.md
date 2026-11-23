@@ -19,6 +19,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- `agenticos cmd tool-output-report --org <id> --from <day> --to <day>` estimates how much of
+  one organization's model input is tool output sent again: result sizes per agent,
+  capability and tool, turns, tool calls and model requests per run, the re-sent share of each
+  agent's own input with cache reads and writes, and the saving from replacing results over
+  10,000 characters after two full sends. Read-only; sizes and counts, never content. Eval and
+  Builder test runs are left out unless asked for (`--include-eval`, `--include-tests`), and
+  `--json` prints the same figures.
+
 ## [1.92.0] - 2026-11-23
 
 ### Added
@@ -137,14 +147,6 @@ Two things are versioned separately from this file and worth knowing about:
 - **List keys from the reference answer** in the case editor: the Key extractor system agent reads a saved case's reference answer in a job, as the person who asked, metered and in Activity, and drafts its keys. Only a value the answer states as written is kept, and nothing reaches the case until a person uses the draft and saves it. `POST`, `GET` and `DELETE /datasets/{id}/cases/{case_id}/key-draft`. A draft is deleted once used or dismissed, or after 7 days, and the extractor's run forgets the reference answer whenever its draft goes (#2524).
 
 - **Results → Key coverage** on a dataset: for a published agent, the Source coverage system agent judges in a job which of the dataset's key labels none of the agent's sources holds - knowledge bases, context files, skills and MCP servers. It reads labels and what the sources show, never a key's value, and the report keeps labels and source names only. A reader who may not see a source gets it unnamed, and the judge's reasons only when they may see every source it read. `POST` and `GET /datasets/{id}/key-coverage`. Improve reads a test answer that misses only such keys as missing knowledge, from a report on the agent's and the dataset's current versions (#2524).
-
-- `agenticos cmd tool-output-report --org <id> --from <day> --to <day>` estimates how much of
-  one organization's model input is tool output sent again: result sizes per agent,
-  capability and tool, turns, tool calls and model requests per run, the re-sent share of each
-  agent's own input with cache reads and writes, and the saving from replacing results over
-  10,000 characters after two full sends. Read-only; sizes and counts, never content. Eval and
-  Builder test runs are left out unless asked for (`--include-eval`, `--include-tests`), and
-  `--json` prints the same figures.
 
 ### Fixed
 
