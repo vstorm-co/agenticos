@@ -356,16 +356,17 @@ def transcript_for_extraction(
                 available = remaining - separator - len(json.dumps(row, ensure_ascii=False))
                 if available <= 0:
                     continue
-                kept = 0
-                for character in reversed(content):
-                    cost = len(json.dumps(character, ensure_ascii=False)) - 2
-                    if cost > available:
-                        break
-                    available -= cost
-                    kept += 1
-                if not kept:
+                lower, upper = 0, min(len(content), available)
+                while lower < upper:
+                    middle = (lower + upper + 1) // 2
+                    text = content[-middle:]
+                    if len(json.dumps(text, ensure_ascii=False)) - 2 <= available:
+                        lower = middle
+                    else:
+                        upper = middle - 1
+                if not lower:
                     continue
-                row["text"] = content[-kept:]
+                row["text"] = content[-lower:]
                 size = len(json.dumps(row, ensure_ascii=False)) + separator
             selected[index] = row
             remaining -= size
