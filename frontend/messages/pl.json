@@ -15226,7 +15226,8 @@
       "max_cost_usd": "Kosztuje najwyżej (USD)",
       "max_latency_ms": "Odpowiada w (ms)",
       "judge": "Kryterium sędziego",
-      "length": "Ma długość"
+      "length": "Ma długość",
+      "keys": "Pokryte klucze"
     },
     "checkPlaceholder": {
       "contains": "30 dni",
@@ -15288,6 +15289,14 @@
       "maxPlaceholder": "Najwyżej",
       "path": "Sprawdzenie {number}: gdzie w odpowiedzi JSON",
       "pathPlaceholder": "Gdzie w odpowiedzi JSON (opcjonalnie)"
+    },
+    "keysCheck": {
+      "key": "Klucz {row} w checku {number}",
+      "value": "Wartość klucza {row} w checku {number}",
+      "remove": "Usuń klucz {row} z checku {number}",
+      "add": "Dodaj klucz",
+      "keyPlaceholder": "Numer faktury",
+      "valuePlaceholder": "FV-2024-0042"
     },
     "visibility": {
       "private": "Prywatna",
@@ -15751,7 +15760,8 @@
           "judge": "Kryterium sędziego: {criterion}",
           "lengthAtMost": "{unit, select, words {Najwyżej {count, plural, one {# słowo} few {# słowa} many {# słów} other {# słowa}}} other {Najwyżej {count, plural, one {# znak} few {# znaki} many {# znaków} other {# znaku}}}}",
           "lengthAtLeast": "{unit, select, words {Co najmniej {count, plural, one {# słowo} few {# słowa} many {# słów} other {# słowa}}} other {Co najmniej {count, plural, one {# znak} few {# znaki} many {# znaków} other {# znaku}}}}",
-          "lengthBetween": "{unit, select, words {Od {min} do {max} słów} other {Od {min} do {max} znaków}}"
+          "lengthBetween": "{unit, select, words {Od {min} do {max} słów} other {Od {min} do {max} znaków}}",
+          "keys": "Zawiera {count, plural, one {swój 1 klucz} few {wszystkie # klucze} many {wszystkie # kluczy} other {wszystkie # klucza}}"
         }
       },
       "notGraded": "bez oceny: {reason}",

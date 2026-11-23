@@ -15453,7 +15453,8 @@
       "max_cost_usd": "Costs at most (USD)",
       "max_latency_ms": "Answers within (ms)",
       "judge": "Judge criterion",
-      "length": "Has a length"
+      "length": "Has a length",
+      "keys": "Keys covered"
     },
     "checkPlaceholder": {
       "contains": "30 days",
@@ -15515,6 +15516,14 @@
       "maxPlaceholder": "At most",
       "path": "Check {number}: where in a JSON answer",
       "pathPlaceholder": "Where in a JSON answer (optional)"
+    },
+    "keysCheck": {
+      "key": "Key {row} of check {number}",
+      "value": "Value of key {row} of check {number}",
+      "remove": "Remove key {row} of check {number}",
+      "add": "Add key",
+      "keyPlaceholder": "Invoice number",
+      "valuePlaceholder": "INV-2024-0042"
     },
     "visibility": {
       "private": "Private",
@@ -15978,7 +15987,8 @@
           "judge": "Judged on: {criterion}",
           "lengthAtMost": "{unit, select, words {At most {count, plural, one {# word} other {# words}}} other {At most {count, plural, one {# character} other {# characters}}}}",
           "lengthAtLeast": "{unit, select, words {At least {count, plural, one {# word} other {# words}}} other {At least {count, plural, one {# character} other {# characters}}}}",
-          "lengthBetween": "{unit, select, words {Between {min} and {max} words} other {Between {min} and {max} characters}}"
+          "lengthBetween": "{unit, select, words {Between {min} and {max} words} other {Between {min} and {max} characters}}",
+          "keys": "Carries {count, plural, =1 {its 1 key} other {all # keys}}"
         }
       },
       "notGraded": "not graded: {reason}",

@@ -738,6 +738,10 @@ def _their_turns(user_id: UUID) -> ColumnElement[bool]:
     return or_(Message.author_user_id == user_id, Message.channel_identity_id.in_(linked))
 
 
+_NOT_KEYS = '$[*] ? (!exists(@.type ? (@ == "keys")))'
+"""Every check but a `keys` one, in order; `exists` keeps a check with no type."""
+
+
 async def anonymise_dataset_cases_of(
     db: AsyncSession, user_id: UUID, *, placeholder: str, at: datetime
 ) -> list[UUID]:
@@ -747,8 +751,9 @@ async def anonymise_dataset_cases_of(
     answer they got, so all of it goes:
     the input becomes `placeholder`, and the history, both answers and the note -
     the comment a down-rating left - are emptied. The case keeps its id, its
-    place, its expected tool calls and its checks, which are the curator's, and
-    is marked anonymised, so its curator can rewrite it or remove it.
+    place, its expected tool calls and its checks, which are the curator's,
+    except a `keys` check: its values were drawn from the reference answer that
+    goes. It is marked anonymised, so its curator can rewrite it or remove it.
 
     Revisions are immutable everywhere else; an erasure is the exception, and
     reaches the revisions only earlier versions still hold. Unscoped by
@@ -780,6 +785,7 @@ async def anonymise_dataset_cases_of(
             history=[],
             reference_answer=None,
             counter_example=None,
+            checks=func.jsonb_path_query_array(DatasetCase.checks, cast(_NOT_KEYS, JSONPATH)),
             note=None,
             history_author_ids=[],
             noted_by_user_id=None,

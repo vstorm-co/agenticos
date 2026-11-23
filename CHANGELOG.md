@@ -29,6 +29,7 @@ Two things are versioned separately from this file and worth knowing about:
 - A skill's improver writes an edit for every problem it is given, or says in its expected effect why the skill's text cannot fix one, and keeps every problem an agent's Improve handed over. The grades a helper reads name each criterion's family, so a whole family can be put down to a skill (#3178).
 - Agent Improve puts a criterion down to a skill only when it quotes the skill's own line stating the wrong value or rule, and that line is in the skill's text. Where the skill is only silent, or only forbids other sections, the criterion stays the agent's to fix: the helper proposes the agent change, a skill problem without a line is advice, and the verdict holds the agent to that family (#3178).
 - A skill's Improve started from an agent's Improve learns from the failed training answers that session read that used the skill, so it no longer refuses with "Nothing to learn from yet" when the agent's problems came from evals (#3178).
+- A dataset case's `keys` check lists the facts a written document must carry - an invoice number, a total, a date - each as a label and the value the document should show. It scores the share of keys the answer carries, passes only when it carries them all, and names up to 20 missing labels. A value matches as a whole token: a number is not found inside a longer one, and a space may group thousands. The case and grading editors write it, and anonymising a case removes its keys with its reference answer (#2524).
 
 ### Changed
 
@@ -42,6 +43,21 @@ Two things are versioned separately from this file and worth knowing about:
 - A skill check's agent whose runs graded every answer on fewer held-out questions than a result needs is unknown for `too_few_questions` rather than `inconclusive`, and its row says how many came out better and worse and that they are too few to be sure (#3178).
 
 ### Fixed
+
+- Drafting a knowledge-gap passage and a workflow's knowledge search now search
+  exactly the knowledge base that was checked. Both looked the base up again by
+  its collection name, which several bases of one organization can share, so
+  they could read passages from a same-named base the person or the run's
+  principal had no access to.
+- Serialize eval-answer gap classification with case-copy erasure, remove classifier manifests with the erased copies, and keep competing classifications consistent with their recorded misses.
+- Price automatically reused baselines and held-out-only checks consistently before budget gates; show the same expected cost on the evaluation start button and summary.
+- Rejudge skill checks by a stored rule version, report inaccessible rows as skipped, and recount only finished attempts under the session lock. Preserve indexed UUID lookups for judge costs.
+- Hide Add to dataset for eval-only knowledge topics, and count authoring context in Unicode code points so emoji do not cause false truncation.
+- **Cost estimates now include the confirming reruns.** An eval run, an Improve check and a skill check showed as their likely cost only the first answers, while a compared run asks about half of its cases again: on the Fernhill run, checks cost 2 to 3.6 times their estimate. The estimate adds `expected_usd`, the first answers and half of the rerun ceiling for a compared run, and the start dialog, a run's page, the Improve check's quote and a skill check show it with the most the step may cost. An Improve check no longer asks its training cases again, since nothing reads those reruns, and its ceiling counts its held-out cases alone. With no history on a model, an answer from an agent with tools is priced as `1 + EVAL_FALLBACK_TOOL_ROUNDS` requests (new, default 2) and a grading as a request that also reads the answer. (#3188).
+- **A skill's Improve session names what accepting it did.** Its status line read "Kept as draft", an agent session's label, for a change applied to the skill. It now says Applied, Made a fork, Caught up with main or Moved to main. A new `skill-checks-rejudge` command judges again, from their stored runs and with no model call, the agents of finished skill checks that an older rule judged: one kept before families shows them, and one kept before `too_few_questions` existed no longer says its run could not grade every answer. It also counts the judge's gradings in a session attempt that counted only its check's answers, and a skill check's cost now counts them, so a session's spend and budget include its judge. A decided check keeps its decision, and the group of agents with too few questions says so once, without any agent's counts (#3189).
+- **Improve finds missing knowledge in eval answers.** A session that learned from evals sorted no answer for missing knowledge, so it listed no topic even when the agent said the documents were silent: the sort read chat answers alone. Its failed training answers now go to the Knowledge gap classifier too, kept by the run that answered, and one the agent did not know becomes a question in the knowledge base's topics, listed at **Understand** and on the result. Such an answer stays in what the improver reads. A case's erased copies take the questions and verdicts read from its answers with them. The classifier also names what a miss read from an answer lacks, in a few words, and its topic is grouped and named by that - "Lead times by product" rather than one customer's question (#3190).
+
+
 
 - **Needs attention** on the dashboard and the agent list's badge no longer name the platform's
   own agents (judges, drafters, generators, classifiers and the improver), whose pages do not
