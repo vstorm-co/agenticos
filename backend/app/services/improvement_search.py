@@ -1150,7 +1150,9 @@ async def _proposal_price(
     )
     if model_profile_id is not None:
         model = await ModelProfileService(db).resolve(ctx, profile_id=model_profile_id)
-        priced = price_request(usage, model.model, model.provider)
+        priced = price_request(
+            usage, model.model, model.provider, custom_pricing=model.credential.custom_pricing
+        )
         if priced is not None:
             return Decimal(priced)
     return settings.EVAL_FALLBACK_CASE_COST_USD * count
