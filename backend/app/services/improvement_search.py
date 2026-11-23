@@ -47,6 +47,7 @@ from app.agents.system_agents import IMPROVER
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthenticationError
 from app.core.permissions import AuthContext
+from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.authoring import HunkKind, HunkOrigin
 from app.db.models.dataset import DatasetCase
@@ -79,7 +80,7 @@ from app.services.agent_registry import UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import job_context
 from app.services.background_jobs import enqueue
-from app.services.eval_run import EvalRunService
+from app.services.eval_run import EvalRunService, scoring_hash, spec_hash
 from app.services.eval_run_worker import trajectory
 from app.services.improvement_data import split_seed
 from app.services.improvement_states import SEARCH_CHOICES
@@ -117,6 +118,9 @@ FAILURES_SHOWN = 8
 """Failed training questions shown to the improver per variant it starts from."""
 
 MAX_VARIANT_CHARS = 60_000
+
+_UNANSWERED = "not answered"
+_UNGRADED = "not graded"
 
 _PLACEHOLDER = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
 
@@ -283,9 +287,14 @@ class _Propose:
 
 @dataclass
 class _Answered:
-    share: float | None = None
+    """One question's result. A question that could not be answered or graded counts as
+    failed, so every variant's score has the same questions behind it; only one that
+    requires nothing to pass, or was never asked, is left out (`counted`)."""
+
+    share: float = 0.0
     failed: list[str] = field(default_factory=list)
     budget: bool = False
+    counted: bool = True
 
 
 class ImprovementSearchService:
@@ -447,7 +456,15 @@ class ImprovementSearchService:
         )
         return batch.id
 
-    async def read(self, run: ImprovementRun, iteration: ImprovementIteration) -> VariantSearchRead:
+    async def read(
+        self, run: ImprovementRun, iteration: ImprovementIteration, *, variants_text: bool
+    ) -> VariantSearchRead:
+        """The search's progress; its best variants only with `variants_text`.
+
+        A variant is written from the attempt's training questions and reference
+        answers, so its text and rationale go only to a caller who could start the
+        session; anyone else reads the counts.
+        """
         progress = iteration.search
         assert progress is not None, "only a search attempt has a search to read"
         options = progress["settings"]
@@ -477,7 +494,9 @@ class ImprovementSearchService:
             top=[
                 SearchVariantRead.model_validate(v)
                 for v in winner(variants, progress.get("seed_score"))[:SEARCH_CHOICES]
-            ],
+            ]
+            if variants_text
+            else [],
         )
 
 
@@ -545,8 +564,8 @@ class SearchWorker:
             except AuthenticationError:
                 ctx = None
             agent = await agent_repo.get(db, run.agent_id, organization_id=self.organization_id)
-            if ctx is None or agent is None:
-                # The session's own advance reads why and stops it.
+            if ctx is None or agent is None or not await _pinned(db, run, agent):
+                # The session's own advance reads why and stops it, before more is spent.
                 await _advance(db, run)
                 return None
             spec = AgentSpec.model_validate(agent.draft_spec)
@@ -772,9 +791,23 @@ class SearchWorker:
 
         async def one(question: _Question) -> tuple[UUID, _Answered]:
             async with gate:
+                # Every answer is paid for, so a session stopped meanwhile asks no more.
+                if not await self._still_searching(unit):
+                    return question.case_id, _Answered(counted=False)
                 return question.case_id, await self._answer(unit, question)
 
         return dict(await asyncio.gather(*(one(q) for q in unit.questions)))
+
+    async def _still_searching(self, unit: _Score) -> bool:
+        async with self.sessions() as db:
+            run = await improvement_repo.get_run(
+                db, unit.run_id, organization_id=self.organization_id
+            )
+            return (
+                run is not None
+                and run.status == ImprovementStatus.RUNNING.value
+                and run.stage == ImprovementStage.SEARCHING.value
+            )
 
     async def _answer(self, unit: _Score, question: _Question) -> _Answered:
         """Answer one training question with the variant and grade it, in its own session."""
@@ -794,16 +827,14 @@ class SearchWorker:
                 )
             except Exception:
                 logger.exception("A search variant could not answer case %s", question.case_id)
-                return _Answered()
+                return _Answered(failed=[_UNANSWERED])
             if agent_run.status == RunStatus.BUDGET_EXCEEDED.value:
-                return _Answered(budget=True)
-            if agent_run.status in (RunStatus.FAILED.value, RunStatus.LOOP_STOPPED.value):
-                return _Answered(share=0.0, failed=["answer"])
+                return _Answered(budget=True, failed=[_UNANSWERED])
             if agent_run.status not in (
                 RunStatus.COMPLETED.value,
                 RunStatus.GUARDRAIL_BLOCKED.value,
             ):
-                return _Answered()
+                return _Answered(failed=[_UNANSWERED])
             if agent_run.status == RunStatus.GUARDRAIL_BLOCKED.value:
                 output = "The request was blocked by a guardrail. " + (
                     agent_run.error or "No guardrail detail was recorded."
@@ -839,11 +870,13 @@ class SearchWorker:
                 )
             except AppException:
                 logger.exception("A search variant's answer to %s was not graded", question.case_id)
-                return _Answered()
+                return _Answered(failed=[_UNGRADED])
+            required = [r for r in evaluation.results if r.required]
             return _Answered(
-                share=case_share(evaluation.results),
-                failed=[r.name for r in evaluation.results if r.required and r.status == "fail"],
+                share=case_share(evaluation.results) or 0.0,
+                failed=[r.name for r in required if r.status != "pass"],
                 budget=any(r.reason_code == "judge_budget" for r in evaluation.results),
+                counted=bool(required),
             )
 
     async def _record_score(self, unit: _Score, answered: dict[UUID, _Answered]) -> None:
@@ -860,7 +893,7 @@ class SearchWorker:
             )
             if variant is None or variant.status != SearchVariantStatus.PENDING.value:
                 return
-            shares = [a.share for a in answered.values() if a.share is not None]
+            shares = [a.share for a in answered.values() if a.counted]
             spent = await improvement_repo.spent(db, run.id, organization_id=self.organization_id)
             score = sum(shares) / len(shares) if shares else None
             await improvement_repo.update_variant(
@@ -954,6 +987,25 @@ class SearchWorker:
                 db, iteration=iteration, values={"search": updated}
             )
             await ImprovementSearchService(db).queue(run)
+
+
+async def _pinned(db: AsyncSession, run: ImprovementRun, agent: Agent) -> bool:
+    """Whether the agent and its grading are still what the session pinned at its start.
+
+    A changed draft would score variants on another model or other tools, and a
+    variant adopted onto it would undo the change.
+    """
+    dataset = await dataset_repo.get(db, run.dataset_id, organization_id=run.organization_id)
+    newest = await agent_repo.newest_version(
+        db, agent_id=agent.id, organization_id=run.organization_id
+    )
+    return (
+        agent.status != AgentStatus.ARCHIVED.value
+        and spec_hash(AgentSpec.model_validate(agent.draft_spec)) == run.base_draft_hash
+        and dataset is not None
+        and scoring_hash(DatasetScoring.model_validate(dataset.scoring)) == run.scoring_hash
+        and (None if newest is None else newest.id) == run.base_version_id
+    )
 
 
 def _grading(run: ImprovementRun, options: SearchSettings) -> DatasetScoring:

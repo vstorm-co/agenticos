@@ -1190,10 +1190,16 @@ class ImprovementPipelineService:
             self.db, run.id, organization_id=run.organization_id
         )
         result.iterations = [ImprovementIterationRead.model_validate(item) for item in iterations]
-        search = ImprovementSearchService(self.db)
-        for attempt, row in zip(result.iterations, iterations, strict=True):
-            if row.search is not None:
-                attempt.variant_search = await search.read(run, row)
+        searched = [
+            (attempt, row)
+            for attempt, row in zip(result.iterations, iterations, strict=True)
+            if row.search is not None
+        ]
+        if searched:
+            search = ImprovementSearchService(self.db)
+            variants_text = await self._may_see_variants(ctx, run)
+            for attempt, row in searched:
+                attempt.variant_search = await search.read(run, row, variants_text=variants_text)
         await self._redact_criteria(ctx, run, result.iterations)
         for attempt in result.iterations:
             detail = attempt.verdict_detail or {}
@@ -1619,6 +1625,17 @@ class ImprovementPipelineService:
             and await self.registry.may_edit(ctx, agent)
         )
 
+    async def _may_see_variants(self, ctx: AuthContext, run: ImprovementRun) -> bool:
+        """Whether the caller passes every gate of starting the session: a search's variants
+        are written from its dataset's questions and reference answers."""
+        if not await self._may_continue(ctx, run):
+            return False
+        try:
+            await DatasetService(self.db).get(ctx, run.dataset_id, perm=Perm.DATASETS_RUN)
+        except AuthorizationError, NotFoundError:
+            return False
+        return True
+
     @staticmethod
     def _require_requester(ctx: AuthContext, run: ImprovementRun) -> None:
         if ctx.user_id != run.created_by_user_id or ctx.api_key_id != run.created_by_api_key_id:
@@ -1639,8 +1656,14 @@ class ImprovementPipelineService:
         run = await self._row(ctx, agent_id, run_id, lock=True)
         if Status(run.status).active:
             return await self._read(ctx, run)
-        if run.status != Status.FAILED or run.stage not in {Stage.PROPOSING, Stage.EVALUATING}:
-            raise BadRequestError(message="Only a failed proposal or test step can be retried")
+        if run.status != Status.FAILED or run.stage not in {
+            Stage.PROPOSING,
+            Stage.SEARCHING,
+            Stage.EVALUATING,
+        }:
+            raise BadRequestError(
+                message="Only a failed proposal, search or test step can be retried"
+            )
         iteration = await improvement_repo.get_iteration(
             self.db, organization_id=ctx.organization_id, run_id=run.id, number=run.iteration
         )
@@ -1677,7 +1700,7 @@ class ImprovementPipelineService:
                 run,
                 iteration,
             )
-        else:
+        elif run.stage == Stage.EVALUATING:
             inputs = await self._inputs(
                 ctx,
                 agent_id,
@@ -1736,7 +1759,11 @@ class ImprovementPipelineService:
             mode = "next_step"
         elif self._resumes(run):
             mode = "resume"
-        elif run.status == Status.FAILED and run.stage in {Stage.PROPOSING, Stage.EVALUATING}:
+        elif run.status == Status.FAILED and run.stage in {
+            Stage.PROPOSING,
+            Stage.SEARCHING,
+            Stage.EVALUATING,
+        }:
             mode = "retry"
         elif current.verdict is not None and run.status in {Status.READY, Status.STOPPED}:
             deferred = next(
@@ -2924,6 +2951,16 @@ class ImprovementPipelineService:
                 )
             return
         if progress.get("stop_reason") is None:
+            last_progress = max(
+                value
+                for value in (run.heartbeat_at, run.stage_started_at, run.created_at)
+                if value is not None
+            )
+            if rules.stalled(
+                Stage.SEARCHING, waiting=False, last_progress=last_progress, now=datetime.now(UTC)
+            ):
+                await self._move(run, rules.stall(Stage.SEARCHING))
+                return
             await search.queue(run)
             return
         best = await search.winners(run, iteration)
