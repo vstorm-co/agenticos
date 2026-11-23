@@ -441,7 +441,7 @@ class Computer:
             raise DeviceUnavailable(message="Your computer is not connected")
         if op == "agent.open":
             # Either harness, in the chat's folder or a project inside it.
-            assert args["agent"] in {"claude_code", "codex"}
+            assert args["agent"] in {"claude_code", "codex", "custom"}
             assert args["root"] == "/w" or args["root"].startswith("/w/")
             return {"id": "p1"}
         if op == "agent.send":
@@ -1435,3 +1435,34 @@ async def test_a_refused_source_never_opens_the_local_coding_adapter(monkeypatch
         await _local_task(monkeypatch, computer, _local_workspace())
     assert "agent.open" not in computer.ops
     assert checks == (2 if late else 1)
+
+
+@pytest.mark.parametrize("selected", ["legacy-a", "not-advertised"])
+async def test_legacy_advertised_models_use_the_matching_session_protocol(selected: str) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.agents.capabilities.coding_agent._acp import (
+        AcpError,
+        _configure_session,
+        current_session_model,
+    )
+
+    conversation = AsyncMock()
+    opened = {
+        "models": {
+            "availableModels": [{"modelId": "legacy-a", "name": "Legacy A"}],
+            "currentModelId": "legacy-b",
+        }
+    }
+    if selected == "not-advertised":
+        with pytest.raises(AcpError, match="does not advertise"):
+            await _configure_session(conversation, "session", opened, model=selected, effort=None)
+        conversation.request.assert_not_awaited()
+    else:
+        configured = await _configure_session(
+            conversation, "session", opened, model=selected, effort=None
+        )
+        conversation.request.assert_awaited_once_with(
+            "session/set_model", {"sessionId": "session", "modelId": selected}
+        )
+        assert current_session_model(configured) == selected

@@ -30,7 +30,7 @@ from app.schemas.personal_model_key import (
 from app.services.model_outputs import model_outputs
 
 
-def _owner(ctx: AuthContext) -> UUID:
+def personal_connection_owner(ctx: AuthContext) -> UUID:
     if (
         current_impersonator() is not None
         or run_impersonated()
@@ -47,6 +47,8 @@ def _owner(ctx: AuthContext) -> UUID:
 
 
 def personal_profile_problem(profile: ModelProfile) -> str | None:
+    if profile.provider == "github_copilot" and profile.base_url is not None:
+        return "Copilot requires the fixed GitHub.com gateway"
     if get_provider(profile.provider).secret_kind != SecretKind.API_KEY:
         return "Personal model connections currently support API-key providers only"
     if profile.fallback_profile_ids:
@@ -65,14 +67,14 @@ class PersonalModelKeyService:
 
     async def mine(self, ctx: AuthContext) -> list[PersonalModelKeyRead]:
         rows = await key_repo.list_for(
-            self.db, organization_id=ctx.organization_id, user_id=_owner(ctx)
+            self.db, organization_id=ctx.organization_id, user_id=personal_connection_owner(ctx)
         )
         return [PersonalModelKeyRead.model_validate(row) for row in rows]
 
     async def _profile(self, ctx: AuthContext, agent_id: UUID) -> ModelProfile | None:
         from app.services.agent_registry import AgentRegistryService
 
-        _owner(ctx)
+        personal_connection_owner(ctx)
         _, spec, _ = await AgentRegistryService(self.db).get_runnable_spec(ctx, agent_id)
         if spec.model_credential_mode != "personal":
             return None
@@ -87,6 +89,18 @@ class PersonalModelKeyService:
             raise BadRequestError(message=problem)
         return profile
 
+    async def destination(self, ctx: AuthContext, agent_id: UUID) -> PersonalModelDestination:
+        """An approved personal model destination, checked through current agent run access."""
+        profile = await self._profile(ctx, agent_id)
+        if profile is None:
+            raise BadRequestError(message="This agent uses its organization's model key")
+        return PersonalModelDestination(
+            profile_id=profile.id,
+            provider=profile.provider,
+            endpoint=profile.base_url,
+            model=profile.model,
+        )
+
     async def status(self, ctx: AuthContext, agent_id: UUID) -> AgentModelConnectionRead:
         profile = await self._profile(ctx, agent_id)
         if profile is None:
@@ -94,7 +108,7 @@ class PersonalModelKeyService:
         row = await key_repo.get(
             self.db,
             organization_id=ctx.organization_id,
-            user_id=_owner(ctx),
+            user_id=personal_connection_owner(ctx),
             provider=profile.provider,
             endpoint=profile.base_url or "",
         )
@@ -124,8 +138,15 @@ class PersonalModelKeyService:
                 message="The agent's model destination changed. Review it before entering your key again.",
                 code="PERSONAL_MODEL_DESTINATION_CHANGED",
             )
-        owner = _owner(ctx)
+        owner = personal_connection_owner(ctx)
         sealed = seal_secret(ApiKeySecret(api_key=data.api_key), scope=VaultScope.user(owner))
+        await key_repo.bump_generation(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=owner,
+            provider=profile.provider,
+            endpoint=profile.base_url or "",
+        )
         await key_repo.save(
             self.db,
             organization_id=ctx.organization_id,
@@ -147,7 +168,19 @@ class PersonalModelKeyService:
         return await self.status(ctx, agent_id)
 
     async def delete(self, ctx: AuthContext, key_id: UUID) -> None:
-        owner = _owner(ctx)
+        owner = personal_connection_owner(ctx)
+        row = await key_repo.get_by_id(
+            self.db, organization_id=ctx.organization_id, user_id=owner, key_id=key_id
+        )
+        if row is None:
+            raise NotFoundError(message="Personal model connection not found")
+        await key_repo.bump_generation(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=owner,
+            provider=row.provider,
+            endpoint=row.endpoint,
+        )
         if not await key_repo.delete(
             self.db, organization_id=ctx.organization_id, user_id=owner, key_id=key_id
         ):
@@ -162,7 +195,9 @@ class PersonalModelKeyService:
         )
 
     async def resolve(self, ctx: AuthContext, profile: ModelProfile) -> ModelRequestSpec:
-        owner = _owner(ctx)
+        from app.services.personal_copilot import PersonalCopilotToken, sealed_fingerprint
+
+        owner = personal_connection_owner(ctx)
         if problem := personal_profile_problem(profile):
             raise BadRequestError(message=problem, code="PERSONAL_MODEL_CONFIGURATION")
         row = await key_repo.get(
@@ -198,10 +233,20 @@ class PersonalModelKeyService:
                 provider=profile.provider,
                 secret=secret,
                 credential_id=row.id,
+                token_source=PersonalCopilotToken(
+                    ctx.organization_id, owner, row.id, sealed_fingerprint(row.sealed_secret)
+                )
+                if profile.provider == "github_copilot"
+                else None,
                 routing={
+                    **(
+                        {"credential_fingerprint": sealed_fingerprint(row.sealed_secret)}
+                        if profile.provider == "github_copilot"
+                        else {}
+                    ),
                     "credential_updated_at": row.updated_at.isoformat()
                     if row.updated_at is not None
-                    else None
+                    else None,
                 },
                 base_url=profile.base_url,
                 api=TypeAdapter[ModelApi | None](ModelApi | None).validate_python(profile.api),

@@ -22,6 +22,7 @@ from app.db.models.conversation_last_read import ConversationLastRead
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.coding_account import CodingAccount
 from app.db.models.personal_model_key import PersonalModelKey
+from app.db.models.personal_model_generation import PersonalModelGeneration
 from app.db.models.conversation_share import ConversationShare
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
@@ -242,6 +243,7 @@ __all__ = [
     "BrowserSignIn",
     "CodingAccount",
     "PersonalModelKey",
+    "PersonalModelGeneration",
     "OrganizationAssistant",
     "ChannelPrompt",
     "ExternalAgent",
@@ -475,3 +477,5 @@ __all__ = [
 ]
 
 from app.db.models.telephony import PhoneCall, PhoneContact, PhoneEndpoint
+
+from app.db.models.chatgpt_registration import ChatGPTRegistration as ChatGPTRegistration

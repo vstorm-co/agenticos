@@ -260,7 +260,7 @@ def identity_key(provider: str, subject: str) -> str:
     An OIDC `sub` is unique **within its issuer** and nowhere else, so storing a
     bare one under a single `oidc` provider name means that pointing the
     deployment at a different tenant, realm or provider can collide with a
-    subject issued by the old one - and `get_or_create_oauth_user` matches on the
+    subject issued by the old one - and `get_or_create_oauth_account` matches on the
     pair before it ever looks at the address, so the new principal would be
     signed into the old one's account. The issuer goes in the key.
 

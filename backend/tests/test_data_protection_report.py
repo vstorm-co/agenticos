@@ -268,6 +268,27 @@ class TestCapabilityDestinations:
         assert "directly from that computer" in row[3]
         assert "not evidence" in section.note
 
+    async def test_external_acp_reports_device_owned_destinations(self) -> None:
+        db = _db(
+            [
+                (
+                    "external",
+                    1,
+                    {"capabilities": [{"id": "external_acp", "config": {"agent_id": "my-agent"}}]},
+                )
+            ],
+            [],
+        )
+        section = await _capability_destinations(db)
+        row = section.rows[0]
+        assert row[:3] == ["agent external", "default v1", "external_acp"]
+        assert "directly from the person's computer" in row[3]
+        assert "CLI-owned modes use that program's endpoint and sign-in" in row[3]
+        assert "Selected Pi vault-key modes" in row[3]
+        assert "fixed provider endpoints" in row[3]
+        assert "independently authorized" in row[3]
+        assert "sandbox" not in row[3]
+
     def test_every_registered_capability_is_classified(self) -> None:
         """A new capability fails here rather than leaving the inventory short."""
         capability_registry.load_builtins()

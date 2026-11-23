@@ -318,3 +318,13 @@ source = "backend/app/core/catalog/sandbox_runtimes.json"
 status = "deployment-review"
 obligations = "Built and run inside the deployment, never redistributed by this project; GPL tools are used as separate processes. A deployment that redistributes the built image owes the GPL and LGPL source offers for it."
 fulfilled_by = ""
+
+[[component]]
+name = "@muse-code/sdk"
+version = "1.4.23"
+kind = "Desktop managed runtime adapter dependency"
+license = "MIT"
+source = "https://github.com/meta-models/muse-code-sdk"
+status = "accepted"
+obligations = "Retain the copyright notice and MIT licence text."
+fulfilled_by = "The locked npm package includes LICENSE in the private managed runtime; desktop/runtime/package-lock.json pins its integrity. AgenticOS supplies the adapter; users install and license the Muse CLI separately."

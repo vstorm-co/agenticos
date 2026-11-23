@@ -42,6 +42,15 @@ export const qk = {
     all: () => ["coding-accounts"] as const,
     mine: (scope: string) => ["coding-accounts", scope] as const,
   },
+  subscriptionAccounts: {
+    usage: (scope: string, name: string) =>
+      ["subscription-accounts", scope, "usage", name] as const,
+    mine: (scope: string) => ["subscription-accounts", scope] as const,
+    models: (scope: string, name: string) =>
+      ["subscription-accounts", scope, "models", name] as const,
+    signIn: (scope: string, state: string) =>
+      ["subscription-accounts", scope, "sign-in", state] as const,
+  },
   durableTasks: {
     root: () => ["durable-tasks"] as const,
     all: (scope: string) => ["durable-tasks", scope] as const,
@@ -1014,7 +1023,10 @@ export const qk = {
     local: () => ["desktop", "local"] as const,
     services: () => ["desktop", "services"] as const,
     agents: () => ["desktop", "agents"] as const,
+    externalAgents: () => ["desktop", "external-agents"] as const,
     codingOptions: (harness: string | null) => ["desktop", "coding-options", harness] as const,
+    externalOptionsAll: () => ["desktop", "external-options"] as const,
+    externalOptions: (id: string | null) => ["desktop", "external-options", id] as const,
     skills: () => ["desktop", "skills"] as const,
     localFiles: (root: string) => ["desktop", "local", "files", root] as const,
     localFile: (root: string, path: string) => ["desktop", "local", "file", root, path] as const,

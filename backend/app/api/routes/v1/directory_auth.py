@@ -29,14 +29,14 @@ from app.api.routes.v1._directory_handoff import (
 from app.core.exceptions import AppException
 from app.core.security import create_access_token, create_refresh_token
 from app.schemas.directory import DirectoryLogin
-from app.schemas.token import Token
+from app.schemas.token import SignInToken
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-@router.post("/ldap/login", response_model=Token)
+@router.post("/ldap/login", response_model=SignInToken)
 async def ldap_login(
     request: Request,
     body: DirectoryLogin,
@@ -55,9 +55,10 @@ async def ldap_login(
     invitation_token = (
         await staging.peek(body.invitation_handle) if body.invitation_handle else None
     )
-    user = await sign_in.sign_in_with_password(
+    account = await sign_in.sign_in_with_password(
         body.username, body.password, invitation_token=invitation_token
     )
+    user = account.user
     refresh_token = create_refresh_token(
         subject=str(user.id), credential_version=user.credential_version
     )
@@ -68,7 +69,9 @@ async def ldap_login(
         user_agent=request.headers.get("User-Agent"),
     )
     access_token = create_access_token(subject=str(user.id), sid=str(session.id))
-    return Token(access_token=access_token, refresh_token=refresh_token)
+    return SignInToken(
+        access_token=access_token, refresh_token=refresh_token, is_new_user=account.is_new_user
+    )
 
 
 @router.get("/kerberos/login", response_model=None)
@@ -96,11 +99,15 @@ async def kerberos_login(
     try:
         await enforce_auth_limit(request, surface="auth_kerberos_login")
         invitation_token = await staging.peek(invitation_handle) if invitation_handle else None
-        user, response_token = await sign_in.sign_in_with_ticket(
+        account, response_token = await sign_in.sign_in_with_ticket(
             token, invitation_token=invitation_token
         )
         code = await issue_sign_in_code(
-            request, user, exchange_service=exchange_service, session_service=session_service
+            request,
+            account.user,
+            exchange_service=exchange_service,
+            session_service=session_service,
+            is_new_user=account.is_new_user,
         )
     except AppException as exc:
         # Our own refusals - a rejected ticket, the sign-up policy, an account

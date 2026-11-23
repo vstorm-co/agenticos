@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, Globe, Maximize2 } from "lucide-react";
+import { ArrowUpRight, Globe, Maximize2, Minimize2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { LinkFavicon } from "./link-favicon";
 
@@ -12,14 +12,17 @@ export function BrowserVisit({
   url,
   title,
   onOpen,
+  expanded,
 }: {
   url: string | null;
   title: string | null;
   onOpen?: () => void;
+  expanded?: boolean;
 }) {
   const t = useTranslations("chat");
   const host = url ? new URL(url).hostname.replace(/^www\./, "") : null;
   const label = title || (host ? t("browserLineBrowsed", { host }) : t("browserLineBrowsedWeb"));
+  const PanelIcon = expanded ? Minimize2 : Maximize2;
   const content = (
     <>
       <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs">
@@ -30,7 +33,7 @@ export function BrowserVisit({
         )}
         <span className="min-w-0 flex-1 truncate">{host || t("browserHeading")}</span>
         {onOpen ? (
-          <Maximize2
+          <PanelIcon
             className="size-3.5 shrink-0 opacity-50 transition-opacity group-hover:opacity-100"
             aria-hidden
           />
@@ -50,8 +53,9 @@ export function BrowserVisit({
         type="button"
         aria-label={label}
         onClick={onOpen}
+        aria-expanded={expanded}
         className={surface}
-        title={t("browserOpenPanel")}
+        title={t(expanded ? "browserClose" : "browserOpenPanel")}
       >
         {content}
       </button>

@@ -53,6 +53,7 @@ export function CodingAccountConnect({
   const [credential, setCredential] = useState("");
   const [enabled, setEnabled] = useState(false);
   const [oauth, setOAuth] = useState(harness === "codex");
+  const [deviceState, setDeviceState] = useState<string | null>(null);
   const pending =
     actions.connect.isPending || actions.complete.isPending || actions.start.isPending;
   const failure = (error: unknown) => toast.error(getErrorMessage(error, errors));
@@ -60,7 +61,11 @@ export function CodingAccountConnect({
     event.preventDefault();
     try {
       if (oauth)
-        await actions.complete.mutateAsync({ label, callback_url: credential.trim(), enabled });
+        await actions.complete.mutateAsync(
+          deviceState !== null
+            ? { label, device_state: deviceState, enabled }
+            : { label, callback_url: credential.trim(), enabled },
+        );
       else await actions.connect.mutateAsync({ harness, label, api_key: credential, enabled });
       setCredential("");
       actions.connect.reset();
@@ -110,6 +115,7 @@ export function CodingAccountConnect({
                   if (!oauth) return;
                   setOAuth(false);
                   setCredential("");
+                  setDeviceState(null);
                 }}
               >
                 {t("apiKey")}
@@ -118,6 +124,8 @@ export function CodingAccountConnect({
           )}
           {oauth ? (
             <ChatGPTCallbackSteps
+              deviceEndpoint="/coding-accounts/codex/device"
+              onDeviceAuthorized={setDeviceState}
               callbackUrl={credential}
               onCallbackUrlChange={setCredential}
               startSignIn={actions.start.mutateAsync}
@@ -157,7 +165,10 @@ export function CodingAccountConnect({
             <Button type="button" variant="outline" disabled={pending} onClick={onClose}>
               {common("cancel")}
             </Button>
-            <Button type="submit" disabled={pending || !credential.trim()}>
+            <Button
+              type="submit"
+              disabled={pending || (!credential.trim() && !(oauth && deviceState !== null))}
+            >
               {pending ? t("connecting") : t("connect")}
             </Button>
           </DialogFooter>

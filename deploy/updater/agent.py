@@ -225,6 +225,14 @@ class Compose:
             if not docker_gid.isdecimal():
                 raise Refused("unsupported_configuration")
             env["DOCKER_GID"] = docker_gid
+        # The gateway's address, as `scripts/deploy.sh` sets it: a host with a
+        # token runs the gateway unless its file names another address.
+        if self.values().get("SUBSCRIPTION_GATEWAY_TOKEN"):
+            env["SUBSCRIPTION_GATEWAY_URL"] = (
+                env.get("SUBSCRIPTION_GATEWAY_URL")
+                or self.values().get("SUBSCRIPTION_GATEWAY_URL")
+                or "http://subscription-gateway:8400"
+            )
         return env
 
     def values(self) -> dict[str, str]:
@@ -270,6 +278,9 @@ class Compose:
         if not frontend:
             if values.get("SANDBOXD_TOKEN"):
                 args += ["--profile", "sandbox"]
+            # Without the profile, `up -d` would stop a running gateway (#1506).
+            if values.get("SUBSCRIPTION_GATEWAY_TOKEN"):
+                args += ["--profile", "subscriptions"]
             if values.get("VISUAL_RENDER_CDP_URL", "").rstrip("/") == "http://visual-render:9222":
                 args += ["--profile", "visuals"]
             if values.get("BROWSER_SIGN_IN_CDP_URL", "").rstrip("/") == "http://browser:9222":

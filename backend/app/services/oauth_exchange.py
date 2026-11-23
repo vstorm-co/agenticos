@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict
 
 from app.core.exceptions import AuthenticationError
+from app.schemas.token import SignInToken
 
 if TYPE_CHECKING:
     from app.clients.redis import RedisClient
@@ -29,6 +30,7 @@ class _ExchangePayload(BaseModel):
     access_token: str
     refresh_token: str
     code_challenge: str | None = None
+    is_new_user: bool = False
 
 
 def native_code_challenge(client: str | None, nonce: str | None) -> str | None:
@@ -45,31 +47,33 @@ class OAuthExchangeService:
 
     Example:
         code = await service.issue(access_token=a, refresh_token=r)
-        tokens = await service.redeem(code)  # (a, r), then None on any replay
+        tokens = await service.redeem(code)  # SignInToken, then None on any replay
     """
 
     def __init__(self, redis: RedisClient) -> None:
         self.redis = redis
 
     async def issue(
-        self, *, access_token: str, refresh_token: str, code_challenge: str | None = None
+        self,
+        *,
+        access_token: str,
+        refresh_token: str,
+        code_challenge: str | None = None,
+        is_new_user: bool = False,
     ) -> str:
         """Store the token pair under a fresh code and return the code."""
         code = secrets.token_urlsafe(32)
         payload = _ExchangePayload(
-            access_token=access_token, refresh_token=refresh_token, code_challenge=code_challenge
+            access_token=access_token,
+            refresh_token=refresh_token,
+            code_challenge=code_challenge,
+            is_new_user=is_new_user,
         ).model_dump_json(exclude_none=True)
         await self.redis.set(_KEY.format(code=code), payload, ttl=_TTL_SECONDS)
         return code
 
-    async def redeem(
-        self, code: str, *, code_verifier: str | None = None
-    ) -> tuple[str, str] | None:
-        """Consume a code and return its token pair, or None if it is unknown.
-
-        The read deletes the key, so a code redeems exactly once; a replay, an
-        expired code, and a forged one are indistinguishable and all answer None.
-        """
+    async def redeem(self, code: str, *, code_verifier: str | None = None) -> SignInToken | None:
+        """Consume the code and its server-owned account-creation signal atomically."""
         key = _KEY.format(code=code)
         raw = await self.redis.get(key)
         if raw is None:
@@ -93,4 +97,8 @@ class OAuthExchangeService:
         consumed = await self.redis.getdel(key)
         if consumed is None or not secrets.compare_digest(consumed.encode(), raw.encode()):
             return None
-        return data.access_token, data.refresh_token
+        return SignInToken(
+            access_token=data.access_token,
+            refresh_token=data.refresh_token,
+            is_new_user=data.is_new_user,
+        )

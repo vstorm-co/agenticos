@@ -433,3 +433,234 @@ async def test_personal_sign_in_returns_an_owner_bound_grant_without_an_org_secr
     assert pair.refresh_token.get_secret_value() == "refresh-1"
     with pytest.raises(BadRequestError, match="expired or was already used"):
         await service.finish_personal_sign_in(ctx, _callback(url))
+
+
+def _device_redis() -> MagicMock:
+    redis = _redis()
+
+    async def _get(key):
+        return redis.store.get(key)
+
+    async def _delete(key):
+        return redis.store.pop(key, None) is not None
+
+    redis.get = AsyncMock(side_effect=_get)
+    redis.delete = AsyncMock(side_effect=_delete)
+    return redis
+
+
+def _device_api(*responses: httpx2.Response):
+    calls: list[tuple[str, dict[str, str]]] = []
+    queue = list(responses)
+
+    async def call(path: str, payload: dict[str, str]) -> httpx2.Response:
+        calls.append((path, payload))
+        return queue.pop(0)
+
+    return call, calls
+
+
+class TestDeviceSignIn:
+    @pytest.mark.anyio
+    async def test_an_approved_code_is_sealed_until_its_owner_redeems_it_once(self) -> None:
+        ctx = _ctx()
+        call, calls = _device_api(
+            httpx2.Response(
+                200, json={"device_auth_id": "dev-1", "usercode": "ABCD-1234", "interval": "3"}
+            ),
+            httpx2.Response(403),
+            httpx2.Response(
+                200,
+                json={
+                    "authorization_code": "code-1",
+                    "code_verifier": "v-1",
+                    "code_challenge": "c",
+                },
+            ),
+        )
+        exchanged: list[tuple[str, str, str]] = []
+
+        async def exchange(flow, code):
+            exchanged.append((flow.redirect_uri, flow.code_verifier, code))
+            return _pair()
+
+        redis = _device_redis()
+        service = OpenAICodexService(MagicMock(), redis)
+        with (
+            patch.object(openai_codex, "_device_call", call),
+            patch.object(openai_codex.OpenAICodexOAuthFlow, "exchange_code", exchange),
+        ):
+            started = await service.start_device_sign_in(ctx)
+            assert started.user_code == "ABCD-1234" and started.interval_seconds == 3
+            assert started.verification_url == "https://auth.openai.com/codex/device"
+            assert await service.poll_device_sign_in(ctx, started.state) is False
+            with pytest.raises(Exception, match="Approve the code"):
+                await service.finish_personal_sign_in(ctx, None, started.state)
+            assert await service.poll_device_sign_in(ctx, started.state) is True
+            assert await service.poll_device_sign_in(ctx, started.state) is True
+            assert "access-1" not in json.dumps(redis.store)
+            secret = await service.finish_personal_sign_in(ctx, None, started.state)
+            with pytest.raises(Exception, match="expired or was already used"):
+                await service.finish_personal_sign_in(ctx, None, started.state)
+        assert secret.refresh_token.get_secret_value() == "refresh-1"
+        assert exchanged == [("https://auth.openai.com/deviceauth/callback", "v-1", "code-1")]
+        assert calls[0] == ("usercode", {"client_id": openai_codex._PUBLIC_CLIENT_ID})
+        assert calls[1][0] == "token" and calls[1][1]["device_auth_id"] == "dev-1"
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("who", ["other_user", "other_org"])
+    async def test_another_person_or_organization_cannot_poll_or_redeem(self, who: str) -> None:
+        ctx = _ctx()
+        call, _ = _device_api(
+            httpx2.Response(200, json={"device_auth_id": "dev", "user_code": "CODE"})
+        )
+        service = OpenAICodexService(MagicMock(), _device_redis())
+        with patch.object(openai_codex, "_device_call", call):
+            started = await service.start_device_sign_in(ctx)
+        intruder = (
+            _ctx(org_id=ctx.organization_id)
+            if who == "other_user"
+            else _ctx(user_id=ctx.subject_id)
+        )
+        with pytest.raises(Exception, match="expired or was already used"):
+            await service.poll_device_sign_in(intruder, started.state)
+        with pytest.raises(Exception, match="expired or was already used"):
+            await service.finish_personal_sign_in(intruder, None, started.state)
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "response",
+        [httpx2.Response(500), httpx2.Response(200, json={"usercode": "only-a-code"})],
+    )
+    async def test_no_device_code_falls_back_to_the_address(self, response) -> None:
+        call, _ = _device_api(response)
+        with (
+            patch.object(openai_codex, "_device_call", call),
+            pytest.raises(BadRequestError, match="Sign in with the address"),
+        ):
+            await OpenAICodexService(MagicMock(), _device_redis()).start_device_sign_in(_ctx())
+
+    @pytest.mark.anyio
+    async def test_a_refused_code_or_failed_exchange_ends_the_sign_in(self) -> None:
+        ctx = _ctx()
+        redis = _device_redis()
+        service = OpenAICodexService(MagicMock(), redis)
+        start = httpx2.Response(200, json={"device_auth_id": "d", "user_code": "C"})
+        call, _ = _device_api(start, httpx2.Response(400, json={"error": "denied"}))
+        with patch.object(openai_codex, "_device_call", call):
+            started = await service.start_device_sign_in(ctx)
+            with pytest.raises(Exception, match="refused this device sign-in"):
+                await service.poll_device_sign_in(ctx, started.state)
+        assert not redis.store
+        call, _ = _device_api(
+            start,
+            httpx2.Response(200, json={"authorization_code": "c", "code_verifier": "v"}),
+        )
+        with (
+            patch.object(openai_codex, "_device_call", call),
+            patch.object(
+                openai_codex.OpenAICodexOAuthFlow,
+                "exchange_code",
+                AsyncMock(side_effect=CredentialsRefreshError("no")),
+            ),
+        ):
+            started = await service.start_device_sign_in(ctx)
+            with pytest.raises(Exception, match="did not finish"):
+                await service.poll_device_sign_in(ctx, started.state)
+        assert not redis.store
+
+    @pytest.mark.anyio
+    async def test_an_unreachable_chatgpt_keeps_the_code_pending(self) -> None:
+        ctx = _ctx()
+        service = OpenAICodexService(MagicMock(), _device_redis())
+        call, _ = _device_api(httpx2.Response(200, json={"device_auth_id": "d", "user_code": "C"}))
+        with patch.object(openai_codex, "_device_call", call):
+            started = await service.start_device_sign_in(ctx)
+
+        async def offline(_path, _payload):
+            raise httpx2.ConnectError("offline")
+
+        with patch.object(openai_codex, "_device_call", offline):
+            assert await service.poll_device_sign_in(ctx, started.state) is False
+
+    @pytest.mark.anyio
+    async def test_a_sign_in_needs_an_address_or_a_device_code(self) -> None:
+        with pytest.raises(Exception, match="device code"):
+            await OpenAICodexService(MagicMock(), _device_redis()).finish_personal_sign_in(
+                _ctx(), None, None
+            )
+
+    @pytest.mark.anyio
+    async def test_the_device_api_is_called_on_chatgpts_accounts_host(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen: list[httpx2.Request] = []
+        real = httpx2.AsyncClient
+
+        def client(**kwargs):
+            def answer(request: httpx2.Request) -> httpx2.Response:
+                seen.append(request)
+                return httpx2.Response(403)
+
+            return real(transport=httpx2.MockTransport(answer), **kwargs)
+
+        monkeypatch.setattr(openai_codex.httpx2, "AsyncClient", client)
+        response = await openai_codex._device_call("token", {"device_auth_id": "d"})
+        assert response.status_code == 403
+        assert str(seen[0].url) == "https://auth.openai.com/api/accounts/deviceauth/token"
+        assert json.loads(seen[0].content) == {"device_auth_id": "d"}
+
+    @pytest.mark.anyio
+    async def test_a_concurrent_or_corrupted_redemption_is_refused(self) -> None:
+        ctx = _ctx()
+        redis = _device_redis()
+        service = OpenAICodexService(MagicMock(), redis)
+        key = openai_codex._DEVICE_KEY.format(state="s")
+        sealed = seal_secret(
+            OpenAICodexSecret(
+                access_token="access-token-1",
+                refresh_token="refresh-token-1",
+                account_id="acct-1234abcd",
+            ),
+            scope=VaultScope.organization(ctx.organization_id),
+        )
+        pending = {
+            "device_auth_id": "d",
+            "user_code": "C",
+            "user_id": str(ctx.subject_id),
+            "organization_id": str(ctx.organization_id),
+            "sealed": sealed.ciphertext,
+            "key_version": str(sealed.key_version),
+        }
+        redis.store[key] = json.dumps(pending)
+        redis.getdel = AsyncMock(return_value=None)
+        with pytest.raises(Exception, match="already used"):
+            await service.finish_personal_sign_in(ctx, None, "s")
+        other = seal_secret(
+            unseal_secret(
+                _row(ctx.organization_id).sealed_secret,
+                kind=SecretKind.OPENAI_CODEX,
+                scope=VaultScope.organization(ctx.organization_id),
+            ),
+            scope=VaultScope.organization(ctx.organization_id),
+        )
+        redis.getdel = AsyncMock(return_value="x")
+        with patch.object(openai_codex, "unseal_secret", return_value=MagicMock()):
+            redis.store[key] = json.dumps({**pending, "sealed": other.ciphertext})
+            with pytest.raises(Exception, match="unusable"):
+                await service.finish_personal_sign_in(ctx, None, "s")
+
+    @pytest.mark.anyio
+    async def test_a_malformed_approval_is_a_refusal_not_a_sign_in(self) -> None:
+        ctx = _ctx()
+        redis = _device_redis()
+        service = OpenAICodexService(MagicMock(), redis)
+        call, _ = _device_api(
+            httpx2.Response(200, json={"device_auth_id": "d", "user_code": "C"}),
+            httpx2.Response(200, json={"authorization_code": ""}),
+        )
+        with patch.object(openai_codex, "_device_call", call):
+            started = await service.start_device_sign_in(ctx)
+            with pytest.raises(Exception, match="refused this device sign-in"):
+                await service.poll_device_sign_in(ctx, started.state)
+        assert not redis.store

@@ -152,7 +152,8 @@
     "whatsNewDone": "Rozumiem",
     "monitoring": "Monitorowanie",
     "backgroundWork": "Praca w tle",
-    "developerAccess": "API i MCP"
+    "developerAccess": "API i MCP",
+    "subscriptions": "Subskrypcje"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -278,8 +279,7 @@
       "heading": "Pytanie do Ciebie",
       "answered": "Pytania i odpowiedzi",
       "submitting": "Wysyłanie odpowiedzi…",
-      "details": "Szczegóły narzędzia",
-      "reveal": "Odpowiedz na pytanie agenta"
+      "details": "Szczegóły narzędzia"
     },
     "loadEarlierMessages": "Wczytaj wcześniejsze wiadomości",
     "accessLevel": "Poziom dostępu",
@@ -442,7 +442,33 @@
         "off": "Wyłączone",
         "asksFirst": "Zapyta przy pierwszej wiadomości",
         "noCloud": "Ten agent pracuje na Twoim komputerze, więc nie ma przestrzeni w chmurze. Wybierz folder albo cały komputer.",
-        "agentComputerConsent": "Dozwolone dla {agent} w każdej rozmowie na tym komputerze. Polecenia działają bez osobnych natywnych pytań. Możesz cofnąć dostęp tutaj; uprawnienia systemu nadal obowiązują."
+        "agentComputerConsent": "Dozwolone dla {agent} w każdej rozmowie na tym komputerze. Polecenia działają bez osobnych natywnych pytań. Możesz cofnąć dostęp tutaj; uprawnienia systemu nadal obowiązują.",
+        "primaryRuntimeDisabled": "Operator musi włączyć tę integrację dla uprawnionego wdrożenia. Samo zalogowanie nie potwierdza uprawnień u dostawcy.",
+        "primaryRuntime": "Środowisko prowadzące rozmowę",
+        "nativeClaude": "Claude Agent · ten komputer",
+        "nativeCodex": "Codex · ten komputer",
+        "primaryRuntimeHelp": "Wybrane środowisko odpowiada, korzystając z logowania i ustawień modeli we własnym CLI. Obowiązują uprawnienia i zatwierdzenia narzędzi AgenticOS. Tylko tekst; wyłącz nadpisywanie ustawień modelu, Code Mode, recenzentów i kompakcję platformy. Koszt użycia pozostaje nieznany.",
+        "primaryRuntimeAccess": "Dostęp narzędzi środowiska",
+        "primaryRuntimeEdit": "Zmiany zgodne z zasadami agenta",
+        "primaryRuntimeModel": "ID modelu natywnego (opcjonalnie)",
+        "primaryRuntimeReset": "Zresetuj sesję natywną",
+        "primaryRuntimeResetHelp": "Zachowuje czat i tworzy nowy kontekst natywny. Po Stop lub utracie połączenia sprawdź wykonane i niepewne akcje, zanim będziesz kontynuować.",
+        "nativeExternal": "Zewnętrzny agent · ten komputer",
+        "externalNotRegistered": "Zarejestruj agenta ACP w ustawieniach aplikacji desktopowej, na przykład Antigravity, Cursor albo Cline, i zaloguj się w nim, zanim wybierzesz go tutaj.",
+        "externalRegistration": "Agent",
+        "externalModel": "Model",
+        "externalAccountDefault": "Domyślny agenta ({model})",
+        "externalAccountDefaultUnknown": "Domyślny agenta",
+        "externalModelsLoading": "Odczytuję modele dostępne dla logowania tego agenta…",
+        "externalModelsFailed": "Nie udało się odczytać modeli tego agenta. Sprawdź jego logowanie i spróbuj ponownie.",
+        "externalModelsRetry": "Odczytaj modele ponownie",
+        "externalHelp": "Używa logowania i ustawień agenta w jego CLI; żaden inny tryb logowania ani rozliczeń nie jest podstawiany. Własne narzędzia agenta działają z dostępem lokalnym. Model na liście nie dowodzi uprawnień ani pozostałego limitu.",
+        "externalCliModels": "Ten agent wybiera model we własnych ustawieniach.",
+        "geminiVaultKey": "Klucz Gemini API",
+        "geminiDesktopKey": "Klucz odziedziczony przez aplikację desktopową (GEMINI_API_KEY)",
+        "geminiVaultUnavailable": "Nie udało się tu wyświetlić kluczy z vault; używany jest klucz odziedziczony przez aplikację desktopową.",
+        "primaryRuntimeTerms": "Używasz własnego konta w tym CLI. Warunki dostawcy mogą ograniczać użycie przez aplikacje firm trzecich, a dostawca może ograniczyć lub zawiesić konto; to ryzyko jest po Twojej stronie.",
+        "antigravityPersonalRisk": "Ta rejestracja używa Twojego osobistego logowania Google. Google może ograniczyć lub zawiesić konto używane przez narzędzia firm trzecich; zaakceptowałeś to ryzyko przy rejestracji."
       },
       "modelSection": "Model",
       "permissionsSection": "Uprawnienia",
@@ -643,7 +669,6 @@
     "membersCouldNotBeRead": "Nie udało się odczytać osób w tej organizacji.",
     "modelPicker": {
       "noMatchingModels": "Brak pasujących modeli.",
-      "noSavedModels": "Nie ma zapisanych modeli tego dostawcy.",
       "allModels": "Modele",
       "applyingModel": "Wybieranie modelu…",
       "selected": "Wybrany",
@@ -665,7 +690,18 @@
       "runModel": "Uruchom na tym modelu",
       "thisChat": "Tylko ten czat",
       "changeModel": "Zmień model",
-      "profilesUnavailable": "Nie udało się odczytać ustawień modelu. Spróbuj ponownie przed wyborem innego modelu."
+      "profilesUnavailable": "Nie udało się odczytać ustawień modelu. Spróbuj ponownie przed wyborem innego modelu.",
+      "catalogCount": "{count, plural, one {# model} few {# modele} many {# modeli} other {# modelu}}",
+      "catalogLive": "Katalog dostawcy",
+      "catalogFallback": "Lista zastępcza — katalog dostawcy jest niedostępny.",
+      "catalogUnlisted": "Wpisz identyfikator modelu podany przez dostawcę.",
+      "catalogFailed": "Nie udało się odświeżyć katalogu. Spróbuj ponownie.",
+      "refreshCatalog": "Odśwież modele",
+      "catalogRegion": "Region katalogu",
+      "catalogGlobal": "Globalny",
+      "catalogEu": "Unia Europejska",
+      "catalogCustom": "Własny endpoint",
+      "catalogRegionHint": "Dostępność modeli zależy od regionu. Wybrany model zachowa ten region."
     },
     "newChat": "Nowy czat",
     "newConversation": "Nowa konwersacja",
@@ -1114,7 +1150,11 @@
         "column": "Kolumna",
         "value": "Wartość",
         "recordLabel": "Rekord"
-      }
+      },
+      "runAcpAgent": "Zewnętrzny agent ACP",
+      "runningAcpAgent": "Zewnętrzny agent ACP",
+      "inspectAcpAgent": "Odczytaj modele ACP",
+      "readingAcpModels": "Odczytywanie modeli ACP"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -1678,6 +1718,8 @@
       "failed": "Nie udało się wczytać Inboxa.",
       "refreshFailed": "Nie udało się odświeżyć skrzynki. Wyświetlamy ostatnio pobrane elementy."
     },
+    "queuedPaused": "Kolejka wstrzymana",
+    "resumeQueue": "Wznów kolejkę",
     "routineHistoryReadOnly": "To historia rutyny tylko do odczytu. Zrób fork odpowiedzi, aby kontynuować w nowym chacie.",
     "routineContinueChat": "Kontynuuj w nowym chacie"
   },
@@ -3049,6 +3091,8 @@
       "unexpectedWithDigest": "Wystąpił nieoczekiwany błąd. ID błędu: {digest}"
     },
     "runs": {
+      "rawRecord": "Surowy zapis",
+      "recordedFailure": "Dlaczego uruchomienie się zatrzymało",
       "aParkedRunIsStill": "Wstrzymany run nadal czeka. Nic nie zostało rozstrzygnięte i nic nie wygasło.",
       "activity": "Aktywność",
       "activity2": "Aktywność",
@@ -5457,10 +5501,15 @@
         "runs": "Twoje runy",
         "finished": "Ukończone",
         "finishedOf": "z {total} runów",
-        "waiting": "Czeka na Ciebie",
+        "waiting": "Do przejrzenia",
         "nothingWaiting": "Nic nie czeka",
         "spent": "Wydane",
-        "spentLabel": "wydano {amount}"
+        "spentLabel": "wydano {amount}",
+        "waitingLabel": {
+          "approvals": "Akcje do zatwierdzenia",
+          "questions": "Pytania do odpowiedzi",
+          "suggestions": "Sugestie agentów"
+        }
       },
       "eval-runs": {
         "title": "Runy ewaluacji",
@@ -5828,19 +5877,19 @@
       "eveningNamed": "Dobry wieczór, {name}",
       "ran": "Twoje agenty uruchomiono <b>{runs, plural, =0 {ani razu} =1 {raz} few {# razy} many {# razy} other {# razy}}</b> w tym okresie.",
       "nothingWaiting": "Nic nie czeka na Ciebie.",
-      "waitingOn": "Czeka na Ciebie: <b>{items}</b>.",
+      "waitingOn": "Masz <b>{items}</b>.",
       "waiting": {
-        "questions": "{count, plural, one {# pytanie} few {# pytania} other {# pytań}}",
-        "approvals": "{count, plural, one {1 wywołanie} few {# wywołania} many {# wywołań} other {# wywołania}}",
+        "questions": "{count, plural, one {# pytanie do odpowiedzi} few {# pytania do odpowiedzi} other {# pytań do odpowiedzi}}",
+        "approvals": "{count, plural, one {# akcję do zatwierdzenia} few {# akcje do zatwierdzenia} other {# akcji do zatwierdzenia}}",
         "review": "{count, plural, one {1 odpowiedź do przeglądu} few {# odpowiedzi do przeglądu} many {# odpowiedzi do przeglądu} other {# odpowiedzi do przeglądu}}",
         "suites": "{count, plural, one {1 oblana suita} few {# oblane suity} many {# oblanych suit} other {# oblanej suity}}",
-        "suggestions": "{count, plural, one {1 sugestia} few {# sugestie} many {# sugestii} other {# sugestii}}"
+        "suggestions": "{count, plural, one {# sugestię w Inbox} few {# sugestie w Inbox} other {# sugestii w Inbox}}"
       },
       "summary": "Twoje agenty uruchomiono <b>{runs, plural, =0 {ani razu} =1 {raz} few {# razy} many {# razy} other {# razy}}</b> w tym okresie. {waiting, plural, =0 {Nic nie czeka na Ciebie.} =1 {<b>Jedno wywołanie</b> czeka na Ciebie.} few {<b># wywołania</b> czekają na Ciebie.} many {<b># wywołań</b> czeka na Ciebie.} other {<b># wywołań</b> czeka na Ciebie.}}"
     },
     "discover": {
       "title": "Odkryj AgenticOS",
-      "subtitle": "Co potrafią twoje agenty, a łatwo to przeoczyć.",
+      "subtitle": "Korzystaj z własnych modeli, podłącz narzędzia i zamieniaj rozmowy w konkretne wyniki.",
       "previous": "Poprzednie wskazówki",
       "next": "Kolejne wskazówki",
       "dismissAll": "Ukryj wskazówki",
@@ -5900,6 +5949,31 @@
           "title": "Naucz sposobu pracy zespołu",
           "body": "Skills to spisane instrukcje - szablon oferty, checklista wdrożenia - które agent wczytuje, gdy zadanie ich wymaga.",
           "cta": "Napisz skill"
+        },
+        "subscriptions": {
+          "title": "Korzystaj z konta Claude lub Codex",
+          "body": "Połącz obsługiwane konto Claude Code, ChatGPT (Codex) lub Antigravity i wybieraj jego modele we własnych czatach.",
+          "cta": "Połącz subskrypcję"
+        },
+        "firstTask": {
+          "title": "Zacznij od konkretnego zadania",
+          "body": "Poproś o raport z researchu, porównanie arkuszy albo małą aplikację. Dodaj pliki i zachowaj wyniki w rozmowie.",
+          "cta": "Wypróbuj pierwsze zadanie"
+        },
+        "connectedTools": {
+          "title": "Podłącz codzienne narzędzia",
+          "body": "Połącz GitHub, Notion lub Google Workspace, aby agenci mogli pracować z usługami w ramach udzielonego dostępu.",
+          "cta": "Połącz narzędzia"
+        },
+        "projects": {
+          "title": "Trzymaj pracę w jednym projekcie",
+          "body": "Zbierz powiązane czaty, pliki i instrukcje w projekcie. Kolejne rozmowy mogą korzystać z tego samego kontekstu.",
+          "cta": "Otwórz projekty"
+        },
+        "personalMemory": {
+          "title": "Kontroluj swój kontekst",
+          "body": "Sprawdź, co agenci o Tobie pamiętają. Poprawiaj lub usuwaj zapisane fakty w ustawieniach własnej pamięci.",
+          "cta": "Sprawdź swoją pamięć"
         }
       }
     },
@@ -5952,6 +6026,11 @@
     "typeToConfirm": "Wpisz <mono>{phrase}</mono>, aby potwierdzić",
     "typeYourAnswer": "Wpisz odpowiedź…",
     "useProviderDefault": "Użyj domyślnych providera",
+    "runtimeApprovePlan": "Zatwierdź plan",
+    "runtimeRejectPlan": "Odrzuć plan",
+    "runtimeYes": "Tak",
+    "runtimeNo": "Nie",
+    "pickBetween": "Wybierz od {minimum} do {maximum}.",
     "pickAnyNumber": "Wybierz wszystkie pasujące.",
     "useThisAnswer": "Użyj",
     "continue": "Dalej",
@@ -7242,10 +7321,6 @@
         "title": "Przegląd",
         "body": "Tutaj są wszystkie ocenione odpowiedzi, również już przejrzane. Filtruj według rezultatu, agenta lub tagu, a potem otwórz odpowiedź, sprawdź dowody i zapisz decyzję."
       },
-      "dataset-key-coverage": {
-        "title": "Pokrycie kluczy",
-        "body": "Zobacz, których faktów wymaganych przez sprawdzenia kluczy nie zawiera żadne źródło agenta. Brakujący fakt trzeba dać agentowi jako wiedzę; żadna zmiana instrukcji go nie dostarczy."
-      },
       "agents-system": {
         "title": "Agenci systemowi",
         "body": "Agenci, których platforma uruchamia sama, pogrupowani według zadań: sędziowie oceniający odpowiedzi w ewaluacjach, generator przypadków, autor i klasyfikator luk oraz asystent autorski. Otwórz jednego, żeby zmienić instrukcje, model lub budżet; dataset wybiera sędziego na karcie Grading, a New agent dodaje kolejnego sędziego."
@@ -7726,6 +7801,10 @@
         "title": "Konta do programowania",
         "body": "Podłącz własne konto do kodowania i jawnie zezwól na jego użycie. Prywatne zadania w chmurze zwracają diff i archiwum wyników bez automatycznej zmiany wspólnych plików projektu."
       },
+      "personal-subscription-accounts": {
+        "title": "Konta subskrypcyjne",
+        "body": "Zaloguj się do swoich subskrypcji AI. Modele „Subscription accounts” korzystają z nich tylko w Twoich własnych rozmowach."
+      },
       "chat-coding-accounts": {
         "title": "Twoje konta coding",
         "body": "Podłącz Codex lub Claude Code bez wychodzenia z chatu. To Twoje prywatne konta do zadań w chmurze; lokalne narzędzia desktopowe mają osobne logowanie."
@@ -7852,7 +7931,15 @@
       },
       "agent-model-credentials": {
         "title": "Kto podaje klucz do modelu",
-        "body": "Użyj klucza organizacji lub wymagaj prywatnego klucza w vaulcie od każdego zalogowanego użytkownika czatu. Model i endpoint pozostają stałe; kanały i automatyczne uruchomienia wymagają klucza organizacji."
+        "body": "Wybierz swoją subskrypcję i połącz ją tutaj albo użyj klucza API organizacji. Własne gatewaye i endpointy znajdziesz w zaawansowanych połączeniach. Modele subskrypcji korzystają z instrukcji i narzędzi AgenticOS; zainstalowane agenty konfigurujesz osobno w delegowaniu."
+      },
+      "start-subscriptions": {
+        "title": "Połącz swoje subskrypcje",
+        "body": "Zaznacz posiadane subskrypcje i zaloguj się tutaj. To konta prywatne; ich modele wybierzesz w czacie."
+      },
+      "dataset-key-coverage": {
+        "title": "Pokrycie kluczy",
+        "body": "Zobacz, których faktów wymaganych przez sprawdzenia kluczy nie zawiera żadne źródło agenta. Brakujący fakt trzeba dać agentowi jako wiedzę; żadna zmiana instrukcji go nie dostarczy."
       },
       "improvement-mode": {
         "title": "Krok po kroku albo wyszukiwanie",
@@ -7976,6 +8063,12 @@
     }
   },
   "mcp": {
+    "onboarding": {
+      "browseAll": "Przeglądaj wszystkie usługi",
+      "showFeatured": "Wróć do proponowanych usług",
+      "customServer": "Podłącz własny MCP",
+      "manage": "Zarządzaj"
+    },
     "accessToken": "Token dostępu",
     "accountsOnThisServer": "Każde konto podłączone do tego serwera i gdzie może być użyte.",
     "addCustomServer": "Dodaj własny serwer",
@@ -8788,7 +8881,18 @@
       "chatGPTSignIn": "{name} to logowanie ChatGPT zapewniające dostęp do modeli w ramach subskrypcji ChatGPT. Funkcje głosowe wymagają klucza API OpenAI; tego logowania nie można tu użyć."
     },
     "notRecorded": "Brak danych",
-    "googleAccount": "Konto Google"
+    "googleAccount": "Konto Google",
+    "chatgptPlanDeclined": "Odmówiono udostępnienia planu. Rejestracja została zapisana, ale ten grant nie uruchomi modeli. Połącz ponownie i zatwierdź użycie planu.",
+    "chatgptOfficialHelp": "Oficjalna zgoda ChatGPT dla aplikacji używa publicznego Responses API, osobno od Codex. Wdrożenie musi spełniać warunki i zostać włączone przez operatora. Wklej końcowy adres 127.0.0.1. Odmowa użycia planu zachowuje rejestrację bez dostępu do modeli.",
+    "chatgptOwnerOnly": "Tylko Ty możesz uruchamiać modele z tym grantem. Współdzielone profile, klucze API i zadania w tle nie mogą go używać.",
+    "chatgptDeviceHelp": "Zatwierdź to logowanie w ChatGPT krótkim kodem; niczego nie trzeba kopiować z powrotem.",
+    "chatgptDeviceStart": "Zaloguj kodem",
+    "chatgptDeviceEnter": "Wpisz ten kod w ChatGPT. Ta strona sama przejdzie dalej, gdy go zatwierdzisz.",
+    "chatgptDeviceCopy": "Kopiuj kod",
+    "chatgptDeviceOpen": "Otwórz ChatGPT",
+    "chatgptDeviceWaiting": "Czekam na zatwierdzenie…",
+    "chatgptDeviceApproved": "Zatwierdzono.",
+    "chatgptPasteInstead": "Wklej adres zamiast tego"
   },
   "context": {
     "created": "Utworzono {name}",
@@ -8844,9 +8948,17 @@
     "forgottenToast": "{count, plural, =0 {Nie było nic do zapomnienia} one {Zapomniano 1 wpis} few {Zapomniano # wpisy} many {Zapomniano # wpisów} other {Zapomniano # wpisu}}"
   },
   "avatarColor": {
+    "photoLookHint": "Twoje zdjęcie pozostaje widoczne. Wybierz kolor na wypadek, gdyby nie było dostępne.",
     "auto": "Kolor automatyczny",
     "label": "Kolor awatara",
-    "option": "Kolor {n}"
+    "option": "Kolor {n}",
+    "carouselRole": "karuzela",
+    "slideRole": "wygląd",
+    "chooseLook": "Wybierz swój wygląd",
+    "lookHint": "Przesuń, obejrzyj i wybierz coś dla siebie.",
+    "previousLook": "Poprzedni wygląd",
+    "nextLook": "Następny wygląd",
+    "lookPosition": "Wygląd {current} z {total}"
   },
   "triggers": {
     "setupReviewTitle": "Sprawdź dostęp rutyny",
@@ -10429,7 +10541,8 @@
     "observationSaveFailed": "Nie udało się zapisać. Zmiany pozostały w formularzu; spróbuj ponownie.",
     "observationSave": "Zapisz ustawienia uczestnictwa",
     "connectionSettings": "Ustawienia połączenia · {provider} · {endpoint}",
-    "customEndpoint": "Własny endpoint"
+    "customEndpoint": "Własny endpoint",
+    "noMatchingModels": "Brak pasujących modeli."
   },
   "steps": {
     "skills-gallery": {
@@ -11058,6 +11171,32 @@
       "tools": {
         "title": "Dozwolone działania w komunikatorach",
         "description": "Akcje jawnie przyznane na botach podłączonych do agenta."
+      }
+    },
+    "external_acp": {
+      "agent_id": {
+        "title": "ID agenta Desktop",
+        "description": "ID zarejestrowane w ustawieniach aplikacji Desktop na komputerze osoby rozpoczynającej zadanie. Logowanie i model konfiguruje się w tym programie."
+      },
+      "timeout_minutes": {
+        "title": "Limit czasu (minuty)",
+        "description": "Jak długo jedno zadanie może trwać, zanim zostanie przerwane."
+      },
+      "auth_method": {
+        "title": "Tryb uwierzytelniania",
+        "description": "Użyj konta skonfigurowanego w programie lub jawnie wybierz osobiste logowanie Google w Antigravity. Brak metody kończy się błędem bez przełączenia na klucz API ani inne konto."
+      },
+      "model_id": {
+        "title": "ID modelu zewnętrznego",
+        "description": "Opcjonalne dokładne ID z inspect_acp_agent dla tego konta. Puste pole zachowuje model programu. Wybiera model środowiska wykonawczego, a nie profil modelu AgenticOS."
+      },
+      "api_provider": {
+        "title": "Dostawca klucza ze skarbca",
+        "description": "Opcjonalny klucz API ze skarbca dla natywnego środowiska: Inception, DeepSeek lub OpenRouter przez szablon klucza Pi albo Gemini przez szablon Antigravity z kluczem Gemini API. Wymaga zgodnego szablonu natywnego i niezależnego dostępu osoby rozpoczynającej zadanie do tego klucza w skarbcu. Nie importuje zapisanych poświadczeń CLI."
+      },
+      "platform_tools": {
+        "title": "Narzędzia AgenticOS",
+        "description": "Udostępnia przygotowane narzędzia tej prywatnej rozmowy zewnętrznemu środowisku, z zachowaniem uprawnień, zatwierdzeń i budżetów. Wymaga aktualnej aplikacji Desktop."
       }
     }
   },
@@ -13955,6 +14094,14 @@
       "example2": "Zaplanuj cotygodniową aktualizację w ustalonym wątku",
       "needs": "Aktywne powiązanie bota, wybrane akcje i członkostwo w miejscu docelowym. Rutyny wymagają przeglądu źródeł i akcji.",
       "never": "Nie dołącza do kanałów, nie pożycza botów innych agentów i nie ponawia niepewnych wysyłek."
+    },
+    "external_acp": {
+      "name": "Zewnętrzny agent ACP",
+      "does": "Przekazuje całe zadanie zainstalowanemu programowi ACP na Twoim komputerze.",
+      "example1": "Zleć lokalnemu asystentowi zbadanie repozytorium",
+      "example2": "Kontynuuj nazwaną sesję kolejnym zadaniem",
+      "needs": "Aplikacja Desktop, zarejestrowany i zalogowany program ACP oraz folder z zatwierdzonym pełnym dostępem.",
+      "never": "Działa z dostępem Twojego konta lokalnego. Bez gwarancji trybu tylko do odczytu i bez przekazywania narzędzi platformy. Włącz zatwierdzanie każdego zadania przez człowieka."
     }
   },
   "capabilityCategories": {
@@ -13964,7 +14111,11 @@
     "reasoning": "Myślenie i planowanie",
     "research": "Internet",
     "utility": "Na co dzień",
-    "advanced": "Zaawansowane"
+    "advanced": "Zaawansowane",
+    "basics": "Codzienna praca",
+    "outputs": "Tworzenie i prezentacja",
+    "delegation": "Delegowanie do agentów",
+    "automation": "Automatyzacja"
   },
   "audience": {
     "label": "Kto może z tego korzystać",
@@ -14477,6 +14628,74 @@
         "prepareNamed": "Przygotuj {name}",
         "preparing": "Przygotowywanie…",
         "refresh": "Odśwież status"
+      },
+      "externalAgents": {
+        "title": "Zewnętrzni agenci ACP",
+        "description": "Zarejestruj zainstalowany program ACP do zadań na tym komputerze. Używa własnego logowania i modelu, może zmieniać pliki i wykonywać polecenia oraz generować koszty poza AgenticOS.",
+        "id": "ID agenta",
+        "name": "Wyświetlana nazwa",
+        "program": "Bezwzględna ścieżka programu",
+        "args": "Argumenty (tablica JSON)",
+        "save": "Zarejestruj agenta",
+        "remove": "Usuń",
+        "removeNamed": "Usuń {name}",
+        "help": "Użyj tego ID w capability Zewnętrzny agent ACP. Argumenty to osobne ciągi, np. acp. Nie podawaj haseł ani tokenów. Przed zadaniem zaloguj się poleceniem programu. Po zmianie konta zarejestruj go ponownie, aby usunąć zapisane sesje.",
+        "invalidArgs": "Podaj tablicę JSON zawierającą wyłącznie ciągi znaków.",
+        "provider": "Szablon konfiguracji",
+        "custom": "Własny program ACP",
+        "antigravityHelp": "Użyj bezwzględnej ścieżki agy i argumentu acp. Wymuszamy osobiste logowanie Google; klucze Gemini API odziedziczone ze środowiska aplikacji są usuwane. Najpierw uruchom agy acp --login. W Builderze użyj tego ID w Zewnętrznym agencie ACP; inspect_acp_agent odczytuje modele tego konta. To delegowanie zadań. Uprawnienia rzeczywistego konta i limity planu wymagają jeszcze weryfikacji.",
+        "antigravityApi": "Antigravity · klucz Gemini API",
+        "antigravityKeyHelp": "Użyj bezwzględnej ścieżki agy i argumentu acp. Uruchomienie używa klucza Gemini wybranego ze skarbca, a w przeciwnym razie GEMINI_API_KEY odziedziczonego przez aplikację desktopową, z logowaniem gemini-api-key; brak klucza blokuje uruchomienie i nigdy nie przełącza na zapisane logowanie Google. Obowiązuje cennik i warunki Gemini API, nie subskrypcja Google AI; koszt nie jest wyceniany w AgenticOS.",
+        "antigravityRisk": "Dodatkowe warunki Google (sekcja 6) ograniczają używanie logowania konsumenckiego przez narzędzia firm trzecich, a Google może ograniczyć lub zawiesić konto, które uzna za naruszające warunki. Używasz tego szablonu z agentami AgenticOS na własne ryzyko; szablon z kluczem Gemini API go nie niesie.",
+        "antigravityRiskAccept": "Rozumiem, że moje konto Google może zostać ograniczone lub zawieszone, i akceptuję to ryzyko.",
+        "opencodeHelp": "Zarejestruj zainstalowany program opencode z argumentem acp. Konta dostawców połącz poleceniem opencode auth login lub /connect w jego TUI. inspect_acp_agent odczytuje bieżący katalog modeli, również po opóźnionych aktualizacjach. Własne endpointy konfiguruj w OpenCode; AgenticOS nie kopiuje kluczy z vault ani nie nadpisuje plików programu. Modele mogą korzystać z bezpłatnego dostępu, subskrypcji lub salda API.",
+        "opencodeGoHelp": "Tylko zadania programistyczne. Połącz klucz Go konkretnie z opencode-go w OpenCode, a następnie wybierz dokładne ID opencode-go/model z inspect_acp_agent. Inne przestrzenie modeli głównych są odrzucane. Extra Usage w Go może zużywać środki Console, a pomocnicze modele OpenCode mogą generować inne koszty. Sprawdź te ustawienia osobno; AgenticOS nie wycenia użycia tego środowiska.",
+        "cursorHelp": "Zainstaluj Cursor CLI, uruchom agent login i sprawdź agent status. Podaj bezwzględną ścieżkę programu agent. Szablon korzysta z konta CLI i usuwa odziedziczone CURSOR_API_KEY oraz CURSOR_AUTH_TOKEN; nie obsługuje rejestracji klucza API. Modele i opłaty zależą od konta Cursor. Pytania do człowieka i zatwierdzenie planu zatrzymują zadanie do sprawdzenia w CLI. Po zmianie konta zarejestruj program ponownie.",
+        "clineApi": "Klucz API Cline",
+        "clineHelp": "Zainstaluj Cline CLI z ACP i podaj bezwzględną ścieżkę. Dla szablonu konta wykonaj wcześniej cline auth; odziedziczone klucze są usuwane. Szablon klucza wymaga CLINE_API_KEY w środowisku procesu Desktop i odmawia uruchomienia bez klucza, nie używając zapisanego logowania. Oba tryby wymuszają providera Cline i uruchamiają bezpośrednio --acp. Kredyty, bezpłatne modele i opłaty zależą od konta. Po zmianie danych logowania zarejestruj program ponownie.",
+        "vibeHelp": "Zainstaluj Mistral Vibe i wykonaj vibe --setup. Podaj bezwzględną ścieżkę vibe-acp bez argumentów. Vibe zarządza logowaniem przeglądarkowym i kluczami API; logowanie nie potwierdza dostępu z subskrypcji Le Chat. Proces wyłącza telemetrię i włącza eksperymentalny katalog konta bez zmiany plików. Status danych logowania podaje tylko źródło klucza, bez klucza i tożsamości konta. Po zmianie konta zarejestruj program ponownie. Pozostaw puste ID modelu zewnętrznego; wybierz model w Vibe, ponieważ jego selektor ACP może zapisać domyślne ustawienia użytkownika.",
+        "grokHelp": "Zainstaluj Grok Build i wykonaj grok login (grok login --device-auth dla logowania kodem). Podaj bezwzględną ścieżkę grok. Szablon wyłącza aktualizacje w tle i logowanie kluczem API, usuwa odziedziczone klucze xAI i wymaga zapisanego logowania bez interakcji. CLI nadal oferujące logowanie kluczem zostaje odrzucone. Rozliczanie zależy od konta i gatewaya; rejestracja klucza API nie jest obsługiwana. Po zmianie konta zarejestruj program ponownie.",
+        "kimiHelp": "Zainstaluj Kimi Code CLI i wykonaj kimi login. Podaj bezwzględną ścieżkę kimi; szablon uruchamia acp i sprawdza zapisane logowanie bez importowania poświadczeń. Konfiguracja CLI może obejmować osobno płatnych dostawców. Zostaw External model ID puste i wybierz model w samym Kimi. Pytania do użytkownika zatrzymują zadanie do sprawdzenia w CLI. Po zmianie konta zarejestruj program ponownie.",
+        "qwenHelp": "Zainstaluj Qwen Code i przez /auth w qwen wybierz Qwen Account with Subscription. Podaj bezwzględną ścieżkę qwen. Szablon jawnie wybiera qwen-subscription bez wywołania ACP authenticate i importowania tokenów oraz usuwa odziedziczone nadpisania klucza, endpointu i modelu OpenAI. Zostaw External model ID puste; model subskrypcji wybierz w Qwen. Starsze CLI mogą nie obsługiwać tego trybu. Dostęp i limity zależą od konta. Po zmianie konta zarejestruj program ponownie.",
+        "qwenSubscription": "Subskrypcja Qwen",
+        "museApi": "Muse — klucz API",
+        "hermesHelp": "Wybierz plik wykonywalny Pythona ze środowiska Hermesa opisanego w dokumentacji, bez argumentów. Desktop uruchamia własny proces ACP i nie łączy się ze współdzielonym gatewayem. Każda prywatna rozmowa ma osobny katalog Hermesa. Pierwsze uruchomienie pokazuje lokalną instrukcję konfiguracji. Ustaw tam model i dostawcę oraz zaloguj się do Nous Portal; nie kopiuj innego katalogu ani plików tokenów. Narzędzia, wybór API/subskrypcji i opłaty należą do Hermesa; AgenticOS nie wycenia tego użycia.",
+        "museHelp": "Muse wymaga CLI 1.4.23 i używa przypiętego oficjalnego SDK z własnym hostem MSP. Najpierw skonfiguruj konto w muse. Klucze API ze środowiska i zapisane mają pierwszeństwo przed logowaniem przeglądarkowym; status wskazuje faktyczne źródło. Tryb klucza wymaga META_API_KEY w Desktop. Narzędzia i rozszerzenia zachowują dostęp lokalny; koszt jest nieznany.",
+        "piHelp": "Pi używa natywnego RPC oraz własnych kont, rozszerzeń i modelu. Uruchom pi, zaloguj się i wybierz dostawcę/model. Pozostaw External model ID puste. Narzędzia i rozszerzenia mają pełny dostęp lokalny. Obsługiwane pytania pojawiają się w czacie; narzędzia platformy i dane z sejfu nie są przekazywane. Koszt pozostaje nieznany.",
+        "devinHelp": "Zainstaluj Devin CLI, wykonaj devin auth login i sprawdź devin auth status. Podaj bezwzględną ścieżkę devin. Szablon uruchamia lokalnego agenta ACP z normalnymi uprawnieniami i wymaga reklamowanej metody devin-browser. Rozliczanie i firmowe uprawnienie CLI zależą od konta. Nie uruchamia --cloud ani API zadań chmurowych. Zostaw External model ID puste i wybierz model w Devin. Po zmianie konta zarejestruj program ponownie.",
+        "account": {
+          "status": "Sprawdź konto",
+          "signIn": "Zaloguj do Muse",
+          "signOut": "Wyloguj z Muse",
+          "cancel": "Anuluj",
+          "envKey": "Aktywny jest klucz API ze środowiska; wylogowanie go nie usuwa.",
+          "apiKey": "Aktywny jest zapisany klucz API.",
+          "accountLogin": "Konto Muse jest zalogowane.",
+          "loggedOut": "Muse jest wylogowane.",
+          "keyless": "Ten endpoint nie wymaga poświadczeń",
+          "openSignIn": "Otwórz logowanie Muse",
+          "deviceCode": "Kod urządzenia",
+          "waiting": "Czekam na zakończenie logowania. Zostaw tę stronę otwartą.",
+          "failed": "Operacja konta nie została ukończona. Sprawdź potwierdzenie natywne, wersję CLI i klucz środowiskowy, a następnie spróbuj ponownie."
+        },
+        "piKeyHelp": "Wymagane jest Pi 1.5.2. Szablon otrzymuje wybrany klucz API ze skarbca tylko wtedy, gdy masz do niego niezależny dostęp. W konfiguracji agenta wybierz zgodnego dostawcę Pi z kluczem i dokładny identyfikator modelu. Pi używa izolowanej konfiguracji bez zapisanych kont i wykrytych rozszerzeń. Klucz nie trafia do argumentów ani generowanych plików. Narzędzia natywne mają pełny dostęp lokalny, a koszt API pozostaje nieznany.",
+        "cursorApi": "Klucz API Cursor",
+        "grokApi": "Klucz API Grok",
+        "cliAccount": {
+          "status": "Sprawdź konto",
+          "sign_in": "Zaloguj się",
+          "reconnect": "Połącz konto ponownie",
+          "sign_out": "Wyloguj się",
+          "cancel": "Anuluj",
+          "waiting": "Dokończ operację konta w oknie logowania CLI.",
+          "signed_in": "CLI zgłasza aktywne konto. Dostęp w ramach planu nie został sprawdzony.",
+          "signed_out": "CLI jest wylogowane.",
+          "unknown": "CLI nie podało rozpoznawanego stanu konta.",
+          "environment_key": "Aktywny jest klucz ze środowiska. Aby się wylogować, usuń go ze środowiska Desktop.",
+          "openSignIn": "Otwórz logowanie dostawcy",
+          "deviceCode": "Kod urządzenia",
+          "failed": "Operacja konta nie została zakończona. Sprawdź natywne potwierdzenie i instalację CLI."
+        }
       }
     },
     "quickAsk": {
@@ -14813,6 +15032,18 @@
           "label": "Na tym komputerze",
           "description": "Zadania używają lokalnych kont i pracują w folderach zatwierdzonych w aplikacji desktopowej.",
           "summary": "Uruchamiaj Claude Code i Codex równolegle w osobnych sesjach w aplikacji desktopowej."
+        }
+      }
+    },
+    "external_acp": {
+      "auth_method": {
+        "configured": {
+          "label": "Ustawienie programu",
+          "description": "Użyj konta skonfigurowanego w programie lub jawnie wybierz osobiste logowanie Google w Antigravity. Brak metody kończy się błędem bez przełączenia na klucz API ani inne konto."
+        },
+        "oauth-personal": {
+          "label": "Osobiste logowanie Google w Antigravity",
+          "description": "Użyj konta skonfigurowanego w programie lub jawnie wybierz osobiste logowanie Google w Antigravity. Brak metody kończy się błędem bez przełączenia na klucz API ani inne konto."
         }
       }
     }
@@ -17636,6 +17867,46 @@
     "chatTitle": "Twoje konto {name}",
     "chatHelp": "Ten agent wykonuje zadania coding jako prywatne zadanie w chmurze na Twoim własnym koncie. Inni członkowie nie mogą z niego korzystać."
   },
+  "subscriptionAccounts": {
+    "title": "Konta subskrypcyjne",
+    "description": "Podłącz własne subskrypcje tutaj lub bezpośrednio w selektorze modeli. AgenticOS korzysta z Twoich kont tylko podczas Twoich rozmów, nigdy dla innych osób ani pracy w tle.",
+    "risk": "Dostawcy mogą ograniczać używanie subskrypcji poza własnymi aplikacjami i zawiesić za to konto. Łączysz na własne ryzyko.",
+    "notConnected": "Niepołączone",
+    "unavailable": "Niedostępne",
+    "connect": "Połącz",
+    "connectAnother": "Dodaj konto",
+    "disconnect": "Odłącz",
+    "loadFailed": "Nie udało się wczytać Twoich kont subskrypcyjnych",
+    "retry": "Spróbuj ponownie",
+    "dialogTitle": "Połącz: {name}",
+    "deviceHelp": "Otwórz stronę logowania, wpisz ten kod i zatwierdź. To okno zamknie się samo.",
+    "browserHelp": "1. Otwórz stronę logowania i zatwierdź dostęp. 2. Jeśli końcowa strona się nie otworzy, skopiuj cały adres z paska przeglądarki. 3. Wklej go poniżej i dokończ łączenie konta.",
+    "starting": "Rozpoczynanie logowania…",
+    "copyCode": "Skopiuj kod",
+    "openSignIn": "Otwórz logowanie: {name}",
+    "redirectLabel": "Adres, na którym skończyła przeglądarka",
+    "waiting": "Czekam na potwierdzenie od dostawcy…",
+    "refused": "Dostawca odrzucił logowanie. Zamknij to okno i spróbuj ponownie.",
+    "finish": "Zakończ",
+    "connected": "Połączono: {name}",
+    "providers": {
+      "claude": "Claude Code (Pro, Max)",
+      "codex": "ChatGPT (Codex)",
+      "antigravity": "Google Antigravity",
+      "xai": "Grok (xAI)",
+      "kimi": "Kimi Code (kimi.com)",
+      "kimi-ai": "Kimi Code (kimi.ai)",
+      "devin": "Devin",
+      "meta": "Meta AI"
+    },
+    "localReturnHelp": "To logowanie wraca na localhost na Twoim komputerze, a nie na stronę AgenticOS. Strona internetowa nie może odczytać tej karty ani wyświetlić strony na tym lokalnym porcie. Pasek adresu nadal zawiera wynik potrzebny do połączenia konta.",
+    "tableProvider": "Dostawca",
+    "tableStatus": "Stan",
+    "tableActions": "Działania",
+    "noAccount": "Brak konta",
+    "search": "Szukaj subskrypcji...",
+    "noMatches": "Brak subskrypcji pasujących do wyszukiwania."
+  },
   "mirage": {
     "folders": "Foldery",
     "foldersDetail": "Każde źródło dodajesz osobno: wybierz integrację, dane dostępowe i uprawnienia. Integracja staje się folderem, który agent może przeglądać, przeszukiwać i czytać.",
@@ -17663,6 +17934,20 @@
     "jsonInvalid": "Wpisz poprawny JSON wymaganego typu. Ostatnia poprawna wartość pozostaje bez zmian."
   },
   "start": {
+    "modelSetup": {
+      "chooseProvider": "Wybierz dostawcę, z którego już korzystasz, lub podłącz nowego.",
+      "changeProvider": "Wszyscy dostawcy",
+      "connectionTitle": "Podłącz swoje konto",
+      "modelTitle": "Wybierz model",
+      "vaultKey": "Klucz z sejfu: {name}",
+      "chooseModel": "Przeglądaj modele",
+      "changeConnection": "Zmień",
+      "applying": "Zapisujemy wybrany model…",
+      "loadFailed": "Nie udało się wczytać dostępnych dostawców. Spróbuj ponownie.",
+      "noProviders": "W tej instancji nie ma dostępnych dostawców modeli.",
+      "existingModels": "Wybierz model już podłączony do tej przestrzeni.",
+      "noExistingModels": "Nie ma jeszcze gotowych modeli w tej przestrzeni. Poproś administratora o podłączenie modelu lub użyj własnej subskrypcji w poprzednim kroku."
+    },
     "sidebarReminder": {
       "title": "Dokończ konfigurację",
       "hint": "Uzupełnij profil, wybierz pomoc agentów i wykonaj pierwsze zadanie.",
@@ -17746,7 +18031,8 @@
       "identityProfileHint": "Dodaj zdjęcie i nazwę widoczną dla zespołu. W następnym kroku uzupełnisz rolę i godziny pracy.",
       "identityProfileBenefitTitle": "Znajoma twarz w każdej organizacji",
       "identityProfileBenefitBody": "Zdjęcie i nazwa pomagają zespołowi rozpoznać Cię we wspólnych rozmowach.",
-      "teamHint": "Zaproś swoich ludzi do organizacji. Możesz zrobić to teraz albo kontynuować i wrócić tu później."
+      "teamHint": "Zaproś swoich ludzi do organizacji. Możesz zrobić to teraz albo kontynuować i wrócić tu później.",
+      "subscriptions": "Twoje subskrypcje"
     },
     "workbench": {
       "memberHint": "Właściciel organizacji może udostępnić Ci agenta. Nie potrzebujesz własnego klucza API.",
@@ -17880,20 +18166,9 @@
     "invite": "Zaproś osobę do zespołu",
     "loadHint": "Sprawdź połączenie albo wybierz inną organizację, do której należysz. Błąd sprawdzania nie usuwa Twoich danych.",
     "choiceNotSaved": "Nie udało się zapisać wyboru. Spróbuj ponownie.",
-    "offer": {
-      "adminTitle": "Przygotuj organizację dla zespołu",
-      "adminHint": "Organizacja, ludzie i AI — krok po kroku.",
-      "adminAction": "Kontynuuj konfigurację",
-      "memberTitle": "Zróbmy Twoje pierwsze zadanie",
-      "memberHint": "Wybierz przykład i zobacz, jak może pomóc Ci agent.",
-      "memberAction": "Wypróbuj przykład",
-      "dismiss": "Ukryj na 24 godziny"
-    },
     "snooze": "Ukryj na 24 godziny",
     "guided": {
       "guideLabel": "Twój przewodnik po konfiguracji",
-      "question": "Pytanie {current} z {total}",
-      "changeLater": "Możesz to później zmienić",
       "back": "Wstecz",
       "keepCurrent": "Zachowaj obecne ustawienia",
       "saving": "Zapisywanie…",
@@ -17915,11 +18190,9 @@
       "openBody": "Ludzie mogą zakładać konta zgodnie z regułami dozwolonych domen e-mail.",
       "closedTitle": "Rejestracja zamknięta",
       "closedBody": "Wstrzymaj nowe rejestracje. Istniejące konta zachowują dostęp.",
-      "domainsPreserved": "Obecne dozwolone domeny e-mail i limity kont pozostają bez zmian.",
       "destinationTitle": "Gdzie mają zaczynać nowe konta?",
       "destinationGuide": "Nowe osoby mogą od razu trafić do tej firmowej organizacji. Dotyczy to przyszłych kont — nie przenosi istniejących osób ani nie zmienia ich ról.",
       "destinationBody": "Użyj tej organizacji dla nowych kont. Skonfigurowana rola początkowa: {role}.",
-      "destinationHint": "Wybierz kartę firmy, aby użyć tej organizacji, albo zachowaj obecne miejsce startu.",
       "otherDestination": "Obecnie domyślna jest inna organizacja. Wybór tej karty zastąpi ją wyłącznie dla przyszłych kont.",
       "personalTitle": "Twórz też osobiste organizacje",
       "personalBody": "Przydzielaj przyszłym kontom także osobistą organizację. Wyłącz, jeśli chcesz korzystać wyłącznie z firmowych organizacji.",
@@ -17947,16 +18220,11 @@
       "budgetTitle": "Jaki miesięczny limit Ci odpowiada?",
       "budgetGuide": "Ty kontrolujesz zużycie AI. Wybierz kwotę na start lub przesuń suwak. Zapiszę ją dopiero, gdy przejdziesz dalej.",
       "unlimited": "Bez limitu",
-      "unlimitedHint": "Wybierz poniżej kwotę, aby ustawić limit",
-      "perMonth": "USD miesięcznie, łącznie dla organizacji",
       "budgetSlider": "Budżet miesięczny w dolarach USA",
       "budgetInvalid": "Wybierz kwotę większą od zera albo brak limitu.",
       "budgetHint": "To limit rejestrowanego zużycia AI przez agentów w tej organizacji. Nie jest abonamentem ani doładowaniem. Dostawca modelu rozlicza użycie oddzielnie.",
       "workspaceReadyTitle": "Czas na pierwsze zadanie",
       "workspaceReadyGuide": "Podstawy są gotowe. Możemy przejść do pierwszego zadania. Zaawansowane zasady i funkcje głosowe są dostępne poniżej, jeśli ich potrzebujesz — samo otwarcie sekcji niczego nie zmienia.",
-      "readyForPeople": "Miejsce dla zespołu nabiera kształtu",
-      "readyForPeopleBody": "{workspace} ma własną tożsamość i ustawienia. Dotychczasowi agenci, rozmowy i zasady pozostają na swoim miejscu.",
-      "advancedOptional": "Opcjonalnie — zajrzyj tu, gdy będziesz tego potrzebować. Każda sekcja ma własny sposób zapisu.",
       "advancedSafety": "Zatwierdzenia i dane publiczne",
       "advancedAssistants": "Asystenci i automatyzacja organizacji",
       "advancedVoice": "Rozmowy głosowe",
@@ -17973,7 +18241,8 @@
         "welcome": "Powitanie",
         "profile": "Twój profil",
         "context": "Twój kontekst",
-        "task": "Pierwsze zadanie"
+        "task": "Pierwsze zadanie",
+        "subscriptions": "Twoje subskrypcje"
       },
       "guideName": "AgenticOS",
       "advancedAccess": "Domeny e-mail, role początkowe i limity kont ↗",
@@ -17983,7 +18252,72 @@
       "advancedVoiceHint": "Wybierz ustawienia transkrypcji i głosu dla tej organizacji.",
       "openGovernanceSettings": "Otwórz budżet i zatwierdzanie",
       "openAssistantSettings": "Otwórz ustawienia asystenta",
-      "openVoiceSettings": "Otwórz ustawienia głosu"
+      "openVoiceSettings": "Otwórz ustawienia głosu",
+      "subscriptionsGuide": "Połącz subskrypcje, z których już korzystasz. Więcej kont możesz dodać później; możesz też kontynuować bez łączenia."
+    },
+    "subscriptions": {
+      "title": "Z których subskrypcji już korzystasz?",
+      "description": "Zaznacz swoje subskrypcje i zaloguj się tutaj. Możesz połączyć kilka kont albo kontynuować bez ich łączenia.",
+      "connected": "Połączono",
+      "hint": "Te konta są prywatne. Ich modele wybierzesz w czacie; nie zastępują wspólnego modelu organizacji."
+    },
+    "experience": {
+      "configureAgent": "Skonfiguruj AgenticOS",
+      "designs": "Wariant onboardingu",
+      "variants": {
+        "conversation": "Rozmowa",
+        "studio": "Studio",
+        "launchpad": "Launchpad"
+      },
+      "journeyTitle": "Twój workspace nabiera kształtu",
+      "introductions": {
+        "conversation": "Jedna rozmowa. Twoje narzędzia.",
+        "studio": "Przygotuj miejsce dopasowane do Twojej pracy.",
+        "launchpad": "Dodaj modele, połącz narzędzia i zrób coś konkretnego."
+      },
+      "architectName": "Architect",
+      "architectAside": "Pomaga projektować agentów i workflow.",
+      "agenticosName": "AgenticOS",
+      "modelsTitle": "Wybierz model do pracy",
+      "modelsGuide": "Masz już model lub klucz API? Podłącz go tutaj. Możesz też wybrać model dostępny w Twoim workspace.",
+      "modelsScope": "Zapamiętamy ten wybór dla Twoich nowych czatów. Subskrypcje pozostają prywatne; wspólny model agenta ustawisz w edytorze.",
+      "toolsTitle": "Połącz narzędzia, których używasz",
+      "toolsGuide": "Podłącz swoje usługi albo własny serwer MCP. Ty decydujesz, z których kont i narzędzi może korzystać agent.",
+      "toolsHint": "To ten sam katalog połączeń co w aplikacji. Zaloguj się do usługi albo dodaj własny serwer. Ten krok jest opcjonalny.",
+      "toolsScope": "Samo podłączenie konta nie udostępnia go wszystkim agentom. Dodaj narzędzia w edytorze lub poproś Architect o pomoc.",
+      "launchTitle": "Poznaj swoich pierwszych agentów",
+      "launchGuide": "AgenticOS pomaga wykonać zadanie. Architect pomaga budować agentów i workflow dopasowane do pracy zespołu.",
+      "dailyPartner": "Agent do codziennej pracy",
+      "builderPartner": "Pomoc w budowaniu agentów",
+      "agenticosBody": "Research, pisanie, dokumenty i kod. Zacznij od prawdziwego zadania, a potem dodaj potrzebne narzędzia i wiedzę.",
+      "architectBody": "Opisz proces, który chcesz usprawnić. Architect pomoże zaprojektować agenta lub workflow: instrukcje, narzędzia i połączenia.",
+      "openAgent": "Zacznij z AgenticOS",
+      "setupAgent": "Przygotuj AgenticOS",
+      "openArchitect": "Buduj z Architect",
+      "agentUnavailable": "Ten agent nie jest jeszcze dostępny w Twoim workspace. Poproś administratora o konfigurację.",
+      "architectUnavailable": "Architect jest wyłączony, potrzebuje modelu lub nie jest dostępny dla Twojego konta. Administrator może go skonfigurować w ustawieniach workspace.",
+      "launchHint": "Otwarcie agenta nie wysyła zapytania do modelu. Wybierz zadanie i wyślij je, gdy będziesz gotowy.",
+      "agentsFailed": "Nie udało się wczytać agenta",
+      "retry": "Spróbuj ponownie",
+      "phases": {
+        "workspace": "Workspace",
+        "you": "O Tobie",
+        "models": "Modele i subskrypcje",
+        "tools": "Narzędzia i MCP",
+        "team": "Zespół i ustawienia",
+        "launch": "Poznaj agentów"
+      },
+      "configureArchitect": "Skonfiguruj Architect",
+      "continue": "Dalej"
+    },
+    "preferences": {
+      "languageTitle": "W jakim języku chcesz pracować?",
+      "languageHint": "Wybierz język swojej przestrzeni. Możesz go zmienić w każdej chwili.",
+      "appearanceTitle": "Nadaj aplikacji swój styl.",
+      "appearanceHint": "Wybierz styl i tryb kolorów. Efekt zobaczysz od razu.",
+      "position": "{current} z {total}",
+      "continue": "Dalej",
+      "finish": "Przejdź do konfiguracji"
     }
   },
   "skillImprovement": {
@@ -21105,7 +21439,21 @@
     "vaultHelp": "Te klucze należą tylko do Ciebie. Podłącz lub wymień je w ustawieniach czatu agenta. Usunięcie blokuje kolejne uruchomienia do czasu ponownego podłączenia.",
     "remove": "Usuń połączenie",
     "loading": "Wczytywanie połączeń…",
-    "defaultEndpoint": "Domyślny adres dostawcy"
+    "defaultEndpoint": "Domyślny adres dostawcy",
+    "copilot": {
+      "title": "Połącz swoje konto Copilot",
+      "destination": "Używaj swojego konta dla {model} w GitHub.com Copilot.",
+      "privacy": "Z połączenia mogą korzystać tylko Twoje zalogowane czaty WWW. Usuń je w osobistych połączeniach modeli; zgodę OAuth cofniesz osobno w ustawieniach GitHub.",
+      "approveOwnCode": "Zatwierdź wyłącznie kod widoczny w tym oknie AgenticOS.",
+      "code": "Kod urządzenia GitHub",
+      "openGitHub": "Otwórz autoryzację urządzenia GitHub",
+      "pending": "Jeszcze nie zatwierdzono. Przed kolejnym sprawdzeniem odczekaj {seconds} sekund.",
+      "check": "Sprawdź autoryzację",
+      "restart": "Rozpocznij nowe logowanie",
+      "reconnect": "Połącz ponownie przez GitHub",
+      "connect": "Zaloguj przez GitHub",
+      "retained": "Bieżące połączenie pozostaje aktywne do weryfikacji nowego konta."
+    }
   },
   "consoleExperience": {
     "title": "Ekran nowego czatu",
@@ -21151,5 +21499,55 @@
     "maintenanceEndHint": "Opcjonalne. Czas w strefie {zone}, zapisywany w UTC. Wyłącznie informacja — administrator musi zakończyć tryb konserwacji.",
     "maintenanceEndInformational": "To przewidywany termin. Dostęp wróci, gdy administrator zakończy tryb konserwacji.",
     "invalidTime": "Wybierz prawidłową lokalną datę i godzinę."
+  },
+  "modelSources": {
+    "subscriptions": "Twoje subskrypcje",
+    "organization": "Modele organizacji / klucze API",
+    "custom": "Zaawansowane / własny endpoint",
+    "gateway": "Gateway subskrypcji (własny endpoint)",
+    "subscriptionHint": "Modele z tego konta korzystają z instrukcji i narzędzi AgenticOS w Twoich czatach.",
+    "unavailable": "Logowanie do subskrypcji nie jest włączone w tej instalacji. Poproś administratora o jego włączenie.",
+    "loading": "Wczytywanie Twoich kont…",
+    "connected": "Połączono",
+    "reconnect": "Zaloguj ponownie",
+    "loadFailed": "Nie udało się wczytać kont lub modeli",
+    "model": "Model",
+    "chooseModel": "Wybierz model dostępny dla tego konta",
+    "noModels": "To konto nie udostępniło jeszcze listy modeli. Spróbuj ponownie po zakończeniu logowania.",
+    "account": "Konto",
+    "accountNumber": "Konto {number}",
+    "usageAndLimits": "Zużycie i limity",
+    "usageUnavailable": "Dostawca nie podał limitów zużycia dla tego konta.",
+    "usageStale": "Ostatnio podane zużycie — wartości mogły się zmienić.",
+    "fiveHourWindow": "Okno 5-godzinne",
+    "weeklyWindow": "Limit tygodniowy",
+    "minutesWindow": "Okno {minutes}-minutowe",
+    "usageWindow": "Okno zużycia",
+    "usageRemaining": "Pozostało {remaining}",
+    "usageConsumed": "Wykorzystany limit",
+    "usageResets": "Odnowienie: {time}",
+    "usageObserved": "Dane z {time}. Aktualizacja po odpowiedziach dostawcy.",
+    "refreshUsage": "Odśwież limity",
+    "usageFailed": "Nie udało się odświeżyć limitów. Spróbuj ponownie.",
+    "dailyWindow": "Limit dzienny",
+    "hoursWindow": "Okno {hours} godz."
+  },
+  "agentDelegation": {
+    "coding_agent": {
+      "name": "Claude Code i Codex",
+      "description": "Deleguj zadania programistyczne do Claude Code lub Codex w workspace. Główny agent AgenticOS nadal prowadzi rozmowę."
+    },
+    "external_acp": {
+      "name": "Inne zainstalowane agenty",
+      "description": "Deleguj zadania do Cursor, Qwen Code, Kimi, Hermes lub innego zarejestrowanego agenta. Zainstalowanego agenta podłączasz i konfigurujesz osobno."
+    }
+  },
+  "onboardingStatus": {
+    "header": "Onboarding",
+    "completed": "Ukończony",
+    "notStarted": "Nierozpoczęty",
+    "inProgress": "W trakcie",
+    "unknown": "Brak danych",
+    "otherStep": "Konfiguracja"
   }
 }

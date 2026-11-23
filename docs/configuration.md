@@ -1639,3 +1639,36 @@ operator removes them and do not replace off-host backups. Test restoration on a
 disposable deployment before enabling production updates. Multiple hosts, custom
 Compose overlays and external storage use your own pipeline instead:
 `UPDATE_PIPELINE_URL` exposes its HTTPS link without triggering a deployment.
+
+## Subscription accounts { #subscription-accounts }
+
+The `subscription-gateway` service runs people's own subscription sign-ins
+([Subscription accounts](models.md#subscription-accounts)). It uses the backend
+image with `python -m app.subscription_gateway`, publishes no port and keeps
+sign-ins in the `subscription_accounts` volume.
+
+| Variable | Read by | Meaning |
+|---|---|---|
+| `SUBSCRIPTION_GATEWAY_URL` | API, worker | The gateway's address, `http://subscription-gateway:8400` in compose. Unset turns subscription accounts off. |
+| `SUBSCRIPTION_GATEWAY_TOKEN` | API, worker, gateway | The shared token, at least 32 characters. The gateway refuses every request without it, and the API refuses to start with a URL but no such token. |
+| `SUBSCRIPTION_GATEWAY_IDLE_SECONDS` | gateway | How long a person's process may stay idle before it stops. Default 600. |
+| `SUBSCRIPTION_GATEWAY_MAX_PROCESSES` | gateway | How many people's processes may run at once. Default 64; past it, the least recently used idle one stops. |
+
+The token is generated for you. `make dev` and `scripts/deploy.sh` each write a
+random `SUBSCRIPTION_GATEWAY_TOKEN` into `backend/.env` the first time they run
+and keep it afterwards; `make dev` hands it to `docker-compose.yml`. To choose
+your own, write it there first (`openssl rand -hex 32`).
+
+In `docker-compose-prod.yml` and `docker-compose-dev.yml` the service is in the
+`subscriptions` profile. `scripts/deploy.sh` and the host updater enable that
+profile and set `SUBSCRIPTION_GATEWAY_URL` whenever `backend/.env` holds a
+token, so a server runs the gateway by default. To keep it off, leave the line
+in `backend/.env` empty: `SUBSCRIPTION_GATEWAY_TOKEN=`.
+
+`docker-compose.yml` started on its own, without a clone, falls back to a fixed
+local token. Set your own `SUBSCRIPTION_GATEWAY_TOKEN` in `.env` for any such
+deployment other people reach.
+
+## GitHub Copilot OAuth { #github-copilot-oauth }
+
+Set `GITHUB_COPILOT_OAUTH_CLIENT_ID` (empty by default) to the deployment’s own GitHub OAuth App client ID and enable device flow in that app. Without it, personal Copilot sign-in is refused. This setting is separate from GitHub Models and GitHub connector credentials. GitHub authorization does not establish Copilot entitlement; the account-specific chat-model check must also pass. Expiring GitHub App grants and custom Enterprise gateways are not supported. See [Copilot accounts](models.md#github-copilot-accounts).

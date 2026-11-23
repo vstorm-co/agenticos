@@ -1,5 +1,5 @@
 ---
-source_sha: "d5775040d7b6"
+source_sha: "48eead872cf1"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -23,13 +23,9 @@ Capabilities decken außerdem Dinge ab, die gar keine Tools sind — deshalb ste
     Konfigurationsformulare aus dieser Antwort. Widersprechen sich die beiden, hat
     die API recht.
 
-Der Builder benennt jede Capability in der Sprache der Konsole und erklärt sie in
-einfachen Worten: was sie den Agenten tun lässt, zwei oder drei Beispiele, was sie
-braucht und was sie nie tut. Die Namen unten sind die deutschen der Konsole. Fünf
-Capabilities, die nur einstellen, wie ein Run getragen wird - lange Gespräche,
-Bilder auslagern, Erinnerung an Anweisungen, Grenzen für Tool-Ergebnisse und
-Tool-Suche -, sind unter **Erweitert** eingeklappt, bis jemand den Bereich öffnet,
-sucht oder eine davon einschaltet.
+Der Builder erklärt Capabilities in der Sprache der Konsole und gruppiert sie nach Aufgaben: tägliche Arbeit, Wissen und Gedächtnis, Webrecherche, Ergebnisse, Delegation, Automatisierung und Kanäle. Innerhalb jeder Gruppe stehen aktivierte Capabilities zuerst, danach empfohlene. Erweiterte Run-Einstellungen stehen eingeklappt am Ende und öffnen sich bei einer Suche. Diese UI-Gruppen ändern weder die Kategorien des Registers noch gespeicherte Capability-IDs.
+
+**An Agenten delegieren** enthält Subagenten, **Claude Code und Codex** (`coding_agent`) und **Weitere installierte Agenten** (`external_acp`). Sie delegieren Aufgaben an einen anderen Harness; ein Abonnementmodell verwendet dagegen weiterhin Pydantic AI und die Werkzeuge von AgenticOS. Coding Agent bleibt in der Standardvorlage von AgenticOS aktiviert.
 
 In den Einstellungen einer Capability liegen Grenzwerte, Cache-Lebensdauern,
 Prompts und andere Feinabstimmung eingeklappt unter **Erweiterte Einstellungen**,
@@ -3740,3 +3736,48 @@ Ausdrückliche Bot-Freigaben zum Finden von Kanälen, Durchsuchen von Nachrichte
 | `send_chat_message` | Angeforderte Nachricht oder Bericht als Beitrag oder Thread-Antwort |
 
 Jede Operation prüft erneut Organisationsmitgliedschaft, Agentenzugriff, aktive Bindung und Bot sowie anschließend Kanalmitgliedschaft und Thread-Zugehörigkeit. Sie tritt keinen Kanälen bei und verwendet keine Bots anderer Agenten. Suche und Verlauf liefern begrenzte Seiten mit Cursorn; eine leere Trefferseite ist nicht das Ende, solange ein Cursor besteht. Anbieterfehler sind Ablehnungen, keine leeren Ergebnisse. Senden folgt den Freigaberegeln; unbestätigte Sendungen müssen vor einem erneuten Versuch am Ziel geprüft werden. Andere Plattformen behalten ihre Gesprächswerkzeuge; kanalübergreifende Aktionen werden nur bei überprüfbarer Mitgliedschaft angeboten.
+
+## Externer ACP-Agent { #external-acp }
+
+`external_acp` bietet `run_acp_agent`, um vollständige Aufgaben an ein installiertes
+ACP-v1-Programm auf dem Computer der auftraggebenden Person zu übergeben. Es nutzt
+den vorhandenen Desktop-Aufgabenzyklus und erstellt weder einen A2A-Endpunkt noch
+einen Hintergrundauftrag oder eine primäre Gesprächslaufzeit.
+
+Registriere unter **Einstellungen → Desktop-App → Externe ACP-Agenten** (auch bei
+den Programmierkonten im Profil) eine feste ID, einen Namen, den absoluten
+Programmpfad und ein JSON-Array mit Argumenten, etwa `["acp"]`. Melde dich zuerst
+über den Befehl des Programms an. Keine Zugangsdaten in Argumente eintragen. Die
+native Bestätigung zeigt den Befehl. Aktiviere im Builder **Externer ACP-Agent**
+mit derselben ID. Die Spezifikation speichert die ID, ein Zeitlimit von 1–60 Minuten (Standard 15), optionale Anmelde-/Modellwahl, einen optionalen Pi-Anbieter-/Schlüsselverweis und die Weitergabeflagge. Programm, Befehlsargumente und rohe Zugangsdaten bleiben außerhalb der Spezifikation.
+
+Wähle im Chat diesen Computer und einen Ordner mit genehmigtem Vollzugriff.
+Der Start benötigt eine native Zustimmung für Verbindung, Ordner und Registrierung.
+Das Programm läuft mit deinem lokalen Konto ohne Betriebssystem-Sandbox und
+verwaltet Werkzeuge, Modell und Anmeldung selbst. Nur-Lese-Isolierung wird nicht
+zugesichert. Menschliche Genehmigung kann jede Aufgabe separat bestätigen lassen.
+Plattformwerkzeuge sind standardmäßig ausgeschaltet. Aktivieren Sie die [durchlaufbezogene Brücke](../desktop.md#runtime-platform-tools) ausdrücklich.
+
+Schritte und Antwort erscheinen im vorhandenen Delegationsbereich. Benannte
+Sitzungen werden nur bei angekündigtem `loadSession` fortgesetzt; andernfalls
+starte ausdrücklich eine neue Sitzung. Stopp, Zeitlimit und Ordnerentzug beenden
+den Prozess. Entfernen oder erneutes Registrieren der ID stoppt ihre Aufgaben und
+löscht gespeicherte Zustimmungen und Sitzungs-IDs. Registriere das Programm nach
+einem Kontowechsel erneut. Ein Wechsel der Desktop-Verbindung löscht Registrierungen.
+
+Die Nutzung wird ohne Preis erfasst. Abonnementberechtigung, Kontingente und
+API-Kosten hängen vom Programmkonto ab. Fehlende Programme, erforderliche Anmeldung,
+nicht unterstützte Protokolle und fehlende Fortsetzungsunterstützung ergeben klare
+Fehler. Die Registrierung bestätigt keine Abonnementberechtigung beim Anbieter.
+
+`inspect_acp_agent` liest Modell- und Denkoptionen des Kontos beziehungsweise der Sitzung ohne Inferenz-Prompt. `auth_method` ist standardmäßig `configured`; `oauth-personal` fordert die persönliche Google-Anmeldung von Antigravity an. Eine Desktop-Antigravity-Registrierung erzwingt diesen Modus. Optionales `model_id` wählt eine genaue Laufzeit-ID. [Antigravity einrichten](../desktop.md#antigravity-acp) beschreibt Abrechnung und ausstehende Kontoprüfung.
+
+OpenCode-Registrierungen lesen verzögerte Katalogaktualisierungen. Die separate Go-Vorlage filtert den Katalog und beschränkt das primäre Modell auf `opencode-go/`; Hilfsmodelle und Extra Usage bleiben CLI- und Kontoeinstellungen. Siehe [OpenCode und Go einrichten](../desktop.md#opencode-acp).
+
+Die Cursor-Vorlage nutzt das CLI-Konto mit `cursor_login`, entfernt geerbte API-Zugangsdaten und bricht unbeantwortete menschliche Anfragen ab. Die API-Schlüsselregistrierung wartet auf eine bestätigte Isolierung. Siehe [Cursor einrichten](../desktop.md#cursor-acp).
+
+Cline hat getrennte Vorlagen für Konto und geerbten API-Schlüssel, beide auf den Provider Cline und direktes `--acp` beschränkt. [Cline einrichten](../desktop.md#cline-acp) beschreibt Zugangsdaten, Guthaben und Abnahme.
+
+Mistral Vibe nutzt eigene Browser- und Schlüsseleinrichtung; Katalog und Aufgabenbericht nennen bereinigte Quellenangaben. [Vibe einrichten](../desktop.md#mistral-vibe-acp) beschreibt Kosten und Kontoprüfung.
+
+Mistral Vibe meldet `configuration_policy=cli`: Lassen Sie Externe Modell-ID leer und wählen Sie das Modell in Vibe selbst. AgenticOS lehnt Änderungen vor dem Protokollaufbau ab, da die Laufzeit sie als Benutzervorgabe speichern kann.

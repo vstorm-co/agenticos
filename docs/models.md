@@ -329,7 +329,7 @@ Direct `provider:model` selectors use the upstream model's bundled catalog price
 
 ## Providers
 
-Chat providers supported by Pydantic AI, plus Otari through its integration package and Stav with its regional routing.
+Chat providers supported by Pydantic AI, plus Otari through its integration package, Stav with its regional routing and MiniMax through its compatible API.
 
 Standard providers use Pydantic AI's model and provider inference. The platform records credential shapes and integrates provider packages where needed.
 
@@ -362,10 +362,22 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | DeepSeek | `deepseek` | API key | |
 | Fireworks AI | `fireworks` | API key | |
 | GitHub Models | `github` | API key | |
+| GitHub Copilot | `github_copilot` | account token / personal sign-in | |
 | Groq | `groq` | API key | |
 | Heroku AI | `heroku` | API key | ✓ |
 | LLMTR | `llmtr` | API key | |
 | Mistral | `mistral` | API key | |
+| MiniMax | `minimax` | API key | ✓ |
+| Kimi Code (plan) | `kimi_code` | API key | ✓ |
+| Alibaba Coding Plan | `alibaba_coding_plan` | API key | ✓ |
+| OpenCode Go | `opencode_go` | API key | ✓ |
+| Ollama Cloud | `ollama_cloud` | API key | ✓ |
+| Nous Portal | `nous_portal` | API key | ✓ |
+| Inception | `inception` | API key | ✓ |
+| Cline | `cline` | API key | ✓ |
+| Chutes | `chutes` | API key | ✓ |
+| Synthetic | `synthetic` | API key | ✓ |
+| CLIProxyAPI (subscription gateway) | `cliproxyapi` | API key | ✓ |
 | Moonshot AI | `moonshotai` | API key | |
 | Nebius AI Studio | `nebius` | API key | |
 | OVHcloud AI Endpoints | `ovhcloud` | API key | |
@@ -373,12 +385,97 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | Stav.ai | `stav` | API key | ✓ |
 | Together AI | `together` | API key | |
 | Vercel AI Gateway | `vercel` | API key | |
-| Z.AI | `zai` | API key | |
+| Z.AI | `zai` | API key | ✓ |
 | xAI (Grok) | `xai` | API key | ✓ (`api_host`) |
 | Cohere | `cohere` | API key | |
 | Hugging Face | `huggingface` | API key | ✓ |
 
 LLMTR lists only models advertising `CHAT_COMPLETIONS`. A model without a reviewed price in the bundled snapshot can run only without an active dollar ceiling; its cost remains marked incomplete. A budgeted run also refuses further LLMTR calls when earlier usage has an unknown cost.
+
+Select **MiniMax** for its OpenAI-compatible Chat Completions API. Store your M Plan API key as a MiniMax vault key; a metered API key uses its own billing instead. An empty Endpoint uses `https://api.minimax.io/v1`; set a custom Endpoint only for the region or gateway your key belongs to. Enter the exact model ID from your account, for example `MiniMax-M3.1-Flash`; this integration does not enumerate a plan-specific catalog. MiniMax history has its own provider identity, so OpenAI encrypted reasoning is not sent to it. Token prices, when known, are budget estimates rather than your subscription bill.
+
+For a **Z.AI GLM Coding Plan**, select **Z.AI** and explicitly set **Endpoint** to `https://api.z.ai/api/coding/paas/v4` (global) or `https://open.bigmodel.cn/api/coding/paas/v4` (China), using a key for that plan and region. Leaving Endpoint empty keeps the ordinary metered API; existing profiles do not change.
+
+**Subscription plan keys.** Four more providers bill a subscription plan through a plan key for an OpenAI-compatible endpoint. Store the plan's key under the matching vault purpose; the model list comes from that key's own catalog, and an empty Endpoint uses the plan's default.
+
+| Provider | Default endpoint | Other region or note |
+|---|---|---|
+| Kimi Code (plan) | `https://api.kimi.ai/coding/v1` | China: `https://api.kimi.com/coding/v1` |
+| Alibaba Coding Plan | `https://coding-intl.dashscope.aliyuncs.com/v1` | China: `https://coding.dashscope.aliyuncs.com/v1` |
+| OpenCode Go | `https://opencode.ai/inference/go/openai/v1` | Models not served over this protocol are refused by the endpoint |
+| Ollama Cloud | `https://ollama.com/v1` | Cloud models of your Ollama account |
+
+A plan key is not interchangeable with the vendor's metered API key. Some vendors restrict plan keys to coding tools; using one from an agent platform is your decision and may limit or suspend the plan. AgenticOS budgets treat this usage as unpriced subscription use.
+
+**More OpenAI-compatible accounts.** Nous Portal, Inception, Cline, Chutes and Synthetic take the key from that service's own console. An empty Endpoint uses its default below, and the model list comes from the key's catalog. Nous Portal, Chutes and Synthetic subscriptions are treated as unpriced; Cline credits and Inception usage are priced only where AgenticOS knows the model's price.
+
+| Provider | Default endpoint |
+|---|---|
+| Nous Portal | `https://inference-api.nousresearch.com/v1` |
+| Inception | `https://api.inceptionlabs.ai/v1` |
+| Cline | `https://api.cline.bot/api/v1` |
+| Chutes | `https://llm.chutes.ai/v1` |
+| Synthetic | `https://api.synthetic.new/openai/v1` |
+
+**Your own CLIProxyAPI gateway.** Accounts whose vendors offer no plan key (Antigravity, Grok Build, Devin, Muse Code, Kimi Code sign-in and others) can also be used through a [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) gateway that you or your operator run outside the stack. [Subscription accounts](#subscription-accounts) are the same idea built in, with each person's accounts kept apart. Sign the accounts in to the gateway with its own login commands, add a client key under `access.api-keys`, then create a **CLIProxyAPI (subscription gateway)** profile with its Endpoint (for example `http://cliproxyapi:8317/v1` for a gateway container on the deployment's network) and that client key. Every account the gateway holds is available to whoever can use the profile, so run a personal gateway for a personal account. Add the gateway's host to `OUTBOUND_PRIVATE_ALLOWLIST`; loopback addresses are never reachable from the server. Vendors may limit or suspend accounts used this way; that risk is the account owner's.
+
+Choose the vault key and confirm the destination before loading models. A custom catalog uses that key and endpoint only; an unavailable listing leaves the model field editable rather than substituting the general API catalog. AgenticOS budget estimates do not measure your remaining subscription allowance.
+
+### Subscription accounts { #subscription-accounts }
+
+In the agent editor and chat model picker, start with **Your subscriptions**, choose a familiar provider such as **Claude Code (Pro, Max)** or **ChatGPT (Codex)**, then **Connect**. Sign-in opens in place and returns to the model picker; the list comes from that vendor's connected accounts, not a guess based on model names. Unavailable accounts offer **Reconnect**. You can still manage and disconnect accounts under **Settings → Subscriptions**. Organization API keys are a separate group; manually configured gateways and endpoints are under **Advanced / custom endpoint**. Existing `subscription_accounts` and `cliproxyapi` profiles keep their API IDs.
+
+Chat catalogs show every chat-capable entry rather than silently stopping at 100. The picker shows the number of choices, whether the catalog is live or a limited fallback, and a refresh action. OpenRouter shows its current catalog region; changing it is explicit and preserves that region when saving the new model. Saved models keep their own connection settings.
+
+During onboarding, **Which subscriptions do you already have?** lets people select their existing plans and sign in before their first chat. This is optional and available to members; these accounts remain personal and do not configure the organization’s shared starter model.
+
+When several personal accounts are connected, open the **Account** tab and choose the account, just as you choose a stored API key. Subscription models use the same searchable list as API providers; selecting a model applies it immediately. Applying a model binds it to that account using an opaque route; it does not silently switch to another account. Account-specific profiles require the caller to have that account connected. The picker restores the account and model when reopened, and keeps account routing out of display names.
+
+**Settings → Subscriptions** lists each connected account separately, with quota windows, remaining percentages, progress bars and reset times. The model picker’s **Account** tab uses the same view for every account of the selected provider.
+
+Claude, Codex, Antigravity and both Kimi Code regions read quota metadata without making an inference request. Claude includes five-hour, weekly and model-family windows. Antigravity preserves separate model groups; Kimi preserves weekly and rolling windows. Devin shows reported daily and weekly snapshots. Grok and Meta allowance reads are not available through this gateway connection.
+
+Usage refreshes every minute while visible, or every five minutes for Claude, and can be refreshed manually. Older observations are marked stale. Failed reads remain explicit; missing quota data never becomes a full allowance. Kimi Code (kimi.com) and Kimi Code (kimi.ai) are separate regional sign-ins; neither entry represents a consumer-chat plan.
+
+All connection groups are visible immediately. Connected subscriptions show a status badge and account identity; adding another account is a secondary action. Reopening the picker restores the subscription source and model from the saved subscription profile.
+
+Subscription models use the AgenticOS instructions and tools in the Pydantic AI runtime. They do not launch Claude Code or another coding harness. In Capabilities, **Delegate to agents** groups subagents, **Claude Code & Codex** and **Other installed agents**. Coding Agent remains enabled in the default AgenticOS template. Groups follow everyday work, knowledge, research, outputs, delegation, automation and channels, with advanced tuning collapsed last. Enabled capabilities appear first within each group, followed by recommended ones.
+
+People sign in to their own subscriptions from the console, and models on the
+**Subscription accounts** provider run on them. Under **Settings → Subscriptions**, each person connects Claude (Pro, Max), ChatGPT (Codex),
+Google Antigravity, Grok, Kimi, Devin or Meta AI accounts. A sign-in shows a code
+to enter on the provider's page, or asks for the address the browser ended on
+after approving.
+
+A profile on this provider takes only a model id, with no key and no endpoint.
+**Add model** lists the models your own accounts serve. When a person chats with
+an agent on such a profile, the run uses that person's accounts and nobody
+else's. A run started by an API key, a published agent's visitor or background
+work has no person behind it, so it is refused. For the same reason the platform
+never picks such a model for a new agent.
+
+The `subscription-gateway` service ships with the stack and runs
+[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) (MIT) once per person
+per organization. It starts a person's process on first use and stops it after
+ten idle minutes. Each process listens on loopback with its own keys and
+sign-in directory, and the API derives which one a request reaches from the
+organization and the person; a browser never names it. When a member leaves, a
+background job deletes their sign-ins; deleting an organization deletes every
+member's. Signing in to the same account in two organizations means signing in
+twice.
+
+Scopes also include the membership ID: rejoining creates a new scope, so
+an old cleanup job cannot delete newly connected accounts. Credential deletion is
+queued even while the gateway is disabled; a disabled or failing gateway leaves a
+visible failed job rather than confirming deletion. Retry that job after restoring
+the gateway. A failed sign-in status read shows an error and a Retry control.
+
+Vendors may limit how a subscription is used outside their own apps and can
+suspend an account for it. The console states this risk, and the account owner
+accepts it. Cursor and Qwen Code have no sign-in the gateway supports, so they
+are not offered. AgenticOS budgets record these runs without a price, because a
+subscription's remaining allowance is not measured per token. See
+[configuration](configuration.md#subscription-accounts) for running the gateway.
 
 ### Self-hosted
 
@@ -453,6 +550,8 @@ text: a server that publishes no list can still be used by typing the id.
 | AWS Bedrock | `bedrock` | access key id, secret key, region, optional session token |
 | Google Vertex AI | `google_cloud` | service account JSON |
 | ChatGPT (Codex subscription) | `openai_codex` | a ChatGPT sign-in, stored by signing in rather than typed |
+| ChatGPT (official plan usage) | `openai_chatgpt` | an application grant with separate plan consent, created by signing in |
+| Subscription accounts | `subscription_accounts` | each person's own subscription sign-ins, through the bundled gateway; no key |
 
 The first three are the reason a secret has a *kind* at all. A form that collected one
 opaque token for Azure would collect something fillable-in-correctly that still
@@ -474,17 +573,21 @@ subscription, rather than through a metered API key. It is meant for **personal
 use**: the sign-in is one person's subscription, and every run on a profile that
 uses it counts against that person's ChatGPT limits.
 
-Nobody can type the credential. You sign in with ChatGPT instead:
+Nobody can type the credential. You sign in with ChatGPT instead, by default
+with a short code:
 
 1. Under **Vault → add a secret** (or **Agents → add a model**, with **ChatGPT
-   (Codex subscription)** selected), choose **Sign in with ChatGPT**. A ChatGPT
-   sign-in opens in a new tab.
-2. Approve it. ChatGPT then sends the browser to `http://localhost:1455/...`,
-   which does not load. That is expected: OpenAI pins that address for every
-   client other than its own.
-3. Copy the whole address from the address bar and paste it back into the form.
+   (Codex subscription)** selected, or **Settings → Coding accounts**), choose
+   **Sign in with a code**. ChatGPT's device page opens in a new tab and the form
+   shows a code.
+2. Enter the code on that page and approve the sign-in. The form notices the
+   approval by itself and finishes; nothing is pasted back.
 
-The code in that address works once, only for the person who started the
+The code works for 15 minutes, only for the person who started the sign-in.
+If your account cannot use device codes, open **Paste an address instead**:
+choose **Sign in with ChatGPT**, approve it, and copy the address ChatGPT sends
+the browser to (`http://localhost:1455/...`, which does not load) back into the
+form. That address also works once, only for the person who started the
 sign-in, and only within 15 minutes.
 
 The access token expires and is refreshed while models run. Each refresh spends
@@ -579,12 +682,14 @@ for seven providers, which the answer says out loud.
 
 ### Live
 
-Twenty providers publish a list endpoint, and it is the only source that knows
+Thirty providers publish a list endpoint, and it is the only source that knows
 about a model released this morning:
 
 `anthropic`, `openai`, `google`, `openrouter`, `groq`, `mistral`, `together`,
 `cohere`, `deepseek`, `xai`, `sambanova`, `vercel`, `ovhcloud`, `huggingface`,
-`cerebras`, `fireworks`, `nebius`, `moonshotai`, `zai`, `alibaba`.
+`cerebras`, `fireworks`, `nebius`, `moonshotai`, `zai`, `alibaba`,
+`kimi_code`, `alibaba_coding_plan`, `opencode_go`, `ollama_cloud`, `cliproxyapi`, `nous_portal`,
+`inception`, `cline`, `chutes`, `synthetic`.
 
 The response shapes disagree — the array sits at `data`, at `models` or at the
 document root; the id is `id`, `name` or `model`; Gemini prefixes it with
@@ -832,3 +937,25 @@ Provider references: [Pydantic AI](https://pydantic.dev/docs/ai/models/decision/
 ElevenLabs Realtime adds `eleven_realtime_v1_mini` and `eleven_realtime_v1_max` over the 24 kHz PCM relay, using the `brian` default voice and semantic turn detection.
 
 The SDK does not report token charges. Calls with a configured spending budget are refused before connecting; calls without a spending budget retain the time cap and record connected audio as a cost floor, not a full bill. The catalog audio rate is $0.08/minute ($0.16 burst); token charges are additional. The 16k context value is a conservative platform history-seeding budget, not a published vendor context window. The integration is tested offline against SDK construction and controlled transports, not live accounts. [SDK](https://pydantic.dev/docs/ai/api/realtime/elevenlabs/), [ElevenLabs API pricing](https://elevenlabs.io/pricing/api).
+
+## GitHub Copilot accounts { #github-copilot-accounts }
+
+**GitHub Copilot** (`github_copilot`) uses Pydantic AI's Copilot model dialect, distinct from GitHub Models (`github`). It sends explicit vault credentials to the fixed `https://api.githubcopilot.com` gateway, with AgenticOS integration identity and no VS Code editor headers. Request settings cannot override the account or integration identity. Custom and Enterprise gateways are not supported by this integration.
+
+A model administrator can configure an approved profile with a Copilot bearer token in the vault. Do not use a general GitHub API token as evidence of Copilot access. Select personal model credentials on a shared agent to let each member connect their own account through chat settings. A deployment administrator must first set `GITHUB_COPILOT_OAUTH_CLIENT_ID` to AgenticOS's own GitHub OAuth App client ID with device flow enabled. The member opens GitHub's authorization page, approves the code shown in AgenticOS and checks authorization. No device code or token appears in a URL. Reconnect repeats this flow; disconnect removes the private stored token, while OAuth revocation is done separately in GitHub settings.
+
+GitHub authorization alone is insufficient: before saving the personal token, AgenticOS verifies that this account and application advertise the selected model on `/chat/completions`. Catalogs are account-specific, filtered by supported endpoints, and have no global fallback. Copilot's Responses, Messages, embeddings and realtime interfaces are not offered. Personal connections retain the existing signed-in web-chat restriction and cannot fall back to an organization key or another provider.
+
+The device flow accepts non-expiring OAuth App grants. Expiring or refreshable GitHub App grants are explicitly refused; their renewal is not implemented, and refresh tokens are never silently discarded. Missing entitlement, policy, revocation and quota failures require reconnect or account action. Model names alone do not establish a subscription bill: Copilot plan usage is unpriced until a USD billing contract is verified; quota fields are not interpreted as dollars. Real-account acceptance for AgenticOS's own OAuth application and integration identity remains pending. See [Pydantic AI Copilot](https://pydantic.dev/docs/ai/models/github-copilot/) and [GitHub OAuth setup](https://docs.github.com/en/copilot/how-tos/copilot-sdk/setup/github-oauth).
+
+## Official ChatGPT plan usage
+
+**ChatGPT plan usage (official)** uses an application-specific grant and the public Responses API. **ChatGPT (Codex subscription)** remains the separate Codex backend integration. Their sign-ins, vault kinds and tokens are not interchangeable.
+
+Official plan usage is disabled by default. An operator must verify deployment eligibility, set `OPENAI_CHATGPT_PLAN_USAGE_ENABLED=true` and persist one UUID in `OPENAI_CHATGPT_HOST_ID` across restarts and replicas. Paid or remotely hosted applications require OpenAI's approval. These settings attest eligibility; they do not obtain approval. Restore the original host UUID before reconnecting an existing installation.
+
+Choose the official provider in the Vault or model picker, sign in and paste the final `http://127.0.0.1:1455/auth/callback?...` address. The grant is stored privately. Only its owner can spend it; shared profiles, API keys and background work cannot lend it to another person. Declining plan sharing saves the registration and grant, displays a warning and cannot enable inference. Reconnect to request consent again. Issued client registrations survive failed token exchanges; callbacks are single-use and bound to the initiating member and organization. Another sign-in supersedes earlier callbacks.
+
+Select a model from the selected grant's live account catalog. Listings are not replaced with a global API-key catalog. Rotating tokens return to the vault with compare-and-swap checks, and every model request checks grant revocation and the owner's current membership. Delete the vault grant to disconnect locally; revoke application access in ChatGPT settings to revoke it at OpenAI. Registration metadata remains for a later reconnect.
+
+Pydantic AI enforces streaming, `store=false`, local history replay and the supported preview dialect. Suspended-response retrieval, Batch API and unsupported hosted tools are unavailable. Official plan usage cannot participate in automatic model fallbacks. Usage remains unpriced in AgenticOS; an API price estimate would not establish the plan's charge. Account entitlement, live quota and billing acceptance require testing with an eligible account. See [OpenAI's flow](https://developers.openai.com/siwc/token-sharing-open-source) and [Pydantic AI's adapter](https://pydantic.dev/docs/ai/models/openai-chatgpt/).

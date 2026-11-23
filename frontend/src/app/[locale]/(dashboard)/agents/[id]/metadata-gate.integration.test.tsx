@@ -155,6 +155,12 @@ async function mount() {
   });
 }
 
+/** Categories and tags live in the agent's Details dialog, behind "More actions". */
+async function openDetails() {
+  await userEvent.click(await screen.findByRole("button", { name: "More actions" }));
+  await userEvent.click(await screen.findByRole("menuitem", { name: "Details" }));
+}
+
 describe("the detail page's metadata editor gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -179,9 +185,7 @@ describe("the detail page's metadata editor gate", () => {
   it("shows the editor to a caller who may edit the agent, by a grant alone", async () => {
     allowed = new Set();
     await mount();
-
-    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Details" }));
+    await openDetails();
     expect(await screen.findByRole("textbox", { name: "Add a category" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Add a tag" })).toBeInTheDocument();
   });
