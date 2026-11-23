@@ -7,7 +7,14 @@ import { BotAgentCell } from "./bot-agent-cell";
 import type { PublishAnswer } from "./unbind-slot";
 import { ChannelDiagnosticsDialog } from "./channel-diagnostics-dialog";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
-import { Badge, Button, DataTable, type Column } from "@/components/ui";
+import {
+  ActionTooltip,
+  Badge,
+  Button,
+  DataTable,
+  TooltipProvider,
+  type Column,
+} from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { BotAgent, ChannelBot, ChannelPlatform } from "@/types/channels";
 import { useTranslations } from "next-intl";
@@ -179,59 +186,80 @@ export function ChannelBotsTable({
         align: "right",
         className: "w-40 pr-5 @max-md/table:text-left",
         cell: (bot) => (
-          <div className={cn("flex justify-end gap-1 @max-md/table:justify-start", paused(bot))}>
-            <Button
-              variant="ghost"
-              size="icon"
-              disabled={busy}
-              data-tour="channels-diagnostics"
-              aria-label={t("diagnostics.open", { bot: bot.name })}
-              onClick={() => setDiagnosticBot(bot)}
-            >
-              <Stethoscope className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              disabled={busy}
-              aria-label={t("editBot", { bot: bot.name })}
-              onClick={() => onEdit(bot)}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            {onMapRoles && bot.platform === "discord" && (
-              <Button
-                variant="ghost"
-                size="icon"
+          <TooltipProvider>
+            <div className={cn("flex justify-end gap-1 @max-md/table:justify-start", paused(bot))}>
+              <ActionTooltip label={t("diagnostics.open", { bot: bot.name })} disabled={busy}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={busy}
+                  data-tour="channels-diagnostics"
+                  aria-label={t("diagnostics.open", { bot: bot.name })}
+                  onClick={() => setDiagnosticBot(bot)}
+                >
+                  <Stethoscope className="h-4 w-4" />
+                </Button>
+              </ActionTooltip>
+              <ActionTooltip label={t("editBot", { bot: bot.name })} disabled={busy}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={busy}
+                  aria-label={t("editBot", { bot: bot.name })}
+                  onClick={() => onEdit(bot)}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </ActionTooltip>
+              {onMapRoles && bot.platform === "discord" && (
+                <ActionTooltip label={t("mapDiscordRoles", { bot: bot.name })} disabled={busy}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={busy}
+                    data-tour="channels-discord-roles"
+                    aria-label={t("mapDiscordRoles", { bot: bot.name })}
+                    onClick={() => onMapRoles(bot)}
+                  >
+                    <Users className="h-4 w-4" />
+                  </Button>
+                </ActionTooltip>
+              )}
+              <ActionTooltip
+                label={
+                  bot.is_active
+                    ? t("pauseBot", { bot: bot.name })
+                    : t("resumeBot", { bot: bot.name })
+                }
                 disabled={busy}
-                data-tour="channels-discord-roles"
-                aria-label={t("mapDiscordRoles", { bot: bot.name })}
-                onClick={() => onMapRoles(bot)}
               >
-                <Users className="h-4 w-4" />
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              disabled={busy}
-              aria-label={
-                bot.is_active ? t("pauseBot", { bot: bot.name }) : t("resumeBot", { bot: bot.name })
-              }
-              onClick={() => onToggleActive(bot)}
-            >
-              {bot.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              disabled={busy}
-              aria-label={t("removeBot", { bot: bot.name })}
-              onClick={() => onDelete(bot)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={busy}
+                  aria-label={
+                    bot.is_active
+                      ? t("pauseBot", { bot: bot.name })
+                      : t("resumeBot", { bot: bot.name })
+                  }
+                  onClick={() => onToggleActive(bot)}
+                >
+                  {bot.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                </Button>
+              </ActionTooltip>
+              <ActionTooltip label={t("removeBot", { bot: bot.name })} disabled={busy}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={busy}
+                  aria-label={t("removeBot", { bot: bot.name })}
+                  onClick={() => onDelete(bot)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </ActionTooltip>
+            </div>
+          </TooltipProvider>
         ),
       },
     ],

@@ -3,7 +3,7 @@
 import { Unlink } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Button } from "@/components/ui";
+import { ActionTooltip, Button, TooltipProvider } from "@/components/ui";
 import type { BotAgent, ChannelBot } from "@/types/channels";
 
 /** What the viewer may publish, as the agents read answered it. */
@@ -33,15 +33,19 @@ export function UnbindSlot({
   }
   if (typeof mayPublish !== "function" || !mayPublish(agent.id)) return null;
   return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      disabled={busy}
-      data-tour="channels-binding"
-      aria-label={t("unbindAgent", { agent: agent.slug, bot: bot.name })}
-      onClick={() => onUnbind(bot, agent)}
-    >
-      <Unlink className="h-4 w-4" />
-    </Button>
+    <TooltipProvider>
+      <ActionTooltip label={t("unbindAgent", { agent: agent.slug, bot: bot.name })} disabled={busy}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          disabled={busy}
+          data-tour="channels-binding"
+          aria-label={t("unbindAgent", { agent: agent.slug, bot: bot.name })}
+          onClick={() => onUnbind(bot, agent)}
+        >
+          <Unlink className="h-4 w-4" />
+        </Button>
+      </ActionTooltip>
+    </TooltipProvider>
   );
 }

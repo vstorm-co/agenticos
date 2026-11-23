@@ -191,6 +191,18 @@ describe("the channels page", () => {
     expect(screen.getByText("Mattermost · https://mattermost.acme.com")).toBeVisible();
   });
 
+  it.each([
+    ["Edit Acme Support"],
+    ["Pause Acme Support"],
+    ["Remove Acme Support"],
+  ])("names the %s icon on hover", async (name) => {
+    serve([bot()]);
+    await mount();
+
+    await userEvent.hover(await screen.findByRole("button", { name }));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(name);
+  });
+
   it("names the agents that answer there", async () => {
     serve([bot()]);
     await mount();
