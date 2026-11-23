@@ -12,12 +12,12 @@ from sqlalchemy.orm import aliased
 
 from app.db.models.eval_run import ArmRole, EvalRun, EvalRunArm, EvalRunCase, EvalRunStatus
 from app.db.models.skill_check import (
+    SKILL_CHECK_VERDICT_VERSION,
     AgentState,
     CheckSource,
     CheckStatus,
     SkillCheck,
     SkillCheckAgent,
-    UnknownReason,
 )
 from app.db.models.skill_usage import RunSkillUse
 from app.db.models.skill_version import SkillVersion
@@ -271,10 +271,7 @@ async def judged_before_families(
                 SkillCheckAgent.skill_set_run_id.is_not(None),
                 SkillCheckAgent.dataset_run_id.is_not(None),
             ),
-            or_(
-                func.jsonb_array_length(SkillCheckAgent.families) == 0,
-                SkillCheckAgent.unknown_reason == UnknownReason.INCONCLUSIVE.value,
-            ),
+            SkillCheckAgent.verdict_version < SKILL_CHECK_VERDICT_VERSION,
         )
     )
     if check_ids:

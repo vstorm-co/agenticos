@@ -1,5 +1,5 @@
 ---
-source_sha: "d4710a3108db"
+source_sha: "1a0321736e6f"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -195,7 +195,7 @@ jego wierszu i w samym temacie.
 |---|---|
 | **Dodaj do** *bazy wiedzy* | Dodaje tytuł i treść do bazy wiedzy tematu jako dokument Markdown, tą samą ścieżką co wgranie pliku, i oznacza temat jako **uzupełniony** tym dokumentem. Jest odrzucane, dopóki jakaś informacja czeka na uzupełnienie albo dopóki coś może identyfikować osobę, a nie zostało to potwierdzone (zobacz [Dane osobowe](#personal-data)) |
 | **Zapisz** | Zachowuje tytuł i treść przy temacie, nigdzie ich nie dodając |
-| **Dodaj do datasetu** | Zamienia najnowsze pytania tematu (do 200) na przypadki wybranego datasetu, który możesz zmieniać, jako jedną nową wersję. Każdy przypadek to pytanie osoby, a odpowiedź agenta jest kontrprzykładem. Pytanie zadane przez HTTP API nie ma zapisanej odpowiedzi i jest pomijane |
+| **Dodaj do datasetu** | Zamienia najnowsze pytania tematu (do 200) na przypadki wybranego datasetu, który możesz zmieniać, jako jedną nową wersję. Każdy przypadek to pytanie osoby, a odpowiedź agenta jest kontrprzykładem. Pytanie zadane przez HTTP API nie ma zapisanej odpowiedzi i jest pomijane. Ukryte, gdy wszystkie pytania tematu pochodzą z ewaluacji. |
 | **Odrzuć** | Oznacza temat jako niewymagający treści. Odrzucony temat zatrzymuje należące do niego pytania, więc nie wraca jako nowy temat. **Otwórz ponownie** to odwraca |
 
 Uzupełniony temat mówi, który dokument go uzupełnia, zatrzymuje należące do

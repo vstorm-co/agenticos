@@ -1858,14 +1858,18 @@ class KnowledgeGapService:
         cleared = await knowledge_gap_repo.eval_answers_kept(
             self.db, [v.candidate.run_id for v in answered], organization_id=ctx.organization_id
         )
-        misses += await knowledge_gap_repo.record_eval_classifications(
+        classified, eval_misses = await knowledge_gap_repo.record_eval_classifications(
             self.db,
             [v for v in answered if v.candidate.run_id in cleared],
             kb.id,
             organization_id=ctx.organization_id,
             run_id=result.run.id,
         )
-        return len(verdicts), misses
+        if classified < len(answered):
+            # A discarded answer can have been erased during the model call. Its
+            # prompt must not survive only because no classification links to it.
+            await personal_data_repo.forget_runs(self.db, [result.run.id])
+        return len(verdicts), misses + eval_misses
 
     async def _candidates(
         self,

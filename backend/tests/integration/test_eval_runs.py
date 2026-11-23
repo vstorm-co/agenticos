@@ -2508,6 +2508,16 @@ async def test_a_session_attempt_counted_without_the_judge_is_counted_again_once
     await db.flush()
     service = SkillImprovementService(db)
 
+    # An active attempt must not be recounted, even with free answers and a paid judge.
+    await db.execute(update(EvalRunCase).where(EvalRunCase.eval_run_id == v7.id).values(cost_usd=0))
+    answers = Decimal(0)
+    attempt.cost_usd = answers
+    await db.flush()
+    assert not await service.recount_check_cost(ctx.organization_id, attempt.id)
+    assert await skill_improvement_repo.checked_iterations(db, check_ids=[check.id]) == []
+    attempt.cost_usd = answers
+    attempt.ended_at = datetime.now(UTC)
+    await db.flush()
     assert await service.recount_check_cost(ctx.organization_id, attempt.id)
     assert gradings == Decimal("0.30")
     assert attempt.cost_usd == answers + gradings
@@ -4473,3 +4483,32 @@ async def test_comparison_scratch_work_leaves_the_event_loop_responsive(db, monk
             await task
         finally:
             timer.join()
+
+
+async def test_an_automatically_reused_baseline_prices_confirmation_reruns(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=4)
+    service = EvalRunService(db)
+    earlier = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), earlier.id, ctx)
+    request = EvalRunRequest(dataset_id=dataset.id)
+    estimate = await service.estimate(ctx, agent.id, request)
+    assert any(arm.role.value == "baseline" for arm in estimate.arms)
+    assert estimate.expected_usd == estimate.total_usd + estimate.rerun_ceiling_usd / 2
+    current = await service.start(ctx, agent.id, request)
+    assert current.expected_usd == current.estimate_usd + current.rerun_ceiling_usd / 2
+
+
+async def test_a_current_incomplete_skill_verdict_is_not_a_legacy_result(db) -> None:
+    from app.db.models.skill_check import SKILL_CHECK_VERDICT_VERSION
+
+    ctx = await _owner(db)
+    check, _, _ = await _checked_run(db, ctx)
+    check.status = "done"
+    row = await db.scalar(select(SkillCheckAgent).where(SkillCheckAgent.check_id == check.id))
+    assert row is not None
+    row.state, row.unknown_reason, row.families = "unknown", "inconclusive", []
+    row.verdict_version = SKILL_CHECK_VERDICT_VERSION
+    await db.flush()
+    assert await skill_check_repo.judged_before_families(db, check_ids=[check.id]) == []
