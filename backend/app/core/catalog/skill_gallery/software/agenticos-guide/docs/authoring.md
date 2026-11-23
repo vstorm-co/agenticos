@@ -446,6 +446,8 @@ A session kept as a draft is finished: publish the draft with the agent's own **
 
 The session estimate includes sorting bad chat answers and failed training answers against writable knowledge bases bound to the agent, and grouping their misses into [topics](knowledge-gaps.md#topics). It includes no drafts: a draft is written only when a person asks for one, and is paid as that run. Each step checks its complete estimate again before starting. Only frozen, unerased source chats and the training answers the session learns from reach classification or grouping; a training answer missing knowledge also remains agent evidence, and held-out text never reaches these helpers.
 
+A failed training answer that misses only keys none of the agent's sources holds, by the agent's [key coverage](datasets.md#key-coverage) report for that dataset, counts under missing knowledge rather than as the agent's fault. The helper reads which keys those are, by label, and that the user must supply them: no change to the instructions can.
+
 A failed classifier is shown explicitly, leaves the source conversations available, and the session still stops at **Understand**. A session needing only knowledge stops and lists the topics missing from the knowledge base, to draft the ones you want, without creating an empty agent version. A draft goes stale once a document is added to the knowledge base after it was written, and **Redraft** writes it again (see [Drafting the missing content](knowledge-gaps.md#drafting-the-missing-content)). Checking a draft still requires its own estimate and confirmation; adding content remains a separate human decision.
 
 A human review decision and its withdrawal recompute the current measured attempt in the same transaction as the test and suite results. The selected attempt and its spend remain unchanged. Earlier measurements and individual-change checks cannot replace the current combined verdict. No new model call, publication or environment move follows a review. If the original requester can no longer read the comparison, the cached attempt becomes inconclusive instead of retaining a green verdict. Live dataset events refresh the test, suite, session and environment views.
@@ -485,6 +487,51 @@ session, and every later step shows its own price. It calls the wizard's own
 actions as you, so the same checks apply: a changed agent refuses the
 acceptance, a guarded environment waits for its check, and the audit log records
 you, with the Architect's credential named beside you.
+
+### Searching many variants { #searching-many-variants }
+
+A session can search many versions of the agent's instructions instead of asking
+for one proposal per attempt. Choose **Search variants** when you start Improve,
+or post `mode: "search"` with `search` settings to the estimate and the start.
+Search needs at least ten training questions in the dataset. With fewer, the
+option is off and the API answers `422`.
+
+After **Understand**, the next step runs the search. The helper writes a few
+complete versions of the instructions at a time. Each version answers the same
+draw of the attempt's training questions, and its answers are graded. The helper
+then writes the next versions from the best ones and the questions they still
+fail. The search never reads the questions kept aside for the check.
+
+The search ends at its own budget, at its variant limit (`max_variants`, 40 by
+default), or after rounds that find nothing better (`patience`, 3 by default).
+The best variant that beats the current instructions comes to **Changes** as
+ordinary changes, and its check, result and acceptance work as for any attempt.
+A score from the search is the share of required checks passed on training
+questions. It is not a verdict. At **Changes**, before the check,
+`PUT /{run_id}/search/choice` with `variant_id` brings another of the three best
+variants instead. When no variant beats the current instructions, the session
+stops with `no_variant`.
+
+The search has its own budget, `search.budget_usd`, inside the session's limit,
+and the start estimate adds it and the check of the variant it finds to the
+total. A variant starts only while its estimate fits what is left. Each answer
+is capped at twice its share of that estimate, so the search can go over its
+budget by at most the one variant it was scoring. The session shows what the
+search spent apart from the rest.
+
+Only someone who could start the session - with edit access to the agent,
+`runs:view` and the right to run the dataset - reads the variants' text, which
+is written from the dataset's questions; anyone else sees the counts. A question
+a variant could not answer or have graded counts as failed. A search with no
+progress for an hour fails as stalled and can be retried.
+
+By default the dataset's judge grades the variants on its own model;
+`grading_model_profile_id` grades them on a cheaper or local model instead. The
+check after **Changes** always grades with the dataset's judge. A variant's
+answers are not eval runs: they appear neither on the Evals tab nor in
+comparisons, and the session shows what they cost. The search's jobs run one at a
+time per organization, without taking the slots of eval runs. Searching a
+skill's content is not available yet.
 
 ### Proposing a new skill { #proposing-a-new-skill }
 

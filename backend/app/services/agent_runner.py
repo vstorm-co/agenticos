@@ -483,12 +483,17 @@ SPECIALIST_SKILLS_RESOURCE = "specialist_skills"
 
 _PREVIEW_CHARS = 80
 
-_ORIGIN_KINDS: dict[str, Literal["grader", "improve", "knowledge_gaps", "test_questions"]] = {
+_ORIGIN_KINDS: dict[
+    str,
+    Literal["grader", "improve", "knowledge_gaps", "test_questions", "key_drafts", "key_coverage"],
+] = {
     AgentKind.JUDGE.value: "grader",
     AgentKind.IMPROVER.value: "improve",
     AgentKind.CLASSIFIER.value: "knowledge_gaps",
     AgentKind.DRAFTER.value: "knowledge_gaps",
     AgentKind.GENERATOR.value: "test_questions",
+    AgentKind.EXTRACTOR.value: "key_drafts",
+    AgentKind.COVERAGE.value: "key_coverage",
 }
 
 
@@ -3621,6 +3626,25 @@ def _started_by_a_person(run: AgentRun) -> bool:
     return run.key_scopes is None
 
 
+def _routine_mcp_refs(spec: AgentSpec) -> list[McpServerRef]:
+    """Add only the run's reporting surface, without editing the published spec."""
+    refs = list(spec.mcp_servers)
+    if not any(isinstance(ref, PlatformMcpServerRef) for ref in refs):
+        refs.append(
+            PlatformMcpServerRef(account="platform", allowed_tools=["publish_inbox_finding"])
+        )
+    else:
+        refs = [
+            ref.model_copy(update={"allowed_tools": [*ref.allowed_tools, "publish_inbox_finding"]})
+            if isinstance(ref, PlatformMcpServerRef)
+            and ref.allowed_tools is not None
+            and "publish_inbox_finding" not in ref.allowed_tools
+            else ref
+            for ref in refs
+        ]
+    return refs
+
+
 class AgentRunnerService:
     """Prepare, execute and account for agent runs."""
 
@@ -3749,16 +3773,27 @@ class AgentRunnerService:
         *,
         agent_id: UUID | None = None,
         conversation_id: UUID | None = None,
+        run_id: UUID | None = None,
     ) -> str | None:
-        """A credential for this platform's own MCP server, when the spec binds it.
+        """Mint the bound platform authority or a scope-free routine reporting key.
 
-        Minted from the authority of the person the run is for, so the agent can do
-        what they can do - and an agent that does not bind the server mints
-        nothing. `None` where nobody is behind the run.
+        Reporting-only access never lends the creator's general platform permissions.
+        The published binding, where present, still defines its approval policy.
         """
-        if not any(isinstance(ref, PlatformMcpServerRef) for ref in spec.mcp_servers):
+        bound = any(isinstance(ref, PlatformMcpServerRef) for ref in spec.mcp_servers)
+        routine = ctx.routine_id is not None or (
+            existing_run is not None and existing_run.routine_origin_id is not None
+        )
+        if not bound and not routine:
             return None
         owner = await self._run_owner_context(ctx, existing_run)
+        reporting_only = routine and (
+            not bound or (owner is not None and owner.subject_is_publisher_fallback)
+        )
+        if owner is not None and reporting_only:
+            # This token has no platform scopes. Only the run-bound reporting
+            # endpoint accepts it; it cannot lend personal or admin authority.
+            owner = replace(owner, subject_is_publisher_fallback=False)
         return (
             None
             if owner is None
@@ -3766,6 +3801,8 @@ class AgentRunnerService:
                 owner,
                 agent_id=existing_run.agent_id if existing_run is not None else agent_id,
                 conversation_id=conversation_id,
+                run_id=existing_run.id if existing_run is not None else run_id,
+                reporting_only=reporting_only,
             )
         )
 
@@ -4700,10 +4737,12 @@ class AgentRunnerService:
             personal_sources = {watch_sources.connection_id: source_identity(watch_sources)}
         # What the spec's other tools are called, which no MCP tool may also be (#2890).
         taken_names = taken_tool_names(spec)
+        runtime_run_id = existing_run.id if existing_run is not None else uuid4()
+        runtime_refs = _routine_mcp_refs(spec) if routine is not None else spec.mcp_servers
         resolved = await build_toolsets_for_agent(
             self.db,
             organization_id=ctx.organization_id,
-            refs=spec.mcp_servers,
+            refs=runtime_refs,
             sender_user_id=personal_mcp_user_id,
             recheck_sources=personal_mcp is not None,
             test_connections=test_connections.mcp,
@@ -4715,6 +4754,7 @@ class AgentRunnerService:
                 ctx,
                 existing_run,
                 agent_id=agent.id,
+                run_id=runtime_run_id,
                 conversation_id=_routine_source(
                     ctx,
                     surface=surface,
@@ -4762,6 +4802,10 @@ class AgentRunnerService:
             linked_sender=personal_mcp_user_id is not None,
             test_environment=settings.ENVIRONMENT in {"local", "development"},
         )
+        if routine is not None:
+            from app.schemas.routine_notifications import ROUTINE_RESULT_INSTRUCTIONS
+
+            context += "\n\n" + ROUTINE_RESULT_INSTRUCTIONS
         if context:
             guidance = "" if CHANNEL_BEHAVIOR in spec.instructions else "\n\n" + CHANNEL_BEHAVIOR
             spec = spec.model_copy(
@@ -4818,6 +4862,7 @@ class AgentRunnerService:
             require_admission()
             run = await agent_run_repo.create_run(
                 self.db,
+                run_id=runtime_run_id,
                 organization_id=ctx.organization_id,
                 agent_id=agent.id,
                 # A draft under test, or an unpublished candidate, has no version;
@@ -4839,7 +4884,9 @@ class AgentRunnerService:
                         if ctx.routine_dispatch_id is None
                         else str(ctx.routine_dispatch_id),
                         "acts_as_creator": routine.acts_as_creator,
+                        "action_mode": routine.action_mode,
                         "result_mode": routine.result_mode,
+                        "chat_mode": routine.chat_mode,
                         "approved_sources": None
                         if routine.source_policy is None
                         else routine.source_policy.model_dump(mode="json"),

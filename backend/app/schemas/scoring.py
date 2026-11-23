@@ -7,6 +7,7 @@ a **score** - what each scorer found about one run's answer to one case, beside
 a person's verdict on it.
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Annotated, Literal, Self
 from uuid import UUID
@@ -33,6 +34,9 @@ MAX_PATTERN = 500
 MAX_CHECK_VALUE = 2000
 MAX_CRITERION = 1000
 MAX_FAMILY = 80
+MAX_KEYS = 200
+MAX_KEY_LABEL = 200
+MAX_KEY_VALUE = 2000
 
 ScorerKind = Literal["check", "trajectory", "judge", "reference"]
 ScorerStatus = Literal["pass", "fail", "skipped", "error"]
@@ -202,11 +206,56 @@ class JudgeCheck(_CheckBase):
     criterion: str = Field(min_length=1, max_length=MAX_CRITERION)
 
 
+class DocumentKey(BaseSchema):
+    """One fact a written document must carry: what it is, and its value."""
+
+    key: str = Field(min_length=1, max_length=MAX_KEY_LABEL)
+    value: str = Field(min_length=1, max_length=MAX_KEY_VALUE)
+
+
+class KeysCheck(_CheckBase):
+    """The answer carries every listed value, each as a whole token.
+
+    The keys are the non-prose facts of a reference document - its numbers, names
+    and dates - and the check scores the share of them the answer repeats. Every
+    case's keys check is one family, `keys`, unless it names another.
+    """
+
+    type: Literal["keys"]
+    family: str | None = Field(default="keys", min_length=1, max_length=MAX_FAMILY)
+    keys: list[DocumentKey] = Field(min_length=1, max_length=MAX_KEYS)
+
+    @field_validator("keys")
+    @classmethod
+    def _labels_are_unique(cls, keys: list[DocumentKey]) -> list[DocumentKey]:
+        seen: set[str] = set()
+        for entry in keys:
+            label = entry.key.strip().casefold()
+            if label in seen:
+                raise ValueError(f"The key {entry.key!r} is listed twice")
+            seen.add(label)
+        return keys
+
+
 Check = Annotated[
-    TextCheck | JsonSchemaCheck | CeilingCheck | LengthCheck | JudgeCheck,
+    TextCheck | JsonSchemaCheck | CeilingCheck | LengthCheck | JudgeCheck | KeysCheck,
     Field(discriminator="type"),
 ]
 CHECK = TypeAdapter(Check)
+
+
+def require_key_budget(checks: Sequence[Check]) -> None:
+    """Refuse checks holding more keys together than one answer is matched against.
+
+    Every key is its own scan of the answer, so the bound is on the keys a case's
+    checks hold together rather than on each check.
+
+    Raises:
+        ValueError: The keys checks hold more than `MAX_KEYS` keys between them.
+    """
+    total = sum(len(check.keys) for check in checks if isinstance(check, KeysCheck))
+    if total > MAX_KEYS:
+        raise ValueError(f"The keys checks hold {total} keys together; at most {MAX_KEYS}")
 
 
 class ChecksScorer(BaseSchema):
@@ -215,6 +264,12 @@ class ChecksScorer(BaseSchema):
     enabled: bool = True
     required: bool = True
     defaults: list[Check] = Field(default_factory=list, max_length=20)
+
+    @field_validator("defaults")
+    @classmethod
+    def _bounded_keys(cls, defaults: list[Check]) -> list[Check]:
+        require_key_budget(defaults)
+        return defaults
 
 
 class TrajectoryScorer(BaseSchema):

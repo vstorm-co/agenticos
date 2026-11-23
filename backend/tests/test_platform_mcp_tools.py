@@ -2463,3 +2463,14 @@ async def test_console_experience_mcp_refuses_other_subjects_policy_fields_and_i
     with pytest.raises(MCPValidationError):
         await server.call_tool("set_my_console_experience", {"update": update})
     api.request.assert_not_awaited()
+
+
+@pytest.mark.parametrize("tool", ["create_routine", "update_routine"])
+async def test_routine_chat_mode_reaches_the_public_api(tool: str, server: FastMCP, api: MagicMock):
+    arguments: dict[str, str] = {"agent_id": str(AGENT), "chat_mode": "shared"}
+    if tool == "create_routine":
+        arguments["prompt"] = "Prepare the weekly report"
+    else:
+        arguments["routine_id"] = str(RUN)
+    await server.call_tool(tool, arguments)
+    assert api.request.await_args.kwargs["json"]["chat_mode"] == "shared"

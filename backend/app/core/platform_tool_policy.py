@@ -90,6 +90,7 @@ DEFAULT_APPROVAL_FREE: frozenset[str] = frozenset(
         "create_workflow_draft",
         "ensure_task_board",
         "prepare_solution",
+        "publish_inbox_finding",
         "prepare_workflow_draft",
         "update_agent_draft",
         "update_context_file",

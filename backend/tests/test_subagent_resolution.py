@@ -358,6 +358,7 @@ async def _prepare(
         exposure_id=uuid.uuid4(),
         environment_id=uuid.uuid4(),
         surface="slack",
+        routine_origin_id=None,
     )
     known_versions = versions or {}
     known_collections = collections or {}

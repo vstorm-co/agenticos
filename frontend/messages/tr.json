@@ -2648,7 +2648,9 @@
       "newWatch": "İzle ve bildir",
       "newRoutine": "Yeni rutin",
       "scheduledTask": "Zamanlamaya göre çalıştır",
-      "eventTask": "Bir olay geldiğinde çalıştır"
+      "eventTask": "Bir olay geldiğinde çalıştır",
+      "watchNeedsEnabling": "Organizasyon ayarlarından izlemeyi etkinleştirin.",
+      "watchNeedsConnection": "Önce Bağlantılar bölümünde bir MCP hesabı bağlayın."
     },
     "signIns": {
       "cancel": "İptal",
@@ -10445,7 +10447,9 @@
     },
     "questions": {},
     "queuedPaused": "Kuyruk duraklatıldı",
-    "resumeQueue": "Kuyruğu sürdür"
+    "resumeQueue": "Kuyruğu sürdür",
+    "routineHistoryReadOnly": "Bu rutin geçmişi salt okunurdur. Yeni bir sohbette devam etmek için yanıtı dallandır.",
+    "routineContinueChat": "Yeni sohbette devam et"
   },
   "admin": {
     "actions": "Eylemler",
@@ -11021,7 +11025,6 @@
   },
   "triggers": {
     "setupReviewTitle": "Rutinin erişimini inceleyin",
-    "setupReviewDescription": "Rutin kaydedildi ve duraklatıldı. Kaynakları inceleyin ve sormadan çalışabilecek eylemleri seçin. Etkinleştirmek için kaydedin veya duraklatılmış bırakıp daha sonra tamamlayın.",
     "enableRoutine": "Rutini etkinleştir",
     "finishLater": "Daha sonra tamamla",
     "stopWaitingRun": "Bekleyen çalıştırmayı durdur",
@@ -11143,10 +11146,6 @@
     "weekdayFri": "Cum",
     "weekdaySat": "Cmt",
     "weekdaySun": "Paz",
-    "summaryDaily": "Her gün {time} ({zone}) saatinde çalışır.",
-    "summaryEveryNDays": "Kaydedildiği andan itibaren {count, plural, =1 {her gün} other {# günde bir}} çalışır.",
-    "summaryWeekly": "{days} günlerinde {time} ({zone}) saatinde çalışır.",
-    "summaryMonthly": "Her ayın {day}. günü {time} ({zone}) saatinde çalışır.",
     "eventSource": "Şu olayda çalışır",
     "sourceGithub": "Bir GitHub issue’su",
     "webhookUrlPreview": "İstek URL’si",
@@ -11280,7 +11279,6 @@
     "choiceWeekly": "Haftalık",
     "choiceCustom": "Özel",
     "moreOptions": "Daha fazla seçenek",
-    "summaryInterval": "Kaydedildiği andan itibaren {unit, select, minutes {{count, plural, =1 {dakikada bir} other {# dakikada bir}}} hours {{count, plural, =1 {saatte bir} other {# saatte bir}}} other {{count, plural, =1 {günde bir} other {# günde bir}}}} çalışır.",
     "templatesMore": "{count, plural, =1 {1 tane daha göster} other {# tane daha göster}}",
     "templatesFewer": "Daha az göster",
     "local": {
@@ -11293,11 +11291,6 @@
       "pick": "Bir klasör seçin…",
       "useSandbox": "Sandbox’ı kullan"
     },
-    "resultMode": "Sonuçlar ne zaman bildirilsin",
-    "resultReport": "Tamamlanan her çalışmadan sonra",
-    "resultInbox": "Yalnızca dikkat gerektiğinde",
-    "resultReportHint": "Her çalışmadan sonra seçilen sohbete bir rapor gönderin.",
-    "resultInboxHint": "Her kaynak öğesi için bir Inbox kaydı ve çalışma sohbeti oluşturun. İstenen taslakları buraya yazın; değişmeyen kontroller sessiz kalır. Göndermek yine yetki ve onay gerektirir.",
     "clearSearch": "Aramayı temizle",
     "noRoutineMatchesHint": "Agent adı, rutin başlığı veya mesajındaki sözcüklerle arayın.",
     "actionConsents": {
@@ -11328,7 +11321,8 @@
       "groupCount": "{selected} / {total}",
       "useAgent": "Agent ayarlarını kullan",
       "useAgentHint": "Bu agent'ın sohbette zaten sormadan çalıştırdığı eylemleri tam olarak seçer ve mevcut seçimin yerine koyar. Buradaki onay yalnızca agent ayarlarının izin verdiğini daraltabilir, asla genişletmez: agent'ın önce sorduğu bir eylem sunulmaz. Onayı kaydet seçilene kadar hiçbir şey kaydedilmez.",
-      "allowHeading": "Bu eylemlerin onay istemeden çalışmasına izin ver"
+      "allowHeading": "Bu eylemlerin onay istemeden çalışmasına izin ver",
+      "alwaysAsks": "Her zaman sorar: ajan veya platform gerektirir"
     },
     "sourceConsents": {
       "title": "Kaynaklar",
@@ -11348,11 +11342,28 @@
       "runsAsYou": "Sizin adınıza çalışır. İzinleriniz ve zorunlu onaylar geçerli kalır.",
       "agentIdentity": "Ajanın kendi erişimini kullanır. Kişisel hesap erişimi kapalıdır.",
       "requiredUnavailable": "Gerekli kaynaklar kullanılamıyor: {names}. Bu rutini kaydetmeden veya etkinleştirmeden önce erişimi geri yükleyin.",
-      "followApprovals": "Bu rutin için onaylanan erişim ve davranış sınırları içinde ajanın onay kurallarını kullanır. Sonraki genişletmeler veya davranış değişiklikleri oluşturan kişi tarafından incelenmelidir; zorunlu onaylar geçerli kalır. Rutine özel onaylar için İncelenen kaynaklar seçeneğini kullanın.",
       "kind": "{kind, select, capability {Capabilities} skill {Skill'ler} context {Bağlam dosyaları} knowledge {Bilgi tabanları} table {Tablolar} delegate {Delege agent'lar} remote_agent {Uzak agent'lar} platform {Platform} mcp_account {MCP hesapları} chat_connection {Sohbet bağlantıları} phone {Telefon} terminal_account {Terminal hesapları} terminal_credential {Terminal kimlik bilgileri} event_source {Olay kaynağı} other {Diğer}}",
       "kindCount": "{name} ({count})",
       "unnamed": "Artık kullanılamıyor"
-    }
+    },
+    "approvalMode": {
+      "label": "Araç onayları",
+      "hint": "Inbox bildirimi dahildir. Zorunlu ajan ve platform onayları geçerlidir.",
+      "automatic": "İzin verilen araçları otomatik çalıştır",
+      "manual": "İşlemlerden önce sor",
+      "custom": "Her araç için izinleri seç",
+      "existing": "Mevcut izinleri koru"
+    },
+    "chatModeLabel": "Sohbetler",
+    "chatMode": {
+      "per_run": "Her çalıştırma için yeni sohbet",
+      "shared": "Ortak geçmiş — salt okunur"
+    },
+    "chatModeHint": {
+      "per_run": "Her çalıştırmadan sonra sohbete devam et. Takip mesajları rutini değiştirmez.",
+      "shared": "Çalıştırmaları salt okunur ortak geçmişte tut. Yeni bir sohbette devam etmek için yanıtı dallandır."
+    },
+    "openExecutionChat": "Sohbeti aç"
   },
   "teams": {
     "acmeCom": "acme.com",

@@ -70,7 +70,7 @@ async def test_late_admission_refusals_never_restart_an_obsolete_activation(monk
         execute.assert_not_awaited()
     else:
         execute.assert_awaited_once()
-        assert "revision" in execute.await_args.args[2]
+        assert execute.await_args.args[2] == trigger.prompt
     if change in {"source_during_deleted", "preparation_deleted"}:
         notice.assert_not_awaited()
         service._record_attempt.assert_not_awaited()
@@ -410,7 +410,7 @@ async def test_delivery_rechecks_the_reviewed_mode_agent_and_target_before_posti
         run=MagicMock(routine_policy={"result_mode": "report"}),
         answer="Done",
     )
-    assert delivery.status == "unavailable"
+    assert delivery.status == ("run_log" if change == "result_mode" else "unavailable")
     post.assert_not_awaited()
 
 

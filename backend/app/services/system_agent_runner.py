@@ -114,11 +114,18 @@ def _output_failure(cause: BaseException | None) -> str | None:
 
 
 class SystemAgentRunner:
-    """Run an organization's system agent and read its answer as a typed result."""
+    """Run an organization's system agent and read its answer as a typed result.
+
+    Attributes:
+        failed_run_id: The recorded run of the last call that failed, also when the
+            failure is re-raised as its original exception rather than one carrying
+            a `run_id`, so a caller can still link or forget what the run kept.
+    """
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.agents = SystemAgentService(db)
+        self.failed_run_id: UUID | None = None
 
     async def run[T](
         self,
@@ -205,6 +212,7 @@ class SystemAgentRunner:
         except RunFailedError as failure:
             cause = failure.__cause__
             recorded = failure.details or {}
+            self.failed_run_id = UUID(str(recorded["run_id"])) if "run_id" in recorded else None
             diagnosis = _output_failure(cause)
             if diagnosis is not None:
                 run_id = UUID(str(recorded["run_id"]))

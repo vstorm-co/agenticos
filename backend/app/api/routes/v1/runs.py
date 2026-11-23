@@ -80,12 +80,9 @@ async def list_runs(
         None, description="Leave out runs from this surface - the eval traffic, say"
     ),
     user_id: UUID | None = Query(None, description="Who the run ran as"),
-    conversation_id: UUID | None = Query(
-        None,
-        description=(
-            "Runs that ran inside this thread. How a trigger's own fires are listed: "
-            "every fire appends to one run-log conversation"
-        ),
+    conversation_id: UUID | None = Query(None, description="Runs that ran inside this thread"),
+    trigger_id: UUID | None = Query(
+        None, description="Runs of one scheduled/event routine, across all execution chats"
     ),
     model_label: str | None = Query(
         None,
@@ -169,6 +166,7 @@ async def list_runs(
             exclude_surface=None if exclude_surface is None else exclude_surface.value,
             user_id=user_id,
             conversation_id=conversation_id,
+            trigger_id=trigger_id,
             model_label=model_label,
             started_from=started_from,
             started_to=started_to,

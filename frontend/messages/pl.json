@@ -1719,7 +1719,9 @@
       "refreshFailed": "Nie udało się odświeżyć skrzynki. Wyświetlamy ostatnio pobrane elementy."
     },
     "queuedPaused": "Kolejka wstrzymana",
-    "resumeQueue": "Wznów kolejkę"
+    "resumeQueue": "Wznów kolejkę",
+    "routineHistoryReadOnly": "To historia rutyny tylko do odczytu. Zrób fork odpowiedzi, aby kontynuować w nowym chacie.",
+    "routineContinueChat": "Kontynuuj w nowym chacie"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
@@ -3364,7 +3366,9 @@
           "grader": "Oceniający",
           "improve": "Poprawianie",
           "knowledge_gaps": "Luki w wiedzy",
-          "test_questions": "Pytania testowe"
+          "test_questions": "Pytania testowe",
+          "key_drafts": "Szkice kluczy",
+          "key_coverage": "Pokrycie kluczy"
         },
         "open": {
           "openEvalRun": "Otwórz ewaluację",
@@ -4617,7 +4621,9 @@
       "newWatch": "Monitoruj i informuj",
       "newRoutine": "Nowa rutyna",
       "scheduledTask": "Uruchamiaj według harmonogramu",
-      "eventTask": "Uruchamiaj po zdarzeniu"
+      "eventTask": "Uruchamiaj po zdarzeniu",
+      "watchNeedsEnabling": "Włącz monitoring w ustawieniach organizacji.",
+      "watchNeedsConnection": "Najpierw dodaj konto MCP w Połączeniach."
     },
     "signIns": {
       "cancel": "Anuluj",
@@ -7930,6 +7936,14 @@
       "start-subscriptions": {
         "title": "Połącz swoje subskrypcje",
         "body": "Zaznacz posiadane subskrypcje i zaloguj się tutaj. To konta prywatne; ich modele wybierzesz w czacie."
+      },
+      "dataset-key-coverage": {
+        "title": "Pokrycie kluczy",
+        "body": "Zobacz, których faktów wymaganych przez sprawdzenia kluczy nie zawiera żadne źródło agenta. Brakujący fakt trzeba dać agentowi jako wiedzę; żadna zmiana instrukcji go nie dostarczy."
+      },
+      "improvement-mode": {
+        "title": "Krok po kroku albo wyszukiwanie",
+        "body": "Wybierz, jak pomocnik szuka zmian: jedna propozycja na próbę albo wyszukiwanie wielu wariantów instrukcji ocenianych na pytaniach treningowych. Wyszukiwanie potrzebuje co najmniej dziesięciu pytań treningowych."
       }
     },
     "chooseLanguage": "Język",
@@ -8948,7 +8962,6 @@
   },
   "triggers": {
     "setupReviewTitle": "Sprawdź dostęp rutyny",
-    "setupReviewDescription": "Rutyna jest zapisana i wstrzymana. Sprawdź źródła i wybierz działania, które mogą wykonywać się bez pytania. Zapisz, aby ją włączyć, lub dokończ później.",
     "enableRoutine": "Włącz rutynę",
     "finishLater": "Dokończ później",
     "stopWaitingRun": "Zatrzymaj oczekujące uruchomienie",
@@ -9075,10 +9088,6 @@
     "weekdayFri": "Pt",
     "weekdaySat": "Sb",
     "weekdaySun": "Nd",
-    "summaryDaily": "Uruchomi się codziennie o {time} ({zone}).",
-    "summaryEveryNDays": "Uruchomi się co {count, plural, =1 {dzień} few {# dni} many {# dni} other {# dni}} o {time} UTC.",
-    "summaryWeekly": "Uruchomi się o {time} ({zone}) w: {days}.",
-    "summaryMonthly": "Uruchomi się {day}. dnia każdego miesiąca o {time} ({zone}).",
     "eventSource": "Uruchamia się przy",
     "sourceGithub": "Zgłoszeniu GitHub",
     "webhookUrlPreview": "Adres dostarczania",
@@ -9218,7 +9227,6 @@
     "choiceWeekly": "Co tydzień",
     "choiceCustom": "Własny",
     "moreOptions": "Więcej opcji",
-    "summaryInterval": "Uruchamia się co {unit, select, minutes {{count, plural, one {minutę} few {# minuty} many {# minut} other {# minuty}}} hours {{count, plural, one {godzinę} few {# godziny} many {# godzin} other {# godziny}}} other {{count, plural, one {dzień} other {# dni}}}}, licząc od zapisania.",
     "templatesMore": "{count, plural, one {Pokaż jeszcze 1} few {Pokaż jeszcze #} many {Pokaż jeszcze #} other {Pokaż jeszcze #}}",
     "templatesFewer": "Pokaż mniej",
     "local": {
@@ -9242,17 +9250,6 @@
       "noPermissions": "Żadna rutyna w tej organizacji nie ma dostępu do folderów.",
       "revoke": "Cofnij zgodę",
       "waitingDevice": "Oczekiwanie na komputer ({count})"
-    },
-    "answerToLabel": "Odpowiadaj też w",
-    "answerTo": {
-      "primary": "Moja rozmowa z tym agentem",
-      "run_log": "Tylko dziennik uruchomień",
-      "conversation": "Czat, w którym ją utworzono"
-    },
-    "answerToHint": {
-      "primary": "Każdy wynik trafia też do Twojej własnej rozmowy z tym agentem, więc wszystko, co Ci mówi, jest w jednym miejscu.",
-      "run_log": "Wyniki zostają w dzienniku uruchomień; nic nie trafia do Twoich czatów.",
-      "conversation": "Każdy wynik trafia na czat, dla którego utworzono tę rutynę."
     },
     "budgetLabel": "Miesięczny budżet (USD, opcjonalnie)",
     "budgetCreatorOnly": "Tylko osoba, która utworzyła tę rutynę, może podnieść albo zdjąć jej limit, dopóki rutyna działa jako ona.",
@@ -9303,7 +9300,8 @@
       "groupCount": "{selected} z {total}",
       "useAgent": "Użyj ustawień agenta",
       "useAgentHint": "Zaznacza dokładnie te działania, które agent już w czacie wykonuje bez pytania, i zastępuje obecne zaznaczenie. Zgoda tutaj może tylko zawęzić to, na co pozwalają ustawienia agenta, nigdy tego nie poszerza: działania, przed którym agent pyta, nie ma na liście. Nic się nie zapisuje, dopóki nie wybierzesz Zapisz zgody.",
-      "allowHeading": "Pozwól tym działaniom działać bez pytania o zgodę"
+      "allowHeading": "Pozwól tym działaniom działać bez pytania o zgodę",
+      "alwaysAsks": "Zawsze pyta: wymagane przez agenta lub platformę"
     },
     "sourceConsents": {
       "title": "Źródła",
@@ -9330,17 +9328,11 @@
       "reviewBeforeActivationHint": "Opcjonalnie: zapisz wstrzymaną rutynę, sprawdź zestaw źródeł agenta, a następnie włącz rutynę.",
       "runsAsYou": "Działa jako Ty. Nadal obowiązują Twoje uprawnienia i wymagane zgody.",
       "agentIdentity": "Korzysta z dostępu agenta. Dostęp do kont osobistych jest wyłączony.",
-      "requiredUnavailable": "Wymagane źródła są niedostępne: {names}. Przywróć dostęp przed zapisaniem lub włączeniem rutyny.",
-      "followApprovals": "Korzysta z reguł zatwierdzania agenta w granicach zatwierdzonego dostępu i zachowania rutyny. Twórca musi sprawdzić późniejsze rozszerzenia lub zmiany zachowania; wymagane zgody nadal obowiązują. Wybierz Sprawdzony zestaw, aby ustawić zgody dla tej rutyny."
+      "requiredUnavailable": "Wymagane źródła są niedostępne: {names}. Przywróć dostęp przed zapisaniem lub włączeniem rutyny."
     },
     "advancedOptions": "Opcje zaawansowane",
     "advancedOptionsHint": "Domyślnie: bieżąca opublikowana wersja, ochrona przed błędami i Twoje preferencje powiadomień.",
     "budgetInvalid": "Wpisz dodatnią kwotę albo zostaw puste pole, aby usunąć ten limit.",
-    "resultMode": "Kiedy przekazywać wyniki",
-    "resultReport": "Po każdym zakończonym wykonaniu",
-    "resultInbox": "Tylko gdy coś wymaga uwagi",
-    "resultReportHint": "Po każdym wykonaniu przekaż raport do wybranej rozmowy.",
-    "resultInboxHint": "Utwórz jedną sprawę w Inbox i rozmowę na element źródłowy. Umieść tam zamówioną wersję roboczą; sprawdzenia bez zmian pozostają ciche. Wysyłka nadal wymaga odpowiednich uprawnień i zgody.",
     "clearSearch": "Wyczyść wyszukiwanie",
     "noRoutineMatchesHint": "Spróbuj nazwy agenta, tytułu rutyny lub słów z jej wiadomości.",
     "setupRequired": "Wymaga konfiguracji",
@@ -9362,7 +9354,25 @@
       "mention": "Komentarz nie zawierał wymaganej wzmianki.",
       "conclusion": "Wynik workflow nie pasował.",
       "not_branch": "Push usuwał gałąź lub nie dotyczył gałęzi."
-    }
+    },
+    "approvalMode": {
+      "label": "Zatwierdzanie narzędzi",
+      "hint": "Publikowanie do Inboxu jest dostępne od razu. Obowiązkowe zgody agenta i platformy nadal obowiązują.",
+      "automatic": "Uruchamiaj dozwolone narzędzia automatycznie",
+      "manual": "Pytaj przed działaniami",
+      "custom": "Wybierz zgody dla każdego narzędzia",
+      "existing": "Zachowaj obecne zgody"
+    },
+    "chatModeLabel": "Rozmowy",
+    "chatMode": {
+      "per_run": "Nowy chat dla każdego uruchomienia",
+      "shared": "Wspólna historia — tylko do odczytu"
+    },
+    "chatModeHint": {
+      "per_run": "Po każdym uruchomieniu możesz kontynuować rozmowę. Wiadomości nie zmieniają rutyny.",
+      "shared": "Wyniki trafiają do wspólnej historii tylko do odczytu. Zrób fork odpowiedzi, aby kontynuować w nowym chacie."
+    },
+    "openExecutionChat": "Otwórz chat"
   },
   "portals": {
     "backToServices": "Wróć do usług",
@@ -10390,7 +10400,9 @@
       "drafter": "Autor szkiców luk",
       "generator": "Generator przypadków",
       "classifier": "Klasyfikator luk",
-      "improver": "Asystent tworzenia"
+      "improver": "Asystent tworzenia",
+      "extractor": "Ekstraktor kluczy",
+      "coverage": "Pokrycie źródeł"
     },
     "productionOn": "produkcja na v{version}",
     "productionWaiting": "produkcja na v{version} (czeka na ewaluacje)",
@@ -10418,7 +10430,11 @@
       "classifier": "Domyślny klasyfikator luk",
       "classifierHint": "Czyta odpowiedzi dla luk każdej bazy wiedzy.",
       "improver": "Domyślny asystent tworzenia",
-      "improverHint": "Proponuje ulepszenia oferowane każdemu agentowi."
+      "improverHint": "Proponuje ulepszenia oferowane każdemu agentowi.",
+      "extractor": "Domyślny ekstraktor kluczy",
+      "extractorHint": "Wypisuje fakty z odpowiedzi referencyjnych każdego datasetu do ich sprawdzeń kluczy.",
+      "coverage": "Domyślne pokrycie źródeł",
+      "coverageHint": "Wskazuje, których kluczy datasetu nie zawiera żadne źródło agenta."
     },
     "guardsSaved": "Strażnicy zapisani",
     "failedGuards": "Nie udało się zapisać strażników",
@@ -10440,7 +10456,7 @@
       "cancel": "Anuluj"
     },
     "publishedSpec": "Opublikowany spec",
-    "systemAgentBadge": "{kind, select, judge {Agent systemowy · Sędzia} drafter {Agent systemowy · Autor szkiców luk} generator {Agent systemowy · Generator przypadków} classifier {Agent systemowy · Klasyfikator luk} improver {Agent systemowy · Asystent tworzenia} other {Agent systemowy}}",
+    "systemAgentBadge": "{kind, select, judge {Agent systemowy · Sędzia} drafter {Agent systemowy · Autor szkiców luk} generator {Agent systemowy · Generator przypadków} classifier {Agent systemowy · Klasyfikator luk} improver {Agent systemowy · Asystent tworzenia} extractor {Agent systemowy · Ekstraktor kluczy} coverage {Agent systemowy · Pokrycie źródeł} other {Agent systemowy}}",
     "systemAgentBadgeHint": "Uruchamia go platforma dla całej organizacji; nikt z nim nie rozmawia.",
     "systemAgentSharedOnly": "Do wyboru jest tylko to, co udostępniono całej organizacji: platforma uruchamia tego agenta dla wszystkich.",
     "systemAgentSkillsUnused": "Klasyfikator nie korzysta ze skilli, więc nie można tu dodać żadnego. Odznacz te, które jeszcze ma, albo użyj jego przełącznika, żeby zdjąć wszystkie naraz.",
@@ -15457,7 +15473,8 @@
       "max_cost_usd": "Kosztuje najwyżej (USD)",
       "max_latency_ms": "Odpowiada w (ms)",
       "judge": "Kryterium sędziego",
-      "length": "Ma długość"
+      "length": "Ma długość",
+      "keys": "Pokryte klucze"
     },
     "checkPlaceholder": {
       "contains": "30 dni",
@@ -15519,6 +15536,58 @@
       "maxPlaceholder": "Najwyżej",
       "path": "Sprawdzenie {number}: gdzie w odpowiedzi JSON",
       "pathPlaceholder": "Gdzie w odpowiedzi JSON (opcjonalnie)"
+    },
+    "keysCheck": {
+      "key": "Klucz {row} w checku {number}",
+      "value": "Wartość klucza {row} w checku {number}",
+      "remove": "Usuń klucz {row} z checku {number}",
+      "add": "Dodaj klucz",
+      "keyPlaceholder": "Numer faktury",
+      "valuePlaceholder": "FV-2024-0042"
+    },
+    "keyDraft": {
+      "start": "Wypisz klucze z odpowiedzi referencyjnej",
+      "retry": "Spróbuj ponownie",
+      "running": "Wypisuję fakty z odpowiedzi referencyjnej…",
+      "none": "Odpowiedź referencyjna nie podaje faktów do sprawdzenia.",
+      "found": "Znaleziono {count, plural, one {1 klucz} few {# klucze} many {# kluczy} other {# klucza}}: {names}{more, plural, =0 {} one { i jeszcze 1} other { i jeszcze #}}.",
+      "use": "Użyj tych kluczy",
+      "dismiss": "Odrzuć",
+      "failed": "Nie udało się wypisać kluczy: {error}",
+      "noReference": "Zapisz odpowiedź referencyjną, aby wypisać jej klucze.",
+      "saveFirst": "Najpierw zapisz odpowiedź referencyjną: klucze są wypisywane z zapisanej.",
+      "failedToStart": "Nie udało się poprosić o klucze",
+      "failedToDismiss": "Nie udało się odrzucić wypisanych kluczy",
+      "loading": "Sprawdzanie szkicu kluczy…",
+      "unreadable": "Nie udało się odczytać szkicu kluczy."
+    },
+    "keyCoverage": {
+      "title": "Pokrycie kluczy",
+      "hint": "Których kluczy ze sprawdzeń kluczy tego datasetu nie zawiera żadne źródło agenta - bazy wiedzy, pliki kontekstu, skille i serwery MCP. Agent pokrycia źródeł czyta tylko etykiety kluczy, nigdy ich wartości.",
+      "agent": "Agent",
+      "chooseAgent": "Wybierz opublikowanego agenta",
+      "agentsFailed": "Nie udało się wczytać agentów",
+      "noAgents": "Brak opublikowanego agenta do sprawdzenia",
+      "noAgentsHint": "Najpierw opublikuj agenta: raport czyta wersję, którą agent uruchamia.",
+      "check": "Sprawdź pokrycie",
+      "recheck": "Sprawdź ponownie",
+      "none": "Ten agent nie był jeszcze sprawdzany.",
+      "noneReadOnly": "Ten agent nie był jeszcze sprawdzany. Może to zrobić osoba, która może go edytować.",
+      "running": "Sprawdzanie, które źródła zawierają każdy klucz…",
+      "failed": "Nie udało się ocenić pokrycia: {error}",
+      "summary": "{count, plural, one {# klucz} few {# klucze} many {# kluczy} other {# klucza}} w wersji {version}: ze źródłem {covered, plural, other {#}}, bez źródła {uncovered, plural, other {#}}, niepewne {unsure, plural, other {#}}.",
+      "outOfDate": "Raport dotyczy wcześniejszej wersji agenta albo datasetu, więc Improve już go nie czyta. Sprawdź ponownie, żeby go odświeżyć.",
+      "sourcesChanged": "Źródła zmieniły się od tego sprawdzenia, więc Improve już go nie czyta. Sprawdź ponownie, żeby go odświeżyć.",
+      "unseen": "{count, plural, one {# źródło tego agenta nie zostało przeczytane} few {# źródła tego agenta nie zostały przeczytane} many {# źródeł tego agenta nie zostało przeczytanych} other {# źródła tego agenta nie zostało przeczytane}} - takie, których zlecający nie widzi, albo serwery MCP działające przez konto każdej osoby - więc Improve nie korzysta z tego raportu.",
+      "from": "Źródła: {sources}",
+      "hiddenSource": "źródło, którego nie widzisz",
+      "verdict": {
+        "covered": "Pokryty",
+        "not_covered": "Brak źródła",
+        "unsure": "Niepewne"
+      },
+      "failedToStart": "Nie udało się rozpocząć sprawdzania pokrycia",
+      "unreadable": "Nie udało się odczytać raportu pokrycia."
     },
     "visibility": {
       "private": "Prywatna",
@@ -15615,6 +15684,7 @@
       "backToCases": "Wróć do przypadków",
       "testRuns": "Testy agentów",
       "reviewAnswers": "Przegląd odpowiedzi",
+      "keyCoverage": "Pokrycie kluczy",
       "helpers": "Generowanie i ulepszanie",
       "helpersHint": "Wybierz modele i instrukcje do tworzenia przypadków oraz proponowania ulepszeń."
     },
@@ -15982,7 +16052,8 @@
           "judge": "Kryterium sędziego: {criterion}",
           "lengthAtMost": "{unit, select, words {Najwyżej {count, plural, one {# słowo} few {# słowa} many {# słów} other {# słowa}}} other {Najwyżej {count, plural, one {# znak} few {# znaki} many {# znaków} other {# znaku}}}}",
           "lengthAtLeast": "{unit, select, words {Co najmniej {count, plural, one {# słowo} few {# słowa} many {# słów} other {# słowa}}} other {Co najmniej {count, plural, one {# znak} few {# znaki} many {# znaków} other {# znaku}}}}",
-          "lengthBetween": "{unit, select, words {Od {min} do {max} słów} other {Od {min} do {max} znaków}}"
+          "lengthBetween": "{unit, select, words {Od {min} do {max} słów} other {Od {min} do {max} znaków}}",
+          "keys": "Zawiera {count, plural, one {swój 1 klucz} few {wszystkie # klucze} many {wszystkie # kluczy} other {wszystkie # klucza}}"
         }
       },
       "notGraded": "bez oceny: {reason}",
@@ -16987,7 +17058,8 @@
       "knowledge_only": "W bazie wiedzy brakuje niektórych tematów. Napisz szkice tych, których potrzebujesz, sprawdź każdy i dodaj go.",
       "draft": "Przygotowanie brakującej wiedzy się nie powiodło.",
       "expired": "Nikt nie poprowadził tej sesji dalej przez 7 dni, więc się zamknęła. Rozpocznij nową, aby spróbować ponownie.",
-      "criteria_worse": "Zmiany pogorszyły kryterium, według którego oceniane są odpowiedzi, choć żadne pytanie nie zostało zepsute."
+      "criteria_worse": "Zmiany pogorszyły kryterium, według którego oceniane są odpowiedzi, choć żadne pytanie nie zostało zepsute.",
+      "no_variant": "Wyszukiwanie nie znalazło wariantu, który na pytaniach treningowych wypadłby lepiej niż obecne instrukcje."
     },
     "before": "Przed",
     "after": "Po",
@@ -17390,6 +17462,41 @@
     },
     "likedSignals": "Odpowiedzi ocenione pozytywnie",
     "reviewedSignals": "Pozostałe sprawdzone odpowiedzi testowe",
+    "startSearch": {
+      "label": "Jak szukać zmian",
+      "steps": "Krok po kroku",
+      "stepsHint": "Pomocnik proponuje jeden zestaw zmian na próbę, a Ty sprawdzasz każdy z nich.",
+      "search": "Szukaj wariantów",
+      "searchHint": "Pomocnik pisze wiele wersji instrukcji i ocenia każdą na pytaniach treningowych. Najlepsza trafia do Zmian, a potem jest sprawdzana jak każda próba.",
+      "tooFew": "Wyszukiwanie potrzebuje co najmniej {needed} pytań treningowych; ten dataset ma {count, plural, =0 {zero} one {# pytanie} few {# pytania} many {# pytań} other {# pytania}}. Dodaj pytania albo ulepszaj krok po kroku.",
+      "budget": "Budget wyszukiwania (USD)",
+      "budgetHint": "Wyszukiwanie kończy się, gdy kolejny wariant by się nie zmieścił. Może przekroczyć budget najwyżej o jeden oceniany wariant.",
+      "gradingModel": "Model oceniający warianty",
+      "datasetJudge": "Model sędziego datasetu",
+      "gradingHint": "Tańszy albo lokalny model obniża koszt wyszukiwania. Sprawdzenie po Zmianach zawsze ocenia sędzia datasetu.",
+      "quote": "Obejmuje budget wyszukiwania ({search}) i sprawdzenie znalezionego wariantu ({check}).",
+      "unpriced": "Wyszukiwanie będzie dostępne, gdy wycena policzy pytania treningowe tego datasetu."
+    },
+    "search": {
+      "title": "Wyszukiwanie wariantów",
+      "progress": "Wypróbowano {tried} z maksymalnie {max} wariantów, każdy na tych samych {questions} pytaniach treningowych.",
+      "spent": "Wydano {cost} z budgetu wyszukiwania {budget}.",
+      "scores": "Obecne instrukcje: {seed} spełnionych wymaganych kryteriów · najlepszy wariant: {best}.",
+      "ended": {
+        "budget": "Wyszukiwanie zatrzymało się na budgecie.",
+        "max_variants": "Wyszukiwanie wypróbowało tyle wariantów, ile mogło.",
+        "patience": "Wyszukiwanie zatrzymało się po rundach, które nie znalazły nic lepszego.",
+        "proposal": "Wyszukiwanie zatrzymało się, bo pomocnik nie zdołał napisać kolejnych wariantów.",
+        "questions": "Wyszukiwanie zatrzymało się, bo na jego pytania treningowe nie da się już odpowiedzieć.",
+        "no_variant": "Nie dało się ocenić obecnych instrukcji, więc żaden wariant nie mógł okazać się lepszy."
+      },
+      "notVerdict": "Te wyniki pochodzą wyłącznie z pytań treningowych. Werdykt da sprawdzenie na pytaniach odłożonych na bok.",
+      "overshoot": "Wyszukiwanie może przekroczyć budget najwyżej o jeden oceniany wariant.",
+      "variant": "Wariant {number}: {score}",
+      "chosen": "Przeniesiony do Zmian",
+      "choose": "Przenieś do Zmian zamiast tego"
+    },
+    "searchWorking": "Szukamy lepszych instrukcji. Możesz zamknąć tę stronę — damy znać, gdy najlepszy wariant będzie gotowy do przejrzenia.",
     "record": {
       "result": "Wynik",
       "changes": "Zmiany",

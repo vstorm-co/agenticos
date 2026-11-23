@@ -988,6 +988,26 @@ def get_dataset_service(db: DBSession) -> DatasetService:
 
 DatasetSvc = Annotated[DatasetService, Depends(get_dataset_service)]
 
+from app.services.case_key_draft import CaseKeyDraftService
+
+
+def get_case_key_draft_service(db: DBSession) -> CaseKeyDraftService:
+    """Create CaseKeyDraftService instance with database session."""
+    return CaseKeyDraftService(db)
+
+
+CaseKeyDraftSvc = Annotated[CaseKeyDraftService, Depends(get_case_key_draft_service)]
+
+from app.services.key_coverage import KeyCoverageService
+
+
+def get_key_coverage_service(db: DBSession) -> KeyCoverageService:
+    """Create KeyCoverageService instance with database session."""
+    return KeyCoverageService(db)
+
+
+KeyCoverageSvc = Annotated[KeyCoverageService, Depends(get_key_coverage_service)]
+
 from app.services.knowledge_gaps import KnowledgeGapService
 
 

@@ -354,6 +354,17 @@ async def delete(db: AsyncSession, dataset: Dataset) -> None:
     await db.flush()
 
 
+async def get_case_revision(
+    db: AsyncSession, revision_id: UUID, *, organization_id: UUID
+) -> DatasetCase | None:
+    """One revision of a case, by its own id."""
+    return await db.scalar(
+        select(DatasetCase).where(
+            DatasetCase.id == revision_id, DatasetCase.organization_id == organization_id
+        )
+    )
+
+
 async def get_version(
     db: AsyncSession, dataset_id: UUID, number: int, *, organization_id: UUID
 ) -> DatasetVersion | None:
