@@ -779,3 +779,16 @@ it("uses the improvement walkthrough while the start modal is open over an agent
   expect(pageKey("/agents/a1?improve=new")).toBe(IMPROVEMENT_START);
   expect(pageKey("/agents/a1?tab=evals&improve=baseline")).toBe(IMPROVEMENT_START);
 });
+
+it("spotlights binding on the channels page, optional and gated on channels:manage", () => {
+  const steps = TOUR_STEPS.filter((step) => step.page === ROUTES.CHANNELS);
+  const ids = steps.map((step) => step.id);
+  const binding = steps.find((step) => step.id === "channels-binding");
+
+  expect(binding).toMatchObject({
+    target: "channels-binding",
+    permission: Perm.channelsManage,
+    optional: true,
+  });
+  expect(ids.indexOf("channels-binding")).toBe(ids.indexOf("channels-diagnostics") + 1);
+});

@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Bind an agent to a channel bot, or unbind it, from the bot's row under **Channels**. The picker offers only agents you may publish. The binding uses the agent's default environment, and its other settings stay on the agent's Availability tab.
+
+- `GET /channels/bots` lists each bot's binding in `agents` with its `exposure_id` and `is_active`, paused bindings included. A client that read a non-empty `agents` as "this bot is answering" should read `is_active` instead.
+
 ### Fixed
 
 - Stop posting a streamed Telegram answer twice: Telegram's "message is not modified" reply to the final edit is now a success instead of an error that triggered a second post (#3227).

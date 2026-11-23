@@ -1164,7 +1164,7 @@ Inbound `references` must be a list of strings without CR or LF; retained entrie
    commands and messages from the messages tab*. Without it Slack hides the
    bot's message box and a direct message is impossible.
 8. Publish the agent, then bind it: Builder → the agent → **Availability** → the
-   bot.
+   bot, or **Channels** → the bot's row → **Bind agent**.
 9. Invite the bot to a channel — `/invite @your-bot` — and mention it.
 
 !!! tip "Or paste a manifest and skip steps 2, 4, 6 and 7"
@@ -1347,11 +1347,11 @@ that one in too, or the bot keeps the access it had.
     to the container log and nowhere else.
 
     The rest is still silent, and this is the order to check it in: no agent
-    bound to the bot (the row says so), a missing scope or event subscription,
-    then a wrong `BOT_ID` in the Request URL. That last one cannot report
-    itself: the events route answers **200 and does nothing** for a bot id it
-    cannot find, on purpose, because a prober should learn only that the
-    endpoint exists - which the URL already said.
+    bound to the bot, or its binding paused (the row says which), a missing
+    scope or event subscription, then a wrong `BOT_ID` in the Request URL. That
+    last one cannot report itself: the events route answers **200 and does
+    nothing** for a bot id it cannot find, on purpose, because a prober should
+    learn only that the endpoint exists - which the URL already said.
 
 Works in channels and in DMs. A message from a linked account runs as that
 person — never as the bot; one from an account nobody has linked runs under the
@@ -2058,6 +2058,13 @@ surface, so a difference between the console and Mattermost remains visible.
     Telegram bot and two Mattermost servers at once, and each of those bindings
     carries its own instructions, its own channel lookups and its own workspace
     scope.
+
+    Bind or unbind from the agent's **Availability** tab, or from the bot's row
+    under **Channels**. Channels offers only agents you may publish
+    (`agents:publish` on that agent) and binds on the agent's default
+    environment; environment, pause, lookups and instructions stay on the
+    Availability tab. A row shows an agent you may not publish without the
+    unbind action, and lists a paused binding as paused.
 
     This replaced routing several agents behind one bot with `@slug`. It worked
     and it read badly: somebody in a channel had to type a handle to pick

@@ -1,5 +1,5 @@
 ---
-source_sha: "fd5c7644afd6"
+source_sha: "9c15026c1933"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1198,7 +1198,7 @@ Przychodzące `references` muszą być listą ciągów bez CR i LF; zachowane wp
    commands and messages from the messages tab*. Bez tego Slack ukrywa pole
    wiadomości bota i wiadomość bezpośrednia jest niemożliwa.
 8. Opublikuj agenta, a potem go podepnij: Builder → agent → **Availability** →
-   bot.
+   bot albo **Channels** → wiersz bota → **Bind agent**.
 9. Zaproś bota na kanał — `/invite @your-bot` — i wspomnij o nim.
 
 !!! tip "Albo wklej manifest i pomiń kroki 2, 4, 6 i 7"
@@ -1382,12 +1382,13 @@ wklej i ten, bo inaczej bot zachowa dostęp, który miał.
     connected** wraz z powodem — supervisor wie, a do #1351 wpisywał to do logu
     kontenera i nigdzie indziej.
 
-    Reszta nadal milczy, a to jest kolejność, w jakiej należy to sprawdzać:
-    brak agenta podpiętego do bota (wiersz to mówi), brakujący scope albo
-    subskrypcja eventu, a potem błędne `BOT_ID` w Request URL. To ostatnie nie
-    może zgłosić się samo: route eventów odpowiada **200 i nic nie robi** na id
-    bota, którego nie potrafi znaleźć, i to celowo, bo sondujący powinien się
-    dowiedzieć jedynie, że endpoint istnieje — co już powiedział mu URL.
+    Reszta nadal milczy, a to jest kolejność, w jakiej należy to sprawdzać: brak
+    agenta podpiętego do bota albo wstrzymane powiązanie (wiersz mówi które),
+    brakujący scope albo subskrypcja eventu, a potem błędne `BOT_ID` w Request
+    URL. To ostatnie nie może zgłosić się samo: route eventów odpowiada **200 i
+    nic nie robi** na id bota, którego nie potrafi znaleźć, i to celowo, bo
+    sondujący powinien się dowiedzieć jedynie, że endpoint istnieje — co już
+    powiedział mu URL.
 
 Działa na kanałach i w DM-ach. Wiadomość z powiązanego konta wykonuje się jako ta
 osoba — nigdy jako bot; wiadomość z konta, którego nikt nie powiązał, wykonuje
@@ -2112,6 +2113,13 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
     Slacka, bocie Telegrama i dwóch serwerach Mattermosta naraz, a każde z tych
     powiązań niesie własne instrukcje, własne odpytania o kanał i własny zakres
     workspace'u.
+
+    Powiąż lub odłącz agenta na jego zakładce **Availability** albo w wierszu
+    bota w **Channels**. Channels oferuje tylko agentów, których możesz
+    opublikować (`agents:publish` na tym agencie), i wiąże w domyślnym środowisku
+    agenta; środowisko, wstrzymanie, odpytania i instrukcje zostają na zakładce
+    Availability. Wiersz pokazuje agenta, którego nie możesz opublikować, bez
+    akcji odłączenia, a wstrzymane powiązanie wypisuje jako wstrzymane.
 
     Zastąpiło to routowanie kilku agentów za jednym botem przez `@slug`.
     Działało i źle się czytało: ktoś na kanale musiał wpisać uchwyt, żeby wybrać

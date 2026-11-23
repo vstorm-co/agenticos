@@ -3,12 +3,13 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Pause, Pencil, Play, Trash2, Users, Stethoscope } from "lucide-react";
 
+import { BotAgentCell } from "./bot-agent-cell";
+import type { PublishAnswer } from "./unbind-slot";
 import { ChannelDiagnosticsDialog } from "./channel-diagnostics-dialog";
-import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
 import { Badge, Button, DataTable, type Column } from "@/components/ui";
 import { cn } from "@/lib/utils";
-import type { ChannelBot, ChannelPlatform } from "@/types/channels";
+import type { BotAgent, ChannelBot, ChannelPlatform } from "@/types/channels";
 import { useTranslations } from "next-intl";
 
 const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
@@ -40,6 +41,11 @@ interface ChannelBotsTableProps {
    * `members:manage`, which every mapping call takes, so nobody else sees the button.
    */
   onMapRoles?: (bot: ChannelBot) => void;
+  /** Passed only to somebody who may bind: `channels:manage` and `agents:view`. */
+  onBind?: (bot: ChannelBot) => void;
+  onUnbind?: (bot: ChannelBot, agent: BotAgent) => void;
+  /** Which agents the viewer may publish, once the agents read has answered. */
+  mayPublish?: PublishAnswer;
 }
 
 /**
@@ -99,6 +105,9 @@ export function ChannelBotsTable({
   onToggleActive,
   onDelete,
   onMapRoles,
+  onBind,
+  onUnbind,
+  mayPublish,
 }: ChannelBotsTableProps) {
   const t = useTranslations("pages.channels");
 
@@ -153,29 +162,16 @@ export function ChannelBotsTable({
       {
         key: "answering",
         header: t("columnAnswering"),
-        cell: (bot) =>
-          bot.agents.length === 0 ? (
-            // The state this column exists for: a bot registered, live,
-            // and answering nobody, which from a chat window is
-            // indistinguishable from a broken one.
-            <span className={cn("text-muted-foreground text-xs", paused(bot))}>
-              {t("noAgentBound")}
-            </span>
-          ) : (
-            <div className={cn("flex flex-wrap items-center gap-2", paused(bot))}>
-              {bot.agents.map((agent) => (
-                <span key={agent.id} className="flex items-center gap-1.5">
-                  <AgentAvatar
-                    agentId={agent.id}
-                    slug={agent.slug}
-                    hasAvatar={agent.has_avatar}
-                    size="sm"
-                  />
-                  <span className="truncate text-xs">@{agent.slug}</span>
-                </span>
-              ))}
-            </div>
-          ),
+        cell: (bot) => (
+          <BotAgentCell
+            bot={bot}
+            className={paused(bot) || undefined}
+            busy={busy}
+            onBind={onBind}
+            onUnbind={onUnbind}
+            mayPublish={mayPublish}
+          />
+        ),
       },
       {
         key: "actions",
@@ -239,7 +235,7 @@ export function ChannelBotsTable({
         ),
       },
     ],
-    [busy, onEdit, onToggleActive, onDelete, onMapRoles, t],
+    [busy, onEdit, onToggleActive, onDelete, onMapRoles, onBind, onUnbind, mayPublish, t],
   );
 
   return (

@@ -69,6 +69,8 @@ describe("staleQueries", () => {
       qk.authoring.all(),
       qk.sharing.all(),
       qk.environments.all(),
+      qk.exposures.all(),
+      qk.channelBots.list(),
       qk.runs.assistantSignals(ORG),
     ]);
     expect(staleQueries(change("skill"))).toEqual([qk.skills.all(), qk.sharing.all()]);

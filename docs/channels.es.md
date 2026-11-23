@@ -1,5 +1,5 @@
 ---
-source_sha: "fd5c7644afd6"
+source_sha: "9c15026c1933"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1223,7 +1223,7 @@ Las `references` entrantes deben ser una lista de cadenas sin CR ni LF; las entr
    commands and messages from the messages tab*. Sin eso Slack esconde la caja de
    mensajes del bot y un mensaje directo es imposible.
 8. Publica el agent y luego vincúlalo: Builder → el agent → **Availability** → el
-   bot.
+   bot, o **Channels** → la fila del bot → **Bind agent**.
 9. Invita al bot a un canal — `/invite @your-bot` — y menciónalo.
 
 !!! tip "O pega un manifiesto y sáltate los pasos 2, 4, 6 y 7"
@@ -1412,11 +1412,12 @@ también, o el bot conserva el acceso que tenía.
     del contenedor y en ningún otro sitio.
 
     Lo demás sigue siendo silencioso, y este es el orden en el que comprobarlo:
-    ningún agent vinculado al bot (la fila lo dice), un scope o una suscripción a
-    events que falta, y luego un `BOT_ID` equivocado en la Request URL. Eso último
-    no puede informar de sí mismo: la ruta de events responde **200 y no hace nada**
-    para un id de bot que no encuentra, a propósito, porque quien sondea solo debe
-    enterarse de que el endpoint existe - lo que la URL ya decía.
+    ningún agent vinculado al bot, o su vinculación pausada (la fila dice cuál),
+    un scope o una suscripción a events que falta, y luego un `BOT_ID`
+    equivocado en la Request URL. Eso último no puede informar de sí mismo: la
+    ruta de events responde **200 y no hace nada** para un id de bot que no
+    encuentra, a propósito, porque quien sondea solo debe enterarse de que el
+    endpoint existe - lo que la URL ya decía.
 
 Funciona en canales y en DMs. Un mensaje de una cuenta vinculada se ejecuta como
 esa persona — nunca como el bot; uno de una cuenta que nadie ha vinculado se
@@ -2165,6 +2166,14 @@ para mostrar diferencias entre la consola y Mattermost.
     bot de Slack, un bot de Telegram y dos servidores de Mattermost a la vez, y cada
     una de esas vinculaciones lleva sus propias instrucciones, sus propias consultas
     de canal y su propio alcance de workspace.
+
+    Vincula o desvincula un agent en la pestaña **Availability** del agent o en la
+    fila del bot bajo **Channels**. Channels ofrece solo los agents que puedes
+    publicar (`agents:publish` sobre ese agent) y vincula en el entorno
+    predeterminado del agent; el entorno, la pausa, las consultas y las
+    instrucciones siguen en la pestaña Availability. Una fila muestra un agent que
+    no puedes publicar sin la acción de desvincular, y lista como pausada una
+    vinculación pausada.
 
     Esto sustituyó al enrutado de varios agents detrás de un bot con `@slug`.
     Funcionaba y se leía mal: alguien en un canal tenía que escribir un handle para

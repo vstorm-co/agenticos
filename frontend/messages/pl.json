@@ -2618,6 +2618,15 @@
       "theAgentWillRunAsYou": "Bot musi wiedzieć, kim jesteś, zanim Ci odpowie."
     },
     "channels": {
+      "agentBound": "@{agent} odpowiada teraz na {bot}",
+      "agentUnbound": "@{agent} już nie odpowiada na {bot}",
+      "bindAgent": "Powiąż agenta",
+      "bindAgentConfirm": "Powiąż",
+      "bindAgentDescription": "Bot odpowiada jako jeden agent. Odpowiada w domyślnym środowisku agenta; środowisko, wstrzymanie i wyszukiwania zmienisz na karcie Dostępność agenta.",
+      "bindAgentPlaceholder": "Wybierz agenta",
+      "bindAgentTo": "Powiąż agenta z botem {bot}",
+      "bindingPaused": "Powiązanie wstrzymane",
+      "noBindableAgents": "Nie ma agenta, którego możesz tu powiązać. Potrzebujesz uprawnienia do jego publikowania.",
       "respondToBroadcasts": "Reaguj na wzmianki grupowe",
       "respondToBroadcastsHint": "Wyłączone: reaguj na bezpośrednie wywołania bota. Włączone: także na @all, @here i obsługiwane wzmianki grupowe. Wiadomości prywatne nie wymagają wzmianki.",
       "broadcastsTeamsHint": "Po włączeniu pobierz zaktualizowany pakiet aplikacji Teams i zainstaluj go ponownie lub uaktualnij w danym zespole albo czacie. Właściciel musi wyrazić zgodę na odbieranie wiadomości rozmowy.",
@@ -2674,7 +2683,7 @@
       "noAppToken": "Brak tokenu aplikacji",
       "noChannelsYet": "Nie zarejestrowano jeszcze kanału",
       "noSigningSecret": "Brak sekretu podpisu",
-      "pageDescription": "Platformy czatu, na których ta organizacja jest dostępna. Bot obsługuje każdego powiązanego agenta - powiąż go w zakładce Dostępność agenta.",
+      "pageDescription": "Platformy czatu, na których ta organizacja jest osiągalna. Bot odpowiada jako jeden agent – powiąż go tutaj lub na karcie Dostępność agenta.",
       "pauseBot": "Wstrzymaj {bot}",
       "paused": "Wstrzymany",
       "platform": "Platforma",
@@ -2695,6 +2704,9 @@
       "transcriptionOff": "Wyłączona",
       "transcriptionProvider": "Transkrypcja głosu",
       "transcriptionProviderHint": "Własny provider tego bota, niezależnie od tego, czego używa jego agent albo organizacja.",
+      "unbindAgent": "Odłącz @{agent} od {bot}",
+      "unbindAgentConfirm": "Odłącz",
+      "unbindAgentDescription": "{bot} przestanie odpowiadać, dopóki nie zostanie powiązany inny agent. Instrukcje, wyszukiwania i środowisko tego powiązania zostaną z nim usunięte.",
       "webhook": "Webhook",
       "webhookToken": "Brak tokenu webhooka",
       "slackManifestWhy": "Utwórz aplikację Slack z manifestu: w Slacku Create New App, From a manifest, i wklej. Przyciski, /agent, panel asystenta i App Home przychodzą razem z nim.",
@@ -6659,7 +6671,7 @@
       },
       "channels-list": {
         "title": "Podłączone kanały",
-        "body": "Platformy, na których osiągalna jest ta organizacja. Kanał należy do organizacji, nie do jednego agenta, więc ten sam bot obsługuje każdego przypisanego do niego agenta."
+        "body": "Platformy, na których ta organizacja jest osiągalna. Bot należy do organizacji i odpowiada jako jeden agent; jeden agent może odpowiadać na kilku botach."
       },
       "channels-new": {
         "title": "Docieraj tam, gdzie są ludzie",
@@ -7841,6 +7853,10 @@
       "channels-diagnostics": {
         "title": "Sprawdź gotowość",
         "body": "Sprawdź połączenie bota, publikację agenta i własne powiązane konta bez uruchamiania zadania."
+      },
+      "channels-binding": {
+        "title": "Wybierz, kto odpowiada",
+        "body": "Powiąż agenta z botem albo go odłącz. Bot odpowiada jako jeden agent; środowisko, wstrzymanie i wyszukiwania zostają na karcie Dostępność agenta."
       },
       "agent-model-credentials": {
         "title": "Kto podaje klucz do modelu",

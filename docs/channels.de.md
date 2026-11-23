@@ -1,5 +1,5 @@
 ---
-source_sha: "fd5c7644afd6"
+source_sha: "9c15026c1933"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1279,7 +1279,8 @@ Eingehende `references` müssen eine Liste von Zeichenketten ohne CR oder LF sei
    verbirgt Slack das Nachrichtenfeld des Bots, und eine Direktnachricht ist
    unmöglich.
 8. Veröffentlichen Sie den Agent und binden Sie ihn dann: Builder → der Agent →
-   **Availability** → der Bot.
+   **Availability** → der Bot, oder **Channels** → die Zeile des Bots →
+   **Bind agent**.
 9. Laden Sie den Bot in einen Channel ein — `/invite @your-bot` — und erwähnen Sie
    ihn.
 
@@ -1475,12 +1476,12 @@ Zugriff, den er hatte.
     und bis #1351 schrieb er das in das Container-Log und sonst nirgendwohin.
 
     Der Rest ist weiterhin still, und das ist die Reihenfolge, in der man es
-    prüft: kein Agent an den Bot gebunden (die Zeile sagt es), ein fehlender
-    Scope oder ein fehlendes Event-Abonnement, dann eine falsche `BOT_ID` in der
-    Request URL. Das Letzte kann sich nicht selbst melden: die Events-Route
-    antwortet für eine Bot-ID, die sie nicht finden kann, mit **200 und tut
-    nichts**, mit Absicht, denn ein Prober soll nur erfahren, dass der Endpunkt
-    existiert - was die URL bereits gesagt hat.
+    prüft: kein Agent an den Bot gebunden oder seine Bindung pausiert (die Zeile
+    sagt, welches), ein fehlender Scope oder ein fehlendes Event-Abonnement,
+    dann eine falsche `BOT_ID` in der Request URL. Das Letzte kann sich nicht
+    selbst melden: die Events-Route antwortet für eine Bot-ID, die sie nicht
+    finden kann, mit **200 und tut nichts**, mit Absicht, denn ein Prober soll
+    nur erfahren, dass der Endpunkt existiert - was die URL bereits gesagt hat.
 
 Funktioniert in Channels und in DMs. Eine Nachricht von einem verknüpften Konto
 läuft als diese Person — nie als der Bot; eine von einem Konto, das niemand
@@ -2265,6 +2266,14 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
     Telegram-Bot und zwei Mattermost-Servern gleichzeitig antworten, und jede
     dieser Bindungen trägt ihre eigenen Instruktionen, ihre eigenen
     Channel-Abfragen und ihren eigenen Workspace-Scope.
+
+    Binden oder lösen Sie einen Agent im Tab **Availability** des Agents oder in
+    der Zeile des Bots unter **Channels**. Channels bietet nur Agents an, die Sie
+    veröffentlichen dürfen (`agents:publish` auf diesem Agent), und bindet in der
+    Standardumgebung des Agents; Umgebung, Pause, Abfragen und Instruktionen
+    bleiben im Tab Availability. Eine Zeile zeigt einen Agent, den Sie nicht
+    veröffentlichen dürfen, ohne die Aktion zum Lösen und führt eine pausierte
+    Bindung als pausiert auf.
 
     Das hat das Routing mehrerer Agents hinter einem Bot mit `@slug` ersetzt. Es
     funktionierte und las sich schlecht: jemand in einem Channel musste ein Handle

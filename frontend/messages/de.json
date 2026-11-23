@@ -4900,7 +4900,7 @@
       },
       "channels-list": {
         "title": "Verbundene Kanäle",
-        "body": "Die Plattformen, auf denen diese Organisation erreichbar ist. Ein Kanal gehört der Organisation, nicht einem Agent, derselbe Bot kann also jedem daran gebundenen Agent dienen."
+        "body": "Die Plattformen, auf denen diese Organisation erreichbar ist. Ein Bot gehört der Organisation und antwortet als ein Agent; ein Agent kann auf mehreren Bots antworten."
       },
       "channels-new": {
         "title": "Agents dort erreichen, wo die Menschen sind",
@@ -6083,6 +6083,10 @@
         "title": "Bereitschaft prüfen",
         "body": "Prüfen Sie Bot-Verbindung, Agent-Veröffentlichung und Ihre verknüpften Konten, ohne eine Aufgabe zu starten."
       },
+      "channels-binding": {
+        "title": "Festlegen, wer antwortet",
+        "body": "Binden Sie einen Agent an einen Bot oder lösen Sie ihn wieder. Ein Bot antwortet als ein Agent; Umgebung, Pause und Abfragen bleiben im Tab Verfügbarkeit des Agents."
+      },
       "agent-model-credentials": {
         "title": "Wer den Modellschlüssel bereitstellt",
         "body": "Nutze den Organisationsschlüssel oder verlange von jedem angemeldeten Chat-Nutzer einen privaten Tresorschlüssel. Modell und Endpunkt bleiben fest; Kanäle und automatische Läufe benötigen den Organisationsschlüssel."
@@ -6626,6 +6630,15 @@
       "theAgentWillRunAsYou": "Der Bot muss wissen, wer Sie sind, bevor er Ihnen antwortet."
     },
     "channels": {
+      "agentBound": "@{agent} antwortet jetzt auf {bot}",
+      "agentUnbound": "@{agent} antwortet nicht mehr auf {bot}",
+      "bindAgent": "Agent binden",
+      "bindAgentConfirm": "Binden",
+      "bindAgentDescription": "Ein Bot antwortet als ein Agent. Er antwortet in der Standardumgebung des Agents; Umgebung, Pause und Abfragen ändern Sie im Tab Verfügbarkeit des Agents.",
+      "bindAgentPlaceholder": "Agent auswählen",
+      "bindAgentTo": "Agent an {bot} binden",
+      "bindingPaused": "Bindung pausiert",
+      "noBindableAgents": "Es gibt keinen Agent, den Sie veröffentlichen dürfen und hier binden könnten.",
       "respondToBroadcasts": "Auf Gruppen-Erwähnungen antworten",
       "respondToBroadcastsHint": "Aus: auf direkte Aufrufe dieses Bots reagieren. Ein: auch auf @all, @here und unterstützte Gruppen-Erwähnungen. Direktnachrichten benötigen keine Erwähnung.",
       "broadcastsTeamsHint": "Laden Sie nach dem Aktivieren das aktualisierte Teams-App-Paket herunter und installieren oder aktualisieren Sie es im Zielteam oder Chat. Der Besitzer muss dem Empfang von Nachrichten zustimmen.",
@@ -6681,7 +6694,7 @@
       "noAppToken": "Kein App-Level-Token",
       "noChannelsYet": "Noch kein Kanal registriert",
       "noSigningSecret": "Kein Signatur-Secret",
-      "pageDescription": "Die Chat-Plattformen, auf denen diese Organisation erreichbar ist. Ein Bot dient jedem an ihn gebundenen Agent – binden Sie einen über den Tab Verfügbarkeit eines Agents.",
+      "pageDescription": "Die Chat-Plattformen, auf denen diese Organisation erreichbar ist. Ein Bot antwortet als ein Agent – binden Sie ihn hier oder im Tab Verfügbarkeit des Agents.",
       "pauseBot": "{bot} pausieren",
       "paused": "Pausiert",
       "platform": "Plattform",
@@ -6702,6 +6715,9 @@
       "transcriptionOff": "Aus",
       "transcriptionProvider": "Transkription von Sprachnachrichten",
       "transcriptionProviderHint": "Der eigene Provider dieses Bots, unabhängig davon, was sein Agent oder die Organisation nutzen.",
+      "unbindAgent": "@{agent} von {bot} lösen",
+      "unbindAgentConfirm": "Lösen",
+      "unbindAgentDescription": "{bot} antwortet nicht mehr, bis ein anderer Agent gebunden wird. Die Anweisungen, Abfragen und die Umgebung dieser Bindung werden mit ihr gelöscht.",
       "webhook": "Webhook",
       "webhookToken": "Kein Webhook-Token",
       "slackManifestWhy": "Legen Sie die Slack-App aus ihrem Manifest an: in Slack Create New App, From a manifest, und einfügen. Schaltflächen, /agent, der Assistenten-Bereich und App Home sind dabei.",

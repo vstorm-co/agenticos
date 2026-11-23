@@ -5021,7 +5021,7 @@
       },
       "channels-list": {
         "title": "Connected channels",
-        "body": "The platforms this organization is reachable on. A channel belongs to the organization, not one agent, so the same bot can serve every agent bound to it."
+        "body": "The platforms this organization is reachable on. A bot belongs to the organization and answers as one agent; one agent can answer on several bots."
       },
       "channels-new": {
         "title": "Reach agents where people are",
@@ -6204,6 +6204,10 @@
         "title": "Check readiness",
         "body": "Inspect the bot connection, agent publication and your own linked accounts without running a task."
       },
+      "channels-binding": {
+        "title": "Choose who answers",
+        "body": "Bind an agent to a bot, or unbind it. A bot answers as one agent; its environment, pause and lookups stay on the agent's Availability tab."
+      },
       "agent-model-credentials": {
         "title": "Who supplies the model key",
         "body": "Use the organization key, or require each signed-in chat user to connect a private vault key. The model and endpoint stay fixed; channels and automatic runs require the organization key."
@@ -7354,6 +7358,15 @@
       "theAgentWillRunAsYou": "The bot needs to know who you are before it will answer you."
     },
     "channels": {
+      "agentBound": "@{agent} now answers on {bot}",
+      "agentUnbound": "@{agent} no longer answers on {bot}",
+      "bindAgent": "Bind agent",
+      "bindAgentConfirm": "Bind",
+      "bindAgentDescription": "A bot answers as one agent. It answers on the agent's default environment; change the environment, pause it or choose its lookups on the agent's Availability tab.",
+      "bindAgentPlaceholder": "Choose an agent",
+      "bindAgentTo": "Bind an agent to {bot}",
+      "bindingPaused": "Binding paused",
+      "noBindableAgents": "There is no agent you may publish to bind here.",
       "respondToBroadcasts": "Respond to group mentions",
       "respondToBroadcastsHint": "Off: respond to direct invocations of this bot. On: also respond to @all, @here and supported group mentions. Direct messages require no mention.",
       "broadcastsTeamsHint": "After enabling, download the updated Teams app package and reinstall or upgrade it in the target team or chat. Its owner must consent to receiving conversation messages.",
@@ -7410,7 +7423,7 @@
       "noAppToken": "No app-level token",
       "noChannelsYet": "No channel registered yet",
       "noSigningSecret": "No signing secret",
-      "pageDescription": "The chat platforms this organization is reachable on. A bot serves every agent bound to it - bind one under an agent's Availability tab.",
+      "pageDescription": "The chat platforms this organization is reachable on. A bot answers as one agent - bind it here or on the agent's Availability tab.",
       "pauseBot": "Pause {bot}",
       "paused": "Paused",
       "platform": "Platform",
@@ -7431,6 +7444,9 @@
       "transcriptionOff": "Off",
       "transcriptionProvider": "Voice transcription",
       "transcriptionProviderHint": "This bot's own provider, whatever its agent or the organization use.",
+      "unbindAgent": "Unbind @{agent} from {bot}",
+      "unbindAgentConfirm": "Unbind",
+      "unbindAgentDescription": "{bot} stops answering until another agent is bound. The binding's own instructions, lookups and environment are deleted with it.",
       "webhook": "Webhook",
       "webhookToken": "No webhook token",
       "slackManifestWhy": "Create the Slack app from its manifest: in Slack, Create New App, From a manifest, and paste. Buttons, /agent, the assistant pane and App Home come with it.",
