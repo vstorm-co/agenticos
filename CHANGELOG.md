@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.92.0] - 2026-11-23
+
 ### Added
 
 - **French console**: choose Français as your language. Welcome messages, watch briefings, voice previews and the model-setup reply follow it; newly added messages without a French translation use the existing English fallback. Product nouns (agent, skill, run, workspace…) stay in English, as in the other languages.
@@ -22792,7 +22794,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.91.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.92.0...HEAD
+[1.92.0]: https://github.com/vstorm-co/agenticos/compare/v1.91.0...v1.92.0
 [1.91.0]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...v1.91.0
 [1.90.1]: https://github.com/vstorm-co/agenticos/compare/v1.90.0...v1.90.1
 [1.90.0]: https://github.com/vstorm-co/agenticos/compare/v1.89.1...v1.90.0
