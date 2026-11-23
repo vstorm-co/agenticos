@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Needs attention** on the dashboard and the agent list's badge no longer name the platform's
+  own agents (judges, drafters, generators, classifiers and the improver), whose pages do not
+  open; the link led to an unavailable page.
+
 - Drafting a knowledge-gap passage and a workflow's knowledge search now search
   exactly the knowledge base that was checked. Both looked the base up again by
   its collection name, which several bases of one organization can share, so

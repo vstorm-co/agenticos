@@ -122,7 +122,6 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
       skip: 0,
       limit: PAGE_SIZE,
       editable: false,
-      judge: "",
       asksRun: "",
       agent: "",
     }),
