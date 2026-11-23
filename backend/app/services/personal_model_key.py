@@ -228,9 +228,9 @@ class PersonalModelKeyService:
             if profile.custom_pricing is not None
             else None
         )
-        rates = await CurrencyService(self.db).rates_for(pricing)
-        if profile.provider == "stav" and pricing is None:
-            rates = dict((await CurrencyService(self.db).settings()).rates)
+        rates = await CurrencyService(self.db).rates_for(
+            pricing, include_provider_rates=profile.provider == "stav"
+        )
         return ModelRequestSpec(
             profile_id=profile.id,
             label=profile.label,

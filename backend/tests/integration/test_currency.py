@@ -9,16 +9,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import SpendLedger
 from app.agents.profile_pricing import ProfilePricingModel
+from app.agents.stav_cost import _Capture
 from app.core.currency import CurrencySettings
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.secret_kinds import ApiKeySecret, seal_secret
+from app.core.vault import VaultScope
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.organization import Organization, OrganizationMember
-from app.repositories import credential_repo
+from app.repositories import credential_repo, personal_model_key
 from app.schemas.organization import OrganizationUpdate
 from app.schemas.token_pricing import TokenPricing
 from app.services.currency import CurrencyService
 from app.services.model_profile import ModelProfileService
 from app.services.organization import OrganizationService
+from app.services.personal_model_key import PersonalModelKeyService
+from tests.integration._keys import provider_key
 from tests.integration.test_profile_pricing import tenant
 from tests.test_profile_pricing import answer
 
@@ -111,6 +116,55 @@ async def test_organization_overrides_inherit_and_do_not_modify_the_existing_usd
     assert organization.currency is None
     assert (await CurrencyService(db).context(ctx.organization_id)).currency == "PLN"
     assert organization.monthly_budget_usd == Decimal(100)
+
+
+@pytest.mark.parametrize("personal", [False, True], ids=["vault", "personal"])
+async def test_stav_preserves_provider_bills_with_custom_usd_pricing(
+    db: AsyncSession, personal: bool
+) -> None:
+    ctx = await tenant(db)
+    assert ctx.user_id is not None
+    db.add(
+        OrganizationMember(organization_id=ctx.organization_id, user_id=ctx.user_id, role="owner")
+    )
+    db.add(DeploymentSettings(currency_settings={"rates": {"USD": "1", "EUR": "0.9"}}))
+    pricing = TokenPricing(input=2, output=0)
+    profile = await credential_repo.create_profile(
+        db,
+        organization_id=ctx.organization_id,
+        label="Stav",
+        provider="stav",
+        model="test-model",
+        secret_id=await provider_key(db, ctx.organization_id, purpose="stav"),
+        custom_pricing=pricing.model_dump(mode="json"),
+    )
+    if personal:
+        sealed = seal_secret(
+            ApiKeySecret(api_key="sk-test-personal"), scope=VaultScope.user(ctx.user_id)
+        )
+        await personal_model_key.save(
+            db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            provider="stav",
+            endpoint="",
+            sealed_secret=sealed.ciphertext,
+            key_version=sealed.key_version,
+        )
+        resolved = await PersonalModelKeyService(db).resolve(ctx, profile)
+    else:
+        resolved = await ModelProfileService(db).resolve(ctx, profile_id=profile.id)
+
+    rates = resolved.credential.exchange_rates
+    assert rates["EUR"] == Decimal("0.9")
+    usage = RequestUsage(input_tokens=1_000_000)
+    _Capture(cost=Decimal(9), currency="EUR", exchange_rates=rates).apply(usage)
+    assert usage.cost == Decimal(10)
+    model = resolved.build()
+    assert isinstance(model, ProfilePricingModel)
+    model.apply(usage)
+    assert usage.cost == Decimal(2)
+    assert usage.__dict__["provider_reported_cost"]["currency"] == "EUR"
 
 
 async def test_currency_context_is_not_readable_outside_the_tenant(db: AsyncSession) -> None:

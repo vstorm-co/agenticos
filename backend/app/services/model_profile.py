@@ -794,10 +794,8 @@ class ModelProfileService:
             if profile.custom_pricing is not None
             else None
         )
-        exchange_rates = (
-            dict((await CurrencyService(self.db).settings()).rates)
-            if profile.provider == "stav" and pricing is None
-            else await CurrencyService(self.db).rates_for(pricing)
+        exchange_rates = await CurrencyService(self.db).rates_for(
+            pricing, include_provider_rates=profile.provider == "stav"
         )
         if profile.secret_id is None:
             if not lacks_key(

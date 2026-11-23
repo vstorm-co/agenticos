@@ -33,8 +33,11 @@ class CurrencyService:
             default_currency=settings.DEFAULT_ORG_CURRENCY, rates=settings.CURRENCY_RATES
         )
 
-    async def rates_for(self, pricing: TokenPricing | None) -> dict[str, Decimal]:
-        if pricing is None or pricing.currency == "USD":
+    async def rates_for(
+        self, pricing: TokenPricing | None, *, include_provider_rates: bool = False
+    ) -> dict[str, Decimal]:
+        """Snapshot rates for custom pricing and any independently billed currency."""
+        if not include_provider_rates and (pricing is None or pricing.currency == "USD"):
             return {"USD": Decimal(1)}
         return dict((await self.settings()).rates)
 

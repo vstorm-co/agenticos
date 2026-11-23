@@ -3179,8 +3179,38 @@ def test_currency_settings_upgrade_keeps_existing_prices_and_limits_in_usd() -> 
             ) == {"input": "2", "output": "3"}
         result = _alembic("check")
         assert result.returncode == 0, result.stderr
+        with engine.begin() as db:
+            db.execute(
+                text(
+                    "UPDATE model_profiles SET custom_pricing = custom_pricing || "
+                    """'{"currency":"EUR"}'::jsonb WHERE id = :id"""
+                ),
+                {"id": profile_id},
+            )
+        result = _alembic("downgrade", "0364_monetary_cost_capacity")
+        assert result.returncode != 0
+        assert "explicitly reprice them in USD before downgrading" in result.stderr
+        with engine.begin() as db:
+            assert (
+                db.scalar(
+                    text("SELECT custom_pricing->>'currency' FROM model_profiles WHERE id = :id"),
+                    {"id": profile_id},
+                )
+                == "EUR"
+            )
+            db.execute(
+                text(
+                    "UPDATE model_profiles SET custom_pricing = custom_pricing || "
+                    """'{"currency":"USD"}'::jsonb WHERE id = :id"""
+                ),
+                {"id": profile_id},
+            )
         result = _alembic("downgrade", "0364_monetary_cost_capacity")
         assert result.returncode == 0, result.stderr
+        with engine.connect() as db:
+            assert db.scalar(
+                text("SELECT custom_pricing FROM model_profiles WHERE id = :id"), {"id": profile_id}
+            ) == {"input": "2", "output": "3"}
         result = _alembic("upgrade", "head")
         assert result.returncode == 0, result.stderr
     finally:

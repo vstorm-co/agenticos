@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- Apply `0365_currency_settings.py` for manual deployment exchange rates and nullable organization currency preferences. Existing prices and USD limits retain their units.
+- Apply `0365_currency_settings.py` for manual deployment exchange rates and nullable organization currency preferences. Existing prices and USD limits retain their units. Before downgrading, restore automatic pricing or explicitly reprice any non-USD custom model prices in USD.
 
 - Apply `0363_model_profile_pricing.py` and `0364_monetary_cost_capacity.py` before starting the API. Existing profiles retain automatic pricing. Monetary storage retains six fractional places and accepts high custom-priced costs; downgrading requires amounts to fit the former column range. Changing or restoring model prices requires `budgets:manage` as well as connection management.
 
