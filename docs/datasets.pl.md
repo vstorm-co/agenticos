@@ -1,5 +1,5 @@
 ---
-source_sha: "be18b1f04a8d"
+source_sha: "dc722137c16b"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -389,7 +389,7 @@ niej jest odrzucany ze wskazaniem `judge.pass_at`.
 | `max_latency_ms` | `value` | Run trwał nie dłużej niż tyle |
 | `length` | `unit` (`characters` lub `words`), `min` i/lub `max`, opcjonalnie `path` | Odpowiedź ma długość co najmniej `min` i najwyżej `max` |
 | `judge` | `criterion` | Sędzia ewaluacji ocenia kryterium na progu zaliczenia lub wyżej |
-| `keys` | `keys`: do 200 par `key` (etykieta) i `value` | Odpowiedź zawiera każdą wartość; wynik to udział tych, które zawiera |
+| `keys` | `keys`: pary `key` (etykieta) i `value`, najwyżej 200 łącznie w sprawdzeniach kluczy przypadku - i w domyślnych sprawdzeniach datasetu; rodzina `keys`, chyba że podano inną | Odpowiedź zawiera każdą wartość; wynik to udział tych, które zawiera |
 
 `path` sięga do wnętrza odpowiedzi, która jest JSON-em: `items.0.name` to nazwa
 pierwszego elementu. Bez niego reguła czyta całą odpowiedź. Reguły tekstowe nie

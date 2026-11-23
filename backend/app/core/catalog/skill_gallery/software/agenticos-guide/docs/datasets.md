@@ -370,7 +370,7 @@ read on the stored scale, and one above it is refused naming `judge.pass_at`.
 | `max_latency_ms` | `value` | The run took no longer than this |
 | `length` | `unit` (`characters` or `words`), `min` and/or `max`, optional `path` | The answer is at least `min` and at most `max` long |
 | `judge` | `criterion` | The eval judge grades the criterion at or above the pass mark |
-| `keys` | `keys`: up to 200 pairs of `key` (a label) and `value` | The answer carries every value; the score is the share it carries |
+| `keys` | `keys`: pairs of `key` (a label) and `value`, at most 200 across a case's keys checks - and across the dataset's default checks; family `keys` unless named | The answer carries every value; the score is the share it carries |
 
 `path` reads into an answer that is JSON: `items.0.name` is the first item's
 name. Without it, a rule reads the whole answer. Text rules are not case

@@ -1,5 +1,5 @@
 ---
-source_sha: "be18b1f04a8d"
+source_sha: "dc722137c16b"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -393,7 +393,7 @@ encima de ella se rechaza nombrando `judge.pass_at`.
 | `max_latency_ms` | `value` | El run no tardó más que esto |
 | `length` | `unit` (`characters` o `words`), `min` y/o `max`, opcional `path` | La respuesta mide como mínimo `min` y como máximo `max` |
 | `judge` | `criterion` | El juez de evals califica el criterio en la nota de aprobado o por encima |
-| `keys` | `keys`: hasta 200 pares de `key` (una etiqueta) y `value` | La respuesta contiene cada valor; la puntuación es la parte que contiene |
+| `keys` | `keys`: pares de `key` (una etiqueta) y `value`, como mucho 200 entre todas las comprobaciones `keys` de un caso - y entre las comprobaciones por defecto del dataset; familia `keys` salvo que se indique otra | La respuesta contiene cada valor; la puntuación es la parte que contiene |
 
 `path` lee dentro de una respuesta que es JSON: `items.0.name` es el nombre del
 primer elemento. Sin él, una regla lee la respuesta entera. Las reglas de texto
