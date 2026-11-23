@@ -1,16 +1,20 @@
 """Skill improvement sessions and their attempts."""
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from pydantic import JsonValue
-from sqlalchemy import func, or_, select
+from sqlalchemy import UUID as SQLUUID
+from sqlalchemy import cast, column, func, or_, select, true
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.authoring import AuthoringRequest
+from app.db.models.case_score import CaseScore
 from app.db.models.eval_run import EvalRunCase
 from app.db.models.improvement import ACTIVE_STATUSES, OPEN_STATUSES
 from app.db.models.skill_check import SkillCheckAgent
@@ -291,7 +295,16 @@ async def spent(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> Dec
 
 
 async def check_cost(db: AsyncSession, check_id: UUID, *, organization_id: UUID) -> Decimal:
-    """What a check's eval runs cost, across every agent and stage it ran."""
+    """What a check's eval runs cost, across every agent and stage it ran: every
+    answer, and every grading the judge made of one."""
+    answers, gradings = await check_cost_parts(db, check_id, organization_id=organization_id)
+    return answers + gradings
+
+
+async def check_cost_parts(
+    db: AsyncSession, check_id: UUID, *, organization_id: UUID
+) -> tuple[Decimal, Decimal]:
+    """What a check's answers cost, and what the judge's gradings of them cost."""
     runs = (
         select(SkillCheckAgent.skill_set_run_id.label("run_id"))
         .where(
@@ -312,7 +325,68 @@ async def check_cost(db: AsyncSession, check_id: UUID, *, organization_id: UUID)
             EvalRunCase.eval_run_id.in_(select(runs.c.run_id)),
         )
     )
-    return Decimal(total or 0)
+    result = (
+        func.jsonb_array_elements(CaseScore.results)
+        .table_valued(column("value", JSONB))
+        .render_derived(name="result")
+    )
+    graded_by = result.c.value["judge_run_id"].astext
+    gradings = (
+        select(cast(graded_by, SQLUUID))
+        .select_from(CaseScore)
+        .join(result, true())
+        .where(
+            CaseScore.organization_id == organization_id,
+            CaseScore.eval_run_id.in_(select(runs.c.run_id)),
+            graded_by.is_not(None),
+        )
+    )
+    judged = await db.scalar(
+        select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.id.in_(gradings),
+        )
+    )
+    return Decimal(total or 0), Decimal(judged or 0)
+
+
+async def checked_iterations(
+    db: AsyncSession, *, check_ids: Collection[UUID] = ()
+) -> list[tuple[UUID, UUID]]:
+    """Each attempt that started a check, as (organization, attempt), narrowed to the
+    attempts of `check_ids` when given. Unscoped by organization: an operator's sweep."""
+    statement = select(
+        SkillImprovementIteration.organization_id, SkillImprovementIteration.id
+    ).where(
+        SkillImprovementIteration.ended_at.is_not(None),
+        or_(
+            SkillImprovementIteration.skill_check_id.is_not(None),
+            SkillImprovementIteration.main_alone_check_id.is_not(None),
+        ),
+    )
+    if check_ids:
+        statement = statement.where(
+            or_(
+                SkillImprovementIteration.skill_check_id.in_(list(check_ids)),
+                SkillImprovementIteration.main_alone_check_id.in_(list(check_ids)),
+            )
+        )
+    result = await db.execute(statement.order_by(SkillImprovementIteration.id))
+    return [(organization_id, iteration_id) for organization_id, iteration_id in result.all()]
+
+
+async def get_iteration_by_id(
+    db: AsyncSession, iteration_id: UUID, *, organization_id: UUID
+) -> SkillImprovementIteration | None:
+    result = await db.execute(
+        select(SkillImprovementIteration)
+        .where(
+            SkillImprovementIteration.organization_id == organization_id,
+            SkillImprovementIteration.id == iteration_id,
+        )
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
 
 
 async def timeline(

@@ -2,7 +2,7 @@
 
 from collections.abc import Awaitable, Callable
 from decimal import Decimal
-from typing import cast
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
@@ -26,6 +26,7 @@ from app.db.models.improvement import ImprovementRun
 from app.db.models.notification import Notification
 from app.db.models.organization import OrganizationMember
 from app.repositories import authoring_repo, dataset_repo, improvement_repo
+from app.schemas.eval_run import EvalRunEstimate
 from app.schemas.improvement import (
     ContinuationConsent,
     ImprovementContinue,
@@ -36,6 +37,7 @@ from app.schemas.improvement import (
 from app.services.agent_registry import UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.authoring_worker import AuthoringWorker
+from app.services.eval_run import EvalRunService
 from app.services.eval_run_worker import EvalRunWorker
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.knowledge_gaps import KnowledgeGapService
@@ -673,8 +675,22 @@ async def test_a_check_over_the_budget_is_refused_and_the_session_keeps_waiting(
         await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
     service = ImprovementPipelineService(db)
     tight = ImprovementContinue(budget_usd=Decimal("0.020001"))
-    quote = await service.estimate_continuation(ctx, agent.id, read.id, tight)
+    priced: list[EvalRunEstimate] = []
+    estimate = EvalRunService.estimate
+
+    async def kept(self: EvalRunService, *args: Any, **kwargs: Any) -> EvalRunEstimate:
+        priced.append(await estimate(self, *args, **kwargs))
+        return priced[-1]
+
+    with patch.object(EvalRunService, "estimate", kept):
+        quote = await service.estimate_continuation(ctx, agent.id, read.id, tight)
     assert quote.mode == "next_step" and not quote.affordable
+    # Most likely one check asking again about half of what it may; at most every
+    # held-out answer again, and the repeat an inconclusive result gets.
+    [check] = priced
+    assert quote.expected_usd == check.expected_usd
+    assert check.expected_usd == check.total_usd + check.rerun_ceiling_usd / 2
+    assert quote.total_usd == (check.total_usd + check.rerun_ceiling_usd) * 2
     with pytest.raises(PaymentRequiredError):
         await service.continue_run(
             ctx,
@@ -1044,12 +1060,29 @@ async def test_criterion_metadata_in_read_and_list_keeps_dataset_and_skill_acces
             }
         ],
         "criterion_change": 1.0,
+        "families": [
+            {
+                "family": "private family text",
+                "criteria": 1,
+                "cases": 5,
+                "before": 0,
+                "after": 5,
+                "fixed": 5,
+                "broken": 0,
+                "settled": True,
+                "better": True,
+                "worse": False,
+                "skill": skill.name,
+                "skill_id": str(skill.id),
+            }
+        ],
         "fixed": 0,
     }
     await db.flush()
     service = ImprovementPipelineService(db)
     owner = await service.read(ctx, agent.id, started.id)
     assert owner.iterations[0].verdict_detail["criteria"][0].name == "private rubric text"
+    assert owner.iterations[0].verdict_detail["families"][0].family == "private family text"
     contexts = [
         replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW})),
         replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW, Perm.RUNS_VIEW})),
@@ -1063,7 +1096,9 @@ async def test_criterion_metadata_in_read_and_list_keeps_dataset_and_skill_acces
         for response in (read, listed):
             detail = response.iterations[0].verdict_detail
             assert "criteria" not in detail and "criterion_change" not in detail
+            assert "families" not in detail
             assert "private rubric text" not in response.model_dump_json()
+            assert "private family text" not in response.model_dump_json()
             assert "private-grading-owner" not in response.model_dump_json()
     # Redaction is per response; neither the stored detail nor an owner's later read loses it.
     assert attempt.verdict_detail["criteria"][0]["name"] == "private rubric text"
@@ -1086,6 +1121,16 @@ async def test_criterion_metadata_in_read_and_list_keeps_dataset_and_skill_acces
         *(await service.list_for_agent(denied_source, agent.id)),
     ):
         assert "criteria" not in response.iterations[0].verdict_detail
+    # A family named for a skill with no identity kept fails closed, as a criterion does.
+    attempt.verdict_detail = {
+        **saved_detail,
+        "families": [
+            {key: value for key, value in saved_detail["families"][0].items() if key != "skill_id"}
+        ],
+    }
+    await db.flush()
+    unproven = (await service.read(ctx, agent.id, started.id)).iterations[0].verdict_detail
+    assert "families" not in unproven and "criteria" not in unproven
     attempt.verdict_detail = saved_detail
     await db.flush()
     original_name = skill.name

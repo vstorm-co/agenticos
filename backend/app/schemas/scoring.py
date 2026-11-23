@@ -32,6 +32,7 @@ from app.schemas.dataset_helpers import PipelineInstructions
 MAX_PATTERN = 500
 MAX_CHECK_VALUE = 2000
 MAX_CRITERION = 1000
+MAX_FAMILY = 80
 
 ScorerKind = Literal["check", "trajectory", "judge", "reference"]
 ScorerStatus = Literal["pass", "fail", "skipped", "error"]
@@ -52,7 +53,19 @@ class ReviewReevaluation(BaseSchema):
     undo: bool = False
 
 
-class TextCheck(BaseSchema):
+class _CheckBase(BaseSchema):
+    """What every check shares: the family it is reported under.
+
+    A family groups the checks and judge criteria that test one thing across a
+    dataset - every case's "total including VAT" regex, every case's "names the
+    account manager" criterion - so a comparison counts them together. A check
+    without one is its own family.
+    """
+
+    family: str | None = Field(default=None, min_length=1, max_length=MAX_FAMILY)
+
+
+class TextCheck(_CheckBase):
     """A rule on the answer's text, or on one value inside a JSON answer.
 
     `path` reads into an answer that is JSON - `items.0.name` is the first item's
@@ -123,7 +136,7 @@ def _refused_keyword(schema: JsonValue) -> str | None:
     )
 
 
-class JsonSchemaCheck(BaseSchema):
+class JsonSchemaCheck(_CheckBase):
     """The answer, or the value at `path`, is JSON matching a JSON Schema.
 
     `pattern` and `patternProperties` are refused - a `regex` check is the place
@@ -149,14 +162,14 @@ class JsonSchemaCheck(BaseSchema):
         return schema
 
 
-class CeilingCheck(BaseSchema):
+class CeilingCheck(_CheckBase):
     """The run cost no more than `value` dollars, or took no more than `value` ms."""
 
     type: Literal["max_cost_usd", "max_latency_ms"]
     value: float = Field(ge=0)
 
 
-class LengthCheck(BaseSchema):
+class LengthCheck(_CheckBase):
     """The answer, or the value at `path`, is at least `min` and at most `max` long.
 
     Counted in characters or in words - runs of anything but whitespace. At least
@@ -178,7 +191,7 @@ class LengthCheck(BaseSchema):
         return self
 
 
-class JudgeCheck(BaseSchema):
+class JudgeCheck(_CheckBase):
     """A criterion for this case alone, graded by the eval judge.
 
     For what a rule cannot express - "refuses and does not reveal the customer's
@@ -329,6 +342,7 @@ class ScorerResult(BaseSchema):
     nothing quoted from the answer to show for it. `judge_said` is the start of
     an answer the judge gave that could not be read. `knowledge` is what a judge
     that searches found in the graded agent's knowledge bases while grading.
+    `family` is the family its check named; none for a check that named none.
     """
 
     scorer: ScorerKind
@@ -344,6 +358,7 @@ class ScorerResult(BaseSchema):
     judge_said: str | None = None
     judge_run_id: UUID | None = None
     knowledge: list[KnowledgeFinding] = Field(default_factory=list)
+    family: str | None = None
 
 
 class ExpectedToolCall(BaseSchema):

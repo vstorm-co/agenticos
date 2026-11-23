@@ -88,7 +88,7 @@ it("leads with the better attempt and sends the person to accept it", async () =
   const onAccept = vi.fn();
   show(SESSION, { candidate: true, onAccept });
   expect(
-    screen.getByText("Attempt 1 made Refund desk better: 3 questions fixed and none broke."),
+    screen.getByText("The updated agent answered 3 more test questions correctly."),
   ).toBeInTheDocument();
   primary("Review and accept the changes");
   await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
@@ -202,7 +202,7 @@ it("names the published attempt and its version once the session is decided", ()
   expect(
     screen.getByText(
       "None of the 3 attempts made Refund desk better. Attempt 2 made it worse: 2 questions broke. " +
-        "Attempt 2 was published as version 7.",
+        "Published as version 7.",
     ),
   ).toBeInTheDocument();
 });
@@ -211,13 +211,13 @@ it("says a better attempt was kept as a draft, and a publish whose version is un
   const view = show({ ...SESSION, status: "accepted" });
   expect(
     screen.getByText(
-      "Attempt 1 made Refund desk better: 3 questions fixed and none broke. " +
-        "Attempt 1 was accepted as a draft.",
+      "The updated agent answered 3 more test questions correctly. " +
+        "Saved to the agent’s draft.",
     ),
   ).toBeInTheDocument();
   view.unmount();
   show({ ...SESSION, status: "published", published_version: null });
-  expect(screen.getByText(/Attempt 1 was published\.$/)).toBeInTheDocument();
+  expect(screen.getByText(/Changes published\.$/)).toBeInTheDocument();
 });
 
 const NOISE: MeasurementNoise = {
@@ -322,7 +322,7 @@ it("judges noise only within attempts when they shared too few questions, and sa
 it("only notes the noise beside a better attempt, without the diagnosis", () => {
   show({ ...SESSION, measurement_noise: NOISE }, { candidate: true });
   expect(
-    screen.getByText(/^Attempt 1 made Refund desk better: 3 questions fixed and none broke\.$/),
+    screen.getByText(/^The updated agent answered 3 more test questions correctly\.$/),
   ).toBeInTheDocument();
   expect(
     screen.getByText(/^The test is noisy: today's version of Refund desk scored 50% and 70%/),

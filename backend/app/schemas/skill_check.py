@@ -18,8 +18,15 @@ from app.db.models.skill_check import (
     UnknownReason,
 )
 from app.schemas.base import BaseSchema
-from app.schemas.improvement import VerdictCriterion
+from app.schemas.improvement import VerdictCriterion, VerdictFamily
 from app.schemas.skill_version import SkillForkRead, SkillVersionRead, VersionRef
+
+
+class RejudgedChecks(BaseSchema):
+    """Agent rows actually judged again, and rows their original authority could not read."""
+
+    judged: int = 0
+    skipped: int = 0
 
 
 class CandidateText(BaseSchema):
@@ -151,6 +158,10 @@ class SkillCheckAgentRead(BaseSchema):
     criteria: list[VerdictCriterion] = Field(
         default_factory=list,
         description="Each criterion over the held-out questions, both stages together",
+    )
+    families: list[VerdictFamily] = Field(
+        default_factory=list,
+        description="Each family of criteria over the held-out questions, both stages together",
     )
     expected_usd: Decimal
     at_most_usd: Decimal

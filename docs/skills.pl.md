@@ -1,5 +1,5 @@
 ---
-source_sha: "54b551bbe389"
+source_sha: "cbdc4136f927"
 ---
 
 # Skille { #skills }
@@ -286,7 +286,11 @@ górę. Zestaw z ostatnich odpowiedzi zadaje każde pytanie raz: odpowiedź, kt�
 ktoś ocenił, wygrywa z taką, która tylko się nie udała, więc jedno pytanie nigdy
 nie wymaga odpowiedzi i jednocześnie jej nie zabrania.
 
-Potem o pytania samego agenta:
+Potem o pytania samego agenta, z datasetu, na którym mierzy jego najnowsza
+[sesja Improve](authoring.md#the-improve-wizard), gdy ten dataset go testuje, a w
+przeciwnym razie z pierwszego datasetu, który go testuje. Zestaw zachowany na
+końcowy pomiar nie jest więc nigdy zadawany przez sprawdzenie skilla, gdy agent
+poprawia się na innym.
 
 - **Quick**, domyślnie: cztery pytania z datasetu agenta - więcej, gdy pytań
   held-out samego skilla jest za mało do pięciu, których wymaga wynik - których
@@ -328,11 +332,17 @@ startem, ze wskazaniem datasetu, do którego trzeba dodać inne pytania.
   kryteriach**; agent z kryterium potwierdzonym jako gorsze jest **gorzej w
   kryteriach**. Żaden z nich nie zmienia powyższej reguły, która dotyczy całych
   pytań: na pasku liczą się z agentami lepszymi i gorszymi, a szczegóły agenta
-  wymieniają każde kryterium ze spełnieniami przed i po.
+  wymieniają każdą [rodzinę](evals.md#a-flip-is-confirmed-before-it-counts)
+  kryteriów ze spełnieniami przed i po - sprawdzenie jednej rzeczy w każdym
+  przypadku w jednym wierszu - albo każde kryterium, dla agenta sprawdzonego,
+  zanim rodziny były zapisywane.
 - Agent, którego nie dało się sprawdzić - brak pytań, pytania, których nic nie
   ocenia albo wzięte w całości z rozmów samej zmiany, brak dostępu, brak
   budżetu, brak opublikowanej wersji, nieudany run, zatrzymane sprawdzenie - jest
-  **nieznany**, a osoba potwierdza to przed zastosowaniem.
+  **nieznany**, a osoba potwierdza to przed zastosowaniem. Tak samo agent, którego
+  runy oceniły każdą odpowiedź na mniejszej liczbie odłożonych pytań, niż
+  potrzeba do wyniku: jego wiersz mówi, ile wypadło lepiej i gorzej, i że to za
+  mało, by mieć pewność.
 
 Sprawdzenie, w którym nie da się sprawdzić żadnego agenta, i tak startuje i od
 razu się kończy, ze wszystkimi agentami nieznanymi, do potwierdzenia przez osobę. Okno mówi to przed startem i proponuje pytania testowe skilla albo ocenianie, którego brakuje jego pytaniom.
@@ -845,6 +855,12 @@ wybranego w chipach - w tych samych pięciu krokach co [poprawianie
 agenta](authoring.md#the-improve-wizard): Zrozumienie, Zmiany, Sprawdzenie, Wynik i Akceptacja. Zatrzymuje
 się dla Ciebie po Zrozumieniu, po Zmianach i przy wyniku, a niczego nie zmienia, dopóki
 nie zaakceptujesz.
+
+Sesja otwarta z Improve agenta zaczyna od problemów, które ta sesja zgłosiła.
+Tylko problem cytujący linię skilla, która podaje złą wartość lub regułę,
+zabiera ze sobą kryteria agenta; gdy skill tylko milczy, problem jest radą, a
+agent nadal odpowiada za te kryteria - zobacz [Gdy błąd jest w
+skillu](authoring.md#when-the-fault-is-in-a-skill).
 
 Start mówi, ile ocenionych w dół albo nieudanych odpowiedzi przeczyta i ilu agentom
 służy linia. Mówi też, ile kosztuje

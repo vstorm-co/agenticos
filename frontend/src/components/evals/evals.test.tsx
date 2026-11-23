@@ -577,8 +577,8 @@ describe("EstimateSummary", () => {
         "Graded by expected tool calls, the reference answer, and Eval judge on Policy and Tone.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText("20 cases in total")).toBeInTheDocument();
-    expect(screen.getByText(/can add up to \$0.60/)).toBeInTheDocument();
+    expect(screen.getByText("20 cases, most likely")).toBeInTheDocument();
+    expect(screen.getByText(/would cost at most \$0.90/)).toBeInTheDocument();
     expect(screen.getByText("$9.80")).toBeInTheDocument();
     expect(screen.getByText("$99.70")).toBeInTheDocument();
     expect(screen.queryByText(/more than a budget has left/)).not.toBeInTheDocument();
@@ -622,6 +622,40 @@ describe("ComparisonCard", () => {
       />,
     );
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("tables each family of criteria over the whole run, and none under a tag", () => {
+    const move = {
+      family: "price break",
+      criteria: ["Points out 1,000"],
+      cases: 28,
+      baseline_passed: 3,
+      candidate_passed: 28,
+      fixed: 25,
+      broken: 0,
+      fixed_confirmed: 0,
+      broken_confirmed: 0,
+      p_value: 0,
+      settled: true,
+      better: true,
+      worse: false,
+    };
+    const { rerender } = render(
+      <ComparisonCard agentId="agent-1" comparison={comparison({ families: [move] })} tag={null} />,
+    );
+
+    const row = screen.getByText("price break").closest("tr")!;
+    expect(row).toHaveTextContent("3 of 28");
+    expect(row).toHaveTextContent("28 of 28");
+    expect(row).toHaveTextContent("+25 fixed");
+    rerender(
+      <ComparisonCard
+        agentId="agent-1"
+        comparison={comparison({ families: [move] })}
+        tag="refunds"
+      />,
+    );
+    expect(screen.queryByText("price break")).toBeNull();
   });
 
   it("shows both sides, the changes with what confirmed means, and the efficiency axis", () => {
@@ -713,7 +747,25 @@ describe("ArmsTable", () => {
       "href",
       "/agents/agent-1/evals/run-0",
     );
-    expect(baseline.getAllByText("—")).toHaveLength(2);
+    // No pass rate, no criteria, no cost per pass on a side with nothing decided.
+    expect(baseline.getAllByText("—")).toHaveLength(3);
+  });
+
+  it("shows each side's criteria passed beside its pass rate", () => {
+    const candidate = arm({ summary: { ...SUMMARY, pass_rate: 0.25, partial_credit: 0.875 } });
+    render(
+      <ArmsTable
+        agentId="agent-1"
+        tag={null}
+        live={false}
+        baseline={null}
+        baselineSummary={null}
+        arms={[candidate, arm({ id: "arm-2", role: "baseline", version_number: 6 })]}
+      />,
+    );
+
+    expect(screen.getByRole("columnheader", { name: "Criteria passed" })).toBeInTheDocument();
+    expect(screen.getByText("88%")).toBeInTheDocument();
   });
 
   it("says a reused result was reused when its run has not finished", () => {
@@ -1040,4 +1092,18 @@ it("keeps dataset identity on sparse run links with the same candidate", () => {
   expect(
     screen.getByText("2 runs so far. A trend needs at least three; run another to see one."),
   ).toBeInTheDocument();
+});
+
+it("does not show numeric quality metrics when the entire execution failed", () => {
+  const { container } = render(
+    <ArmsTable
+      agentId="agent-1"
+      arms={[arm({ failed_alike: "Workspace unavailable" })]}
+      tag={null}
+      live={false}
+      baseline={null}
+      baselineSummary={null}
+    />,
+  );
+  expect(container).toBeEmptyDOMElement();
 });

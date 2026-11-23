@@ -1,5 +1,5 @@
 ---
-source_sha: "ef5a787328c9"
+source_sha: "b8c1a4d65015"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -432,6 +432,14 @@ Leerzeichen sind, und braucht mindestens eine Grenze.
 Eine `judge`-Prüfung ist ein Kriterium nur für einen Fall, bewertet im selben
 Run des Bewerters wie die Rubrik des Datasets. Verwenden Sie sie für das, was eine Regel
 nicht ausdrücken kann, etwa „lehnt ab und verrät die Adresse des Kunden nicht“.
+
+Jede Prüfung nimmt ein optionales `family` (höchstens 80 Zeichen): die Sache, die
+sie über das ganze Dataset hinweg prüft, etwa `total including VAT` an der Regex
+jedes Falls für seinen eigenen Betrag. Ein Vergleich zählt die Prüfungen einer
+Familie gemeinsam, Fall für Fall, sodass eine Änderung danach beurteilt wird, was
+sich über das Dataset hinweg bewegt hat, und nicht nach dem Muster eines
+einzelnen Falls. Eine Prüfung ohne Familie ist eine eigene Familie; bei einer mit
+Familie bleiben die Bewertung und ihr Fingerabdruck genau wie bisher.
 
 ### Erwartete Tool-Aufrufe { #trajectory }
 

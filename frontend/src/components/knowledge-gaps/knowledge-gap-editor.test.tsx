@@ -61,7 +61,7 @@ const DRAFT: KnowledgeGapDraft = {
   flags: [],
 };
 
-const ADD = { name: "Add to Handbook" };
+const ADD = { name: "Add to knowledge base" };
 
 function typeContent(text: string) {
   fireEvent.change(screen.getByRole("textbox", { name: "Content" }), { target: { value: text } });
@@ -93,6 +93,9 @@ describe("KnowledgeGapEditor", () => {
 
   it("holds a draft back while a detail is still to fill in, and saves it meanwhile", async () => {
     render(<KnowledgeGapEditor topic={{ ...TOPIC, draft: DRAFT }} />);
+    expect(screen.queryByRole("textbox", { name: "Content" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Content preview" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Edit document" }));
     expect(screen.getByLabelText("Title")).toHaveValue("Visitor parking");
     expect(screen.getByRole("list", { name: "Still to fill in" })).toHaveTextContent("level");
     expect(screen.getByRole("button", ADD)).toBeDisabled();
@@ -169,4 +172,23 @@ describe("blanksIn", () => {
       "hours",
     ]);
   });
+});
+
+it("reports unsaved edits and clears the dirty state after the saved content is read", async () => {
+  const changed = vi.fn();
+  const draft = { ...DRAFT, content: "Original" };
+  const view = render(<KnowledgeGapEditor topic={{ ...TOPIC, draft }} onDirtyChange={changed} />);
+  expect(changed).toHaveBeenLastCalledWith(false);
+  await userEvent.click(screen.getByRole("button", { name: "Edit document" }));
+  typeContent("Revised");
+  await userEvent.click(screen.getByRole("button", { name: "Read document" }));
+  expect(screen.getByRole("region", { name: "Content preview" })).toHaveTextContent("Revised");
+  expect(changed).toHaveBeenLastCalledWith(true);
+  view.rerender(
+    <KnowledgeGapEditor
+      topic={{ ...TOPIC, draft: { ...draft, content: "Revised" } }}
+      onDirtyChange={changed}
+    />,
+  );
+  expect(changed).toHaveBeenLastCalledWith(false);
 });

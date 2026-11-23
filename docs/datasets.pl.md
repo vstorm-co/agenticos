@@ -1,5 +1,5 @@
 ---
-source_sha: "ef5a787328c9"
+source_sha: "b8c1a4d65015"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -407,6 +407,14 @@ potrzebuje co najmniej jednej granicy.
 Sprawdzenie `judge` to kryterium tylko dla jednego przypadku, oceniane w tym
 samym runie sędziego co rubryka datasetu. Używaj go do tego, czego reguła nie
 wyrazi, np. „odmawia i nie ujawnia adresu klienta”.
+
+Każde sprawdzenie przyjmuje opcjonalne `family` (najwyżej 80 znaków): to, co
+sprawdza w całym datasecie, np. `total including VAT` przy regexie każdego
+przypadku dla jego własnej kwoty. Porównanie liczy sprawdzenia jednej rodziny
+razem, przypadek po przypadku, więc zmiana jest oceniana według tego, co
+przesunęło się w całym datasecie, a nie według wzorca jednego przypadku.
+Sprawdzenie bez rodziny jest osobną rodziną; sprawdzenie z rodziną ocenia - i
+wylicza odcisk swojego oceniania - dokładnie tak jak wcześniej.
 
 ### Oczekiwane wywołania narzędzi { #trajectory }
 
