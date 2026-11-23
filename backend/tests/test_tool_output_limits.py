@@ -422,7 +422,7 @@ class TestRegistration:
         assert len(built) == 1
         toolset = built[0].get_toolset()
         assert toolset is not None
-        assert "read_tool_result" in await toolset.get_tools(_run_context())
+        assert set(await toolset.get_tools(_run_context())) == {"read_tool_result"}
 
     def test_a_bound_workspace_is_used_for_spills(self):
         workspace = document_workspace()

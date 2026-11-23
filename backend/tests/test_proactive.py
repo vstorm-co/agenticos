@@ -25,6 +25,7 @@ from pydantic_ai.exceptions import ModelHTTPError, ModelRetry
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.profiles import ModelProfile
 from pydantic_ai.usage import RequestUsage, RunUsage
 
 from app.agents.capabilities.budget import BudgetScope, SpendLimit
@@ -516,6 +517,7 @@ class TestThinking:
             provider="anthropic",
             model="claude",
             secret_id=None,
+            params={},
         )
         resolve = (
             AsyncMock(side_effect=resolve_error)
@@ -536,6 +538,32 @@ class TestThinking:
             patch(f"{THINKER}.agent_run_repo.create_run", new=AsyncMock(return_value=run)),
             patch(f"{THINKER}.agent_run_repo.finish_run", new=AsyncMock()),
         )
+
+    async def test_background_requests_honor_the_configured_generation_parameters(self) -> None:
+        observed: list[AgentInfo] = []
+
+        def answer(_messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            observed.append(info)
+            return ModelResponse(parts=[TextPart("done")])
+
+        get_slug, limits, version, profiles, create, finish = self._patches(
+            FunctionModel(answer, profile=ModelProfile(supports_thinking=True))
+        )
+        with get_slug, limits, version, profiles as service, create, finish:
+            service.return_value.resolve.return_value.params = {
+                "thinking": "low",
+                "max_tokens": 6144,
+            }
+            assert (
+                await ProactiveThinker(_session()).think(
+                    _ctx(), feature="nightly", output_type=str, instructions="Read.", prompt="Read."
+                )
+                == "done"
+            )
+        assert len(observed) == 1
+        assert observed[0].model_settings is not None
+        assert observed[0].model_settings["max_tokens"] == 6144
+        assert observed[0].model_request_parameters.thinking == "low"
 
     async def test_an_answer_is_returned_and_the_run_is_written_down(self, recorded_manifest):
         get_slug, limits, version, profiles, create, finish = self._patches(TestModel())

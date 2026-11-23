@@ -17,8 +17,8 @@ The downgrade drops the variants and the column, reads a `searching` session as
 `proposing` - the step a search hands its winner to - and `no_variant` as
 `no_proposal`.
 
-Revision ID: 0355_improvement_search
-Revises: 0352_eval_answer_gaps
+Revision ID: 0356_improvement_search
+Revises: 0353_skill_check_verdict_version
 Create Date: 2026-11-20
 """
 
@@ -27,8 +27,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0355_improvement_search"
-down_revision: str = "0352_eval_answer_gaps"
+revision: str = "0356_improvement_search"
+down_revision: str = "0353_skill_check_verdict_version"
 branch_labels: None = None
 depends_on: None = None
 

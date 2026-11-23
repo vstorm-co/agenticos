@@ -1,5 +1,5 @@
 ---
-source_sha: "242644bd64d5"
+source_sha: "87d1c88b4414"
 ---
 
 # Befehle { #commands }
@@ -375,6 +375,9 @@ uv run agenticos cmd audit-skill-bindings
 # Antworten seines Checks gezählt hat. Kein Modell wird gefragt, und ein
 # entschiedener Check behält seine Entscheidung. Ohne --check geht er alle solchen
 # Checks und Versuche durch; --check wiederholen, um einzelne zu nennen.
+# Verwendet die gespeicherte Regelversion, damit aktuelle unvollständige Ergebnisse
+# nicht wiederholt verarbeitet werden. Nur abgeschlossene Versuche werden neu
+# berechnet; fehlender ursprünglicher Zugriff wird als übersprungen gemeldet.
 uv run agenticos cmd skill-checks-rejudge
 uv run agenticos cmd skill-checks-rejudge --check <check-id>
 

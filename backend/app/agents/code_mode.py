@@ -220,15 +220,20 @@ def _code_failure(
     """
     cause: BaseException | None = exc
     while cause is not None:
+        if (
+            isinstance(cause, ToolFailed)
+            and isinstance(cause.message, ControlledToolError)
+            and any(cause.message is content for content in errors)
+        ):
+            return nested_tool_error(
+                cause.message, tool=CODE_TOOL, calls_started=calls_started, error=exc
+            )
         if isinstance(cause, MontyRuntimeError | MontySyntaxError | MontyTypingError):
             break
         cause = cause.__cause__
     if not isinstance(cause, MontyRuntimeError | MontySyntaxError | MontyTypingError):
         return None
     inner = cause.exception()
-    nested = next((content for content in reversed(errors) if inner.args == (content,)), None)
-    if nested is not None:
-        return nested_tool_error(nested, tool=CODE_TOOL, calls_started=calls_started, error=exc)
     exception_type = type(inner).__name__
     if calls_started:
         return tool_error(

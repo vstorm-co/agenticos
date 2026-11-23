@@ -281,7 +281,7 @@ export function StartEvalDialog({
             onClick={() => full && void run(full).catch(() => undefined)}
           >
             {priced
-              ? t("runFor", { amount: usd(priced.total_usd, locale) })
+              ? t("runFor", { amount: usd(priced.expected_usd, locale) })
               : full !== null && !failure
                 ? t("estimating")
                 : t("start")}

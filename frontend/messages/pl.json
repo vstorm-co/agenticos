@@ -9352,6 +9352,11 @@
     }
   },
   "agents": {
+    "profileDefaults": "Domyślne parametry modelu",
+    "profileDefaultsHint": "Te ustawienia obowiązują wszędzie, gdzie używany jest zapisany model. Poszczególni agenci mogą je nadpisać. Dla nieobsługiwanych parametrów pozostaw wartości dostawcy.",
+    "profileThinkingOn": "Włączone · poziom dostawcy",
+    "profileThinkingOff": "Wyłączone",
+    "profileCustomThinking": "Zapisane ustawienie niestandardowe",
     "buildSummary": {
       "variables": "{count, plural, =0 {Zmienne systemowe} one {Zmienne systemowe i # własna zmienna} few {Zmienne systemowe i # własne zmienne} other {Zmienne systemowe i # własnych zmiennych}}",
       "voice": "Rozmowy {calls, select, on {włączone} other {wyłączone}} · Dyktowanie {dictation, select, on {włączone} other {wyłączone}}",
