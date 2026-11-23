@@ -1385,6 +1385,33 @@ describe("the model the agent is already on", () => {
     } as Parameters<typeof AddModel>[0]["selected"];
   }
 
+  it.each(["create", "update"])(
+    "refuses invalid generation limits before %s",
+    async (operation) => {
+      state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
+      state.models = [{ id: "openai/gpt-5.5", name: "Current model" }];
+      render(
+        <AddModel
+          selected={operation === "update" ? inUse({ params: { max_tokens: 6144 } }) : undefined}
+          generationSettings
+          onCreated={vi.fn()}
+        />,
+      );
+      if (operation === "create") {
+        await userEvent.click(screen.getByLabelText("Model"));
+        await userEvent.click(screen.getByRole("option", { name: /Current model/ }));
+      }
+      const tokens = screen.getByLabelText("Max tokens");
+      await userEvent.clear(tokens);
+      await userEvent.type(tokens, "0");
+      await userEvent.click(
+        screen.getByRole("button", { name: operation === "update" ? "Update model" : "Add model" }),
+      );
+      expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+      expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
+    },
+  );
+
   it("resets defaults for another model and restores the saved defaults when returning", async () => {
     state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
     state.models = [

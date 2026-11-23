@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { Check, KeyRound, Plus, Save } from "lucide-react";
 
 import { canonicalJson } from "@/lib/canonical-json";
@@ -264,6 +264,7 @@ export function AddModel({
   generationSettings = false,
 }: AddModelProps) {
   const fieldId = useId();
+  const settingsFields = useRef<HTMLDivElement>(null);
   const [params, setParams] = useState<Record<string, unknown>>(selected?.params ?? {});
   const savedParams = canonicalJson(selected?.params ?? {});
   const [previousParams, setPreviousParams] = useState(savedParams);
@@ -532,9 +533,16 @@ export function AddModel({
     setFailure(NO_FAILURE);
   };
 
+  const settingsValid = (): boolean =>
+    !generationSettings ||
+    Array.from(settingsFields.current?.querySelectorAll("input") ?? []).every((input) =>
+      input.reportValidity(),
+    );
+
   const update = async () => {
     /* v8 ignore next -- `editing` is only true with a selection and a provider */
     if (selected === undefined || provider === undefined) return;
+    if (!settingsValid()) return;
     setFailure(NO_FAILURE);
     onCreationPendingChange?.(true);
     try {
@@ -561,6 +569,7 @@ export function AddModel({
   const submit = async (separate = false) => {
     /* v8 ignore next -- the id comes from the list this select was built from */
     if (provider === undefined) return;
+    if (!settingsValid()) return;
     setFailure(NO_FAILURE);
     // Every caller selects what this creates as a model to talk to - an agent's,
     // or the one describing a document's images - so a model the provider's
@@ -942,11 +951,13 @@ export function AddModel({
       </ConnectionSettings>
 
       {generationSettings && provider !== undefined && model.trim() !== "" && (
-        <ProfileModelSettings
-          value={params}
-          onChange={setParams}
-          disabled={disabled || createProfile.isPending || updateProfile.isPending}
-        />
+        <div ref={settingsFields}>
+          <ProfileModelSettings
+            value={params}
+            onChange={setParams}
+            disabled={disabled || createProfile.isPending || updateProfile.isPending}
+          />
+        </div>
       )}
 
       {/* The name is derived and almost never worth changing - it exists so an
