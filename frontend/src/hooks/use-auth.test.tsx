@@ -517,6 +517,26 @@ describe("signing in", () => {
     );
   });
 
+  it.each([null, "/invitations/pending?flow=0123456789abcdef0123456789abcdef"])(
+    "starts a new directory account in onboarding, preserving staged flow %s",
+    async (returnTo) => {
+      vi.mocked(apiClient.post).mockResolvedValue({
+        user: user(),
+        access_token: "t-new",
+        is_new_user: true,
+      });
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      await act(async () => {
+        await result.current.loginWithDirectory({ username: "jdoe", password: "pw" }, returnTo);
+      });
+      expect(push).toHaveBeenLastCalledWith(
+        returnTo
+          ? "/onboarding?welcome=1&entry=account&flow=0123456789abcdef0123456789abcdef"
+          : "/onboarding?welcome=1&entry=account",
+      );
+    },
+  );
+
   it("registers without signing anybody in", async () => {
     // Registration may need a verification step, so it does not touch the session.
     vi.mocked(apiClient.post).mockResolvedValue({ id: "u-2", email: "new@example.com" });

@@ -3,6 +3,7 @@
 // apart from `art.generated.ts`, which the canvas rewrites whole.
 
 export const DRAWN_HUE: Readonly<Record<string, number>> = {
+  external_acp: 205,
   channel_actions: 220,
   visuals: 140,
   background_tools: 222,
@@ -307,7 +308,18 @@ const CHANNEL_ACTIONS =
   '<rect class="int" x="68" y="22" width="46" height="34" rx="6"/>' +
   '<path class="ln w2" d="M78 34H103M78 42H94M103 56V64L92 56"/></g></svg>';
 
+/** A terminal connected to the task window on the same computer. */
+const EXTERNAL_ACP =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<polygon class="ict" points="120,35 195,78 120,121 45,78"/>' +
+  '<rect class="inl" x="63" y="28" width="67" height="49" rx="5"/>' +
+  '<path class="igrid2" d="M73 42L82 49L73 56M88 57H108M132 55H151"/>' +
+  '<rect class="inr" x="151" y="44" width="32" height="41" rx="4"/>' +
+  '<path class="igrid2" d="M158 55H176M158 64H172"/></svg>';
+
 export const DRAWN_ART: Readonly<Record<string, string>> = {
+  external_acp: EXTERNAL_ACP,
   channel_actions: CHANNEL_ACTIONS,
   visuals: VISUALS,
   background_tools: BACKGROUND_TOOLS,

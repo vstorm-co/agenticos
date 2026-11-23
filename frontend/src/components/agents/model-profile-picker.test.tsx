@@ -264,12 +264,11 @@ describe("ModelProfilePicker", () => {
 
   it("keeps the saved models it already has when a later read fails", () => {
     // A refetch that errors over a list already on screen leaves that list
-    // standing: stale rows somebody can still choose from beat a red panel
-    // instead of them.
+    // standing, with the failed refresh visible beside it.
     mount({ allowAdd: true, profilesStatus: "failed" });
 
     expect(screen.getByText("Use a saved model (1)")).toBeInTheDocument();
-    expect(screen.queryByText("Models could not be listed")).toBeNull();
+    expect(screen.getByText("Models could not be listed")).toBeVisible();
   });
 
   it("moves the agent onto the model that was just created", async () => {
@@ -543,3 +542,61 @@ it("offers a keyless chat destination only when the agent uses a personal key", 
   expect(screen.queryByRole("alert")).toBeNull();
   expect(screen.queryByText("No key")).toBeNull();
 });
+
+it.each([false, true])(
+  "refreshes saved model profiles without changing the selection (allowAdd=%s)",
+  async (allowAdd) => {
+    const onChange = vi.fn();
+    render(
+      <ModelProfilePicker
+        profiles={[profile()]}
+        profilesStatus="loaded"
+        value="p1"
+        onChange={onChange}
+        allowAdd={allowAdd}
+      />,
+      { wrapper },
+    );
+    if (allowAdd) await userEvent.click(screen.getByText(/Use a saved model/));
+    await userEvent.click(screen.getByRole("button", { name: "Refresh models" }));
+    expect(refetchProfiles).toHaveBeenCalledOnce();
+    expect(onChange).not.toHaveBeenCalled();
+  },
+);
+
+it.each([
+  { allowAdd: false, compact: false },
+  { allowAdd: false, compact: true },
+  { allowAdd: true, compact: false },
+])(
+  "reports refresh failure beside cached profiles without changing selection ($allowAdd, $compact)",
+  async ({ allowAdd, compact }) => {
+    const onChange = vi.fn();
+    const profiles = [profile()];
+    const view = render(
+      <ModelProfilePicker
+        profiles={profiles}
+        profilesStatus="loaded"
+        value="p1"
+        onChange={onChange}
+        allowAdd={allowAdd}
+        compact={compact}
+      />,
+      { wrapper },
+    );
+    view.rerender(
+      <ModelProfilePicker
+        profiles={profiles}
+        profilesStatus="failed"
+        value="p1"
+        onChange={onChange}
+        allowAdd={allowAdd}
+        compact={compact}
+      />,
+    );
+    expect(screen.getByText("Models could not be listed")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(refetchProfiles).toHaveBeenCalledOnce();
+    expect(onChange).not.toHaveBeenCalled();
+  },
+);

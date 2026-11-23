@@ -15,6 +15,8 @@ the platform knows (the date and time, who is signed in and their
 [groups](../departments.md), the organization, the agent, the channel) or one of the agent's own `variables`. `time_zone` decides
 which clock `{{current_time}}` reads. Publishing refuses a name that is neither.
 
+`{{language}}` is the run subject’s saved account language, written as a language name (English, Polish, German or Turkish). It defaults to English when the run has no person or supported preference; unattended runs do not borrow the publisher’s language. Agents also receive this preference in the person briefing: short or ambiguous greetings keep it, while an explicit request for another language takes precedence.
+
 ::: app.agents.spec.PromptVariableSpec
 
 ## Delegation

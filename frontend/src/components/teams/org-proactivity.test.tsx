@@ -26,6 +26,10 @@ const state = vi.hoisted(() => ({
 const toastSuccess = vi.hoisted(() => vi.fn());
 const toastError = vi.hoisted(() => vi.fn());
 
+vi.mock("@/hooks/use-subscription-accounts", () => ({
+  useSubscriptionAccounts: () => ({ accounts: { data: { enabled: true, items: [] } } }),
+}));
+
 vi.mock("@/hooks", () => ({
   usePermissions: () => ({ can: (permission: Permission) => state.held.includes(permission) }),
   useOrganizations: () => ({

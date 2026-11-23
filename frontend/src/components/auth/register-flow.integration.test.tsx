@@ -38,7 +38,7 @@ it("signs in a new account and opens the shared start", async () => {
   );
   expect(env.push).not.toHaveBeenCalled();
 });
-it("preserves an invitation destination if the new account still needs to sign in", async () => {
+it("preserves onboarding and its invitation flow if the new account still needs to sign in", async () => {
   const returnTo = "/invitations/pending?flow=0123456789abcdef0123456789abcdef";
   env.search = new URLSearchParams({ returnTo });
   env.login.mockRejectedValue(new Error("session unavailable"));
@@ -46,7 +46,7 @@ it("preserves an invitation destination if the new account still needs to sign i
   await submit();
   await waitFor(() =>
     expect(env.push).toHaveBeenCalledWith(
-      `/login?registered=true&returnTo=${encodeURIComponent(returnTo)}`,
+      `/login?registered=true&returnTo=${encodeURIComponent("/onboarding?welcome=1&entry=account&flow=0123456789abcdef0123456789abcdef")}`,
     ),
   );
   expect(env.register).toHaveBeenCalledTimes(1);
@@ -73,4 +73,34 @@ it("announces invalid fields and clears their state after correction", async () 
   for (const field of [email, password, confirmation]) {
     expect(field).toHaveAttribute("aria-invalid", "false");
   }
+});
+
+it("opens onboarding for an invited new account without accepting the invitation", async () => {
+  const flow = "0123456789abcdef0123456789abcdef";
+  env.search = new URLSearchParams({ returnTo: `/invitations/pending?flow=${flow}` });
+  render(<RegisterForm />);
+  await submit();
+  await waitFor(() =>
+    expect(env.login).toHaveBeenCalledWith(
+      { email: "person@example.com", password: "ValidPassword123!" },
+      `/onboarding?welcome=1&entry=account&flow=${flow}`,
+    ),
+  );
+  expect(env.register).toHaveBeenCalledWith(
+    { email: "person@example.com", password: "ValidPassword123!", full_name: undefined },
+    flow,
+  );
+  expect(env.push).not.toHaveBeenCalled();
+});
+
+it("does not bypass onboarding for a new account with a chat return path", async () => {
+  env.search = new URLSearchParams({ returnTo: "/chat?id=existing-chat" });
+  render(<RegisterForm />);
+  await submit();
+  await waitFor(() =>
+    expect(env.login).toHaveBeenCalledWith(
+      { email: "person@example.com", password: "ValidPassword123!" },
+      "/onboarding?welcome=1&entry=account",
+    ),
+  );
 });

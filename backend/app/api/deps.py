@@ -988,6 +988,26 @@ def get_dataset_service(db: DBSession) -> DatasetService:
 
 DatasetSvc = Annotated[DatasetService, Depends(get_dataset_service)]
 
+from app.services.case_key_draft import CaseKeyDraftService
+
+
+def get_case_key_draft_service(db: DBSession) -> CaseKeyDraftService:
+    """Create CaseKeyDraftService instance with database session."""
+    return CaseKeyDraftService(db)
+
+
+CaseKeyDraftSvc = Annotated[CaseKeyDraftService, Depends(get_case_key_draft_service)]
+
+from app.services.key_coverage import KeyCoverageService
+
+
+def get_key_coverage_service(db: DBSession) -> KeyCoverageService:
+    """Create KeyCoverageService instance with database session."""
+    return KeyCoverageService(db)
+
+
+KeyCoverageSvc = Annotated[KeyCoverageService, Depends(get_key_coverage_service)]
+
 from app.services.knowledge_gaps import KnowledgeGapService
 
 
@@ -2312,6 +2332,7 @@ def get_secret_service(db: DBSession) -> OrganizationSecretService:
 
 
 SecretSvc = Annotated[OrganizationSecretService, Depends(get_secret_service)]
+from app.services.chatgpt_plan import ChatGPTPlanService
 from app.services.openai_codex import OpenAICodexService
 
 
@@ -2514,6 +2535,17 @@ def get_coding_account_service(db: DBSession) -> CodingAccountService:
 
 CodingAccountSvc = Annotated[CodingAccountService, Depends(get_coding_account_service)]
 
+from app.services.subscription_accounts import SubscriptionAccountService
+
+
+def get_subscription_account_service(db: DBSession) -> SubscriptionAccountService:
+    return SubscriptionAccountService(db)
+
+
+SubscriptionAccountSvc = Annotated[
+    SubscriptionAccountService, Depends(get_subscription_account_service)
+]
+
 
 from app.services.onboarding import OnboardingService
 
@@ -2533,6 +2565,26 @@ def get_personal_model_key_service(db: DBSession) -> PersonalModelKeyService:
 
 
 PersonalModelKeySvc = Annotated[PersonalModelKeyService, Depends(get_personal_model_key_service)]
+
+
+from app.clients.github_copilot import CopilotAccountClient
+from app.services.copilot_sign_in import CopilotSignInService
+
+
+def get_copilot_sign_in_service(db: DBSession, redis: Redis) -> CopilotSignInService:
+    return CopilotSignInService(
+        db, redis, CopilotAccountClient(), client_id=settings.GITHUB_COPILOT_OAUTH_CLIENT_ID
+    )
+
+
+CopilotSignInSvc = Annotated[CopilotSignInService, Depends(get_copilot_sign_in_service)]
+
+
+def get_chatgpt_plan_service(db: DBSession, redis: Redis) -> ChatGPTPlanService:
+    return ChatGPTPlanService(db, redis)
+
+
+ChatGPTPlanSvc = Annotated[ChatGPTPlanService, Depends(get_chatgpt_plan_service)]
 
 
 from app.services.solution import SolutionService

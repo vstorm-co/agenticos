@@ -751,6 +751,7 @@ it("describes the start of an improvement on the page that starts one", () => {
   ).toEqual([
     "improvement-start",
     "improvement-quote",
+    "improvement-mode",
     "improvement-question-set",
     "improvement-details",
   ]);
@@ -778,4 +779,10 @@ it("describes every stage of an improvement on its own page", () => {
 it("uses the improvement walkthrough while the start modal is open over an agent", () => {
   expect(pageKey("/agents/a1?improve=new")).toBe(IMPROVEMENT_START);
   expect(pageKey("/agents/a1?tab=evals&improve=baseline")).toBe(IMPROVEMENT_START);
+});
+
+it("gives subscription settings their own help instead of hunting for the old profile card", () => {
+  expect(stepsForPage(ROUTES.SETTINGS_SUBSCRIPTIONS, () => true).map((step) => step.id)).toEqual([
+    "personal-subscription-accounts",
+  ]);
 });

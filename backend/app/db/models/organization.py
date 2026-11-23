@@ -48,6 +48,29 @@ class MembershipSource(enum.StrEnum):
 
 
 MembershipSourceLiteral = Literal["manual", "directory", "discord"]
+
+OnboardingStep = Literal[
+    "preferences.language",
+    "preferences.appearance",
+    "admin.workspace",
+    "admin.identity",
+    "admin.profile",
+    "admin.context",
+    "admin.subscriptions",
+    "admin.models",
+    "admin.tools",
+    "admin.team",
+    "admin.deployment",
+    "admin.organization",
+    "admin.task",
+    "member.welcome",
+    "member.profile",
+    "member.context",
+    "member.subscriptions",
+    "member.models",
+    "member.tools",
+    "member.task",
+]
 # When the nightly look runs: at a fixed hour, or before the person's working hours (#2301).
 ProactiveTiming = Literal["fixed", "before_work"]
 """The stored sources, as a type a schema can be written in.
@@ -314,6 +337,12 @@ class OrganizationMember(Base):
     onboarding_completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    onboarding_current_step: Mapped[OnboardingStep | None] = mapped_column(
+        String(64), nullable=True
+    )
+    onboarding_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # The first messages an empty chat with the starter agent offers this person
     # here, written in the background from what they did in this organization -
     # so on the membership, never the account, which every organization reads.
@@ -338,6 +367,10 @@ class OrganizationMember(Base):
         CheckConstraint(
             "onboarding_goal IS NULL OR onboarding_goal IN ('meeting', 'document', 'compare')",
             name="ck_org_member_onboarding_goal",
+        ),
+        CheckConstraint(
+            "onboarding_current_step IS NULL OR onboarding_current_step IN ('preferences.language', 'preferences.appearance', 'admin.workspace', 'admin.identity', 'admin.profile', 'admin.context', 'admin.subscriptions', 'admin.models', 'admin.tools', 'admin.team', 'admin.deployment', 'admin.organization', 'admin.task', 'member.welcome', 'member.profile', 'member.context', 'member.subscriptions', 'member.models', 'member.tools', 'member.task')",
+            name="ck_org_member_onboarding_step",
         ),
         Index("ix_org_member_org_role", "organization_id", "role"),
         CheckConstraint(

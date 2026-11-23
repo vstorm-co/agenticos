@@ -132,3 +132,7 @@ it("offers a chat only the account its agent codes on, and connects it there", a
   await userEvent.click(connect);
   expect(screen.getByRole("dialog", { name: "Connect Codex" })).toBeVisible();
 });
+
+vi.mock("@/components/desktop/external-agent-settings", () => ({
+  ExternalAgentSettings: () => null,
+}));

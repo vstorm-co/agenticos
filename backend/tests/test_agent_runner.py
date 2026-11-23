@@ -9091,6 +9091,96 @@ class TestPerRunLocalServices:
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(
+        "harness,enabled,refusal",
+        [
+            ("codex", True, None),
+            ("claude_code", True, None),
+            ("external", True, None),
+            ("external", False, "has not enabled"),
+            ("codex", True, "plain text output"),
+        ],
+    )
+    async def test_a_native_primary_runtime_replaces_the_model_without_a_cloud_credential(
+        self, monkeypatch: pytest.MonkeyPatch, harness: str, enabled: bool, refusal: str | None
+    ):
+        from app.agents.native_model_spec import NativeModelSpec
+        from app.core.config import settings
+        from app.schemas.local_target import LocalTarget, NativeConversationTarget
+        from app.services import device_hub
+
+        for name in ("CODEX", "CLAUDE", "EXTERNAL"):
+            monkeypatch.setattr(settings, f"{name}_NATIVE_CONVERSATION_ENABLED", enabled)
+        ctx = _ctx()
+        session = uuid.uuid4()
+        runtime = NativeConversationTarget(
+            harness=harness,
+            session_epoch=uuid.uuid4(),
+            access="edit",
+            model_id="account-model",
+            registration_id="agy" if harness == "external" else None,
+        )
+        target = LocalTarget(folder="/approved", mode="full_access", conversation_runtime=runtime)
+        assert ctx.user_id is not None
+        workspace = OpenWorkspace(
+            workspace=Workspace(device_hub.DeviceWorkspace(session, ctx.user_id, target)),
+            kind="service",
+            scope="run",
+            scope_key="local",
+            row_id=None,
+            local=True,
+        )
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), kind="agent")
+        spec = AgentSpec(
+            name="Native",
+            model_profile_id=uuid.uuid4(),
+            output_schema={"type": "object"} if refusal == "plain text output" else None,
+        )
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models,
+                "resolve",
+                new=AsyncMock(side_effect=AssertionError("No cloud credential for a native run")),
+            ),
+            patch.object(
+                service.models,
+                "profile_for_organization",
+                new=AsyncMock(return_value=MagicMock(id=spec.model_profile_id)),
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=workspace)),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch.object(
+                device_hub, "wait_for", AsyncMock(return_value=MagicMock(session_id=session))
+            ),
+            patch.object(device_hub, "local_mcp_toolset"),
+            patch("app.services.agent_runner.build_agent") as build,
+            patch("app.services.agent_runner.workspace_snapshot", AsyncMock(return_value=set())),
+        ):
+            if refusal is not None:
+                with pytest.raises(BadRequestError, match=refusal):
+                    await service.prepare(ctx, agent.id, local=target, surface=RunSurface.WEB)
+                build.assert_not_called()
+                return
+            async with asyncio.timeout(5):
+                await service.prepare(ctx, agent.id, local=target, surface=RunSurface.WEB)
+        model = build.call_args.args[1]
+        assert isinstance(model, NativeModelSpec) and model.target == runtime
+        assert model.provider == f"native-{harness}"
+        assert model.label.endswith("(native conversation)")
+        assert model.credential.routing["native_model"] == "account-model"
+        assert "The primary conversation runs in" in build.call_args.args[0].instructions
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
         "with_folder,whole_computer", [(True, False), (False, False), (True, True)]
     )
     async def test_local_skills_reach_the_run_through_the_persons_own_session(
@@ -9238,6 +9328,10 @@ class TestPerRunLocalServices:
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch.object(service.workspaces, "open", opened),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
             patch(
                 "app.services.agent_runner.agent_run_repo.create_run",
                 new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
@@ -9984,6 +10078,9 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
     )
     with (
         patch(
+            "app.services.agent_runner.mint_for_run", new=AsyncMock(return_value="run-test-key")
+        ) as credential,
+        patch(
             "app.services.agent_runner.build_toolsets_for_agent",
             new=AsyncMock(return_value=resolved),
         ),
@@ -10033,6 +10130,8 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
     assert create.await_args.kwargs["routine_policy"]["activation_id"] == (
         None if ctx.routine_dispatch_id is None else str(ctx.routine_dispatch_id)
     )
+    assert credential.await_args.kwargs["run_id"] == create.await_args.kwargs["run_id"]
+    assert credential.await_args.kwargs["reporting_only"] is True
     assert create.await_args.kwargs["trigger_id"] == ctx.routine_id
     assert create.await_args.kwargs["routine_policy"]["mcp_sources"] == {}
     assert (
@@ -10132,6 +10231,9 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
     )
     receipt = WatchReadReceipt(activation_at=datetime.now(UTC))
     with (
+        patch(
+            "app.services.agent_runner.mint_for_run", new=AsyncMock(return_value="watch-test-key")
+        ),
         patch.object(
             service.registry,
             "get_runnable_spec",

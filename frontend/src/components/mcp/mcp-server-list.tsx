@@ -69,6 +69,18 @@ import { useTranslations } from "next-intl";
 
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
+/** Familiar starting points from the curated catalog; the full catalog remains opt-in. */
+const ONBOARDING_SERVICES = new Set([
+  "github",
+  "linear",
+  "notion",
+  "slack",
+  "work-iq",
+  "google-gmail",
+  "google-calendar",
+  "google-drive",
+]);
+
 /**
  * `?connect=<catalog key>` opens the personal connect flow for that server.
  *
@@ -116,6 +128,7 @@ function rowDescription(row: McpServerRow, t: (key: string) => string): string {
 }
 
 interface McpServerListProps {
+  presentation?: "catalog" | "onboarding";
   /** Whether the caller holds `mcp:manage` and may manage organization accounts. */
   canManageOrganization: boolean;
   /** An embedded account picker starts on the service its caller needs. */
@@ -155,6 +168,7 @@ function hasAccount(scope: Scope, row: McpServerRow): boolean {
 }
 
 export function McpServerList({
+  presentation = "catalog",
   canManageOrganization,
   initialServerKey,
   persistSelection = true,
@@ -163,12 +177,21 @@ export function McpServerList({
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
   const tc = useTranslations("common");
-  const { organization, personal, recordTools } = useMcpServers({
+  const {
+    organization,
+    personal,
+    recordTools,
+    error: accountsError,
+    retry,
+  } = useMcpServers({
     retryOnMount: retryOrganizationOnMount,
   });
   const createdToast = useCreatedToast();
   // The whole curated catalog, for the category filter alone - see below.
   const catalog = useMcpCatalog();
+  const [browsing, setBrowsing] = useState(false);
+  const onboarding = presentation === "onboarding";
+  const featured = onboarding && !browsing;
   const [category, setCategory] = useState<string>("all");
   const [state, setState] = useState<McpServerStateFilter>("all");
   // What a server asks for, asked of the server like the category: the mirror's
@@ -186,21 +209,28 @@ export function McpServerList({
     category === "all" ? "" : category,
     auth === "all" ? "" : auth,
     page,
-    true,
+    !featured,
     state,
   );
 
   // The API groups accessible accounts and applies every filter before paging,
   // including saved custom servers and connected entries outside this page.
   const rows = useMemo(
-    () => rowsForEntries(listing.servers, organization.connections, personal.connections),
-    [listing.servers, organization.connections, personal.connections],
+    () =>
+      rowsForEntries(
+        featured
+          ? catalog.servers.filter((entry) => ONBOARDING_SERVICES.has(entry.key))
+          : listing.servers,
+        organization.connections,
+        personal.connections,
+      ),
+    [featured, catalog.servers, listing.servers, organization.connections, personal.connections],
   );
 
   const pageCount = Math.max(1, Math.ceil(listing.total / MCP_PAGE_SIZE));
   // A disconnect may remove the last result on a page. Wait for the new answer:
   // placeholder totals belong to the previous request while filters change.
-  if (!listing.isLoading && !listing.isPlaceholderData && page >= pageCount) {
+  if (!featured && !listing.isLoading && !listing.isPlaceholderData && page >= pageCount) {
     setPage(pageCount - 1);
   }
 
@@ -621,8 +651,43 @@ export function McpServerList({
     }
   };
 
+  const openCustom = (scope: Scope) =>
+    openDraft(
+      scope,
+      {
+        key: "new",
+        name: t("customServer"),
+        description: null,
+        descriptionKey: null,
+        category: CUSTOM_CATEGORY,
+        auth: "token",
+        url: null,
+        docsUrl: null,
+        tokenHint: null,
+        entry: null,
+        organizations: [],
+        personals: [],
+      },
+      null,
+    );
+  const loadError = featured ? (catalog.error ?? accountsError) : listing.error;
+  const loading = featured
+    ? catalog.isLoading || personal.isLoading || (canManageOrganization && organization.isLoading)
+    : listing.isLoading;
+
   return (
     <>
+      {onboarding && (
+        <div className="flex flex-wrap items-center gap-2 pb-3">
+          <Button variant="ghost" size="sm" onClick={() => setBrowsing(!browsing)}>
+            {t(featured ? "onboarding.browseAll" : "onboarding.showFeatured")}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => openCustom("personal")}>
+            <Plus aria-hidden />
+            {t("onboarding.customServer")}
+          </Button>
+        </div>
+      )}
       <ListCard
         fill
         namedByPage
@@ -630,112 +695,102 @@ export function McpServerList({
         headerTour="mcp-catalog"
         title={t("servers")}
         counted={
-          listing.isLoading || listing.error ? null : t("serverCount", { count: listing.total })
+          featured
+            ? undefined
+            : listing.isLoading || listing.error
+              ? null
+              : t("serverCount", { count: listing.total })
         }
         controls={
-          <>
-            {" "}
-            <SearchInput value={query} onChange={ask} placeholder={t("searchServers")} />{" "}
-            <div data-tour="mcp-filter" className="flex flex-wrap items-center gap-2">
-              <ListFilters
-                compact
-                active={
-                  Number(category !== "all") + Number(auth !== "all") + Number(state !== "all")
-                }
-              >
-                <div className="order-2 grid w-full gap-2 sm:grid-cols-3">
-                  <Select value={category} onValueChange={narrow}>
-                    <SelectTrigger className="w-full min-w-0" aria-label={t("category")}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{t("allCategories")}</SelectItem>
-                      {categories.map((entry) => (
-                        <SelectItem key={entry} value={entry}>
-                          {categoryLabel(entry)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={auth}
-                    onValueChange={(value) => {
-                      setAuth(value as McpAuthKind | "all");
-                      setPage(0);
-                    }}
-                  >
-                    <SelectTrigger className="w-full min-w-0" aria-label={t("authFilter")}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{t("anyAuth")}</SelectItem>
-                      {(["oauth", "token", "none"] as const).map((kind) => (
-                        <SelectItem key={kind} value={kind}>
-                          {t(MCP_AUTH_LABEL[kind])}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={state}
-                    onValueChange={(value) => {
-                      setState(value as McpServerStateFilter);
-                      setPage(0);
-                    }}
-                  >
-                    <SelectTrigger className="w-full min-w-0" aria-label={t("connectionState")}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{t("anyState")}</SelectItem>
-                      <SelectItem value="connected">{t("connected")}</SelectItem>
-                      <SelectItem value="not-connected">{t("notConnected")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </ListFilters>
-              {canManageOrganization && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  data-tour="mcp-add"
-                  onClick={() =>
-                    openDraft(
-                      "organization",
-                      {
-                        key: "new",
-                        name: t("customServer"),
-                        description: null,
-                        descriptionKey: null,
-                        category: CUSTOM_CATEGORY,
-                        auth: "token",
-                        url: null,
-                        docsUrl: null,
-                        tokenHint: null,
-                        entry: null,
-                        organizations: [],
-                        personals: [],
-                      },
-                      null,
-                    )
+          featured ? undefined : (
+            <>
+              {" "}
+              <SearchInput value={query} onChange={ask} placeholder={t("searchServers")} />{" "}
+              <div data-tour="mcp-filter" className="flex flex-wrap items-center gap-2">
+                <ListFilters
+                  compact
+                  active={
+                    Number(category !== "all") + Number(auth !== "all") + Number(state !== "all")
                   }
                 >
-                  <Plus className="mr-1 h-3.5 w-3.5" />
-                  {t("addCustomServer")}
-                </Button>
-              )}
-            </div>
-          </>
+                  <div className="order-2 grid w-full gap-2 sm:grid-cols-3">
+                    <Select value={category} onValueChange={narrow}>
+                      <SelectTrigger className="w-full min-w-0" aria-label={t("category")}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{t("allCategories")}</SelectItem>
+                        {categories.map((entry) => (
+                          <SelectItem key={entry} value={entry}>
+                            {categoryLabel(entry)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={auth}
+                      onValueChange={(value) => {
+                        setAuth(value as McpAuthKind | "all");
+                        setPage(0);
+                      }}
+                    >
+                      <SelectTrigger className="w-full min-w-0" aria-label={t("authFilter")}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{t("anyAuth")}</SelectItem>
+                        {(["oauth", "token", "none"] as const).map((kind) => (
+                          <SelectItem key={kind} value={kind}>
+                            {t(MCP_AUTH_LABEL[kind])}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={state}
+                      onValueChange={(value) => {
+                        setState(value as McpServerStateFilter);
+                        setPage(0);
+                      }}
+                    >
+                      <SelectTrigger className="w-full min-w-0" aria-label={t("connectionState")}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{t("anyState")}</SelectItem>
+                        <SelectItem value="connected">{t("connected")}</SelectItem>
+                        <SelectItem value="not-connected">{t("notConnected")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </ListFilters>
+                {canManageOrganization && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    data-tour="mcp-add"
+                    onClick={() => openCustom("organization")}
+                  >
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    {t("addCustomServer")}
+                  </Button>
+                )}
+              </div>
+            </>
+          )
         }
         contentClassName="space-y-4 p-0 pt-2"
       >
-        {listing.error ? (
+        {loadError ? (
           <ErrorState
             title={t("catalogLoadFailed")}
-            description={getErrorMessage(listing.error, tErrors)}
-            cta={{ label: tc("retry"), onClick: () => void listing.refetch() }}
+            description={getErrorMessage(loadError, tErrors)}
+            cta={{
+              label: tc("retry"),
+              onClick: () => void (featured ? retry() : listing.refetch()),
+            }}
           />
-        ) : listing.isLoading ? (
+        ) : loading ? (
           <LoadingState variant="skeleton-cards" />
         ) : rows.length === 0 ? (
           <ListCardEmpty
@@ -770,10 +825,17 @@ export function McpServerList({
              * cards then land in two or three rows with no scrolling, which is the
              * only reason to lay a catalog out as a grid rather than as rows.
              */}
-            <div className="rise-in grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div
+              className={
+                featured
+                  ? "divide-y"
+                  : "rise-in grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+              }
+            >
               {rows.map((row, index) => (
                 <McpServerCard
                   key={row.key}
+                  presentation={featured ? "onboarding" : "card"}
                   name={row.name}
                   icon={row.entry?.icon ?? null}
                   category={row.category}
@@ -795,42 +857,63 @@ export function McpServerList({
                   onOpen={connectionCount(row) > 0 ? () => manage(row.key) : undefined}
                   // The same two controls on every card, whatever it holds.
                   actions={
-                    <>
-                      <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        onClick={() =>
-                          openDraft(defaultScope(row, canManageOrganization), row, null)
-                        }
-                        disabled={busyId === row.key}
-                        title={t("configureNamed", { name: row.name })}
-                        aria-label={t("configureNamed", { name: row.name })}
-                      >
-                        <Settings2 aria-hidden />
-                      </Button>
+                    featured ? (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => connect(defaultScope(row, canManageOrganization), row)}
                         disabled={busyId === row.key}
+                        onClick={() =>
+                          connectionCount(row) > 0
+                            ? manage(row.key)
+                            : connect(defaultScope(row, canManageOrganization), row)
+                        }
                       >
-                        <Plug className="mr-1 h-3.5 w-3.5" />
-                        {busyId === row.key ? t("redirecting") : t("connectAction")}
+                        {busyId === row.key
+                          ? t("redirecting")
+                          : connectionCount(row) > 0
+                            ? t("onboarding.manage")
+                            : t("connectAction")}
                       </Button>
-                    </>
+                    ) : (
+                      <>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() =>
+                            openDraft(defaultScope(row, canManageOrganization), row, null)
+                          }
+                          disabled={busyId === row.key}
+                          title={t("configureNamed", { name: row.name })}
+                          aria-label={t("configureNamed", { name: row.name })}
+                        >
+                          <Settings2 aria-hidden />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => connect(defaultScope(row, canManageOrganization), row)}
+                          disabled={busyId === row.key}
+                        >
+                          <Plug className="mr-1 h-3.5 w-3.5" />
+                          {busyId === row.key ? t("redirecting") : t("connectAction")}
+                        </Button>
+                      </>
+                    )
                   }
                 />
               ))}
             </div>
 
-            <Pager
-              page={page}
-              pageCount={pageCount}
-              matched={listing.total}
-              total={listing.total}
-              onPage={setPage}
-              counted={t("serverCount", { count: listing.total })}
-            />
+            {!featured && (
+              <Pager
+                page={page}
+                pageCount={pageCount}
+                matched={listing.total}
+                total={listing.total}
+                onPage={setPage}
+                counted={t("serverCount", { count: listing.total })}
+              />
+            )}
           </>
         )}
       </ListCard>

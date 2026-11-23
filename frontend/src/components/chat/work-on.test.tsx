@@ -9,6 +9,12 @@ import { useWorkOnStore } from "@/stores/work-on-store";
 import type { DeviceStatus, LocalGrant, LocalMode } from "@/lib/desktop/commands";
 import { WorkOn } from "./work-on";
 
+vi.mock("@/hooks/use-model-providers", () => ({
+  useProviderCatalog: () => ({
+    data: { native_runtimes: { codex: true, claude_code: true, external: true } },
+  }),
+}));
+
 function render(ui: ReactElement, expandFolders = true) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = renderView(ui, {
@@ -56,6 +62,22 @@ vi.mock("@/hooks/use-shell", () => ({
   useShell: () => ({ platform: "macos", window: "main", version: "0.2.0", vibrancy: false }),
 }));
 vi.mock("@/hooks/use-desktop", () => ({
+  useExternalAgents: () => ({
+    state: {
+      data: [
+        { provider: "custom", id: "other", name: "Other", program: "/x", args: [], revision: "1" },
+        {
+          provider: "antigravity",
+          id: "agy",
+          name: "Agy",
+          program: "/agy",
+          args: [],
+          revision: "1",
+        },
+      ],
+    },
+  }),
+  useExternalAgentOptions: () => ({ isSuccess: false, isPending: true, isError: false }),
   useDeviceStatus: () => ({
     data: deviceState.ready
       ? { linked: deviceState.linked, connected: deviceState.connected }
@@ -490,4 +512,34 @@ describe("an agent that works on this computer", () => {
     expect(computer.revoke).toHaveBeenCalledWith("agent-consent");
     expect(useWorkOnStore.getState().agentTargetFor("agent-1")).toBeNull();
   });
+});
+
+it("keeps native primary selection distinct from local model services and clears it on an access downgrade", async () => {
+  useWorkOnStore.getState().set("chat", { folder: "/first", mode: "full_access" });
+  render(<WorkOn agentCapabilities={["sandbox"]} />);
+  await userEvent.selectOptions(
+    screen.getByRole("combobox", { name: "Conversation runtime" }),
+    "codex",
+  );
+  expect(useWorkOnStore.getState().targetFor("chat")?.conversation_runtime?.harness).toBe("codex");
+  await userEvent.selectOptions(
+    screen.getByRole("combobox", { name: "Conversation runtime" }),
+    "external",
+  );
+  expect(useWorkOnStore.getState().targetFor("chat")?.conversation_runtime).toMatchObject({
+    harness: "external",
+    registration_id: "other",
+  });
+  await userEvent.selectOptions(
+    screen.getByRole("combobox", { name: "Model for this chat" }),
+    "model",
+  );
+  expect(useWorkOnStore.getState().targetFor("chat")?.conversation_runtime).toBeNull();
+  await userEvent.selectOptions(
+    screen.getByRole("combobox", { name: "Conversation runtime" }),
+    "codex",
+  );
+  await userEvent.click(screen.getByRole("radio", { name: /second/ }));
+  expect(useWorkOnStore.getState().targetFor("chat")?.conversation_runtime).toBeNull();
+  expect(screen.queryByRole("combobox", { name: "Conversation runtime" })).not.toBeInTheDocument();
 });

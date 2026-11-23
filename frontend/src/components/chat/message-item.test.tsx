@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -768,9 +768,36 @@ describe("citations", () => {
   it("opens the source panel directly from the compact footer", async () => {
     item({ ...withSources });
 
-    await userEvent.click(screen.getByRole("button", { name: /2 sources/ }));
+    const trigger = screen.getByRole("button", { name: /2 sources/ });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(trigger);
     expect(useSourcesPanelStore.getState().isOpen).toBe(true);
     expect(useSourcesPanelStore.getState().highlightedIndex).toBeNull();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(trigger);
+    expect(useSourcesPanelStore.getState().isOpen).toBe(false);
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await userEvent.keyboard("{Enter}");
+    expect(useSourcesPanelStore.getState().isOpen).toBe(true);
+    act(() => useSourcesPanelStore.getState().close());
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("switches to another answer even when both cite the same evidence", async () => {
+    const first = item({ ...withSources, id: "answer-one" });
+    const second = item({ ...withSources, id: "answer-two" });
+    const firstTrigger = within(first.container).getByRole("button", { name: /2 sources/ });
+    const secondTrigger = within(second.container).getByRole("button", { name: /2 sources/ });
+    await userEvent.click(firstTrigger);
+    await userEvent.click(secondTrigger);
+    expect(useSourcesPanelStore.getState()).toMatchObject({
+      isOpen: true,
+      messageId: "answer-two",
+    });
+    expect(firstTrigger).toHaveAttribute("aria-expanded", "false");
+    expect(secondTrigger).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(secondTrigger);
+    expect(useSourcesPanelStore.getState().isOpen).toBe(false);
   });
 
   it("opens on the citation that was clicked in the answer", async () => {
@@ -780,6 +807,14 @@ describe("citations", () => {
     await userEvent.click(screen.getByRole("button", { name: "cite 2" }));
 
     expect(useSourcesPanelStore.getState().highlightedIndex).toBe(2);
+    await userEvent.click(screen.getByRole("button", { name: "cite 2" }));
+    expect(useSourcesPanelStore.getState().isOpen).toBe(true);
+    expect(screen.getByRole("button", { name: /2 sources/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    await userEvent.click(screen.getByRole("button", { name: /2 sources/ }));
+    expect(useSourcesPanelStore.getState().isOpen).toBe(false);
   });
 
   it("offers no citations while the answer is still arriving", () => {

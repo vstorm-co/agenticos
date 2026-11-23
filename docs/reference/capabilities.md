@@ -18,12 +18,9 @@ tools listed.
     renders its picker and its configuration forms from that response. If the two
     disagree, the API is right.
 
-The Builder names each capability in the console's language and explains it in
-plain words: what it lets the agent do, two or three example uses, what it needs
-and what it never does. The names below are the English ones. Five capabilities
-that tune how a run is carried - long conversations, image offload, instruction
-reminders, tool output limits and tool search - are folded under **Advanced**
-until somebody opens it, searches, or switches one on.
+The Builder explains capabilities in the console’s language and groups them by task: everyday work, knowledge and memory, web research, outputs, delegation, automation and channels. Enabled capabilities appear first within each group, followed by recommended ones. Advanced run tuning is folded last and opens when searched. These UI groups do not change the registry categories or stored capability IDs.
+
+**Delegate to agents** contains subagents, **Claude Code & Codex** (`coding_agent`) and **Other installed agents** (`external_acp`). These delegate tasks to another harness; choosing a subscription model instead keeps the Pydantic AI runtime and AgenticOS tools. Coding Agent remains enabled in the default AgenticOS template.
 
 In a capability's settings, limits, cache lifetimes, prompts and other tuning sit
 folded under **Advanced settings**, which opens by itself wherever one of them was
@@ -3362,3 +3359,47 @@ Explicit bot grants for finding channels, searching messages and delivering requ
 | `send_chat_message` | Requested message or report, new post or existing thread |
 
 The service rechecks organization membership, agent access, the active binding and bot, then destination membership and thread ownership on each operation. It never joins channels or borrows another agent’s bot. Search and history are bounded pages; follow their cursors and treat empty matches as one scanned page. Provider failures are refusals, not empty results. Sending follows the approval policy; an unconfirmed submission must be checked at the destination before retrying. Other platforms retain their existing conversation tools; cross-channel actions are offered only where the adapter verifies membership.
+
+## External ACP agent { #external-acp }
+
+`external_acp` exposes `run_acp_agent` for delegating complete tasks to an installed
+ACP v1 program on the initiating person's computer. This uses the existing
+Desktop task lifecycle; it does not create an A2A endpoint, a background job or a
+primary conversation runtime.
+
+In **Settings → Desktop app → External ACP agents** (also available under profile
+coding accounts), register a stable ID, display name, absolute executable path
+and JSON array of arguments, such as `["acp"]`. Log in with the program's own
+command first. Do not put credentials in arguments. Native confirmation reviews
+the command. In the Builder, enable **External ACP agent** and enter the same ID.
+The published spec stores the ID, a 1–60 minute timeout (default 15), optional authentication/model choices, an optional Pi provider/key reference and the forwarding flag. Executables, command arguments and raw credentials stay outside the spec.
+
+Start chat work on this computer with an approved full-access folder. Launch needs
+native consent for this connection, folder and registration. The program runs as
+your local account without an OS sandbox and owns its tools, model and login;
+read-only confinement is not promised. Human approval can require a separate
+confirmation before each delegated task. Platform tools are off by default. Enable the [run-scoped bridge](../desktop.md#runtime-platform-tools) explicitly.
+
+Tasks stream their steps and answer through the existing delegation panel. Named
+sessions resume only if the program advertises `loadSession`; otherwise start a
+fresh session explicitly. Stop, timeout and folder revocation terminate the
+process. Removing or re-registering the ID stops its running tasks and discards
+saved permissions and session IDs. Register again after changing the program's
+account. Switching the Desktop connection clears registrations as well.
+
+The integration records usage as unpriced; subscription eligibility, quota and
+API charges depend on the program's account. Missing programs, required login,
+unsupported protocol versions and unsupported resume fail explicitly. This
+registration does not certify a vendor's subscription entitlement.
+
+`inspect_acp_agent` reads account/session model and thinking choices without an inference prompt. `auth_method` defaults to `configured`; `oauth-personal` explicitly requests Antigravity Google personal login. A Desktop Antigravity registration enforces that mode. Optional `model_id` selects an exact advertised runtime ID. See [Antigravity setup](../desktop.md#antigravity-acp) for billing boundaries and pending account verification.
+
+OpenCode registrations refresh delayed session catalog updates. The separate Go template filters discovery and restricts the primary model to `opencode-go/`; auxiliary models and Extra Usage remain CLI/account settings. See [OpenCode and Go setup](../desktop.md#opencode-acp).
+
+The Cursor template uses CLI account login with `cursor_login`, removes inherited API credential overrides and cancels unanswered human requests. API-key registration remains pending isolation verification. See [Cursor setup](../desktop.md#cursor-acp).
+
+Cline has separate account and inherited-API-key templates, both locked to the Cline provider and foreground `--acp`. See [Cline setup](../desktop.md#cline-acp) for credential, credit and acceptance boundaries.
+
+Mistral Vibe uses its own browser/key setup, with sanitized credential-source status in discovery and task reports. See [Vibe setup](../desktop.md#mistral-vibe-acp) for billing and account verification.
+
+Mistral Vibe reports `configuration_policy=cli`: keep External model ID empty and choose the model through Vibe itself. AgenticOS refuses model overrides before protocol setup because the runtime may persist them as user defaults.

@@ -70,6 +70,7 @@ _NON_SOURCE_FIELDS = frozenset(
         "instructions",
         "variables",
         "starters",
+        "show_starters",
         "time_zone",
         "model_profile_id",
         "model_settings",
@@ -96,6 +97,25 @@ def spec_fingerprint(spec: AgentSpec) -> str:
             separators=(",", ":"),
         ).encode()
     ).hexdigest()
+
+
+def compatible_spec_fingerprints(spec: AgentSpec) -> frozenset[str]:
+    """Recognize the three historical encodings of the chat-only starter switch.
+
+    Every other source-bearing value remains in the hashed material. This does
+    not admit a changed binding, account, approval policy or capability.
+    """
+    material = spec.model_dump(mode="json", exclude=set(_NON_SOURCE_FIELDS))
+    if not spec.table_bindings:
+        material.pop("table_bindings", None)
+    return frozenset(
+        _fingerprint(value)
+        for value in (
+            material,
+            {**material, "show_starters": True},
+            {**material, "show_starters": False},
+        )
+    )
 
 
 def _fingerprint(value: object) -> str:
@@ -132,15 +152,26 @@ def materialized_behavior(
     return result
 
 
-def _within_behavior(current: dict[str, str], approved: dict[str, str]) -> bool:
-    return all(approved.get(key) == value for key, value in current.items())
+def _within_behavior(
+    current: dict[str, str],
+    approved: dict[str, str],
+    compatible: Mapping[str, frozenset[str]] | None = None,
+) -> bool:
+    return all(
+        approved.get(key) == value or approved.get(key) in (compatible or {}).get(key, frozenset())
+        for key, value in current.items()
+    )
 
 
-def _within_ceiling(current: RoutineSourcePolicy, approved: RoutineSourcePolicy) -> bool:
+def _within_ceiling(
+    current: RoutineSourcePolicy,
+    approved: RoutineSourcePolicy,
+    compatible: Mapping[str, frozenset[str]] | None = None,
+) -> bool:
     if (
         approved.behavior is None
         or current.behavior is None
-        or not _within_behavior(current.behavior, approved.behavior)
+        or not _within_behavior(current.behavior, approved.behavior, compatible)
     ):
         return False
     for now, before in (
@@ -377,6 +408,14 @@ class RoutineSourceSnapshot:
     optional_unavailable: frozenset[str] = frozenset()
     items: list[RoutineSourceItem] = field(default_factory=list)
     behavior_fingerprints: dict[str, str] = field(default_factory=dict)
+    compatible_spec_hashes: frozenset[str] = frozenset()
+    compatible_behavior: dict[str, frozenset[str]] = field(default_factory=dict)
+
+    def matches_restricted(self, previous: RoutineSourcePolicy) -> bool:
+        excluded = {"id", "reviewed_at", "version_id", "spec_hash"}
+        return previous.spec_hash in self.compatible_spec_hashes | {
+            self.policy.spec_hash
+        } and previous.model_dump(exclude=excluded) == self.policy.model_dump(exclude=excluded)
 
     def token(self) -> str:
         content = self.policy.model_dump(mode="json", exclude={"id", "reviewed_at"})
@@ -710,9 +749,11 @@ class RoutineSourceService:
                 )
         if len(sources) > 100:
             raise RoutineSourcesRequired(message="A routine can review at most 100 source accounts")
-        behavior = await self._behavior(ctx, specs, spec_namespaces)
+        behavior, compatible_behavior = await self._behavior(ctx, specs, spec_namespaces)
         return RoutineSourceSnapshot(
             behavior_fingerprints=behavior,
+            compatible_behavior=compatible_behavior,
+            compatible_spec_hashes=compatible_spec_fingerprints(spec),
             policy=RoutineSourcePolicy(
                 mode=mode,
                 id=uuid4(),
@@ -754,7 +795,7 @@ class RoutineSourceService:
 
     async def _behavior(
         self, ctx: AuthContext, specs: list[AgentSpec], namespaces: list[str]
-    ) -> dict[str, str]:
+    ) -> tuple[dict[str, str], dict[str, frozenset[str]]]:
         from app.agents.capabilities.context import context_config
         from app.agents.capabilities.subagents import SubagentsConfig
         from app.services.context import ContextService
@@ -780,9 +821,18 @@ class RoutineSourceService:
             "model_settings",
         }
         result: dict[str, str] = {}
+        compatible: dict[str, frozenset[str]] = {}
         for prefix, spec in zip(namespaces, specs, strict=True):
-            result[prefix + ":instructions"] = _fingerprint(
-                spec.model_dump(mode="json", exclude=lists | metadata)
+            material = spec.model_dump(mode="json", exclude=lists | metadata | {"show_starters"})
+            key = prefix + ":instructions"
+            result[key] = _fingerprint(material)
+            compatible[key] = frozenset(
+                _fingerprint(value)
+                for value in (
+                    material,
+                    {**material, "show_starters": True},
+                    {**material, "show_starters": False},
+                )
             )
             for name in (
                 "capabilities",
@@ -819,7 +869,7 @@ class RoutineSourceService:
                     config=context_config(resource_spec.capabilities),
                 )
                 result.update(materialized_behavior(skills, contexts, namespace=resource_namespace))
-        return result
+        return result, compatible
 
     async def require_behavior(
         self, ctx: AuthContext, trigger: AgentTrigger, policy: RoutineSourcePolicy
@@ -834,7 +884,9 @@ class RoutineSourceService:
             )
         except BadRequestError, NotFoundError:
             raise RoutineSourcesRequired() from None
-        if not _within_behavior(current.behavior_fingerprints, policy.behavior):
+        if not _within_behavior(
+            current.behavior_fingerprints, policy.behavior, current.compatible_behavior
+        ):
             raise RoutineSourcesRequired()
 
     async def _named(
@@ -981,15 +1033,14 @@ class RoutineSourceService:
             previous = RoutineSourcePolicy.model_validate(trigger.approved_sources)
         except ValidationError:
             previous = None
-        current = previous is not None and (
-            previous.model_dump(exclude={"id", "reviewed_at", "version_id"})
-            == review.policy.model_dump(exclude={"id", "reviewed_at", "version_id"})
-        )
+        current = previous is not None and review.matches_restricted(previous)
         if previous is not None and previous.mode == "follow_agent":
             current = (
                 previous.approved_ceiling is not None
                 and previous.scope_hash == review.policy.scope_hash
-                and _within_ceiling(review.policy, previous.approved_ceiling)
+                and _within_ceiling(
+                    review.policy, previous.approved_ceiling, review.compatible_behavior
+                )
             )
         required = set(review.unavailable) - review.optional_unavailable
         return RoutineSourceReview(
@@ -1081,7 +1132,7 @@ class RoutineSourceService:
         self._require_available(review)
         if policy.mode == "follow_agent":
             if policy.approved_ceiling is None or not _within_ceiling(
-                review.policy, policy.approved_ceiling
+                review.policy, policy.approved_ceiling, review.compatible_behavior
             ):
                 raise RoutineSourcesRequired()
             if (
@@ -1100,7 +1151,10 @@ class RoutineSourceService:
             trigger.approved_sources = current.model_dump(mode="json")
             await self.db.flush()
             return current
-        excluded = {"id", "reviewed_at", "version_id"}
-        if policy.model_dump(exclude=excluded) != review.policy.model_dump(exclude=excluded):
+        if not review.matches_restricted(policy):
             raise RoutineSourcesRequired()
+        if policy.spec_hash != review.policy.spec_hash:
+            policy = policy.model_copy(update={"spec_hash": review.policy.spec_hash})
+            trigger.approved_sources = policy.model_dump(mode="json")
+            await self.db.flush()
         return policy

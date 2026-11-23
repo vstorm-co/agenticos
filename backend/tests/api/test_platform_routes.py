@@ -144,6 +144,7 @@ _SERVICE_DEPS = (
     deps.get_mcp_connection_service,
     deps.get_secret_service,
     deps.get_openai_codex_service,
+    deps.get_chatgpt_plan_service,
     deps.get_knowledge_base_service,
     deps.get_collection_access_service,
     deps.get_sync_source_service,
@@ -613,6 +614,15 @@ CALLS: tuple[Call, ...] = (
     # (PATCH, DELETE) hand the decision to the service - a gate there would
     # refuse a member holding an explicit grant before `resolve_access` could
     # widen their access.
+    Call(
+        "POST",
+        "/secrets/openai-chatgpt",
+        Perm.SECRETS_EDIT,
+        body={
+            "name": "My plan",
+            "callback_url": "http://127.0.0.1:1455/auth/callback?code=c&state=s",
+        },
+    ),
     Call("GET", "/secrets/kinds", Perm.SECRETS_VIEW),
     Call("GET", "/secrets/purposes", Perm.SECRETS_VIEW),
     Call("GET", "/secrets", Perm.SECRETS_VIEW),
@@ -1105,6 +1115,7 @@ RESOURCE_AWARE_SERVICES = (
     # A ChatGPT sign-in is a secret written another way: putting a new one in
     # place of an old one is the secret service's rotation, grants and all.
     deps.get_openai_codex_service,
+    deps.get_chatgpt_plan_service,
     # Same shape again: a widget is one agent's public face, so who may publish
     # or take one down is `agents:publish` on that agent, resolved against its
     # grants rather than tested as a role.

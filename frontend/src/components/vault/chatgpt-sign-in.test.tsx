@@ -23,6 +23,8 @@ import type { Secret, SecretKindInfo } from "@/types/secrets";
  */
 
 const AUTHORIZE = "https://auth.openai.com/oauth/authorize?state=s";
+/** Codex offers a device code first; pasting the address is the folded fallback. */
+const openPaste = () => userEvent.click(screen.getByText("Paste an address instead"));
 const CALLBACK = "http://localhost:1455/auth/callback?code=c&state=s";
 
 const PURPOSES = {
@@ -80,7 +82,7 @@ vi.mock("@/hooks", async () => {
   };
 });
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
 
 function render(ui: ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -257,6 +259,7 @@ describe("the inline sign-in beside a model picker", () => {
   it("puts a refused paste under the field it was pasted into", async () => {
     api.post.mockRejectedValue(refusedPaste("This sign-in has expired"));
     const onCreated = mount();
+    await openPaste();
 
     await userEvent.type(screen.getByLabelText("Address ChatGPT sent you to"), CALLBACK);
     await userEvent.click(screen.getByRole("button", { name: "Save sign-in" }));
@@ -298,6 +301,7 @@ describe("adding a ChatGPT sign-in to the vault", () => {
 
   it("asks for the address instead of the token fields its schema has", async () => {
     open();
+    await userEvent.click(await screen.findByText("Paste an address instead"));
 
     expect(await screen.findByLabelText("Address ChatGPT sent you to")).toBeVisible();
     expect(screen.queryByLabelText(/Access token/)).toBeNull();
@@ -330,6 +334,7 @@ describe("adding a ChatGPT sign-in to the vault", () => {
   it("puts a refused paste under the address field", async () => {
     api.post.mockRejectedValue(refusedPaste("Paste the whole address"));
     open();
+    await userEvent.click(await screen.findByText("Paste an address instead"));
 
     await userEvent.type(await screen.findByLabelText("Address ChatGPT sent you to"), "nope");
     await userEvent.click(screen.getByRole("button", { name: "Store key" }));
@@ -369,8 +374,9 @@ describe("reconnecting a ChatGPT sign-in", () => {
     return onSubmit;
   };
 
-  it("is a sign-in again, not a value to type", () => {
+  it("is a sign-in again, not a value to type", async () => {
     open();
+    await openPaste();
 
     expect(screen.getByRole("dialog")).toHaveTextContent("Reconnect My ChatGPT");
     expect(screen.getByLabelText("Address ChatGPT sent you to")).toBeVisible();
@@ -393,10 +399,208 @@ describe("reconnecting a ChatGPT sign-in", () => {
   it("puts a refused paste under the address field", async () => {
     api.put.mockRejectedValue(refusedPaste("ChatGPT did not accept this sign-in"));
     open();
+    await openPaste();
 
     await userEvent.type(screen.getByLabelText("Address ChatGPT sent you to"), CALLBACK);
     await userEvent.click(screen.getByRole("button", { name: "Reconnect" }));
 
     expect(await screen.findByText("ChatGPT did not accept this sign-in")).toBeVisible();
+  });
+});
+
+describe("official ChatGPT application consent", () => {
+  const official = { ...STORED, kind: "openai_chatgpt" as const, purpose: "openai_chatgpt" };
+  const officialKind = { ...CODEX, kind: "openai_chatgpt" as const };
+  const callback = "http://127.0.0.1:1455/auth/callback?code=c&state=s";
+
+  it("opens the independent official flow and explains its loopback callback", async () => {
+    const tab = fakeTab();
+    api.post.mockResolvedValue({ authorization_url: AUTHORIZE });
+    render(
+      <ChatGPTSignInSteps
+        kind="openai_chatgpt"
+        callbackUrl=""
+        onCallbackUrlChange={vi.fn()}
+        idPrefix="official"
+      />,
+    );
+    expect(screen.getByText(/public Responses API/)).toBeVisible();
+    expect(screen.getByLabelText("Address ChatGPT sent you to")).toHaveAttribute(
+      "placeholder",
+      "http://127.0.0.1:1455/auth/callback?code=…",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Sign in with ChatGPT" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/secrets/openai-chatgpt/sign-in"));
+    expect(tab.location.href).toBe(AUTHORIZE);
+  });
+
+  it.each([true, false])(
+    "stores explicit plan consent %s without mixing Codex grants",
+    async (granted) => {
+      const created = vi.fn();
+      api.post.mockResolvedValue({ connection: official, plan_usage_granted: granted });
+      render(
+        <InlineChatGPTSignIn
+          kind="openai_chatgpt"
+          suggestedName="Official ChatGPT"
+          onCreated={created}
+        />,
+      );
+      await userEvent.type(screen.getByLabelText("Address ChatGPT sent you to"), callback);
+      await userEvent.click(screen.getByRole("button", { name: "Save sign-in" }));
+      await waitFor(() => expect(created).toHaveBeenCalledWith("s1"));
+      expect(api.post).toHaveBeenCalledWith("/secrets/openai-chatgpt", {
+        name: "Official ChatGPT",
+        callback_url: callback,
+        visibility: "private",
+      });
+      if (granted) expect(toast.warning).not.toHaveBeenCalled();
+      else expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining("cannot run models"));
+    },
+  );
+
+  it.each([true, false])(
+    "reconnects an official grant with explicit plan consent %s",
+    async (granted) => {
+      api.put.mockResolvedValue({ connection: official, plan_usage_granted: granted });
+      render(
+        <RotateSecretDialog
+          secret={official}
+          onOpenChange={vi.fn()}
+          kinds={[officialKind]}
+          onSubmit={vi.fn()}
+          isPending={false}
+        />,
+      );
+      await userEvent.type(screen.getByLabelText("Address ChatGPT sent you to"), callback);
+      await userEvent.click(screen.getByRole("button", { name: "Reconnect" }));
+      await waitFor(() =>
+        expect(api.put).toHaveBeenCalledWith("/secrets/s1/openai-chatgpt", {
+          callback_url: callback,
+        }),
+      );
+      await waitFor(() => expect(toast.success).toHaveBeenCalled());
+      if (granted) expect(toast.warning).not.toHaveBeenCalled();
+      else expect(toast.warning).toHaveBeenCalled();
+    },
+  );
+});
+
+it("stores an official grant privately from the vault and never offers token entry", async () => {
+  const purpose = {
+    ...PURPOSES.items[0]!,
+    id: "openai_chatgpt",
+    label: "ChatGPT plan usage (official)",
+    kind: "openai_chatgpt",
+  };
+  PURPOSES.items.push(purpose);
+  onTestFinished(() => {
+    PURPOSES.items.splice(PURPOSES.items.indexOf(purpose), 1);
+  });
+  const official = { ...STORED, kind: "openai_chatgpt" as const, purpose: "openai_chatgpt" };
+  api.post.mockResolvedValue({ connection: official, plan_usage_granted: true });
+  render(
+    <AddSecretDialog
+      open
+      onOpenChange={vi.fn()}
+      kinds={[{ ...CODEX, kind: "openai_chatgpt" }]}
+      onSubmit={vi.fn()}
+      isPending={false}
+      purposeId="openai_chatgpt"
+    />,
+  );
+  expect(await screen.findByLabelText("Address ChatGPT sent you to")).toBeVisible();
+  expect(screen.getByRole("combobox", { name: "Who can use it" })).toBeDisabled();
+  expect(screen.getByText(/Only you can run models on this grant/)).toBeVisible();
+  expect(screen.queryByLabelText(/Access token/)).not.toBeInTheDocument();
+  const callback = "http://127.0.0.1:1455/auth/callback?code=c&state=s";
+  await userEvent.type(screen.getByLabelText("Address ChatGPT sent you to"), callback);
+  await userEvent.click(screen.getByRole("button", { name: "Store key" }));
+  await waitFor(() =>
+    expect(api.post).toHaveBeenCalledWith("/secrets/openai-chatgpt", {
+      name: "ChatGPT plan usage (official)",
+      description: null,
+      visibility: "private",
+      callback_url: callback,
+    }),
+  );
+});
+
+describe("signing in to Codex with a device code", () => {
+  const DEVICE = {
+    state: "st-1",
+    user_code: "ABCD-1234",
+    verification_url: "https://auth.openai.com/codex/device",
+    interval_seconds: 1,
+  };
+
+  it("shows the code, opens ChatGPT and stores the approved sign-in without a paste", async () => {
+    const tab = fakeTab();
+    let polls = 0;
+    api.post.mockImplementation(async (url: string) => {
+      if (url === "/secrets/openai-codex/device") return DEVICE;
+      if (url === "/secrets/openai-codex/device/st-1") return { authorized: ++polls > 1 };
+      if (url === "/secrets/openai-codex") return { ...STORED, id: "new-secret" };
+      throw new Error(url);
+    });
+    const onCreated = vi.fn();
+    render(<InlineChatGPTSignIn suggestedName="ChatGPT" onCreated={onCreated} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Sign in with a code" }));
+
+    expect(await screen.findByText("ABCD-1234")).toBeVisible();
+    await waitFor(() => expect(tab.location.href).toBe(DEVICE.verification_url));
+    await waitFor(
+      () =>
+        expect(api.post).toHaveBeenCalledWith(
+          "/secrets/openai-codex",
+          expect.objectContaining({ device_state: "st-1", visibility: "private" }),
+        ),
+      { timeout: 4000 },
+    );
+    expect(api.post).not.toHaveBeenCalledWith(
+      "/secrets/openai-codex",
+      expect.objectContaining({ callback_url: expect.anything() }),
+    );
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith("new-secret"));
+  });
+
+  it("reports an expired code and lets the person start again", async () => {
+    vi.spyOn(window, "open").mockReturnValue(null);
+    api.post.mockImplementation(async (url: string) => {
+      if (url === "/secrets/openai-codex/device") return DEVICE;
+      throw new ApiError(400, "This device sign-in has expired");
+    });
+    render(<InlineChatGPTSignIn suggestedName="ChatGPT" onCreated={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Sign in with a code" }));
+
+    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Sign in with a code" })).toBeEnabled();
+  });
+
+  it("reconnects a stored sign-in with the approved code", async () => {
+    vi.spyOn(window, "open").mockReturnValue(null);
+    api.post.mockImplementation(async (url: string) =>
+      url === "/secrets/openai-codex/device" ? DEVICE : { authorized: true },
+    );
+    api.put.mockResolvedValue(STORED);
+    render(
+      <RotateSecretDialog
+        secret={STORED}
+        onOpenChange={vi.fn()}
+        kinds={[API_KEY, CODEX]}
+        onSubmit={vi.fn()}
+        isPending={false}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Sign in with a code" }));
+    expect(await screen.findByText("Approved.")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Reconnect" }));
+
+    await waitFor(() =>
+      expect(api.put).toHaveBeenCalledWith("/secrets/s1/openai-codex", { device_state: "st-1" }),
+    );
   });
 });

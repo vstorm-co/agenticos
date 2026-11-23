@@ -9,17 +9,20 @@ vi.mock("@/components/icons/custom-icons", async () => {
   const actual = await vi.importActual<typeof import("@/components/icons/custom-icons")>(
     "@/components/icons/custom-icons",
   );
-  return { ...actual, useCustomIcons: () => new Set(["acme", "otari", "keenable"]) };
+  return { ...actual, useCustomIcons: () => new Set(["acme", "otari", "keenable", "llmtr"]) };
 });
 
 describe("ProviderIcon", () => {
-  it.each(["acme", "otari", "keenable"])("draws a deployment-supplied mark for %s", (provider) => {
-    const { container } = render(<ProviderIcon provider={provider} />);
-    const mark = container.firstElementChild as HTMLElement;
+  it.each(["acme", "otari", "keenable", "llmtr"])(
+    "draws a deployment-supplied mark for %s",
+    (provider) => {
+      const { container } = render(<ProviderIcon provider={provider} />);
+      const mark = container.firstElementChild as HTMLElement;
 
-    expect(mark.style.maskImage).toBe(`url("/api/catalog/icons/${provider}")`);
-    expect(mark.style.backgroundColor).toBe("currentcolor");
-  });
+      expect(mark.style.maskImage).toBe(`url("/api/catalog/icons/${provider}")`);
+      expect(mark.style.backgroundColor).toBe("currentcolor");
+    },
+  );
 
   it("draws every mark in one colour - its brand's, or the text colour", () => {
     // A mark is one shape in one fill: the brand's own colour where it reads on
@@ -54,6 +57,25 @@ describe("ProviderIcon", () => {
     }
   });
 
+  it("wears the vendor's mark for a plan or account of that vendor", () => {
+    const pairs: [string, string][] = [
+      ["kimi_code", "moonshotai"],
+      ["alibaba_coding_plan", "alibaba"],
+      ["ollama_cloud", "ollama"],
+      ["openai_chatgpt", "openai"],
+      ["github_copilot", "github"],
+    ];
+    for (const [provider, vendor] of pairs) {
+      const plan = render(<ProviderIcon provider={provider} />);
+      const own = render(<ProviderIcon provider={vendor} />);
+      expect(plan.container.querySelector("svg path")?.getAttribute("d"), provider).toBe(
+        own.container.querySelector("svg path")?.getAttribute("d"),
+      );
+      plan.unmount();
+      own.unmount();
+    }
+  });
+
   it("renders a monogram for one it does not, rather than nothing", () => {
     // A deployment gains a provider whenever Pydantic AI does, so one with no
     // mark is the normal case. A blank gap would read as a logo that failed to
@@ -64,11 +86,39 @@ describe("ProviderIcon", () => {
   });
 
   it("draws every provider the vault offers with a mark, not an initial", () => {
-    for (const provider of ["xai", "cohere", "huggingface", "heroku", "ovhcloud", "litellm"]) {
+    for (const provider of [
+      "xai",
+      "cohere",
+      "huggingface",
+      "heroku",
+      "ovhcloud",
+      "litellm",
+      "devin",
+      "meta",
+    ]) {
       const { container, unmount } = render(<ProviderIcon provider={provider} />);
       expect(container.querySelector("svg")).not.toBeNull();
       unmount();
     }
+  });
+
+  it.each([
+    "chutes",
+    "cline",
+    "inception",
+    "minimax",
+    "nous_portal",
+    "opencode_go",
+    "cliproxyapi",
+    "synthetic",
+    "stav",
+    "typesafe",
+    "system-one",
+  ])("draws a visible mark instead of a letter for %s", (provider) => {
+    const { container } = render(<ProviderIcon provider={provider} />);
+    expect(container.querySelector("svg")).not.toBeNull();
+    expect(container.textContent).toBe("");
+    expect(container.firstElementChild).toHaveAttribute("aria-hidden");
   });
 
   it("stays out of the accessibility tree either way", () => {

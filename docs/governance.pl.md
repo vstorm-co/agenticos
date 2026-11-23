@@ -1,5 +1,5 @@
 ---
-source_sha: "4a5506769583"
+source_sha: "4c4d606984ca"
 ---
 
 # Governance { #governance }
@@ -65,12 +65,9 @@ potwierdzenie dostawy webhooka. Publiczne odpowiedzi webhooków pozostają bez z
 
 ## Dostarczanie wyników rutyny { #routine-delivery }
 
-Rutyna utworzona w prywatnym czacie przez MCP platformy odpowiada w tym czacie,
-chyba że wybierzesz inny cel. Jej karta w rozmowie pokazuje aktualny stan,
-następną aktywację oraz istniejące przyciski edycji, wstrzymania i usunięcia.
-Dziennik uruchomień pozostaje dostępny w Routines.
+Nowe rutyny domyślnie zapisują wszystkie wykonania we wspólnej historii tylko do odczytu. Twórca może kontynuować odpowiedź przez fork do prywatnego czatu. Opcja nowego prywatnego czatu dla każdego wykonania daje każdemu przebiegowi własną edytowalną rozmowę. Karta rutyny zachowuje przyciski edycji, wstrzymania i usunięcia, a Routines pokazuje wszystkie wykonania z linkami do czatów i szczegółów.
 
-Przed zapisaniem gotowej odpowiedzi platforma ponownie sprawdza aktywne członkostwo twórcy i jego bieżące prawo zapisu w wybranej rozmowie. Usunięty lub niedostępny cel pozostawia odpowiedź w logu wykonania, a rutyna pokazuje **Ostatni wynik niedostępny w czacie**. Błąd bazy podczas dostarczania wiadomości jest izolowany, aby nie cofał zakończonego wykonania ani nie uruchamiał ponownie agenta.
+Przebiegi przyjęte przed aktualizacją trybów czatu zachowują wcześniejszy sposób dostarczania. Tylko te starsze przebiegi kopiują gotową odpowiedź do wcześniej wybranego celu, po ponownym sprawdzeniu aktywnego członkostwa twórcy i jego bieżącego prawa zapisu. Brak celu pozostawia odpowiedź w logu. Błąd dostarczania nie cofa zakończonego wykonania ani nie uruchamia ponownie agenta.
 
 Powiadomienie o zakończeniu wskazuje rozmowę dopiero po udanym dostarczeniu.
 
@@ -827,7 +824,11 @@ sprawdzone akcje** to jawny nowy wybór zgodnych, dozwolonych identyfikatorów; 
 zgody przed zapisaniem bieżącego review. Nowe akcje i zmienione konta nie zaznaczają
 się automatycznie. Obowiązkowe akceptacje, cofanie zgody i kontrola aktualności nadal działają.
 
-Rutyny podążające za agentem stosują jego zasady zatwierdzania działań bez dodatkowej zgody na poziomie rutyny. Rutyny ograniczone dodatkowo pytają przed działaniami capabilities, zmianami plików lokalnych i delegowaniem oraz przed wywołaniami MCP nieoznaczonymi jako tylko do odczytu. Jawne wymagania agenta lub połączenia i obowiązkowe zatwierdzenia obowiązują w obu trybach. Tryb kodu pozostaje wyłączony w rutynach, aby skrypty zbiorcze nie omijały kontroli poszczególnych narzędzi.
+Nowe rutyny domyślnie działają jako ich twórca, z jego aktualnymi uprawnieniami. Harmonogram tworzy się w jednym formularzu: nazwa, instrukcje, agent, termin i zgody na narzędzia; źródła i limity są opcjami zaawansowanymi. Tożsamość i Approval są niezależne.
+
+**Uruchamiaj dozwolone narzędzia automatycznie** stosuje zasady agenta (`agent`). **Pytaj przed działaniami** dodaje zgodę rutyny na efekty (`manual`) i atomowo usuwa wcześniejsze stałe zgody. **Wybierz zgody dla każdego narzędzia** pozwala raz zatwierdzić wybrane dozwolone działania tej rutyny (`per_tool`). Wybór działa w obu trybach źródeł.
+
+Rutyny bez tego pola zachowują dotychczasową politykę. Nie można wyłączyć jawnych wymagań agenta, połączenia ani obowiązkowych zgód platformy i urządzenia. Code mode pozostaje wyłączony dla rutyn.
 
 Zapisy do Virtual Tables w AgenticOS działają w granicach aktualnych uprawnień do tabel i operacji, bez wyjątku dla rutyny. Jawna polityka zatwierdzania agenta nadal obowiązuje dla tych wewnętrznych zapisów.
 
@@ -835,11 +836,11 @@ Twórca może otworzyć **Zgody na działania** swojej rutyny i wybrać działan
 
 Wyjątek MCP wskazuje konkretne konto, skrót adresu, generację autoryzacji i oryginalną nazwę działania. Wysyłanie poczty nie upoważnia do kasowania ani zapisów na innym koncie. Konta osobiste są dostępne tylko dla rutyny działającej jako jej twórca. Wybór korzysta z zapisanej listy narzędzi połączenia; gdy jest niedostępna, sprawdź połączenie lub poproś jego administratora. Cofnięcie wszystkich zgód nie wymaga działającej listy narzędzi.
 
-Przegląd pokazuje capabilities agenta, AgenticOS i każde inne konto MCP jako osobne sekcje, każdą z jej grupami. Widać tylko działania, które agent już wykonuje bez pytania: na działanie, przed którym pyta, nie można się tu zgodzić, więc go nie ma. **Użyj ustawień agenta** zaznacza dokładnie te działania i zastępuje obecne zaznaczenie; nic nie zapisuje się przed wybraniem **Zapisz zgody**.
+Przegląd pokazuje osobno capabilities, AgenticOS i każde konto MCP. Narzędzia wymagające zgody są widoczne, ale zablokowane z wyjaśnieniem. Zbiorczy wybór obejmuje tylko dozwolone działania. Zapis przełącza rutynę na zgody pojedynczych narzędzi; niezaznaczone działanie wymaga pytania przy użyciu. Dziedziczenie źródeł nie ukrywa ani nie pomija tych decyzji.
 
 Panel **Zatwierdzone źródła** nad nim pokazuje źródła rutyny według rodzaju - capabilities, skille, bazy wiedzy, tabele, konta - każdy rodzaj zwinięty do licznika, a każde źródło z nazwą. Źródło, którego już nie ma, jest oznaczone jako niedostępne; jego identyfikator widać po najechaniu.
 
-Gdy rutyna działa jako jej twórca, własne narzędzia serwera AgenticOS pojawiają się w tych samych grupach co w Builderze: tabele, zadania, workflowy, agenci i pozostałe. Widać tylko narzędzia, które coś zmieniają, bo odczyty nigdy nie pytają; wyszukiwanie narzędzi też nie pyta. Narzędzia, przed którym agent pyta, nie ma na liście. Dotyczy to każdej zmiany, której powiązanie nie ustawia na **Run freely**, oraz narzędzi, które zawsze pytają. Rutyna zachowuje więc zatwierdzenia agenta albo je zaostrza, ale nigdy żadnego nie zwalnia.
+Gdy rutyna działa jako jej twórca, działania AgenticOS są grupowane jak w Builderze: tabele, zadania, workflowy, agenci i pozostałe. Działania z obowiązkową zgodą są widoczne, ale zablokowane. Odczyty i wyszukiwanie narzędzi nie dostają dodatkowej zgody rutyny; jawna zgoda wymagana przez agenta nadal obowiązuje. Rutyna zachowuje lub zaostrza zgody agenta, nigdy nie usuwa obowiązkowej zgody.
 
 Wyjątek platformy wskazuje tylko narzędzie: przebiegi rutyny docierają do platformy wyłącznie jako jej twórca, jedyna osoba, która może go przejrzeć.
 
@@ -2534,14 +2535,21 @@ monitorowania w trybie odczytu. Trigger określa, _kiedy_ uruchomić rutynę;
 wariant monitorujący ogranicza, _co_ może zrobić. Jedna odpowiedzialność powinna
 mieć jedną rutynę, bez dublowania obserwacji i zadania czasowego dla tej samej poczty.
 
-Wybierz **Po każdym zakończonym wykonaniu** (`result_mode: report`, dotychczasowa
-wartość domyślna) dla raportów albo **Tylko gdy coś wymaga uwagi** (`result_mode:
-inbox`) dla cichych sprawdzeń. Agent zwraca istotne elementy źródła ze stałymi
-identyfikatorami elementu i wersji, kontekstem i pełnym zamówionym draftem.
-Pusty wynik nie tworzy rozmowy ani powiadomienia o zakończeniu. Każdy element ma
-jedną prywatną rozmowę i jedną sprawę w Inbox. Powtórne odczyty tej samej wersji
-są trwale deduplikowane, także po rozwiązaniu sprawy. Nowa wersja aktualizuje tę
-samą rozmowę i otwiera sprawę ponownie; wyciszony element pozostaje wyciszony.
+Ustalenia trafiają do Inboxu wyłącznie przez narzędzie MCP AgenticOS `publish_inbox_finding`. Każda rutyna i monitor dostają je automatycznie, również bez powiązania platformy. Niejawny klucz raportowania nie ma ogólnych uprawnień platformy: jest przypisany do jednego aktywnego przebiegu i publikuje tylko dla właściciela rutyny. Nie może wskazać innego odbiorcy, czytać prywatnego Inboxu ani administrować organizacją. Każdy zapis sprawdza członkostwo, zgodę na źródła, wstrzymanie i wygaśnięcie. Monitor musi najpierw poprawnie odczytać źródło; nierozwiązany błąd odczytu blokuje publikację. Pilność respektuje ustawienie właściciela monitora.
+
+Agent podaje stałe identyfikatory elementu i rewizji, kontekst oraz pełny zamówiony szkic. Niezmieniona rewizja nie tworzy kolejnej karty; nowa aktualizuje tę samą rozmowę roboczą i otwiera sprawę ponownie, a wyciszenie nadal obowiązuje. Przebieg publikuje najwyżej osiem ustaleń. Odpowiedź końcowa zostaje w logu lub jawnie wybranym czacie; nie jest parsowana na karty Inboxu. Stare pole `result_mode` pozostaje odczytywalne, lecz nie wybiera już automatycznego dostarczania strukturalnego. Gdy nie ma zmian, nie publikuj karty, chyba że monitor ma raportować każde sprawdzenie.
+
+Ustalenie jest zatwierdzane w bazie przy wywołaniu MCP. Późniejszy błąd przebiegu nie usuwa już opublikowanej karty; nieudana próba pozostaje widoczna, a ponowienia deduplikują rewizje źródeł.
+
+Nowe rutyny domyślnie mają **jedną wspólną historię tylko do odczytu** (`chat_mode=shared`). Opcja **nowego prywatnego chatu dla każdego uruchomienia** (`chat_mode=per_run`) zachowuje cały przebieg i narzędzia w osobnej edytowalnej rozmowie. Kolejne wiadomości nie edytują rutyny ani nie stają się historią następnego wykonania; skonfigurowana pamięć nadal obowiązuje. Chat pojawia się w panelu bocznym rozmów.
+
+Wybierz **wspólną historię** (`chat_mode=shared`), aby dopisywać wykonania do jednego systemowego chatu tylko do odczytu. Twórca widzi go w panelu bocznym, jeśli ma `runs:view` i aktualny dostęp do agenta; dostęp do logów projektu nadal wynika z uprawnień do projektu. Twórca może zrobić fork odpowiedzi do prywatnego chatu. Nowe wykonania nie odczytują automatycznie poprzednich wiadomości logu; ciągłość zapewniają pamięć i jawny odczyt źródeł.
+
+Migracja `0351_routine_chat_modes.py` mapuje dostarczanie do głównego lub wskazanego chatu na osobne chaty wykonania, a sam log i dawny tryb Inbox na wspólną historię. Zachowuje rozmowy, harmonogramy, pauzy, budżety oraz zgody na źródła i narzędzia. Istniejące logi stają się tylko do odczytu; wcześniej dopuszczone wykonania bez zapisanego trybu zachowują dawną umowę dostarczania. Aktualizuj API i workery razem. Dawne pola pozostają czytelne dla zgodności i cofnięcia migracji.
+
+Ustalenia w Inboxie nadal mają własne rozmowy robocze grupowane według stabilnego identyfikatora sprawy. Publikowanie ustalenia nie tworzy karty dla każdego wykonania.
+
+Wykonanie bez nadzoru nie ma aktywnego kanału `ask_user`. Gdy brakuje niezbędnych informacji, instrukcja każe opublikować pytanie i opis zablokowanej pracy w Inboxie, zamiast zakładać odpowiedź. Samo to nie wstrzymuje wykonania z formularzem pytania do wznowienia.
 
 Z Inbox otwórz rozmowę, aby poprawić draft lub zlecić następny krok. Czytanie i
 edycja draftu nie wysyłają go i nie kończą sprawy. Nadal obowiązują uprawnienia i

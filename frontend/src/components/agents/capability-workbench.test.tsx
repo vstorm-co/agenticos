@@ -300,9 +300,9 @@ describe("the capability workbench", () => {
   });
 
   it("names a category in plain words, and keeps an unknown one as it came", async () => {
-    renderWorkbench({ catalog: [CHARTS, { ...CONTEXT, category: "from_a_plugin" }] });
+    renderWorkbench({ catalog: [CHARTS, { ...CONTEXT, id: "plugin", category: "from_a_plugin" }] });
 
-    expect(await screen.findByText("Work with data")).toBeInTheDocument();
+    expect(await screen.findByText("Create and present")).toBeInTheDocument();
     expect(screen.getByText("from_a_plugin")).toBeInTheDocument();
   });
 
@@ -483,15 +483,19 @@ describe("jsonSchemaType", () => {
       contracts: [],
     };
 
-    it("shelves them last, after everything an agent needs to start", () => {
+    it("folds advanced tuning after everything an agent needs to start", async () => {
       // Each answers a problem met only once an agent works; a page opening on
       // them reads as homework before starting (#2070).
       renderWorkbench({ catalog: [COMPACTION, CHARTS] });
 
+      const advanced = screen.getByText("Advanced", { selector: "summary" }).closest("details");
+      expect(advanced).not.toHaveAttribute("open");
+      await userEvent.click(screen.getByText("Advanced", { selector: "summary" }));
+      expect(advanced).toHaveAttribute("open");
       const shelves = screen
         .getAllByRole("region")
         .map((shelf) => shelf.getAttribute("aria-label"));
-      expect(shelves).toEqual(["Work with data", "Advanced"]);
+      expect(shelves).toEqual(["Create and present", "Advanced"]);
     });
   });
 
@@ -931,7 +935,7 @@ describe("the workbench as illustrated cards", () => {
     const PORTALS = { ...CHARTS, id: "portals", name: "Portals", category: "teleportation" };
     renderWorkbench({ catalog: [CHARTS, CONTEXT, PORTALS], selected: [binding("charts")] });
 
-    expect(screen.getByRole("region", { name: "Work with data" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Create and present" })).toBeInTheDocument();
     // A category the console has no words for yet keeps the registry's own.
     expect(screen.getByRole("region", { name: "teleportation" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Knowledge and memory" })).toBeInTheDocument();
@@ -1101,7 +1105,7 @@ describe("the workbench as illustrated cards", () => {
     const PORTALS = { ...CHARTS, id: "portals", name: "Portals", category: "teleportation" };
     renderWorkbench({ catalog: [CHARTS, CONTEXT, PORTALS], selected: [binding("charts")] });
 
-    expect(screen.getByRole("region", { name: "Work with data" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Create and present" })).toBeInTheDocument();
     // A category the console has no words for yet keeps the registry's own.
     expect(screen.getByRole("region", { name: "teleportation" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Knowledge and memory" })).toBeInTheDocument();
@@ -1177,4 +1181,16 @@ describe("the virtual terminal", () => {
     );
     expect(onToggle).toHaveBeenCalledWith("mirage");
   });
+});
+
+it("presents installed harnesses together as delegation, separately from the main model", () => {
+  renderWorkbench({
+    catalog: [
+      { ...CHARTS, id: "coding_agent", name: "Coding agent" },
+      { ...CHARTS, id: "external_acp", name: "External ACP agent" },
+    ],
+  });
+  const shelf = screen.getByRole("region", { name: "Delegate to agents" });
+  expect(within(shelf).getByText("Claude Code & Codex")).toBeInTheDocument();
+  expect(within(shelf).getByText("Other installed agents")).toBeInTheDocument();
 });

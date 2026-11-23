@@ -123,6 +123,14 @@ async def _welcome_email(
         logger.exception("welcome_email_failed", extra={"user_id": str(user_id)})
 
 
+@dataclass(frozen=True)
+class OAuthAccount:
+    """The authenticated account and whether this request created it."""
+
+    user: User
+    is_new_user: bool
+
+
 class UserService:
     def __init__(self, db: AsyncSession, vector_store: BaseVectorStore | None = None):
         self.db = db
@@ -343,7 +351,7 @@ class UserService:
         await self._queue_welcome(user)
         return user
 
-    async def get_or_create_oauth_user(
+    async def get_or_create_oauth_account(
         self,
         *,
         provider: str,
@@ -352,7 +360,7 @@ class UserService:
         full_name: str | None = None,
         invitation_token: str | None = None,
         admitted_by_directory: bool = False,
-    ) -> User:
+    ) -> OAuthAccount:
         """Email-matched existing accounts get the OAuth identity attached rather than creating a duplicate.
 
         `invitation_token` is the one the sign-in was started with, carried through
@@ -369,7 +377,7 @@ class UserService:
         """
         existing = await user_repo.get_by_oauth(self.db, provider, provider_id)
         if existing:
-            return existing
+            return OAuthAccount(existing, False)
 
         by_email = await user_repo.get_by_email(self.db, email)
         if by_email is not None:
@@ -378,7 +386,7 @@ class UserService:
                 db_user=by_email,
                 update_data={"oauth_provider": provider, "oauth_id": provider_id},
             )
-            return by_email
+            return OAuthAccount(by_email, False)
 
         # The second path that mints an account, and the reason the policy is not
         # simply a check inside `register`: a deployment with Google sign-in and a
@@ -409,7 +417,7 @@ class UserService:
             admitted_by_policy=admission == "policy",
         )
         await self._queue_welcome(user)
-        return user
+        return OAuthAccount(user, True)
 
     async def authenticate(self, email: str, password: str) -> User:
         user = await user_repo.get_by_email(self.db, email)
@@ -766,6 +774,10 @@ class UserService:
         await conversation_repo.invalidate_author_checkpoints(self.db, user_id=user_id)
         await GeneratedMediaService(self.db).forget_user(user_id)
         await PersonalDataService(self.db).purge(user_id)
+        # Memberships go by cascade, which `end_membership` never sees.
+        from app.services.subscription_accounts import queue_wipe_person
+
+        await queue_wipe_person(self.db, user_id)
         await user_repo.delete(self.db, user_id)
         if attachments:
             # After the commit, for the reason #1293 gives: an unlink undone by

@@ -264,6 +264,7 @@ export function useChat(options: UseChatOptions = {}) {
   // "pending" entries above the input. The ref is the source of truth for the
   // drainer effect; the parallel state triggers re-renders for the UI.
   const messageQueueRef = useRef<QueuedMessage[]>([]);
+  const queueStopVersion = useRef(0);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
   const [sentTurnId, setSentTurnId] = useState<string | null>(null);
   // In the apps the queue is also the outbox: kept sealed on the device under the
@@ -285,6 +286,18 @@ export function useChat(options: UseChatOptions = {}) {
   // which changes anything else the drainer watches.
   const [drainTick, setDrainTick] = useState(0);
   const queuedSendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pauseQueued = useCallback(() => {
+    queueStopVersion.current += 1;
+    if (queuedSendTimer.current !== null) clearTimeout(queuedSendTimer.current);
+    queuedSendTimer.current = null;
+    setQueue(messageQueueRef.current.map((message) => ({ ...message, paused: true })));
+  }, [setQueue]);
+
+  const resumeQueued = useCallback(() => {
+    setQueue(messageQueueRef.current.map(({ paused: _paused, ...message }) => message));
+    setDrainTick((tick) => tick + 1);
+  }, [setQueue]);
+
   const sessionReadyRef = useRef(true);
   const [sessionReady, setSessionReady] = useState(true);
   // Corrections sent into the running turn, until `steer_applied` says the model
@@ -366,6 +379,7 @@ export function useChat(options: UseChatOptions = {}) {
   const parkedQuestionRunRef = useRef<string | null>(null);
   const answeringQuestionRef = useRef<object | null>(null);
   const liveQuestionRef = useRef(false);
+  const runtimeQuestionIdRef = useRef<string | null>(null);
   const liveQuestionBatchId = useRef<string | null>(null);
   const [liveQuestionTarget, setLiveQuestionTarget] = useState<{
     id: string;
@@ -599,6 +613,7 @@ export function useChat(options: UseChatOptions = {}) {
       questionOfferedForRef.current.add(runId);
       parkedQuestionRunRef.current = runId;
       liveQuestionRef.current = false;
+      runtimeQuestionIdRef.current = null;
       // Every call the run is waiting on, not the first: the backend answers a
       // call left out as declined, so offering one put words the person never
       // chose into the others.
@@ -1340,6 +1355,7 @@ export function useChat(options: UseChatOptions = {}) {
           if (parkedQuestionRunRef.current === null) {
             setPendingQuestions(null);
             liveQuestionRef.current = false;
+            runtimeQuestionIdRef.current = null;
           }
           setPendingConnection(null);
           setPendingComputerAccess(null);
@@ -1544,13 +1560,40 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "runtime_question_closed": {
+          const data: unknown = wsEvent.data;
+          if (
+            !data ||
+            typeof data !== "object" ||
+            !("runtime_question_id" in data) ||
+            typeof data.runtime_question_id !== "string" ||
+            data.runtime_question_id !== runtimeQuestionIdRef.current
+          )
+            break;
+          runtimeQuestionIdRef.current = null;
+          liveQuestionRef.current = false;
+          liveQuestionSubmission.current = null;
+          setSubmittingQuestions(false);
+          setPendingQuestions(null);
+          break;
+        }
+
         case "ask_user": {
           liveQuestionRef.current = true;
           liveQuestionBatchId.current = clientId();
           liveQuestionSubmission.current = null;
           setSubmittingQuestions(false);
-          const { questions } = wsEvent.data as { questions: WireQuestion[] };
-          setPendingQuestions(toAskUserQuestions(questions ?? []));
+          const { questions, runtime_question_id } = wsEvent.data as {
+            questions: WireQuestion[];
+            runtime_question_id?: unknown;
+          };
+          runtimeQuestionIdRef.current =
+            typeof runtime_question_id === "string" && runtime_question_id.length <= 128
+              ? runtime_question_id
+              : null;
+          setPendingQuestions(
+            toAskUserQuestions(questions ?? [], runtimeQuestionIdRef.current ?? undefined),
+          );
           const messageId = currentMessageIdRef.current;
           const message = chatApi.getState().messages.find((message) => message.id === messageId);
           setLiveQuestionTarget({
@@ -1641,6 +1684,7 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "complete": {
+          if ((wsEvent.data as { stopped?: boolean }).stopped) pauseQueued();
           if (
             continueAfterComputerRef.current &&
             !(wsEvent.data as { stopped?: boolean }).stopped &&
@@ -1766,6 +1810,7 @@ export function useChat(options: UseChatOptions = {}) {
       activeConversationId,
       refreshConversationCost,
       setQueue,
+      pauseQueued,
       t,
     ],
   );
@@ -2072,6 +2117,7 @@ export function useChat(options: UseChatOptions = {}) {
 
   const sendChatMessage = useCallback(
     (content: string, fileIds?: string[], files?: ChatMessageFile[], mentions?: Mentionable[]) => {
+      const paused = messageQueueRef.current.some((message) => message.paused);
       // While the agent works a message waits for its answer, as in any chat;
       // "Send now" on the queued message is how it joins the running task
       // instead (#2087) - see `sendQueuedNow`.
@@ -2083,12 +2129,18 @@ export function useChat(options: UseChatOptions = {}) {
         decidingApprovalRef.current !== null ||
         answeringQuestionRef.current !== null ||
         parkedQuestionRunRef.current !== null ||
+        liveQuestionRef.current ||
+        liveQuestionSubmission.current !== null ||
+        stoppingRef.current !== null ||
         !sessionReadyRef.current ||
         !isConnected ||
         (messageQueueRef.current.length > 0 && interruptedForRef.current === null)
       ) {
         const id = clientId();
-        setQueue([...messageQueueRef.current, { id, content, fileIds, files, mentions }]);
+        setQueue([
+          ...messageQueueRef.current,
+          { id, content, fileIds, files, mentions, ...(paused ? { paused: true } : {}) },
+        ]);
         return;
       }
       setSentTurnId(doSend(content, fileIds, files, mentions));
@@ -2109,6 +2161,7 @@ export function useChat(options: UseChatOptions = {}) {
       // carries text alone, so one sent now would lose what it pointed at.
       if (
         !queued ||
+        messageQueueRef.current.some((message) => message.paused) ||
         !isProcessing ||
         !isConnected ||
         queued.fileIds?.length ||
@@ -2175,11 +2228,15 @@ export function useChat(options: UseChatOptions = {}) {
       return;
     }
     let current = true;
+    const stoppedAt = queueStopVersion.current;
     void keptOutbox(activeConversationId).then((kept) => {
       if (!current || kept.length === 0) return;
       const onScreen = messageQueueRef.current.filter((q) => !kept.some((k) => k.id === q.id));
-      messageQueueRef.current = [...kept, ...onScreen];
-      setQueuedMessages([...messageQueueRef.current]);
+      const restored =
+        stoppedAt === queueStopVersion.current
+          ? kept
+          : kept.map((message) => ({ ...message, paused: true }));
+      setQueue([...restored, ...onScreen]);
       // Nothing else the drainer watches moved: with a connection up and the
       // agent idle, it is this that sends them.
       setDrainTick((tick) => tick + 1);
@@ -2187,7 +2244,7 @@ export function useChat(options: UseChatOptions = {}) {
     return () => {
       current = false;
     };
-  }, [activeConversationId]);
+  }, [activeConversationId, setQueue]);
 
   // A queued message belongs to the organization it was typed in. It sits in
   // this hook's own state until the socket comes back, so neither dropping the
@@ -2227,6 +2284,7 @@ export function useChat(options: UseChatOptions = {}) {
     answeringQuestionRef.current = null;
     abandonRunAnswer();
     liveQuestionRef.current = false;
+    runtimeQuestionIdRef.current = null;
     // A delegation belongs to a run in one organization, and to one conversation
     // inside it - the effect below is the other half of that sentence. Left on
     // screen it would show the previous tenant's specialist names and prompts to
@@ -2332,6 +2390,7 @@ export function useChat(options: UseChatOptions = {}) {
     answeringQuestionRef.current = null;
     abandonRunAnswer();
     liveQuestionRef.current = false;
+    runtimeQuestionIdRef.current = null;
   }, [activeConversationId, closeBrowserPanel, sendMessage, abandonRunAnswer]);
 
   // The caller's permissions, for the restore effect below: rebuilding the
@@ -2954,6 +3013,7 @@ export function useChat(options: UseChatOptions = {}) {
   const answerParkedQuestion = useCallback(
     async (parked: NonNullable<typeof parkedQuestion>, answers: AskUserAnswer[]) => {
       const ticket = {};
+      const questionBatch = liveQuestionBatchId.current;
       answeringQuestionRef.current = ticket;
       const conversation = activeConversationId;
       const tenant = queueBelongsTo.current;
@@ -3013,7 +3073,7 @@ export function useChat(options: UseChatOptions = {}) {
               // This marker arrives only after the runner admits the answers.
               // The correlated result follows the whole continuation, which may
               // run for minutes or ask another question in a different message.
-              setPendingQuestions(null);
+              if (liveQuestionBatchId.current === questionBatch) setPendingQuestions(null);
               setParkedQuestion(null);
               parkedQuestionRunRef.current = null;
               updateMessage(messageId(), (message) => ({
@@ -3042,10 +3102,14 @@ export function useChat(options: UseChatOptions = {}) {
         });
         if (!stillHere()) return;
         void queryClient.invalidateQueries({ queryKey: qk.conversations.waitingQuestions() });
-        setPendingQuestions(null);
+        // A continuation can ask again before the previous answer result arrives.
+        // That result owns the parked card, not the newer live question batch.
+        if (liveQuestionBatchId.current === questionBatch) {
+          setPendingQuestions(null);
+          setSubmittingQuestions(false);
+        }
         setParkedQuestion(null);
         parkedQuestionRunRef.current = null;
-        setSubmittingQuestions(false);
         updateMessage(messageId(), (message) => ({ ...message, runWaitingFor: undefined }));
         let settledOffset = 0;
         for (const call of parked.calls) {
@@ -3074,7 +3138,7 @@ export function useChat(options: UseChatOptions = {}) {
         if (error instanceof RunAnswerInterrupted) {
           // Acceptance is unknown. Reconnect restores only what the persisted
           // run is still waiting on; submitted answers are never resent.
-          setPendingQuestions(null);
+          if (liveQuestionBatchId.current === questionBatch) setPendingQuestions(null);
           setParkedQuestion(null);
           parkedQuestionRunRef.current = null;
           questionOfferedForRef.current.delete(parked.runId);
@@ -3086,9 +3150,17 @@ export function useChat(options: UseChatOptions = {}) {
         const terminalStatus = resumeFailureStatus(error);
         if (terminalRunIdsRef.current.has(parked.runId) || terminalStatus !== null) {
           terminalRunIdsRef.current.add(parked.runId);
-          setPendingQuestions(null);
-          liveQuestionRef.current = false;
-          setPendingConnection(null);
+          const currentRun = chatApi
+            .getState()
+            .messages.find((message) => message.id === currentMessageIdRef.current)?.runId;
+          if (liveQuestionBatchId.current === questionBatch || currentRun === parked.runId) {
+            setPendingQuestions(null);
+            liveQuestionRef.current = false;
+            runtimeQuestionIdRef.current = null;
+            setPendingConnection(null);
+          }
+          setParkedQuestion(null);
+          parkedQuestionRunRef.current = null;
           abandonOpenCalls(messageId());
           const streamedMessageId = stream.started ? currentMessageIdRef.current : null;
           if (streamedMessageId !== null) {
@@ -3106,20 +3178,32 @@ export function useChat(options: UseChatOptions = {}) {
         }
         // An acknowledged refusal before execution leaves the run parked, so
         // its question can be answered again after the server becomes ready.
-        setPendingQuestions(asked);
-        setParkedQuestion(parked);
-        parkedQuestionRunRef.current = parked.runId;
+        if (liveQuestionBatchId.current === questionBatch) {
+          setPendingQuestions(asked);
+          setParkedQuestion(parked);
+          parkedQuestionRunRef.current = parked.runId;
+        } else {
+          setParkedQuestion(null);
+          parkedQuestionRunRef.current = null;
+        }
         setStatus("awaiting_answer");
       } finally {
         if (answeringQuestionRef.current === ticket) {
-          setSubmittingQuestions(false);
           answeringQuestionRef.current = null;
-          const following = !stream.started && followingRef.current !== null;
-          processingRef.current = following;
-          setIsProcessing(following);
-          if (stream.started) {
-            setCurrentMessageId(null);
-            resumedRunIdRef.current = undefined;
+          const currentRun = chatApi
+            .getState()
+            .messages.find((message) => message.id === currentMessageIdRef.current)?.runId;
+          const terminalQuestion =
+            terminalRunIdsRef.current.has(parked.runId) && currentRun === parked.runId;
+          if (liveQuestionBatchId.current === questionBatch || terminalQuestion) {
+            setSubmittingQuestions(false);
+            const following = !stream.started && followingRef.current !== null;
+            processingRef.current = following;
+            setIsProcessing(following);
+            if (stream.started) {
+              setCurrentMessageId(null);
+              resumedRunIdRef.current = undefined;
+            }
           }
           setDrainTick((tick) => tick + 1);
         }
@@ -3147,7 +3231,7 @@ export function useChat(options: UseChatOptions = {}) {
   const sendAskUserResponses = useCallback(
     (answers: AskUserAnswer[]) => {
       if (stoppingRef.current !== null || !isConnected) return;
-      if (parkedQuestion !== null) {
+      if (parkedQuestion !== null && !liveQuestionRef.current) {
         if (answeringQuestionRef.current !== null) return;
         void answerParkedQuestion(parkedQuestion, answers);
         return;
@@ -3171,7 +3255,14 @@ export function useChat(options: UseChatOptions = {}) {
           .map((call) => call.id),
       };
       setSubmittingQuestions(true);
-      sendMessage({ type: "ask_user_response", request_id: requestId, answers });
+      sendMessage({
+        type: "ask_user_response",
+        request_id: requestId,
+        answers,
+        ...(runtimeQuestionIdRef.current
+          ? { runtime_question_id: runtimeQuestionIdRef.current }
+          : {}),
+      });
     },
     [parkedQuestion, answerParkedQuestion, isConnected, sendMessage, pendingQuestions, chatApi],
   );
@@ -3225,6 +3316,7 @@ export function useChat(options: UseChatOptions = {}) {
         abandonRunAnswer();
       }
       liveQuestionRef.current = false;
+      runtimeQuestionIdRef.current = null;
       processingRef.current = false;
       if (currentMessageIdRef.current) {
         updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, isStreaming: false }));
@@ -3255,6 +3347,7 @@ export function useChat(options: UseChatOptions = {}) {
 
   const stopGeneration = useCallback(() => {
     if (stoppingRef.current !== null) return;
+    pauseQueued();
     continueAfterComputerRef.current = null;
     computerRequestRef.current = null;
     const submittedAnswer = pendingRunAnswerRef.current;
@@ -3392,6 +3485,7 @@ export function useChat(options: UseChatOptions = {}) {
     updateMessage,
     tErrors,
     onTurnInterrupted,
+    pauseQueued,
   ]);
 
   const acknowledgeDetachedTurn = useCallback(() => {
@@ -3599,7 +3693,11 @@ export function useChat(options: UseChatOptions = {}) {
       !sessionReady ||
       decidingApprovalRef.current ||
       answeringQuestionRef.current !== null ||
-      parkedQuestionRunRef.current !== null
+      parkedQuestionRunRef.current !== null ||
+      liveQuestionRef.current ||
+      liveQuestionSubmission.current !== null ||
+      stoppingRef.current !== null ||
+      messageQueueRef.current.some((message) => message.paused)
     )
       return;
     const next = messageQueueRef.current[0];
@@ -3618,6 +3716,10 @@ export function useChat(options: UseChatOptions = {}) {
         decidingApprovalRef.current !== null ||
         answeringQuestionRef.current !== null ||
         parkedQuestionRunRef.current !== null ||
+        liveQuestionRef.current ||
+        liveQuestionSubmission.current !== null ||
+        stoppingRef.current !== null ||
+        messageQueueRef.current.some((message) => message.paused) ||
         !sessionReadyRef.current
       )
         return;
@@ -3762,6 +3864,7 @@ export function useChat(options: UseChatOptions = {}) {
     sentTurnId,
     cancelQueued,
     retryQueued,
+    resumeQueued,
     sendQueuedNow,
     moveQueued,
     clearQueued,

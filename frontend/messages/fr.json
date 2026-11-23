@@ -1084,7 +1084,7 @@
       "cancel": "Annuler"
     },
     "publishedSpec": "Spec publié",
-    "systemAgentBadge": "{kind, select, judge {Agent système · Juge} drafter {Agent système · Rédacteur de lacunes} generator {Agent système · Générateur de cas} classifier {Agent système · Classificateur de lacunes} improver {Agent système · Assistant de rédaction} other {Agent système}}",
+    "systemAgentBadge": "{kind, select, judge {Agent système · Juge} drafter {Agent système · Rédacteur de lacunes} generator {Agent système · Générateur de cas} classifier {Agent système · Classificateur de lacunes} improver {Agent système · Assistant de rédaction} extractor {Agent système · Extracteur de faits clés} coverage {Agent système · Couverture des sources} other {Agent système}}",
     "systemAgentBadgeHint": "La plateforme l’exécute pour toute l’organisation ; personne ne discute avec lui.",
     "systemAgentSharedOnly": "Seul ce qui est partagé avec toute l’organisation est proposé : la plateforme exécute cet agent pour tout le monde.",
     "systemAgentSkillsUnused": "Un classificateur ne lit aucun skill ; aucun ne peut donc être ajouté ici. Décochez ceux qu’il conserve encore, ou utilisez son interrupteur pour tous les retirer.",
@@ -3399,7 +3399,7 @@
         "runs": "Vos runs",
         "finished": "Terminés",
         "finishedOf": "sur {total} runs",
-        "waiting": "En attente de vous",
+        "waiting": "À examiner",
         "nothingWaiting": "Rien en attente",
         "spent": "Dépensé",
         "spentLabel": "{amount} dépensés"
@@ -3770,19 +3770,19 @@
       "eveningNamed": "Bonsoir, {name}",
       "ran": "Vos agents se sont exécutés <b>{runs, plural, =0 {aucune fois} =1 {une fois} other {# fois}}</b> sur cette période.",
       "nothingWaiting": "Rien ne vous attend.",
-      "waitingOn": "En attente de vous : <b>{items}</b>.",
+      "waitingOn": "Vous avez <b>{items}</b>.",
       "waiting": {
-        "questions": "{count, plural, one {# question} other {# questions}}",
-        "approvals": "{count, plural, =1 {1 appel} other {# appels}}",
+        "questions": "{count, plural, one {# question à laquelle répondre} other {# questions auxquelles répondre}}",
+        "approvals": "{count, plural, one {# action à approuver} other {# actions à approuver}}",
         "review": "{count, plural, =1 {1 réponse à revoir} other {# réponses à revoir}}",
         "suites": "{count, plural, =1 {1 suite en échec} other {# suites en échec}}",
-        "suggestions": "{count, plural, =1 {1 suggestion} other {# suggestions}}"
+        "suggestions": "{count, plural, one {# suggestion dans la boîte de réception} other {# suggestions dans la boîte de réception}}"
       },
       "summary": "Vos agents se sont exécutés <b>{runs, plural, =0 {aucune fois} =1 {une fois} other {# fois}}</b> sur cette période. {waiting, plural, =0 {Rien ne vous attend.} =1 {<b>Un appel</b> vous attend.} other {<b># appels</b> vous attendent.}}"
     },
     "discover": {
       "title": "Découvrir AgenticOS",
-      "subtitle": "Ce que vos agents savent faire et qu’on rate facilement.",
+      "subtitle": "Utilisez vos propres modèles, connectez vos outils et transformez un chat en travail utile.",
       "previous": "Astuces précédentes",
       "next": "Plus d’astuces",
       "dismissAll": "Masquer les astuces",
@@ -6095,7 +6095,7 @@
       },
       "agent-model-credentials": {
         "title": "Qui fournit la clé du modèle",
-        "body": "Utilisez la clé de l’organisation, ou exigez que chaque utilisateur de chat connecté associe une clé privée du vault. Le modèle et le point d’accès restent fixes ; les canaux et les runs automatiques exigent la clé de l’organisation."
+        "body": "Choisissez votre abonnement et connectez-le ici, ou utilisez une clé API de l’organisation. Les passerelles et points d’accès personnalisés se trouvent dans les connexions avancées. Les modèles par abonnement conservent les instructions et outils AgenticOS ; les agents installés se configurent séparément dans la délégation."
       }
     },
     "chooseLanguage": "Langue",

@@ -46,10 +46,12 @@ def ingest() -> Handlers:
 def production() -> Handlers:
     """Every kind, for a worker that runs the agent and system pools on its own loop."""
     from app.services.sandbox_workspace import retry_pending_destroys
+    from app.services.subscription_accounts import wipe_scopes
     from app.worker.tasks import (
         approval_tasks,
         authoring_tasks,
         case_generation_tasks,
+        case_key_tasks,
         channel_observation_tasks,
         channel_tasks,
         coding_tasks,
@@ -60,6 +62,7 @@ def production() -> Handlers:
         generated_media_tasks,
         improvement_tasks,
         invitation_tasks,
+        key_coverage_tasks,
         knowledge_gap_tasks,
         mcp_tasks,
         memory_tasks,
@@ -95,6 +98,7 @@ def production() -> Handlers:
             Handler(jobs.RUN_AUTHORING, authoring_tasks.run_authoring),
             Handler(jobs.ADVANCE_IMPROVEMENT, improvement_tasks.advance_improvement),
             Handler(jobs.SWEEP_IMPROVEMENTS, _each_tick(improvement_tasks.sweep_improvements)),
+            Handler(jobs.SEARCH_IMPROVEMENT, improvement_tasks.search_improvement),
             Handler(jobs.ADVANCE_SKILL_IMPROVEMENT, improvement_tasks.advance_skill_improvement),
             Handler(
                 jobs.SWEEP_SKILL_IMPROVEMENTS,
@@ -105,6 +109,9 @@ def production() -> Handlers:
             Handler(jobs.CLASSIFY_GAPS, knowledge_gap_tasks.classify_knowledge_gaps),
             Handler(jobs.DRAFT_TOPIC, knowledge_gap_tasks.draft_knowledge_gap),
             Handler(jobs.GENERATE_CASES, case_generation_tasks.generate_cases),
+            Handler(jobs.EXTRACT_CASE_KEYS, case_key_tasks.extract_case_keys),
+            Handler(jobs.REPORT_KEY_COVERAGE, key_coverage_tasks.report_key_coverage),
+            Handler(jobs.EXPIRE_CASE_KEY_DRAFTS, _each_tick(case_key_tasks.expire_case_key_drafts)),
             Handler(jobs.RUN_CONVERSATION_TASK, conversation_tasks.run_task),
             Handler(jobs.RETURN_CONVERSATION_TASK, conversation_tasks.return_task),
             Handler(
@@ -118,6 +125,7 @@ def production() -> Handlers:
             Handler(jobs.WELCOME_MEMBER, proactive_tasks.welcome_member),
             Handler(jobs.CLEANUP_EXTERNAL_STATE, teardown_tasks.run_external_state_cleanup),
             Handler(jobs.DISCARD_VECTOR_DOCUMENT, teardown_tasks.discard_vector_document),
+            Handler(jobs.WIPE_SUBSCRIPTION_ACCOUNTS, wipe_scopes),
             Handler(jobs.CHECK_AGENT_TRIGGERS, _each_tick(trigger_tasks.check_agent_triggers)),
             Handler(jobs.POLL_PORTAL_GRANTS, _each_tick(trigger_tasks.poll_portal_grants)),
             Handler(
@@ -194,8 +202,10 @@ def _settlers() -> dict[str, Settler]:
     from app.worker.tasks import (
         authoring_tasks,
         case_generation_tasks,
+        case_key_tasks,
         conversation_tasks,
         eval_tasks,
+        key_coverage_tasks,
         project_tasks,
         rag_tasks,
     )
@@ -209,6 +219,12 @@ def _settlers() -> dict[str, Settler]:
         ),
         jobs.GENERATE_CASES.kind: _settler(
             jobs.GENERATE_CASES, case_generation_tasks.settle_lost_generation
+        ),
+        jobs.EXTRACT_CASE_KEYS.kind: _settler(
+            jobs.EXTRACT_CASE_KEYS, case_key_tasks.settle_lost_draft
+        ),
+        jobs.REPORT_KEY_COVERAGE.kind: _settler(
+            jobs.REPORT_KEY_COVERAGE, key_coverage_tasks.settle_lost_report
         ),
         jobs.MOVE_PROJECT_WORKSPACE.kind: _settler(
             jobs.MOVE_PROJECT_WORKSPACE, project_tasks.settle_project_copies

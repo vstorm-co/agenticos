@@ -35,7 +35,7 @@ from app.core.oauth import (
     verified_identity,
 )
 from app.core.security import create_access_token, create_refresh_token
-from app.schemas.token import OAuthExchangeRequest, Token
+from app.schemas.token import OAuthExchangeRequest, SignInToken
 from app.services.oauth_exchange import native_code_challenge
 
 logger = logging.getLogger(__name__)
@@ -225,7 +225,7 @@ async def provider_callback(
         # Taken off the session rather than read: an invitation is consumed by the
         # attempt it was started for, so a token left behind cannot admit a second,
         # unrelated sign-in from the same browser.
-        user = await user_service.get_or_create_oauth_user(
+        account = await user_service.get_or_create_oauth_account(
             provider=provider,
             # Namespaced by issuer for the generic provider: an OIDC `sub` is
             # unique within its issuer and nowhere else, and this match happens
@@ -236,6 +236,7 @@ async def provider_callback(
             invitation_token=request.session.pop(_INVITATION_KEY, None),
             admitted_by_directory=groups is not None and await directory_sync.admits(groups),
         )
+        user = account.user
         # A deactivated account is refused before anything is written for it:
         # it can still authenticate at its provider, and must not keep
         # reshaping memberships from there.
@@ -266,6 +267,7 @@ async def provider_callback(
             access_token=access_token,
             refresh_token=refresh_token,
             code_challenge=native_code_challenge(started.get("client"), started.get("nonce")),
+            is_new_user=account.is_new_user,
         )
         await session_service.create_session(
             user_id=user.id,
@@ -293,11 +295,10 @@ async def provider_callback(
         return RedirectResponse(url=f"{frontend}/login?{params}")
 
 
-@router.post("/exchange", response_model=Token)
+@router.post("/exchange", response_model=SignInToken)
 async def exchange_code(body: OAuthExchangeRequest, exchange_service: OAuthExchangeSvc) -> Any:
     """Swap a single-use OAuth code for its token pair, server to server."""
     tokens = await exchange_service.redeem(body.code, code_verifier=body.code_verifier)
     if tokens is None:
         raise AuthenticationError(message="Invalid or expired exchange code")
-    access_token, refresh_token = tokens
-    return Token(access_token=access_token, refresh_token=refresh_token)
+    return tokens

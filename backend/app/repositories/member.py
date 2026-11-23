@@ -327,6 +327,24 @@ async def list_member_ids_for(
     return {row[0] for row in result.all()}
 
 
+async def list_user_ids(db: AsyncSession, *, organization_id: UUID) -> list[UUID]:
+    """Every member's user id, active or not, for teardown that must reach them all."""
+    result = await db.execute(
+        select(OrganizationMember.user_id).where(
+            OrganizationMember.organization_id == organization_id
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def list_organization_ids(db: AsyncSession, *, user_id: UUID) -> list[UUID]:
+    """Every organization the user is a member of, for teardown that must reach them all."""
+    result = await db.execute(
+        select(OrganizationMember.organization_id).where(OrganizationMember.user_id == user_id)
+    )
+    return list(result.scalars().all())
+
+
 async def list_member_ids_by_role(
     db: AsyncSession,
     *,

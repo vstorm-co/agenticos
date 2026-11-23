@@ -1,5 +1,5 @@
 ---
-source_sha: "dcf5445d27d2"
+source_sha: "efcf8f8ad81e"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -462,6 +462,8 @@ Sesja zachowana jako wersja robocza jest zakończona: wersję roboczą publikuje
 
 Szacunek sesji obejmuje klasyfikację złych odpowiedzi z rozmów i nieudanych odpowiedzi treningowych względem edytowalnych baz wiedzy agenta oraz grupowanie ich braków w [tematy](knowledge-gaps.md#topics). Nie obejmuje szkiców: szkic powstaje tylko wtedy, gdy poprosi o niego człowiek, i jest rozliczany jako własny run szkicu. Każdy krok przed rozpoczęciem ponownie sprawdza swój pełny koszt. Klasyfikacja i grupowanie korzystają wyłącznie z przypiętych, niewymazanych rozmów i z odpowiedzi treningowych, z których uczy się sesja; odpowiedź treningowa z brakującą wiedzą pozostaje też materiałem agenta, a tekst kontrolny nie trafia do tych pomocników.
 
+Nieudana odpowiedź treningowa, której brakuje tylko kluczy niezawartych w żadnym źródle agenta według jego raportu [pokrycia kluczy](datasets.md#key-coverage) dla tego datasetu, liczy się jako brakująca wiedza, a nie błąd agenta. Pomocnik czyta, które to klucze, po etykiecie, i że musi je dostarczyć użytkownik: żadna zmiana instrukcji tego nie zrobi.
+
 Błąd klasyfikatora jest widoczny, rozmowy źródłowe pozostają dostępne, a sesja i tak zatrzymuje się na **Zrozumieniu**. Sesja wymagająca tylko wiedzy zatrzymuje się i wymienia tematy, których brakuje w bazie wiedzy, żeby napisać szkice tych, których potrzebujesz, bez pustej wersji agenta. Szkic staje się nieaktualny, gdy po jego napisaniu do bazy wiedzy zostanie dodany dokument, a **Napisz szkic od nowa** pisze go ponownie (zobacz [Szkic brakującej treści](knowledge-gaps.md#drafting-the-missing-content)). Sprawdzenie szkicu nadal wymaga własnej wyceny i potwierdzenia; dodanie treści pozostaje osobną decyzją człowieka.
 
 Ręczna ocena i jej cofnięcie przeliczają aktualnie zmierzoną próbę w tej samej transakcji co wynik testu i automatycznego sprawdzenia. Wybrana próba i koszt pozostają bez zmian. Starsze pomiary oraz sprawdzenia pojedynczych sugestii nie zastępują aktualnego wspólnego werdyktu. Przegląd nie uruchamia nowego modelu, publikacji ani przeniesienia środowiska. Jeżeli autor sesji nie może już odczytać porównania, próba staje się nierozstrzygnięta zamiast zachować zielony wynik. Zdarzenia datasetu odświeżają widoki testów, automatycznych sprawdzeń, sesji i środowisk.
@@ -501,6 +503,52 @@ każdy kolejny krok swoją cenę. Woła te same akcje co kreator, jako Ty, więc
 obowiązują te same sprawdzenia: zmieniony agent odmawia przyjęcia, chronione
 środowisko czeka na swój check, a dziennik audytu zapisuje Ciebie, z
 poświadczeniem Architekta obok.
+
+### Wyszukiwanie wielu wariantów { #searching-many-variants }
+
+Sesja może przeszukać wiele wersji instrukcji agenta, zamiast prosić o jedną
+propozycję na próbę. Wybierz **Szukaj wariantów** przy starcie Popraw albo wyślij
+`mode: "search"` z ustawieniami `search` do wyceny i do startu. Wyszukiwanie
+potrzebuje co najmniej dziesięciu pytań treningowych w datasecie. Przy mniejszej
+liczbie opcja jest wyłączona, a API odpowiada `422`.
+
+Po **Zrozumieniu** kolejny krok uruchamia wyszukiwanie. Pomocnik pisze naraz
+kilka pełnych wersji instrukcji. Każda wersja odpowiada na to samo losowanie
+pytań treningowych próby, a jej odpowiedzi są oceniane. Następne wersje pomocnik
+pisze na podstawie najlepszych i pytań, których wciąż nie przechodzą.
+Wyszukiwanie nigdy nie czyta pytań odłożonych do sprawdzenia.
+
+Wyszukiwanie kończy się na własnym budgecie, na limicie wariantów
+(`max_variants`, domyślnie 40) albo po rundach, które nie znalazły nic lepszego
+(`patience`, domyślnie 3). Najlepszy wariant, który wypada lepiej niż obecne
+instrukcje, trafia do **Zmian** jako zwykłe zmiany, a jego sprawdzenie, wynik i
+akceptacja działają jak w każdej próbie. Wynik z wyszukiwania to odsetek
+spełnionych wymaganych kryteriów na pytaniach treningowych, a nie werdykt. W
+**Zmianach**, przed sprawdzeniem, `PUT /{run_id}/search/choice` z `variant_id`
+przenosi zamiast niego inny z trzech najlepszych wariantów. Gdy żaden wariant
+nie wypada lepiej niż obecne instrukcje, sesja zatrzymuje się z `no_variant`.
+
+Wyszukiwanie ma własny budget, `search.budget_usd`, w ramach limitu sesji, a
+wycena startu dolicza do sumy ten budget i sprawdzenie znalezionego wariantu.
+Wariant startuje tylko wtedy, gdy jego wycena mieści się w tym, co zostało.
+Każda odpowiedź ma limit dwukrotności swojej części wyceny, więc wyszukiwanie
+może przekroczyć budget najwyżej o jeden oceniany wariant. Sesja pokazuje
+wydatki wyszukiwania osobno od reszty.
+
+Treść wariantów, pisaną na podstawie pytań datasetu, czyta tylko ktoś, kto
+mógłby uruchomić sesję - z prawem edycji agenta, `runs:view` i prawem
+uruchamiania datasetu; pozostali widzą liczby. Pytanie, na które wariant nie
+odpowiedział albo którego nie dało się ocenić, liczy się jako niezaliczone.
+Wyszukiwanie bez postępu przez godzinę kończy się błędem `stalled` i można je
+ponowić.
+
+Domyślnie warianty ocenia sędzia datasetu na własnym modelu;
+`grading_model_profile_id` ocenia je zamiast tego na tańszym albo lokalnym
+modelu. Sprawdzenie po **Zmianach** zawsze ocenia sędzia datasetu. Odpowiedzi
+wariantów nie są ewaluacjami: nie pojawiają się ani na karcie **Ewaluacje**, ani w
+porównaniach, a sesja pokazuje, ile kosztowały. Zadania wyszukiwania działają po
+jednym naraz w organizacji i nie zajmują miejsc ewaluacji. Wyszukiwanie treści
+skilla nie jest jeszcze dostępne.
 
 ### Propozycja nowego skilla { #proposing-a-new-skill }
 

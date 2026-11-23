@@ -10,10 +10,12 @@ import {
   Loader2,
   Paperclip,
   RotateCcw,
+  Play,
   Send,
   X,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { Button } from "@/components/ui/button";
 
 import type { QueuedMessage, SteerDraft } from "@/hooks/use-chat";
 import { cn } from "@/lib/utils";
@@ -32,6 +34,7 @@ interface PendingMessagesProps {
   onSendNow?: (id: string) => void;
   /** Absent where the order cannot change. */
   onMove?: (id: string, to: number) => void;
+  onResume?: () => void;
 }
 
 const ROW_ACTION =
@@ -55,12 +58,14 @@ export function PendingMessages({
   waitingForNetwork = false,
   onSendNow,
   onMove,
+  onResume,
 }: PendingMessagesProps) {
   const t = useTranslations("chat");
   const [open, setOpen] = useState(true);
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<number | null>(null);
   if (messages.length === 0 && steers.length === 0) return null;
+  const paused = messages.some((message) => message.paused);
 
   const endDrag = () => {
     setDragging(null);
@@ -88,7 +93,11 @@ export function PendingMessages({
               !waitingForNetwork && "max-sm:hidden",
             )}
           >
-            {waitingForNetwork ? t("queuedWaitingForNetwork") : t("queuedSendsAfterCurrent")}
+            {paused
+              ? t("queuedPaused")
+              : waitingForNetwork
+                ? t("queuedWaitingForNetwork")
+                : t("queuedSendsAfterCurrent")}
           </span>
         )}
         <ChevronDown
@@ -98,6 +107,15 @@ export function PendingMessages({
           )}
         />
       </button>
+
+      {paused && onResume && (
+        <div className="border-foreground/8 flex justify-end border-t px-2 py-1">
+          <Button type="button" variant="ghost" size="sm" onClick={onResume}>
+            <Play aria-hidden className="size-3.5" />
+            {t("resumeQueue")}
+          </Button>
+        </div>
+      )}
 
       {open && (
         <div className="border-foreground/8 max-h-56 scrollbar-thin overflow-y-auto border-t p-1.5">
@@ -210,7 +228,7 @@ export function PendingMessages({
                         {t("queuedRetry")}
                       </button>
                     )}
-                    {onSendNow && (
+                    {onSendNow && !paused && (
                       <button
                         type="button"
                         onClick={() => onSendNow(message.id)}

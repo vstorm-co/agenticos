@@ -13,8 +13,11 @@ and :meth:`OrganizationSecretService.oauth_app`, which hands
 an OAuth client's secret to the provider's own token endpoint inside the connect
 flow and to nowhere else. `smtp_email_service` opens one permitted SMTP account
 straight into its transport, never returning credentials to an API caller.
+`native_runtime_key` exports a selected key only to a native template whose initiating
+member independently has vault visibility; it is never an HTTP secret reader.
 """
 
+import hashlib
 from typing import TYPE_CHECKING, cast
 from uuid import UUID, uuid4
 
@@ -49,7 +52,9 @@ from app.services.access import SECRET, accessible_ids, resolve_access, visible_
 from app.services.notifications import NotificationService
 
 if TYPE_CHECKING:
+    from app.agents.pi_keys import NativeKeyProvider, NativeRuntimeKey
     from app.services.email.service import EmailService
+    from app.services.model_catalog import CatalogModel
 
 # The credentials a connect flow spends: separate kinds even where the fields are
 # identical, because a kind names what a credential is for.
@@ -368,6 +373,12 @@ class OrganizationSecretService:
             for secret_id, row in rows.items()
         }
 
+    async def chatgpt_models(self, ctx: AuthContext, secret_id: UUID) -> list[CatalogModel]:
+        """List only the selected visible official ChatGPT account's models."""
+        from app.services.chatgpt_plan import account_models
+
+        return await account_models(self.db, ctx, secret_id)
+
     async def listing_key(
         self, ctx: AuthContext, provider: str, *, secret_id: UUID | None = None
     ) -> str | None:
@@ -635,6 +646,40 @@ class OrganizationSecretService:
             kind=kind,
             scope=VaultScope.organization(organization_id),
             key_version=row.key_version,
+        )
+
+    async def native_runtime_key(
+        self, *, organization_id: UUID, user_id: UUID, secret_id: UUID, provider: NativeKeyProvider
+    ) -> NativeRuntimeKey:
+        """Open one visible API key for this member's explicitly consented native runtime.
+
+        This is a credential export boundary: agent run access alone is insufficient.
+        The current member must independently have vault visibility for this exact row.
+        """
+        from app.agents.pi_keys import NativeRuntimeKey
+
+        membership = await member_repo.get(
+            self.db, organization_id=organization_id, user_id=user_id
+        )
+        if membership is None:
+            raise NotFoundError(message="Secret not found")
+        ctx = AuthContext(user_id=user_id, organization_id=organization_id, role=membership.role)
+        row = await self.get_usable(ctx, secret_id, kind=SecretKind.API_KEY)
+        # Gemini keys are stored under the Google model-provider purpose.
+        if row.purpose not in {"google" if provider == "gemini" else provider, CUSTOM}:
+            raise BadRequestError(message="Choose a vault key for this provider")
+        value = unseal_kind(
+            row.sealed_secret,
+            model=ApiKeySecret,
+            scope=VaultScope.organization(organization_id),
+            key_version=row.key_version,
+        )
+        return NativeRuntimeKey.model_validate(
+            {
+                "provider": provider,
+                "api_key": value.api_key,
+                "revision": hashlib.sha256(row.sealed_secret.encode()).hexdigest(),
+            }
         )
 
     async def get_usable(

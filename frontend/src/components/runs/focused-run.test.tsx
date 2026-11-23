@@ -453,3 +453,20 @@ it("retries a run read without leaving the inspector", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(refetch).toHaveBeenCalled();
 });
+
+it("shows the recorded reason a run stopped before its timeline", () => {
+  serve({ run: run({ status: "failed", error: "Provider refused this model" }) });
+  renderRun();
+  const failure = screen.getByRole("region", { name: "Why this run stopped" });
+  expect(failure).toHaveTextContent("Provider refused this model");
+  expect(
+    failure.compareDocumentPosition(screen.getByTestId("timeline")) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+});
+
+it("does not invent a failure reason for a completed run", () => {
+  serve({ run: run() });
+  renderRun();
+  expect(screen.queryByRole("region", { name: "Why this run stopped" })).not.toBeInTheDocument();
+});

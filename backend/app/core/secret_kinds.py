@@ -109,6 +109,7 @@ class SecretKind(StrEnum):
     SMTP_ACCOUNT = "smtp_account"
     MICROSOFT_OAUTH_APP = "microsoft_oauth_app"
     OPENAI_CODEX = "openai_codex"
+    OPENAI_CHATGPT = "openai_chatgpt"
 
 
 def _reveal(value: SecretStr) -> str:
@@ -508,6 +509,21 @@ class OpenAICodexSecret(_SecretBase):
         return self.account_id[-4:]
 
 
+class OpenAIChatGPTSecret(_SecretBase):
+    """An application-specific public Responses API grant; never a Codex token."""
+
+    kind: Literal[SecretKind.OPENAI_CHATGPT] = SecretKind.OPENAI_CHATGPT
+    client_id: str = Field(min_length=1, max_length=512)
+    access_token: CredentialStr
+    refresh_token: CredentialStr
+    id_token: SealedStr | None = None
+    scope: str = Field(max_length=4096)
+
+    @property
+    def hint(self) -> str:
+        return self.client_id[-4:]
+
+
 class GithubOAuthAppSecret(_SecretBase):
     """A GitHub OAuth App's credentials: a public client id and a secret."""
 
@@ -652,7 +668,8 @@ StorableSecret = Annotated[
     | SmtpAccountSecret
     | HttpCredentialSecret
     | MicrosoftOAuthAppSecret
-    | OpenAICodexSecret,
+    | OpenAICodexSecret
+    | OpenAIChatGPTSecret,
     Field(discriminator="kind"),
 ]
 """Every shape a person can actually save."""
@@ -693,7 +710,8 @@ SecretValue = Annotated[
     | SmtpAccountSecret
     | HttpCredentialSecret
     | MicrosoftOAuthAppSecret
-    | OpenAICodexSecret,
+    | OpenAICodexSecret
+    | OpenAIChatGPTSecret,
     Field(discriminator="kind"),
 ]
 """What the runtime holds - :data:`StorableSecret` plus "there is no credential"."""
@@ -800,9 +818,14 @@ _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
     SecretKind.SMTP_ACCOUNT: SmtpAccountSecret,
     SecretKind.MICROSOFT_OAUTH_APP: MicrosoftOAuthAppSecret,
     SecretKind.OPENAI_CODEX: OpenAICodexSecret,
+    SecretKind.OPENAI_CHATGPT: OpenAIChatGPTSecret,
 }
 
 _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
+    SecretKind.OPENAI_CHATGPT: (
+        "ChatGPT plan usage (official)",
+        "An application-specific ChatGPT grant for the public Responses API. Requires an eligible deployment; independent of Codex sign-in.",
+    ),
     SecretKind.SMTP_ACCOUNT: (
         "SMTP account",
         "Send workflow emails through your own mail server. Server, sender and credentials are stored together.",

@@ -5,6 +5,7 @@
   "dependencies": {
     "@agentclientprotocol/claude-agent-acp": "0.99.1",
     "@agentclientprotocol/codex-acp": "2.5.0",
-    "@openai/codex": "0.165.0"
+    "@openai/codex": "0.165.0",
+    "@muse-code/sdk": "1.4.23"
   }
 }

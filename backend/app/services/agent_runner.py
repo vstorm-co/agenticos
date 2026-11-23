@@ -239,11 +239,13 @@ from app.agents.mcp import (
     unreachable_briefing,
 )
 from app.agents.model_context import ModelContextCheck, checking_model_context
-from app.agents.model_resolver import ModelRequestSpec
+from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
+from app.agents.native_model_spec import NATIVE_RUNTIME_LABELS, NativeModelSpec
 from app.agents.observability import current_trace_id
 from app.agents.person_briefing import Person, with_person
 from app.agents.routine_actions import RoutineToolCheck
 from app.agents.routine_authority import RoutineCheck, guard_for
+from app.agents.runtime_questions import RuntimeQuestionsCallback
 from app.agents.spec import (
     AgentSpec,
     BudgetSpec,
@@ -481,12 +483,17 @@ SPECIALIST_SKILLS_RESOURCE = "specialist_skills"
 
 _PREVIEW_CHARS = 80
 
-_ORIGIN_KINDS: dict[str, Literal["grader", "improve", "knowledge_gaps", "test_questions"]] = {
+_ORIGIN_KINDS: dict[
+    str,
+    Literal["grader", "improve", "knowledge_gaps", "test_questions", "key_drafts", "key_coverage"],
+] = {
     AgentKind.JUDGE.value: "grader",
     AgentKind.IMPROVER.value: "improve",
     AgentKind.CLASSIFIER.value: "knowledge_gaps",
     AgentKind.DRAFTER.value: "knowledge_gaps",
     AgentKind.GENERATOR.value: "test_questions",
+    AgentKind.EXTRACTOR.value: "key_drafts",
+    AgentKind.COVERAGE.value: "key_coverage",
 }
 
 
@@ -1369,6 +1376,18 @@ class ApprovalChannel:
     rows do not exist yet while the run is going, and re-reading them would be a
     query per parked call to recover what this object already had in hand.
     """
+
+    async def live(
+        self,
+        request: ApprovalRequest,
+        *,
+        user_id: UUID,
+        questions: RuntimeQuestionsCallback,
+    ) -> ApprovalDecision:
+        """Resolve a native action without detaching its running process."""
+        from app.services.runtime_tool_approvals import decide_live
+
+        return await decide_live(self, request, user_id=user_id, questions=questions)
 
     async def __call__(self, request: ApprovalRequest) -> ApprovalDecision:
         decision = self.decided.pop(request.tool_call_id, None)
@@ -2301,6 +2320,7 @@ class LiveRunSurface:
     ask_user: AskUserCallback
     ask_questions: QuestionsCallback
     emit: Callable[[str, dict[str, Any]], Awaitable[None]]
+    runtime_questions: RuntimeQuestionsCallback | None = None
 
 
 async def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
@@ -2363,6 +2383,10 @@ def _with_execution_environment(spec: AgentSpec, local: LocalTarget | None) -> A
         if local.coding_agent is not None:
             selected.append(
                 f"Coding tasks use {local.coding_agent} in the approved folder on this computer."
+            )
+        if local.conversation_runtime is not None:
+            selected.append(
+                f"The primary conversation runs in {NATIVE_RUNTIME_LABELS[local.conversation_runtime.harness]} on this computer. Its CLI owns login, native context and opaque charges; this is not a delegated coding task."
             )
         if local.model_service is not None:
             selected.append(
@@ -3602,6 +3626,25 @@ def _started_by_a_person(run: AgentRun) -> bool:
     return run.key_scopes is None
 
 
+def _routine_mcp_refs(spec: AgentSpec) -> list[McpServerRef]:
+    """Add only the run's reporting surface, without editing the published spec."""
+    refs = list(spec.mcp_servers)
+    if not any(isinstance(ref, PlatformMcpServerRef) for ref in refs):
+        refs.append(
+            PlatformMcpServerRef(account="platform", allowed_tools=["publish_inbox_finding"])
+        )
+    else:
+        refs = [
+            ref.model_copy(update={"allowed_tools": [*ref.allowed_tools, "publish_inbox_finding"]})
+            if isinstance(ref, PlatformMcpServerRef)
+            and ref.allowed_tools is not None
+            and "publish_inbox_finding" not in ref.allowed_tools
+            else ref
+            for ref in refs
+        ]
+    return refs
+
+
 class AgentRunnerService:
     """Prepare, execute and account for agent runs."""
 
@@ -3651,6 +3694,7 @@ class AgentRunnerService:
             now=datetime.now(UTC),
             user_name=user_name or (person.full_name or person.email if person else None),
             user_email=person.email if person else None,
+            user_locale=person.locale if person else None,
             organization_name=organization_name,
             surface=surface.value,
             groups=tuple(groups),
@@ -3729,16 +3773,27 @@ class AgentRunnerService:
         *,
         agent_id: UUID | None = None,
         conversation_id: UUID | None = None,
+        run_id: UUID | None = None,
     ) -> str | None:
-        """A credential for this platform's own MCP server, when the spec binds it.
+        """Mint the bound platform authority or a scope-free routine reporting key.
 
-        Minted from the authority of the person the run is for, so the agent can do
-        what they can do - and an agent that does not bind the server mints
-        nothing. `None` where nobody is behind the run.
+        Reporting-only access never lends the creator's general platform permissions.
+        The published binding, where present, still defines its approval policy.
         """
-        if not any(isinstance(ref, PlatformMcpServerRef) for ref in spec.mcp_servers):
+        bound = any(isinstance(ref, PlatformMcpServerRef) for ref in spec.mcp_servers)
+        routine = ctx.routine_id is not None or (
+            existing_run is not None and existing_run.routine_origin_id is not None
+        )
+        if not bound and not routine:
             return None
         owner = await self._run_owner_context(ctx, existing_run)
+        reporting_only = routine and (
+            not bound or (owner is not None and owner.subject_is_publisher_fallback)
+        )
+        if owner is not None and reporting_only:
+            # This token has no platform scopes. Only the run-bound reporting
+            # endpoint accepts it; it cannot lend personal or admin authority.
+            owner = replace(owner, subject_is_publisher_fallback=False)
         return (
             None
             if owner is None
@@ -3746,6 +3801,8 @@ class AgentRunnerService:
                 owner,
                 agent_id=existing_run.agent_id if existing_run is not None else agent_id,
                 conversation_id=conversation_id,
+                run_id=existing_run.id if existing_run is not None else run_id,
+                reporting_only=reporting_only,
             )
         )
 
@@ -4310,7 +4367,8 @@ class AgentRunnerService:
             models_ctx,
             surface,
             override=model_profile_id,
-            local_model=local is not None and local.model_service is not None,
+            local_model=local is not None
+            and (local.model_service is not None or local.conversation_runtime is not None),
             voice=voice is not None,
             public_origin=public_origin,
         )
@@ -4324,6 +4382,55 @@ class AgentRunnerService:
                 models_ctx.organization_id, profile_id=spec.model_profile_id
             )
             model_spec = await PersonalModelKeyService(self.db).resolve(models_ctx, profile)
+        elif local is not None and local.conversation_runtime is not None:
+            if not {
+                "codex": settings.CODEX_NATIVE_CONVERSATION_ENABLED,
+                "claude_code": settings.CLAUDE_NATIVE_CONVERSATION_ENABLED,
+                "external": settings.EXTERNAL_NATIVE_CONVERSATION_ENABLED,
+            }[local.conversation_runtime.harness]:
+                raise BadRequestError(
+                    message="The operator has not enabled an eligible deployment for this primary conversation runtime"
+                )
+            if (
+                surface != RunSurface.WEB
+                or voice is not None
+                or public_origin
+                or spec.output_schema is not None
+                or spec.reviewers
+                or spec.code_mode.enabled
+                or bool(spec.model_settings.model_dump())
+                or any(
+                    binding.id == "compaction" and binding.enabled for binding in spec.capabilities
+                )
+            ):
+                raise BadRequestError(
+                    message="Native primary conversations require private text web chat, plain text output and native context management; disable model setting overrides, reviewers, Code Mode and platform compaction for this run"
+                )
+            profile = await self.models.profile_for_organization(
+                models_ctx.organization_id, profile_id=model_profile_id or spec.model_profile_id
+            )
+            from app.core.secret_kinds import NoSecret
+
+            native_provider = f"native-{local.conversation_runtime.harness}"
+            model_spec = NativeModelSpec(
+                profile_id=profile.id,
+                label=f"{NATIVE_RUNTIME_LABELS[local.conversation_runtime.harness]} (native conversation)",
+                provider=native_provider,
+                model=native_provider,
+                params={},
+                credential=ResolvedCredential(
+                    provider=native_provider,
+                    secret=NoSecret(),
+                    routing={
+                        "native_epoch": str(local.conversation_runtime.session_epoch),
+                        "access": local.conversation_runtime.access,
+                        "native_model": local.conversation_runtime.model_id,
+                    },
+                ),
+                fallbacks=[],
+                target=local.conversation_runtime,
+                readonly_tools=capability_tools(spec),
+            )
         elif local is not None and local.model_service is not None:
             if voice is not None:
                 raise BadRequestError(message="Local models are available for text conversations")
@@ -4630,10 +4737,12 @@ class AgentRunnerService:
             personal_sources = {watch_sources.connection_id: source_identity(watch_sources)}
         # What the spec's other tools are called, which no MCP tool may also be (#2890).
         taken_names = taken_tool_names(spec)
+        runtime_run_id = existing_run.id if existing_run is not None else uuid4()
+        runtime_refs = _routine_mcp_refs(spec) if routine is not None else spec.mcp_servers
         resolved = await build_toolsets_for_agent(
             self.db,
             organization_id=ctx.organization_id,
-            refs=spec.mcp_servers,
+            refs=runtime_refs,
             sender_user_id=personal_mcp_user_id,
             recheck_sources=personal_mcp is not None,
             test_connections=test_connections.mcp,
@@ -4645,6 +4754,7 @@ class AgentRunnerService:
                 ctx,
                 existing_run,
                 agent_id=agent.id,
+                run_id=runtime_run_id,
                 conversation_id=_routine_source(
                     ctx,
                     surface=surface,
@@ -4692,6 +4802,10 @@ class AgentRunnerService:
             linked_sender=personal_mcp_user_id is not None,
             test_environment=settings.ENVIRONMENT in {"local", "development"},
         )
+        if routine is not None:
+            from app.schemas.routine_notifications import ROUTINE_RESULT_INSTRUCTIONS
+
+            context += "\n\n" + ROUTINE_RESULT_INSTRUCTIONS
         if context:
             guidance = "" if CHANNEL_BEHAVIOR in spec.instructions else "\n\n" + CHANNEL_BEHAVIOR
             spec = spec.model_copy(
@@ -4748,6 +4862,7 @@ class AgentRunnerService:
             require_admission()
             run = await agent_run_repo.create_run(
                 self.db,
+                run_id=runtime_run_id,
                 organization_id=ctx.organization_id,
                 agent_id=agent.id,
                 # A draft under test, or an unpublished candidate, has no version;
@@ -4769,7 +4884,9 @@ class AgentRunnerService:
                         if ctx.routine_dispatch_id is None
                         else str(ctx.routine_dispatch_id),
                         "acts_as_creator": routine.acts_as_creator,
+                        "action_mode": routine.action_mode,
                         "result_mode": routine.result_mode,
+                        "chat_mode": routine.chat_mode,
                         "approved_sources": None
                         if routine.source_policy is None
                         else routine.source_policy.model_dump(mode="json"),
@@ -4897,7 +5014,11 @@ class AgentRunnerService:
         # instructions, whichever agent answers - see `_in_project`.
         if project is not None:
             spec = _in_project(spec, project)
-        if answer_only and local_model_choice is None:
+        if (
+            answer_only
+            and local_model_choice is None
+            and not isinstance(model_spec, NativeModelSpec)
+        ):
             spec = _answer_only(spec)
 
         # Opened after the run row, because a run-scoped workspace keys on it,
@@ -5234,7 +5355,10 @@ class AgentRunnerService:
             personal_models_blocked=(
                 public_origin
                 or voice is not None
-                or (local is not None and local.model_service is not None)
+                or (
+                    local is not None
+                    and (local.model_service is not None or local.conversation_runtime is not None)
+                )
             ),
             spec=spec.model_copy(update={"capabilities": delegation_capabilities}),
             agent=agent,
@@ -8155,6 +8279,7 @@ class AgentRunnerService:
         if live_surface is not None:
             prepared.built.deps.ask_user = live_surface.ask_user
             prepared.built.deps.ask_questions = live_surface.ask_questions
+            prepared.built.deps.runtime_questions = live_surface.runtime_questions
             prepared.built.deps.parks_questions = False
         prepared.built.deps.shows_drafts = _draws_drafts(run, state)
 

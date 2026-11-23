@@ -20,7 +20,7 @@ for (const theme of ["light", "dark"] as const) {
       test.setTimeout(60_000);
       await page.setViewportSize({ width, height: 900 });
       await readAppearanceAs(page, theme);
-      await page.goto("/chat");
+      await page.goto("/chat?answerer=agenticos");
       await expect(
         page.getByRole("button", { name: `Agent: ${SEEDED_AGENT_NAME}`, exact: true }),
       ).toBeVisible();
@@ -98,6 +98,8 @@ for (const theme of ["light", "dark"] as const) {
           }
         }
         await expect(scroller.getByText(/^History fixture 6\./)).toBeVisible();
+        const draft = composer.getByRole("textbox");
+        await draft.fill("Draft kept while answering");
         await scroller.hover();
         await page.mouse.wheel(0, -10000);
         const earlier = scroller.getByText(/^History fixture 1\./);
@@ -132,38 +134,16 @@ for (const theme of ["light", "dark"] as const) {
         await expect
           .poll(async () => (await composer.boundingBox())?.y)
           .toBeCloseTo(inputBefore.y, 0);
-        await page
-          .getByRole("button", { name: "Answer the agent’s question", exact: true })
-          .click();
-        const inset = await scroller.evaluate((element) => ({
-          top: element.getBoundingClientRect().top,
-          padding: Number.parseFloat(getComputedStyle(element).scrollPaddingTop) || 24,
-        }));
-        await test.info().attach("question-reveal-geometry", {
-          body: Buffer.from(
-            JSON.stringify(
-              await scroller.evaluate((element) => {
-                const card = element.querySelector("[data-question-pending]");
-                return {
-                  scrollTop: element.scrollTop,
-                  scrollHeight: element.scrollHeight,
-                  clientHeight: element.clientHeight,
-                  scrollerTop: element.getBoundingClientRect().top,
-                  questionTop: card?.getBoundingClientRect().top,
-                  documentScroll: document.scrollingElement?.scrollTop,
-                  focusedRole: document.activeElement?.getAttribute("role"),
-                  focusedLabel: document.activeElement?.getAttribute("aria-label"),
-                };
-              }),
-            ),
-          ),
-          contentType: "application/json",
-        });
-        await expect
-          .poll(async () => (await question.boundingBox())?.y)
-          .toBeCloseTo(inset.top + inset.padding, 0);
+        await expect(draft).toBeVisible();
+        await expect(draft).toBeEnabled();
+        await expect(draft).toHaveText("Draft kept while answering");
+        await expect(
+          page.getByRole("button", { name: "Answer the agent’s question", exact: true }),
+        ).toHaveCount(0);
+        await question.scrollIntoViewIfNeeded();
+        await expect(question).toBeInViewport();
         const revealed = await question.boundingBox();
-        if (!revealed) throw new Error("Expected the explicitly revealed question");
+        if (!revealed) throw new Error("Expected the question after scrolling");
         const expectQuestionStill = async () => {
           await expect
             .poll(async () => (await question.boundingBox())?.y)

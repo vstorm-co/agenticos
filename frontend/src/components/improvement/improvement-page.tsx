@@ -29,8 +29,9 @@ import { ResultEvidence } from "./result-evidence";
 import { ResultAttempts, ResultStep } from "./result-decision";
 import { type ReadOnlyReason } from "./read-only";
 import { SessionDecision } from "./session-decision";
+import { VariantSearch } from "./variant-search";
 import { ImprovementShell, WorkingNote } from "./improvement-shell";
-import { hasCandidate, isActive, isClosed, stopOf } from "@/lib/improvement-steps";
+import { currentAttempt, hasCandidate, isActive, isClosed, stopOf } from "@/lib/improvement-steps";
 
 export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessionId: string }) {
   const t = useTranslations("improvement");
@@ -188,6 +189,7 @@ function Session({
                   {session.iteration > 1 && (
                     <p className="text-muted-foreground text-sm">{t("freshAttempt")}</p>
                   )}
+                  <VariantSearch session={session} choosable={!readOnly} />
                   <AttemptChanges
                     session={session}
                     editable={!readOnly}
@@ -212,14 +214,19 @@ function Session({
                 <section className="min-w-0 space-y-4">
                   <AttemptHistory session={session} />
                   {views.changes.content === "working" ? (
-                    <WorkingNote>
-                      {session.iteration > 1
-                        ? t("writingAgain", {
-                            number: session.iteration,
-                            max: session.max_iterations,
-                          })
-                        : t("changesWorking")}
-                    </WorkingNote>
+                    <>
+                      <WorkingNote>
+                        {session.stage === "searching"
+                          ? t("searchWorking")
+                          : session.iteration > 1
+                            ? t("writingAgain", {
+                                number: session.iteration,
+                                max: session.max_iterations,
+                              })
+                            : t("changesWorking")}
+                      </WorkingNote>
+                      <VariantSearch session={session} choosable={false} />
+                    </>
                   ) : (
                     <>
                       <h2 className="font-medium">
@@ -237,6 +244,7 @@ function Session({
               ) : (
                 <Card className="space-y-3 p-6 text-sm">
                   <p>{t("noChangesFound")}</p>
+                  <VariantSearch session={session} choosable={false} />
                   <ul className="list-disc space-y-1 pl-5">
                     {session.iterations.map((round) => (
                       <li key={round.id}>
@@ -272,6 +280,9 @@ function Session({
             ) : (
               <CheckProgress session={session} onShowResult={() => goTo("result")} />
             ))}
+          {step === "result" && !currentAttempt(session)?.batch_id && (
+            <VariantSearch session={session} choosable={false} />
+          )}
           {step === "result" && (
             <ResultStep
               session={session}

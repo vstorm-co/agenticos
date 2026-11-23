@@ -11,6 +11,7 @@ import { useProjects } from "@/hooks/use-projects";
 import { usePermissions } from "@/hooks/use-permissions";
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
+import { SIDEBAR_NAV_LINK } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 
@@ -51,11 +52,8 @@ export function ProjectRows({
             : undefined
         }
         className={cn(
-          "touch:min-h-11 flex h-8 items-center rounded-xl text-sm font-medium transition-colors",
-          collapsed ? "touch:min-w-11 w-8 justify-center" : "gap-2.5 px-2.5",
-          active
-            ? "bg-foreground/8 text-foreground"
-            : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+          SIDEBAR_NAV_LINK,
+          collapsed ? "touch:min-w-11 w-9 justify-center" : "gap-2.5 px-2.5",
         )}
       >
         <span className="relative shrink-0">

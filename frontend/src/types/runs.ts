@@ -38,7 +38,7 @@ export type RunSource = "conversation" | "evaluation" | "system";
 
 /** Which platform agent a run was, and where its work is read. */
 export interface RunOrigin {
-  kind: "grader" | "improve" | "knowledge_gaps" | "test_questions";
+  kind: "grader" | "improve" | "knowledge_gaps" | "test_questions" | "key_drafts" | "key_coverage";
   agent_name: string;
   /** The agent an assistant request was about. */
   agent_id?: string | null;
@@ -696,10 +696,20 @@ export interface ResumedRun {
 
 /** One question as the server carries it, before the card's own shape (#2064). */
 export interface WireQuestion {
+  multiline?: boolean;
+  initial_value?: string;
+  allow_empty?: boolean;
+  max_answer_length?: number;
   question: string;
   header?: string | null;
-  options?: { label: string; description?: string | null }[];
+  options?: {
+    label: string;
+    description?: string | null;
+    label_key?: "runtimeApprovePlan" | "runtimeRejectPlan" | "runtimeYes" | "runtimeNo";
+  }[];
   multi_select?: boolean;
+  min_selections?: number;
+  max_selections?: number;
   allow_custom: boolean;
 }
 

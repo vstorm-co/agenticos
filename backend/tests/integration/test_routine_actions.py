@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from typing import Literal
 from uuid import uuid4
 
 import pytest
@@ -20,7 +21,9 @@ from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
+from app.schemas.agent_trigger import TriggerUpdate
 from app.schemas.routine_actions import RoutineActionKey, RoutineActionOption, RoutineActions
+from app.services.agent_trigger import AgentTriggerService
 from app.services.routine_actions import RoutineActionService, action_review
 from app.services.routine_authority import RoutineAuthority
 from app.services.routine_sources import read_policy
@@ -121,6 +124,47 @@ def tool(name: str = "execute", capability: str | None = "sandbox") -> ToolDefin
     return ToolDefinition(name=name, capability_id=capability)
 
 
+@pytest.mark.parametrize("mode", ["manual", "agent"])
+async def test_changing_mode_revokes_standing_consents_and_does_not_restore_them(
+    db: AsyncSession, world: World, mode: Literal["manual", "agent"]
+) -> None:
+    world.agent.draft_spec = world.spec.model_dump(mode="json")
+    world.trigger.action_mode = "per_tool"
+    await RoutineActionService(db).replace(world.ctx, world.trigger, _request(world, [WRITE]))
+    assert world.trigger.action_consents
+    await AgentTriggerService(db).update(
+        world.ctx, world.agent.id, world.trigger.id, TriggerUpdate(action_mode=mode)
+    )
+    await db.refresh(world.trigger)
+    assert world.trigger.action_mode == mode
+    assert world.trigger.action_consents == []
+    authority = await capture(db, world)
+    decision = await authority.action_policy(world.agent.id, world.spec, tool())
+    assert decision.consented_by is None
+    if mode == "manual":
+        assert decision.required
+    await AgentTriggerService(db).update(
+        world.ctx, world.agent.id, world.trigger.id, TriggerUpdate(action_mode="per_tool")
+    )
+    assert world.trigger.action_consents == []
+
+
+async def test_resaving_the_same_custom_mode_preserves_its_current_consents(
+    db: AsyncSession, world: World
+) -> None:
+    world.agent.draft_spec = world.spec.model_dump(mode="json")
+    world.trigger.action_mode = "per_tool"
+    await RoutineActionService(db).replace(world.ctx, world.trigger, _request(world, [WRITE]))
+    saved = list(world.trigger.action_consents)
+    await AgentTriggerService(db).update(
+        world.ctx, world.agent.id, world.trigger.id, TriggerUpdate(action_mode="per_tool")
+    )
+    assert world.trigger.action_consents == saved
+    authority = await capture(db, world)
+    decision = await authority.action_policy(world.agent.id, world.spec, tool())
+    assert decision.consented_by == world.ctx.user_id
+
+
 async def test_native_writes_ask_but_reads_do_not(db: AsyncSession, world: World) -> None:
     authority = await capture(db, world)
     assert (await authority.action_policy(world.agent.id, world.spec, tool())).required
@@ -144,7 +188,8 @@ async def test_only_a_current_snapshotted_consent_waives_its_action(
     execute = next(item for item in options.items if item.tool_id == WRITE.tool_id)
     assert isinstance(execute, RoutineActionOption)
     assert execute.consented and execute.capability_name == "Sandbox"
-    assert (await before.action_policy(world.agent.id, world.spec, tool())).consented_by is None
+    with pytest.raises(AuthorizationError):
+        await before.action_policy(world.agent.id, world.spec, tool())
     authority = await capture(db, world)
     assert (
         await authority.action_policy(world.agent.id, world.spec, tool())
@@ -261,6 +306,7 @@ async def test_a_resumed_run_cannot_adopt_newly_granted_consent(
         routine_policy={
             "approved_sources": world.trigger.approved_sources,
             "action_consents": admitted,
+            "action_mode": "per_tool",
         },
     )
     await service.replace(world.ctx, world.trigger, RoutineActions())

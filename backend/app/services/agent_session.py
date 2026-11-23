@@ -35,6 +35,12 @@ from app.agents.computer_on_use import ComputerAccessRequest
 from app.agents.connect_on_use import ConnectionRequest
 from app.agents.failures import run_failure_summary
 from app.agents.loop_guard import ToolLoopStopped
+from app.agents.runtime_questions import (
+    RuntimeAnswer,
+    RuntimeQuestionRequest,
+    RuntimeQuestionResponse,
+    normalize_runtime_answers,
+)
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEvent
 from app.agents.visual_reports import VisualReports
@@ -257,6 +263,8 @@ class AgentSession:
         # the duration of the delegation, so it is bound inside `_ask_one` and
         # gone by the time the answer arrives on the receive loop (#1042).
         self._pending_asked_by: str | None = None
+        self._runtime_question_id: str | None = None
+        self._runtime_request: RuntimeQuestionRequest | None = None
         self._question_detached = False
         # One question round on the wire at a time. The client renders a single
         # `ask_user` form and its `ask_user_response` carries no correlation, and
@@ -355,10 +363,22 @@ class AgentSession:
             fut = self._ask_user_future
             if fut is None or fut.done():
                 return
+            runtime_id = self._runtime_question_id
+            if runtime_id is not None and data.get("runtime_question_id") != runtime_id:
+                return
             if not await self._reauthorize_write():
+                return
+            if (
+                self._ask_user_future is not fut
+                or fut.done()
+                or self._runtime_question_id != runtime_id
+            ):
                 return
             raw = data.get("answers")
             answers = raw if isinstance(raw, list) else []
+            if self._runtime_request is not None:
+                normalized = normalize_runtime_answers(self._runtime_request, answers)
+                answers = [answer.model_dump() for answer in normalized.answers]
             fut.set_result(answers)
             # Recorded here, in the receive loop, rather than after the run
             # resumes past its await: a `stop` sent right behind the answer is
@@ -367,10 +387,21 @@ class AgentSession:
             # (#502).
             if self._pending_questions is not None and self._current_timeline is not None:
                 for index, question in enumerate(self._pending_questions):
+                    rendered = render_answer(answers[index] if index < len(answers) else None)
+                    if (
+                        self._runtime_request is not None
+                        and index < len(self._runtime_request.questions)
+                        and index < len(answers)
+                    ):
+                        runtime_question = self._runtime_request.questions[index]
+                        answer = RuntimeAnswer.model_validate(answers[index])
+                        if not answer.skipped and not answer.selected:
+                            if runtime_question.multiline:
+                                rendered = answer.answer or "(empty text)"
+                            elif runtime_question.allow_empty and not answer.answer:
+                                rendered = "(empty text)"
                     self._current_timeline.add_ask_user(
-                        question,
-                        render_answer(answers[index] if index < len(answers) else None),
-                        asked_by=self._pending_asked_by,
+                        question, rendered, asked_by=self._pending_asked_by
                     )
             request_id = data.get("request_id")
             if isinstance(request_id, str):
@@ -696,6 +727,7 @@ class AgentSession:
                         live_surface=LiveRunSurface(
                             ask_user=self._ask_one,
                             ask_questions=self._ask_questions,
+                            runtime_questions=self._runtime_questions,
                             emit=self._resume_frame,
                         ),
                     )
@@ -1118,6 +1150,7 @@ class AgentSession:
                     prompt_message_id=prompt.message_id,
                     ask_user=self._ask_one,
                     ask_questions=self._ask_questions,
+                    runtime_questions=self._runtime_questions,
                     stream=frames.drive,
                     on_run_open=opened.append,
                     subagent_events=self._subagent_event,
@@ -1449,6 +1482,30 @@ class AgentSession:
                 self._pending_asked_by = None
         return render_answer(answers[0] if answers else None)
 
+    async def _runtime_questions(self, request: RuntimeQuestionRequest) -> RuntimeQuestionResponse:
+        """Answer a native process live; parking would strand its pending RPC."""
+        async with self._ask_lock:
+            self._pending_questions = [question.question for question in request.questions]
+            self._pending_asked_by = request.runtime_name
+            runtime_id = uuid4().hex
+            self._runtime_question_id = runtime_id
+            self._runtime_request = request
+            try:
+                raw = await self._send_and_wait(
+                    [
+                        question.model_dump(exclude={"id"}, exclude_none=True)
+                        for question in request.questions
+                    ]
+                )
+            finally:
+                self._pending_questions = None
+                self._pending_asked_by = None
+                self._runtime_question_id = None
+                self._runtime_request = None
+                with anyio.move_on_after(2, shield=True):
+                    await self._emit("runtime_question_closed", {"runtime_question_id": runtime_id})
+        return normalize_runtime_answers(request, raw)
+
     async def _ask_questions(self, request: AskUserRequest) -> AskUserResponse:
         """Park the run's own questions; answer a delegate's card live.
 
@@ -1495,7 +1552,10 @@ class AgentSession:
         fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
         self._ask_user_future = fut
         try:
-            if not await self._emit("ask_user", {"questions": questions}):
+            data: dict[str, Any] = {"questions": questions}
+            if self._runtime_question_id is not None:
+                data["runtime_question_id"] = self._runtime_question_id
+            if not await self._emit("ask_user", data):
                 return []
             return await fut
         finally:

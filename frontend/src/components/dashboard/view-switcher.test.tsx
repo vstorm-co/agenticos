@@ -71,3 +71,20 @@ describe("ViewSwitcher", () => {
     expect(onGroupChange).toHaveBeenCalledWith("g2");
   });
 });
+
+it("keeps the same surface clearance for actions when there is only one view", () => {
+  render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <ViewSwitcher
+        views={["me"]}
+        view="me"
+        onViewChange={vi.fn()}
+        groups={[]}
+        groupId={null}
+        onGroupChange={vi.fn()}
+        actions={<button>Filters</button>}
+      />
+    </NextIntlClientProvider>,
+  );
+  expect(screen.getByRole("button", { name: "Filters" }).parentElement).toHaveClass("mb-4");
+});
