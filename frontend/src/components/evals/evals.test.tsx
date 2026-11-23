@@ -15,11 +15,8 @@ import type { PassRateLine } from "@/components/charts/pass-rate-lines.impl";
 import { caseScore } from "@/test-utils/scores";
 import { ArmsTable } from "./arms-table";
 import { CaseDetail } from "./case-detail";
-import type { ScorerResult, ScorerStatus } from "@/types/scoring";
-import { criteriaOfAttempt } from "./case-table";
 import { ComparisonCard } from "./comparison-card";
 import { EstimateSummary } from "./estimate-summary";
-import { EvalRunVerdict } from "./eval-run-verdict";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { EvalsPanel } from "./evals-panel";
 import { RunsTable } from "./runs-table";
@@ -37,13 +34,11 @@ vi.mock("@/components/charts/pass-rate-lines.impl", () => ({
     <p>{`drawn: ${lines.map((l) => `${l.key}×${l.points.length}`).join(" ")}`}</p>
   ),
 }));
-const oneRun = vi.hoisted(() => ({ run: undefined as unknown }));
 vi.mock("@/hooks/use-eval-runs", () => ({
   useEvalRuns: (...args: unknown[]) => {
     evalRuns.asked.push(args);
     return evalRuns.value;
   },
-  useEvalRun: () => ({ run: oneRun.run }),
 }));
 const datasets = vi.hoisted(() => ({
   items: [] as unknown[],
@@ -88,38 +83,6 @@ describe("format", () => {
     expect(percent(null, "en")).toBe("—");
     expect(seconds(1500, "en")).toBe("1.5s");
     expect(seconds(null, "en")).toBe("—");
-  });
-});
-
-describe("EvalRunVerdict", () => {
-  it("shows the run's verdict chip once it is read, and nothing before", () => {
-    oneRun.run = undefined;
-    const { container, rerender } = render(<EvalRunVerdict runId="run-1" />);
-    expect(container).toBeEmptyDOMElement();
-
-    oneRun.run = worse();
-    rerender(<EvalRunVerdict runId="run-1" />);
-    expect(screen.getByText("Breaks 4")).toBeInTheDocument();
-  });
-
-  it("calls a run with a case left undecided inconclusive unless something broke", () => {
-    const run = worse();
-    const undecided = (verdict: "better" | "worse" | null) => ({
-      ...run,
-      outcome: { ...run.outcome!, verdict, regressions_confirmed: 0, candidate_undecided: 3 },
-    });
-    oneRun.run = undecided("better");
-    const { rerender } = render(<EvalRunVerdict runId="run-1" />);
-    expect(screen.getByText("Inconclusive")).toBeInTheDocument();
-    expect(screen.queryByText(/Fixes/)).toBeNull();
-
-    oneRun.run = undecided(null);
-    rerender(<EvalRunVerdict runId="run-1" />);
-    expect(screen.getByText("Inconclusive")).toBeInTheDocument();
-
-    oneRun.run = undecided("worse");
-    rerender(<EvalRunVerdict runId="run-1" />);
-    expect(screen.queryByText("Inconclusive")).toBeNull();
   });
 });
 
@@ -851,6 +814,23 @@ describe("VerdictChip", () => {
     render(<VerdictChip run={overall("better")} />);
     expect(screen.getByText("Better overall · 4 broke, 1 fixed")).toBeInTheDocument();
   });
+
+  it("calls a run with a case left undecided inconclusive unless something broke", () => {
+    const run = worse();
+    const undecided = (verdict: "better" | "worse" | null) => ({
+      ...run,
+      outcome: { ...run.outcome!, verdict, regressions_confirmed: 0, candidate_undecided: 3 },
+    });
+    const { rerender } = render(<VerdictChip run={undecided("better")} />);
+    expect(screen.getByText("Inconclusive")).toBeInTheDocument();
+    expect(screen.queryByText(/Fixes/)).toBeNull();
+
+    rerender(<VerdictChip run={undecided(null)} />);
+    expect(screen.getByText("Inconclusive")).toBeInTheDocument();
+
+    rerender(<VerdictChip run={undecided("worse")} />);
+    expect(screen.queryByText("Inconclusive")).toBeNull();
+  });
 });
 
 describe("CaseDetail", () => {
@@ -1114,38 +1094,16 @@ it("keeps dataset identity on sparse run links with the same candidate", () => {
   ).toBeInTheDocument();
 });
 
-describe("criteriaOfAttempt", () => {
-  const result = (status: ScorerStatus, required = true): ScorerResult => ({
-    scorer: "judge",
-    name: status,
-    required,
-    status,
-    score: null,
-    reason: "",
-    reason_code: null,
-    unverified_quotes: [],
-    rule: null,
-    unverified: false,
-    judge_said: null,
-    judge_run_id: null,
-    knowledge: [],
-  });
-
-  it("counts the required criteria that decided, and how many of them passed", () => {
-    const scored = attempt({
-      score: caseScore({
-        results: [
-          result("pass"),
-          result("pass"),
-          result("fail"),
-          result("skipped"),
-          result("fail", false),
-        ],
-      }),
-    });
-
-    expect(criteriaOfAttempt(scored)).toEqual([2, 3]);
-    expect(criteriaOfAttempt(attempt({ score: null }))).toBeNull();
-    expect(criteriaOfAttempt(undefined)).toBeNull();
-  });
+it("does not show numeric quality metrics when the entire execution failed", () => {
+  const { container } = render(
+    <ArmsTable
+      agentId="agent-1"
+      arms={[arm({ failed_alike: "Workspace unavailable" })]}
+      tag={null}
+      live={false}
+      baseline={null}
+      baselineSummary={null}
+    />,
+  );
+  expect(container).toBeEmptyDOMElement();
 });

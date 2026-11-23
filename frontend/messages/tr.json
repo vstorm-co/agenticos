@@ -16782,7 +16782,35 @@
     "noLearningExamples": "Henüz öğrenilecek bir şey yok: son 30 günde okunabilir kaynak örneği bulunmuyor. Bir yanıtı değerlendirin veya test sorularını çalıştırıp inceleyin.",
     "sessionQuote": "{answers, plural, one {# seçili kaynak örneğini} other {# seçili kaynak örneğini}} sıralamak için en fazla {cost} (tahmini). Sonraki her deneme yaklaşık {minutes, plural, one {# dakika} other {# dakika}} sürer ve yaklaşık {perRound} tutar; başlamadan önce yeniden fiyatlandırılır. {limit} sınırı tüm oturum içindir.",
     "resultDecision": {
-      "criteriaBetter": "Deneme {number}, {agent} için bazı değerlendirme ölçütlerini iyileştirdi; hiçbir sorunun genel sonucu değişmedi."
+      "criteriaBetter": "Deneme {number}, {agent} için bazı değerlendirme ölçütlerini iyileştirdi; hiçbir sorunun genel sonucu değişmedi.",
+      "title": "Sonuç",
+      "better": "Güncellenen ajan {fixed} test sorusunu daha doğru yanıtladı.",
+      "published": "{version, select, unknown {Değişiklikler yayımlandı.} other {{version}. sürüm olarak yayımlandı.}}",
+      "acceptedDraft": "Ajanın taslağına kaydedildi."
+    },
+    "record": {
+      "result": "Sonuç",
+      "changes": "Değişiklikler",
+      "check": "Test soruları",
+      "attempts": "Denemeler",
+      "understand": "Analiz",
+      "accept": "Karar",
+      "back": "Kaynağa dön",
+      "spent": "Harcanan: {spent}",
+      "passRateScope": "Değerlendirmedeki tüm sorular",
+      "more": "Oturum ayrıntıları",
+      "answersPassed": "Geçen yanıtlar",
+      "answerCount": "{cases} yanıttan {passed}"
+    },
+    "newlyFixed": "İyileşen yanıtlar",
+    "newlyBroken": "Kötüleşen yanıtlar",
+    "workspace": {
+      "changes": "Neler değişti",
+      "evidence": "Yanıtlar iyileşti mi?",
+      "change": "Değişiklik {number}",
+      "exactChange": "Tam metni karşılaştır",
+      "invalid": "Test sürümleri güvenilir biçimde karşılaştıramadı. Sonuç çıkarmadan önce testi inceleyin.",
+      "noExamples": "Gösterilecek değişmiş yanıt yok. Tüm sorular için tam testi açın."
     }
   },
   "authoring": {
@@ -16834,5 +16862,105 @@
     "maintenanceEndHint": "İsteğe bağlı. Saat {zone} bölgesinde gösterilir ve UTC olarak saklanır. Yalnızca bilgi amaçlıdır; bakımı bir yönetici bitirmelidir.",
     "maintenanceEndInformational": "Bu tahmini bir süredir. Yönetici bakımı bitirdiğinde erişim açılır.",
     "invalidTime": "Geçerli bir yerel tarih ve saat seçin."
+  },
+  "evals": {
+    "resultTabs": {
+      "questions": "Yanıtlar",
+      "criteria": "Kontrol edilenler",
+      "performance": "Ayrıntılar",
+      "methodology": "Nasıl ölçüldü"
+    },
+    "resultSummary": "{fixed} doğrulanmış düzeltme · {broken} doğrulanmış gerileme",
+    "resultSides": "{baseline} → {candidate}",
+    "resultReruns": "Doğrulama tekrarları ({count})",
+    "resultFailed": "Yanıtları incele ({count})",
+    "resultNoCriteria": "Bu çalışma için henüz ölçüt ailesi sonuçları yok.",
+    "plain": {
+      "label": "Test özeti",
+      "single": "{cases} yanıtın {passed} tanesi geçti",
+      "worse": "Bazı yanıtlar kötüleşti",
+      "incomplete": "Bazı yanıtlar değerlendirilemedi",
+      "improved": "Güncellenen ajan daha iyi yanıtlıyor",
+      "requirements": "Yanıtlar daha fazla gereksiniminizi karşılıyor",
+      "unchanged": "Belirgin iyileşme yok",
+      "invalid": "Sonuçlar henüz karşılaştırılamıyor",
+      "tooFew": "Sürümleri karşılaştırmak için daha fazla bağımsız test sorusu ekleyin.",
+      "cannotCompare": "Bu testler karşılaştırılamaz. Nelerin değişmesi gerektiğini test ayrıntılarında görebilirsiniz.",
+      "changes": "{fixed} yanıt iyileşti · {broken} kötüleşti",
+      "singleBody": "{failed, plural, =0 {Yanlış yanıt bulunmadı.} other {# yanıt incelenmeli.}}",
+      "undecided": "{count, plural, other {# yanıt değerlendirilemedi.}}",
+      "unstable": "Bazı yanıtlar testler arasında değişti. İyileşmeleri doğrulanmadı.",
+      "details": "Test ayrıntıları",
+      "actions": "Diğer işlemler",
+      "expectation": "Beklenen yanıt ve değerlendirme kuralları",
+      "notCompared": "Henüz karşılaştırma yok",
+      "before": "Önce",
+      "after": "Sonra",
+      "partial": "Hangi yanıtların değerlendirilebildiğini aşağıda inceleyin.",
+      "overallWorseBody": "Hiçbir yanıt tutarlı biçimde kötüleşmese de genel kalite düştü.",
+      "requirementsBody": "Daha fazla gereksinim karşılandı, ancak bütünüyle düzelen bir yanıt doğrulanmadı.",
+      "reviewChanges": "Değişiklikleri incele",
+      "passedCount": "{cases} yanıttan {passed} tanesi geçti"
+    },
+    "cases": {
+      "answerState": {
+        "passed": "Geçti",
+        "failed": "İncelenmeli",
+        "undecided": "Puanlanmadı",
+        "incomplete": "Tamamlanamadı",
+        "pending": "Bekliyor"
+      },
+      "title": "{count, plural, other {# soru}}",
+      "outcome": {
+        "all": "Tüm yanıtlar",
+        "failed": "İncelenmeli"
+      },
+      "flip": {
+        "fixed": "{confirmed, select, true {İyileşti} other {İyileşmiş olabilir}}",
+        "regression": "{confirmed, select, true {Kötüleşti} other {Kötüleşmiş olabilir}}"
+      }
+    },
+    "workspace": {
+      "details": "Test yöntemi · ölçütler, maliyet ve ayrıntılar",
+      "answers": "Yanıtları inceleyin",
+      "answersHint": "Yanıtı ve değerlendirmesini görmek için bir soru açın."
+    }
+  },
+  "knowledgeGaps": {
+    "workspace": {
+      "draft": "Önerilen belge",
+      "evidence": "Neden gerekli ({count})",
+      "unsaved": "Kaydedilmemiş değişiklikler. Yeni bir sürüm oluşturmadan önce taslağı kaydedin.",
+      "discardTitle": "Kaydedilmemiş değişiklikler silinsin mi?",
+      "discardBody": "Bu belgedeki değişiklikler kaydedilmedi.",
+      "discard": "Değişiklikleri sil",
+      "keepEditing": "Düzenlemeye devam et",
+      "add": "Bilgi tabanına ekle",
+      "target": "Hedef: {name}",
+      "read": "Belgeyi oku",
+      "edit": "Belgeyi düzenle",
+      "searchDetails": "Bu soru neden işaretlendi?"
+    },
+    "draftCreated": "Taslak oluşturuldu: {time}"
+  },
+  "skillImprovement": {
+    "agents": {
+      "state": {
+        "unknown": "Doğrulanmadı"
+      },
+      "unknown": {
+        "too_few_questions": "Değişikliği doğrulamak için yeterli test sorusu yok. Kontrol edilen soru sayısı: {heldOut}."
+      },
+      "summary": {
+        "unknown": "{count} doğrulanmadı",
+        "better": "{count} iyileşti"
+      }
+    },
+    "workspace": {
+      "title": "Bu değişiklik ajanlarınız için ne anlama geliyor?",
+      "hint": "Beceriler paylaşılır. Değişikliğin uygulanması her ajana yardımcı olduğu anlamına gelmez.",
+      "agents": "Ajanlar üzerindeki etki",
+      "skillText": "Bu oturumda test edilen beceri"
+    }
   }
 }

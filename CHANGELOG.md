@@ -33,6 +33,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Rebuild eval and Improve results around saved changes, answer comparisons and per-agent impact. Reuse the console’s cards, compact question rows and list toolbars, keep record navigation above the result and technical context on demand, align page insets, open knowledge drafts for reading, and protect unsaved edits. Load reused baseline answers from their original evaluation run. Read agent results in one vertical flow; keep draft timestamps by their heading and remove the redundant copy control. Open the first attempt and the question review by default, and simplify historical Changes (#3186).
 - An eval run asks a case again only when it decides something: its whole outcome flipped, or a family of criteria flipped in it that moved on two cases or more and that an exact McNemar test over its own flipped cases cannot settle. A family settled by its own spread counts every flip it had, and one that moved on a single case decides nothing. Asking every case with any flipped criterion again had cost more than the first answers (#3178).
 - An Improve check settles families on its held-out cases apart from its training cases, as its verdict reads them, so a family that moved on two held-out cases is asked again there even when the whole run would settle it, and a reused baseline is asked those cases again too (#3178).
 - An unchanged draft baseline answers once per Improve session: a later check reuses the earlier check's baseline answers when the draft's fingerprint, the cases left out, the dataset version, model, scoring, environment and judge all match (#3178).
@@ -43,6 +44,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Drafting a knowledge-gap passage and a workflow's knowledge search now search
+  exactly the knowledge base that was checked. Both looked the base up again by
+  its collection name, which several bases of one organization can share, so
+  they could read passages from a same-named base the person or the run's
+  principal had no access to.
+- Serialize eval-answer gap classification with case-copy erasure, remove classifier manifests with the erased copies, and keep competing classifications consistent with their recorded misses.
+- Price automatically reused baselines and held-out-only checks consistently before budget gates; show the same expected cost on the evaluation start button and summary.
+- Rejudge skill checks by a stored rule version, report inaccessible rows as skipped, and recount only finished attempts under the session lock. Preserve indexed UUID lookups for judge costs.
+- Hide Add to dataset for eval-only knowledge topics, and count authoring context in Unicode code points so emoji do not cause false truncation.
+- **Cost estimates now include the confirming reruns.** An eval run, an Improve check and a skill check showed as their likely cost only the first answers, while a compared run asks about half of its cases again: on the Fernhill run, checks cost 2 to 3.6 times their estimate. The estimate adds `expected_usd`, the first answers and half of the rerun ceiling for a compared run, and the start dialog, a run's page, the Improve check's quote and a skill check show it with the most the step may cost. An Improve check no longer asks its training cases again, since nothing reads those reruns, and its ceiling counts its held-out cases alone. With no history on a model, an answer from an agent with tools is priced as `1 + EVAL_FALLBACK_TOOL_ROUNDS` requests (new, default 2) and a grading as a request that also reads the answer. (#3188).
+- **A skill's Improve session names what accepting it did.** Its status line read "Kept as draft", an agent session's label, for a change applied to the skill. It now says Applied, Made a fork, Caught up with main or Moved to main. A new `skill-checks-rejudge` command judges again, from their stored runs and with no model call, the agents of finished skill checks that an older rule judged: one kept before families shows them, and one kept before `too_few_questions` existed no longer says its run could not grade every answer. It also counts the judge's gradings in a session attempt that counted only its check's answers, and a skill check's cost now counts them, so a session's spend and budget include its judge. A decided check keeps its decision, and the group of agents with too few questions says so once, without any agent's counts (#3189).
+- **Improve finds missing knowledge in eval answers.** A session that learned from evals sorted no answer for missing knowledge, so it listed no topic even when the agent said the documents were silent: the sort read chat answers alone. Its failed training answers now go to the Knowledge gap classifier too, kept by the run that answered, and one the agent did not know becomes a question in the knowledge base's topics, listed at **Understand** and on the result. Such an answer stays in what the improver reads. A case's erased copies take the questions and verdicts read from its answers with them. The classifier also names what a miss read from an answer lacks, in a few words, and its topic is grouped and named by that - "Lead times by product" rather than one customer's question (#3190).
+
+
+
+- **Needs attention** on the dashboard and the agent list's badge no longer name the platform's
+  own agents (judges, drafters, generators, classifiers and the improver), whose pages do not
+  open; the link led to an unavailable page.
+
+- Drafting a knowledge-gap passage and a workflow's knowledge search now search
+  exactly the knowledge base that was checked. Both looked the base up again by
+  its collection name, which several bases of one organization can share, so
+  they could read passages from a same-named base the person or the run's
+  principal had no access to.
 - Serialize eval-answer gap classification with case-copy erasure, remove classifier manifests with the erased copies, and keep competing classifications consistent with their recorded misses.
 - Price automatically reused baselines and held-out-only checks consistently before budget gates; show the same expected cost on the evaluation start button and summary.
 - Rejudge skill checks by a stored rule version, report inaccessible rows as skipped, and recount only finished attempts under the session lock. Preserve indexed UUID lookups for judge costs.

@@ -278,6 +278,8 @@ them.
 
 ## Results { #results }
 
+The result leads with the outcome and the answers to review. A comparison shows the number of passing answers before and after. Open a question to read its response and grading. **How this was tested** keeps criterion-family results, cost and run mechanics on demand; opening those details keeps the answers visible. The outcome filter and selected question remain in the URL.
+
 Every attempt keeps the answer, the calls it made - each marked executed,
 blocked, replayed or divergent - every scorer's verdict and reason, its cost,
 its tokens and its latency. The answer and calls are copied onto the result,
