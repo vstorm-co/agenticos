@@ -488,6 +488,51 @@ actions as you, so the same checks apply: a changed agent refuses the
 acceptance, a guarded environment waits for its check, and the audit log records
 you, with the Architect's credential named beside you.
 
+### Searching many variants { #searching-many-variants }
+
+A session can search many versions of the agent's instructions instead of asking
+for one proposal per attempt. Choose **Search variants** when you start Improve,
+or post `mode: "search"` with `search` settings to the estimate and the start.
+Search needs at least ten training questions in the dataset. With fewer, the
+option is off and the API answers `422`.
+
+After **Understand**, the next step runs the search. The helper writes a few
+complete versions of the instructions at a time. Each version answers the same
+draw of the attempt's training questions, and its answers are graded. The helper
+then writes the next versions from the best ones and the questions they still
+fail. The search never reads the questions kept aside for the check.
+
+The search ends at its own budget, at its variant limit (`max_variants`, 40 by
+default), or after rounds that find nothing better (`patience`, 3 by default).
+The best variant that beats the current instructions comes to **Changes** as
+ordinary changes, and its check, result and acceptance work as for any attempt.
+A score from the search is the share of required checks passed on training
+questions. It is not a verdict. At **Changes**, before the check,
+`PUT /{run_id}/search/choice` with `variant_id` brings another of the three best
+variants instead. When no variant beats the current instructions, the session
+stops with `no_variant`.
+
+The search has its own budget, `search.budget_usd`, inside the session's limit,
+and the start estimate adds it and the check of the variant it finds to the
+total. A variant starts only while its estimate fits what is left. Each answer
+is capped at twice its share of that estimate, so the search can go over its
+budget by at most the one variant it was scoring. The session shows what the
+search spent apart from the rest.
+
+Only someone who could start the session - with edit access to the agent,
+`runs:view` and the right to run the dataset - reads the variants' text, which
+is written from the dataset's questions; anyone else sees the counts. A question
+a variant could not answer or have graded counts as failed. A search with no
+progress for an hour fails as stalled and can be retried.
+
+By default the dataset's judge grades the variants on its own model;
+`grading_model_profile_id` grades them on a cheaper or local model instead. The
+check after **Changes** always grades with the dataset's judge. A variant's
+answers are not eval runs: they appear neither on the Evals tab nor in
+comparisons, and the session shows what they cost. The search's jobs run one at a
+time per organization, without taking the slots of eval runs. Searching a
+skill's content is not available yet.
+
 ### Proposing a new skill { #proposing-a-new-skill }
 
 The assistant can propose **Worth creating a skill** when a reusable procedure appears in at least three distinct evidence answers. Each supporting passage must occur in the answer itself; reader comments alone do not establish a repeated procedure. The card shows its name, description, full body, rationale and verified evidence. A check binds a temporary skill to the candidate only: no skill row or published version is created.

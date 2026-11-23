@@ -1,5 +1,5 @@
 ---
-source_sha: "2bb144672ed8"
+source_sha: "efcf8f8ad81e"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -532,6 +532,57 @@ Sitzung, jeder weitere Schritt seinen eigenen Preis. Er ruft als Sie dieselben
 Aktionen wie der Assistent auf, daher gelten dieselben Prüfungen: Ein geänderter
 Agent lehnt die Übernahme ab, eine geschützte Umgebung wartet auf ihren Check,
 und das Audit-Log verzeichnet Sie, mit der Kennung des Architekten daneben.
+
+### Viele Varianten suchen { #searching-many-variants }
+
+Eine Sitzung kann viele Fassungen der Anweisungen des Agenten durchsuchen, statt
+pro Versuch um einen Vorschlag zu bitten. Wählen Sie beim Start von Verbessern
+**Varianten suchen**, oder senden Sie `mode: "search"` mit `search`-Einstellungen
+an die Schätzung und den Start. Die Suche braucht mindestens zehn
+Trainingsfragen im Dataset. Mit weniger ist die Option aus, und die API
+antwortet mit `422`.
+
+Nach **Verstehen** führt der nächste Schritt die Suche aus. Der Helfer schreibt
+jeweils einige vollständige Fassungen der Anweisungen. Jede Fassung beantwortet
+dieselbe Ziehung der Trainingsfragen des Versuchs, und ihre Antworten werden
+bewertet. Die nächsten Fassungen schreibt der Helfer aus den besten und den
+Fragen, an denen sie noch scheitern. Die Suche liest nie die Fragen, die für die
+Prüfung zurückgehalten werden.
+
+Die Suche endet an ihrem eigenen Budget, an ihrer Variantengrenze
+(`max_variants`, standardmäßig 40) oder nach Runden ohne bessere Variante
+(`patience`, standardmäßig 3). Die beste Variante, die besser abschneidet als die
+aktuellen Anweisungen, kommt als gewöhnliche Änderungen zu **Änderungen**, und
+ihre Prüfung, ihr Ergebnis und ihre Annahme laufen wie bei jedem Versuch. Ein
+Wert aus der Suche ist der Anteil erfüllter Pflichtkriterien an Trainingsfragen,
+kein Urteil. Bei **Änderungen**, vor der Prüfung, bringt
+`PUT /{run_id}/search/choice` mit `variant_id` stattdessen eine andere der drei
+besten Varianten. Schneidet keine Variante besser ab, hält die Sitzung mit
+`no_variant` an.
+
+Die Suche hat ein eigenes Budget, `search.budget_usd`, innerhalb des Limits der
+Sitzung, und die Schätzung beim Start rechnet es und die Prüfung der gefundenen
+Variante zur Summe. Eine Variante startet nur, solange ihre Schätzung in den
+Rest passt. Jede Antwort ist auf das Doppelte ihres Anteils an dieser Schätzung
+begrenzt, daher kann die Suche ihr Budget höchstens um die eine gerade bewertete
+Variante überschreiten. Die Sitzung zeigt die Ausgaben der Suche getrennt vom
+Rest.
+
+Den Text der Varianten, geschrieben aus den Fragen des Datasets, liest nur, wer
+die Sitzung starten könnte - mit Bearbeitungsrecht am Agenten, `runs:view` und
+dem Recht, das Dataset auszuführen; alle anderen sehen die Zahlen. Eine Frage,
+die eine Variante nicht beantworten oder nicht bewerten lassen konnte, gilt als
+nicht bestanden. Eine Suche ohne Fortschritt über eine Stunde schlägt als
+`stalled` fehl und kann erneut versucht werden.
+
+Standardmäßig bewertet der Bewerter des Datasets die Varianten auf seinem eigenen
+Modell; `grading_model_profile_id` bewertet sie stattdessen auf einem günstigeren
+oder lokalen Modell. Die Prüfung nach **Änderungen** bewertet immer der Bewerter
+des Datasets. Die Antworten
+einer Variante sind keine Eval-Runs: Sie erscheinen weder auf dem Tab **Evals**
+noch in Vergleichen, und die Sitzung zeigt, was sie gekostet haben. Die Jobs der
+Suche laufen einer nach dem anderen pro Organisation und belegen keine Plätze
+von Eval-Runs. Die Suche im Inhalt eines Skills ist noch nicht verfügbar.
 
 ### Einen neuen Skill vorschlagen { #proposing-a-new-skill }
 
